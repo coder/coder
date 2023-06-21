@@ -863,11 +863,11 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) (err er
 	var stdout, stderr io.Writer = fileWriter, fileWriter
 	if lifecycle == "startup" {
 		send, flushAndClose := agentsdk.StartupLogsSender(a.client.PatchStartupLogs, logger)
+		// If ctx is canceled here (or in a writer below), we may be
+		// discarding logs, but that's okay because we're shutting down
+		// anyway. We could consider creating a new context here if we
+		// want better control over flush during shutdown.
 		defer func() {
-			// If ctx is canceled here, we may be discarding logs, but
-			// that's okay because we're shutting down anyway. We could
-			// consider creating a new context here if we want to
-			// improve flush during shutdown.
 			if err := flushAndClose(ctx); err != nil {
 				logger.Warn(ctx, "flush startup logs failed", slog.Error(err))
 			}
