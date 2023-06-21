@@ -42,7 +42,7 @@ jobs:
         id: set_tags
         run: |
           set -euxo pipefail
-          echo "CODER_BASE_IMAGE_TAG=ghcr.io/coder/coder-preview:base-${{ steps.pr_number.outputs.PR_NUMBER }}" >> $GITHUB_ENV
+          echo "CODER_BASE_IMAGE_TAG=ghcr.io/coder/coder-preview-base:${{ steps.pr_number.outputs.PR_NUMBER }}" >> $GITHUB_ENV
           echo "CODER_IMAGE_TAG=ghcr.io/coder/coder-preview:${{ steps.pr_number.outputs.PR_NUMBER }}" >> $GITHUB_ENV
 
       # Comment on the PR
