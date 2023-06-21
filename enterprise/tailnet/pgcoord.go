@@ -1128,7 +1128,7 @@ func (h *heartbeats) listen(_ context.Context, msg []byte, err error) {
 }
 
 func (h *heartbeats) recvBeat(id uuid.UUID) {
-	h.logger.Debug(h.ctx, "got heartbeat", slog.F("heartbeat_from", id))
+	h.logger.Debug(h.ctx, "got heartbeat", slog.F("heartbeat_from_id", id))
 	h.lock.Lock()
 	defer h.lock.Unlock()
 	var oldestTime time.Time
