@@ -124,12 +124,12 @@ will echo whatever the request sends.
 
 These cross-origin headers are not configurable by administrative settings.
 
-Applications can set their own headers which will override the defaults but this
-will only apply to non-preflight requests. Preflight requests through the
-dashboard are never sent to applications and thus cannot be modified by
-them. Read more about the difference between simple requests and requests that
-trigger preflights
-[here](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#simple_requests).
+If applications set any of the above headers they will be stripped from the
+response except for `Vary` headers that are set to a value other than the ones
+listed above.
+
+In other words, CORS behavior through the dashboard is not currently
+configurable by either admins or users.
 
 #### Allowed by default
 
