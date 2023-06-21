@@ -13,6 +13,7 @@ env:
   CODER_BASE_IMAGE_TAG: ghcr.io/coder/coder-preview-base:pr${{ github.event.pull_request.number }}
   CODER_IMAGE_TAG: ghcr.io/coder/coder-preview:pr${{ github.event.pull_request.number }}
   PR_NUMBER: ${{ github.event.pull_request.number }}
+  REPO: ghcr.io/coder/coder-preview
 
 permissions:
   contents: read
@@ -77,20 +78,35 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: "Set up kubeconfig"
+        run: |
+          set -euxo pipefail
+          mkdir -p ~/.kube
+          echo "${{ secrets.DELIVERYBOT_KUBECONFIG }}" > ~/.kube/config
+          export KUBECONFIG=~/.kube/config
+
       - name: "Create PR namespace"
         run: |
           set -euxo pipefail
-          kubectl create namespace "pr${{ env.PR_NUMBER }}" --kubeconfig "${{ secrets.DELIVERYBOT_KUBECONFIG }}"
+          kubectl create namespace "pr${{ env.PR_NUMBER }}"
+
+      - name: Install Helm
+        uses: azure/setup-helm@v1
+
 
       - name: "Deploy"
-        uses: "deliverybot/helm@v1"
-        with:
-          release: "pr${{ env.PR_NUMBER }}"
-          namespace: "pr${{ env.PR_NUMBER  }}"
-          version: "{{ github.sha }}"
-          chart: "./helm"
-          token: "${{ secrets.GITHUB_TOKEN }}"
-          values: |
-            name: foobar
-        env:
-          KUBECONFIG_FILE: "${{ secrets.DELIVERYBOT_KUBECONFIG }}"
+        run: |
+          helm install ./helm --namespace "pr${{ env.PR_NUMBER }}" --set coder.image.repo=${{ env.REPO}} --set coder.image.tag=${{ env.PR_NUMBER }} --name "pr${{ env.PR_NUMBER }}" --wait
+
+      # - name: "Deploy"
+      #   uses: "deliverybot/helm@v1"
+      #   with:
+      #     release: "pr${{ env.PR_NUMBER }}"
+      #     namespace: "pr${{ env.PR_NUMBER  }}"
+      #     version: "{{ github.sha }}"
+      #     chart: "./helm"
+      #     token: "${{ secrets.GITHUB_TOKEN }}"
+      #     values: |
+      #       name: foobar
+      #   env:
+      #     KUBECONFIG_FILE: "${{ secrets.DELIVERYBOT_KUBECONFIG }}"
