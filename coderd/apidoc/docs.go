@@ -5738,9 +5738,6 @@ const docTemplate = `{
         "agentsdk.Manifest": {
             "type": "object",
             "properties": {
-                "allow_direct_connections": {
-                    "type": "boolean"
-                },
                 "apps": {
                     "type": "array",
                     "items": {
@@ -5752,6 +5749,9 @@ const docTemplate = `{
                 },
                 "directory": {
                     "type": "string"
+                },
+                "disable_direct_connections": {
+                    "type": "boolean"
                 },
                 "environment_variables": {
                     "type": "object",
@@ -7020,7 +7020,7 @@ const docTemplate = `{
         "codersdk.DERPConfig": {
             "type": "object",
             "properties": {
-                "disable_direct": {
+                "block_direct": {
                     "type": "boolean"
                 },
                 "path": {
@@ -9287,11 +9287,11 @@ const docTemplate = `{
         "codersdk.WorkspaceAgentConnectionInfo": {
             "type": "object",
             "properties": {
-                "allow_direct_connections": {
-                    "type": "boolean"
-                },
                 "derp_map": {
                     "$ref": "#/definitions/tailcfg.DERPMap"
+                },
+                "disable_direct_connections": {
+                    "type": "boolean"
                 }
             }
         },
