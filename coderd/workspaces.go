@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/coderd/wsbuilder"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/codersdk/agentsdk"
 )
 
 var (
@@ -486,7 +487,10 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	apiBuild, err := api.convertWorkspaceBuild(
 		*workspaceBuild,
 		workspace,
-		*provisionerJob,
+		database.GetProvisionerJobsByIDsWithQueuePositionRow{
+			ProvisionerJob: *provisionerJob,
+			QueuePosition:  0,
+		},
 		users,
 		[]database.WorkspaceResource{},
 		[]database.WorkspaceResourceMetadatum{},
@@ -1176,5 +1180,16 @@ func (api *API) publishWorkspaceUpdate(ctx context.Context, workspaceID uuid.UUI
 	if err != nil {
 		api.Logger.Warn(ctx, "failed to publish workspace update",
 			slog.F("workspace_id", workspaceID), slog.Error(err))
+	}
+}
+
+func (api *API) publishWorkspaceAgentStartupLogsUpdate(ctx context.Context, workspaceAgentID uuid.UUID, m agentsdk.StartupLogsNotifyMessage) {
+	b, err := json.Marshal(m)
+	if err != nil {
+		api.Logger.Warn(ctx, "failed to marshal startup logs notify message", slog.F("workspace_agent_id", workspaceAgentID), slog.Error(err))
+	}
+	err = api.Pubsub.Publish(agentsdk.StartupLogsNotifyChannel(workspaceAgentID), b)
+	if err != nil {
+		api.Logger.Warn(ctx, "failed to publish workspace agent startup logs update", slog.F("workspace_agent_id", workspaceAgentID), slog.Error(err))
 	}
 }

@@ -99,7 +99,22 @@ export const isAuthenticated = (data?: AuthData): data is AuthenticatedData =>
   data !== undefined && "user" in data
 
 const loadInitialAuthData = async (): Promise<AuthData> => {
-  const authenticatedUser = await API.getAuthenticatedUser()
+  let authenticatedUser: TypesGen.User | undefined
+  // User is injected by the Coder server into the HTML document.
+  const userMeta = document.querySelector("meta[property=user]")
+  if (userMeta) {
+    const rawContent = userMeta.getAttribute("content")
+    try {
+      authenticatedUser = JSON.parse(rawContent as string) as TypesGen.User
+    } catch (ex) {
+      // Ignore this and fetch as normal!
+    }
+  }
+
+  // If we have the user from the meta tag, we can skip this!
+  if (!authenticatedUser) {
+    authenticatedUser = await API.getAuthenticatedUser()
+  }
 
   if (authenticatedUser) {
     const permissions = (await API.checkAuthorization({

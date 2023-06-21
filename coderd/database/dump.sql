@@ -555,7 +555,8 @@ CREATE TABLE templates (
     allow_user_autostart boolean DEFAULT true NOT NULL,
     allow_user_autostop boolean DEFAULT true NOT NULL,
     failure_ttl bigint DEFAULT 0 NOT NULL,
-    inactivity_ttl bigint DEFAULT 0 NOT NULL
+    inactivity_ttl bigint DEFAULT 0 NOT NULL,
+    locked_ttl bigint DEFAULT 0 NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -673,6 +674,8 @@ CREATE TABLE workspace_agents (
     startup_logs_overflowed boolean DEFAULT false NOT NULL,
     subsystem workspace_agent_subsystem DEFAULT 'none'::workspace_agent_subsystem NOT NULL,
     startup_script_behavior startup_script_behavior DEFAULT 'non-blocking'::startup_script_behavior NOT NULL,
+    started_at timestamp with time zone,
+    ready_at timestamp with time zone,
     CONSTRAINT max_startup_logs_length CHECK ((startup_logs_length <= 1048576))
 );
 
@@ -699,6 +702,10 @@ COMMENT ON COLUMN workspace_agents.startup_logs_length IS 'Total length of start
 COMMENT ON COLUMN workspace_agents.startup_logs_overflowed IS 'Whether the startup logs overflowed in length';
 
 COMMENT ON COLUMN workspace_agents.startup_script_behavior IS 'When startup script behavior is non-blocking, the workspace will be ready and accessible upon agent connection, when it is blocking, workspace will wait for the startup script to complete before becoming ready and accessible.';
+
+COMMENT ON COLUMN workspace_agents.started_at IS 'The time the agent entered the starting lifecycle state';
+
+COMMENT ON COLUMN workspace_agents.ready_at IS 'The time the agent entered the ready or start_error lifecycle state';
 
 CREATE TABLE workspace_apps (
     id uuid NOT NULL,

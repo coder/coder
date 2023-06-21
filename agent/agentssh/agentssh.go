@@ -105,7 +105,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		metrics: metrics,
 	}
 
-	s.srv = &ssh.Server{
+	srv := &ssh.Server{
 		ChannelHandlers: map[string]ssh.ChannelHandler{
 			"direct-tcpip":                   ssh.DirectTCPIPHandler,
 			"direct-streamlocal@openssh.com": directStreamLocalHandler,
@@ -120,8 +120,8 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		LocalPortForwardingCallback: func(ctx ssh.Context, destinationHost string, destinationPort uint32) bool {
 			// Allow local port forwarding all!
 			s.logger.Debug(ctx, "local port forward",
-				slog.F("destination-host", destinationHost),
-				slog.F("destination-port", destinationPort))
+				slog.F("destination_host", destinationHost),
+				slog.F("destination_port", destinationPort))
 			return true
 		},
 		PtyCallback: func(ctx ssh.Context, pty ssh.Pty) bool {
@@ -130,8 +130,8 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		ReversePortForwardingCallback: func(ctx ssh.Context, bindHost string, bindPort uint32) bool {
 			// Allow reverse port forwarding all!
 			s.logger.Debug(ctx, "local port forward",
-				slog.F("bind-host", bindHost),
-				slog.F("bind-port", bindPort))
+				slog.F("bind_host", bindHost),
+				slog.F("bind_port", bindPort))
 			return true
 		},
 		RequestHandlers: map[string]ssh.RequestHandler{
@@ -149,9 +149,19 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		SubsystemHandlers: map[string]ssh.SubsystemHandler{
 			"sftp": s.sessionHandler,
 		},
-		MaxTimeout: maxTimeout,
 	}
 
+	// The MaxTimeout functionality has been substituted with the introduction of the KeepAlive feature.
+	// In cases where very short timeouts are set, the SSH server will automatically switch to the connection timeout for both read and write operations.
+	if maxTimeout >= 3*time.Second {
+		srv.ClientAliveCountMax = 3
+		srv.ClientAliveInterval = maxTimeout / time.Duration(srv.ClientAliveCountMax)
+		srv.MaxTimeout = 0
+	} else {
+		srv.MaxTimeout = maxTimeout
+	}
+
+	s.srv = srv
 	return s, nil
 }
 
@@ -170,14 +180,16 @@ func (s *Server) ConnStats() ConnStats {
 }
 
 func (s *Server) sessionHandler(session ssh.Session) {
+	logger := s.logger.With(slog.F("remote_addr", session.RemoteAddr()), slog.F("local_addr", session.LocalAddr()))
+	logger.Info(session.Context(), "handling ssh session")
+	ctx := session.Context()
 	if !s.trackSession(session, true) {
 		// See (*Server).Close() for why we call Close instead of Exit.
 		_ = session.Close()
+		logger.Info(ctx, "unable to accept new session, server is closing")
 		return
 	}
 	defer s.trackSession(session, false)
-
-	ctx := session.Context()
 
 	extraEnv := make([]string, 0)
 	x11, hasX11 := session.X11()
@@ -185,6 +197,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		handled := s.x11Handler(session.Context(), x11)
 		if !handled {
 			_ = session.Exit(1)
+			logger.Error(ctx, "x11 handler failed")
 			return
 		}
 		extraEnv = append(extraEnv, fmt.Sprintf("DISPLAY=:%d.0", x11.ScreenNumber))
@@ -196,7 +209,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		s.sftpHandler(session)
 		return
 	default:
-		s.logger.Debug(ctx, "unsupported subsystem", slog.F("subsystem", ss))
+		logger.Warn(ctx, "unsupported subsystem", slog.F("subsystem", ss))
 		_ = session.Exit(1)
 		return
 	}
@@ -204,17 +217,18 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	err := s.sessionStart(session, extraEnv)
 	var exitError *exec.ExitError
 	if xerrors.As(err, &exitError) {
-		s.logger.Warn(ctx, "ssh session returned", slog.Error(exitError))
+		logger.Info(ctx, "ssh session returned", slog.Error(exitError))
 		_ = session.Exit(exitError.ExitCode())
 		return
 	}
 	if err != nil {
-		s.logger.Warn(ctx, "ssh session failed", slog.Error(err))
+		logger.Warn(ctx, "ssh session failed", slog.Error(err))
 		// This exit code is designed to be unlikely to be confused for a legit exit code
 		// from the process.
 		_ = session.Exit(MagicSessionErrorCode)
 		return
 	}
+	logger.Info(ctx, "normal ssh session exit")
 	_ = session.Exit(0)
 }
 
@@ -327,7 +341,7 @@ func (s *Server) startPTYSession(session ptySession, magicTypeLabel string, cmd 
 		if manifest != nil {
 			err := showMOTD(session, manifest.MOTDFile)
 			if err != nil {
-				s.logger.Error(ctx, "show MOTD", slog.Error(err))
+				s.logger.Error(ctx, "agent failed to show MOTD", slog.Error(err))
 				s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "motd").Add(1)
 			}
 		} else {
@@ -396,7 +410,7 @@ func (s *Server) startPTYSession(session ptySession, magicTypeLabel string, cmd 
 	// ExitErrors just mean the command we run returned a non-zero exit code, which is normal
 	// and not something to be concerned about.  But, if it's something else, we should log it.
 	if err != nil && !xerrors.As(err, &exitErr) {
-		s.logger.Warn(ctx, "wait error", slog.Error(err))
+		s.logger.Warn(ctx, "process wait exited with error", slog.Error(err))
 		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "wait").Add(1)
 	}
 	if err != nil {
@@ -555,7 +569,12 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string)
 	return cmd, nil
 }
 
-func (s *Server) Serve(l net.Listener) error {
+func (s *Server) Serve(l net.Listener) (retErr error) {
+	s.logger.Info(context.Background(), "started serving listener", slog.F("listen_addr", l.Addr()))
+	defer func() {
+		s.logger.Info(context.Background(), "stopped serving listener",
+			slog.F("listen_addr", l.Addr()), slog.Error(retErr))
+	}()
 	defer l.Close()
 
 	s.trackListener(l, true)
@@ -570,15 +589,23 @@ func (s *Server) Serve(l net.Listener) error {
 }
 
 func (s *Server) handleConn(l net.Listener, c net.Conn) {
+	logger := s.logger.With(
+		slog.F("remote_addr", c.RemoteAddr()),
+		slog.F("local_addr", c.LocalAddr()),
+		slog.F("listen_addr", l.Addr()))
 	defer c.Close()
 
 	if !s.trackConn(l, c, true) {
 		// Server is closed or we no longer want
 		// connections from this listener.
-		s.logger.Debug(context.Background(), "received connection after server closed")
+		logger.Info(context.Background(), "received connection after server closed")
 		return
 	}
 	defer s.trackConn(l, c, false)
+	logger.Info(context.Background(), "started serving connection")
+	defer func() {
+		logger.Info(context.Background(), "stopped serving connection")
+	}()
 
 	s.srv.HandleConn(c)
 }

@@ -69,7 +69,7 @@ func logNotAuthorizedError(ctx context.Context, logger slog.Logger, err error) e
 			return &contextError
 		}
 		logger.Debug(ctx, "unauthorized",
-			slog.F("internal", internalError.Internal()),
+			slog.F("internal_error", internalError.Internal()),
 			slog.F("input", internalError.Input()),
 			slog.Error(err),
 		)
@@ -1108,6 +1108,11 @@ func (q *querier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) 
 	return q.db.GetProvisionerJobsByIDs(ctx, ids)
 }
 
+// TODO: we need to add a provisioner job resource
+func (q *querier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+	return q.db.GetProvisionerJobsByIDsWithQueuePosition(ctx, ids)
+}
+
 // TODO: We need to create a ProvisionerJob resource type
 func (q *querier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ProvisionerJob, error) {
 	// if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
@@ -1418,6 +1423,14 @@ func (q *querier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanc
 		return database.WorkspaceAgent{}, err
 	}
 	return agent, nil
+}
+
+func (q *querier) GetWorkspaceAgentLifecycleStateByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentLifecycleStateByIDRow, error) {
+	_, err := q.GetWorkspaceAgentByID(ctx, id)
+	if err != nil {
+		return database.GetWorkspaceAgentLifecycleStateByIDRow{}, err
+	}
+	return q.db.GetWorkspaceAgentLifecycleStateByID(ctx, id)
 }
 
 func (q *querier) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentMetadatum, error) {
@@ -2351,12 +2364,7 @@ func (q *querier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg da
 }
 
 func (q *querier) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg database.UpdateWorkspaceAgentLifecycleStateByIDParams) error {
-	agent, err := q.db.GetWorkspaceAgentByID(ctx, arg.ID)
-	if err != nil {
-		return err
-	}
-
-	workspace, err := q.db.GetWorkspaceByAgentID(ctx, agent.ID)
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.ID)
 	if err != nil {
 		return err
 	}

@@ -278,14 +278,39 @@ func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.R
 		}
 		level = append(level, parsedLevel)
 	}
-	logs, err := api.Database.InsertWorkspaceAgentStartupLogs(ctx, database.InsertWorkspaceAgentStartupLogsParams{
-		AgentID:      workspaceAgent.ID,
-		CreatedAt:    createdAt,
-		Output:       output,
-		Level:        level,
-		OutputLength: int32(outputLength),
-	})
+
+	var logs []database.WorkspaceAgentStartupLog
+	// Ensure logs are not written after script ended.
+	scriptEndedError := xerrors.New("startup script has ended")
+	err := api.Database.InTx(func(db database.Store) error {
+		state, err := db.GetWorkspaceAgentLifecycleStateByID(ctx, workspaceAgent.ID)
+		if err != nil {
+			return xerrors.Errorf("workspace agent startup script status: %w", err)
+		}
+
+		if state.ReadyAt.Valid {
+			// The agent startup script has already ended, so we don't want to
+			// process any more logs.
+			return scriptEndedError
+		}
+
+		logs, err = db.InsertWorkspaceAgentStartupLogs(ctx, database.InsertWorkspaceAgentStartupLogsParams{
+			AgentID:      workspaceAgent.ID,
+			CreatedAt:    createdAt,
+			Output:       output,
+			Level:        level,
+			OutputLength: int32(outputLength),
+		})
+		return err
+	}, nil)
 	if err != nil {
+		if errors.Is(err, scriptEndedError) {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Failed to upload logs, startup script has already ended.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 		if database.IsStartupLogsLimitError(err) {
 			if !workspaceAgent.StartupLogsOverflowed {
 				err := api.Database.UpdateWorkspaceAgentStartupLogOverflowByID(ctx, database.UpdateWorkspaceAgentStartupLogOverflowByIDParams{
@@ -332,6 +357,15 @@ func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.R
 		})
 		return
 	}
+
+	lowestLogID := logs[0].ID
+
+	// Publish by the lowest log ID inserted so the
+	// log stream will fetch everything from that point.
+	api.publishWorkspaceAgentStartupLogsUpdate(ctx, workspaceAgent.ID, agentsdk.StartupLogsNotifyMessage{
+		CreatedAfter: lowestLogID - 1,
+	})
+
 	if workspaceAgent.StartupLogsLength == 0 {
 		// If these are the first logs being appended, we publish a UI update
 		// to notify the UI that logs are now available.
@@ -356,26 +390,6 @@ func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.R
 		api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
 	}
 
-	lowestID := logs[0].ID
-	// Publish by the lowest log ID inserted so the
-	// log stream will fetch everything from that point.
-	data, err := json.Marshal(agentsdk.StartupLogsNotifyMessage{
-		CreatedAfter: lowestID - 1,
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to marshal startup logs notify message",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	err = api.Pubsub.Publish(agentsdk.StartupLogsNotifyChannel(workspaceAgent.ID), data)
-	if err != nil {
-		// We don't want to return an error to the agent here,
-		// otherwise it might try to reinsert the logs.
-		api.Logger.Warn(ctx, "failed to publish startup logs notify message", slog.Error(err))
-	}
-
 	httpapi.Write(ctx, rw, http.StatusOK, nil)
 }
 
@@ -391,17 +405,18 @@ func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.R
 // @Param before query int false "Before log id"
 // @Param after query int false "After log id"
 // @Param follow query bool false "Follow log stream"
+// @Param no_compression query bool false "Disable compression for WebSocket connection"
 // @Success 200 {array} codersdk.WorkspaceAgentStartupLog
 // @Router /workspaceagents/{workspaceagent}/startup-logs [get]
 func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Request) {
 	// This mostly copies how provisioner job logs are streamed!
 	var (
 		ctx            = r.Context()
-		actor, _       = dbauthz.ActorFromContext(ctx)
 		workspaceAgent = httpmw.WorkspaceAgentParam(r)
 		logger         = api.Logger.With(slog.F("workspace_agent_id", workspaceAgent.ID))
 		follow         = r.URL.Query().Has("follow")
 		afterRaw       = r.URL.Query().Get("after")
+		noCompression  = r.URL.Query().Has("no_compression")
 	)
 
 	var after int64
@@ -409,11 +424,11 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 	if afterRaw != "" {
 		var err error
 		after, err = strconv.ParseInt(afterRaw, 10, 64)
-		if err != nil {
+		if err != nil || after < 0 {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Query param \"after\" must be an integer.",
+				Message: "Query param \"after\" must be an integer greater than or equal to zero.",
 				Validations: []codersdk.ValidationError{
-					{Field: "after", Detail: "Must be an integer"},
+					{Field: "after", Detail: "Must be an integer greater than or equal to zero"},
 				},
 			})
 			return
@@ -439,7 +454,6 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 	}
 
 	if !follow {
-		logger.Debug(ctx, "Finished non-follow job logs")
 		httpapi.Write(ctx, rw, http.StatusOK, convertWorkspaceAgentStartupLogs(logs))
 		return
 	}
@@ -448,7 +462,21 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 	api.WebsocketWaitGroup.Add(1)
 	api.WebsocketWaitMutex.Unlock()
 	defer api.WebsocketWaitGroup.Done()
-	conn, err := websocket.Accept(rw, r, nil)
+
+	opts := &websocket.AcceptOptions{}
+
+	// Allow client to request no compression. This is useful for buggy
+	// clients or if there's a client/server incompatibility. This is
+	// needed with e.g. nhooyr/websocket and Safari (confirmed in 16.5).
+	//
+	// See:
+	// * https://github.com/nhooyr/websocket/issues/218
+	// * https://github.com/gobwas/ws/issues/169
+	if noCompression {
+		opts.CompressionMode = websocket.CompressionDisabled
+	}
+
+	conn, err := websocket.Accept(rw, r, opts)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to accept websocket.",
@@ -467,66 +495,37 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 	if err != nil {
 		return
 	}
-	if workspaceAgent.LifecycleState == database.WorkspaceAgentLifecycleStateReady {
-		// The startup script has finished running, so we can close the connection.
+
+	if workspaceAgent.ReadyAt.Valid {
+		// Fast path, the startup script has finished running, so we can close
+		// the connection.
+		return
+	}
+	if !codersdk.WorkspaceAgentLifecycle(workspaceAgent.LifecycleState).Starting() {
+		// Backwards compatibility: Avoid waiting forever in case this agent is
+		// older than the current release and has already reported the ready
+		// state.
 		return
 	}
 
-	var (
-		bufferedLogs  = make(chan []database.WorkspaceAgentStartupLog, 128)
-		endOfLogs     atomic.Bool
-		lastSentLogID atomic.Int64
-	)
-
-	sendLogs := func(logs []database.WorkspaceAgentStartupLog) {
-		select {
-		case bufferedLogs <- logs:
-			lastSentLogID.Store(logs[len(logs)-1].ID)
-		default:
-			logger.Warn(ctx, "workspace agent startup log overflowing channel")
-		}
+	lastSentLogID := after
+	if len(logs) > 0 {
+		lastSentLogID = logs[len(logs)-1].ID
 	}
 
-	closeSubscribe, err := api.Pubsub.Subscribe(
-		agentsdk.StartupLogsNotifyChannel(workspaceAgent.ID),
-		func(ctx context.Context, message []byte) {
-			if endOfLogs.Load() {
-				return
-			}
-			jlMsg := agentsdk.StartupLogsNotifyMessage{}
-			err := json.Unmarshal(message, &jlMsg)
-			if err != nil {
-				logger.Warn(ctx, "invalid startup logs notify message", slog.Error(err))
-				return
-			}
+	notifyCh := make(chan struct{}, 1)
+	// Allow us to immediately check if we missed any logs
+	// between initial fetch and subscribe.
+	notifyCh <- struct{}{}
 
-			if jlMsg.CreatedAfter != 0 {
-				logs, err := api.Database.GetWorkspaceAgentStartupLogsAfter(dbauthz.As(ctx, actor), database.GetWorkspaceAgentStartupLogsAfterParams{
-					AgentID:      workspaceAgent.ID,
-					CreatedAfter: jlMsg.CreatedAfter,
-				})
-				if err != nil {
-					logger.Warn(ctx, "failed to get workspace agent startup logs after", slog.Error(err))
-					return
-				}
-				sendLogs(logs)
-			}
-
-			if jlMsg.EndOfLogs {
-				endOfLogs.Store(true)
-				logs, err := api.Database.GetWorkspaceAgentStartupLogsAfter(dbauthz.As(ctx, actor), database.GetWorkspaceAgentStartupLogsAfterParams{
-					AgentID:      workspaceAgent.ID,
-					CreatedAfter: lastSentLogID.Load(),
-				})
-				if err != nil {
-					logger.Warn(ctx, "get workspace agent startup logs after", slog.Error(err))
-					return
-				}
-				sendLogs(logs)
-				bufferedLogs <- nil
-			}
-		},
-	)
+	// Subscribe early to prevent missing log events.
+	closeSubscribe, err := api.Pubsub.Subscribe(agentsdk.StartupLogsNotifyChannel(workspaceAgent.ID), func(_ context.Context, _ []byte) {
+		// The message is not important, we're tracking lastSentLogID manually.
+		select {
+		case notifyCh <- struct{}{}:
+		default:
+		}
+	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to subscribe to startup logs.",
@@ -536,15 +535,84 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 	}
 	defer closeSubscribe()
 
+	// Buffer size controls the log prefetch capacity.
+	bufferedLogs := make(chan []database.WorkspaceAgentStartupLog, 8)
+	// Check at least once per minute in case we didn't receive a pubsub message.
+	recheckInterval := time.Minute
+	t := time.NewTicker(recheckInterval)
+	defer t.Stop()
+
+	var state database.GetWorkspaceAgentLifecycleStateByIDRow
+	go func() {
+		defer close(bufferedLogs)
+
+		var err error
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+			case <-notifyCh:
+				t.Reset(recheckInterval)
+			}
+
+			if !state.ReadyAt.Valid {
+				state, err = api.Database.GetWorkspaceAgentLifecycleStateByID(ctx, workspaceAgent.ID)
+				if err != nil {
+					if xerrors.Is(err, context.Canceled) {
+						return
+					}
+					logger.Warn(ctx, "failed to get workspace agent lifecycle state", slog.Error(err))
+					continue
+				}
+			}
+
+			logs, err := api.Database.GetWorkspaceAgentStartupLogsAfter(ctx, database.GetWorkspaceAgentStartupLogsAfterParams{
+				AgentID:      workspaceAgent.ID,
+				CreatedAfter: lastSentLogID,
+			})
+			if err != nil {
+				if xerrors.Is(err, context.Canceled) {
+					return
+				}
+				logger.Warn(ctx, "failed to get workspace agent startup logs after", slog.Error(err))
+				continue
+			}
+			if len(logs) == 0 {
+				if state.ReadyAt.Valid {
+					return
+				}
+				continue
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+			case bufferedLogs <- logs:
+				lastSentLogID = logs[len(logs)-1].ID
+			}
+		}
+	}()
+	defer func() {
+		// Ensure that we don't return until the goroutine has exited.
+		//nolint:revive // Consume channel to wait until it's closed.
+		for range bufferedLogs {
+		}
+	}()
+
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Debug(context.Background(), "job logs context canceled")
+			logger.Debug(ctx, "job logs context canceled")
 			return
 		case logs, ok := <-bufferedLogs:
-			// A nil log is sent when complete!
-			if !ok || logs == nil {
-				logger.Debug(context.Background(), "reached the end of published logs")
+			if !ok {
+				select {
+				case <-ctx.Done():
+					logger.Debug(ctx, "job logs context canceled")
+				default:
+					logger.Debug(ctx, "reached the end of published logs")
+				}
 				return
 			}
 			err = encoder.Encode(convertWorkspaceAgentStartupLogs(logs))
@@ -917,7 +985,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 			if !xerrors.Is(err, context.Canceled) && !database.IsQueryCanceledError(err) {
 				api.Logger.Error(ctx, "failed to update agent disconnect time",
 					slog.Error(err),
-					slog.F("workspace", build.WorkspaceID),
+					slog.F("workspace_id", build.WorkspaceID),
 				)
 			}
 		}
@@ -931,7 +999,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 	}
 	api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
 
-	api.Logger.Info(ctx, "accepting agent",
+	api.Logger.Debug(ctx, "accepting agent",
 		slog.F("owner", owner.Username),
 		slog.F("workspace", workspace.Name),
 		slog.F("name", workspaceAgent.Name),
@@ -1116,6 +1184,8 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		Architecture:                 dbAgent.Architecture,
 		OperatingSystem:              dbAgent.OperatingSystem,
 		StartupScript:                dbAgent.StartupScript.String,
+		StartupScriptBehavior:        codersdk.WorkspaceAgentStartupScriptBehavior(dbAgent.StartupScriptBehavior),
+		StartupScriptTimeoutSeconds:  dbAgent.StartupScriptTimeoutSeconds,
 		StartupLogsLength:            dbAgent.StartupLogsLength,
 		StartupLogsOverflowed:        dbAgent.StartupLogsOverflowed,
 		Version:                      dbAgent.Version,
@@ -1127,8 +1197,6 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		TroubleshootingURL:           troubleshootingURL,
 		LifecycleState:               codersdk.WorkspaceAgentLifecycle(dbAgent.LifecycleState),
 		LoginBeforeReady:             dbAgent.StartupScriptBehavior != database.StartupScriptBehaviorBlocking,
-		StartupScriptBehavior:        codersdk.WorkspaceAgentStartupScriptBehavior(dbAgent.StartupScriptBehavior),
-		StartupScriptTimeoutSeconds:  dbAgent.StartupScriptTimeoutSeconds,
 		ShutdownScript:               dbAgent.ShutdownScript.String,
 		ShutdownScriptTimeoutSeconds: dbAgent.ShutdownScriptTimeoutSeconds,
 		Subsystem:                    codersdk.AgentSubsystem(dbAgent.Subsystem),
@@ -1164,6 +1232,13 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 	workspaceAgent.FirstConnectedAt = status.FirstConnectedAt
 	workspaceAgent.LastConnectedAt = status.LastConnectedAt
 	workspaceAgent.DisconnectedAt = status.DisconnectedAt
+
+	if dbAgent.StartedAt.Valid {
+		workspaceAgent.StartedAt = &dbAgent.StartedAt.Time
+	}
+	if dbAgent.ReadyAt.Valid {
+		workspaceAgent.ReadyAt = &dbAgent.ReadyAt.Time
+	}
 
 	return workspaceAgent, nil
 }
@@ -1206,8 +1281,8 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 
 	api.Logger.Debug(ctx, "read stats report",
 		slog.F("interval", api.AgentStatsRefreshInterval),
-		slog.F("agent", workspaceAgent.ID),
-		slog.F("workspace", workspace.ID),
+		slog.F("workspace_agent_id", workspaceAgent.ID),
+		slog.F("workspace_id", workspace.ID),
 		slog.F("payload", req),
 	)
 
@@ -1217,7 +1292,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 
 	payload, err := json.Marshal(req.ConnectionsByProto)
 	if err != nil {
-		api.Logger.Error(ctx, "marshal agent connections by proto", slog.F("workspace_agent", workspaceAgent.ID), slog.Error(err))
+		api.Logger.Error(ctx, "marshal agent connections by proto", slog.F("workspace_agent_id", workspaceAgent.ID), slog.Error(err))
 		payload = json.RawMessage("{}")
 	}
 
@@ -1349,8 +1424,8 @@ func (api *API) workspaceAgentPostMetadata(rw http.ResponseWriter, r *http.Reque
 
 	api.Logger.Debug(
 		ctx, "accepted metadata report",
-		slog.F("agent", workspaceAgent.ID),
-		slog.F("workspace", workspace.ID),
+		slog.F("workspace_agent_id", workspaceAgent.ID),
+		slog.F("workspace_id", workspace.ID),
 		slog.F("collected_at", datum.CollectedAt),
 		slog.F("key", datum.Key),
 	)
@@ -1526,29 +1601,57 @@ func (api *API) workspaceAgentReportLifecycle(rw http.ResponseWriter, r *http.Re
 		return
 	}
 
-	api.Logger.Debug(ctx, "workspace agent state report",
-		slog.F("agent", workspaceAgent.ID),
-		slog.F("workspace", workspace.ID),
+	logger := api.Logger.With(
+		slog.F("workspace_agent_id", workspaceAgent.ID),
+		slog.F("workspace_id", workspace.ID),
 		slog.F("payload", req),
 	)
+	logger.Debug(ctx, "workspace agent state report")
 
-	lifecycleState := database.WorkspaceAgentLifecycleState(req.State)
-	if !lifecycleState.Valid() {
+	lifecycleState := req.State
+	dbLifecycleState := database.WorkspaceAgentLifecycleState(lifecycleState)
+	if !dbLifecycleState.Valid() {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid lifecycle state.",
-			Detail:  fmt.Sprintf("Invalid lifecycle state %q, must be be one of %q.", req.State, database.AllWorkspaceAgentLifecycleStateValues()),
+			Detail:  fmt.Sprintf("Invalid lifecycle state %q, must be be one of %q.", lifecycleState, database.AllWorkspaceAgentLifecycleStateValues()),
 		})
 		return
 	}
 
+	if req.ChangedAt.IsZero() {
+		// Backwards compatibility with older agents.
+		req.ChangedAt = database.Now()
+	}
+	changedAt := sql.NullTime{Time: req.ChangedAt, Valid: true}
+
+	startedAt := workspaceAgent.StartedAt
+	readyAt := workspaceAgent.ReadyAt
+	switch lifecycleState {
+	case codersdk.WorkspaceAgentLifecycleStarting:
+		startedAt = changedAt
+		readyAt.Valid = false // This agent is re-starting, so it's not ready yet.
+	case codersdk.WorkspaceAgentLifecycleReady, codersdk.WorkspaceAgentLifecycleStartError:
+		readyAt = changedAt
+	}
+
 	err = api.Database.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
 		ID:             workspaceAgent.ID,
-		LifecycleState: lifecycleState,
+		LifecycleState: dbLifecycleState,
+		StartedAt:      startedAt,
+		ReadyAt:        readyAt,
 	})
 	if err != nil {
+		logger.Error(ctx, "failed to update lifecycle state", slog.Error(err))
 		httpapi.InternalServerError(rw, err)
 		return
 	}
+
+	if readyAt.Valid {
+		api.publishWorkspaceAgentStartupLogsUpdate(ctx, workspaceAgent.ID, agentsdk.StartupLogsNotifyMessage{
+			EndOfLogs: true,
+		})
+	}
+
 	api.publishWorkspaceUpdate(ctx, workspace.ID)
 
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)

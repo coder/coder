@@ -4,7 +4,6 @@ import { rest } from "msw"
 import { Language as FormLanguage } from "../../../components/CreateUserForm/CreateUserForm"
 import { Language as FooterLanguage } from "../../../components/FormFooter/FormFooter"
 import {
-  history,
   renderWithAuth,
   waitForLoaderToBeRemoved,
 } from "../../../testHelpers/renderHelpers"
@@ -41,10 +40,6 @@ const fillForm = async ({
 }
 
 describe("Create User Page", () => {
-  beforeEach(() => {
-    history.replace("/users/create")
-  })
-
   it("shows validation error message", async () => {
     await renderCreateUserPage()
     await fillForm({ email: "test" })

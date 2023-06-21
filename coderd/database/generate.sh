@@ -56,16 +56,5 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 	go mod download
 	go run golang.org/x/tools/cmd/goimports@latest -w queries.sql.go
 
-	# Generate enums (e.g. unique constraints).
-	go run gen/enum/main.go
-
-	# Generate the database fake!
-	go run gen/fake/main.go
-	go run golang.org/x/tools/cmd/goimports@latest -w ./dbfake/dbfake.go
-
-	go run gen/authz/main.go
-	go run golang.org/x/tools/cmd/goimports@latest -w ./dbauthz/dbauthz.go
-
-	go run gen/metrics/main.go
-	go run golang.org/x/tools/cmd/goimports@latest -w ./dbmetrics/dbmetrics.go
+	go run ../../scripts/dbgen/main.go
 )

@@ -339,7 +339,7 @@ func (c *coordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) 
 	for {
 		err := c.handleNextClientMessage(id, agent, decoder)
 		if err != nil {
-			logger.Debug(ctx, "unable to read client update; closed conn?", slog.Error(err))
+			logger.Debug(ctx, "unable to read client update, connection may be closed", slog.Error(err))
 			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) || errors.Is(err, context.Canceled) {
 				return nil
 			}
@@ -476,7 +476,7 @@ func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) error
 	for {
 		err := c.handleNextAgentMessage(id, decoder)
 		if err != nil {
-			logger.Debug(ctx, "unable to read agent update; closed conn?", slog.Error(err))
+			logger.Debug(ctx, "unable to read agent update, connection may be closed", slog.Error(err))
 			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) || errors.Is(err, context.Canceled) {
 				return nil
 			}

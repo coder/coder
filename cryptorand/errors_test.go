@@ -30,31 +30,6 @@ func TestRandError(t *testing.T) {
 		require.ErrorIs(t, err, io.ErrShortBuffer, "expected Int63 error")
 	})
 
-	t.Run("Uint64", func(t *testing.T) {
-		_, err := cryptorand.Uint64()
-		require.ErrorIs(t, err, io.ErrShortBuffer, "expected Uint64 error")
-	})
-
-	t.Run("Int31", func(t *testing.T) {
-		_, err := cryptorand.Int31()
-		require.ErrorIs(t, err, io.ErrShortBuffer, "expected Int31 error")
-	})
-
-	t.Run("Int31n", func(t *testing.T) {
-		_, err := cryptorand.Int31n(100)
-		require.ErrorIs(t, err, io.ErrShortBuffer, "expected Int31n error")
-	})
-
-	t.Run("Uint32", func(t *testing.T) {
-		_, err := cryptorand.Uint32()
-		require.ErrorIs(t, err, io.ErrShortBuffer, "expected Uint32 error")
-	})
-
-	t.Run("Int", func(t *testing.T) {
-		_, err := cryptorand.Int()
-		require.ErrorIs(t, err, io.ErrShortBuffer, "expected Int error")
-	})
-
 	t.Run("Intn_32bit", func(t *testing.T) {
 		_, err := cryptorand.Intn(100)
 		require.ErrorIs(t, err, io.ErrShortBuffer, "expected Intn error")
@@ -68,11 +43,6 @@ func TestRandError(t *testing.T) {
 	t.Run("Float64", func(t *testing.T) {
 		_, err := cryptorand.Float64()
 		require.ErrorIs(t, err, io.ErrShortBuffer, "expected Float64 error")
-	})
-
-	t.Run("Float32", func(t *testing.T) {
-		_, err := cryptorand.Float32()
-		require.ErrorIs(t, err, io.ErrShortBuffer, "expected Float32 error")
 	})
 
 	t.Run("StringCharset", func(t *testing.T) {

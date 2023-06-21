@@ -63,7 +63,6 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 	var (
 		currentStage          = "Queued"
 		currentStageStartedAt = time.Now().UTC()
-		didLogBetweenStage    = false
 
 		errChan  = make(chan error, 1)
 		job      codersdk.ProvisionerJob
@@ -71,27 +70,26 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 	)
 
 	printStage := func() {
-		_, _ = fmt.Fprintf(writer, DefaultStyles.Prompt.Render("⧗")+"%s\n", DefaultStyles.Field.Render(currentStage))
+		_, _ = fmt.Fprintf(writer, "==> ⧗ %s\n", currentStage)
 	}
 
 	updateStage := func(stage string, startedAt time.Time) {
 		if currentStage != "" {
-			prefix := ""
-			if !didLogBetweenStage {
-				prefix = "\033[1A\r"
-			}
-			mark := DefaultStyles.Checkmark
+			mark := "✔"
 			if job.CompletedAt != nil && job.Status != codersdk.ProvisionerJobSucceeded {
-				mark = DefaultStyles.Crossmark
+				mark = "✘"
 			}
-			_, _ = fmt.Fprintf(writer, prefix+mark.String()+DefaultStyles.Placeholder.Render(" %s [%dms]")+"\n", currentStage, startedAt.Sub(currentStageStartedAt).Milliseconds())
+			dur := startedAt.Sub(currentStageStartedAt).Milliseconds()
+			if dur < 0 {
+				dur = 0
+			}
+			_, _ = fmt.Fprintf(writer, "=== %s %s [%dms]\n", mark, currentStage, dur)
 		}
 		if stage == "" {
 			return
 		}
 		currentStage = stage
 		currentStageStartedAt = startedAt
-		didLogBetweenStage = false
 		printStage()
 	}
 
@@ -129,7 +127,7 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 					return
 				}
 			}
-			_, _ = fmt.Fprintf(writer, "\033[2K\r\n"+DefaultStyles.FocusedPrompt.String()+DefaultStyles.Bold.Render("Gracefully canceling...")+"\n\n")
+			_, _ = fmt.Fprintf(writer, DefaultStyles.FocusedPrompt.String()+DefaultStyles.Bold.Render("Gracefully canceling...")+"\n\n")
 			err := opts.Cancel()
 			if err != nil {
 				errChan <- xerrors.Errorf("cancel: %w", err)
@@ -222,10 +220,7 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 				jobMutex.Unlock()
 				continue
 			}
-			_, _ = fmt.Fprintf(logOutput, "%s %s\n", DefaultStyles.Placeholder.Render(" "), output)
-			if !opts.Silent {
-				didLogBetweenStage = true
-			}
+			_, _ = fmt.Fprintf(logOutput, "%s\n", output)
 			jobMutex.Unlock()
 		}
 	}

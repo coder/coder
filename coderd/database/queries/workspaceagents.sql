@@ -87,11 +87,24 @@ SET
 WHERE
 	id = $1;
 
+-- name: GetWorkspaceAgentLifecycleStateByID :one
+SELECT
+	lifecycle_state,
+	started_at,
+	ready_at
+FROM
+	workspace_agents
+WHERE
+	id = $1;
+
+
 -- name: UpdateWorkspaceAgentLifecycleStateByID :exec
 UPDATE
 	workspace_agents
 SET
-	lifecycle_state = $2
+	lifecycle_state = $2,
+	started_at = $3,
+	ready_at = $4
 WHERE
 	id = $1;
 

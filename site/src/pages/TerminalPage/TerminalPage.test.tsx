@@ -15,6 +15,7 @@ import {
 } from "../../testHelpers/renderHelpers"
 import { server } from "../../testHelpers/server"
 import TerminalPage, { Language } from "./TerminalPage"
+import * as API from "api/api"
 
 Object.defineProperty(window, "matchMedia", {
   writable: true,
@@ -63,6 +64,20 @@ const expectTerminalText = (container: HTMLElement, text: string) => {
 }
 
 describe("TerminalPage", () => {
+  it("loads the right workspace data", async () => {
+    const spy = jest
+      .spyOn(API, "getWorkspaceByOwnerAndName")
+      .mockResolvedValue(MockWorkspace)
+    await renderTerminal(`/${MockUser.username}/${MockWorkspace.name}/terminal`)
+    await waitFor(() => {
+      expect(API.getWorkspaceByOwnerAndName).toHaveBeenCalledWith(
+        MockUser.username,
+        MockWorkspace.name,
+      )
+    })
+    spy.mockRestore()
+  })
+
   it("shows an error if fetching workspace fails", async () => {
     // Given
     server.use(

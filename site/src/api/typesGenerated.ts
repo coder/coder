@@ -179,6 +179,7 @@ export interface CreateTemplateRequest {
   readonly allow_user_autostop?: boolean
   readonly failure_ttl_ms?: number
   readonly inactivity_ttl_ms?: number
+  readonly locked_ttl_ms?: number
   readonly disable_everyone_group_access: boolean
 }
 
@@ -606,6 +607,7 @@ export interface PrometheusConfig {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly address: any
   readonly collect_agent_stats: boolean
+  readonly collect_db_metrics: boolean
 }
 
 // From codersdk/deployment.go
@@ -639,6 +641,8 @@ export interface ProvisionerJob {
   readonly worker_id?: string
   readonly file_id: string
   readonly tags: Record<string, string>
+  readonly queue_position: number
+  readonly queue_size: number
 }
 
 // From codersdk/provisionerdaemons.go
@@ -804,6 +808,7 @@ export interface Template {
   readonly allow_user_cancel_workspace_jobs: boolean
   readonly failure_ttl_ms: number
   readonly inactivity_ttl_ms: number
+  readonly locked_ttl_ms: number
 }
 
 // From codersdk/templates.go
@@ -971,6 +976,7 @@ export interface UpdateTemplateMeta {
   readonly allow_user_cancel_workspace_jobs?: boolean
   readonly failure_ttl_ms?: number
   readonly inactivity_ttl_ms?: number
+  readonly locked_ttl_ms?: number
 }
 
 // From codersdk/users.go
@@ -1076,6 +1082,8 @@ export interface WorkspaceAgent {
   readonly first_connected_at?: string
   readonly last_connected_at?: string
   readonly disconnected_at?: string
+  readonly started_at?: string
+  readonly ready_at?: string
   readonly status: WorkspaceAgentStatus
   readonly lifecycle_state: WorkspaceAgentLifecycle
   readonly name: string
@@ -1085,6 +1093,8 @@ export interface WorkspaceAgent {
   readonly environment_variables: Record<string, string>
   readonly operating_system: string
   readonly startup_script?: string
+  readonly startup_script_behavior: WorkspaceAgentStartupScriptBehavior
+  readonly startup_script_timeout_seconds: number
   readonly startup_logs_length: number
   readonly startup_logs_overflowed: boolean
   readonly directory?: string
@@ -1095,8 +1105,6 @@ export interface WorkspaceAgent {
   readonly connection_timeout_seconds: number
   readonly troubleshooting_url: string
   readonly login_before_ready: boolean
-  readonly startup_script_behavior: WorkspaceAgentStartupScriptBehavior
-  readonly startup_script_timeout_seconds: number
   readonly shutdown_script?: string
   readonly shutdown_script_timeout_seconds: number
   readonly subsystem: AgentSubsystem

@@ -972,6 +972,21 @@ func (mr *MockStoreMockRecorder) GetProvisionerJobsByIDs(arg0, arg1 interface{})
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerJobsByIDs", reflect.TypeOf((*MockStore)(nil).GetProvisionerJobsByIDs), arg0, arg1)
 }
 
+// GetProvisionerJobsByIDsWithQueuePosition mocks base method.
+func (m *MockStore) GetProvisionerJobsByIDsWithQueuePosition(arg0 context.Context, arg1 []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetProvisionerJobsByIDsWithQueuePosition", arg0, arg1)
+	ret0, _ := ret[0].([]database.GetProvisionerJobsByIDsWithQueuePositionRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetProvisionerJobsByIDsWithQueuePosition indicates an expected call of GetProvisionerJobsByIDsWithQueuePosition.
+func (mr *MockStoreMockRecorder) GetProvisionerJobsByIDsWithQueuePosition(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerJobsByIDsWithQueuePosition", reflect.TypeOf((*MockStore)(nil).GetProvisionerJobsByIDsWithQueuePosition), arg0, arg1)
+}
+
 // GetProvisionerJobsCreatedAfter mocks base method.
 func (m *MockStore) GetProvisionerJobsCreatedAfter(arg0 context.Context, arg1 time.Time) ([]database.ProvisionerJob, error) {
 	m.ctrl.T.Helper()
@@ -1495,6 +1510,21 @@ func (m *MockStore) GetWorkspaceAgentByInstanceID(arg0 context.Context, arg1 str
 func (mr *MockStoreMockRecorder) GetWorkspaceAgentByInstanceID(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentByInstanceID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentByInstanceID), arg0, arg1)
+}
+
+// GetWorkspaceAgentLifecycleStateByID mocks base method.
+func (m *MockStore) GetWorkspaceAgentLifecycleStateByID(arg0 context.Context, arg1 uuid.UUID) (database.GetWorkspaceAgentLifecycleStateByIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentLifecycleStateByID", arg0, arg1)
+	ret0, _ := ret[0].(database.GetWorkspaceAgentLifecycleStateByIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceAgentLifecycleStateByID indicates an expected call of GetWorkspaceAgentLifecycleStateByID.
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentLifecycleStateByID(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentLifecycleStateByID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentLifecycleStateByID), arg0, arg1)
 }
 
 // GetWorkspaceAgentMetadata mocks base method.
