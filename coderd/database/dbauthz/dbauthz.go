@@ -779,7 +779,6 @@ func (q *querier) DeleteUserOauthMergeStates(ctx context.Context, userID uuid.UU
 	return q.db.DeleteUserOauthMergeStates(ctx, userID)
 }
 
-
 func (q *querier) DeleteTailnetAgent(ctx context.Context, arg database.DeleteTailnetAgentParams) (database.DeleteTailnetAgentRow, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTailnetCoordinator); err != nil {
 		return database.DeleteTailnetAgentRow{}, err
