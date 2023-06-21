@@ -4,6 +4,9 @@ on:
   pull_request:
     types: [closed]
 
+permissions:
+  packages: write
+
 jobs:
   pr-close:
     runs-on: "ubuntu-latest"
@@ -12,12 +15,18 @@ jobs:
         run: |
           kubectl delete namespace "pr${{ github.event.pull_request.number }}" --kubeconfig "${{ secrets.DELIVERYBOT_KUBECONFIG }}"
 
+      - name: Delete base image
+        uses: bots-house/ghcr-delete-image-action@v1.1.0
+        with:
+          owner: coder
+          name: coder-preview-base
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: pr${{github.event.pull_request.number}}
+
       - name: Delete image
         uses: bots-house/ghcr-delete-image-action@v1.1.0
         with:
-          # NOTE: at now only orgs is supported
-          owner: bots-house
-          name: some-web-service
-          # NOTE: using Personal Access Token
+          owner: coder
+          name: coder-preview
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: pr${{github.event.pull_request.number}}
