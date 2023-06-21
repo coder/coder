@@ -787,53 +787,6 @@ func TestExecutorFailedWorkspace(t *testing.T) {
 		// Expect no transitions since not enough time has elapsed.
 		require.Len(t, stats.Transitions, 0)
 	})
-
-	t.Run("StuckJob", func(t *testing.T) {
-		t.Parallel()
-
-		var (
-			ctx    = testutil.Context(t, testutil.WaitMedium)
-			ticker = make(chan time.Time)
-			statCh = make(chan autobuild.Stats)
-			logger = slogtest.Make(t, &slogtest.Options{
-				// We ignore errors here since we expect to fail
-				// builds.
-				IgnoreErrors: true,
-			})
-			failureTTL     = time.Hour
-			client, _, api = coderdtest.NewWithAPI(t, &coderdtest.Options{
-				Logger:                   &logger,
-				AutobuildTicker:          ticker,
-				IncludeProvisionerDaemon: true,
-				AutobuildStats:           statCh,
-				TemplateScheduleStore:    mockEnterpriseTemplateScheduler(t),
-			})
-		)
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.ProvisionComplete,
-			ProvisionApply: echo.ProvisionFailed,
-		})
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.FailureTTLMillis = ptr.Ref[int64](failureTTL.Milliseconds())
-		})
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		build := coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
-
-		// Emulate a stuck job.
-		err := api.Database.UpdateProvisionerJobByID(ctx, database.UpdateProvisionerJobByIDParams{
-			ID:        build.Job.ID,
-			UpdatedAt: database.Now().Add(-time.Hour),
-		})
-		require.NoError(t, err)
-		ticker <- time.Now()
-		stats := <-statCh
-		// Expect a transition since we should detect that the job stopped
-		// updating.
-		require.Len(t, stats.Transitions, 1)
-	})
 }
 
 func mustProvisionWorkspace(t *testing.T, client *codersdk.Client, mut ...func(*codersdk.CreateWorkspaceRequest)) codersdk.Workspace {

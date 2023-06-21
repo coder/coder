@@ -216,7 +216,7 @@ func getNextTransition(
 		return database.WorkspaceTransitionStop, database.BuildReasonAutostop, nil
 	case isEligibleForAutostart(ws, latestBuild, latestJob, templateSchedule, currentTick):
 		return database.WorkspaceTransitionStart, database.BuildReasonAutostart, nil
-	case isEligibleForFailedStop(latestJob, templateSchedule):
+	case isEligibleForFailedStop(latestBuild, latestJob, templateSchedule):
 		return database.WorkspaceTransitionStop, database.BuildReasonAutostop, nil
 	default:
 		return "", "", xerrors.Errorf("last transition not valid for autostart or autostop")
@@ -269,15 +269,14 @@ func isEligibleForAutostop(build database.WorkspaceBuild, job database.Provision
 
 // isEligibleForFailedStop returns true if the workspace is eligible to be stopped
 // due to a failed build.
-func isEligibleForFailedStop(job database.ProvisionerJob, templateSchedule schedule.TemplateScheduleOptions) bool {
+func isEligibleForFailedStop(build database.WorkspaceBuild, job database.ProvisionerJob, templateSchedule schedule.TemplateScheduleOptions) bool {
 	// If the template has specified a failure TLL.
 	return templateSchedule.FailureTTL > 0 &&
 		// And the job resulted in failure.
 		db2sdk.ProvisionerJobStatus(job) == codersdk.ProvisionerJobFailed &&
+		build.Transition == database.WorkspaceTransitionStart &&
 		// And sufficient time has elapsed since the job has completed.
 		(job.CompletedAt.Valid && database.Now().Sub(job.CompletedAt.Time) > templateSchedule.FailureTTL ||
 			// Or sufficient time has elapsed since the job was canceled.
-			job.CanceledAt.Valid && database.Now().Sub(job.CanceledAt.Time) > templateSchedule.FailureTTL ||
-			// Or the job is stuck/abandoned.
-			database.Now().Sub(job.UpdatedAt) > 30*time.Second)
+			job.CanceledAt.Valid && database.Now().Sub(job.CanceledAt.Time) > templateSchedule.FailureTTL)
 }
