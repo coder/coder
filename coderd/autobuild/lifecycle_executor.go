@@ -142,7 +142,6 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					log.Warn(e.ctx, "get latest workspace build", slog.Error(err))
 					return nil
 				}
-
 				templateSchedule, err := (*(e.templateScheduleStore.Load())).GetTemplateScheduleOptions(e.ctx, tx, ws.TemplateID)
 				if err != nil {
 					log.Warn(e.ctx, "get template schedule options", slog.Error(err))
