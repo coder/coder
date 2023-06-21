@@ -42,7 +42,7 @@ func TestDetectorNoJobs(t *testing.T) {
 
 	stats := <-statsCh
 	require.NoError(t, stats.Error)
-	require.Empty(t, stats.HungJobIDs)
+	require.Empty(t, stats.TerminatedJobIDs)
 
 	detector.Close()
 	detector.Wait()
@@ -89,7 +89,7 @@ func TestDetectorNoHungJobs(t *testing.T) {
 
 	stats := <-statsCh
 	require.NoError(t, stats.Error)
-	require.Empty(t, stats.HungJobIDs)
+	require.Empty(t, stats.TerminatedJobIDs)
 
 	detector.Close()
 	detector.Wait()
@@ -177,8 +177,8 @@ func TestDetectorHungWorkspaceBuild(t *testing.T) {
 
 	stats := <-statsCh
 	require.NoError(t, stats.Error)
-	require.Len(t, stats.HungJobIDs, 1)
-	require.Equal(t, currentWorkspaceBuildJob.ID, stats.HungJobIDs[0])
+	require.Len(t, stats.TerminatedJobIDs, 1)
+	require.Equal(t, currentWorkspaceBuildJob.ID, stats.TerminatedJobIDs[0])
 
 	// Check that the current provisioner job was updated.
 	job, err := db.GetProvisionerJobByID(ctx, currentWorkspaceBuildJob.ID)
@@ -282,8 +282,8 @@ func TestDetectorHungWorkspaceBuildNoOverrideState(t *testing.T) {
 
 	stats := <-statsCh
 	require.NoError(t, stats.Error)
-	require.Len(t, stats.HungJobIDs, 1)
-	require.Equal(t, currentWorkspaceBuildJob.ID, stats.HungJobIDs[0])
+	require.Len(t, stats.TerminatedJobIDs, 1)
+	require.Equal(t, currentWorkspaceBuildJob.ID, stats.TerminatedJobIDs[0])
 
 	// Check that the current provisioner job was updated.
 	job, err := db.GetProvisionerJobByID(ctx, currentWorkspaceBuildJob.ID)
@@ -358,8 +358,8 @@ func TestDetectorHungWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T
 
 	stats := <-statsCh
 	require.NoError(t, stats.Error)
-	require.Len(t, stats.HungJobIDs, 1)
-	require.Equal(t, currentWorkspaceBuildJob.ID, stats.HungJobIDs[0])
+	require.Len(t, stats.TerminatedJobIDs, 1)
+	require.Equal(t, currentWorkspaceBuildJob.ID, stats.TerminatedJobIDs[0])
 
 	// Check that the current provisioner job was updated.
 	job, err := db.GetProvisionerJobByID(ctx, currentWorkspaceBuildJob.ID)
@@ -443,9 +443,9 @@ func TestDetectorHungOtherJobTypes(t *testing.T) {
 
 	stats := <-statsCh
 	require.NoError(t, stats.Error)
-	require.Len(t, stats.HungJobIDs, 2)
-	require.Contains(t, stats.HungJobIDs, templateImportJob.ID)
-	require.Contains(t, stats.HungJobIDs, templateDryRunJob.ID)
+	require.Len(t, stats.TerminatedJobIDs, 2)
+	require.Contains(t, stats.TerminatedJobIDs, templateImportJob.ID)
+	require.Contains(t, stats.TerminatedJobIDs, templateDryRunJob.ID)
 
 	// Check that the template import job was updated.
 	job, err := db.GetProvisionerJobByID(ctx, templateImportJob.ID)
@@ -580,8 +580,8 @@ func TestDetectorPushesLogs(t *testing.T) {
 
 			stats := <-statsCh
 			require.NoError(t, stats.Error)
-			require.Len(t, stats.HungJobIDs, 1)
-			require.Contains(t, stats.HungJobIDs, templateImportJob.ID)
+			require.Len(t, stats.TerminatedJobIDs, 1)
+			require.Contains(t, stats.TerminatedJobIDs, templateImportJob.ID)
 
 			after := <-pubsubCalled
 
@@ -612,4 +612,58 @@ func TestDetectorPushesLogs(t *testing.T) {
 			detector.Wait()
 		})
 	}
+}
+
+func TestDetectorMaxJobsPerRun(t *testing.T) {
+	t.Parallel()
+
+	var (
+		ctx        = testutil.Context(t, testutil.WaitLong)
+		db, pubsub = dbtestutil.NewDB(t)
+		log        = slogtest.Make(t, nil)
+		tickCh     = make(chan time.Time)
+		statsCh    = make(chan unhanger.Stats)
+		org        = dbgen.Organization(t, db, database.Organization{})
+		user       = dbgen.User(t, db, database.User{})
+		file       = dbgen.File(t, db, database.File{})
+	)
+
+	// Create unhanger.MaxJobsPerRun + 1 hung jobs.
+	now := time.Now()
+	for i := 0; i < unhanger.MaxJobsPerRun+1; i++ {
+		dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+			CreatedAt: now.Add(-time.Hour),
+			UpdatedAt: now.Add(-time.Hour),
+			StartedAt: sql.NullTime{
+				Time:  now.Add(-time.Hour),
+				Valid: true,
+			},
+			OrganizationID: org.ID,
+			InitiatorID:    user.ID,
+			Provisioner:    database.ProvisionerTypeEcho,
+			StorageMethod:  database.ProvisionerStorageMethodFile,
+			FileID:         file.ID,
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			Input:          []byte("{}"),
+		})
+	}
+
+	detector := unhanger.New(ctx, db, pubsub, log, tickCh).WithStatsChannel(statsCh)
+	detector.Start()
+	tickCh <- now
+
+	// Make sure that only unhanger.MaxJobsPerRun jobs are terminated.
+	stats := <-statsCh
+	require.NoError(t, stats.Error)
+	require.Len(t, stats.TerminatedJobIDs, unhanger.MaxJobsPerRun)
+
+	// Run the detector again and make sure that only the remaining job is
+	// terminated.
+	tickCh <- now
+	stats = <-statsCh
+	require.NoError(t, stats.Error)
+	require.Len(t, stats.TerminatedJobIDs, 1)
+
+	detector.Close()
+	detector.Wait()
 }
