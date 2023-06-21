@@ -1161,11 +1161,11 @@ func (h *heartbeats) checkExpiry() {
 	expired := false
 	for id, t := range h.coordinators {
 		lastHB := now.Sub(t)
-		h.logger.Debug(h.ctx, "last heartbeat from coordinator", slog.F("other_coordinator", id), slog.F("last heartbeat", lastHB))
+		h.logger.Debug(h.ctx, "last heartbeat from coordinator", slog.F("other_coordinator", id), slog.F("last_heartbeat", lastHB))
 		if lastHB > MissedHeartbeats*HeartbeatPeriod {
 			expired = true
 			delete(h.coordinators, id)
-			h.logger.Info(h.ctx, "coordinator failed heartbeat check", slog.F("other_coordinator", id), slog.F("last heartbeat", lastHB))
+			h.logger.Info(h.ctx, "coordinator failed heartbeat check", slog.F("other_coordinator", id), slog.F("last_heartbeat", lastHB))
 		}
 	}
 	h.lock.Unlock()
