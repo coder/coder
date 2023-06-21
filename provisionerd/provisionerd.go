@@ -333,7 +333,7 @@ func (p *Server) acquireJob(ctx context.Context) {
 			return
 		}
 
-		p.opts.Logger.Warn(ctx, "provisionerd can't acquire job", slog.Error(err))
+		p.opts.Logger.Warn(ctx, "provisionerd was unable to acquire job", slog.Error(err))
 		return
 	}
 	if job.JobId == "" {

@@ -125,7 +125,7 @@ func (r *remoteReporter) reportSync(snapshot *Snapshot) {
 	}
 	req, err := http.NewRequestWithContext(r.ctx, "POST", r.snapshotURL.String(), bytes.NewReader(data))
 	if err != nil {
-		r.options.Logger.Error(r.ctx, "can't create snapshot request", slog.Error(err))
+		r.options.Logger.Error(r.ctx, "unable to create snapshot request", slog.Error(err))
 		return
 	}
 	req.Header.Set(VersionHeader, buildinfo.Version())
@@ -208,7 +208,7 @@ func (r *remoteReporter) reportWithDeployment() {
 		return
 	}
 	if err != nil {
-		r.options.Logger.Error(r.ctx, "can't create deployment snapshot", slog.Error(err))
+		r.options.Logger.Error(r.ctx, "unable to create deployment snapshot", slog.Error(err))
 		return
 	}
 	r.reportSync(snapshot)
