@@ -24,32 +24,8 @@ const proxyLatenciesReducer = (
   state: Record<string, ProxyLatencyReport>,
   action: ProxyLatencyAction,
 ): Record<string, ProxyLatencyReport> => {
-  // TODO: We should probably not read from local storage on every action.
-  const history = loadStoredLatencies()
-  const proxyHistory = history[action.proxyID] || []
-  const minReport = proxyHistory.reduce((min, report) => {
-    if (min.latencyMS === 0) {
-      // Not yet set, so use the new report.
-      return report
-    }
-    if (min.latencyMS < report.latencyMS) {
-      return min
-    }
-    return report
-  }, {} as ProxyLatencyReport)
-
-  if (
-    minReport.latencyMS > 0 &&
-    minReport.latencyMS < action.report.latencyMS
-  ) {
-    // The new report is slower then the min report, so use the min report.
-    return {
-      ...state,
-      [action.proxyID]: minReport,
-    }
-  }
-
-  // Use the new report
+  // Always return the new report. We have some saved latencies, but until we have a better
+  // way to utilize them, we will ignore them for all practical purposes.
   return {
     ...state,
     [action.proxyID]: action.report,
@@ -65,7 +41,7 @@ export const useProxyLatency = (
   proxyLatencies: Record<string, ProxyLatencyReport>
 } => {
   // maxStoredLatencies is the maximum number of latencies to store per proxy in local storage.
-  let maxStoredLatencies = 8
+  let maxStoredLatencies = 1
   // The reason we pull this from local storage is so for development purposes, a user can manually
   // set a larger number to collect data in their normal usage. This data can later be analyzed to come up
   // with some better magic numbers.
