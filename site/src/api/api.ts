@@ -120,11 +120,13 @@ export const convertToOauth = async (
   })
 
   try {
-    const response = await axios.post<TypesGen.OauthConversionResponse>("/api/v2/users/convert-login",
-    payload,
-    {
-      headers: { ...CONTENT_TYPE_JSON },
-    })
+    const response = await axios.post<TypesGen.OauthConversionResponse>(
+      "/api/v2/users/convert-login",
+      payload,
+      {
+        headers: { ...CONTENT_TYPE_JSON },
+      },
+    )
     return response.data
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 401) {

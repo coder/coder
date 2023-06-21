@@ -372,9 +372,7 @@ type GithubOAuth2Config struct {
 // @Success 200 {object} codersdk.AuthMethods
 // @Router /users/authmethods [get]
 func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
-	var (
-		key, ok = httpmw.APIKeyOptional(r)
-	)
+	key, ok := httpmw.APIKeyOptional(r)
 	var currentUserLoginType codersdk.LoginType
 	if ok {
 		user, err := api.Database.GetUserByID(r.Context(), key.UserID)

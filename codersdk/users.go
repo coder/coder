@@ -112,9 +112,9 @@ type LoginWithPasswordResponse struct {
 
 type OauthConversionResponse struct {
 	StateString string    `json:"state_string"`
-	ExpiresAt   time.Time `json:"expires_at"`
+	ExpiresAt   time.Time `json:"expires_at" format:"date-time"`
 	ToLoginType LoginType `json:"to_login_type"`
-	UserID      uuid.UUID `json:"user_id"`
+	UserID      uuid.UUID `json:"user_id" format:"uuid"`
 }
 
 type CreateOrganizationRequest struct {
