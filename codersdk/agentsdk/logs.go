@@ -52,7 +52,7 @@ func (w *startupLogsWriter) Write(p []byte) (int, error) {
 	if len(p) > 0 {
 		_, err := w.buf.Write(p)
 		if err != nil {
-			return n, err
+			return n - len(p), err
 		}
 	}
 	return n, nil
