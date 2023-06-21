@@ -2,11 +2,13 @@
 name: Deploy PR
 on:
   deployment:
-  pull_request:
-    types: [opened, synchronize, ready_for_review]
+  # pull_request:
+  #   types: [opened, synchronize, ready_for_review]
   workflow_dispatch:
   # push:
   #   branches-ignore: main
+  issue_comment:
+    types: [created, edited]
 
 env:
   # This is the version of the release. It is used to tag the Docker images.
@@ -24,7 +26,25 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  pr_commented:
+    if: ${{ github.event.issue.pull_request }} && contains(github.event.comment.body, '/review-pr')
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: Get PR number
+        id: pr_number
+        run: echo "::set-output name=number::$(echo ${{ github.event.comment.body }} | grep -oP '(?<=/review-pr ).*')"
+      # Comment on the PR
+      - name: Create PR comment
+        run: |
+          set -euxo pipefail
+          curl -sSL -X POST \
+          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          -H "Accept: application/vnd.github.v3+json" \
+          -d '{"body": "Deploying PR ${{ steps.pr_number.outputs.number }}"}' \
+          "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments"
+
   build:
+    needs: pr_commented
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     env:
       # Necessary for Docker manifest
@@ -93,10 +113,18 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@v1
 
-
       - name: "Deploy"
         run: |
-          helm install ./helm --namespace "pr${{ env.PR_NUMBER }}" --set coder.image.repo=${{ env.REPO}} --set coder.image.tag=${{ env.PR_NUMBER }} --name "pr${{ env.PR_NUMBER }}" --wait
+          helm install pr${{ env.PR_NUMBER }}  ./helm --namespace "pr${{ env.PR_NUMBER }}" --set coder.image.repo=${{ env.REPO}} --set coder.image.tag=${{ env.PR_NUMBER }} --wait
+
+      - name: Comment on PR
+        run: |
+          set -euxo pipefail
+          curl -sSL -X POST \
+          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          -H "Accept: application/vnd.github.v3+json" \
+          -d '{"body": "Deployed PR ${{ env.PR_NUMBER }} successfully"}' \
+          "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments"
 
       # - name: "Deploy"
       #   uses: "deliverybot/helm@v1"
