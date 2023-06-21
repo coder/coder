@@ -54,7 +54,7 @@ Coder with Docker has the following advantages:
 
    <img src="../images/platforms/docker/login.png">
 
-   Then navigate to `Templates > docker > Create workspace`
+   Then navigate to `Templates > docker > Create Workspace`
 
    <img src="../images/platforms/docker/create-workspace.png">
 

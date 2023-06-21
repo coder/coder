@@ -145,10 +145,10 @@ func (c *Checker) start() {
 
 	diff := time.Until(r.Checked.Add(c.opts.Interval))
 	if diff > 0 {
-		c.log.Info(c.ctx, "time until next update check", slog.F("duration", diff))
+		c.log.Debug(c.ctx, "time until next update check", slog.F("duration", diff))
 		t.Reset(diff)
 	} else {
-		c.log.Info(c.ctx, "time until next update check", slog.F("duration", c.opts.Interval))
+		c.log.Debug(c.ctx, "time until next update check", slog.F("duration", c.opts.Interval))
 	}
 
 	for {
@@ -164,7 +164,7 @@ func (c *Checker) start() {
 				c.notifyIfNewer(r, rr)
 				r = rr
 			}
-			c.log.Info(c.ctx, "time until next update check", slog.F("duration", c.opts.Interval))
+			c.log.Debug(c.ctx, "time until next update check", slog.F("duration", c.opts.Interval))
 			t.Reset(c.opts.Interval)
 		case <-c.ctx.Done():
 			return
@@ -176,7 +176,7 @@ func (c *Checker) update() (r Result, err error) {
 	ctx, cancel := context.WithTimeout(c.ctx, c.opts.UpdateTimeout)
 	defer cancel()
 
-	c.log.Info(c.ctx, "checking for update")
+	c.log.Debug(c.ctx, "checking for update")
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.opts.URL, nil)
 	if err != nil {
 		return r, xerrors.Errorf("new request: %w", err)
@@ -203,7 +203,7 @@ func (c *Checker) update() (r Result, err error) {
 		Version: rr.GetTagName(),
 		URL:     rr.GetHTMLURL(),
 	}
-	c.log.Info(ctx, "update check result", slog.F("latest_version", r.Version))
+	c.log.Debug(ctx, "update check result", slog.F("latest_version", r.Version))
 
 	b, err := json.Marshal(r)
 	if err != nil {
