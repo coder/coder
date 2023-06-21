@@ -1,8 +1,9 @@
 # .github/workflows/pr-cleanup.yml
 name: Cleanup PR
 on:
+  push:
   pull_request:
-    # types: [closed]
+    types: [closed]
   workflow_dispatch:
     inputs:
       pr_number:
