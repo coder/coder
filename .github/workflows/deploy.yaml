@@ -13,7 +13,7 @@ env:
   # This is the version of the release. It is used to tag the Docker images.
   CODER_BASE_IMAGE_TAG: ghcr.io/coder/coder-preview-base:pr${{ github.event.pull_request.number }}
   CODER_IMAGE_TAG: ghcr.io/coder/coder-preview:pr${{ github.event.pull_request.number }}
-  PR_NUMBER: ${{ github.event.pull_request.number }}
+  VERSION: ${{ github.event.pull_request.number }}
 
 permissions:
   packages: write
@@ -39,7 +39,7 @@ jobs:
       - name: Create empty base-build-context directory
         run: mkdir base-build-context
 
-      - name: Build base Docker image via depot.dev
+      - name: Build base Docker image
         uses: docker/build-push-action@v4
         with:
           context: base-build-context
@@ -51,10 +51,12 @@ jobs:
       - name: Build Linux amd64 Docker image
         run: |
           set -euxo pipefail
-          make -j build/coder_linux_amd64.tag --target ${{ env.CODER_IMAGE_TAG }}
-          make -j push/build/coder_linux_amd64.tag
+          make -j build/coder_linux_amd64
+          ./build_docker.sh --arch amd64 --version ${{env.VERSION}} --target ${{env.CODER_IMAGE_TAG }} --push build/coder_linux_amd64
+#
         env:
           CODER_BASE_IMAGE_TAG: ${{ env.CODER_BASE_IMAGE_TAG }}
+          VERSION: ${{ env.VERSION }}
 
   deployment:
     needs: build
