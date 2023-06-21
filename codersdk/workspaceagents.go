@@ -160,8 +160,8 @@ type DERPRegion struct {
 // a connection with a workspace.
 // @typescript-ignore WorkspaceAgentConnectionInfo
 type WorkspaceAgentConnectionInfo struct {
-	DERPMap                *tailcfg.DERPMap `json:"derp_map"`
-	AllowDirectConnections bool             `json:"allow_direct_connections"`
+	DERPMap                  *tailcfg.DERPMap `json:"derp_map"`
+	DisableDirectConnections bool             `json:"disable_direct_connections"`
 }
 
 // @typescript-ignore DialWorkspaceAgentOptions
@@ -188,7 +188,7 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 	if err != nil {
 		return nil, xerrors.Errorf("decode conn info: %w", err)
 	}
-	if !connInfo.AllowDirectConnections {
+	if connInfo.DisableDirectConnections {
 		options.BlockEndpoints = true
 	}
 

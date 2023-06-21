@@ -327,7 +327,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	if !options.DeploymentValues.DERP.Server.Enable.Value() {
 		region = nil
 	}
-	derpMap, err := tailnet.NewDERPMap(ctx, region, []string{stunAddr.String()}, "", "", !options.DeploymentValues.DERP.Config.DisableDirect.Value())
+	derpMap, err := tailnet.NewDERPMap(ctx, region, []string{stunAddr.String()}, "", "", options.DeploymentValues.DERP.Config.BlockDirect.Value())
 	require.NoError(t, err)
 
 	return func(h http.Handler) {

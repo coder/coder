@@ -17,11 +17,11 @@ import (
 // URL to fetch a mapping from e.g. https://controlplane.tailscale.com/derpmap/default.
 //
 //nolint:revive
-func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []string, remoteURL, localPath string, allowSTUN bool) (*tailcfg.DERPMap, error) {
+func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []string, remoteURL, localPath string, disableSTUN bool) (*tailcfg.DERPMap, error) {
 	if remoteURL != "" && localPath != "" {
 		return nil, xerrors.New("a remote URL or local path must be specified, not both")
 	}
-	if !allowSTUN {
+	if disableSTUN {
 		stunAddrs = nil
 	}
 
@@ -82,7 +82,7 @@ func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []str
 	}
 	// Remove all STUNPorts from DERPy nodes, and fully remove all STUNOnly
 	// nodes.
-	if !allowSTUN {
+	if disableSTUN {
 		for _, region := range derpMap.Regions {
 			newNodes := make([]*tailcfg.DERPNode, 0, len(region.Nodes))
 			for _, node := range region.Nodes {

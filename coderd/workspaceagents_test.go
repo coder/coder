@@ -449,9 +449,9 @@ func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
 	t.Parallel()
 
 	dv := coderdtest.DeploymentValues(t)
-	err := dv.DERP.Config.DisableDirect.Set("true")
+	err := dv.DERP.Config.BlockDirect.Set("true")
 	require.NoError(t, err)
-	require.True(t, dv.DERP.Config.DisableDirect.Value())
+	require.True(t, dv.DERP.Config.BlockDirect.Value())
 
 	client, daemonCloser := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
 		DeploymentValues: dv,
@@ -471,12 +471,12 @@ func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	// Verify that the manifest has AllowDirectConnections set to false.
+	// Verify that the manifest has DisableDirectConnections set to true.
 	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(authToken)
 	manifest, err := agentClient.Manifest(ctx)
 	require.NoError(t, err)
-	require.False(t, manifest.AllowDirectConnections)
+	require.True(t, manifest.DisableDirectConnections)
 
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,
@@ -487,7 +487,7 @@ func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
 	agentID := resources[0].Agents[0].ID
 
 	// Verify that the connection data has no STUN ports and
-	// AllowDirectConnections set to false.
+	// DisableDirectConnections set to true.
 	res, err := client.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/connection", agentID), nil)
 	require.NoError(t, err)
 	defer res.Body.Close()
@@ -495,7 +495,7 @@ func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
 	var connInfo codersdk.WorkspaceAgentConnectionInfo
 	err = json.NewDecoder(res.Body).Decode(&connInfo)
 	require.NoError(t, err)
-	require.False(t, connInfo.AllowDirectConnections)
+	require.True(t, connInfo.DisableDirectConnections)
 	for _, region := range connInfo.DERPMap.Regions {
 		t.Logf("region %s (%v)", region.RegionCode, region.EmbeddedRelay)
 		for _, node := range region.Nodes {
