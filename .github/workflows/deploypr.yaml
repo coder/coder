@@ -61,7 +61,7 @@ jobs:
           -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
           -H "Accept: application/vnd.github.v3+json" \
           -d '{"body": "Deploying PR ${{ steps.pr_number.outputs.PR_NUMBER }}"}' \
-          "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments"
+          "https://api.github.com/repos/${{ github.repository }}/issues/${{ steps.pr_number.outputs.PR_NUMBER }}/comments"
 
   build:
     needs: pr_commented
