@@ -3,6 +3,14 @@ name: PRCleanup
 on:
   pull_request:
     types: [closed]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number"
+        required: true
+
+env:
+  PR_NUMBER: if(${{ github.event_name == 'workflow_dispatch' }}, ${{ github.event.inputs.pr_number }}, ${{ github.event.pull_request.number }})
 
 permissions:
   packages: write
@@ -13,7 +21,7 @@ jobs:
     steps:
       - name: "Remove PR namespace"
         run: |
-          kubectl delete namespace "pr${{ github.event.pull_request.number }}" --kubeconfig "${{ secrets.DELIVERYBOT_KUBECONFIG }}"
+          kubectl delete namespace "pr${{ env.PR_NUMBER }}" --kubeconfig "${{ secrets.DELIVERYBOT_KUBECONFIG }}"
 
       - name: Delete base image
         uses: bots-house/ghcr-delete-image-action@v1.1.0
@@ -21,7 +29,7 @@ jobs:
           owner: coder
           name: coder-preview-base
           token: ${{ secrets.GITHUB_TOKEN }}
-          tag: pr${{github.event.pull_request.number}}
+          tag: pr${{ env.PR_NUMBER }}
 
       - name: Delete image
         uses: bots-house/ghcr-delete-image-action@v1.1.0
@@ -29,4 +37,4 @@ jobs:
           owner: coder
           name: coder-preview
           token: ${{ secrets.GITHUB_TOKEN }}
-          tag: pr${{github.event.pull_request.number}}
+          tag: pr${{ env.PR_NUMBER }}

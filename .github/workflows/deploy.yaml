@@ -4,7 +4,6 @@ on:
   deployment:
   pull_request:
     types: [opened, synchronize, ready_for_review]
-  #   types: ready_for_review
   workflow_dispatch:
   # push:
   #   branches-ignore: main
