@@ -195,8 +195,12 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				// We don't print the error because cliui.Agent does that for us.
 			}
 
+			if r.disableDirect {
+				_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
+			}
 			conn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, &codersdk.DialWorkspaceAgentOptions{
-				Logger: logger,
+				Logger:         logger,
+				BlockEndpoints: r.disableDirect,
 			})
 			if err != nil {
 				return xerrors.Errorf("dial agent: %w", err)

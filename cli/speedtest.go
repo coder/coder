@@ -50,12 +50,17 @@ func (r *RootCmd) speedtest() *clibase.Cmd {
 			if err != nil && !xerrors.Is(err, cliui.AgentStartError) {
 				return xerrors.Errorf("await agent: %w", err)
 			}
+
 			logger, ok := LoggerFromContext(ctx)
 			if !ok {
 				logger = slog.Make(sloghuman.Sink(inv.Stderr))
 			}
 			if r.verbose {
 				logger = logger.Leveled(slog.LevelDebug)
+			}
+
+			if r.disableDirect {
+				_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
 			}
 			conn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, &codersdk.DialWorkspaceAgentOptions{
 				Logger: logger,

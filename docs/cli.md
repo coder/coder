@@ -68,6 +68,15 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 
 Print all options, how they're set, then exit.
 
+### --disable-direct-connections
+
+|             |                                                |
+| ----------- | ---------------------------------------------- |
+| Type        | <code>bool</code>                              |
+| Environment | <code>$CODER_DISABLE_DIRECT_CONNECTIONS</code> |
+
+Disable direct (P2P) connections to workspaces.
+
 ### --global-config
 
 |             |                                |

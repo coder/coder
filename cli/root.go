@@ -60,6 +60,7 @@ const (
 	varNoFeatureWarning = "no-feature-warning"
 	varForceTty         = "force-tty"
 	varVerbose          = "verbose"
+	varDisableDirect    = "disable-direct-connections"
 	notLoggedInMessage  = "You are not logged in. Try logging in using 'coder login <url>'."
 
 	envNoVersionCheck   = "CODER_NO_VERSION_WARNING"
@@ -368,6 +369,13 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 			Group:         globalGroup,
 		},
 		{
+			Flag:        varDisableDirect,
+			Env:         "CODER_DISABLE_DIRECT_CONNECTIONS",
+			Description: "Disable direct (P2P) connections to workspaces.",
+			Value:       clibase.BoolOf(&r.disableDirect),
+			Group:       globalGroup,
+		},
+		{
 			Flag:        "debug-http",
 			Description: "Debug codersdk HTTP requests.",
 			Value:       clibase.BoolOf(&r.debugHTTP),
@@ -413,16 +421,17 @@ func isTest() bool {
 
 // RootCmd contains parameters and helpers useful to all commands.
 type RootCmd struct {
-	clientURL    *url.URL
-	token        string
-	globalConfig string
-	header       []string
-	agentToken   string
-	agentURL     *url.URL
-	forceTTY     bool
-	noOpen       bool
-	verbose      bool
-	debugHTTP    bool
+	clientURL     *url.URL
+	token         string
+	globalConfig  string
+	header        []string
+	agentToken    string
+	agentURL      *url.URL
+	forceTTY      bool
+	noOpen        bool
+	verbose       bool
+	disableDirect bool
+	debugHTTP     bool
 
 	noVersionCheck   bool
 	noFeatureWarning bool
@@ -524,6 +533,7 @@ func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
 				client.PlainLogger = os.Stderr
 				client.LogBodies = true
 			}
+			client.DisableDirectConnections = r.disableDirect
 
 			// We send these requests in parallel to minimize latency.
 			var (
