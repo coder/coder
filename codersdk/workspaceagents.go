@@ -170,6 +170,26 @@ type WorkspaceAgentConnectionInfo struct {
 	DERPMap *tailcfg.DERPMap `json:"derp_map"`
 }
 
+func (c *Client) WorkspaceAgentConnectionInfo(ctx context.Context) (*WorkspaceAgentConnectionInfo, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/connection", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+
+	var info WorkspaceAgentConnectionInfo
+	err = json.NewDecoder(res.Body).Decode(&info)
+	if err != nil {
+		return nil, xerrors.Errorf("decode connection info: %w", err)
+	}
+
+	return &info, nil
+}
+
 // @typescript-ignore DialWorkspaceAgentOptions
 type DialWorkspaceAgentOptions struct {
 	Logger slog.Logger

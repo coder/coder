@@ -805,6 +805,25 @@ func (api *API) workspaceAgentConnection(rw http.ResponseWriter, r *http.Request
 	})
 }
 
+// workspaceAgentConnectionGeneric is the same as workspaceAgentConnection but
+// without the workspaceagent path parameter.
+//
+// @Summary Get connection info for workspace agent generic
+// @ID get-connection-info-for-workspace-agent-generic
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Agents
+// @Success 200 {object} codersdk.WorkspaceAgentConnectionInfo
+// @Router /workspaceagents/connection [get]
+// @x-apidocgen {"skip": true}
+func (api *API) workspaceAgentConnectionGeneric(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceAgentConnectionInfo{
+		DERPMap: api.DERPMap,
+	})
+}
+
 // @Summary Coordinate workspace agent via Tailnet
 // @Description It accepts a WebSocket connection to an agent that listens to
 // @Description incoming connections and publishes node updates.
