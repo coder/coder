@@ -58,15 +58,15 @@ func (acquireLockError) Error() string {
 	return "lock is held by another client"
 }
 
-// jobNotRunningError is returned when the detector attempts to terminate a job
-// that is not running.
-type jobNotRunningError struct {
-	Status codersdk.ProvisionerJobStatus
+// jobInelligibleError is returned when a job is not eligible to be terminated
+// anymore.
+type jobInelligibleError struct {
+	Err error
 }
 
 // Error implements error.
-func (e jobNotRunningError) Error() string {
-	return fmt.Sprintf("job is not running (status: %s)", e.Status)
+func (e jobInelligibleError) Error() string {
+	return fmt.Sprintf("job is no longer eligible to be terminated: %s", e.Err)
 }
 
 // Detector automatically detects hung provisioner jobs, sends messages into the
@@ -201,7 +201,7 @@ func (d *Detector) run(t time.Time) Stats {
 		log := d.log.With(slog.F("job_id", job.ID))
 
 		err := unhangJob(ctx, log, d.db, d.pubsub, job.ID)
-		if err != nil && !(xerrors.As(err, &acquireLockError{}) || xerrors.As(err, &jobNotRunningError{})) {
+		if err != nil && !(xerrors.As(err, &acquireLockError{}) || xerrors.As(err, &jobInelligibleError{})) {
 			log.Error(ctx, "error forcefully terminating hung provisioner job", slog.Error(err))
 			continue
 		}
@@ -230,10 +230,17 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 		if err != nil {
 			return xerrors.Errorf("get provisioner job: %w", err)
 		}
+
+		// Check if we should still unhang it.
 		jobStatus := db2sdk.ProvisionerJobStatus(job)
 		if jobStatus != codersdk.ProvisionerJobRunning {
-			return jobNotRunningError{
-				Status: jobStatus,
+			return jobInelligibleError{
+				Err: xerrors.Errorf("job is not running (status %s)", jobStatus),
+			}
+		}
+		if job.UpdatedAt.After(time.Now().Add(-HungJobDuration)) {
+			return jobInelligibleError{
+				Err: xerrors.New("job has been updated recently"),
 			}
 		}
 
