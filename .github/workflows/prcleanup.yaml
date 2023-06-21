@@ -19,10 +19,6 @@ jobs:
   pr-close:
     runs-on: "ubuntu-latest"
     steps:
-      - name: "Remove PR namespace"
-        run: |
-          kubectl delete namespace "pr${{ env.PR_NUMBER }}" --kubeconfig "${{ secrets.DELIVERYBOT_KUBECONFIG }}"
-
       - name: Delete base image
         uses: bots-house/ghcr-delete-image-action@v1.1.0
         with:
@@ -38,3 +34,7 @@ jobs:
           name: coder-preview
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: pr${{ env.PR_NUMBER }}
+
+          - name: "Remove PR namespace"
+          run: |
+            kubectl delete namespace "pr${{ env.PR_NUMBER }}" --kubeconfig "${{ secrets.DELIVERYBOT_KUBECONFIG }}"
