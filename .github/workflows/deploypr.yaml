@@ -4,8 +4,10 @@ name: Deploy PR
 on:
   issue_comment:
   workflow_dispatch:
-  push:
-    branches-ignore: main # TODO: Remove this before merging
+    inputs:
+      pr_number:
+        description: "PR number"
+        required: true
 
 env:
   REPO: ghcr.io/coder/coder-preview
@@ -33,10 +35,12 @@ jobs:
         # get PR number from the html_url
         run: |
           set -euxo pipefail
+          if [[ ${{ github.event_name }} == 'workflow_dispatch' ]]; then
+            PR_NUMBER=${{ github.event.inputs.pr_number }}
+          else
+            PR_NUMBER=${{ github.event.issue.number }}
           echo $PR_NUMBER
           echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
-        env:
-          PR_NUMBER: ${{ github.event.issue.number }}
 
       - name: Set required tags
         id: set_tags
