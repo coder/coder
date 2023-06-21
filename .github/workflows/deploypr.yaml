@@ -39,6 +39,7 @@ jobs:
             PR_NUMBER=${{ github.event.inputs.pr_number }}
           else
             PR_NUMBER=${{ github.event.issue.number }}
+          fi
           echo $PR_NUMBER
           echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
 
