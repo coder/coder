@@ -2,7 +2,8 @@
 name: Deploy PR
 on:
   deployment:
-  # pull_request:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
   #   types: ready_for_review
   workflow_dispatch:
   push:
@@ -37,9 +38,6 @@ jobs:
 
       - name: Create empty base-build-context directory
         run: mkdir base-build-context
-
-      - name: Install depot.dev CLI
-        uses: docker/setup-buildx-action@v2
 
       - name: Build base Docker image via depot.dev
         uses: docker/build-push-action@v4
