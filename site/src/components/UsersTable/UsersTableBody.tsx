@@ -15,6 +15,7 @@ import { TableLoaderSkeleton } from "../TableLoader/TableLoader"
 import { TableRowMenu } from "../TableRowMenu/TableRowMenu"
 import { EditRolesButton } from "components/EditRolesButton/EditRolesButton"
 import { Stack } from "components/Stack/Stack"
+import { EnterpriseBadge } from "components/DeploySettingsLayout/Badges"
 
 const isOwnerRole = (role: TypesGen.Role): boolean => {
   return role.name === "owner"
@@ -34,6 +35,7 @@ interface UsersTableBodyProps {
   isUpdatingUserRoles?: boolean
   canEditUsers?: boolean
   isLoading?: boolean
+  canViewActivity?: boolean
   onSuspendUser: (user: TypesGen.User) => void
   onDeleteUser: (user: TypesGen.User) => void
   onListWorkspaces: (user: TypesGen.User) => void
@@ -62,6 +64,7 @@ export const UsersTableBody: FC<
   onUpdateUserRoles,
   isUpdatingUserRoles,
   canEditUsers,
+  canViewActivity,
   isLoading,
   isNonInitialPage,
   actorID,
@@ -167,14 +170,20 @@ export const UsersTableBody: FC<
                           (user.status === "active"
                             ? [
                                 {
-                                  label: t("suspendMenuItem"),
+                                  label: t("suspendMenuItem") as
+                                    | string
+                                    | JSX.Element
+                                    | null,
                                   onClick: onSuspendUser,
                                   disabled: false,
                                 },
                               ]
                             : [
                                 {
-                                  label: t("activateMenuItem"),
+                                  label: t("activateMenuItem") as
+                                    | string
+                                    | JSX.Element
+                                    | null,
                                   onClick: onActivateUser,
                                   disabled: false,
                                 },
@@ -196,9 +205,14 @@ export const UsersTableBody: FC<
                               disabled: false,
                             },
                             {
-                              label: "View activity",
+                              label: (
+                                <>
+                                  View activity
+                                  {!canViewActivity && <EnterpriseBadge />}
+                                </>
+                              ),
                               onClick: onViewActivity,
-                              disabled: false,
+                              disabled: !canViewActivity,
                             },
                           )
                         }
