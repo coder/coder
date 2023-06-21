@@ -16,10 +16,9 @@ func (r *RootCmd) netcheck() *clibase.Cmd {
 	client := new(codersdk.Client)
 
 	cmd := &clibase.Cmd{
-		Annotations: workspaceCommand,
-		Use:         "netcheck",
-		Short:       "Print network debug information",
-		Hidden:      true,
+		Use:    "netcheck",
+		Short:  "Print network debug information",
+		Hidden: true,
 		Middleware: clibase.Chain(
 			r.InitClient(client),
 		),
