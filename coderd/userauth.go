@@ -179,6 +179,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		// user failed to login
 		return
 	}
+	aReq.UserID = user.ID
 
 	userSubj := rbac.Subject{
 		ID:     user.ID.String(),
