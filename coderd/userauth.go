@@ -36,7 +36,8 @@ import (
 // the user to an oauth user.
 //
 // @Summary Convert user from password to oauth authentication
-// @ID convert-login-type
+// @ID convert-user-from-password-to-oauth-authentication
+// @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Authorization
