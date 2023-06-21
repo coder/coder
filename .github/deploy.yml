@@ -4,7 +4,7 @@ review:
   production_environment: false
   required_contexts: ["ci"]
   environment: pr${{ pr }}
-  description: 'Review'
+  description: "Review"
   payload:
     release: pr${{ pr }}
     namespace: pr${{ pr }}

@@ -64,7 +64,6 @@ jobs:
         env:
           CODER_BASE_IMAGE_TAG: ${{ env.CODER_BASE_IMAGE_TAG }}
 
-
   deployment:
     needs: build
     if: needs.build.result == 'success'
