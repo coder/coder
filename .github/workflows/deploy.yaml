@@ -2,12 +2,12 @@
 name: Deploy PR
 on:
   deployment:
-  # pull_request:
-  #   types: [opened, synchronize, ready_for_review]
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
   #   types: ready_for_review
   workflow_dispatch:
-  push:
-    branches-ignore: main
+  # push:
+  #   branches-ignore: main
 
 env:
   # This is the version of the release. It is used to tag the Docker images.
