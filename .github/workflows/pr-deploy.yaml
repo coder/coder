@@ -8,7 +8,6 @@ on:
       pr_number:
         description: "PR number"
         required: true
-  push:
 
 env:
   REPO: ghcr.io/coder/coder-preview
