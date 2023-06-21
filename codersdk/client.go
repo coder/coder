@@ -118,9 +118,10 @@ type Client struct {
 	// This is useful for tracking a request end-to-end.
 	Trace bool
 
-	// DisableDirect forces any connections to workspaces to go through DERP,
-	// regardless of the BlockEndpoints setting on each connection.
-	DisableDirect bool
+	// DisableDirectConnections forces any connections to workspaces to go
+	// through DERP, regardless of the BlockEndpoints setting on each
+	// connection.
+	DisableDirectConnections bool
 }
 
 // SessionToken returns the currently set token for the client.

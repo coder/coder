@@ -209,7 +209,7 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 		DERPMap:        connInfo.DERPMap,
 		DERPHeader:     &header,
 		Logger:         options.Logger,
-		BlockEndpoints: c.DisableDirect || options.BlockEndpoints,
+		BlockEndpoints: c.DisableDirectConnections || options.BlockEndpoints,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)

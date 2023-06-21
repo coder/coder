@@ -532,7 +532,7 @@ func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
 				client.PlainLogger = os.Stderr
 				client.LogBodies = true
 			}
-			client.DisableDirect = r.disableDirect
+			client.DisableDirectConnections = r.disableDirect
 
 			// We send these requests in parallel to minimize latency.
 			var (
