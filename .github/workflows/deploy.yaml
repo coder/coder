@@ -18,6 +18,10 @@ env:
 permissions:
   packages: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   build:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
@@ -42,7 +46,7 @@ jobs:
       - name: Create empty base-build-context directory
         run: mkdir base-build-context
 
-      - name: Build base Docker image
+      - name: Build and push base Docker image
         uses: docker/build-push-action@v4
         with:
           context: base-build-context
@@ -51,7 +55,7 @@ jobs:
           push: true
           tags: ${{ env.CODER_BASE_IMAGE_TAG }}
 
-      - name: Build Linux amd64 Docker image
+      - name: Build and push Linux amd64 Docker image
         run: |
           set -euxo pipefail
           make -j build/coder_linux_amd64
