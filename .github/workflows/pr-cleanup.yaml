@@ -36,7 +36,7 @@ jobs:
           tag: pr${{ env.PR_NUMBER }}
 
       - name: Install helm
-        uses: azure/setup-helm@v1
+        uses: azure/setup-helm@v3
 
       - name: Set up kubeconfig
         run: |

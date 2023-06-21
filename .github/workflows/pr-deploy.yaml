@@ -150,7 +150,7 @@ jobs:
           kubectl create namespace "pr${{ env.PR_NUMBER }}"
 
       - name: Install Helm
-        uses: azure/setup-helm@v1
+        uses: azure/setup-helm@v3
 
       - name: "Deploy"
         run: |
