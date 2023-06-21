@@ -7862,7 +7862,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "expires_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "state_string": {
                     "type": "string"
@@ -7871,7 +7872,8 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.LoginType"
                 },
                 "user_id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },

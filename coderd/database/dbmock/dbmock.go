@@ -237,20 +237,6 @@ func (mr *MockStoreMockRecorder) DeleteReplicasUpdatedBefore(arg0, arg1 interfac
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteReplicasUpdatedBefore", reflect.TypeOf((*MockStore)(nil).DeleteReplicasUpdatedBefore), arg0, arg1)
 }
 
-// DeleteUserOauthMergeStates mocks base method.
-func (m *MockStore) DeleteUserOauthMergeStates(arg0 context.Context, arg1 uuid.UUID) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteUserOauthMergeStates", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteUserOauthMergeStates indicates an expected call of DeleteUserOauthMergeStates.
-func (mr *MockStoreMockRecorder) DeleteUserOauthMergeStates(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserOauthMergeStates", reflect.TypeOf((*MockStore)(nil).DeleteUserOauthMergeStates), arg0, arg1)
-}
-
 // DeleteTailnetAgent mocks base method.
 func (m *MockStore) DeleteTailnetAgent(arg0 context.Context, arg1 database.DeleteTailnetAgentParams) (database.DeleteTailnetAgentRow, error) {
 	m.ctrl.T.Helper()
@@ -279,6 +265,20 @@ func (m *MockStore) DeleteTailnetClient(arg0 context.Context, arg1 database.Dele
 func (mr *MockStoreMockRecorder) DeleteTailnetClient(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTailnetClient", reflect.TypeOf((*MockStore)(nil).DeleteTailnetClient), arg0, arg1)
+}
+
+// DeleteUserOauthMergeStates mocks base method.
+func (m *MockStore) DeleteUserOauthMergeStates(arg0 context.Context, arg1 uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteUserOauthMergeStates", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteUserOauthMergeStates indicates an expected call of DeleteUserOauthMergeStates.
+func (mr *MockStoreMockRecorder) DeleteUserOauthMergeStates(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserOauthMergeStates", reflect.TypeOf((*MockStore)(nil).DeleteUserOauthMergeStates), arg0, arg1)
 }
 
 // GetAPIKeyByID mocks base method.

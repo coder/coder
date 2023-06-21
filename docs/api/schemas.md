@@ -3013,10 +3013,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "expires_at": "string",
+  "expires_at": "2019-08-24T14:15:22Z",
   "state_string": "string",
   "to_login_type": "password",
-  "user_id": "string"
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
 }
 ```
 
