@@ -6,8 +6,8 @@ on:
   # pull_request:
   #   types: [opened, synchronize, ready_for_review]
   workflow_dispatch:
-  # push:
-  #   branches-ignore: main
+  push:
+    branches-ignore: main
   issue_comment:
     types: [created, edited]
 
@@ -45,10 +45,9 @@ jobs:
           set -euxo pipefail
           echo "::set-env name=CODER_BASE_IMAGE_TAG::ghcr.io/coder/coder-preview-base:pr${{ steps.pr_number.outputs.number }}"
           echo "::set-env name=CODER_IMAGE_TAG::ghcr.io/coder/coder-preview:pr${{ steps.pr_number.outputs.number }}"
-          echo "::set-env name=REPO::ghcr.io/coder/coder-preview"
 
       # Comment on the PR
-      - name: Create PR comment
+      - name: Comment on PR
         run: |
           set -euxo pipefail
           curl -sSL -X POST \
