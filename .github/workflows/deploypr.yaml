@@ -34,16 +34,21 @@ jobs:
         # get PR number from the html_url
         run: |
           set -euxo pipefail
-          PR_NUMBER=${{ github.event.issue.number }}
           echo $PR_NUMBER
           echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
+        env:
+          PR_NUMBER: ${{ github.event.issue.number }}
 
       - name: Set required tags
         id: set_tags
         run: |
           set -euxo pipefail
-          echo "CODER_BASE_IMAGE_TAG=ghcr.io/coder/coder-preview-base:${{ steps.pr_number.outputs.PR_NUMBER }}" >> $GITHUB_ENV
-          echo "CODER_IMAGE_TAG=ghcr.io/coder/coder-preview:${{ steps.pr_number.outputs.PR_NUMBER }}" >> $GITHUB_ENV
+          echo "CODER_BASE_IMAGE_TAG=$CODER_BASE_IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "CODER_IMAGE_TAG=$CODER_IMAGE_TAG" >> $GITHUB_OUTPUT
+        env:
+          PR_NUMBER: ${{ steps.pr_number.outputs.PR_NUMBER }}
+          CODER_BASE_IMAGE_TAG: ghcr.io/coder/coder-preview-base:${{ env.PR_NUMBER }}
+          CODER_IMAGE_TAG: ghcr.io/coder/coder-preview:${{ env.PR_NUMBER }}
 
       # Comment on the PR
       - name: Comment on PR
