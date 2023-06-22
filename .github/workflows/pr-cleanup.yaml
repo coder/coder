@@ -23,18 +23,8 @@ jobs:
           else
             echo "PR_NUMBER=${{ github.event.inputs.pr_number }}" >> $GITHUB_OUTPUT
           fi
-      - name: Delete base image
-        uses: bots-house/ghcr-delete-image-action@v1.1.0
-        with:
-          owner: coder
-          name: coder-preview-base
-          token: ${{ secrets.GITHUB_TOKEN }}
-          tag: pr${{ steps.pr_number.outputs.PR_NUMBER }}
 
-      # PR base image will mostly not exist and previous step will fail
-      # so we ignore the error and continue
       - name: Delete image
-        if: always()
         uses: bots-house/ghcr-delete-image-action@v1.1.0
         with:
           owner: coder
