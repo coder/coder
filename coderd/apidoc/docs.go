@@ -6514,6 +6514,9 @@ const docTemplate = `{
         "codersdk.AuthMethods": {
             "type": "object",
             "properties": {
+                "convert_to_oidc_enabled": {
+                    "type": "boolean"
+                },
                 "github": {
                     "$ref": "#/definitions/codersdk.AuthMethod"
                 },

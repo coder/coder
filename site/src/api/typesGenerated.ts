@@ -105,6 +105,7 @@ export interface AuthMethod {
 // From codersdk/users.go
 export interface AuthMethods {
   readonly me_login_type?: LoginType
+  readonly convert_to_oidc_enabled: boolean
   readonly password: AuthMethod
   readonly github: AuthMethod
   readonly oidc: OIDCAuthMethod

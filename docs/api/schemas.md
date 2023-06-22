@@ -1107,6 +1107,7 @@
 
 ```json
 {
+  "convert_to_oidc_enabled": true,
   "github": {
     "enabled": true
   },
@@ -1124,12 +1125,13 @@
 
 ### Properties
 
-| Name            | Type                                               | Required | Restrictions | Description                                                                                                                             |
-| --------------- | -------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `github`        | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |                                                                                                                                         |
-| `me_login_type` | [codersdk.LoginType](#codersdklogintype)           | false    |              | Me login type returns the authentication method for the given caller if the request is an authenticated request. Otherwise it is empty. |
-| `oidc`          | [codersdk.OIDCAuthMethod](#codersdkoidcauthmethod) | false    |              |                                                                                                                                         |
-| `password`      | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |                                                                                                                                         |
+| Name                      | Type                                               | Required | Restrictions | Description                                                                                                                             |
+| ------------------------- | -------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `convert_to_oidc_enabled` | boolean                                            | false    |              |                                                                                                                                         |
+| `github`                  | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |                                                                                                                                         |
+| `me_login_type`           | [codersdk.LoginType](#codersdklogintype)           | false    |              | Me login type returns the authentication method for the given caller if the request is an authenticated request. Otherwise it is empty. |
+| `oidc`                    | [codersdk.OIDCAuthMethod](#codersdkoidcauthmethod) | false    |              |                                                                                                                                         |
+| `password`                | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |                                                                                                                                         |
 
 ## codersdk.AuthorizationCheck
 
