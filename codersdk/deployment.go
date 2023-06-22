@@ -310,6 +310,7 @@ type GitAuthConfig struct {
 
 type ProvisionerConfig struct {
 	Daemons             clibase.Int64    `json:"daemons" typescript:",notnull"`
+	DaemonsEcho         clibase.Bool     `json:"daemons_echo" typescript:",notnull"`
 	DaemonPollInterval  clibase.Duration `json:"daemon_poll_interval" typescript:",notnull"`
 	DaemonPollJitter    clibase.Duration `json:"daemon_poll_jitter" typescript:",notnull"`
 	ForceCancelInterval clibase.Duration `json:"force_cancel_interval" typescript:",notnull"`
@@ -1092,6 +1093,17 @@ when required by your organization's security policy.`,
 			Value:       &c.Provisioner.Daemons,
 			Group:       &deploymentGroupProvisioning,
 			YAML:        "daemons",
+		},
+		{
+			Name:        "Echo Provisioner",
+			Description: "Whether to use echo provisioner daemons instead of Terraform. This is for E2E tests.",
+			Flag:        "provisioner-daemons-echo",
+			Env:         "CODER_PROVISIONER_DAEMONS_ECHO",
+			Hidden:      true,
+			Default:     "false",
+			Value:       &c.Provisioner.DaemonsEcho,
+			Group:       &deploymentGroupProvisioning,
+			YAML:        "daemonsEcho",
 		},
 		{
 			Name:        "Poll Interval",

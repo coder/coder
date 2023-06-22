@@ -7945,6 +7945,9 @@ const docTemplate = `{
                 "daemons": {
                     "type": "integer"
                 },
+                "daemons_echo": {
+                    "type": "boolean"
+                },
                 "force_cancel_interval": {
                     "type": "integer"
                 }

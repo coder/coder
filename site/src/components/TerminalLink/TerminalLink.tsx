@@ -44,6 +44,7 @@ export const TerminalLink: FC<React.PropsWithChildren<TerminalLinkProps>> = ({
           "width=900,height=600",
         )
       }}
+      data-testid="terminal"
     >
       <SecondaryAgentButton>{Language.linkText}</SecondaryAgentButton>
     </Link>
