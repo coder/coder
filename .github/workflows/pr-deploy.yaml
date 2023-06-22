@@ -25,23 +25,26 @@ jobs:
     if: ${{ github.event.issue.pull_request }} && contains(github.event.comment.body, '/deploy-pr') && github.event.comment.author_association == 'MEMBER' || github.event_name == 'workflow_dispatch'
     outputs:
       PR_NUMBER: ${{ steps.pr_number.outputs.PR_NUMBER }}
+      PR_TITLE: ${{ steps.pr_number.outputs.PR_TITLE }}
       COMMENT_ID: ${{ steps.comment_id.outputs.comment-id }}
       CODER_BASE_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_BASE_IMAGE_TAG }}
       CODER_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_IMAGE_TAG }}
 
     runs-on: "ubuntu-latest"
     steps:
-      - name: Get PR number
+      - name: Get PR number and title
         id: pr_number
         run: |
           set -euxo pipefail
           if [[ ${{ github.event_name }} == 'workflow_dispatch' ]]; then
             PR_NUMBER=${{ github.event.inputs.pr_number }}
+            PR_TITLE=$(curl -sSL -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/coder/coder/pulls/$PR_NUMBER | jq -r '.title')
           else
             PR_NUMBER=${{ github.event.issue.number }}
+            PR_TITLE=${{ github.event.issue.title }}
           fi
-          echo $PR_NUMBER
           echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_OUTPUT
+          echo "PR_TITLE=$PR_TITLE" >> $GITHUB_OUTPUT
 
       - name: Set required tags
         id: set_tags
@@ -61,7 +64,6 @@ jobs:
           comment-author: "github-actions[bot]"
           body-includes: This deployment will be deleted when the PR is closed
 
-          # Comment on the PR
       - name: Comment on PR
         id: comment_id
         uses: peter-evans/create-or-update-comment@v3
@@ -77,15 +79,14 @@ jobs:
     needs: pr_commented
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     env:
-      # Necessary for Docker manifest
       DOCKER_CLI_EXPERIMENTAL: "enabled"
-      CODER_BASE_IMAGE_TAG: ${{ needs.pr_commented.outputs.coder_base_image_tag }}
       CODER_IMAGE_TAG: ${{ needs.pr_commented.outputs.coder_image_tag }}
       PR_NUMBER: ${{ needs.pr_commented.outputs.pr_number }}
     steps:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
+
       - uses: ./.github/actions/setup-go
 
       - uses: ./.github/actions/setup-node
@@ -101,17 +102,29 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Check if the contents of Dockerfile.base have changed
+        id: check_base_dockerfile
+        run: |
+          set -euxo pipefail
+          if [[ $(git diff --name-only HEAD^ HEAD | grep Dockerfile.base) ]]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create empty base-build-context directory
+        if: steps.check_base_dockerfile.outputs.changed == 'true'
         run: mkdir base-build-context
 
       - name: Build and push base Docker image
+        if: steps.check_base_dockerfile.outputs.changed == 'true'
         uses: docker/build-push-action@v4
         with:
           context: base-build-context
           file: scripts/Dockerfile.base
           platforms: linux/amd64
           push: true
-          tags: ${{ env.CODER_BASE_IMAGE_TAG }}
+          tags: ${{ needs.pr_commented.outputs.coder_base_image_tag }}
 
       - name: Build and push Linux amd64 Docker image
         run: |
@@ -120,9 +133,8 @@ jobs:
           make gen/mark-fresh
           make -j build/coder_linux_amd64
           ./scripts/build_docker.sh --arch amd64 --target ${{env.CODER_IMAGE_TAG }} --push build/coder_*_linux_amd64
-        #
         env:
-          CODER_BASE_IMAGE_TAG: ${{ env.CODER_BASE_IMAGE_TAG }}
+          CODER_BASE_IMAGE_TAG: ${{ steps.check_base_dockerfile.outputs.changed == 'true' && needs.pr_commented.outputs.coder_base_image_tag || 'ghcr.io/coder/coder-base:latest' }}
 
   deployment:
     needs: [build, pr_commented]
@@ -131,6 +143,7 @@ jobs:
     env:
       CODER_IMAGE_TAG: ${{ needs.pr_commented.outputs.CODER_IMAGE_TAG }}
       PR_NUMBER: ${{ needs.pr_commented.outputs.PR_NUMBER }}
+      PR_TITLE: ${{ needs.pr_commented.outputs.PR_TITLE }}
     steps:
       - uses: actions/checkout@v3
 
@@ -168,12 +181,12 @@ jobs:
           set -euxo pipefail
           kubectl rollout status deployment/coder --namespace "pr${{ env.PR_NUMBER }}"
           POD_NAME=$(kubectl get pods -n "pr${{ env.PR_NUMBER }}" | awk 'NR==2{print $1}')
-          CODER_ACCESS_URL=`kubectl logs $POD_NAME -n pr8121 | grep "Web UI:" | awk -F ':' '{print $2":"$3}'`
+          CODER_ACCESS_URL=`kubectl logs $POD_NAME -n "pr${{ env.PR_NUMBER }}" | grep "Web UI:" | awk -F ':' '{print $2":"$3}' | awk '{$1=$1};1'`
           echo "CODER_ACCESS_URL=$CODER_ACCESS_URL" >> $GITHUB_OUTPUT
 
       - name: Send Slack notification
         run: |
-          curl -X POST -H 'Content-type: application/json' -d '{"msg":"PR: ${{ env.PR_NUMBER }} deployed at \n${{env.CODER_ACCESS_URL}}"}' ${{ secrets.PR_DEPLOYMENTS_SLACK_WEBHOOK }}
+          curl -X POST -H 'Content-type: application/json' -d '{"msg":"${{ env.PR_TITLE }}\ndeployed at\n${{env.CODER_ACCESS_URL}}"}' ${{ secrets.PR_DEPLOYMENTS_SLACK_WEBHOOK }}
           echo "Sent Slack notification"
         env:
           CODER_ACCESS_URL: ${{ steps.deployment_url.outputs.CODER_ACCESS_URL }}
