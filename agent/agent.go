@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/binary"
@@ -863,26 +862,30 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) (err er
 	}
 	cmd := cmdPty.AsExec()
 
-	var writer io.Writer = fileWriter
+	var stdout, stderr io.Writer = fileWriter, fileWriter
 	if lifecycle == "startup" {
-		// Create pipes for startup logs reader and writer
-		logsReader, logsWriter := io.Pipe()
+		send, flushAndClose := agentsdk.StartupLogsSender(a.client.PatchStartupLogs, logger)
+		// If ctx is canceled here (or in a writer below), we may be
+		// discarding logs, but that's okay because we're shutting down
+		// anyway. We could consider creating a new context here if we
+		// want better control over flush during shutdown.
 		defer func() {
-			_ = logsReader.Close()
+			if err := flushAndClose(ctx); err != nil {
+				logger.Warn(ctx, "flush startup logs failed", slog.Error(err))
+			}
 		}()
-		writer = io.MultiWriter(fileWriter, logsWriter)
-		flushedLogs, err := a.trackScriptLogs(ctx, logsReader)
-		if err != nil {
-			return xerrors.Errorf("track %s script logs: %w", lifecycle, err)
-		}
-		defer func() {
-			_ = logsWriter.Close()
-			<-flushedLogs
-		}()
+
+		infoW := agentsdk.StartupLogsWriter(ctx, send, codersdk.LogLevelInfo)
+		defer infoW.Close()
+		errW := agentsdk.StartupLogsWriter(ctx, send, codersdk.LogLevelError)
+		defer errW.Close()
+
+		stdout = io.MultiWriter(fileWriter, infoW)
+		stderr = io.MultiWriter(fileWriter, errW)
 	}
 
-	cmd.Stdout = writer
-	cmd.Stderr = writer
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
 
 	start := time.Now()
 	defer func() {
@@ -911,143 +914,6 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) (err er
 		return xerrors.Errorf("%s script: run: %w", lifecycle, err)
 	}
 	return nil
-}
-
-func (a *agent) trackScriptLogs(ctx context.Context, reader io.ReadCloser) (chan struct{}, error) {
-	// Synchronous sender, there can only be one outbound send at a time.
-	//
-	// It's important that we either flush or drop all logs before returning
-	// because the startup state is reported after flush.
-	sendDone := make(chan struct{})
-	send := make(chan []agentsdk.StartupLog, 1)
-	go func() {
-		// Set flushTimeout and backlogLimit so that logs are uploaded
-		// once every 250ms or when 100 logs have been added to the
-		// backlog, whichever comes first.
-		flushTimeout := 250 * time.Millisecond
-		backlogLimit := 100
-
-		flush := time.NewTicker(flushTimeout)
-
-		var backlog []agentsdk.StartupLog
-		defer func() {
-			flush.Stop()
-			_ = reader.Close() // Ensure read routine is closed.
-			if len(backlog) > 0 {
-				a.logger.Debug(ctx, "track script logs sender exiting, discarding logs", slog.F("discarded_logs_count", len(backlog)))
-			}
-			a.logger.Debug(ctx, "track script logs sender exited")
-			close(sendDone)
-		}()
-
-		done := false
-		for {
-			flushed := false
-			select {
-			case <-ctx.Done():
-				return
-			case <-a.closed:
-				return
-			// Close (!ok) can be triggered by the reader closing due to
-			// EOF or due to agent closing, when this happens we attempt
-			// a final flush. If the context is canceled this will be a
-			// no-op.
-			case logs, ok := <-send:
-				done = !ok
-				if ok {
-					backlog = append(backlog, logs...)
-					flushed = len(backlog) >= backlogLimit
-				}
-			case <-flush.C:
-				flushed = true
-			}
-
-			if (done || flushed) && len(backlog) > 0 {
-				flush.Stop() // Lower the chance of a double flush.
-
-				// Retry uploading logs until successful or a specific
-				// error occurs.
-				for r := retry.New(time.Second, 5*time.Second); r.Wait(ctx); {
-					err := a.client.PatchStartupLogs(ctx, agentsdk.PatchStartupLogs{
-						Logs: backlog,
-					})
-					if err == nil {
-						break
-					}
-
-					if errors.Is(err, context.Canceled) {
-						return
-					}
-					var sdkErr *codersdk.Error
-					if errors.As(err, &sdkErr) {
-						if sdkErr.StatusCode() == http.StatusRequestEntityTooLarge {
-							a.logger.Warn(ctx, "startup logs too large, dropping logs")
-							break
-						}
-					}
-					a.logger.Error(ctx, "upload startup logs failed", slog.Error(err), slog.F("to_send", backlog))
-				}
-				if ctx.Err() != nil {
-					return
-				}
-				backlog = nil
-
-				// Anchor flush to the last log upload.
-				flush.Reset(flushTimeout)
-			}
-			if done {
-				return
-			}
-		}
-	}()
-
-	// Forward read lines to the sender or queue them for when the
-	// sender is ready to process them.
-	//
-	// We only need to track this goroutine since it will ensure that
-	// the sender has closed before returning.
-	logsDone := make(chan struct{})
-	err := a.trackConnGoroutine(func() {
-		defer func() {
-			close(send)
-			<-sendDone
-			a.logger.Debug(ctx, "track script logs reader exited")
-			close(logsDone)
-		}()
-
-		var queue []agentsdk.StartupLog
-
-		s := bufio.NewScanner(reader)
-		for s.Scan() {
-			select {
-			case <-ctx.Done():
-				return
-			case <-a.closed:
-				return
-			case queue = <-send:
-				// Not captured by sender yet, re-use.
-			default:
-			}
-
-			queue = append(queue, agentsdk.StartupLog{
-				CreatedAt: database.Now(),
-				Output:    s.Text(),
-			})
-			send <- queue
-			queue = nil
-		}
-		if err := s.Err(); err != nil {
-			a.logger.Warn(ctx, "scan startup logs ended unexpectedly", slog.Error(err))
-		}
-	})
-	if err != nil {
-		close(send)
-		<-sendDone
-		close(logsDone)
-		return logsDone, err
-	}
-
-	return logsDone, nil
 }
 
 func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, msg codersdk.WorkspaceAgentReconnectingPTYInit, conn net.Conn) (retErr error) {
