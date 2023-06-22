@@ -31,8 +31,11 @@ const config = defineConfig({
   },
   webServer: {
     command:
-      `go run -tags embed ${coderMain} server --global-config ` +
-      `$(mktemp -d -t e2e-XXXXXXXXXX) --in-memory --telemetry=false ` +
+      `go run -tags embed ${coderMain} server ` +
+      `--global-config $(mktemp -d -t e2e-XXXXXXXXXX) ` +
+      `--access-url=http://localhost:${port} ` +
+      `--http-address=localhost:${port} ` +
+      `--in-memory --telemetry=false ` +
       `--provisioner-daemons 10 ` +
       `--provisioner-daemons-echo ` +
       `--provisioner-daemon-poll-interval 50ms`,
