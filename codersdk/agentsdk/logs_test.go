@@ -139,7 +139,7 @@ func TestStartupLogsWriter_Write(t *testing.T) {
 			},
 		},
 		{
-			name:   "removes carraige return when grouped with newline",
+			name:   "removes carriage return when grouped with newline",
 			ctx:    context.Background(),
 			level:  codersdk.LogLevelInfo,
 			writes: []string{"hello world\r\n", "\r\r\n", "goodbye world\n"},
