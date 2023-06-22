@@ -363,6 +363,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/manifest \
     }
   },
   "directory": "string",
+  "disable_direct_connections": true,
   "environment_variables": {
     "property1": "string",
     "property2": "string"
@@ -466,9 +467,11 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
   "login_before_ready": true,
   "name": "string",
   "operating_system": "string",
+  "ready_at": "2019-08-24T14:15:22Z",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "shutdown_script": "string",
   "shutdown_script_timeout_seconds": 0,
+  "started_at": "2019-08-24T14:15:22Z",
   "startup_logs_length": 0,
   "startup_logs_overflowed": true,
   "startup_script": "string",
@@ -565,7 +568,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
         "regionName": "string"
       }
     }
-  }
+  },
+  "disable_direct_connections": true
 }
 ```
 
@@ -687,12 +691,13 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/sta
 
 ### Parameters
 
-| Name             | In    | Type         | Required | Description        |
-| ---------------- | ----- | ------------ | -------- | ------------------ |
-| `workspaceagent` | path  | string(uuid) | true     | Workspace agent ID |
-| `before`         | query | integer      | false    | Before log id      |
-| `after`          | query | integer      | false    | After log id       |
-| `follow`         | query | boolean      | false    | Follow log stream  |
+| Name             | In    | Type         | Required | Description                                  |
+| ---------------- | ----- | ------------ | -------- | -------------------------------------------- |
+| `workspaceagent` | path  | string(uuid) | true     | Workspace agent ID                           |
+| `before`         | query | integer      | false    | Before log id                                |
+| `after`          | query | integer      | false    | After log id                                 |
+| `follow`         | query | boolean      | false    | Follow log stream                            |
+| `no_compression` | query | boolean      | false    | Disable compression for WebSocket connection |
 
 ### Example responses
 
@@ -702,7 +707,6 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/sta
 [
   {
     "created_at": "2019-08-24T14:15:22Z",
-    "eof": true,
     "id": 0,
     "level": "trace",
     "output": "string"
@@ -720,14 +724,13 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/sta
 
 Status Code **200**
 
-| Name           | Type                                             | Required | Restrictions | Description                                                           |
-| -------------- | ------------------------------------------------ | -------- | ------------ | --------------------------------------------------------------------- |
-| `[array item]` | array                                            | false    |              |                                                                       |
-| `» created_at` | string(date-time)                                | false    |              |                                                                       |
-| `» eof`        | boolean                                          | false    |              | Eof indicates that this is the last log entry and the file is closed. |
-| `» id`         | integer                                          | false    |              |                                                                       |
-| `» level`      | [codersdk.LogLevel](schemas.md#codersdkloglevel) | false    |              |                                                                       |
-| `» output`     | string                                           | false    |              |                                                                       |
+| Name           | Type                                             | Required | Restrictions | Description |
+| -------------- | ------------------------------------------------ | -------- | ------------ | ----------- |
+| `[array item]` | array                                            | false    |              |             |
+| `» created_at` | string(date-time)                                | false    |              |             |
+| `» id`         | integer                                          | false    |              |             |
+| `» level`      | [codersdk.LogLevel](schemas.md#codersdkloglevel) | false    |              |             |
+| `» output`     | string                                           | false    |              |             |
 
 #### Enumerated Values
 

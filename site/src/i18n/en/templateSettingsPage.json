@@ -25,16 +25,19 @@
   "inactivityTTLHelperText_zero": "Coder will not automatically delete inactive workspaces",
   "inactivityTTLHelperText_one": "Coder will automatically delete inactive workspaces after {{count}} day.",
   "inactivityTTLHelperText_other": "Coder will automatically delete inactive workspaces after {{count}} days.",
+  "lockedTTLHelperText_zero": "Coder will not automatically delete locked workspaces",
+  "lockedTTLHelperText_one": "Coder will automatically delete locked workspaces after {{count}} day.",
+  "lockedTTLHelperText_other": "Coder will automatically delete locked workspaces after {{count}} days.",
   "allowUserCancelWorkspaceJobsLabel": "Allow users to cancel in-progress workspace jobs.",
   "allowUserCancelWorkspaceJobsNotice": "Depending on your template, canceling builds may leave workspaces in an unhealthy state. This option isn't recommended for most use cases.",
   "allowUsersCancelHelperText": "If checked, users may be able to corrupt their workspace.",
   "generalInfo": {
     "title": "General info",
-    "description": "The name is used to identify the template in URLs and the API. It must be unique within your organization."
+    "description": "The name is used to identify the template in URLs and the API."
   },
   "displayInfo": {
     "title": "Display info",
-    "description": "Give your template a friendly name, description, and icon."
+    "description": "A friendly name, description, and icon to help developers identify your template."
   },
   "schedule": {
     "title": "Schedule",

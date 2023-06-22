@@ -25,6 +25,7 @@ const MS_HOUR_CONVERSION = 3600000
 const MS_DAY_CONVERSION = 86400000
 const FAILURE_CLEANUP_DEFAULT = 7
 const INACTIVITY_CLEANUP_DEFAULT = 180
+const LOCKED_CLEANUP_DEFAULT = 30
 
 export interface TemplateScheduleForm {
   template: Template
@@ -65,6 +66,9 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       inactivity_ttl_ms: allowAdvancedScheduling
         ? template.inactivity_ttl_ms / MS_DAY_CONVERSION
         : 0,
+      locked_ttl_ms: allowAdvancedScheduling
+        ? template.locked_ttl_ms / MS_DAY_CONVERSION
+        : 0,
 
       allow_user_autostart: template.allow_user_autostart,
       allow_user_autostop: template.allow_user_autostop,
@@ -72,6 +76,8 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         allowAdvancedScheduling && Boolean(template.failure_ttl_ms),
       inactivity_cleanup_enabled:
         allowAdvancedScheduling && Boolean(template.inactivity_ttl_ms),
+      locked_cleanup_enabled:
+        allowAdvancedScheduling && Boolean(template.locked_ttl_ms),
     },
     validationSchema,
     onSubmit: () => {
@@ -114,6 +120,9 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       inactivity_ttl_ms: form.values.inactivity_ttl_ms
         ? form.values.inactivity_ttl_ms * MS_DAY_CONVERSION
         : undefined,
+      locked_ttl_ms: form.values.locked_ttl_ms
+        ? form.values.locked_ttl_ms * MS_DAY_CONVERSION
+        : undefined,
 
       allow_user_autostart: form.values.allow_user_autostart,
       allow_user_autostop: form.values.allow_user_autostop,
@@ -154,6 +163,25 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         ...form.values,
         inactivity_cleanup_enabled: false,
         inactivity_ttl_ms: 0,
+      })
+    }
+  }
+
+  const handleToggleLockedCleanup = async (e: ChangeEvent) => {
+    form.handleChange(e)
+    if (!form.values.locked_cleanup_enabled) {
+      // fill failure_ttl_ms with defaults
+      await form.setValues({
+        ...form.values,
+        locked_cleanup_enabled: true,
+        locked_ttl_ms: LOCKED_CLEANUP_DEFAULT,
+      })
+    } else {
+      // clear failure_ttl_ms
+      await form.setValues({
+        ...form.values,
+        locked_cleanup_enabled: false,
+        locked_ttl_ms: 0,
       })
     }
   }
@@ -231,7 +259,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
             />
             <Stack spacing={0.5}>
               <strong>
-                Allow users to autostart workspaces on a schedule.
+                Allow users to automatically start workspaces on a schedule.
               </strong>
             </Stack>
           </Stack>
@@ -298,7 +326,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
           </FormSection>
           <FormSection
             title="Inactivity Cleanup"
-            description="When enabled, Coder will automatically delete workspaces that are in an inactive state after a specified number of days."
+            description="When enabled, Coder will lock workspaces that have not been accessed after a specified number of days."
           >
             <FormFields>
               <FormControlLabel
@@ -327,6 +355,38 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                 label="Time until cleanup (days)"
                 type="number"
                 aria-label="Inactivity Cleanup"
+              />
+            </FormFields>
+          </FormSection>
+          <FormSection
+            title="Locked Cleanup"
+            description="When enabled, Coder will permanently delete workspaces that have been locked for a specified number of days."
+          >
+            <FormFields>
+              <FormControlLabel
+                control={
+                  <Switch
+                    name="lockedCleanupEnabled"
+                    checked={form.values.locked_cleanup_enabled}
+                    onChange={handleToggleLockedCleanup}
+                  />
+                }
+                label="Enable Locked Cleanup"
+              />
+              <TextField
+                {...getFieldHelpers(
+                  "locked_ttl_ms",
+                  <TTLHelperText
+                    translationName="lockedTTLHelperText"
+                    ttl={form.values.locked_ttl_ms}
+                  />,
+                )}
+                disabled={isSubmitting || !form.values.locked_cleanup_enabled}
+                fullWidth
+                inputProps={{ min: 0, step: "any" }}
+                label="Time until cleanup (days)"
+                type="number"
+                aria-label="Locked Cleanup"
               />
             </FormFields>
           </FormSection>

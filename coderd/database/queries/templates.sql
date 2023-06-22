@@ -120,7 +120,8 @@ SET
 	default_ttl = $5,
 	max_ttl = $6,
 	failure_ttl = $7,
-	inactivity_ttl = $8
+	inactivity_ttl = $8,
+	locked_ttl = $9
 WHERE
 	id = $1
 RETURNING

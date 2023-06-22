@@ -51,6 +51,7 @@ export const WorkspaceStatusText: FC<
       <Cond>
         <span
           role="status"
+          data-testid="build-status"
           className={combineClasses([
             className,
             styles.root,

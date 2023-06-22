@@ -26,6 +26,7 @@ const ReadyLifecycle = () => {
   return (
     <div
       role="status"
+      data-testid="agent-status-ready"
       aria-label={t("agentStatus.connected.ready") || "Ready"}
       className={combineClasses([styles.status, styles.connected])}
     />

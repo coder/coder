@@ -231,7 +231,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		}
 	}()
 	wireguardEngine.SetStatusCallback(func(s *wgengine.Status, err error) {
-		server.logger.Debug(context.Background(), "wireguard status", slog.F("status", s), slog.F("err", err))
+		server.logger.Debug(context.Background(), "wireguard status", slog.F("status", s), slog.Error(err))
 		if err != nil {
 			return
 		}
@@ -351,6 +351,14 @@ func (c *Conn) SetDERPMap(derpMap *tailcfg.DERPMap) {
 	netMapCopy := *c.netMap
 	c.logger.Debug(context.Background(), "updating network map")
 	c.wireguardEngine.SetNetworkMap(&netMapCopy)
+}
+
+// SetBlockEndpoints sets whether or not to block P2P endpoints. This setting
+// will only apply to new peers.
+func (c *Conn) SetBlockEndpoints(blockEndpoints bool) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	c.blockEndpoints = blockEndpoints
 }
 
 // SetDERPRegionDialer updates the dialer to use for connecting to DERP regions.
@@ -514,6 +522,13 @@ func (c *Conn) DERPMap() *tailcfg.DERPMap {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	return c.netMap.DERPMap
+}
+
+// BlockEndpoints returns whether or not P2P is blocked.
+func (c *Conn) BlockEndpoints() bool {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	return c.blockEndpoints
 }
 
 // AwaitReachable pings the provided IP continually until the

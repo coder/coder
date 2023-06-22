@@ -310,11 +310,11 @@ func websocketNetConn(ctx context.Context, conn *websocket.Conn, msgType websock
 	}
 }
 
-type enterpriseTemplateScheduleStore struct{}
+type EnterpriseTemplateScheduleStore struct{}
 
-var _ schedule.TemplateScheduleStore = &enterpriseTemplateScheduleStore{}
+var _ schedule.TemplateScheduleStore = &EnterpriseTemplateScheduleStore{}
 
-func (*enterpriseTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context, db database.Store, templateID uuid.UUID) (schedule.TemplateScheduleOptions, error) {
+func (*EnterpriseTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context, db database.Store, templateID uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 	tpl, err := db.GetTemplateByID(ctx, templateID)
 	if err != nil {
 		return schedule.TemplateScheduleOptions{}, err
@@ -327,14 +327,16 @@ func (*enterpriseTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.C
 		MaxTTL:               time.Duration(tpl.MaxTTL),
 		FailureTTL:           time.Duration(tpl.FailureTTL),
 		InactivityTTL:        time.Duration(tpl.InactivityTTL),
+		LockedTTL:            time.Duration(tpl.LockedTTL),
 	}, nil
 }
 
-func (*enterpriseTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, tpl database.Template, opts schedule.TemplateScheduleOptions) (database.Template, error) {
+func (*EnterpriseTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, tpl database.Template, opts schedule.TemplateScheduleOptions) (database.Template, error) {
 	if int64(opts.DefaultTTL) == tpl.DefaultTTL &&
 		int64(opts.MaxTTL) == tpl.MaxTTL &&
 		int64(opts.FailureTTL) == tpl.FailureTTL &&
 		int64(opts.InactivityTTL) == tpl.InactivityTTL &&
+		int64(opts.LockedTTL) == tpl.LockedTTL &&
 		opts.UserAutostartEnabled == tpl.AllowUserAutostart &&
 		opts.UserAutostopEnabled == tpl.AllowUserAutostop {
 		// Avoid updating the UpdatedAt timestamp if nothing will be changed.
@@ -350,6 +352,7 @@ func (*enterpriseTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.C
 		MaxTTL:             int64(opts.MaxTTL),
 		FailureTTL:         int64(opts.FailureTTL),
 		InactivityTTL:      int64(opts.InactivityTTL),
+		LockedTTL:          int64(opts.LockedTTL),
 	})
 	if err != nil {
 		return database.Template{}, xerrors.Errorf("update template schedule: %w", err)

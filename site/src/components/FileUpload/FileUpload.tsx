@@ -117,6 +117,7 @@ export const FileUpload: FC<FileUploadProps> = ({
 
       <input
         type="file"
+        data-testid="file-upload"
         ref={inputRef}
         className={styles.input}
         accept={extension}

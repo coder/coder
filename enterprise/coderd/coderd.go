@@ -67,6 +67,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 
 	api.AGPL.Options.SetUserGroups = api.setUserGroups
 	api.AGPL.SiteHandler.AppearanceFetcher = api.fetchAppearanceConfig
+	api.AGPL.SiteHandler.RegionsFetcher = api.fetchRegions
 
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
@@ -401,7 +402,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 	if changed, enabled := featureChanged(codersdk.FeatureAdvancedTemplateScheduling); changed {
 		if enabled {
-			store := &enterpriseTemplateScheduleStore{}
+			store := &EnterpriseTemplateScheduleStore{}
 			ptr := schedule.TemplateScheduleStore(store)
 			api.AGPL.TemplateScheduleStore.Store(&ptr)
 		} else {
@@ -413,7 +414,12 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	if changed, enabled := featureChanged(codersdk.FeatureHighAvailability); changed {
 		coordinator := agpltailnet.NewCoordinator(api.Logger)
 		if enabled {
-			haCoordinator, err := tailnet.NewCoordinator(api.Logger, api.Pubsub)
+			var haCoordinator agpltailnet.Coordinator
+			if api.AGPL.Experiments.Enabled(codersdk.ExperimentTailnetPGCoordinator) {
+				haCoordinator, err = tailnet.NewPGCoord(ctx, api.Logger, api.Pubsub, api.Database)
+			} else {
+				haCoordinator, err = tailnet.NewCoordinator(api.Logger, api.Pubsub)
+			}
 			if err != nil {
 				api.Logger.Error(ctx, "unable to set up high availability coordinator", slog.Error(err))
 				// If we try to setup the HA coordinator and it fails, nothing

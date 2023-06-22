@@ -245,9 +245,9 @@ func New(options *Options) *API {
 		options.TracerProvider = trace.NewNoopTracerProvider()
 	}
 	if options.SetUserGroups == nil {
-		options.SetUserGroups = func(ctx context.Context, _ database.Store, id uuid.UUID, groups []string) error {
+		options.SetUserGroups = func(ctx context.Context, _ database.Store, userID uuid.UUID, groups []string) error {
 			options.Logger.Warn(ctx, "attempted to assign OIDC groups without enterprise license",
-				slog.F("id", id), slog.F("groups", groups),
+				slog.F("user_id", userID), slog.F("groups", groups),
 			)
 			return nil
 		}
@@ -262,6 +262,7 @@ func New(options *Options) *API {
 	if options.HealthcheckFunc == nil {
 		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *healthcheck.Report {
 			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
+				DB:        options.Database,
 				AccessURL: options.AccessURL,
 				DERPMap:   options.DERPMap.Clone(),
 				APIKey:    apiKey,
@@ -671,6 +672,7 @@ func New(options *Options) *API {
 			r.Post("/azure-instance-identity", api.postWorkspaceAuthAzureInstanceIdentity)
 			r.Post("/aws-instance-identity", api.postWorkspaceAuthAWSInstanceIdentity)
 			r.Post("/google-instance-identity", api.postWorkspaceAuthGoogleInstanceIdentity)
+			r.Get("/connection", api.workspaceAgentConnectionGeneric)
 			r.Route("/me", func(r chi.Router) {
 				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
 				r.Get("/manifest", api.workspaceAgentManifest)

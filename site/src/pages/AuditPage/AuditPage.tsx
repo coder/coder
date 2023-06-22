@@ -7,14 +7,12 @@ import { pageTitle } from "utils/page"
 import { AuditPageView } from "./AuditPageView"
 import { useUserFilterMenu } from "components/Filter/UserFilter"
 import { useFilter } from "components/Filter/filter"
-import { useDashboard } from "components/Dashboard/DashboardProvider"
 import { usePagination } from "hooks"
 import { useQuery } from "@tanstack/react-query"
 import { getAuditLogs } from "api/api"
 import { useActionFilterMenu, useResourceTypeFilterMenu } from "./AuditFilter"
 
 const AuditPage: FC = () => {
-  const dashboard = useDashboard()
   const searchParamsResult = useSearchParams()
   const pagination = usePagination({ searchParamsResult })
   const filter = useFilter({
@@ -73,21 +71,15 @@ const AuditPage: FC = () => {
         isNonInitialPage={nonInitialPage(searchParamsResult[0])}
         isAuditLogVisible={isAuditLogVisible}
         error={error}
-        filterProps={
-          dashboard.experiments.includes("workspace_filter")
-            ? {
-                filter,
-                menus: {
-                  user: userMenu,
-                  action: actionMenu,
-                  resourceType: resourceTypeMenu,
-                },
-              }
-            : {
-                filter: filter.query,
-                onFilter: filter.update,
-              }
-        }
+        filterProps={{
+          filter,
+          error,
+          menus: {
+            user: userMenu,
+            action: actionMenu,
+            resourceType: resourceTypeMenu,
+          },
+        }}
       />
     </>
   )

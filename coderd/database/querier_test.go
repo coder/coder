@@ -5,6 +5,8 @@ package database_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"sort"
 	"testing"
 	"time"
 
@@ -114,7 +116,6 @@ func TestInsertWorkspaceAgentStartupLogs(t *testing.T) {
 		CreatedAt: []time.Time{database.Now()},
 		Output:    []string{"first"},
 		Level:     []database.LogLevel{database.LogLevelInfo},
-		EOF:       []bool{false},
 		// 1 MB is the max
 		OutputLength: 1 << 20,
 	})
@@ -126,7 +127,6 @@ func TestInsertWorkspaceAgentStartupLogs(t *testing.T) {
 		CreatedAt:    []time.Time{database.Now()},
 		Output:       []string{"second"},
 		Level:        []database.LogLevel{database.LogLevelInfo},
-		EOF:          []bool{false},
 		OutputLength: 1,
 	})
 	require.True(t, database.IsStartupLogsLimitError(err))
@@ -313,4 +313,77 @@ func TestDefaultProxy(t *testing.T) {
 	found, err := db.GetDeploymentID(ctx)
 	require.NoError(t, err, "get deployment id")
 	require.Equal(t, depID, found)
+}
+
+func TestQueuePosition(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		t.SkipNow()
+	}
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	jobCount := 10
+	jobs := []database.ProvisionerJob{}
+	jobIDs := []uuid.UUID{}
+	for i := 0; i < jobCount; i++ {
+		job := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+			OrganizationID: org.ID,
+			Tags:           database.StringMap{},
+		})
+		jobs = append(jobs, job)
+		jobIDs = append(jobIDs, job.ID)
+
+		// We need a slight amount of time between each insertion to ensure that
+		// the queue position is correct... it's sorted by `created_at`.
+		time.Sleep(time.Millisecond)
+	}
+
+	queued, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+	require.NoError(t, err)
+	require.Len(t, queued, jobCount)
+	sort.Slice(queued, func(i, j int) bool {
+		return queued[i].QueuePosition < queued[j].QueuePosition
+	})
+	// Ensure that the queue positions are correct based on insertion ID!
+	for index, job := range queued {
+		require.Equal(t, job.QueuePosition, int64(index+1))
+		require.Equal(t, job.ProvisionerJob.ID, jobs[index].ID)
+	}
+
+	job, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+		StartedAt: sql.NullTime{
+			Time:  database.Now(),
+			Valid: true,
+		},
+		Types: database.AllProvisionerTypeValues(),
+		WorkerID: uuid.NullUUID{
+			UUID:  uuid.New(),
+			Valid: true,
+		},
+		Tags: json.RawMessage("{}"),
+	})
+	require.NoError(t, err)
+	require.Equal(t, jobs[0].ID, job.ID)
+
+	queued, err = db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+	require.NoError(t, err)
+	require.Len(t, queued, jobCount)
+	sort.Slice(queued, func(i, j int) bool {
+		return queued[i].QueuePosition < queued[j].QueuePosition
+	})
+	// Ensure that queue positions are updated now that the first job has been acquired!
+	for index, job := range queued {
+		if index == 0 {
+			require.Equal(t, job.QueuePosition, int64(0))
+			continue
+		}
+		require.Equal(t, job.QueuePosition, int64(index))
+		require.Equal(t, job.ProvisionerJob.ID, jobs[index].ID)
+	}
 }

@@ -617,11 +617,12 @@ func (b *Builder) authorize(authFunc func(action rbac.Action, object rbac.Object
 	case database.WorkspaceTransitionStart, database.WorkspaceTransitionStop:
 		action = rbac.ActionUpdate
 	default:
-		return BuildError{http.StatusBadRequest, fmt.Sprintf("Transition %q not supported.", b.trans), xerrors.New("")}
+		msg := fmt.Sprintf("Transition %q not supported.", b.trans)
+		return BuildError{http.StatusBadRequest, msg, xerrors.New(msg)}
 	}
 	if !authFunc(action, b.workspace) {
 		// We use the same wording as the httpapi to avoid leaking the existence of the workspace
-		return BuildError{http.StatusNotFound, httpapi.ResourceNotFoundResponse.Message, xerrors.New("")}
+		return BuildError{http.StatusNotFound, httpapi.ResourceNotFoundResponse.Message, xerrors.New(httpapi.ResourceNotFoundResponse.Message)}
 	}
 
 	template, err := b.getTemplate()
@@ -633,7 +634,7 @@ func (b *Builder) authorize(authFunc func(action rbac.Action, object rbac.Object
 	// cloud state.
 	if b.state.explicit != nil || b.state.orphan {
 		if !authFunc(rbac.ActionUpdate, template.RBACObject()) {
-			return BuildError{http.StatusForbidden, "Only template managers may provide custom state", xerrors.New("")}
+			return BuildError{http.StatusForbidden, "Only template managers may provide custom state", xerrors.New("Only template managers may provide custom state")}
 		}
 	}
 
@@ -641,7 +642,7 @@ func (b *Builder) authorize(authFunc func(action rbac.Action, object rbac.Object
 		return BuildError{
 			http.StatusBadRequest,
 			"Workspace builds with a custom log level are restricted to template authors only.",
-			xerrors.New(""),
+			xerrors.New("Workspace builds with a custom log level are restricted to template authors only."),
 		}
 	}
 	return nil
@@ -686,22 +687,26 @@ func (b *Builder) checkTemplateJobStatus() error {
 	templateVersionJobStatus := db2sdk.ProvisionerJobStatus(*templateVersionJob)
 	switch templateVersionJobStatus {
 	case codersdk.ProvisionerJobPending, codersdk.ProvisionerJobRunning:
+		msg := fmt.Sprintf("The provided template version is %s. Wait for it to complete importing!", templateVersionJobStatus)
+
 		return BuildError{
 			http.StatusNotAcceptable,
-			fmt.Sprintf("The provided template version is %s. Wait for it to complete importing!", templateVersionJobStatus),
-			xerrors.New(""),
+			msg,
+			xerrors.New(msg),
 		}
 	case codersdk.ProvisionerJobFailed:
+		msg := fmt.Sprintf("The provided template version %q has failed to import: %q. You cannot build workspaces with it!", templateVersion.Name, templateVersionJob.Error.String)
 		return BuildError{
 			http.StatusBadRequest,
-			fmt.Sprintf("The provided template version %q has failed to import: %q. You cannot build workspaces with it!", templateVersion.Name, templateVersionJob.Error.String),
-			xerrors.New(""),
+			msg,
+			xerrors.New(msg),
 		}
 	case codersdk.ProvisionerJobCanceled:
+		msg := fmt.Sprintf("The provided template version %q has failed to import: %q. You cannot build workspaces with it!", templateVersion.Name, templateVersionJob.Error.String)
 		return BuildError{
 			http.StatusBadRequest,
-			"The provided template version was canceled during import. You cannot build workspaces with it!",
-			xerrors.New(""),
+			msg,
+			xerrors.New(msg),
 		}
 	}
 	return nil
@@ -717,10 +722,11 @@ func (b *Builder) checkRunningBuild() error {
 		return BuildError{http.StatusInternalServerError, "failed to fetch prior build", err}
 	}
 	if db2sdk.ProvisionerJobStatus(*job).Active() {
+		msg := "A workspace build is already active."
 		return BuildError{
 			http.StatusConflict,
-			"A workspace build is already active.",
-			xerrors.New(""),
+			msg,
+			xerrors.New(msg),
 		}
 	}
 	return nil
