@@ -308,10 +308,3 @@ func testQueryParams[T any](t *testing.T, testCases []queryParamTestCase[T], par
 		})
 	}
 }
-
-func must[T any](value T, err error) T {
-	if err != nil {
-		panic(err)
-	}
-	return value
-}
