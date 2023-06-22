@@ -173,11 +173,10 @@ jobs:
         run: |
           curl -sS -X POST -H 'Content-type: application/json' \
           -d '{
-            "pr_number": "'${{ env.PR_NUMBER }}'",
-            "pr_url": "'${{ env.PR_URL }}'",
-            "pr_title": "'${{ env.PR_TITLE }}'",
-            "pr_access_url": "'${{ steps.deployment_url.outputs.CODER_ACCESS_URL }}'"
-          }' ${{ secrets.PR_DEPLOYMENTS_SLACK_WEBHOOK }}
+            "pr_number": "'"${{ env.PR_NUMBER }}"'",
+            "pr_url": "'"${{ env.PR_URL }}"'",
+            "pr_title": "'"${{ env.PR_TITLE }}"'",
+            "pr_access_url": "'"${{ steps.deployment_url.outputs.CODER_ACCESS_URL }}"'" }' ${{ secrets.PR_DEPLOYMENTS_SLACK_WEBHOOK }}
           echo "Slack notification sent"
 
       - name: Comment on PR
