@@ -171,16 +171,14 @@ jobs:
 
       - name: Send Slack notification
         run: |
-          curl -X POST -H 'Content-type: application/json' \
-          -d '{ \
-            "pr_number": "'${{ env.PR_NUMBER }}'", \
-            "pr_url": "'${{ env.PR_URL }}'", \
-            "pr_title": "'${{ env.PR_TITLE }}'", \
-            "pr_access_url": "'${{ env.CODER_ACCESS_URL }}'" \
+          curl -sS -X POST -H 'Content-type: application/json' \
+          -d '{
+            "pr_number": "'${{ env.PR_NUMBER }}'",
+            "pr_url": "'${{ env.PR_URL }}'",
+            "pr_title": "'${{ env.PR_TITLE }}'",
+            "pr_access_url": "'${{ steps.deployment_url.outputs.CODER_ACCESS_URL }}'"
           }' ${{ secrets.PR_DEPLOYMENTS_SLACK_WEBHOOK }}
-          echo "Sent Slack notification"
-        env:
-          CODER_ACCESS_URL: ${{ steps.deployment_url.outputs.CODER_ACCESS_URL }}
+          echo "Slack notification sent"
 
       - name: Comment on PR
         uses: peter-evans/create-or-update-comment@v3
