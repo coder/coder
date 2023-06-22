@@ -2,4 +2,4 @@
 
 package cli
 
-const hideForceUnixSlashes = true
+var hideForceUnixSlashes = true
