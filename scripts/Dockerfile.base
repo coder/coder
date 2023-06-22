@@ -11,9 +11,10 @@ RUN apk add --no-cache \
 		wget \
 		bash \
 		git \
-		openssl>=3.1.1-r1 \
-		openssh-client \
-		terraform=1.4.6-r1 && \
+		openssh-client && \
+	# Use the edge repo, since Terraform doesn't seem to be backported.
+	apk add --no-cache --repository=https://dl-cdn.alpinelinux.org/alpine/edge/community \
+		terraform=1.5.1-r0 && \
 	addgroup \
 		-g 1000 \
 		coder && \
@@ -25,7 +26,7 @@ RUN apk add --no-cache \
 		-G coder \
 		coder
 
-USER 1000:1000
+# USER 1000:1000
 ENV HOME=/home/coder
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt
 WORKDIR /home/coder
