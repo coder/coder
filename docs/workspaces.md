@@ -59,9 +59,26 @@ Workspaces may also have a max lifetime, which enforces a stop or restart even i
 
 ![TODO: use real screenshot](./images/workspaces/approaching-stop.png)
 
+#### Quiet hours
+
 To avoid interruptions, users can establish their "quiet hours", which are by default set from midnight to 4 AM, during which these actions occur. Users can also extend the deadline by up to 3 hours if they are in the middle of important work.
 
+Example:
+
+```text
+Quiet hours: 12- 4:00 AM
+11:30AM: User is notified their workspace is about to stop
+
+user bumps
+user bumps
+user bumps
+
+4 AM: workspace stops
+```
+
 ![TODO: use real screenshot](./images/workspaces/quiet-hours.png)
+
+<!-- NOTE: This will be in the "Account settings" page -->
 
 Admin controls around workspace auto-stop are an enterprise feature. [Learn more here](./admin/template)
 
