@@ -45,7 +45,7 @@ func NewExecutor(ctx context.Context, db database.Store, tss *atomic.Pointer[sch
 		db:                    db,
 		templateScheduleStore: tss,
 		tick:                  tick,
-		log:                   log,
+		log:                   log.Named("autobuild"),
 	}
 	return le
 }
