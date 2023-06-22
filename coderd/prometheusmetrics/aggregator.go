@@ -22,6 +22,9 @@ const (
 )
 
 const (
+	logPrefix    = "prometheusmetrics: "
+	logPrefixErr = "prometheusmetrics error: "
+
 	sizeCollectCh = 10
 	sizeUpdateCh  = 1024
 
@@ -141,7 +144,7 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 		for {
 			select {
 			case req := <-ma.updateCh:
-				ma.log.Debug(ctx, "metrics aggregator: update metrics")
+				ma.log.Debug(ctx, logPrefix+"update metrics")
 
 				timer := prometheus.NewTimer(ma.updateHistogram)
 			UpdateLoop:
@@ -167,13 +170,13 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 
 				timer.ObserveDuration()
 			case outputCh := <-ma.collectCh:
-				ma.log.Debug(ctx, "metrics aggregator: collect metrics")
+				ma.log.Debug(ctx, logPrefix+"collect metrics")
 
 				output := make([]prometheus.Metric, 0, len(ma.queue))
 				for _, m := range ma.queue {
 					promMetric, err := m.asPrometheus()
 					if err != nil {
-						ma.log.Error(ctx, "can't convert Prometheus value type", slog.F("name", m.Name), slog.F("type", m.Type), slog.F("value", m.Value), slog.Error(err))
+						ma.log.Error(ctx, logPrefixErr+"can't convert Prometheus value type", slog.F("name", m.Name), slog.F("type", m.Type), slog.F("value", m.Value), slog.Error(err))
 						continue
 					}
 					output = append(output, promMetric)
@@ -181,7 +184,7 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 				outputCh <- output
 				close(outputCh)
 			case <-cleanupTicker.C:
-				ma.log.Debug(ctx, "metrics aggregator: clean expired metrics")
+				ma.log.Debug(ctx, logPrefix+"clean expired metrics")
 
 				timer := prometheus.NewTimer(ma.cleanupHistogram)
 
@@ -209,7 +212,7 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 				cleanupTicker.Reset(ma.metricsCleanupInterval)
 
 			case <-ctx.Done():
-				ma.log.Debug(ctx, "metrics aggregator: is stopped")
+				ma.log.Debug(ctx, logPrefix+"metrics aggregator is stopped")
 				return
 			}
 		}
@@ -233,7 +236,7 @@ func (ma *MetricsAggregator) Collect(ch chan<- prometheus.Metric) {
 	select {
 	case ma.collectCh <- output:
 	default:
-		ma.log.Error(context.Background(), "metrics aggregator: collect queue is full")
+		ma.log.Error(context.Background(), logPrefixErr+"collect queue is full")
 		return
 	}
 
@@ -255,9 +258,9 @@ func (ma *MetricsAggregator) Update(ctx context.Context, username, workspaceName
 		timestamp: time.Now(),
 	}:
 	case <-ctx.Done():
-		ma.log.Debug(ctx, "metrics aggregator: update request is canceled")
+		ma.log.Debug(ctx, logPrefix+"update request is canceled")
 	default:
-		ma.log.Error(ctx, "metrics aggregator: update queue is full")
+		ma.log.Error(ctx, logPrefixErr+"update queue is full")
 	}
 }
 
