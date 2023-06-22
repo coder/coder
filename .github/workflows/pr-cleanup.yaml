@@ -33,6 +33,7 @@ jobs:
           tag: pr${{ steps.pr_number.outputs.PR_NUMBER }}
 
       - name: Install helm
+        if: always()
         uses: azure/setup-helm@v3
 
       - name: Set up kubeconfig
