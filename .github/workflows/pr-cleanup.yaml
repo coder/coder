@@ -1,4 +1,3 @@
-# .github/workflows/pr-cleanup.yml
 name: Cleanup PR
 on:
   pull_request:

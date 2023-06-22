@@ -1,5 +1,4 @@
-# .github/workflows/deploypr.yml
-# This action will trigger when a PR is opened or updated with a comment containing /review-pr by a member of the org.
+# This action will trigger when a PR is commentted containing /review-pr by a member of the org.
 name: Deploy PR
 on:
   issue_comment:
