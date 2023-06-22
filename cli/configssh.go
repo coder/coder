@@ -755,6 +755,10 @@ func writeWithTempFileAndMove(path string, r io.Reader) (err error) {
 //
 // Passing a "false" for forceUnixPath will result in the filepath separator
 // untouched from the original input.
+// ---
+// This is a control flag, and that is ok. It is a control flag
+// based on the OS of the user. Making this a different file is excessive.
+// nolint:revive
 func sshConfigExecEscape(path string, forceUnixPath bool) (string, error) {
 	if forceUnixPath {
 		// This is a workaround for #7639, where the filepath separator is
