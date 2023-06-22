@@ -6,6 +6,7 @@ import { getFormHelpers } from "../../utils/formUtils"
 import { LoadingButton } from "../LoadingButton/LoadingButton"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
 import { Form, FormFields } from "components/Form/Form"
+import { Alert } from "components/Alert/Alert"
 
 interface SecurityFormValues {
   old_password: string
@@ -41,6 +42,7 @@ const validationSchema = Yup.object({
 })
 
 export interface SecurityFormProps {
+  disabled?: boolean
   isLoading: boolean
   initialValues: SecurityFormValues
   onSubmit: (values: SecurityFormValues) => void
@@ -50,6 +52,7 @@ export interface SecurityFormProps {
 }
 
 export const SecurityForm: FC<SecurityFormProps> = ({
+  disabled,
   isLoading,
   onSubmit,
   initialValues,
@@ -67,6 +70,14 @@ export const SecurityForm: FC<SecurityFormProps> = ({
     form,
     updateSecurityError,
   )
+
+  if (disabled) {
+    return (
+      <Alert severity="info">
+        Password changes are only allowed for password based accounts.
+      </Alert>
+    )
+  }
 
   return (
     <>
