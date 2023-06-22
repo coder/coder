@@ -85,7 +85,7 @@ func TestParseQueryParams(t *testing.T) {
 
 		parser := httpapi.NewQueryParamParser()
 		testQueryParams(t, expParams, parser, func(vals url.Values, def time.Time, queryParam string) time.Time {
-			return parser.Time(vals, time.Time{}, queryParam)
+			return parser.Time3339Nano(vals, time.Time{}, queryParam)
 		})
 	})
 

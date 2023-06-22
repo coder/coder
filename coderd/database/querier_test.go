@@ -415,6 +415,7 @@ func TestUserLastSeenFilter(t *testing.T) {
 		beforeToday, err := db.GetUsers(ctx, database.GetUsersParams{
 			LastSeenBefore: now.Add(time.Hour * -24),
 		})
+		require.NoError(t, err)
 		database.ConvertUserRows(beforeToday)
 
 		requireUsersMatch(t, []database.User{yesterday, lastWeek}, beforeToday, "before today")
@@ -423,16 +424,19 @@ func TestUserLastSeenFilter(t *testing.T) {
 			LastSeenBefore: now.Add(time.Hour * -24),
 			LastSeenAfter:  now.Add(time.Hour * -24 * 2),
 		})
+		require.NoError(t, err)
 		requireUsersMatch(t, []database.User{yesterday}, justYesterday, "just yesterday")
 
 		all, err := db.GetUsers(ctx, database.GetUsersParams{
 			LastSeenBefore: now.Add(time.Hour),
 		})
+		require.NoError(t, err)
 		requireUsersMatch(t, []database.User{today, yesterday, lastWeek}, all, "all")
 
 		allAfterLastWeek, err := db.GetUsers(ctx, database.GetUsersParams{
 			LastSeenAfter: now.Add(time.Hour * -24 * 7),
 		})
+		require.NoError(t, err)
 		requireUsersMatch(t, []database.User{today, yesterday}, allAfterLastWeek, "after last week")
 	})
 }

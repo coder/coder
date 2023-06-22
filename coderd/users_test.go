@@ -1131,6 +1131,7 @@ func TestUsersFilter(t *testing.T) {
 		}
 		userClient, userData := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, roles...)
 		// Set the last seen for each user to a unique day
+		// nolint:gocritic // Unit test
 		_, err := api.Database.UpdateUserLastSeenAt(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLastSeenAtParams{
 			ID:         userData.ID,
 			LastSeenAt: lastSeenNow.Add(-1 * time.Hour * 24 * time.Duration(i)),
