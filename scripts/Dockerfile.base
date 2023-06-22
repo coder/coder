@@ -29,7 +29,7 @@ RUN apk add --no-cache \
 		-G coder \
 		coder
 
-# USER 1000:1000
+USER 1000:1000
 ENV HOME=/home/coder
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt
 WORKDIR /home/coder
