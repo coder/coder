@@ -7,7 +7,7 @@ import { MouseEvent, useState } from "react"
 export interface TableRowMenuProps<TData> {
   data: TData
   menuItems: Array<{
-    label: string
+    label: React.ReactNode
     disabled: boolean
     onClick: (data: TData) => void
   }>
@@ -45,9 +45,9 @@ export const TableRowMenu = <T,>({
         open={Boolean(anchorEl)}
         onClose={handleClose}
       >
-        {menuItems.map((item) => (
+        {menuItems.map((item, index) => (
           <MenuItem
-            key={item.label}
+            key={index}
             disabled={item.disabled}
             onClick={() => {
               handleClose()

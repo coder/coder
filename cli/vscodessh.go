@@ -17,6 +17,9 @@ import (
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/netlogtype"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
+
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/codersdk"
 )
@@ -126,7 +129,18 @@ func (r *RootCmd) vscodeSSH() *clibase.Cmd {
 				}
 			}
 
-			agentConn, err := client.DialWorkspaceAgent(ctx, agent.ID, &codersdk.DialWorkspaceAgentOptions{})
+			var logger slog.Logger
+			if r.verbose {
+				logger = slog.Make(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelDebug)
+			}
+
+			if r.disableDirect {
+				_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
+			}
+			agentConn, err := client.DialWorkspaceAgent(ctx, agent.ID, &codersdk.DialWorkspaceAgentOptions{
+				Logger:         logger,
+				BlockEndpoints: r.disableDirect,
+			})
 			if err != nil {
 				return xerrors.Errorf("dial workspace agent: %w", err)
 			}

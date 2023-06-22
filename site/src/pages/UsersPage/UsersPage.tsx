@@ -19,6 +19,7 @@ import { pageTitle } from "../../utils/page"
 import { UsersPageView } from "./UsersPageView"
 import { useStatusFilterMenu } from "./UsersFilter"
 import { useFilter } from "components/Filter/filter"
+import { useDashboard } from "components/Dashboard/DashboardProvider"
 
 export const Language = {
   suspendDialogTitle: "Suspend user",
@@ -35,6 +36,7 @@ const getSelectedUser = (id: string, users?: User[]) =>
 export const UsersPage: FC<{ children?: ReactNode }> = () => {
   const navigate = useNavigate()
   const searchParamsResult = useSearchParams()
+  const { entitlements } = useDashboard()
   const [searchParams, setSearchParams] = searchParamsResult
   const filter = searchParams.get("filter") ?? ""
   const [usersState, usersSend] = useMachine(usersMachine, {
@@ -148,6 +150,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         isUpdatingUserRoles={usersState.matches("updatingUserRoles")}
         isLoading={isLoading}
         canEditUsers={canEditUsers}
+        canViewActivity={entitlements.features.audit_log.enabled}
         paginationRef={paginationRef}
         isNonInitialPage={nonInitialPage(searchParams)}
         actorID={me.id}

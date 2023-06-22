@@ -87,18 +87,19 @@ type Manifest struct {
 	// GitAuthConfigs stores the number of Git configurations
 	// the Coder deployment has. If this number is >0, we
 	// set up special configuration in the workspace.
-	GitAuthConfigs        int                                          `json:"git_auth_configs"`
-	VSCodePortProxyURI    string                                       `json:"vscode_port_proxy_uri"`
-	Apps                  []codersdk.WorkspaceApp                      `json:"apps"`
-	DERPMap               *tailcfg.DERPMap                             `json:"derpmap"`
-	EnvironmentVariables  map[string]string                            `json:"environment_variables"`
-	StartupScript         string                                       `json:"startup_script"`
-	StartupScriptTimeout  time.Duration                                `json:"startup_script_timeout"`
-	Directory             string                                       `json:"directory"`
-	MOTDFile              string                                       `json:"motd_file"`
-	ShutdownScript        string                                       `json:"shutdown_script"`
-	ShutdownScriptTimeout time.Duration                                `json:"shutdown_script_timeout"`
-	Metadata              []codersdk.WorkspaceAgentMetadataDescription `json:"metadata"`
+	GitAuthConfigs           int                                          `json:"git_auth_configs"`
+	VSCodePortProxyURI       string                                       `json:"vscode_port_proxy_uri"`
+	Apps                     []codersdk.WorkspaceApp                      `json:"apps"`
+	DERPMap                  *tailcfg.DERPMap                             `json:"derpmap"`
+	EnvironmentVariables     map[string]string                            `json:"environment_variables"`
+	StartupScript            string                                       `json:"startup_script"`
+	StartupScriptTimeout     time.Duration                                `json:"startup_script_timeout"`
+	Directory                string                                       `json:"directory"`
+	MOTDFile                 string                                       `json:"motd_file"`
+	ShutdownScript           string                                       `json:"shutdown_script"`
+	ShutdownScriptTimeout    time.Duration                                `json:"shutdown_script_timeout"`
+	DisableDirectConnections bool                                         `json:"disable_direct_connections"`
+	Metadata                 []codersdk.WorkspaceAgentMetadataDescription `json:"metadata"`
 }
 
 // Manifest fetches manifest for the currently authenticated workspace agent.

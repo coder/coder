@@ -10,12 +10,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/sloggers/slogtest"
+
+	"github.com/coder/coder/coderd/autobuild"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/enterprise/coderd"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/enterprise/coderd/license"
+	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/testutil"
 )
 
@@ -71,6 +76,157 @@ func TestCreateWorkspace(t *testing.T) {
 
 		_, err = client1.CreateWorkspace(ctx, user.OrganizationID, user1.ID.String(), req)
 		require.Error(t, err)
+	})
+}
+
+func TestWorkspaceAutobuild(t *testing.T) {
+	t.Parallel()
+
+	t.Run("FailureTTLOK", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ticker = make(chan time.Time)
+			statCh = make(chan autobuild.Stats)
+			logger = slogtest.Make(t, &slogtest.Options{
+				// We ignore errors here since we expect to fail
+				// builds.
+				IgnoreErrors: true,
+			})
+			failureTTL = time.Millisecond
+
+			client = coderdenttest.New(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					Logger:                   &logger,
+					AutobuildTicker:          ticker,
+					IncludeProvisionerDaemon: true,
+					AutobuildStats:           statCh,
+					TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
+				},
+			})
+		)
+		user := coderdtest.CreateFirstUser(t, client)
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureAdvancedTemplateScheduling: 1,
+			},
+		})
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionFailed,
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.FailureTTLMillis = ptr.Ref[int64](failureTTL.Milliseconds())
+		})
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		build := coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
+		require.Eventually(t,
+			func() bool {
+				return database.Now().Sub(*build.Job.CompletedAt) > failureTTL
+			},
+			testutil.IntervalMedium, testutil.IntervalFast)
+		ticker <- time.Now()
+		stats := <-statCh
+		// Expect workspace to transition to stopped state for breaching
+		// failure TTL.
+		require.Len(t, stats.Transitions, 1)
+		require.Equal(t, stats.Transitions[ws.ID], database.WorkspaceTransitionStop)
+	})
+
+	t.Run("FailureTTLTooEarly", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ticker = make(chan time.Time)
+			statCh = make(chan autobuild.Stats)
+			logger = slogtest.Make(t, &slogtest.Options{
+				// We ignore errors here since we expect to fail
+				// builds.
+				IgnoreErrors: true,
+			})
+			failureTTL = time.Minute
+
+			client = coderdenttest.New(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					Logger:                   &logger,
+					AutobuildTicker:          ticker,
+					IncludeProvisionerDaemon: true,
+					AutobuildStats:           statCh,
+					TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
+				},
+			})
+		)
+		user := coderdtest.CreateFirstUser(t, client)
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureAdvancedTemplateScheduling: 1,
+			},
+		})
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionFailed,
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.FailureTTLMillis = ptr.Ref[int64](failureTTL.Milliseconds())
+		})
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		build := coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
+		ticker <- time.Now()
+		stats := <-statCh
+		// Expect no transitions since not enough time has elapsed.
+		require.Len(t, stats.Transitions, 0)
+	})
+
+	t.Run("FailureTTLUnset", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ticker = make(chan time.Time)
+			statCh = make(chan autobuild.Stats)
+			logger = slogtest.Make(t, &slogtest.Options{
+				// We ignore errors here since we expect to fail
+				// builds.
+				IgnoreErrors: true,
+			})
+
+			client = coderdenttest.New(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					Logger:                   &logger,
+					AutobuildTicker:          ticker,
+					IncludeProvisionerDaemon: true,
+					AutobuildStats:           statCh,
+					TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
+				},
+			})
+		)
+		user := coderdtest.CreateFirstUser(t, client)
+		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureAdvancedTemplateScheduling: 1,
+			},
+		})
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionFailed,
+		})
+		// Create a template without setting a failure_ttl.
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		build := coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
+		ticker <- time.Now()
+		stats := <-statCh
+		// Expect no transitions since the field is unset on the template.
+		require.Len(t, stats.Transitions, 0)
 	})
 }
 

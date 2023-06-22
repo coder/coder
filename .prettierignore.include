@@ -8,3 +8,6 @@ helm/templates/*.yaml
 
 # Testdata shouldn't be formatted.
 scripts/apitypings/testdata/**/*.ts
+
+# Generated files shouldn't be formatted.
+site/e2e/provisionerGenerated.ts
