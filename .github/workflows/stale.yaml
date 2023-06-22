@@ -1,4 +1,4 @@
-name: Stale Issue and Branch Cleanup
+name: Stale Issue, Banch and Old Workflows Cleanup
 on:
   schedule:
     # Every day at midnight
@@ -10,6 +10,7 @@ jobs:
     permissions:
       issues: write
       pull-requests: write
+      actions: write
     steps:
       - uses: actions/stale@v8.0.0
         with:
@@ -42,3 +43,14 @@ jobs:
           delete_tags: false
           # extra_protected_branch_regex: ^(foo|bar)$
           exclude_open_pr_branches: true
+  del_runs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete workflow runs
+        uses: Mattraks/delete-workflow-runs@v2
+        with:
+          token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          retain_days: 1
+          keep_minimum_runs: 1
+          delete_workflow_pattern: pr-cleanup.yaml
