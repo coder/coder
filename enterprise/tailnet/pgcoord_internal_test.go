@@ -11,7 +11,6 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/coderd/database/dbmock"
-	"github.com/coder/coder/coderd/database/pubsub"
 	"github.com/coder/coder/testutil"
 )
 
@@ -19,9 +18,6 @@ import (
 // cleanup.
 func TestHeartbeat_Cleanup(t *testing.T) {
 	t.Parallel()
-
-	// this won't get notifications from the store, but we don't need them for this test.
-	ps := pubsub.NewInMemory()
 
 	ctrl := gomock.NewController(t)
 	mStore := dbmock.NewMockStore(ctrl)
@@ -39,7 +35,6 @@ func TestHeartbeat_Cleanup(t *testing.T) {
 	uut := &heartbeats{
 		ctx:           ctx,
 		logger:        logger,
-		pubsub:        ps,
 		store:         mStore,
 		cleanupPeriod: time.Millisecond,
 	}
