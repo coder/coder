@@ -26,6 +26,7 @@ jobs:
     outputs:
       PR_NUMBER: ${{ steps.pr_number.outputs.PR_NUMBER }}
       PR_TITLE: ${{ steps.pr_number.outputs.PR_TITLE }}
+      PR_URL: ${{ steps.pr_number.outputs.PR_URL }}
       COMMENT_ID: ${{ steps.comment_id.outputs.comment-id }}
       CODER_BASE_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_BASE_IMAGE_TAG }}
       CODER_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_IMAGE_TAG }}
@@ -43,6 +44,7 @@ jobs:
             PR_NUMBER=${{ github.event.issue.number }}
             PR_TITLE=${{ github.event.issue.title }}
           fi
+          echo "PR_URL="https://github.com/coder/coder/pull/$PR_NUMBER" >> $GITHUB_OUTPUT
           echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_OUTPUT
           echo "PR_TITLE=$PR_TITLE" >> $GITHUB_OUTPUT
 
@@ -144,6 +146,7 @@ jobs:
       CODER_IMAGE_TAG: ${{ needs.pr_commented.outputs.CODER_IMAGE_TAG }}
       PR_NUMBER: ${{ needs.pr_commented.outputs.PR_NUMBER }}
       PR_TITLE: ${{ needs.pr_commented.outputs.PR_TITLE }}
+      PR_URL: ${{ needs.pr_commented.outputs.PR_URL }}
     steps:
       - uses: actions/checkout@v3
 
@@ -186,7 +189,13 @@ jobs:
 
       - name: Send Slack notification
         run: |
-          curl -X POST -H 'Content-type: application/json' -d '{"msg":"${{ env.PR_TITLE }}\ndeployed at\n${{env.CODER_ACCESS_URL}}"}' ${{ secrets.PR_DEPLOYMENTS_SLACK_WEBHOOK }}
+          curl -X POST -H 'Content-type: application/json' \
+          -d '{ \
+            "pr_number": "'${{ env.PR_NUMBER }}'", \
+            "pr_url": "'${{ env.PR_URL }}'", \
+            "pr_title": "'${{ env.PR_TITLE }}'", \
+            "pr_access_url": "'${{ env.CODER_ACCESS_URL }}'" \
+          }' ${{ secrets.PR_DEPLOYMENTS_SLACK_WEBHOOK }}
           echo "Sent Slack notification"
         env:
           CODER_ACCESS_URL: ${{ steps.deployment_url.outputs.CODER_ACCESS_URL }}
