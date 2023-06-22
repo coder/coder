@@ -2688,6 +2688,26 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 		users = usersFilteredByRole
 	}
 
+	if !params.LastSeenBefore.IsZero() {
+		usersFilteredByLastSeen := make([]database.User, 0, len(users))
+		for i, user := range users {
+			if user.LastSeenAt.Before(params.LastSeenBefore) {
+				usersFilteredByLastSeen = append(usersFilteredByLastSeen, users[i])
+			}
+		}
+		users = usersFilteredByLastSeen
+	}
+
+	if !params.LastSeenAfter.IsZero() {
+		usersFilteredByLastSeen := make([]database.User, 0, len(users))
+		for i, user := range users {
+			if user.LastSeenAt.After(params.LastSeenAfter) {
+				usersFilteredByLastSeen = append(usersFilteredByLastSeen, users[i])
+			}
+		}
+		users = usersFilteredByLastSeen
+	}
+
 	beforePageCount := len(users)
 
 	if params.OffsetOpt > 0 {
