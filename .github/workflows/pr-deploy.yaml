@@ -42,7 +42,7 @@ jobs:
             PR_TITLE=$(curl -sSL -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/coder/coder/pulls/$PR_NUMBER" | jq -r '.title')
           else
             PR_NUMBER=${{ github.event.issue.number }}
-            PR_TITLE=${{ github.event.issue.title }}
+            PR_TITLE="${{ github.event.issue.title }}"
           fi
           echo "PR_URL=https://github.com/coder/coder/pull/$PR_NUMBER" >> $GITHUB_OUTPUT
           echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_OUTPUT
