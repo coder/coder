@@ -111,14 +111,14 @@ jobs:
           make gen/mark-fresh
           export DOCKER_IMAGE_NO_PREREQUISITES=true
           version="$(./scripts/version.sh)"
-          image_job="build/coder_${version}_linux_amd64.tag"
           export CODER_IMAGE_BUILD_BASE_TAG="$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")"
+          make -j build/coder_linux_amd64
           ./scripts/build_docker.sh \
             --arch amd64 \
             --target ${{ env.CODER_IMAGE_TAG }} \
             --version $version \
             --push \
-            $image_job
+            build/coder_linux_amd64
 
   deploy:
     needs: [build, pr_commented]
