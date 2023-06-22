@@ -44,6 +44,8 @@ import (
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
 )
 
+const logPrefix = "provisioner job error: "
+
 var (
 	lastAcquire      time.Time
 	lastAcquireMutex sync.RWMutex
@@ -490,7 +492,7 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 
 		logs, err := server.Database.InsertProvisionerJobLogs(ctx, insertParams)
 		if err != nil {
-			server.Logger.Error(ctx, "failed to insert job logs", slog.F("job_id", parsedID), slog.Error(err))
+			server.Logger.Error(ctx, logPrefix+"failed to insert job logs", slog.F("job_id", parsedID), slog.Error(err))
 			return nil, xerrors.Errorf("insert job logs: %w", err)
 		}
 		// Publish by the lowest log ID inserted so the log stream will fetch
@@ -505,8 +507,8 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 		}
 		err = server.Pubsub.Publish(provisionersdk.ProvisionerJobLogsNotifyChannel(parsedID), data)
 		if err != nil {
-			server.Logger.Error(ctx, "failed to publish job logs", slog.F("job_id", parsedID), slog.Error(err))
-			return nil, xerrors.Errorf("publish job log: %w", err)
+			server.Logger.Error(ctx, logPrefix+"failed to publish job logs", slog.F("job_id", parsedID), slog.Error(err))
+			return nil, xerrors.Errorf("publish job logs: %w", err)
 		}
 		server.Logger.Debug(ctx, "published job logs", slog.F("job_id", parsedID))
 	}
@@ -525,7 +527,7 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 	if len(request.TemplateVariables) > 0 {
 		templateVersion, err := server.Database.GetTemplateVersionByJobID(ctx, job.ID)
 		if err != nil {
-			server.Logger.Error(ctx, "failed to get the template version", slog.F("job_id", parsedID), slog.Error(err))
+			server.Logger.Error(ctx, logPrefix+"failed to get the template version", slog.F("job_id", parsedID), slog.Error(err))
 			return nil, xerrors.Errorf("get template version by job id: %w", err)
 		}
 
@@ -703,7 +705,7 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 
 				wriBytes, err := json.Marshal(buildResourceInfo)
 				if err != nil {
-					server.Logger.Error(ctx, "marshal workspace resource info for failed job", slog.Error(err))
+					server.Logger.Error(ctx, logPrefix+"marshal workspace resource info for failed job", slog.Error(err))
 				}
 
 				audit.BuildAudit(ctx, &audit.BuildAuditParams[database.WorkspaceBuild]{
@@ -727,7 +729,7 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 	}
 	err = server.Pubsub.Publish(provisionersdk.ProvisionerJobLogsNotifyChannel(jobID), data)
 	if err != nil {
-		server.Logger.Error(ctx, "failed to publish end of job logs", slog.F("job_id", jobID), slog.Error(err))
+		server.Logger.Error(ctx, logPrefix+"failed to publish end of job logs", slog.F("job_id", jobID), slog.Error(err))
 		return nil, xerrors.Errorf("publish end of job logs: %w", err)
 	}
 	return &proto.Empty{}, nil
@@ -905,7 +907,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			workspace, getWorkspaceError = db.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
 			if getWorkspaceError != nil {
 				server.Logger.Error(ctx,
-					"fetch workspace for build",
+					logPrefix+"fetch workspace for build",
 					slog.F("workspace_build_id", workspaceBuild.ID),
 					slog.F("workspace_id", workspaceBuild.WorkspaceID),
 				)
@@ -1002,7 +1004,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 						// have a shutdown signal we can listen to.
 						<-wait
 						if err := server.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(workspaceBuild.WorkspaceID), []byte{}); err != nil {
-							server.Logger.Error(ctx, "workspace notification after agent timeout failed",
+							server.Logger.Error(ctx, logPrefix+"workspace notification after agent timeout failed",
 								slog.F("workspace_build_id", workspaceBuild.ID),
 								slog.Error(err),
 							)
@@ -1054,7 +1056,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 
 			wriBytes, err := json.Marshal(buildResourceInfo)
 			if err != nil {
-				server.Logger.Error(ctx, "marshal resource info for successful job", slog.Error(err))
+				server.Logger.Error(ctx, logPrefix+"marshal resource info for successful job", slog.Error(err))
 			}
 
 			audit.BuildAudit(ctx, &audit.BuildAuditParams[database.WorkspaceBuild]{
@@ -1117,7 +1119,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 	}
 	err = server.Pubsub.Publish(provisionersdk.ProvisionerJobLogsNotifyChannel(jobID), data)
 	if err != nil {
-		server.Logger.Error(ctx, "failed to publish end of job logs", slog.F("job_id", jobID), slog.Error(err))
+		server.Logger.Error(ctx, logPrefix+"failed to publish end of job logs", slog.F("job_id", jobID), slog.Error(err))
 		return nil, xerrors.Errorf("publish end of job logs: %w", err)
 	}
 
