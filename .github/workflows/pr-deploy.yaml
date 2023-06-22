@@ -74,7 +74,7 @@ jobs:
           issue-number: ${{ steps.pr_number.outputs.PR_NUMBER }}
           edit-mode: replace
           body: |
-            :rocket: Deploying PR ${{ steps.pr_number.outputs.PR_NUMBER }}
+            :rocket: Deploying PR ${{ steps.pr_number.outputs.PR_NUMBER }} ...
             :warning: This deployment will be deleted when the PR is closed.
 
   build:
@@ -185,5 +185,6 @@ jobs:
           comment-id: ${{ needs.pr_commented.outputs.COMMENT_ID }}
           body: |
             :heavy_check_mark: Deployed PR ${{ env.PR_NUMBER }} successfully.
+            :rocket: Access the deployment link [here](https://codercom.slack.com/archives/C05DNE982E8).
             :warning: This deployment will be deleted when the PR is closed.
           reactions: "+1"
