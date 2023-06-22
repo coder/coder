@@ -544,9 +544,9 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 		{
 			Flag: "force-unix-filepaths",
 			Env:  "CODER_CONFIGSSH_UNIX_FILEPATHS",
-			Description: "By default, this command uses the os path separator when writing the ssh config. " +
+			Description: "By default, 'config-ssh' uses the os path separator when writing the ssh config. " +
 				"This might be an issue in Windows machine that use a unix-like shell. " +
-				"This flag forces the use of unix filepaths (the forward slash '/').",
+				"This flag forces the use of unix file paths (the forward slash '/').",
 			Value: clibase.BoolOf(&forceUnixSeparators),
 			// On non-windows showing this command is useless because it is a noop.
 			// Hide vs disable it though so if a command is copied from a Windows
