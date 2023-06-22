@@ -106,7 +106,7 @@ jobs:
         id: check_base_dockerfile
         run: |
           set -euxo pipefail
-          if [[ $(git diff --name-only HEAD^ HEAD | grep Dockerfile.base) ]]; then
+          if [[ $(git diff --name-only main...HEAD | grep Dockerfile.base) ]]; then
             echo "changed=true" >> $GITHUB_OUTPUT
           else
             echo "changed=false" >> $GITHUB_OUTPUT
@@ -136,7 +136,7 @@ jobs:
         env:
           CODER_BASE_IMAGE_TAG: ${{ steps.check_base_dockerfile.outputs.changed == 'true' && needs.pr_commented.outputs.coder_base_image_tag || 'ghcr.io/coder/coder-base:latest' }}
 
-  deployment:
+  deploy:
     needs: [build, pr_commented]
     if: needs.build.result == 'success'
     runs-on: "ubuntu-latest"
@@ -164,7 +164,7 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@v3
 
-      - name: "Deploy"
+      - name: "Install Helm chart"
         run: |
           helm upgrade --install pr${{ env.PR_NUMBER }}  ./helm \
           --namespace "pr${{ env.PR_NUMBER }}" \
