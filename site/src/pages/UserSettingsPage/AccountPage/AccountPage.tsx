@@ -1,29 +1,34 @@
-import { FC, useState } from "react"
+import { ComponentProps, FC, useState } from "react"
 import { Section } from "../../../components/SettingsLayout/Section"
 import { AccountForm } from "../../../components/SettingsAccountForm/SettingsAccountForm"
 import { useAuth } from "components/AuthProvider/AuthProvider"
 import { useMe } from "hooks/useMe"
 import { usePermissions } from "hooks/usePermissions"
-import { Dialog } from "components/Dialogs/Dialog"
 import TextField from "@mui/material/TextField"
-import { FormFields, VerticalForm } from "components/Form/Form"
-import { LoadingButton } from "components/LoadingButton/LoadingButton"
 import Box from "@mui/material/Box"
 import GitHubIcon from "@mui/icons-material/GitHub"
 import KeyIcon from "@mui/icons-material/VpnKey"
 import Button from "@mui/material/Button"
-import { MockAuthMethods } from "testHelpers/entities"
-import CircularProgress from "@mui/material/CircularProgress"
 import { useLocation } from "react-router-dom"
 import { retrieveRedirect } from "utils/redirect"
 import Typography from "@mui/material/Typography"
+import { convertToOAUTH, getAuthMethods } from "api/api"
+import { AuthMethods, LoginType } from "api/typesGenerated"
+import Skeleton from "@mui/material/Skeleton"
+import { Stack } from "components/Stack/Stack"
+import { useMutation, useQuery } from "@tanstack/react-query"
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
+import { getErrorMessage } from "api/errors"
 
-type OIDCState =
-  | { status: "closed" }
-  | { status: "confirmPassword"; error?: unknown }
-  | { status: "confirmingPassword" }
-  | { status: "selectOIDCProvider" }
-  | { status: "updatingProvider" }
+type LoginTypeConfirmation =
+  | {
+      open: false
+      selectedType: undefined
+    }
+  | {
+      open: true
+      selectedType: LoginType
+    }
 
 export const AccountPage: FC = () => {
   const [authState, authSend] = useAuth()
@@ -31,14 +36,24 @@ export const AccountPage: FC = () => {
   const permissions = usePermissions()
   const { updateProfileError } = authState.context
   const canEditUsers = permissions && permissions.updateUsers
-  const [OIDCState, setOIDCState] = useState<OIDCState>({
-    status: "closed",
-  })
   const location = useLocation()
   const redirectTo = retrieveRedirect(location.search)
+  const [loginTypeConfirmation, setLoginTypeConfirmation] =
+    useState<LoginTypeConfirmation>({ open: false, selectedType: undefined })
+  const { data: authMethods } = useQuery({
+    queryKey: ["authMethods"],
+    queryFn: getAuthMethods,
+  })
+  const loginTypeMutation = useMutation(convertToOAUTH, {
+    onSuccess: (data) => {
+      window.location.href = `/api/v2/users/oidc/callback?oidc_merge_state=${
+        data.state_string
+      }&redirect=${encodeURIComponent(redirectTo)}`
+    },
+  })
 
   return (
-    <>
+    <Stack spacing={8}>
       <Section title="Account" description="Update your account info">
         <AccountForm
           editable={Boolean(canEditUsers)}
@@ -54,168 +69,202 @@ export const AccountPage: FC = () => {
               data,
             })
           }}
-          onChangeToOIDCAuth={() => {
-            setOIDCState({ status: "confirmPassword" })
-          }}
         />
       </Section>
-      <OIDCChangeModal
-        redirectTo={redirectTo}
-        state={OIDCState}
-        onChangeState={setOIDCState}
+
+      <Section
+        title="Single Sign On"
+        description="Authenticate in Coder using one-click"
+      >
+        <Box display="grid" gap="16px">
+          {authMethods ? (
+            authMethods.me_login_type === "password" ? (
+              <>
+                {authMethods.github.enabled && (
+                  <GitHubButton
+                    disabled={loginTypeMutation.isLoading}
+                    onClick={() =>
+                      setLoginTypeConfirmation({
+                        open: true,
+                        selectedType: "github",
+                      })
+                    }
+                  >
+                    GitHub
+                  </GitHubButton>
+                )}
+                {authMethods.oidc.enabled && (
+                  <OIDCButton
+                    authMethods={authMethods}
+                    disabled={loginTypeMutation.isLoading}
+                    onClick={() =>
+                      setLoginTypeConfirmation({
+                        open: true,
+                        selectedType: "oidc",
+                      })
+                    }
+                  >
+                    {getOIDCLabel(authMethods)}
+                  </OIDCButton>
+                )}
+              </>
+            ) : (
+              <>
+                {authMethods.me_login_type === "github" && (
+                  <GitHubButton disabled>
+                    Authenticated with GitHub
+                  </GitHubButton>
+                )}
+
+                {authMethods.me_login_type === "oidc" && (
+                  <OIDCButton authMethods={authMethods} disabled>
+                    Authenticated with {getOIDCLabel(authMethods)}
+                  </OIDCButton>
+                )}
+              </>
+            )
+          ) : (
+            <>
+              <Skeleton
+                variant="rectangular"
+                sx={{ height: 40, borderRadius: 1 }}
+              />
+              <Skeleton
+                variant="rectangular"
+                sx={{ height: 40, borderRadius: 1 }}
+              />
+            </>
+          )}
+        </Box>
+      </Section>
+
+      <ConfirmLoginTypeChangeModal
+        open={loginTypeConfirmation.open}
+        error={loginTypeMutation.error}
+        // We still want to show it loading when it is success so the modal is
+        // not going to close or change until the oauth redirect
+        loading={loginTypeMutation.isLoading || loginTypeMutation.isSuccess}
+        onClose={() => {
+          setLoginTypeConfirmation({ open: false, selectedType: undefined })
+          loginTypeMutation.reset()
+        }}
+        onConfirm={(password) => {
+          if (!loginTypeConfirmation.selectedType) {
+            throw new Error("No login type selected")
+          }
+          loginTypeMutation.mutate({
+            to_login_type: loginTypeConfirmation.selectedType,
+            email: me.email,
+            password,
+          })
+        }}
       />
-    </>
+    </Stack>
   )
 }
 
-const OIDCChangeModal = ({
-  state,
-  onChangeState,
-  redirectTo,
-}: {
-  redirectTo: string
-  state: OIDCState
-  onChangeState: (newState: OIDCState) => void
-}) => {
-  const authMethods = MockAuthMethods
+const GitHubButton = (props: ComponentProps<typeof Button>) => {
+  return (
+    <Button
+      startIcon={<GitHubIcon sx={{ width: 16, height: 16 }} />}
+      fullWidth
+      type="submit"
+      size="large"
+      {...props}
+    />
+  )
+}
 
-  const updateProvider = (provider: string) => {
-    onChangeState({ status: "updatingProvider" })
-    setTimeout(() => {
-      window.location.href = `/api/v2/users/oidc/callback?oidc_merge_state=something&redirect=${encodeURIComponent(
-        redirectTo,
-      )}`
-    }, 1000)
+const OIDCButton = ({
+  authMethods,
+  ...buttonProps
+}: ComponentProps<typeof Button> & { authMethods: AuthMethods }) => {
+  return (
+    <Button
+      size="large"
+      startIcon={
+        authMethods.oidc.iconUrl ? (
+          <Box
+            component="img"
+            alt="Open ID Connect icon"
+            src={authMethods.oidc.iconUrl}
+            sx={{ width: 16, height: 16 }}
+          />
+        ) : (
+          <KeyIcon sx={{ width: 16, height: 16 }} />
+        )
+      }
+      fullWidth
+      type="submit"
+      {...buttonProps}
+    />
+  )
+}
+
+const getOIDCLabel = (authMethods: AuthMethods) => {
+  return authMethods.oidc.signInText || "OpenID Connect"
+}
+
+const ConfirmLoginTypeChangeModal = ({
+  open,
+  loading,
+  error,
+  onClose,
+  onConfirm,
+}: {
+  open: boolean
+  loading: boolean
+  error: unknown
+  onClose: () => void
+  onConfirm: (password: string) => void
+}) => {
+  const [password, setPassword] = useState("")
+
+  const handleConfirm = () => {
+    onConfirm(password)
   }
 
   return (
-    <Dialog
-      open={state.status !== "closed"}
-      onClose={() => onChangeState({ status: "closed" })}
-      sx={{
-        "& .MuiPaper-root": {
-          padding: (theme) => theme.spacing(5),
-          backgroundColor: (theme) => theme.palette.background.paper,
-          border: (theme) => `1px solid ${theme.palette.divider}`,
-          width: 440,
-        },
+    <ConfirmDialog
+      open={open}
+      onClose={() => {
+        onClose()
       }}
-    >
-      {(state.status === "confirmPassword" ||
-        state.status === "confirmingPassword") && (
-        <div>
-          <Typography component="h3" sx={{ fontSize: 20 }}>
-            Confirm password
+      onConfirm={handleConfirm}
+      hideCancel={false}
+      cancelText="Cancel"
+      confirmText="Update"
+      title="Change login type"
+      confirmLoading={loading}
+      description={
+        <Stack>
+          <Typography>
+            After changing your login type, you will not be able to change it
+            again. Are you sure you want to proceed and change your login type?
           </Typography>
-          <Typography
-            component="p"
-            sx={{
-              color: (theme) => theme.palette.text.secondary,
-              mt: 1,
-              mb: 3,
-            }}
-          >
-            We need to confirm your identity in order to proceed with the
-            authentication changes
-          </Typography>
-          <VerticalForm
-            onSubmit={async (e) => {
-              e.preventDefault()
-              onChangeState({ status: "confirmingPassword" })
-              await new Promise((resolve) => setTimeout(resolve, 1000))
-              onChangeState({ status: "selectOIDCProvider" })
-            }}
-          >
-            <FormFields>
-              <TextField
-                type="password"
-                label="Password"
-                name="password"
-                autoFocus
-                required
-              />
-              <LoadingButton
-                size="large"
-                type="submit"
-                variant="contained"
-                loading={state.status === "confirmingPassword"}
-              >
-                Confirm password
-              </LoadingButton>
-            </FormFields>
-          </VerticalForm>
-        </div>
-      )}
-
-      {(state.status === "selectOIDCProvider" ||
-        state.status === "updatingProvider") && (
-        <div>
-          <Typography component="h3" sx={{ fontSize: 20 }}>
-            Select a provider
-          </Typography>
-          <Typography
-            component="p"
-            sx={{
-              color: (theme) => theme.palette.text.secondary,
-              mt: 1,
-              mb: 3,
-            }}
-          >
-            After selecting the provider, you will be redirected to the
-            provider&lsquo;s authentication page.
-          </Typography>
-          <Box display="grid" gap="16px">
-            <Button
-              disabled={state.status === "updatingProvider"}
-              onClick={() => updateProvider("github")}
-              startIcon={<GitHubIcon sx={{ width: 16, height: 16 }} />}
-              fullWidth
-              type="submit"
-              size="large"
-            >
-              GitHub
-            </Button>
-            <Button
-              disabled={state.status === "updatingProvider"}
-              onClick={() => updateProvider("oidc")}
-              size="large"
-              startIcon={
-                authMethods.oidc.iconUrl ? (
-                  <Box
-                    component="img"
-                    alt="Open ID Connect icon"
-                    src={authMethods.oidc.iconUrl}
-                    sx={{ width: 16, height: 16 }}
-                  />
-                ) : (
-                  <KeyIcon sx={{ width: 16, height: 16 }} />
-                )
+          <TextField
+            autoFocus
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                handleConfirm()
               }
-              fullWidth
-              type="submit"
-            >
-              {authMethods.oidc.signInText || "OpenID Connect"}
-            </Button>
-          </Box>
-          {state.status === "updatingProvider" && (
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                mt: (theme) => theme.spacing(2),
-                gap: 1,
-                fontSize: 13,
-                color: (theme) => theme.palette.text.secondary,
-              }}
-            >
-              <CircularProgress size={12} />
-              Updating authentication method...
-            </Box>
-          )}
-        </div>
-      )}
-    </Dialog>
+            }}
+            error={Boolean(error)}
+            helperText={
+              error
+                ? getErrorMessage(error, "Your password is incorrect")
+                : undefined
+            }
+            name="confirm-password"
+            id="confirm-password"
+            value={password}
+            onChange={(e) => setPassword(e.currentTarget.value)}
+            label="Confirm your password"
+            type="password"
+          />
+        </Stack>
+      }
+    />
   )
 }
 

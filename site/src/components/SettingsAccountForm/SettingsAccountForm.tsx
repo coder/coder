@@ -10,8 +10,6 @@ import {
 import { LoadingButton } from "../LoadingButton/LoadingButton"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
 import { Form, FormFields } from "components/Form/Form"
-import { Stack } from "components/Stack/Stack"
-import Button from "@mui/material/Button"
 
 export interface AccountFormValues {
   username: string
@@ -36,7 +34,6 @@ export interface AccountFormProps {
   updateProfileError?: Error | unknown
   // initialTouched is only used for testing the error state of the form.
   initialTouched?: FormikTouched<AccountFormValues>
-  onChangeToOIDCAuth: () => void
 }
 
 export const AccountForm: FC<React.PropsWithChildren<AccountFormProps>> = ({
@@ -47,7 +44,6 @@ export const AccountForm: FC<React.PropsWithChildren<AccountFormProps>> = ({
   initialValues,
   updateProfileError,
   initialTouched,
-  onChangeToOIDCAuth
 }) => {
   const form: FormikContextType<AccountFormValues> =
     useFormik<AccountFormValues>({
@@ -84,7 +80,7 @@ export const AccountForm: FC<React.PropsWithChildren<AccountFormProps>> = ({
             label={Language.usernameLabel}
           />
 
-          <Stack direction="row">
+          <div>
             <LoadingButton
               loading={isLoading}
               aria-disabled={!editable}
@@ -94,9 +90,7 @@ export const AccountForm: FC<React.PropsWithChildren<AccountFormProps>> = ({
             >
               {isLoading ? "" : Language.updateSettings}
             </LoadingButton>
-
-            <Button type="button" onClick={onChangeToOIDCAuth}>Use OIDC to authenticate</Button>
-          </Stack>
+          </div>
         </FormFields>
       </Form>
     </>
