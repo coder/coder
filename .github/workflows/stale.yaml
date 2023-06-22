@@ -54,4 +54,3 @@ jobs:
           retain_days: 1
           keep_minimum_runs: 1
           delete_workflow_pattern: pr-cleanup.yaml
-      
