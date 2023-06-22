@@ -296,7 +296,7 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: 1.1.9
+          terraform_version: 1.5.1
           terraform_wrapper: false
 
       - name: Test with PostgreSQL Database
@@ -474,7 +474,7 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: 1.1.9
+          terraform_version: 1.5.1
           terraform_wrapper: false
 
       - name: Build
