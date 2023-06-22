@@ -315,6 +315,12 @@
           "state": "enterprise"
         },
         {
+          "title": "Application Logs",
+          "description": "Learn how to use Application Logs in your Coder deployment",
+          "path": "./admin/app-logs.md",
+          "icon_path": "./images/icons/notes.svg"
+        },
+        {
           "title": "Audit Logs",
           "description": "Learn how to use Audit Logs in your Coder deployment",
           "path": "./admin/audit-logs.md",
