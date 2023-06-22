@@ -402,7 +402,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 	if changed, enabled := featureChanged(codersdk.FeatureAdvancedTemplateScheduling); changed {
 		if enabled {
-			store := &enterpriseTemplateScheduleStore{}
+			store := &EnterpriseTemplateScheduleStore{}
 			ptr := schedule.TemplateScheduleStore(store)
 			api.AGPL.TemplateScheduleStore.Store(&ptr)
 		} else {

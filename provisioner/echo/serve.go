@@ -18,21 +18,6 @@ import (
 	"github.com/coder/coder/provisionersdk/proto"
 )
 
-const (
-	ParameterExecKey = "echo.exec"
-
-	errorKey   = "error"
-	successKey = "success"
-)
-
-func ParameterError(s string) string {
-	return formatExecValue(errorKey, s)
-}
-
-func ParameterSucceed() string {
-	return formatExecValue(successKey, "")
-}
-
 // ProvisionApplyWithAgent returns provision responses that will mock a fake
 // "aws_instance" resource with an agent that has the given auth token.
 func ProvisionApplyWithAgent(authToken string) []*proto.Provision_Response {
@@ -55,10 +40,6 @@ func ProvisionApplyWithAgent(authToken string) []*proto.Provision_Response {
 	}}
 }
 
-func formatExecValue(key, value string) string {
-	return fmt.Sprintf("%s=%s", key, value)
-}
-
 var (
 	// ParseComplete is a helper to indicate an empty parse completion.
 	ParseComplete = []*proto.Parse_Response{{
@@ -70,6 +51,16 @@ var (
 	ProvisionComplete = []*proto.Provision_Response{{
 		Type: &proto.Provision_Response_Complete{
 			Complete: &proto.Provision_Complete{},
+		},
+	}}
+
+	// ProvisionFailed is a helper to convey a failed provision
+	// operation.
+	ProvisionFailed = []*proto.Provision_Response{{
+		Type: &proto.Provision_Response_Complete{
+			Complete: &proto.Provision_Complete{
+				Error: "failed!",
+			},
 		},
 	}}
 )

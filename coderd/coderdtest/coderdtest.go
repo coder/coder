@@ -54,7 +54,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/autobuild/executor"
+	"github.com/coder/coder/coderd/autobuild"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
@@ -102,7 +102,7 @@ type Options struct {
 	GoogleTokenValidator  *idtoken.Validator
 	SSHKeygenAlgorithm    gitsshkey.Algorithm
 	AutobuildTicker       <-chan time.Time
-	AutobuildStats        chan<- executor.Stats
+	AutobuildStats        chan<- autobuild.Stats
 	Auditor               audit.Auditor
 	TLSCertificates       []tls.Certificate
 	GitAuthConfigs        []*gitauth.Config
@@ -136,6 +136,9 @@ type Options struct {
 	ConfigSSH codersdk.SSHConfigResponse
 
 	SwaggerEndpoint bool
+	// Logger should only be overridden if you expect errors
+	// as part of your test.
+	Logger *slog.Logger
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -244,7 +247,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	templateScheduleStore.Store(&options.TemplateScheduleStore)
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	lifecycleExecutor := executor.New(
+	lifecycleExecutor := autobuild.NewExecutor(
 		ctx,
 		options.Database,
 		&templateScheduleStore,
@@ -311,6 +314,10 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		require.NoError(t, err)
 	}
 
+	if options.Logger == nil {
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		options.Logger = &logger
+	}
 	region := &tailcfg.DERPRegion{
 		EmbeddedRelay: true,
 		RegionID:      int(options.DeploymentValues.DERP.Server.RegionID.Value()),
@@ -346,7 +353,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			AccessURL:                      accessURL,
 			AppHostname:                    options.AppHostname,
 			AppHostnameRegex:               appHostnameRegex,
-			Logger:                         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+			Logger:                         *options.Logger,
 			CacheDir:                       t.TempDir(),
 			Database:                       options.Database,
 			Pubsub:                         options.Pubsub,
@@ -433,7 +440,7 @@ func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 		return coderAPI.CreateInMemoryProvisionerDaemon(ctx, 0)
 	}, &provisionerd.Options{
 		Filesystem:          fs,
-		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
+		Logger:              coderAPI.Logger.Named("provisionerd").Leveled(slog.LevelDebug),
 		JobPollInterval:     50 * time.Millisecond,
 		UpdateInterval:      250 * time.Millisecond,
 		ForceCancelInterval: time.Second,

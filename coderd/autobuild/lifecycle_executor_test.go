@@ -1,4 +1,4 @@
-package executor_test
+package autobuild_test
 
 import (
 	"context"
@@ -11,7 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
-	"github.com/coder/coder/coderd/autobuild/executor"
+	"cdr.dev/slog/sloggers/slogtest"
+
+	"github.com/coder/coder/coderd/autobuild"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/schedule"
@@ -19,6 +21,7 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/testutil"
 )
 
 func TestExecutorAutostartOK(t *testing.T) {
@@ -27,7 +30,7 @@ func TestExecutorAutostartOK(t *testing.T) {
 	var (
 		sched   = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
 		tickCh  = make(chan time.Time)
-		statsCh = make(chan executor.Stats)
+		statsCh = make(chan autobuild.Stats)
 		client  = coderdtest.New(t, &coderdtest.Options{
 			AutobuildTicker:          tickCh,
 			IncludeProvisionerDaemon: true,
@@ -66,7 +69,7 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 		ctx     = context.Background()
 		err     error
 		tickCh  = make(chan time.Time)
-		statsCh = make(chan executor.Stats)
+		statsCh = make(chan autobuild.Stats)
 		client  = coderdtest.New(t, &coderdtest.Options{
 			AutobuildTicker:          tickCh,
 			IncludeProvisionerDaemon: true,
@@ -113,7 +116,7 @@ func TestExecutorAutostartAlreadyRunning(t *testing.T) {
 	var (
 		sched   = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
 		tickCh  = make(chan time.Time)
-		statsCh = make(chan executor.Stats)
+		statsCh = make(chan autobuild.Stats)
 		client  = coderdtest.New(t, &coderdtest.Options{
 			AutobuildTicker:          tickCh,
 			IncludeProvisionerDaemon: true,
@@ -145,7 +148,7 @@ func TestExecutorAutostartNotEnabled(t *testing.T) {
 
 	var (
 		tickCh  = make(chan time.Time)
-		statsCh = make(chan executor.Stats)
+		statsCh = make(chan autobuild.Stats)
 		client  = coderdtest.New(t, &coderdtest.Options{
 			AutobuildTicker:          tickCh,
 			IncludeProvisionerDaemon: true,
@@ -180,7 +183,7 @@ func TestExecutorAutostopOK(t *testing.T) {
 
 	var (
 		tickCh  = make(chan time.Time)
-		statsCh = make(chan executor.Stats)
+		statsCh = make(chan autobuild.Stats)
 		client  = coderdtest.New(t, &coderdtest.Options{
 			AutobuildTicker:          tickCh,
 			IncludeProvisionerDaemon: true,
@@ -216,7 +219,7 @@ func TestExecutorAutostopExtend(t *testing.T) {
 	var (
 		ctx     = context.Background()
 		tickCh  = make(chan time.Time)
-		statsCh = make(chan executor.Stats)
+		statsCh = make(chan autobuild.Stats)
 		client  = coderdtest.New(t, &coderdtest.Options{
 			AutobuildTicker:          tickCh,
 			IncludeProvisionerDaemon: true,
@@ -266,7 +269,7 @@ func TestExecutorAutostopAlreadyStopped(t *testing.T) {
 
 	var (
 		tickCh  = make(chan time.Time)
-		statsCh = make(chan executor.Stats)
+		statsCh = make(chan autobuild.Stats)
 		client  = coderdtest.New(t, &coderdtest.Options{
 			AutobuildTicker:          tickCh,
 			IncludeProvisionerDaemon: true,
@@ -299,7 +302,7 @@ func TestExecutorAutostopNotEnabled(t *testing.T) {
 	var (
 		ctx     = context.Background()
 		tickCh  = make(chan time.Time)
-		statsCh = make(chan executor.Stats)
+		statsCh = make(chan autobuild.Stats)
 		client  = coderdtest.New(t, &coderdtest.Options{
 			AutobuildTicker:          tickCh,
 			IncludeProvisionerDaemon: true,
@@ -341,7 +344,7 @@ func TestExecutorWorkspaceDeleted(t *testing.T) {
 	var (
 		sched   = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
 		tickCh  = make(chan time.Time)
-		statsCh = make(chan executor.Stats)
+		statsCh = make(chan autobuild.Stats)
 		client  = coderdtest.New(t, &coderdtest.Options{
 			AutobuildTicker:          tickCh,
 			IncludeProvisionerDaemon: true,
@@ -374,7 +377,7 @@ func TestExecutorWorkspaceAutostartTooEarly(t *testing.T) {
 	var (
 		sched   = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
 		tickCh  = make(chan time.Time)
-		statsCh = make(chan executor.Stats)
+		statsCh = make(chan autobuild.Stats)
 		client  = coderdtest.New(t, &coderdtest.Options{
 			AutobuildTicker:          tickCh,
 			IncludeProvisionerDaemon: true,
@@ -405,7 +408,7 @@ func TestExecutorWorkspaceAutostopBeforeDeadline(t *testing.T) {
 
 	var (
 		tickCh  = make(chan time.Time)
-		statsCh = make(chan executor.Stats)
+		statsCh = make(chan autobuild.Stats)
 		client  = coderdtest.New(t, &coderdtest.Options{
 			AutobuildTicker:          tickCh,
 			IncludeProvisionerDaemon: true,
@@ -433,7 +436,7 @@ func TestExecutorWorkspaceAutostopNoWaitChangedMyMind(t *testing.T) {
 	var (
 		ctx     = context.Background()
 		tickCh  = make(chan time.Time)
-		statsCh = make(chan executor.Stats)
+		statsCh = make(chan autobuild.Stats)
 		client  = coderdtest.New(t, &coderdtest.Options{
 			AutobuildTicker:          tickCh,
 			IncludeProvisionerDaemon: true,
@@ -501,8 +504,8 @@ func TestExecutorAutostartMultipleOK(t *testing.T) {
 		sched    = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
 		tickCh   = make(chan time.Time)
 		tickCh2  = make(chan time.Time)
-		statsCh1 = make(chan executor.Stats)
-		statsCh2 = make(chan executor.Stats)
+		statsCh1 = make(chan autobuild.Stats)
+		statsCh2 = make(chan autobuild.Stats)
 		client   = coderdtest.New(t, &coderdtest.Options{
 			AutobuildTicker:          tickCh,
 			IncludeProvisionerDaemon: true,
@@ -556,7 +559,7 @@ func TestExecutorAutostartWithParameters(t *testing.T) {
 	var (
 		sched   = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
 		tickCh  = make(chan time.Time)
-		statsCh = make(chan executor.Stats)
+		statsCh = make(chan autobuild.Stats)
 		client  = coderdtest.New(t, &coderdtest.Options{
 			AutobuildTicker:          tickCh,
 			IncludeProvisionerDaemon: true,
@@ -609,7 +612,7 @@ func TestExecutorAutostartTemplateDisabled(t *testing.T) {
 	var (
 		sched   = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
 		tickCh  = make(chan time.Time)
-		statsCh = make(chan executor.Stats)
+		statsCh = make(chan autobuild.Stats)
 
 		client = coderdtest.New(t, &coderdtest.Options{
 			AutobuildTicker:          tickCh,
@@ -646,6 +649,60 @@ func TestExecutorAutostartTemplateDisabled(t *testing.T) {
 	stats := <-statsCh
 	assert.NoError(t, stats.Error)
 	assert.Len(t, stats.Transitions, 0)
+}
+
+// TesetExecutorFailedWorkspace tests that failed workspaces that breach
+// their template failed_ttl threshold trigger a stop job.
+// For enterprise functionality see enterprise/coderd/workspaces_test.go
+func TestExecutorFailedWorkspace(t *testing.T) {
+	t.Parallel()
+
+	// Test that an AGPL TemplateScheduleStore properly disables
+	// functionality.
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ticker = make(chan time.Time)
+			statCh = make(chan autobuild.Stats)
+			logger = slogtest.Make(t, &slogtest.Options{
+				// We ignore errors here since we expect to fail
+				// builds.
+				IgnoreErrors: true,
+			})
+			failureTTL = time.Millisecond
+
+			client = coderdtest.New(t, &coderdtest.Options{
+				Logger:                   &logger,
+				AutobuildTicker:          ticker,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statCh,
+				TemplateScheduleStore:    schedule.NewAGPLTemplateScheduleStore(),
+			})
+		)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionFailed,
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.FailureTTLMillis = ptr.Ref[int64](failureTTL.Milliseconds())
+		})
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		build := coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
+		require.Eventually(t,
+			func() bool {
+				return database.Now().Sub(*build.Job.CompletedAt) > failureTTL
+			},
+			testutil.IntervalMedium, testutil.IntervalFast)
+		ticker <- time.Now()
+		stats := <-statCh
+		// Expect no transitions since we're using AGPL.
+		require.Len(t, stats.Transitions, 0)
+	})
 }
 
 func mustProvisionWorkspace(t *testing.T, client *codersdk.Client, mut ...func(*codersdk.CreateWorkspaceRequest)) codersdk.Workspace {
