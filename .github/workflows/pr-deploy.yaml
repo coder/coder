@@ -146,11 +146,6 @@ jobs:
           kubectl delete namespace "pr${{ env.PR_NUMBER }}" || true
           kubectl create namespace "pr${{ env.PR_NUMBER }}"
 
-      - name: Install Helm
-        uses: azure/setup-helm@v3
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: "Install Helm chart"
         run: |
           helm upgrade --install pr${{ env.PR_NUMBER }}  ./helm \

@@ -32,12 +32,6 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: pr${{ steps.pr_number.outputs.PR_NUMBER }}
 
-      - name: Install helm
-        if: always()
-        uses: azure/setup-helm@v3
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Set up kubeconfig
         if: always()
         run: |
