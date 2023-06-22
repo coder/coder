@@ -204,7 +204,7 @@ type stageWriter struct {
 }
 
 func (s *stageWriter) Start(stage string) {
-	_, _ = fmt.Fprintf(s.w, " => ⧗ %s\n", stage)
+	_, _ = fmt.Fprintf(s.w, "==> ⧗ %s\n", stage)
 }
 
 func (s *stageWriter) Complete(stage string, duration time.Duration) {
@@ -227,7 +227,7 @@ func (s *stageWriter) end(stage string, duration time.Duration, ok bool) {
 	if duration < 0 {
 		duration = 0
 	}
-	_, _ = fmt.Fprintf(s.w, " == %s %s [%dms]\n", mark, stage, duration.Milliseconds())
+	_, _ = fmt.Fprintf(s.w, "=== %s %s [%dms]\n", mark, stage, duration.Milliseconds())
 }
 
 func (s *stageWriter) Log(createdAt time.Time, level codersdk.LogLevel, line string) {
@@ -237,6 +237,12 @@ func (s *stageWriter) Log(createdAt time.Time, level codersdk.LogLevel, line str
 	}
 
 	render := func(s ...string) string { return strings.Join(s, " ") }
+
+	var lines []string
+	if !createdAt.IsZero() {
+		lines = append(lines, createdAt.Local().Format("2006-01-02 15:04:05.000Z07:00"))
+	}
+	lines = append(lines, line)
 
 	switch level {
 	case codersdk.LogLevelTrace, codersdk.LogLevelDebug:
@@ -250,7 +256,7 @@ func (s *stageWriter) Log(createdAt time.Time, level codersdk.LogLevel, line str
 		render = DefaultStyles.Warn.Render
 	case codersdk.LogLevelInfo:
 	}
-	_, _ = fmt.Fprintf(w, "    %s\n", render(fmt.Sprintf("%s %s", createdAt.Local().Format("2006-01-02 15:04:05.000Z07:00"), line)))
+	_, _ = fmt.Fprintf(w, "%s\n", render(lines...))
 }
 
 func (s *stageWriter) flushLogs() {

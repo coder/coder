@@ -91,7 +91,6 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 			}
 
 			err = cliui.Agent(ctx, inv.Stderr, cliui.AgentOptions{
-				WorkspaceName: workspace.Name,
 				Fetch: func(ctx context.Context) (codersdk.WorkspaceAgent, error) {
 					return client.WorkspaceAgent(ctx, workspaceAgent.ID)
 				},
