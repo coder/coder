@@ -165,7 +165,7 @@ jobs:
       - name: "Get deployment URL"
         id: deployment_url
         run: |
-          set -euxo pipefail
+          set -euo pipefail
           kubectl rollout status deployment/coder --namespace "pr${{ env.PR_NUMBER }}"
           POD_NAME=$(kubectl get pods -n "pr${{ env.PR_NUMBER }}" | awk 'NR==2{print $1}')
           CODER_ACCESS_URL=$(kubectl logs $POD_NAME -n "pr${{ env.PR_NUMBER }}" | grep "Web UI:" | awk -F ':' '{print $2":"$3}' | awk '{$1=$1};1')
