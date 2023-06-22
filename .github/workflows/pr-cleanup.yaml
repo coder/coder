@@ -12,7 +12,7 @@ permissions:
   packages: write
 
 jobs:
-  pr-close:
+  cleanup:
     runs-on: "ubuntu-latest"
     steps:
       - name: Get PR number
