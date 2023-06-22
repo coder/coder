@@ -30,6 +30,10 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+const (
+	userauthLogPrefix = "userauth error: "
+)
+
 // Authenticates the user with an email and password.
 //
 // @Summary Log in user
@@ -64,6 +68,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		Email: loginWithPassword.Email,
 	})
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		api.Logger.Error(ctx, userauthLogPrefix+"unable to fetch user by email", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error.",
 		})
@@ -75,6 +80,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 	// If the user doesn't exist, it will be a default struct.
 	equal, err := userpassword.Compare(string(user.HashedPassword), loginWithPassword.Password)
 	if err != nil {
+		api.Logger.Error(ctx, userauthLogPrefix+"unable to compare passwords", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error.",
 		})
@@ -108,6 +114,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 	//nolint:gocritic // System needs to fetch user roles in order to login user.
 	roles, err := api.Database.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), user.ID)
 	if err != nil {
+		api.Logger.Error(ctx, userauthLogPrefix+"unable to fetch authorization user roles", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error.",
 		})
@@ -137,6 +144,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		DeploymentValues: api.DeploymentValues,
 	})
 	if err != nil {
+		api.Logger.Error(ctx, userauthLogPrefix+"unable to create API key", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to create API key.",
 			Detail:  err.Error(),
@@ -190,6 +198,7 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 
 	err := api.Database.DeleteAPIKeyByID(ctx, apiKey.ID)
 	if err != nil {
+		api.Logger.Error(ctx, userauthLogPrefix+"unable to delete API key", slog.F("api_key", apiKey.ID), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error deleting API key.",
 			Detail:  err.Error(),
@@ -203,6 +212,7 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 	// to access the app again.
 	err = api.Database.DeleteApplicationConnectAPIKeysByUserID(ctx, apiKey.UserID)
 	if err != nil {
+		api.Logger.Error(ctx, userauthLogPrefix+"unable to invalidate subdomain app tokens", slog.F("user_id", apiKey.UserID), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error deleting app tokens.",
 			Detail:  err.Error(),
@@ -298,6 +308,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	if !api.GithubOAuth2Config.AllowEveryone {
 		memberships, err := api.GithubOAuth2Config.ListOrganizationMemberships(ctx, oauthClient)
 		if err != nil {
+			api.Logger.Error(ctx, userauthLogPrefix+"unable to list organization members", slog.Error(err))
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching authenticated Github user organizations.",
 				Detail:  err.Error(),
@@ -328,6 +339,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 
 	ghUser, err := api.GithubOAuth2Config.AuthenticatedUser(ctx, oauthClient)
 	if err != nil {
+		api.Logger.Error(ctx, userauthLogPrefix+"oauth2: unable to fetch authenticated user", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching authenticated Github user.",
 			Detail:  err.Error(),
@@ -366,6 +378,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 
 	emails, err := api.GithubOAuth2Config.ListEmails(ctx, oauthClient)
 	if err != nil {
+		api.Logger.Error(ctx, userauthLogPrefix+"oauth2: unable to list emails", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching personal Github user.",
 			Detail:  err.Error(),
@@ -390,6 +403,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 
 	user, link, err := findLinkedUser(ctx, api.Database, githubLinkedID(ghUser), verifiedEmail.GetEmail())
 	if err != nil {
+		api.Logger.Error(ctx, userauthLogPrefix+"oauth2: unable to find linked user", slog.F("gh_user", ghUser.Name), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to find linked user.",
 			Detail:  err.Error(),
@@ -423,6 +437,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
+		api.Logger.Error(ctx, userauthLogPrefix+"oauth2: login failed", slog.F("user", user.Username), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to process OAuth login.",
 			Detail:  err.Error(),
@@ -527,6 +542,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	claims := map[string]interface{}{}
 	err = idToken.Claims(&claims)
 	if err != nil {
+		api.Logger.Error(ctx, userauthLogPrefix+"oauth2: unable to extract OIDC claims", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to extract OIDC claims.",
 			Detail:  err.Error(),
@@ -556,6 +572,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			userInfoClaims := map[string]interface{}{}
 			err = userInfo.Claims(&userInfoClaims)
 			if err != nil {
+				api.Logger.Error(ctx, userauthLogPrefix+"oauth2: unable to unmarshal user info claims", slog.Error(err))
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Failed to unmarshal user info claims.",
 					Detail:  err.Error(),
@@ -579,6 +596,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 				slog.F("blank", blankFields(claims)),
 			)
 		} else if !strings.Contains(err.Error(), "user info endpoint is not supported by this provider") {
+			api.Logger.Error(ctx, userauthLogPrefix+"oauth2: unable to obtain user information claims", slog.Error(err))
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to obtain user information claims.",
 				Detail:  "The attempt to fetch claims via the UserInfo endpoint failed: " + err.Error(),
@@ -719,6 +737,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 
 	user, link, err := findLinkedUser(ctx, api.Database, oidcLinkedID(idToken), email)
 	if err != nil {
+		api.Logger.Error(ctx, userauthLogPrefix+"oauth2: unable to find linked user", slog.F("email", email), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to find linked user.",
 			Detail:  err.Error(),
@@ -754,6 +773,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
+		api.Logger.Error(ctx, userauthLogPrefix+"oauth2: login failed", slog.F("user", user.Username), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to process OAuth login.",
 			Detail:  err.Error(),
