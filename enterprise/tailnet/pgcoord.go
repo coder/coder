@@ -31,6 +31,7 @@ const (
 	numQuerierWorkers = 10
 	numBinderWorkers  = 10
 	dbMaxBackoff      = 10 * time.Second
+	cleanupPeriod     = time.Hour
 )
 
 // pgCoord is a postgres-backed coordinator
@@ -1041,6 +1042,9 @@ type heartbeats struct {
 	lock         sync.RWMutex
 	coordinators map[uuid.UUID]time.Time
 	timer        *time.Timer
+
+	// overwritten in tests, but otherwise constant
+	cleanupPeriod time.Duration
 }
 
 func newHeartbeats(
@@ -1058,9 +1062,11 @@ func newHeartbeats(
 		update:         update,
 		firstHeartbeat: firstHeartbeat,
 		coordinators:   make(map[uuid.UUID]time.Time),
+		cleanupPeriod:  cleanupPeriod,
 	}
 	go h.subscribe()
 	go h.sendBeats()
+	go h.cleanupLoop()
 	return h
 }
 
@@ -1210,4 +1216,32 @@ func (h *heartbeats) sendDelete() {
 		return
 	}
 	h.logger.Debug(h.ctx, "deleted coordinator")
+}
+
+func (h *heartbeats) cleanupLoop() {
+	h.cleanup()
+	tkr := time.NewTicker(h.cleanupPeriod)
+	defer tkr.Stop()
+	for {
+		select {
+		case <-h.ctx.Done():
+			h.logger.Debug(h.ctx, "ending cleanupLoop", slog.Error(h.ctx.Err()))
+			return
+		case <-tkr.C:
+			h.cleanup()
+		}
+	}
+}
+
+// cleanup issues a DB command to clean out any old expired coordinators state.  The cleanup is idempotent, so no need
+// to synchronize with other coordinators.
+func (h *heartbeats) cleanup() {
+	err := h.store.CleanTailnetCoordinators(h.ctx)
+	if err != nil {
+		// the records we are attempting to clean up do no serious harm other than
+		// accumulating in the tables, so we don't bother retrying if it fails.
+		h.logger.Error(h.ctx, "failed to cleanup old coordinators", slog.Error(err))
+		return
+	}
+	h.logger.Debug(h.ctx, "cleaned up old coordinators")
 }
