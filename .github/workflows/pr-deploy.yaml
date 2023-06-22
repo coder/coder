@@ -104,39 +104,21 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Check if the contents of Dockerfile.base have changed
-        id: check_base_dockerfile
-        run: |
-          set -euxo pipefail
-          if [[ $(git diff --name-only main...HEAD | grep Dockerfile.base) ]]; then
-            echo "changed=true" >> $GITHUB_OUTPUT
-          else
-            echo "changed=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Create empty base-build-context directory
-        if: steps.check_base_dockerfile.outputs.changed == 'true'
-        run: mkdir base-build-context
-
-      - name: Build and push base Docker image
-        if: steps.check_base_dockerfile.outputs.changed == 'true'
-        uses: docker/build-push-action@v4
-        with:
-          context: base-build-context
-          file: scripts/Dockerfile.base
-          platforms: linux/amd64
-          push: true
-          tags: ${{ needs.pr_commented.outputs.coder_base_image_tag }}
-
       - name: Build and push Linux amd64 Docker image
         run: |
           set -euxo pipefail
           go mod download
           make gen/mark-fresh
-          make -j build/coder_linux_amd64
-          ./scripts/build_docker.sh --arch amd64 --target ${{env.CODER_IMAGE_TAG }} --push build/coder_*_linux_amd64
-        env:
-          CODER_BASE_IMAGE_TAG: ${{ steps.check_base_dockerfile.outputs.changed == 'true' && needs.pr_commented.outputs.coder_base_image_tag || 'ghcr.io/coder/coder-base:latest' }}
+          export DOCKER_IMAGE_NO_PREREQUISITES=true
+          version="$(./scripts/version.sh)"
+          image_job="build/coder_${version}_linux_amd64.tag"
+          export CODER_IMAGE_BUILD_BASE_TAG="$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")"
+          ./scripts/build_docker.sh \
+            --arch amd64 \
+            --target ${{ env.CODER_IMAGE_TAG }} \
+            --version $version \
+            --push \
+            $image_job
 
   deploy:
     needs: [build, pr_commented]
