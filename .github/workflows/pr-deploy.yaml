@@ -44,7 +44,7 @@ jobs:
             PR_NUMBER=${{ github.event.issue.number }}
             PR_TITLE=${{ github.event.issue.title }}
           fi
-          echo "PR_URL="https://github.com/coder/coder/pull/$PR_NUMBER" >> $GITHUB_OUTPUT
+          echo "PR_URL=https://github.com/coder/coder/pull/$PR_NUMBER" >> $GITHUB_OUTPUT
           echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_OUTPUT
           echo "PR_TITLE=$PR_TITLE" >> $GITHUB_OUTPUT
 
