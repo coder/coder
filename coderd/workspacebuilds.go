@@ -14,6 +14,8 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/db2sdk"
 	"github.com/coder/coder/coderd/database/dbauthz"
@@ -348,6 +350,10 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	)
 	var buildErr wsbuilder.BuildError
 	if xerrors.As(err, &buildErr) {
+		if buildErr.Status == http.StatusInternalServerError {
+			api.Logger.Error(ctx, "workspace build error", slog.Error(buildErr.Wrapped))
+		}
+
 		httpapi.Write(ctx, rw, buildErr.Status, codersdk.Response{
 			Message: buildErr.Message,
 			Detail:  buildErr.Error(),
