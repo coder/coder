@@ -16,6 +16,7 @@ export interface UsersPageViewProps {
   roles?: TypesGen.AssignableRoles[]
   isUpdatingUserRoles?: boolean
   canEditUsers?: boolean
+  canViewActivity?: boolean
   isLoading?: boolean
   onSuspendUser: (user: TypesGen.User) => void
   onDeleteUser: (user: TypesGen.User) => void
@@ -46,6 +47,7 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
   onUpdateUserRoles,
   isUpdatingUserRoles,
   canEditUsers,
+  canViewActivity,
   isLoading,
   filterProps,
   paginationRef,
@@ -75,6 +77,7 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
         onUpdateUserRoles={onUpdateUserRoles}
         isUpdatingUserRoles={isUpdatingUserRoles}
         canEditUsers={canEditUsers}
+        canViewActivity={canViewActivity}
         isLoading={isLoading}
         isNonInitialPage={isNonInitialPage}
         actorID={actorID}

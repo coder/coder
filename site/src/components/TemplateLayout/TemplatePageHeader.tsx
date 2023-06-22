@@ -106,7 +106,7 @@ const CreateWorkspaceButton: FC<{
     component={RouterLink}
     to={`/templates/${templateName}/workspace`}
   >
-    Create workspace
+    Create Workspace
   </Button>
 )
 

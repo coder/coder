@@ -2,7 +2,7 @@
 
 With Coder, you can deploy workspaces in additional Kubernetes clusters using different [authentication methods](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs#authentication) in the Terraform provider.
 
-![Region picker in "Create workspace" screen](../../images/platforms/kubernetes/region-picker.png)
+![Region picker in "Create Workspace" screen](../../images/platforms/kubernetes/region-picker.png)
 
 ## Option 1) Kubernetes contexts and kubeconfig
 

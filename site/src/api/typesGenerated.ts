@@ -281,6 +281,7 @@ export interface DERP {
 
 // From codersdk/deployment.go
 export interface DERPConfig {
+  readonly block_direct: boolean
   readonly url: string
   readonly path: string
 }
@@ -613,6 +614,7 @@ export interface PrometheusConfig {
 // From codersdk/deployment.go
 export interface ProvisionerConfig {
   readonly daemons: number
+  readonly daemons_echo: boolean
   readonly daemon_poll_interval: number
   readonly daemon_poll_jitter: number
   readonly force_cancel_interval: number
@@ -1344,8 +1346,15 @@ export const Entitlements: Entitlement[] = [
 ]
 
 // From codersdk/deployment.go
-export type Experiment = "moons" | "workspace_actions"
-export const Experiments: Experiment[] = ["moons", "workspace_actions"]
+export type Experiment =
+  | "moons"
+  | "tailnet_pg_coordinator"
+  | "workspace_actions"
+export const Experiments: Experiment[] = [
+  "moons",
+  "tailnet_pg_coordinator",
+  "workspace_actions",
+]
 
 // From codersdk/deployment.go
 export type FeatureName =

@@ -221,8 +221,9 @@ type DERPServerConfig struct {
 }
 
 type DERPConfig struct {
-	URL  clibase.String `json:"url" typescript:",notnull"`
-	Path clibase.String `json:"path" typescript:",notnull"`
+	BlockDirect clibase.Bool   `json:"block_direct" typescript:",notnull"`
+	URL         clibase.String `json:"url" typescript:",notnull"`
+	Path        clibase.String `json:"path" typescript:",notnull"`
 }
 
 type PrometheusConfig struct {
@@ -309,6 +310,7 @@ type GitAuthConfig struct {
 
 type ProvisionerConfig struct {
 	Daemons             clibase.Int64    `json:"daemons" typescript:",notnull"`
+	DaemonsEcho         clibase.Bool     `json:"daemons_echo" typescript:",notnull"`
 	DaemonPollInterval  clibase.Duration `json:"daemon_poll_interval" typescript:",notnull"`
 	DaemonPollJitter    clibase.Duration `json:"daemon_poll_jitter" typescript:",notnull"`
 	ForceCancelInterval clibase.Duration `json:"force_cancel_interval" typescript:",notnull"`
@@ -712,6 +714,18 @@ when required by your organization's security policy.`,
 			YAML:        "relayURL",
 		},
 		{
+			Name:        "Block Direct Connections",
+			Description: "Block peer-to-peer (aka. direct) workspace connections. All workspace connections from the CLI will be proxied through Coder (or custom configured DERP servers) and will never be peer-to-peer when enabled. Workspaces may still reach out to STUN servers to get their address until they are restarted after this change has been made, but new connections will still be proxied regardless.",
+			// This cannot be called `disable-direct-connections` because that's
+			// already a global CLI flag for CLI connections. This is a
+			// deployment-wide flag.
+			Flag:  "block-direct-connections",
+			Env:   "CODER_BLOCK_DIRECT",
+			Value: &c.DERP.Config.BlockDirect,
+			Group: &deploymentGroupNetworkingDERP,
+			YAML:  "blockDirect",
+		},
+		{
 			Name:        "DERP Config URL",
 			Description: "URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custom-derp-servers/.",
 			Flag:        "derp-config-url",
@@ -1079,6 +1093,17 @@ when required by your organization's security policy.`,
 			Value:       &c.Provisioner.Daemons,
 			Group:       &deploymentGroupProvisioning,
 			YAML:        "daemons",
+		},
+		{
+			Name:        "Echo Provisioner",
+			Description: "Whether to use echo provisioner daemons instead of Terraform. This is for E2E tests.",
+			Flag:        "provisioner-daemons-echo",
+			Env:         "CODER_PROVISIONER_DAEMONS_ECHO",
+			Hidden:      true,
+			Default:     "false",
+			Value:       &c.Provisioner.DaemonsEcho,
+			Group:       &deploymentGroupProvisioning,
+			YAML:        "daemonsEcho",
 		},
 		{
 			Name:        "Poll Interval",
@@ -1703,6 +1728,10 @@ const (
 
 	// https://github.com/coder/coder/milestone/19
 	ExperimentWorkspaceActions Experiment = "workspace_actions"
+
+	// ExperimentTailnetPGCoordinator enables the PGCoord in favor of the pubsub-
+	// only Coordinator
+	ExperimentTailnetPGCoordinator Experiment = "tailnet_pg_coordinator"
 
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"

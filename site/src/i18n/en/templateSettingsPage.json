@@ -33,11 +33,11 @@
   "allowUsersCancelHelperText": "If checked, users may be able to corrupt their workspace.",
   "generalInfo": {
     "title": "General info",
-    "description": "The name is used to identify the template in URLs and the API. It must be unique within your organization."
+    "description": "The name is used to identify the template in URLs and the API."
   },
   "displayInfo": {
     "title": "Display info",
-    "description": "Give your template a friendly name, description, and icon."
+    "description": "A friendly name, description, and icon to help developers identify your template."
   },
   "schedule": {
     "title": "Schedule",

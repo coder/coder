@@ -4006,6 +4006,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/connection": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get connection info for workspace agent generic",
+                "operationId": "get-connection-info-for-workspace-agent-generic",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentConnectionInfo"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/workspaceagents/google-instance-identity": {
             "post": {
                 "security": [
@@ -5756,6 +5784,9 @@ const docTemplate = `{
                 "directory": {
                     "type": "string"
                 },
+                "disable_direct_connections": {
+                    "type": "boolean"
+                },
                 "environment_variables": {
                     "type": "object",
                     "additionalProperties": {
@@ -7037,6 +7068,9 @@ const docTemplate = `{
         "codersdk.DERPConfig": {
             "type": "object",
             "properties": {
+                "block_direct": {
+                    "type": "boolean"
+                },
                 "path": {
                     "type": "string"
                 },
@@ -7355,11 +7389,13 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "moons",
-                "workspace_actions"
+                "workspace_actions",
+                "tailnet_pg_coordinator"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
-                "ExperimentWorkspaceActions"
+                "ExperimentWorkspaceActions",
+                "ExperimentTailnetPGCoordinator"
             ]
         },
         "codersdk.Feature": {
@@ -7910,6 +7946,9 @@ const docTemplate = `{
                 },
                 "daemons": {
                     "type": "integer"
+                },
+                "daemons_echo": {
+                    "type": "boolean"
                 },
                 "force_cancel_interval": {
                     "type": "integer"
@@ -9323,6 +9362,9 @@ const docTemplate = `{
             "properties": {
                 "derp_map": {
                     "$ref": "#/definitions/tailcfg.DERPMap"
+                },
+                "disable_direct_connections": {
+                    "type": "boolean"
                 }
             }
         },

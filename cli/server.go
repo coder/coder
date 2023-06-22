@@ -62,7 +62,7 @@ import (
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/coderd"
-	"github.com/coder/coder/coderd/autobuild/executor"
+	"github.com/coder/coder/coderd/autobuild"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/database/dbmetrics"
@@ -413,6 +413,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			derpMap, err := tailnet.NewDERPMap(
 				ctx, defaultRegion, cfg.DERP.Server.STUNAddresses,
 				cfg.DERP.Config.URL.String(), cfg.DERP.Config.Path.String(),
+				cfg.DERP.Config.BlockDirect.Value(),
 			)
 			if err != nil {
 				return xerrors.Errorf("create derp map: %w", err)
@@ -820,7 +821,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			for i := int64(0); i < cfg.Provisioner.Daemons.Value(); i++ {
 				daemonCacheDir := filepath.Join(cacheDir, fmt.Sprintf("provisioner-%d", i))
 				daemon, err := newProvisionerDaemon(
-					ctx, coderAPI, provisionerdMetrics, logger, cfg, daemonCacheDir, errCh, false, &provisionerdWaitGroup,
+					ctx, coderAPI, provisionerdMetrics, logger, cfg, daemonCacheDir, errCh, &provisionerdWaitGroup,
 				)
 				if err != nil {
 					return xerrors.Errorf("create provisioner daemon: %w", err)
@@ -899,7 +900,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			autobuildPoller := time.NewTicker(cfg.AutobuildPollInterval.Value())
 			defer autobuildPoller.Stop()
-			autobuildExecutor := executor.New(ctx, options.Database, coderAPI.TemplateScheduleStore, logger, autobuildPoller.C)
+			autobuildExecutor := autobuild.NewExecutor(ctx, options.Database, coderAPI.TemplateScheduleStore, logger, autobuildPoller.C)
 			autobuildExecutor.Run()
 
 			// Currently there is no way to ask the server to shut
@@ -1176,7 +1177,6 @@ func newProvisionerDaemon(
 	cfg *codersdk.DeploymentValues,
 	cacheDir string,
 	errCh chan error,
-	dev bool,
 	wg *sync.WaitGroup,
 ) (srv *provisionerd.Server, err error) {
 	ctx, cancel := context.WithCancel(ctx)
@@ -1191,53 +1191,14 @@ func newProvisionerDaemon(
 		return nil, xerrors.Errorf("mkdir %q: %w", cacheDir, err)
 	}
 
-	tfDir := filepath.Join(cacheDir, "tf")
-	err = os.MkdirAll(tfDir, 0o700)
-	if err != nil {
-		return nil, xerrors.Errorf("mkdir terraform dir: %w", err)
-	}
-
-	tracer := coderAPI.TracerProvider.Tracer(tracing.TracerName)
-	terraformClient, terraformServer := provisionersdk.MemTransportPipe()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		<-ctx.Done()
-		_ = terraformClient.Close()
-		_ = terraformServer.Close()
-	}()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		defer cancel()
-
-		err := terraform.Serve(ctx, &terraform.ServeOptions{
-			ServeOptions: &provisionersdk.ServeOptions{
-				Listener: terraformServer,
-			},
-			CachePath: tfDir,
-			Logger:    logger,
-			Tracer:    tracer,
-		})
-		if err != nil && !xerrors.Is(err, context.Canceled) {
-			select {
-			case errCh <- err:
-			default:
-			}
-		}
-	}()
-
 	workDir := filepath.Join(cacheDir, "work")
 	err = os.MkdirAll(workDir, 0o700)
 	if err != nil {
 		return nil, xerrors.Errorf("mkdir work dir: %w", err)
 	}
 
-	provisioners := provisionerd.Provisioners{
-		string(database.ProvisionerTypeTerraform): sdkproto.NewDRPCProvisionerClient(terraformClient),
-	}
-	// include echo provisioner when in dev mode
-	if dev {
+	provisioners := provisionerd.Provisioners{}
+	if cfg.Provisioner.DaemonsEcho {
 		echoClient, echoServer := provisionersdk.MemTransportPipe()
 		wg.Add(1)
 		go func() {
@@ -1260,7 +1221,46 @@ func newProvisionerDaemon(
 			}
 		}()
 		provisioners[string(database.ProvisionerTypeEcho)] = sdkproto.NewDRPCProvisionerClient(echoClient)
+	} else {
+		tfDir := filepath.Join(cacheDir, "tf")
+		err = os.MkdirAll(tfDir, 0o700)
+		if err != nil {
+			return nil, xerrors.Errorf("mkdir terraform dir: %w", err)
+		}
+
+		tracer := coderAPI.TracerProvider.Tracer(tracing.TracerName)
+		terraformClient, terraformServer := provisionersdk.MemTransportPipe()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-ctx.Done()
+			_ = terraformClient.Close()
+			_ = terraformServer.Close()
+		}()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer cancel()
+
+			err := terraform.Serve(ctx, &terraform.ServeOptions{
+				ServeOptions: &provisionersdk.ServeOptions{
+					Listener: terraformServer,
+				},
+				CachePath: tfDir,
+				Logger:    logger,
+				Tracer:    tracer,
+			})
+			if err != nil && !xerrors.Is(err, context.Canceled) {
+				select {
+				case errCh <- err:
+				default:
+				}
+			}
+		}()
+
+		provisioners[string(database.ProvisionerTypeTerraform)] = sdkproto.NewDRPCProvisionerClient(terraformClient)
 	}
+
 	debounce := time.Second
 	return provisionerd.New(func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 		// This debounces calls to listen every second. Read the comment
