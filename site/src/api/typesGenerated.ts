@@ -1346,8 +1346,15 @@ export const Entitlements: Entitlement[] = [
 ]
 
 // From codersdk/deployment.go
-export type Experiment = "moons" | "workspace_actions"
-export const Experiments: Experiment[] = ["moons", "workspace_actions"]
+export type Experiment =
+  | "moons"
+  | "tailnet_pg_coordinator"
+  | "workspace_actions"
+export const Experiments: Experiment[] = [
+  "moons",
+  "tailnet_pg_coordinator",
+  "workspace_actions",
+]
 
 // From codersdk/deployment.go
 export type FeatureName =
