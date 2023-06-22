@@ -32,6 +32,8 @@ import (
 	"github.com/coder/coder/cryptorand"
 )
 
+const mergeStateStringPrefix = "convert-"
+
 // postConvertLoginType replies with an oauth state token capable of converting
 // the user to an oauth user.
 //
@@ -105,6 +107,9 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	// The prefix is used to identify this state string as a conversion state
+	// without needing to hit the database. The random string is the CSRF protection.
+	stateString = fmt.Sprintf("%s%s", mergeStateStringPrefix, stateString)
 
 	now := time.Now()
 	var mergeState database.OauthMergeState
@@ -1024,74 +1029,12 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 			}
 		}
 
-		// If this is not a new user and the login type is different,
-		// we need to check if the user is trying to change their login type.
-		if user.ID != uuid.Nil && user.LoginType != params.LoginType {
-			wrongLoginTypeErr := httpError{
-				code: http.StatusForbidden,
-				msg: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q",
-					params.LoginType,
-					user.LoginType,
-				),
-			}
-			// If we do not allow converting to oauth, return an error.
-			if !params.OauthConversionEnabled {
-				return wrongLoginTypeErr
-			}
-
-			// At this point, this request could be an attempt to convert from
-			// password auth to oauth auth.
-			var (
-				auditor                                    = *api.Auditor.Load()
-				oauthConvertAudit, commitOauthConvertAudit = params.InitAuditRequest(&audit.RequestParams{
-					Audit:   auditor,
-					Log:     api.Logger,
-					Request: r,
-					Action:  database.AuditActionLogin,
-				})
-			)
-			defer commitOauthConvertAudit()
-
-			// nolint:gocritic // Required to auth the oidc convert
-			mergeState, err := tx.GetUserOauthMergeState(dbauthz.AsSystemRestricted(ctx), database.GetUserOauthMergeStateParams{
-				UserID:      user.ID,
-				StateString: params.State.StateString,
-			})
-			if xerrors.Is(err, sql.ErrNoRows) {
-				return wrongLoginTypeErr
-			}
-
-			failedMsg := fmt.Sprintf("Request to convert login type from %s to %s failed", user.LoginType, params.LoginType)
+		// If you do a convert to OIDC and your email does not match, we need to
+		// catch this and not make a new account.
+		if isMergeStateString(params.State.StateString) {
+			err := api.convertUserToOauth(ctx, r, tx, params)
 			if err != nil {
-				return httpError{
-					code: http.StatusForbidden,
-					msg:  failedMsg,
-				}
-			}
-			oauthConvertAudit.Old = mergeState
-			// Make sure the merge state generated matches this OIDC login request.
-			// It needs to have the correct login type information for this
-			// user.
-			if user.ID != mergeState.UserID || user.LoginType != mergeState.FromLoginType || params.LoginType != mergeState.ToLoginType {
-				return httpError{
-					code: http.StatusForbidden,
-					msg:  failedMsg,
-				}
-			}
-
-			// Convert the user and default to the normal login flow.
-			// If the login succeeds, this transaction will commit and the user
-			// will be converted.
-			// nolint:gocritic // system query to update user login type
-			user, err = tx.UpdateUserLoginType(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLoginTypeParams{
-				LoginType: params.LoginType,
-				UserID:    user.ID,
-			})
-			if err != nil {
-				return httpError{
-					code: http.StatusInternalServerError,
-					msg:  "Failed to convert user to new login type",
-				}
+				return err
 			}
 		}
 
@@ -1258,6 +1201,91 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 	return cookie, *key, nil
 }
 
+// convertUserToOauth will convert a user from password base loginType to
+// an oauth login type. If it fails, it will return a httpError
+func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db database.Store, params oauthLoginParams) error {
+	user := params.User
+
+	// Trying to convert to OIDC, but the email does not match.
+	// So do not make a new user, just block the request.
+	if user.ID == uuid.Nil {
+		return httpError{
+			code: http.StatusBadRequest,
+			msg:  fmt.Sprintf("The oidc account with the email %q does not match the email of the account you are trying to convert. Contact your administrator to resolve this issue.", params.Email),
+		}
+	}
+
+	// nolint:gocritic // Required to auth the oidc convert
+	mergeState, err := db.GetUserOauthMergeState(dbauthz.AsSystemRestricted(ctx), database.GetUserOauthMergeStateParams{
+		UserID:      user.ID,
+		StateString: params.State.StateString,
+	})
+	if xerrors.Is(err, sql.ErrNoRows) {
+		return httpError{
+			code: http.StatusBadRequest,
+			msg:  "No convert login request found with given state. Restart the convert process and try again.",
+		}
+	}
+	if err != nil {
+		return httpError{
+			code: http.StatusInternalServerError,
+			msg:  err.Error(),
+		}
+	}
+
+	// At this point, this request could be an attempt to convert from
+	// password auth to oauth auth. Always log these attempts.
+	var (
+		auditor                                    = *api.Auditor.Load()
+		oauthConvertAudit, commitOauthConvertAudit = params.InitAuditRequest(&audit.RequestParams{
+			Audit:   auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionLogin,
+		})
+	)
+	oauthConvertAudit.Old = mergeState
+	defer commitOauthConvertAudit()
+
+	// If we do not allow converting to oauth, return an error.
+	if !params.OauthConversionEnabled {
+		return httpError{
+			code: http.StatusForbidden,
+			msg: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q",
+				params.LoginType,
+				user.LoginType,
+			),
+		}
+	}
+
+	// Make sure the merge state generated matches this OIDC login request.
+	// It needs to have the correct login type information for this
+	// user.
+	if user.ID != mergeState.UserID || user.LoginType != mergeState.FromLoginType || params.LoginType != mergeState.ToLoginType {
+		return httpError{
+			code: http.StatusForbidden,
+			msg:  fmt.Sprintf("Request to convert login type from %s to %s failed", user.LoginType, params.LoginType),
+		}
+	}
+
+	// Convert the user and default to the normal login flow.
+	// If the login succeeds, this transaction will commit and the user
+	// will be converted.
+	// nolint:gocritic // system query to update user login type
+	user, err = db.UpdateUserLoginType(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLoginTypeParams{
+		LoginType: params.LoginType,
+		UserID:    user.ID,
+	})
+	if err != nil {
+		return httpError{
+			code: http.StatusInternalServerError,
+			msg:  "Failed to convert user to new login type",
+		}
+	}
+	return nil
+
+}
+
 // githubLinkedID returns the unique ID for a GitHub user.
 func githubLinkedID(u *github.User) string {
 	return strconv.FormatInt(u.GetID(), 10)
@@ -1323,4 +1351,11 @@ func findLinkedUser(ctx context.Context, db database.Store, linkedID string, ema
 	}
 
 	return user, link, nil
+}
+
+func isMergeStateString(state string) bool {
+	if strings.HasPrefix(state, mergeStateStringPrefix) {
+		return true
+	}
+	return false
 }
