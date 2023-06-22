@@ -1,0 +1,52 @@
+name: Cleanup PR
+on:
+  pull_request:
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number"
+        required: true
+
+permissions:
+  packages: write
+
+jobs:
+  cleanup:
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: Get PR number
+        id: pr_number
+        run: |
+          if [ -z "${{ github.event.pull_request.number }}" ]; then
+            echo "PR_NUMBER=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          else
+            echo "PR_NUMBER=${{ github.event.inputs.pr_number }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Delete image
+        uses: bots-house/ghcr-delete-image-action@v1.1.0
+        with:
+          owner: coder
+          name: coder-preview
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: pr${{ steps.pr_number.outputs.PR_NUMBER }}
+
+      - name: Set up kubeconfig
+        if: always()
+        run: |
+          set -euxo pipefail
+          mkdir -p ~/.kube
+          echo "${{ secrets.DELIVERYBOT_KUBECONFIG }}" > ~/.kube/config
+          export KUBECONFIG=~/.kube/config
+
+      - name: Delete helm release
+        if: always()
+        run: |
+          set -euxo pipefail
+          helm delete --namespace "pr${{ steps.pr_number.outputs.PR_NUMBER }}" "pr${{ steps.pr_number.outputs.PR_NUMBER }}" || echo "helm release not found"
+
+      - name: "Remove PR namespace"
+        if: always()
+        run: |
+          kubectl delete namespace "pr${{ steps.pr_number.outputs.PR_NUMBER }}" || echo "namespace not found"
