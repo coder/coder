@@ -5558,6 +5558,53 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaces/{workspace}/lock": {
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Update workspace lock by id.",
+                "operationId": "update-workspace-lock-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Lock or unlock a workspace",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateWorkspaceLock"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaces/{workspace}/ttl": {
             "put": {
                 "security": [
@@ -9039,6 +9086,14 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateWorkspaceLock": {
+            "type": "object",
+            "properties": {
+                "lock": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.UpdateWorkspaceRequest": {
             "type": "object",
             "properties": {
@@ -9195,6 +9250,11 @@ const docTemplate = `{
                 },
                 "latest_build": {
                     "$ref": "#/definitions/codersdk.WorkspaceBuild"
+                },
+                "locked_at": {
+                    "description": "LockedAt being non-nil indicates a workspace that has been locked.\nA locked workspace is no longer accessible by a user and must be\nunlocked by an admin. It is subject to deletion if it breaches\nthe duration of the locked_ttl field on its template.",
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "name": {
                     "type": "string"

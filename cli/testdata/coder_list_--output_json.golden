@@ -51,6 +51,7 @@
     "autostart_schedule": "CRON_TZ=US/Central 30 9 * * 1-5",
     "ttl_ms": 28800000,
     "last_used_at": "[timestamp]",
-    "deleting_at": null
+    "deleting_at": null,
+    "locked_at": null
   }
 ]

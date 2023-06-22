@@ -28,6 +28,18 @@ var (
 		Type: "workspace",
 	}
 
+	ResourceWorkspaceBuild = Object{
+		Type: "workspace_build",
+	}
+
+	// ResourceWorkspaceLocked CRUD.
+	//	create/delete = make or delete workspaces
+	// 	read = access workspace
+	//	update = edit workspace variables
+	ResourceWorkspaceLocked = Object{
+		Type: "workspace_locked",
+	}
+
 	// ResourceWorkspaceProxy CRUD. Org
 	//	create/delete = make or delete proxies
 	// 	read = read proxy urls
