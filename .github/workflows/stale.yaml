@@ -51,7 +51,7 @@ jobs:
         with:
           token: ${{ github.token }}
           repository: ${{ github.repository }}
-          retain_days: 30
-          keep_minimum_runs: 6
+          retain_days: 7
+          keep_minimum_runs: 1
           delete_workflow_pattern: pr-deploy.yaml
       
