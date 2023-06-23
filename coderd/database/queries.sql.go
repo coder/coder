@@ -3261,6 +3261,17 @@ func (q *sqlQuerier) UpsertServiceBanner(ctx context.Context, value string) erro
 	return err
 }
 
+const cleanTailnetCoordinators = `-- name: CleanTailnetCoordinators :exec
+DELETE
+FROM tailnet_coordinators
+WHERE heartbeat_at < now() - INTERVAL '24 HOURS'
+`
+
+func (q *sqlQuerier) CleanTailnetCoordinators(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, cleanTailnetCoordinators)
+	return err
+}
+
 const deleteCoordinator = `-- name: DeleteCoordinator :exec
 DELETE
 FROM tailnet_coordinators

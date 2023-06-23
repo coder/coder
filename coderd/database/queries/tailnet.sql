@@ -77,3 +77,8 @@ DO UPDATE SET
   id = $1,
   heartbeat_at = now() at time zone 'utc'
 RETURNING *;
+
+-- name: CleanTailnetCoordinators :exec
+DELETE
+FROM tailnet_coordinators
+WHERE heartbeat_at < now() - INTERVAL '24 HOURS';
