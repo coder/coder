@@ -192,6 +192,7 @@ func (a *agent) init(ctx context.Context) {
 	sshSrv.Env = a.envVars
 	sshSrv.AgentToken = func() string { return *a.sessionToken.Load() }
 	sshSrv.Manifest = &a.manifest
+	sshSrv.GetServiceBanner = a.client.GetServiceBanner
 	a.sshServer = sshSrv
 
 	go a.runLoop(ctx)

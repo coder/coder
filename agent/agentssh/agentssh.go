@@ -29,6 +29,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/agent/usershell"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/pty"
 )
@@ -63,9 +64,10 @@ type Server struct {
 	srv          *ssh.Server
 	x11SocketDir string
 
-	Env        map[string]string
-	AgentToken func() string
-	Manifest   *atomic.Pointer[agentsdk.Manifest]
+	Env              map[string]string
+	AgentToken       func() string
+	Manifest         *atomic.Pointer[agentsdk.Manifest]
+	GetServiceBanner func(ctx context.Context) (codersdk.ServiceBannerConfig, error)
 
 	connCountVSCode     atomic.Int64
 	connCountJetBrains  atomic.Int64
@@ -346,6 +348,11 @@ func (s *Server) startPTYSession(session ptySession, magicTypeLabel string, cmd 
 	session.DisablePTYEmulation()
 
 	if !isQuietLogin(session.RawCommand()) {
+		err := s.showServiceBanner(ctx, session)
+		if err != nil {
+			s.logger.Error(ctx, "agent failed to show service banner", slog.Error(err))
+			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "service_banner").Add(1)
+		}
 		manifest := s.Manifest.Load()
 		if manifest != nil {
 			err := showMOTD(session, manifest.MOTDFile)
@@ -426,6 +433,19 @@ func (s *Server) startPTYSession(session ptySession, magicTypeLabel string, cmd 
 		return xerrors.Errorf("process wait: %w", err)
 	}
 	return nil
+}
+
+func (s *Server) showServiceBanner(ctx context.Context, session io.Writer) error {
+	banner, err := s.GetServiceBanner(ctx)
+	if err != nil {
+		return err
+	}
+	if banner.Enabled && banner.Message != "" {
+		// The banner supports Markdown so we might want to parse it but Markdown is
+		// still fairly readable in its raw form.
+		_, err = io.WriteString(session, banner.Message+"\n\n\r")
+	}
+	return err
 }
 
 func (s *Server) sftpHandler(session ssh.Session) {
