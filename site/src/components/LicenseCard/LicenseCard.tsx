@@ -1,16 +1,16 @@
 import Button from "@mui/material/Button"
 import Paper from "@mui/material/Paper"
 import { makeStyles } from "@mui/styles"
-import { License } from "api/typesGenerated"
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { Stack } from "components/Stack/Stack"
 import dayjs from "dayjs"
 import { useState } from "react"
 import { Pill } from "components/Pill/Pill"
 import { compareAsc } from "date-fns"
+import { GetLicensesResponse } from "api/api"
 
 type LicenseCardProps = {
-  license: License
+  license: GetLicensesResponse
   userLimitActual?: number
   userLimitLimit?: number
   onRemove: (licenseId: number) => void
@@ -29,6 +29,9 @@ export const LicenseCard = ({
   const [licenseIDMarkedForRemoval, setLicenseIDMarkedForRemoval] = useState<
     number | undefined
   >(undefined)
+
+  const currentUserLimit =
+    license.claims.features["user_limit"] || userLimitLimit
 
   return (
     <Paper key={license.id} elevation={2} className={styles.licenseCard}>
@@ -72,7 +75,7 @@ export const LicenseCard = ({
           <Stack direction="column" spacing={0} alignItems="center">
             <span className={styles.secondaryMaincolor}>Users</span>
             <span className={styles.userLimit}>
-              {userLimitActual} {` / ${userLimitLimit || "Unlimited"}`}
+              {userLimitActual} {` / ${currentUserLimit || "Unlimited"}`}
             </span>
           </Stack>
           <Stack
