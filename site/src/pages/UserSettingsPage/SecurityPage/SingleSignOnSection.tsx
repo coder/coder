@@ -91,6 +91,7 @@ export const SingleSignOnSection = ({
   return (
     <>
       <Section
+        id="sso-section"
         title="Single Sign On"
         description="Authenticate in Coder using one-click"
       >

@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react"
+import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import * as API from "../../../api/api"
 import * as SecurityForm from "../../../components/SettingsSecurityForm/SettingsSecurityForm"
 import {
@@ -11,6 +11,7 @@ import {
   MockAuthMethodsWithPasswordType,
   mockApiError,
 } from "testHelpers/entities"
+import userEvent from "@testing-library/user-event"
 
 const { t } = i18next
 
@@ -114,4 +115,30 @@ test("update password when submit returns an unknown error", async () => {
   expect(errorMessage).toBeDefined()
   expect(API.updateUserPassword).toBeCalledTimes(1)
   expect(API.updateUserPassword).toBeCalledWith(user.id, newSecurityFormValues)
+})
+
+test("change login type to OIDC", async () => {
+  const convertToOAUTHSpy = jest.spyOn(API, "convertToOAUTH")
+  const user = userEvent.setup()
+  const { user: userData } = await renderPage()
+
+  const ssoSection = screen.getByTestId("sso-section")
+  const githubButton = within(ssoSection).getByText("GitHub", { exact: false })
+  await user.click(githubButton)
+
+  const confirmationDialog = await screen.findByTestId("dialog")
+  const confirmPasswordField = within(confirmationDialog).getByLabelText(
+    "Confirm your password",
+  )
+  await user.type(confirmPasswordField, "password123")
+  const updateButton = within(confirmationDialog).getByText("Update")
+  await user.click(updateButton)
+
+  await waitFor(() => {
+    expect(convertToOAUTHSpy).toHaveBeenCalledWith({
+      password: "password123",
+      to_login_type: "github",
+      email: userData.email,
+    })
+  })
 })

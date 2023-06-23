@@ -6,6 +6,8 @@ import { SectionAction } from "../SectionAction/SectionAction"
 type SectionLayout = "fixed" | "fluid"
 
 export interface SectionProps {
+  // Useful for testing
+  id?: string
   title?: ReactNode | string
   description?: ReactNode
   toolbar?: ReactNode
@@ -20,6 +22,7 @@ type SectionFC = FC<PropsWithChildren<SectionProps>> & {
 }
 
 export const Section: SectionFC = ({
+  id,
   title,
   description,
   toolbar,
@@ -30,12 +33,16 @@ export const Section: SectionFC = ({
 }) => {
   const styles = useStyles({ layout })
   return (
-    <section className={className}>
+    <section className={className} id={id} data-testid={id}>
       <div className={styles.inner}>
         {(title || description) && (
           <div className={styles.header}>
             <div>
-              {title && <Typography variant="h4" sx={{ fontSize: 24 }}>{title}</Typography>}
+              {title && (
+                <Typography variant="h4" sx={{ fontSize: 24 }}>
+                  {title}
+                </Typography>
+              )}
               {description && typeof description === "string" && (
                 <Typography className={styles.description}>
                   {description}
