@@ -37,7 +37,7 @@ const meta: Meta<typeof SecurityPageView> = {
 export default meta
 type Story = StoryObj<typeof SecurityPageView>
 
-export const Default: Story = {}
+export const UsingOIDC: Story = {}
 
 export const NoOIDCAvailable: Story = {
   args: {
