@@ -64,10 +64,7 @@ export const SecurityForm: FC<SecurityFormProps> = ({
       validationSchema,
       onSubmit,
     })
-  const getFieldHelpers = getFormHelpers<SecurityFormValues>(
-    form,
-    error,
-  )
+  const getFieldHelpers = getFormHelpers<SecurityFormValues>(form, error)
 
   if (disabled) {
     return (
@@ -81,9 +78,7 @@ export const SecurityForm: FC<SecurityFormProps> = ({
     <>
       <Form onSubmit={form.handleSubmit}>
         <FormFields>
-          {Boolean(error) && (
-            <ErrorAlert error={error} />
-          )}
+          {Boolean(error) && <ErrorAlert error={error} />}
           <TextField
             {...getFieldHelpers("old_password")}
             autoComplete="old_password"
