@@ -1024,6 +1024,13 @@ export const MockAuthMethods: TypesGen.AuthMethods = {
   convert_to_oidc_enabled: true,
 }
 
+export const MockAuthMethodsWithPasswordType: TypesGen.AuthMethods = {
+  ...MockAuthMethods,
+  me_login_type: "password",
+  github: { enabled: true },
+  oidc: { enabled: true, signInText: "", iconUrl: "" },
+}
+
 export const MockGitSSHKey: TypesGen.GitSSHKey = {
   user_id: "1fa0200f-7331-4524-a364-35770666caa7",
   created_at: "2022-05-16T14:30:34.148205897Z",

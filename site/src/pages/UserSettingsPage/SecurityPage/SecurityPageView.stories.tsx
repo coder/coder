@@ -1,10 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react"
 import { SecurityPageView } from "./SecurityPage"
 import { action } from "@storybook/addon-actions"
-import { MockAuthMethods } from "testHelpers/entities"
+import {
+  MockAuthMethods,
+  MockAuthMethodsWithPasswordType,
+} from "testHelpers/entities"
 import { ComponentProps } from "react"
 import set from "lodash/fp/set"
-import { AuthMethods } from "api/typesGenerated"
 
 const defaultArgs: ComponentProps<typeof SecurityPageView> = {
   security: {
@@ -46,15 +48,12 @@ export const NoOIDCAvailable: Story = {
   },
 }
 
-const authMethodsWithPassword: AuthMethods = {
-  ...MockAuthMethods,
-  me_login_type: "password",
-  github: { enabled: true },
-  oidc: { enabled: true, signInText: "", iconUrl: "" },
-}
-
 export const UserLoginTypeIsPassword: Story = {
-  args: set("oidc.section.authMethods", authMethodsWithPassword, defaultArgs),
+  args: set(
+    "oidc.section.authMethods",
+    MockAuthMethodsWithPasswordType,
+    defaultArgs,
+  ),
 }
 
 export const ConfirmingOIDCConversion: Story = {
@@ -62,7 +61,7 @@ export const ConfirmingOIDCConversion: Story = {
     "oidc.section",
     {
       ...defaultArgs.oidc?.section,
-      authMethods: authMethodsWithPassword,
+      authMethods: MockAuthMethodsWithPasswordType,
       isConfirming: true,
     },
     defaultArgs,
