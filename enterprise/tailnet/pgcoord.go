@@ -1146,10 +1146,10 @@ func (h *heartbeats) recvBeat(id uuid.UUID) {
 		h.logger.Debug(h.ctx, "set initial heartbeat timeout")
 		return
 	}
-	h.resetExpiryTimer()
+	h.resetExpiryTimerWithLock()
 }
 
-func (h *heartbeats) resetExpiryTimer() {
+func (h *heartbeats) resetExpiryTimerWithLock() {
 	var oldestTime time.Time
 	for _, t := range h.coordinators {
 		if oldestTime.IsZero() || t.Before(oldestTime) {
@@ -1186,7 +1186,7 @@ func (h *heartbeats) checkExpiry() {
 		}()
 	}
 	// we need to reset the timer for when the next oldest coordinator will expire, if any.
-	h.resetExpiryTimer()
+	h.resetExpiryTimerWithLock()
 }
 
 func (h *heartbeats) sendBeats() {
