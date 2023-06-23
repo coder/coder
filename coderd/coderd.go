@@ -674,7 +674,10 @@ func New(options *Options) *API {
 			r.Post("/google-instance-identity", api.postWorkspaceAuthGoogleInstanceIdentity)
 			r.Get("/connection", api.workspaceAgentConnectionGeneric)
 			r.Route("/me", func(r chi.Router) {
-				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
+				r.Use(httpmw.ExtractWorkspaceAgent(httpmw.ExtractWorkspaceAgentConfig{
+					DB:       options.Database,
+					Optional: false,
+				}))
 				r.Get("/manifest", api.workspaceAgentManifest)
 				// This route is deprecated and will be removed in a future release.
 				// New agents will use /me/manifest instead.

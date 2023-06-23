@@ -77,6 +77,7 @@ type Client interface {
 	PostStartup(ctx context.Context, req agentsdk.PostStartupRequest) error
 	PostMetadata(ctx context.Context, key string, req agentsdk.PostMetadataRequest) error
 	PatchStartupLogs(ctx context.Context, req agentsdk.PatchStartupLogs) error
+	GetServiceBanner(ctx context.Context) (codersdk.ServiceBannerConfig, error)
 }
 
 type Agent interface {
