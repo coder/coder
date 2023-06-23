@@ -1021,6 +1021,7 @@ export const MockAuthMethods: TypesGen.AuthMethods = {
   password: { enabled: true },
   github: { enabled: false },
   oidc: { enabled: false, signInText: "", iconUrl: "" },
+  convert_to_oidc_enabled: true,
 }
 
 export const MockGitSSHKey: TypesGen.GitSSHKey = {

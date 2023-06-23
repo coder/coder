@@ -64,7 +64,6 @@ export const useSingleSignOnSection = () => {
   }
 
   return {
-    mutation,
     openConfirmation,
     closeConfirmation,
     confirm,
