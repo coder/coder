@@ -258,11 +258,44 @@ describe("WorkspaceSchedulePage", () => {
     })
   })
 
+  describe("autostop", () => {
+    it("uses template default ttl when first enabled", async () => {
+      // have autostop disabled
+      server.use(
+        rest.get(
+          "/api/v2/users/:userId/workspace/:workspaceName",
+          (req, res, ctx) => {
+            return res(
+              ctx.status(200),
+              ctx.json({ ...MockWorkspace, ttl_ms: 0 }),
+            )
+          },
+        ),
+      )
+      renderWithWorkspaceSettingsLayout(<WorkspaceSchedulePage />, {
+        route: `/@${MockUser.username}/${MockWorkspace.name}/schedule`,
+        path: "/:username/:workspace/schedule",
+      })
+      const user = userEvent.setup()
+      const autostopToggle = await screen.findByLabelText(
+        FormLanguage.stopSwitch,
+      )
+      // enable autostop
+      await user.click(autostopToggle)
+      // find helper text that describes the mock template's 24 hour default
+      const autostopHelperText = await screen.findByText(
+        "Your workspace will shut down a day after",
+        { exact: false },
+      )
+      expect(autostopHelperText).toBeDefined()
+    })
+  })
+
   describe("autostop change dialog", () => {
     it("shows if autostop is changed", async () => {
       renderWithWorkspaceSettingsLayout(<WorkspaceSchedulePage />, {
         route: `/@${MockUser.username}/${MockWorkspace.name}/schedule`,
-        path: "/@:username/:workspace/schedule",
+        path: "/:username/:workspace/schedule",
       })
       const user = userEvent.setup()
       const autostopToggle = await screen.findByLabelText(
@@ -281,7 +314,10 @@ describe("WorkspaceSchedulePage", () => {
     it("doesn't show if autostop is not changed", async () => {
       renderWithWorkspaceSettingsLayout(<WorkspaceSchedulePage />, {
         route: `/@${MockUser.username}/${MockWorkspace.name}/schedule`,
-        path: "/@:username/:workspace/schedule",
+        path: "/:username/:workspace/schedule",
+        extraRoutes: [
+          { path: "/:username/:workspace", element: <div>Workspace</div> },
+        ],
       })
       const user = userEvent.setup()
       const autostartToggle = await screen.findByLabelText(
@@ -295,39 +331,6 @@ describe("WorkspaceSchedulePage", () => {
       const title = t("dialogTitle", { ns: "workspaceSchedulePage" })
       const dialog = screen.queryByText(title)
       expect(dialog).not.toBeInTheDocument()
-    })
-  })
-
-  describe("autostop", () => {
-    it("uses template default ttl when first enabled", async () => {
-      // have autostop disabled
-      server.use(
-        rest.get(
-          "/api/v2/users/:userId/workspace/:workspaceName",
-          (req, res, ctx) => {
-            return res(
-              ctx.status(200),
-              ctx.json({ ...MockWorkspace, ttl_ms: 0 }),
-            )
-          },
-        ),
-      )
-      renderWithWorkspaceSettingsLayout(<WorkspaceSchedulePage />, {
-        route: `/@${MockUser.username}/${MockWorkspace.name}/schedule`,
-        path: "/@:username/:workspace/schedule",
-      })
-      const user = userEvent.setup()
-      const autostopToggle = await screen.findByLabelText(
-        FormLanguage.stopSwitch,
-      )
-      // enable autostop
-      await user.click(autostopToggle)
-      // find helper text that describes the mock template's 24 hour default
-      const autostopHelperText = await screen.findByText(
-        "Your workspace will shut down a day after",
-        { exact: false },
-      )
-      expect(autostopHelperText).toBeDefined()
     })
   })
 })

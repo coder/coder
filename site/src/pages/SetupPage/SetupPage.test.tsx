@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { rest } from "msw"
-import { history, render } from "testHelpers/renderHelpers"
+import { render } from "testHelpers/renderHelpers"
 import { server } from "testHelpers/server"
 import { SetupPage } from "./SetupPage"
 import { Language as PageViewLanguage } from "./SetupPageView"
@@ -30,7 +30,6 @@ const fillForm = async ({
 
 describe("Setup Page", () => {
   beforeEach(() => {
-    history.replace("/setup")
     // appear logged out
     server.use(
       rest.get("/api/v2/users/me", (req, res, ctx) => {

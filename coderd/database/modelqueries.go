@@ -54,7 +54,7 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 		pq.Array(arg.IDs),
 	)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("query context: %w", err)
 	}
 	defer rows.Close()
 	var items []Template
@@ -82,16 +82,17 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 			&i.AllowUserAutostop,
 			&i.FailureTTL,
 			&i.InactivityTTL,
+			&i.LockedTTL,
 		); err != nil {
-			return nil, err
+			return nil, xerrors.Errorf("scan: %w", err)
 		}
 		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("close: %w", err)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("rows err: %w", err)
 	}
 	return items, nil
 }

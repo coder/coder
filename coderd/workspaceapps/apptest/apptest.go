@@ -928,7 +928,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			forceURLTransport(t, client)
 
 			// Create workspace.
-			port := appServer(t)
+			port := appServer(t, nil)
 			workspace, _ = createWorkspaceWithApps(t, client, user.OrganizationIDs[0], user, port)
 
 			// Verify that the apps have the correct sharing levels set.
@@ -1259,5 +1259,62 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 				require.Equal(t, secWebSocketKey, resp.Header.Get("Sec-WebSocket-Key"))
 			})
 		}
+	})
+
+	t.Run("CORSHeadersStripped", func(t *testing.T) {
+		t.Parallel()
+
+		appDetails := setupProxyTest(t, &DeploymentOptions{
+			headers: http.Header{
+				"X-Foobar":                         []string{"baz"},
+				"Access-Control-Allow-Origin":      []string{"http://localhost"},
+				"access-control-allow-origin":      []string{"http://localhost"},
+				"Access-Control-Allow-Credentials": []string{"true"},
+				"Access-Control-Allow-Methods":     []string{"PUT"},
+				"Access-Control-Allow-Headers":     []string{"X-Foobar"},
+				"Vary": []string{
+					"Origin",
+					"origin",
+					"Access-Control-Request-Headers",
+					"access-Control-request-Headers",
+					"Access-Control-Request-Methods",
+					"ACCESS-CONTROL-REQUEST-METHODS",
+					"X-Foobar",
+				},
+			},
+		})
+
+		appURL := appDetails.SubdomainAppURL(appDetails.Apps.Owner)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, appURL.String(), nil)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, []string(nil), resp.Header.Values("Access-Control-Allow-Origin"))
+		require.Equal(t, []string(nil), resp.Header.Values("Access-Control-Allow-Credentials"))
+		require.Equal(t, []string(nil), resp.Header.Values("Access-Control-Allow-Methods"))
+		require.Equal(t, []string(nil), resp.Header.Values("Access-Control-Allow-Headers"))
+		// Somehow there are two "Origin"s in Vary even though there should only be
+		// one (from the CORS middleware), even if you remove the headers being sent
+		// above.  When I do nothing else but change the expected value below to
+		// have two "Origin"s suddenly Vary only has one.  It is somehow always the
+		// opposite of whatever I put for the expected.  So, reluctantly, remove
+		// duplicate "Origin" values.
+		var deduped []string
+		var addedOrigin bool
+		for _, value := range resp.Header.Values("Vary") {
+			if value != "Origin" || !addedOrigin {
+				if value == "Origin" {
+					addedOrigin = true
+				}
+				deduped = append(deduped, value)
+			}
+		}
+		require.Equal(t, []string{"Origin", "X-Foobar"}, deduped)
+		require.Equal(t, []string{"baz"}, resp.Header.Values("X-Foobar"))
 	})
 }

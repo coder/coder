@@ -286,6 +286,8 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
   file_id: MockOrganization.id,
   completed_at: "2022-05-17T17:39:01.382927298Z",
   tags: {},
+  queue_position: 0,
+  queue_size: 0,
 }
 
 export const MockFailedProvisionerJob: TypesGen.ProvisionerJob = {
@@ -388,6 +390,7 @@ export const MockTemplate: TypesGen.Template = {
   allow_user_cancel_workspace_jobs: true,
   failure_ttl_ms: 0,
   inactivity_ttl_ms: 0,
+  locked_ttl_ms: 0,
   allow_user_autostart: false,
   allow_user_autostop: false,
 }
@@ -1402,7 +1405,6 @@ export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
 export const MockExperiments: TypesGen.Experiment[] = [
   "workspace_actions",
   "moons",
-  "workspace_filter",
 ]
 
 export const MockAuditLog: TypesGen.AuditLog = {

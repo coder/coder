@@ -77,6 +77,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"max_ttl":                          ActionTrack,
 		"failure_ttl":                      ActionTrack,
 		"inactivity_ttl":                   ActionTrack,
+		"locked_ttl":                       ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":                 ActionTrack,

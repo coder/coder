@@ -184,7 +184,7 @@ export const CreateWorkspacePageView: FC<
 
         {/* General info */}
         <FormSection
-          title="General info"
+          title="General"
           description="The template and name of your new workspace."
         >
           <FormFields>
@@ -206,8 +206,8 @@ export const CreateWorkspacePageView: FC<
         {/* Workspace owner */}
         {props.canCreateForUser && (
           <FormSection
-            title="Workspace owner"
-            description="The user that is going to own this workspace. If you are admin, you can create workspace for others."
+            title="Workspace Owner"
+            description="Only admins can create workspace for other users."
           >
             <FormFields>
               <UserAutocomplete

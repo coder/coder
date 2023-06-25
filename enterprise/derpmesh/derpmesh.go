@@ -51,12 +51,12 @@ func (m *Mesh) SetAddresses(addresses []string, connect bool) {
 	for _, address := range addresses {
 		addressURL, err := url.Parse(address)
 		if err != nil {
-			m.logger.Error(m.ctx, "invalid address", slog.F("address", err), slog.Error(err))
+			m.logger.Error(m.ctx, "unable to parse DERP address", slog.F("address", address), slog.Error(err))
 			continue
 		}
 		derpURL, err := addressURL.Parse("/derp")
 		if err != nil {
-			m.logger.Error(m.ctx, "parse derp", slog.F("address", err), slog.Error(err))
+			m.logger.Error(m.ctx, "unable to parse DERP address with /derp", slog.F("address", addressURL.String()), slog.Error(err))
 			continue
 		}
 		address = derpURL.String()

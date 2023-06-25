@@ -45,7 +45,7 @@ import (
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/database/dbmetrics"
+	"github.com/coder/coder/coderd/database/pubsub"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/healthcheck"
@@ -94,7 +94,7 @@ type Options struct {
 	AppHostnameRegex *regexp.Regexp
 	Logger           slog.Logger
 	Database         database.Store
-	Pubsub           database.Pubsub
+	Pubsub           pubsub.Pubsub
 
 	// CacheDir is used for caching files served by the API.
 	CacheDir string
@@ -189,10 +189,6 @@ func New(options *Options) *API {
 	if options.Authorizer == nil {
 		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
 	}
-	// The below are no-ops if already wrapped.
-	if options.PrometheusRegistry != nil {
-		options.Database = dbmetrics.New(options.Database, options.PrometheusRegistry)
-	}
 	options.Database = dbauthz.New(
 		options.Database,
 		options.Authorizer,
@@ -246,9 +242,9 @@ func New(options *Options) *API {
 		options.TracerProvider = trace.NewNoopTracerProvider()
 	}
 	if options.SetUserGroups == nil {
-		options.SetUserGroups = func(ctx context.Context, _ database.Store, id uuid.UUID, groups []string) error {
+		options.SetUserGroups = func(ctx context.Context, _ database.Store, userID uuid.UUID, groups []string) error {
 			options.Logger.Warn(ctx, "attempted to assign OIDC groups without enterprise license",
-				slog.F("id", id), slog.F("groups", groups),
+				slog.F("user_id", userID), slog.F("groups", groups),
 			)
 			return nil
 		}
@@ -279,11 +275,13 @@ func New(options *Options) *API {
 		},
 	)
 
-	staticHandler := site.Handler(site.FS(), binFS, binHashes)
-	// Static file handler must be wrapped with HSTS handler if the
-	// StrictTransportSecurityAge is set. We only need to set this header on
-	// static files since it only affects browsers.
-	staticHandler = httpmw.HSTS(staticHandler, options.StrictTransportSecurityCfg)
+	staticHandler := site.New(&site.Options{
+		BinFS:     binFS,
+		BinHashes: binHashes,
+		Database:  options.Database,
+		SiteFS:    site.FS(),
+	})
+	staticHandler.Experiments.Store(&experiments)
 
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
@@ -299,7 +297,7 @@ func New(options *Options) *API {
 		ID:          uuid.New(),
 		Options:     options,
 		RootHandler: r,
-		siteHandler: staticHandler,
+		SiteHandler: staticHandler,
 		HTTPAuth: &HTTPAuthorizer{
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
@@ -326,6 +324,7 @@ func New(options *Options) *API {
 	if options.HealthcheckFunc == nil {
 		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *healthcheck.Report {
 			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
+				DB:        options.Database,
 				AccessURL: options.AccessURL,
 				DERPMap:   api.DERPMap(),
 				APIKey:    apiKey,
@@ -673,6 +672,7 @@ func New(options *Options) *API {
 			r.Post("/azure-instance-identity", api.postWorkspaceAuthAzureInstanceIdentity)
 			r.Post("/aws-instance-identity", api.postWorkspaceAuthAWSInstanceIdentity)
 			r.Post("/google-instance-identity", api.postWorkspaceAuthGoogleInstanceIdentity)
+			r.Get("/connection", api.workspaceAgentConnectionGeneric)
 			r.Route("/me", func(r chi.Router) {
 				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
 				r.Get("/manifest", api.workspaceAgentManifest)
@@ -817,7 +817,11 @@ func New(options *Options) *API {
 		// By default we do not add extra websocket connections to the CSP
 		return []string{}
 	})
-	r.NotFound(cspMW(compressHandler(http.HandlerFunc(api.siteHandler.ServeHTTP))).ServeHTTP)
+
+	// Static file handler must be wrapped with HSTS handler if the
+	// StrictTransportSecurityAge is set. We only need to set this header on
+	// static files since it only affects browsers.
+	r.NotFound(cspMW(compressHandler(httpmw.HSTS(api.SiteHandler, options.StrictTransportSecurityCfg))).ServeHTTP)
 
 	// This must be before all middleware to improve the response time.
 	// So make a new router, and mount the old one as the root.
@@ -864,7 +868,8 @@ type API struct {
 	// RootHandler serves "/"
 	RootHandler chi.Router
 
-	siteHandler http.Handler
+	// SiteHandler serves static files for the dashboard.
+	SiteHandler *site.Handler
 
 	WebsocketWaitMutex sync.Mutex
 	WebsocketWaitGroup sync.WaitGroup

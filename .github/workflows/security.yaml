@@ -75,7 +75,7 @@ jobs:
 
       - name: Install sqlc
         run: |
-          curl -sSL https://github.com/kyleconroy/sqlc/releases/download/v1.17.2/sqlc_1.17.2_linux_amd64.tar.gz | sudo tar -C /usr/bin -xz sqlc
+          curl -sSL https://github.com/kyleconroy/sqlc/releases/download/v1.18.0/sqlc_1.18.0_linux_amd64.tar.gz | sudo tar -C /usr/bin -xz sqlc
       - name: Install yq
         run: go run github.com/mikefarah/yq/v4@v4.30.6
       - name: Install mockgen
@@ -124,6 +124,15 @@ jobs:
           pcc_user: ${{ secrets.PRISMA_CLOUD_ACCESS_KEY }}
           pcc_pass: ${{ secrets.PRISMA_CLOUD_SECRET_KEY }}
           image_name: ${{ steps.build.outputs.image }}
+
+      - name: Scan image
+        id: sysdig-scan
+        uses: sysdiglabs/scan-action@v3
+        with:
+          image-tag: ${{ steps.build.outputs.image }}
+          sysdig-secure-token: ${{ secrets.SYSDIG_API_TOKEN }}
+          input-type: docker-daemon
+          sysdig-secure-url: https://app.us4.sysdig.com
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@41f05d9ecffa2ed3f1580af306000f734b733e54

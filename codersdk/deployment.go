@@ -124,6 +124,7 @@ type DeploymentValues struct {
 	// HTTPAddress is a string because it may be set to zero to disable.
 	HTTPAddress                     clibase.String                  `json:"http_address,omitempty" typescript:",notnull"`
 	AutobuildPollInterval           clibase.Duration                `json:"autobuild_poll_interval,omitempty"`
+	JobHangDetectorInterval         clibase.Duration                `json:"job_hang_detector_interval,omitempty"`
 	DERP                            DERP                            `json:"derp,omitempty" typescript:",notnull"`
 	Prometheus                      PrometheusConfig                `json:"prometheus,omitempty" typescript:",notnull"`
 	Pprof                           PprofConfig                     `json:"pprof,omitempty" typescript:",notnull"`
@@ -221,14 +222,16 @@ type DERPServerConfig struct {
 }
 
 type DERPConfig struct {
-	URL  clibase.String `json:"url" typescript:",notnull"`
-	Path clibase.String `json:"path" typescript:",notnull"`
+	BlockDirect clibase.Bool   `json:"block_direct" typescript:",notnull"`
+	URL         clibase.String `json:"url" typescript:",notnull"`
+	Path        clibase.String `json:"path" typescript:",notnull"`
 }
 
 type PrometheusConfig struct {
 	Enable            clibase.Bool     `json:"enable" typescript:",notnull"`
 	Address           clibase.HostPort `json:"address" typescript:",notnull"`
 	CollectAgentStats clibase.Bool     `json:"collect_agent_stats" typescript:",notnull"`
+	CollectDBMetrics  clibase.Bool     `json:"collect_db_metrics" typescript:",notnull"`
 }
 
 type PprofConfig struct {
@@ -308,6 +311,7 @@ type GitAuthConfig struct {
 
 type ProvisionerConfig struct {
 	Daemons             clibase.Int64    `json:"daemons" typescript:",notnull"`
+	DaemonsEcho         clibase.Bool     `json:"daemons_echo" typescript:",notnull"`
 	DaemonPollInterval  clibase.Duration `json:"daemon_poll_interval" typescript:",notnull"`
 	DaemonPollJitter    clibase.Duration `json:"daemon_poll_jitter" typescript:",notnull"`
 	ForceCancelInterval clibase.Duration `json:"force_cancel_interval" typescript:",notnull"`
@@ -536,6 +540,16 @@ when required by your organization's security policy.`,
 			Value:       &c.AutobuildPollInterval,
 			YAML:        "autobuildPollInterval",
 		},
+		{
+			Name:        "Job Hang Detector Interval",
+			Description: "Interval to poll for hung jobs and automatically terminate them.",
+			Flag:        "job-hang-detector-interval",
+			Env:         "CODER_JOB_HANG_DETECTOR_INTERVAL",
+			Hidden:      true,
+			Default:     time.Minute.String(),
+			Value:       &c.JobHangDetectorInterval,
+			YAML:        "jobHangDetectorInterval",
+		},
 		httpAddress,
 		tlsBindAddress,
 		{
@@ -717,6 +731,18 @@ when required by your organization's security policy.`,
 				Mark(annotationExternalProxies, "true"),
 		},
 		{
+			Name:        "Block Direct Connections",
+			Description: "Block peer-to-peer (aka. direct) workspace connections. All workspace connections from the CLI will be proxied through Coder (or custom configured DERP servers) and will never be peer-to-peer when enabled. Workspaces may still reach out to STUN servers to get their address until they are restarted after this change has been made, but new connections will still be proxied regardless.",
+			// This cannot be called `disable-direct-connections` because that's
+			// already a global CLI flag for CLI connections. This is a
+			// deployment-wide flag.
+			Flag:  "block-direct-connections",
+			Env:   "CODER_BLOCK_DIRECT",
+			Value: &c.DERP.Config.BlockDirect,
+			Group: &deploymentGroupNetworkingDERP,
+			YAML:  "blockDirect",
+		},
+		{
 			Name:        "DERP Config URL",
 			Description: "URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custom-derp-servers/.",
 			Flag:        "derp-config-url",
@@ -765,6 +791,16 @@ when required by your organization's security policy.`,
 			Value:       &c.Prometheus.CollectAgentStats,
 			Group:       &deploymentGroupIntrospectionPrometheus,
 			YAML:        "collect_agent_stats",
+		},
+		{
+			Name:        "Prometheus Collect Database Metrics",
+			Description: "Collect database metrics (may increase charges for metrics storage).",
+			Flag:        "prometheus-collect-db-metrics",
+			Env:         "CODER_PROMETHEUS_COLLECT_DB_METRICS",
+			Value:       &c.Prometheus.CollectDBMetrics,
+			Group:       &deploymentGroupIntrospectionPrometheus,
+			YAML:        "collect_db_metrics",
+			Default:     "false",
 		},
 		// Pprof settings
 		{
@@ -1074,6 +1110,17 @@ when required by your organization's security policy.`,
 			Value:       &c.Provisioner.Daemons,
 			Group:       &deploymentGroupProvisioning,
 			YAML:        "daemons",
+		},
+		{
+			Name:        "Echo Provisioner",
+			Description: "Whether to use echo provisioner daemons instead of Terraform. This is for E2E tests.",
+			Flag:        "provisioner-daemons-echo",
+			Env:         "CODER_PROVISIONER_DAEMONS_ECHO",
+			Hidden:      true,
+			Default:     "false",
+			Value:       &c.Provisioner.DaemonsEcho,
+			Group:       &deploymentGroupProvisioning,
+			YAML:        "daemonsEcho",
 		},
 		{
 			Name:        "Poll Interval",
@@ -1699,8 +1746,9 @@ const (
 	// https://github.com/coder/coder/milestone/19
 	ExperimentWorkspaceActions Experiment = "workspace_actions"
 
-	// New workspace filter
-	ExperimentWorkspaceFilter Experiment = "workspace_filter"
+	// ExperimentTailnetPGCoordinator enables the PGCoord in favor of the pubsub-
+	// only Coordinator
+	ExperimentTailnetPGCoordinator Experiment = "tailnet_pg_coordinator"
 
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"
@@ -1710,9 +1758,7 @@ const (
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsAll = Experiments{
-	ExperimentWorkspaceFilter,
-}
+var ExperimentsAll = Experiments{}
 
 // Experiments is a list of experiments that are enabled for the deployment.
 // Multiple experiments may be enabled at the same time.

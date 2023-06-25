@@ -272,7 +272,7 @@ func main() {
 		},
 	})
 
-	err := root.Invoke(os.Args[1:]...).Run()
+	err := root.Invoke(os.Args[1:]...).WithOS().Run()
 	if err != nil {
 		_, _ = fmt.Println(err.Error())
 		os.Exit(1)

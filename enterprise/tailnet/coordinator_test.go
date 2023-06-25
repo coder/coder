@@ -12,8 +12,8 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 
-	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbtestutil"
+	"github.com/coder/coder/coderd/database/pubsub"
 	"github.com/coder/coder/enterprise/tailnet"
 	agpl "github.com/coder/coder/tailnet"
 	"github.com/coder/coder/testutil"
@@ -23,7 +23,7 @@ func TestCoordinatorSingle(t *testing.T) {
 	t.Parallel()
 	t.Run("ClientWithoutAgent", func(t *testing.T) {
 		t.Parallel()
-		coordinator, err := tailnet.NewCoordinator(slogtest.Make(t, nil), database.NewPubsubInMemory(), emptyDerpMapFn)
+		coordinator, err := tailnet.NewCoordinator(slogtest.Make(t, nil), pubsub.NewInMemory(), emptyDerpMapFn)
 		require.NoError(t, err)
 		defer coordinator.Close()
 
@@ -51,7 +51,7 @@ func TestCoordinatorSingle(t *testing.T) {
 
 	t.Run("AgentWithoutClients", func(t *testing.T) {
 		t.Parallel()
-		coordinator, err := tailnet.NewCoordinator(slogtest.Make(t, nil), database.NewPubsubInMemory(), emptyDerpMapFn)
+		coordinator, err := tailnet.NewCoordinator(slogtest.Make(t, nil), pubsub.NewInMemory(), emptyDerpMapFn)
 		require.NoError(t, err)
 		defer coordinator.Close()
 
@@ -79,7 +79,7 @@ func TestCoordinatorSingle(t *testing.T) {
 	t.Run("AgentWithClient", func(t *testing.T) {
 		t.Parallel()
 
-		coordinator, err := tailnet.NewCoordinator(slogtest.Make(t, nil), database.NewPubsubInMemory(), emptyDerpMapFn)
+		coordinator, err := tailnet.NewCoordinator(slogtest.Make(t, nil), pubsub.NewInMemory(), emptyDerpMapFn)
 		require.NoError(t, err)
 		defer coordinator.Close()
 
@@ -97,7 +97,7 @@ func TestCoordinatorSingle(t *testing.T) {
 			assert.NoError(t, err)
 			close(closeAgentChan)
 		}()
-		sendAgentNode(&agpl.Node{})
+		sendAgentNode(&agpl.Node{PreferredDERP: 1})
 		require.Eventually(t, func() bool {
 			return coordinator.Node(agentID) != nil
 		}, testutil.WaitShort, testutil.IntervalFast)
@@ -119,12 +119,12 @@ func TestCoordinatorSingle(t *testing.T) {
 		}()
 		agentNodes := <-clientNodeChan
 		require.Len(t, agentNodes, 1)
-		sendClientNode(&agpl.Node{})
+		sendClientNode(&agpl.Node{PreferredDERP: 2})
 		clientNodes := <-agentNodeChan
 		require.Len(t, clientNodes, 1)
 
 		// Ensure an update to the agent node reaches the client!
-		sendAgentNode(&agpl.Node{})
+		sendAgentNode(&agpl.Node{PreferredDERP: 3})
 		agentNodes = <-clientNodeChan
 		require.Len(t, agentNodes, 1)
 
@@ -184,7 +184,7 @@ func TestCoordinatorSingle(t *testing.T) {
 			}
 		}
 
-		coordinator, err := tailnet.NewCoordinator(slogtest.Make(t, nil), database.NewPubsubInMemory(), derpMapFn)
+		coordinator, err := tailnet.NewCoordinator(slogtest.Make(t, nil), pubsub.NewInMemory(), derpMapFn)
 		require.NoError(t, err)
 		defer coordinator.Close()
 
@@ -284,7 +284,7 @@ func TestCoordinatorHA(t *testing.T) {
 			assert.NoError(t, err)
 			close(closeAgentChan)
 		}()
-		sendAgentNode(&agpl.Node{})
+		sendAgentNode(&agpl.Node{PreferredDERP: 1})
 		require.Eventually(t, func() bool {
 			return coordinator1.Node(agentID) != nil
 		}, testutil.WaitShort, testutil.IntervalFast)
@@ -310,13 +310,13 @@ func TestCoordinatorHA(t *testing.T) {
 		}()
 		agentNodes := <-clientNodeChan
 		require.Len(t, agentNodes, 1)
-		sendClientNode(&agpl.Node{})
+		sendClientNode(&agpl.Node{PreferredDERP: 2})
 		_ = sendClientNode
 		clientNodes := <-agentNodeChan
 		require.Len(t, clientNodes, 1)
 
 		// Ensure an update to the agent node reaches the client!
-		sendAgentNode(&agpl.Node{})
+		sendAgentNode(&agpl.Node{PreferredDERP: 3})
 		agentNodes = <-clientNodeChan
 		require.Len(t, agentNodes, 1)
 

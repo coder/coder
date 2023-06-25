@@ -21,16 +21,13 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-isatty"
+	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-
-	"github.com/charmbracelet/lipgloss"
-	"github.com/gobwas/httphead"
-	"github.com/mattn/go-isatty"
-	"github.com/mitchellh/go-wordwrap"
-
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
@@ -63,6 +60,7 @@ const (
 	varNoFeatureWarning = "no-feature-warning"
 	varForceTty         = "force-tty"
 	varVerbose          = "verbose"
+	varDisableDirect    = "disable-direct-connections"
 	notLoggedInMessage  = "You are not logged in. Try logging in using 'coder login <url>'."
 
 	envNoVersionCheck   = "CODER_NO_VERSION_WARNING"
@@ -106,9 +104,11 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 		r.stop(),
 		r.update(),
 		r.restart(),
+		r.stat(),
 
 		// Hidden
 		r.gitssh(),
+		r.netcheck(),
 		r.vscodeSSH(),
 		r.workspaceAgent(),
 	}
@@ -369,6 +369,13 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 			Group:         globalGroup,
 		},
 		{
+			Flag:        varDisableDirect,
+			Env:         "CODER_DISABLE_DIRECT_CONNECTIONS",
+			Description: "Disable direct (P2P) connections to workspaces.",
+			Value:       clibase.BoolOf(&r.disableDirect),
+			Group:       globalGroup,
+		},
+		{
 			Flag:        "debug-http",
 			Description: "Debug codersdk HTTP requests.",
 			Value:       clibase.BoolOf(&r.debugHTTP),
@@ -414,22 +421,32 @@ func isTest() bool {
 
 // RootCmd contains parameters and helpers useful to all commands.
 type RootCmd struct {
-	clientURL    *url.URL
-	token        string
-	globalConfig string
-	header       []string
-	agentToken   string
-	agentURL     *url.URL
-	forceTTY     bool
-	noOpen       bool
-	verbose      bool
-	debugHTTP    bool
+	clientURL     *url.URL
+	token         string
+	globalConfig  string
+	header        []string
+	agentToken    string
+	agentURL      *url.URL
+	forceTTY      bool
+	noOpen        bool
+	verbose       bool
+	disableDirect bool
+	debugHTTP     bool
 
 	noVersionCheck   bool
 	noFeatureWarning bool
 }
 
 func addTelemetryHeader(client *codersdk.Client, inv *clibase.Invocation) {
+	transport, ok := client.HTTPClient.Transport.(*headerTransport)
+	if !ok {
+		transport = &headerTransport{
+			transport: client.HTTPClient.Transport,
+			header:    http.Header{},
+		}
+		client.HTTPClient.Transport = transport
+	}
+
 	var topts []telemetry.CLIOption
 	for _, opt := range inv.Command.FullOptions() {
 		if opt.ValueSource == clibase.ValueSourceNone || opt.ValueSource == clibase.ValueSourceDefault {
@@ -459,10 +476,7 @@ func addTelemetryHeader(client *codersdk.Client, inv *clibase.Invocation) {
 		return
 	}
 
-	client.ExtraHeaders.Set(
-		codersdk.CLITelemetryHeader,
-		s,
-	)
+	transport.header.Add(codersdk.CLITelemetryHeader, s)
 }
 
 // InitClient sets client to a new client.
@@ -519,6 +533,7 @@ func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
 				client.PlainLogger = os.Stderr
 				client.LogBodies = true
 			}
+			client.DisableDirectConnections = r.disableDirect
 
 			// We send these requests in parallel to minimize latency.
 			var (
@@ -560,17 +575,16 @@ func (r *RootCmd) setClient(client *codersdk.Client, serverURL *url.URL) error {
 		transport: http.DefaultTransport,
 		header:    http.Header{},
 	}
+	for _, header := range r.header {
+		parts := strings.SplitN(header, "=", 2)
+		if len(parts) < 2 {
+			return xerrors.Errorf("split header %q had less than two parts", header)
+		}
+		transport.header.Add(parts[0], parts[1])
+	}
 	client.URL = serverURL
 	client.HTTPClient = &http.Client{
 		Transport: transport,
-	}
-	client.ExtraHeaders = make(http.Header)
-	for _, hd := range r.header {
-		k, v, ok := httphead.ParseHeaderLine([]byte(hd))
-		if !ok {
-			return xerrors.Errorf("invalid header: %s", hd)
-		}
-		client.ExtraHeaders.Add(string(k), string(v))
 	}
 	return nil
 }

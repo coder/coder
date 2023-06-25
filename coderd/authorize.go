@@ -22,7 +22,7 @@ func AuthorizeFilter[O rbac.Objecter](h *HTTPAuthorizer, r *http.Request, action
 	objects, err := rbac.Filter(r.Context(), h.Authorizer, roles.Actor, action, objects)
 	if err != nil {
 		// Log the error as Filter should not be erroring.
-		h.Logger.Error(r.Context(), "filter failed",
+		h.Logger.Error(r.Context(), "authorization filter failed",
 			slog.Error(err),
 			slog.F("user_id", roles.Actor.ID),
 			slog.F("username", roles.ActorName),
@@ -71,11 +71,11 @@ func (h *HTTPAuthorizer) Authorize(r *http.Request, action rbac.Action, object r
 		internalError := new(rbac.UnauthorizedError)
 		logger := h.Logger
 		if xerrors.As(err, internalError) {
-			logger = h.Logger.With(slog.F("internal", internalError.Internal()))
+			logger = h.Logger.With(slog.F("internal_error", internalError.Internal()))
 		}
 		// Log information for debugging. This will be very helpful
 		// in the early days
-		logger.Warn(r.Context(), "unauthorized",
+		logger.Warn(r.Context(), "requester is not authorized to access the object",
 			slog.F("roles", roles.Actor.SafeRoleNames()),
 			slog.F("actor_id", roles.Actor.ID),
 			slog.F("actor_name", roles.ActorName),

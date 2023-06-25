@@ -68,6 +68,20 @@ func (mr *MockStoreMockRecorder) AcquireProvisionerJob(arg0, arg1 interface{}) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireProvisionerJob", reflect.TypeOf((*MockStore)(nil).AcquireProvisionerJob), arg0, arg1)
 }
 
+// CleanTailnetCoordinators mocks base method.
+func (m *MockStore) CleanTailnetCoordinators(arg0 context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CleanTailnetCoordinators", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CleanTailnetCoordinators indicates an expected call of CleanTailnetCoordinators.
+func (mr *MockStoreMockRecorder) CleanTailnetCoordinators(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanTailnetCoordinators", reflect.TypeOf((*MockStore)(nil).CleanTailnetCoordinators), arg0)
+}
+
 // DeleteAPIKeyByID mocks base method.
 func (m *MockStore) DeleteAPIKeyByID(arg0 context.Context, arg1 string) error {
 	m.ctrl.T.Helper()
@@ -108,6 +122,20 @@ func (m *MockStore) DeleteApplicationConnectAPIKeysByUserID(arg0 context.Context
 func (mr *MockStoreMockRecorder) DeleteApplicationConnectAPIKeysByUserID(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteApplicationConnectAPIKeysByUserID", reflect.TypeOf((*MockStore)(nil).DeleteApplicationConnectAPIKeysByUserID), arg0, arg1)
+}
+
+// DeleteCoordinator mocks base method.
+func (m *MockStore) DeleteCoordinator(arg0 context.Context, arg1 uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteCoordinator", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteCoordinator indicates an expected call of DeleteCoordinator.
+func (mr *MockStoreMockRecorder) DeleteCoordinator(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCoordinator", reflect.TypeOf((*MockStore)(nil).DeleteCoordinator), arg0, arg1)
 }
 
 // DeleteGitSSHKey mocks base method.
@@ -221,6 +249,36 @@ func (m *MockStore) DeleteReplicasUpdatedBefore(arg0 context.Context, arg1 time.
 func (mr *MockStoreMockRecorder) DeleteReplicasUpdatedBefore(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteReplicasUpdatedBefore", reflect.TypeOf((*MockStore)(nil).DeleteReplicasUpdatedBefore), arg0, arg1)
+}
+
+// DeleteTailnetAgent mocks base method.
+func (m *MockStore) DeleteTailnetAgent(arg0 context.Context, arg1 database.DeleteTailnetAgentParams) (database.DeleteTailnetAgentRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteTailnetAgent", arg0, arg1)
+	ret0, _ := ret[0].(database.DeleteTailnetAgentRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteTailnetAgent indicates an expected call of DeleteTailnetAgent.
+func (mr *MockStoreMockRecorder) DeleteTailnetAgent(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTailnetAgent", reflect.TypeOf((*MockStore)(nil).DeleteTailnetAgent), arg0, arg1)
+}
+
+// DeleteTailnetClient mocks base method.
+func (m *MockStore) DeleteTailnetClient(arg0 context.Context, arg1 database.DeleteTailnetClientParams) (database.DeleteTailnetClientRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteTailnetClient", arg0, arg1)
+	ret0, _ := ret[0].(database.DeleteTailnetClientRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteTailnetClient indicates an expected call of DeleteTailnetClient.
+func (mr *MockStoreMockRecorder) DeleteTailnetClient(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTailnetClient", reflect.TypeOf((*MockStore)(nil).DeleteTailnetClient), arg0, arg1)
 }
 
 // GetAPIKeyByID mocks base method.
@@ -643,6 +701,21 @@ func (mr *MockStoreMockRecorder) GetGroupsByOrganizationID(arg0, arg1 interface{
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGroupsByOrganizationID", reflect.TypeOf((*MockStore)(nil).GetGroupsByOrganizationID), arg0, arg1)
 }
 
+// GetHungProvisionerJobs mocks base method.
+func (m *MockStore) GetHungProvisionerJobs(arg0 context.Context, arg1 time.Time) ([]database.ProvisionerJob, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetHungProvisionerJobs", arg0, arg1)
+	ret0, _ := ret[0].([]database.ProvisionerJob)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetHungProvisionerJobs indicates an expected call of GetHungProvisionerJobs.
+func (mr *MockStoreMockRecorder) GetHungProvisionerJobs(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHungProvisionerJobs", reflect.TypeOf((*MockStore)(nil).GetHungProvisionerJobs), arg0, arg1)
+}
+
 // GetLastUpdateCheck mocks base method.
 func (m *MockStore) GetLastUpdateCheck(arg0 context.Context) (string, error) {
 	m.ctrl.T.Helper()
@@ -928,6 +1001,21 @@ func (mr *MockStoreMockRecorder) GetProvisionerJobsByIDs(arg0, arg1 interface{})
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerJobsByIDs", reflect.TypeOf((*MockStore)(nil).GetProvisionerJobsByIDs), arg0, arg1)
 }
 
+// GetProvisionerJobsByIDsWithQueuePosition mocks base method.
+func (m *MockStore) GetProvisionerJobsByIDsWithQueuePosition(arg0 context.Context, arg1 []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetProvisionerJobsByIDsWithQueuePosition", arg0, arg1)
+	ret0, _ := ret[0].([]database.GetProvisionerJobsByIDsWithQueuePositionRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetProvisionerJobsByIDsWithQueuePosition indicates an expected call of GetProvisionerJobsByIDsWithQueuePosition.
+func (mr *MockStoreMockRecorder) GetProvisionerJobsByIDsWithQueuePosition(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerJobsByIDsWithQueuePosition", reflect.TypeOf((*MockStore)(nil).GetProvisionerJobsByIDsWithQueuePosition), arg0, arg1)
+}
+
 // GetProvisionerJobsCreatedAfter mocks base method.
 func (m *MockStore) GetProvisionerJobsCreatedAfter(arg0 context.Context, arg1 time.Time) ([]database.ProvisionerJob, error) {
 	m.ctrl.T.Helper()
@@ -1031,6 +1119,36 @@ func (m *MockStore) GetServiceBanner(arg0 context.Context) (string, error) {
 func (mr *MockStoreMockRecorder) GetServiceBanner(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetServiceBanner", reflect.TypeOf((*MockStore)(nil).GetServiceBanner), arg0)
+}
+
+// GetTailnetAgents mocks base method.
+func (m *MockStore) GetTailnetAgents(arg0 context.Context, arg1 uuid.UUID) ([]database.TailnetAgent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTailnetAgents", arg0, arg1)
+	ret0, _ := ret[0].([]database.TailnetAgent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTailnetAgents indicates an expected call of GetTailnetAgents.
+func (mr *MockStoreMockRecorder) GetTailnetAgents(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTailnetAgents", reflect.TypeOf((*MockStore)(nil).GetTailnetAgents), arg0, arg1)
+}
+
+// GetTailnetClientsForAgent mocks base method.
+func (m *MockStore) GetTailnetClientsForAgent(arg0 context.Context, arg1 uuid.UUID) ([]database.TailnetClient, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTailnetClientsForAgent", arg0, arg1)
+	ret0, _ := ret[0].([]database.TailnetClient)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTailnetClientsForAgent indicates an expected call of GetTailnetClientsForAgent.
+func (mr *MockStoreMockRecorder) GetTailnetClientsForAgent(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTailnetClientsForAgent", reflect.TypeOf((*MockStore)(nil).GetTailnetClientsForAgent), arg0, arg1)
 }
 
 // GetTemplateAverageBuildTime mocks base method.
@@ -1436,6 +1554,21 @@ func (m *MockStore) GetWorkspaceAgentByInstanceID(arg0 context.Context, arg1 str
 func (mr *MockStoreMockRecorder) GetWorkspaceAgentByInstanceID(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentByInstanceID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentByInstanceID), arg0, arg1)
+}
+
+// GetWorkspaceAgentLifecycleStateByID mocks base method.
+func (m *MockStore) GetWorkspaceAgentLifecycleStateByID(arg0 context.Context, arg1 uuid.UUID) (database.GetWorkspaceAgentLifecycleStateByIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentLifecycleStateByID", arg0, arg1)
+	ret0, _ := ret[0].(database.GetWorkspaceAgentLifecycleStateByIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceAgentLifecycleStateByID indicates an expected call of GetWorkspaceAgentLifecycleStateByID.
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentLifecycleStateByID(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentLifecycleStateByID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentLifecycleStateByID), arg0, arg1)
 }
 
 // GetWorkspaceAgentMetadata mocks base method.
@@ -1918,19 +2051,19 @@ func (mr *MockStoreMockRecorder) GetWorkspaces(arg0, arg1 interface{}) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaces", reflect.TypeOf((*MockStore)(nil).GetWorkspaces), arg0, arg1)
 }
 
-// GetWorkspacesEligibleForAutoStartStop mocks base method.
-func (m *MockStore) GetWorkspacesEligibleForAutoStartStop(arg0 context.Context, arg1 time.Time) ([]database.Workspace, error) {
+// GetWorkspacesEligibleForTransition mocks base method.
+func (m *MockStore) GetWorkspacesEligibleForTransition(arg0 context.Context, arg1 time.Time) ([]database.Workspace, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWorkspacesEligibleForAutoStartStop", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetWorkspacesEligibleForTransition", arg0, arg1)
 	ret0, _ := ret[0].([]database.Workspace)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetWorkspacesEligibleForAutoStartStop indicates an expected call of GetWorkspacesEligibleForAutoStartStop.
-func (mr *MockStoreMockRecorder) GetWorkspacesEligibleForAutoStartStop(arg0, arg1 interface{}) *gomock.Call {
+// GetWorkspacesEligibleForTransition indicates an expected call of GetWorkspacesEligibleForTransition.
+func (mr *MockStoreMockRecorder) GetWorkspacesEligibleForTransition(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspacesEligibleForAutoStartStop", reflect.TypeOf((*MockStore)(nil).GetWorkspacesEligibleForAutoStartStop), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspacesEligibleForTransition", reflect.TypeOf((*MockStore)(nil).GetWorkspacesEligibleForTransition), arg0, arg1)
 }
 
 // InTx mocks base method.
@@ -3172,6 +3305,51 @@ func (m *MockStore) UpsertServiceBanner(arg0 context.Context, arg1 string) error
 func (mr *MockStoreMockRecorder) UpsertServiceBanner(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertServiceBanner", reflect.TypeOf((*MockStore)(nil).UpsertServiceBanner), arg0, arg1)
+}
+
+// UpsertTailnetAgent mocks base method.
+func (m *MockStore) UpsertTailnetAgent(arg0 context.Context, arg1 database.UpsertTailnetAgentParams) (database.TailnetAgent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertTailnetAgent", arg0, arg1)
+	ret0, _ := ret[0].(database.TailnetAgent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertTailnetAgent indicates an expected call of UpsertTailnetAgent.
+func (mr *MockStoreMockRecorder) UpsertTailnetAgent(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTailnetAgent", reflect.TypeOf((*MockStore)(nil).UpsertTailnetAgent), arg0, arg1)
+}
+
+// UpsertTailnetClient mocks base method.
+func (m *MockStore) UpsertTailnetClient(arg0 context.Context, arg1 database.UpsertTailnetClientParams) (database.TailnetClient, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertTailnetClient", arg0, arg1)
+	ret0, _ := ret[0].(database.TailnetClient)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertTailnetClient indicates an expected call of UpsertTailnetClient.
+func (mr *MockStoreMockRecorder) UpsertTailnetClient(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTailnetClient", reflect.TypeOf((*MockStore)(nil).UpsertTailnetClient), arg0, arg1)
+}
+
+// UpsertTailnetCoordinator mocks base method.
+func (m *MockStore) UpsertTailnetCoordinator(arg0 context.Context, arg1 uuid.UUID) (database.TailnetCoordinator, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertTailnetCoordinator", arg0, arg1)
+	ret0, _ := ret[0].(database.TailnetCoordinator)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertTailnetCoordinator indicates an expected call of UpsertTailnetCoordinator.
+func (mr *MockStoreMockRecorder) UpsertTailnetCoordinator(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTailnetCoordinator", reflect.TypeOf((*MockStore)(nil).UpsertTailnetCoordinator), arg0, arg1)
 }
 
 // Wrappers mocks base method.

@@ -54,11 +54,12 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/autobuild/executor"
+	"github.com/coder/coder/coderd/autobuild"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/database/dbtestutil"
+	"github.com/coder/coder/coderd/database/pubsub"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/healthcheck"
@@ -67,6 +68,7 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/telemetry"
+	"github.com/coder/coder/coderd/unhanger"
 	"github.com/coder/coder/coderd/updatecheck"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/coderd/workspaceapps"
@@ -101,7 +103,7 @@ type Options struct {
 	GoogleTokenValidator  *idtoken.Validator
 	SSHKeygenAlgorithm    gitsshkey.Algorithm
 	AutobuildTicker       <-chan time.Time
-	AutobuildStats        chan<- executor.Stats
+	AutobuildStats        chan<- autobuild.Stats
 	Auditor               audit.Auditor
 	TLSCertificates       []tls.Certificate
 	GitAuthConfigs        []*gitauth.Config
@@ -130,11 +132,14 @@ type Options struct {
 	// It should only be used in cases where multiple Coder
 	// test instances are running against the same database.
 	Database database.Store
-	Pubsub   database.Pubsub
+	Pubsub   pubsub.Pubsub
 
 	ConfigSSH codersdk.SSHConfigResponse
 
 	SwaggerEndpoint bool
+	// Logger should only be overridden if you expect errors
+	// as part of your test.
+	Logger *slog.Logger
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -243,7 +248,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	templateScheduleStore.Store(&options.TemplateScheduleStore)
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	lifecycleExecutor := executor.New(
+	lifecycleExecutor := autobuild.NewExecutor(
 		ctx,
 		options.Database,
 		&templateScheduleStore,
@@ -252,11 +257,18 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	).WithStatsChannel(options.AutobuildStats)
 	lifecycleExecutor.Run()
 
+	hangDetectorTicker := time.NewTicker(options.DeploymentValues.JobHangDetectorInterval.Value())
+	defer hangDetectorTicker.Stop()
+	hangDetector := unhanger.New(ctx, options.Database, options.Pubsub, slogtest.Make(t, nil).Named("unhanger.detector"), hangDetectorTicker.C)
+	hangDetector.Start()
+	t.Cleanup(hangDetector.Close)
+
 	var mutex sync.RWMutex
 	var handler http.Handler
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mutex.RLock()
-		defer mutex.RUnlock()
+		handler := handler
+		mutex.RUnlock()
 		if handler != nil {
 			handler.ServeHTTP(w, r)
 		}
@@ -291,6 +303,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	}
 
 	stunAddr, stunCleanup := stuntest.ServeWithPacketListener(t, nettype.Std{})
+	stunAddr.IP = net.ParseIP("127.0.0.1")
 	t.Cleanup(stunCleanup)
 
 	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(slogtest.Make(t, nil).Named("derp").Leveled(slog.LevelDebug)))
@@ -308,6 +321,33 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		require.NoError(t, err)
 	}
 
+	if options.Logger == nil {
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		options.Logger = &logger
+	}
+	region := &tailcfg.DERPRegion{
+		EmbeddedRelay: true,
+		RegionID:      int(options.DeploymentValues.DERP.Server.RegionID.Value()),
+		RegionCode:    options.DeploymentValues.DERP.Server.RegionCode.String(),
+		RegionName:    options.DeploymentValues.DERP.Server.RegionName.String(),
+		Nodes: []*tailcfg.DERPNode{{
+			Name:     fmt.Sprintf("%db", options.DeploymentValues.DERP.Server.RegionID),
+			RegionID: int(options.DeploymentValues.DERP.Server.RegionID.Value()),
+			IPv4:     "127.0.0.1",
+			DERPPort: derpPort,
+			// STUN port is added as a separate node by tailnet.NewDERPMap() if
+			// direct connections are enabled.
+			STUNPort:         -1,
+			InsecureForTests: true,
+			ForceHTTP:        options.TLSCertificates == nil,
+		}},
+	}
+	if !options.DeploymentValues.DERP.Server.Enable.Value() {
+		region = nil
+	}
+	derpMap, err := tailnet.NewDERPMap(ctx, region, []string{stunAddr.String()}, "", "", options.DeploymentValues.DERP.Config.BlockDirect.Value())
+	require.NoError(t, err)
+
 	return func(h http.Handler) {
 			mutex.Lock()
 			defer mutex.Unlock()
@@ -320,48 +360,30 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			AccessURL:                      accessURL,
 			AppHostname:                    options.AppHostname,
 			AppHostnameRegex:               appHostnameRegex,
-			Logger:                         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+			Logger:                         *options.Logger,
 			CacheDir:                       t.TempDir(),
 			Database:                       options.Database,
 			Pubsub:                         options.Pubsub,
 			GitAuthConfigs:                 options.GitAuthConfigs,
 
-			Auditor:               options.Auditor,
-			AWSCertificates:       options.AWSCertificates,
-			AzureCertificates:     options.AzureCertificates,
-			GithubOAuth2Config:    options.GithubOAuth2Config,
-			RealIPConfig:          options.RealIPConfig,
-			OIDCConfig:            options.OIDCConfig,
-			GoogleTokenValidator:  options.GoogleTokenValidator,
-			SSHKeygenAlgorithm:    options.SSHKeygenAlgorithm,
-			DERPServer:            derpServer,
-			APIRateLimit:          options.APIRateLimit,
-			LoginRateLimit:        options.LoginRateLimit,
-			FilesRateLimit:        options.FilesRateLimit,
-			Authorizer:            options.Authorizer,
-			Telemetry:             telemetry.NewNoop(),
-			TemplateScheduleStore: &templateScheduleStore,
-			TLSCertificates:       options.TLSCertificates,
-			TrialGenerator:        options.TrialGenerator,
-			DERPMap: &tailcfg.DERPMap{
-				Regions: map[int]*tailcfg.DERPRegion{
-					1: {
-						EmbeddedRelay: true,
-						RegionID:      1,
-						RegionCode:    "coder",
-						RegionName:    "Coder",
-						Nodes: []*tailcfg.DERPNode{{
-							Name:             "1a",
-							RegionID:         1,
-							IPv4:             "127.0.0.1",
-							DERPPort:         derpPort,
-							STUNPort:         stunAddr.Port,
-							InsecureForTests: true,
-							ForceHTTP:        options.TLSCertificates == nil,
-						}},
-					},
-				},
-			},
+			Auditor:                     options.Auditor,
+			AWSCertificates:             options.AWSCertificates,
+			AzureCertificates:           options.AzureCertificates,
+			GithubOAuth2Config:          options.GithubOAuth2Config,
+			RealIPConfig:                options.RealIPConfig,
+			OIDCConfig:                  options.OIDCConfig,
+			GoogleTokenValidator:        options.GoogleTokenValidator,
+			SSHKeygenAlgorithm:          options.SSHKeygenAlgorithm,
+			DERPServer:                  derpServer,
+			APIRateLimit:                options.APIRateLimit,
+			LoginRateLimit:              options.LoginRateLimit,
+			FilesRateLimit:              options.FilesRateLimit,
+			Authorizer:                  options.Authorizer,
+			Telemetry:                   telemetry.NewNoop(),
+			TemplateScheduleStore:       &templateScheduleStore,
+			TLSCertificates:             options.TLSCertificates,
+			TrialGenerator:              options.TrialGenerator,
+			DERPMap:                     derpMap,
 			MetricsCacheRefreshInterval: options.MetricsCacheRefreshInterval,
 			AgentStatsRefreshInterval:   options.AgentStatsRefreshInterval,
 			DeploymentValues:            options.DeploymentValues,
@@ -425,7 +447,7 @@ func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 		return coderAPI.CreateInMemoryProvisionerDaemon(ctx, 0)
 	}, &provisionerd.Options{
 		Filesystem:          fs,
-		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
+		Logger:              coderAPI.Logger.Named("provisionerd").Leveled(slog.LevelDebug),
 		JobPollInterval:     50 * time.Millisecond,
 		UpdateInterval:      250 * time.Millisecond,
 		ForceCancelInterval: time.Second,
@@ -501,15 +523,22 @@ func CreateFirstUser(t testing.TB, client *codersdk.Client) codersdk.CreateFirst
 
 // CreateAnotherUser creates and authenticates a new user.
 func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, roles ...string) (*codersdk.Client, codersdk.User) {
-	return createAnotherUserRetry(t, client, organizationID, 5, roles...)
+	return createAnotherUserRetry(t, client, organizationID, 5, roles)
 }
 
-func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, retries int, roles ...string) (*codersdk.Client, codersdk.User) {
+func CreateAnotherUserMutators(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, roles []string, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
+	return createAnotherUserRetry(t, client, organizationID, 5, roles, mutators...)
+}
+
+func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, retries int, roles []string, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
 	req := codersdk.CreateUserRequest{
 		Email:          namesgenerator.GetRandomName(10) + "@coder.com",
 		Username:       randomUsername(t),
 		Password:       "SomeSecurePassword!",
 		OrganizationID: organizationID,
+	}
+	for _, m := range mutators {
+		m(&req)
 	}
 
 	user, err := client.CreateUser(context.Background(), req)
@@ -518,19 +547,33 @@ func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationI
 	if err != nil && retries >= 0 && xerrors.As(err, &apiError) {
 		if apiError.StatusCode() == http.StatusConflict {
 			retries--
-			return createAnotherUserRetry(t, client, organizationID, retries, roles...)
+			return createAnotherUserRetry(t, client, organizationID, retries, roles)
 		}
 	}
 	require.NoError(t, err)
 
-	login, err := client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
-		Email:    req.Email,
-		Password: req.Password,
-	})
-	require.NoError(t, err)
+	var sessionToken string
+	if !req.DisableLogin {
+		login, err := client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
+			Email:    req.Email,
+			Password: req.Password,
+		})
+		require.NoError(t, err)
+		sessionToken = login.SessionToken
+	} else {
+		// Cannot log in with a disabled login user. So make it an api key from
+		// the client making this user.
+		token, err := client.CreateToken(context.Background(), user.ID.String(), codersdk.CreateTokenRequest{
+			Lifetime:  time.Hour * 24,
+			Scope:     codersdk.APIKeyScopeAll,
+			TokenName: "no-password-user-token",
+		})
+		require.NoError(t, err)
+		sessionToken = token.Key
+	}
 
 	other := codersdk.New(client.URL)
-	other.SetSessionToken(login.SessionToken)
+	other.SetSessionToken(sessionToken)
 	t.Cleanup(func() {
 		other.HTTPClient.CloseIdleConnections()
 	})

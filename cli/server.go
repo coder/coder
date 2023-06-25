@@ -62,12 +62,13 @@ import (
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/coderd"
-	"github.com/coder/coder/coderd/autobuild/executor"
+	"github.com/coder/coder/coderd/autobuild"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/database/dbmetrics"
 	"github.com/coder/coder/coderd/database/dbpurge"
 	"github.com/coder/coder/coderd/database/migrations"
+	"github.com/coder/coder/coderd/database/pubsub"
 	"github.com/coder/coder/coderd/devtunnel"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
@@ -77,6 +78,7 @@ import (
 	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
+	"github.com/coder/coder/coderd/unhanger"
 	"github.com/coder/coder/coderd/updatecheck"
 	"github.com/coder/coder/coderd/util/slice"
 	"github.com/coder/coder/coderd/workspaceapps"
@@ -412,6 +414,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			derpMap, err := tailnet.NewDERPMap(
 				ctx, defaultRegion, cfg.DERP.Server.STUNAddresses,
 				cfg.DERP.Config.URL.String(), cfg.DERP.Config.Path.String(),
+				cfg.DERP.Config.BlockDirect.Value(),
 			)
 			if err != nil {
 				return xerrors.Errorf("create derp map: %w", err)
@@ -463,7 +466,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				Logger:                      logger.Named("coderd"),
 				Database:                    dbfake.New(),
 				DERPMap:                     derpMap,
-				Pubsub:                      database.NewPubsubInMemory(),
+				Pubsub:                      pubsub.NewInMemory(),
 				CacheDir:                    cacheDir,
 				GoogleTokenValidator:        googleTokenValidator,
 				GitAuthConfigs:              gitAuthConfigs,
@@ -588,8 +591,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			if cfg.InMemoryDatabase {
 				// This is only used for testing.
-				options.Database = dbmetrics.New(dbfake.New(), options.PrometheusRegistry)
-				options.Pubsub = database.NewPubsubInMemory()
+				options.Database = dbfake.New()
+				options.Pubsub = pubsub.NewInMemory()
 			} else {
 				sqlDB, err := connectToPostgres(ctx, logger, sqlDriver, cfg.PostgresURL.String())
 				if err != nil {
@@ -599,12 +602,16 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					_ = sqlDB.Close()
 				}()
 
-				options.Database = dbmetrics.New(database.New(sqlDB), options.PrometheusRegistry)
-				options.Pubsub, err = database.NewPubsub(ctx, sqlDB, cfg.PostgresURL.String())
+				options.Database = database.New(sqlDB)
+				options.Pubsub, err = pubsub.New(ctx, sqlDB, cfg.PostgresURL.String())
 				if err != nil {
 					return xerrors.Errorf("create pubsub: %w", err)
 				}
 				defer options.Pubsub.Close()
+			}
+
+			if options.DeploymentValues.Prometheus.Enable && options.DeploymentValues.Prometheus.CollectDBMetrics {
+				options.Database = dbmetrics.New(options.Database, options.PrometheusRegistry)
 			}
 
 			var deploymentID string
@@ -815,7 +822,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			for i := int64(0); i < cfg.Provisioner.Daemons.Value(); i++ {
 				daemonCacheDir := filepath.Join(cacheDir, fmt.Sprintf("provisioner-%d", i))
 				daemon, err := newProvisionerDaemon(
-					ctx, coderAPI, provisionerdMetrics, logger, cfg, daemonCacheDir, errCh, false, &provisionerdWaitGroup,
+					ctx, coderAPI, provisionerdMetrics, logger, cfg, daemonCacheDir, errCh, &provisionerdWaitGroup,
 				)
 				if err != nil {
 					return xerrors.Errorf("create provisioner daemon: %w", err)
@@ -892,10 +899,16 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("notify systemd: %w", err)
 			}
 
-			autobuildPoller := time.NewTicker(cfg.AutobuildPollInterval.Value())
-			defer autobuildPoller.Stop()
-			autobuildExecutor := executor.New(ctx, options.Database, coderAPI.TemplateScheduleStore, logger, autobuildPoller.C)
+			autobuildTicker := time.NewTicker(cfg.AutobuildPollInterval.Value())
+			defer autobuildTicker.Stop()
+			autobuildExecutor := autobuild.NewExecutor(ctx, options.Database, coderAPI.TemplateScheduleStore, logger, autobuildTicker.C)
 			autobuildExecutor.Run()
+
+			hangDetectorTicker := time.NewTicker(cfg.JobHangDetectorInterval.Value())
+			defer hangDetectorTicker.Stop()
+			hangDetector := unhanger.New(ctx, options.Database, options.Pubsub, logger, hangDetectorTicker.C)
+			hangDetector.Start()
+			defer hangDetector.Close()
 
 			// Currently there is no way to ask the server to shut
 			// itself down, so any exit signal will result in a non-zero
@@ -1171,7 +1184,6 @@ func newProvisionerDaemon(
 	cfg *codersdk.DeploymentValues,
 	cacheDir string,
 	errCh chan error,
-	dev bool,
 	wg *sync.WaitGroup,
 ) (srv *provisionerd.Server, err error) {
 	ctx, cancel := context.WithCancel(ctx)
@@ -1186,53 +1198,14 @@ func newProvisionerDaemon(
 		return nil, xerrors.Errorf("mkdir %q: %w", cacheDir, err)
 	}
 
-	tfDir := filepath.Join(cacheDir, "tf")
-	err = os.MkdirAll(tfDir, 0o700)
-	if err != nil {
-		return nil, xerrors.Errorf("mkdir terraform dir: %w", err)
-	}
-
-	tracer := coderAPI.TracerProvider.Tracer(tracing.TracerName)
-	terraformClient, terraformServer := provisionersdk.MemTransportPipe()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		<-ctx.Done()
-		_ = terraformClient.Close()
-		_ = terraformServer.Close()
-	}()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		defer cancel()
-
-		err := terraform.Serve(ctx, &terraform.ServeOptions{
-			ServeOptions: &provisionersdk.ServeOptions{
-				Listener: terraformServer,
-			},
-			CachePath: tfDir,
-			Logger:    logger,
-			Tracer:    tracer,
-		})
-		if err != nil && !xerrors.Is(err, context.Canceled) {
-			select {
-			case errCh <- err:
-			default:
-			}
-		}
-	}()
-
 	workDir := filepath.Join(cacheDir, "work")
 	err = os.MkdirAll(workDir, 0o700)
 	if err != nil {
 		return nil, xerrors.Errorf("mkdir work dir: %w", err)
 	}
 
-	provisioners := provisionerd.Provisioners{
-		string(database.ProvisionerTypeTerraform): sdkproto.NewDRPCProvisionerClient(terraformClient),
-	}
-	// include echo provisioner when in dev mode
-	if dev {
+	provisioners := provisionerd.Provisioners{}
+	if cfg.Provisioner.DaemonsEcho {
 		echoClient, echoServer := provisionersdk.MemTransportPipe()
 		wg.Add(1)
 		go func() {
@@ -1255,7 +1228,46 @@ func newProvisionerDaemon(
 			}
 		}()
 		provisioners[string(database.ProvisionerTypeEcho)] = sdkproto.NewDRPCProvisionerClient(echoClient)
+	} else {
+		tfDir := filepath.Join(cacheDir, "tf")
+		err = os.MkdirAll(tfDir, 0o700)
+		if err != nil {
+			return nil, xerrors.Errorf("mkdir terraform dir: %w", err)
+		}
+
+		tracer := coderAPI.TracerProvider.Tracer(tracing.TracerName)
+		terraformClient, terraformServer := provisionersdk.MemTransportPipe()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-ctx.Done()
+			_ = terraformClient.Close()
+			_ = terraformServer.Close()
+		}()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer cancel()
+
+			err := terraform.Serve(ctx, &terraform.ServeOptions{
+				ServeOptions: &provisionersdk.ServeOptions{
+					Listener: terraformServer,
+				},
+				CachePath: tfDir,
+				Logger:    logger,
+				Tracer:    tracer,
+			})
+			if err != nil && !xerrors.Is(err, context.Canceled) {
+				select {
+				case errCh <- err:
+				default:
+				}
+			}
+		}()
+
+		provisioners[string(database.ProvisionerTypeTerraform)] = sdkproto.NewDRPCProvisionerClient(terraformClient)
 	}
+
 	debounce := time.Second
 	return provisionerd.New(func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 		// This debounces calls to listen every second. Read the comment

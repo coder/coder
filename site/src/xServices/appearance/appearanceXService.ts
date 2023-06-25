@@ -107,7 +107,20 @@ export const appearanceMachine = createMachine(
       }),
     },
     services: {
-      getAppearance: API.getAppearance,
+      getAppearance: async () => {
+        // Appearance is injected by the Coder server into the HTML document.
+        const appearance = document.querySelector("meta[property=appearance]")
+        if (appearance) {
+          const rawContent = appearance.getAttribute("content")
+          try {
+            return JSON.parse(rawContent as string)
+          } catch (ex) {
+            // Ignore this and fetch as normal!
+          }
+        }
+
+        return API.getAppearance()
+      },
       setAppearance: (_, event) => API.updateAppearance(event.appearance),
     },
   },

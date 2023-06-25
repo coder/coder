@@ -17,13 +17,13 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/pubsub"
 	agpl "github.com/coder/coder/tailnet"
 )
 
 // NewCoordinator creates a new high availability coordinator
 // that uses PostgreSQL pubsub to exchange handshakes.
-func NewCoordinator(logger slog.Logger, pubsub database.Pubsub, derpMapFn func() *tailcfg.DERPMap) (agpl.Coordinator, error) {
+func NewCoordinator(logger slog.Logger, ps pubsub.Pubsub, derpMapFn func() *tailcfg.DERPMap) (agpl.Coordinator, error) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 
 	nameCache, err := lru.New[uuid.UUID, string](512)
@@ -34,7 +34,7 @@ func NewCoordinator(logger slog.Logger, pubsub database.Pubsub, derpMapFn func()
 	coord := &haCoordinator{
 		id:                       uuid.New(),
 		log:                      logger,
-		pubsub:                   pubsub,
+		pubsub:                   ps,
 		close:                    make(chan struct{}),
 		closeFunc:                cancelFunc,
 		derpMapFn:                derpMapFn,
@@ -55,7 +55,7 @@ type haCoordinator struct {
 	id        uuid.UUID
 	log       slog.Logger
 	mutex     sync.RWMutex
-	pubsub    database.Pubsub
+	pubsub    pubsub.Pubsub
 	close     chan struct{}
 	closeFunc context.CancelFunc
 

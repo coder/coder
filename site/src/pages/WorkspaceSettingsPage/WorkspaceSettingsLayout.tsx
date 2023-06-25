@@ -43,10 +43,12 @@ export const useWorkspaceSettingsContext = () => {
 
 export const WorkspaceSettingsLayout: FC = () => {
   const styles = useStyles()
-  const { workspace: workspaceName, username } = useParams() as {
+  const params = useParams() as {
     workspace: string
     username: string
   }
+  const workspaceName = params.workspace
+  const username = params.username.replace("@", "")
   const { data: settings } = useWorkspace(username, workspaceName)
 
   return (

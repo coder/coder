@@ -181,6 +181,39 @@ func (e *outExpecter) ExpectMatchContext(ctx context.Context, str string) string
 	return buffer.String()
 }
 
+// ExpectNoMatchBefore validates that `match` does not occur before `before`.
+func (e *outExpecter) ExpectNoMatchBefore(ctx context.Context, match, before string) string {
+	e.t.Helper()
+
+	var buffer bytes.Buffer
+	err := e.doMatchWithDeadline(ctx, "ExpectNoMatchBefore", func() error {
+		for {
+			r, _, err := e.runeReader.ReadRune()
+			if err != nil {
+				return err
+			}
+			_, err = buffer.WriteRune(r)
+			if err != nil {
+				return err
+			}
+
+			if strings.Contains(buffer.String(), match) {
+				return xerrors.Errorf("found %q before %q", match, before)
+			}
+
+			if strings.Contains(buffer.String(), before) {
+				return nil
+			}
+		}
+	})
+	if err != nil {
+		e.fatalf("read error", "%v (wanted no %q before %q; got %q)", err, match, before, buffer.String())
+		return ""
+	}
+	e.logf("matched %q = %q", before, stripansi.Strip(buffer.String()))
+	return buffer.String()
+}
+
 func (e *outExpecter) Peek(ctx context.Context, n int) []byte {
 	e.t.Helper()
 

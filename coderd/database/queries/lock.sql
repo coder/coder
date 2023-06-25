@@ -3,8 +3,6 @@
 --
 -- This must be called from within a transaction. The lock will be automatically
 -- released when the transaction ends.
---
--- Use database.LockID() to generate a unique lock ID from a string.
 SELECT pg_advisory_xact_lock($1);
 
 -- name: TryAcquireLock :one
@@ -12,6 +10,4 @@ SELECT pg_advisory_xact_lock($1);
 --
 -- This must be called from within a transaction. The lock will be automatically
 -- released when the transaction ends.
---
--- Use database.LockID() to generate a unique lock ID from a string.
 SELECT pg_try_advisory_xact_lock($1);

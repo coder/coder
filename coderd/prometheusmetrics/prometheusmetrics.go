@@ -222,7 +222,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 			case <-ticker.C:
 			}
 
-			logger.Debug(ctx, "Agent metrics collection is starting")
+			logger.Debug(ctx, "agent metrics collection is starting")
 			timer := prometheus.NewTimer(metricsCollectorAgents)
 			derpMap := derpMapFn()
 
@@ -237,7 +237,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 			for _, workspace := range workspaceRows {
 				user, err := db.GetUserByID(ctx, workspace.OwnerID)
 				if err != nil {
-					logger.Error(ctx, "can't get user", slog.F("user_id", workspace.OwnerID), slog.Error(err))
+					logger.Error(ctx, "can't get user from the database", slog.F("user_id", workspace.OwnerID), slog.Error(err))
 					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name)
 					continue
 				}
@@ -315,7 +315,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 			agentsAppsGauge.Commit()
 
 		done:
-			logger.Debug(ctx, "Agent metrics collection is done")
+			logger.Debug(ctx, "agent metrics collection is done")
 			timer.ObserveDuration()
 			ticker.Reset(duration)
 		}
@@ -448,7 +448,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 			case <-ticker.C:
 			}
 
-			logger.Debug(ctx, "Agent metrics collection is starting")
+			logger.Debug(ctx, "agent metrics collection is starting")
 			timer := prometheus.NewTimer(metricsCollectorAgentStats)
 
 			checkpoint := time.Now()
@@ -483,7 +483,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 				}
 			}
 
-			logger.Debug(ctx, "Agent metrics collection is done", slog.F("len", len(stats)))
+			logger.Debug(ctx, "agent metrics collection is done", slog.F("len", len(stats)))
 			timer.ObserveDuration()
 
 			createdAfter = checkpoint

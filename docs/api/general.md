@@ -167,6 +167,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     },
     "derp": {
       "config": {
+        "block_direct": true,
         "path": "string",
         "url": "string"
       },
@@ -213,6 +214,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     },
     "http_address": "string",
     "in_memory_database": true,
+    "job_hang_detector_interval": 0,
     "logging": {
       "human": "string",
       "json": "string",
@@ -275,12 +277,14 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "port": "string"
       },
       "collect_agent_stats": true,
+      "collect_db_metrics": true,
       "enable": true
     },
     "provisioner": {
       "daemon_poll_interval": 0,
       "daemon_poll_jitter": 0,
       "daemons": 0,
+      "daemons_echo": true,
       "force_cancel_interval": 0
     },
     "proxy_health_status_interval": 0,

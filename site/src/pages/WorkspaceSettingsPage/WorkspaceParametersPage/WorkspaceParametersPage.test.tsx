@@ -40,9 +40,9 @@ test("Submit the workspace settings page successfully", async () => {
   const user = userEvent.setup()
   renderWithWorkspaceSettingsLayout(<WorkspaceParametersPage />, {
     route: "/@test-user/test-workspace/settings",
-    path: "/@:username/:workspace/settings",
+    path: "/:username/:workspace/settings",
     // Need this because after submit the user is redirected
-    extraRoutes: [{ path: "/@:username/:workspace", element: <div /> }],
+    extraRoutes: [{ path: "/:username/:workspace", element: <div /> }],
   })
   await waitForLoaderToBeRemoved()
   // Fill the form and submit

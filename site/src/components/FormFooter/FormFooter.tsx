@@ -36,6 +36,7 @@ export const FormFooter: FC<FormFooterProps> = ({
         color="primary"
         type="submit"
         disabled={submitDisabled}
+        data-testid="form-submit"
       >
         {submitLabel}
       </LoadingButton>

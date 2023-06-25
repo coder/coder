@@ -34,6 +34,10 @@ func dirHasExt(dir string, exts ...string) (bool, error) {
 	return false, nil
 }
 
+func DirHasLockfile(dir string) (bool, error) {
+	return dirHasExt(dir, ".terraform.lock.hcl")
+}
+
 // Tar archives a Terraform directory.
 func Tar(w io.Writer, directory string, limit int64) error {
 	// The total bytes written must be under the limit, so use -1

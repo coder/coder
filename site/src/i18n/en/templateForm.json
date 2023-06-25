@@ -1,11 +1,11 @@
 {
   "generalInfo": {
-    "title": "General info",
+    "title": "General",
     "description": "The name is used to identify the template in URLs and the API. It must be unique."
   },
   "displayInfo": {
-    "title": "Display info",
-    "description": "Give your template a friendly name, description, and icon."
+    "title": "Display",
+    "description": "A friendly name, description, and icon to help developers identify your template."
   },
   "schedule": {
     "title": "Schedule",

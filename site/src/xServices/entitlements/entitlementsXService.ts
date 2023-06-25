@@ -58,7 +58,22 @@ export const entitlementsMachine = createMachine(
       }),
     },
     services: {
-      getEntitlements: () => API.getEntitlements(),
+      getEntitlements: async () => {
+        // Entitlements is injected by the Coder server into the HTML document.
+        const entitlements = document.querySelector(
+          "meta[property=entitlements]",
+        )
+        if (entitlements) {
+          const rawContent = entitlements.getAttribute("content")
+          try {
+            return JSON.parse(rawContent as string)
+          } catch (ex) {
+            // Ignore this and fetch as normal!
+          }
+        }
+
+        return API.getEntitlements()
+      },
     },
   },
 )

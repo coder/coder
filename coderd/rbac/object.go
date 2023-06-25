@@ -173,6 +173,11 @@ var (
 	ResourceSystem = Object{
 		Type: "system",
 	}
+
+	// ResourceTailnetCoordinator is a pseudo-resource for use by the tailnet coordinator
+	ResourceTailnetCoordinator = Object{
+		Type: "tailnet_coordinator",
+	}
 )
 
 // Object is used to create objects for authz checks when you have none in

@@ -315,6 +315,12 @@
           "state": "enterprise"
         },
         {
+          "title": "Application Logs",
+          "description": "Learn how to use Application Logs in your Coder deployment",
+          "path": "./admin/app-logs.md",
+          "icon_path": "./images/icons/notes.svg"
+        },
+        {
           "title": "Audit Logs",
           "description": "Learn how to use Audit Logs in your Coder deployment",
           "path": "./admin/audit-logs.md",
@@ -702,6 +708,26 @@
           "title": "start",
           "description": "Start a workspace",
           "path": "cli/start.md"
+        },
+        {
+          "title": "stat",
+          "description": "Show resource usage for the current workspace.",
+          "path": "cli/stat.md"
+        },
+        {
+          "title": "stat cpu",
+          "description": "Show CPU usage, in cores.",
+          "path": "cli/stat_cpu.md"
+        },
+        {
+          "title": "stat disk",
+          "description": "Show disk usage, in gigabytes.",
+          "path": "cli/stat_disk.md"
+        },
+        {
+          "title": "stat mem",
+          "description": "Show memory usage, in gigabytes.",
+          "path": "cli/stat_mem.md"
         },
         {
           "title": "state",
