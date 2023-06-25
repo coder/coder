@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"nhooyr.io/websocket"
-	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -28,9 +27,9 @@ func TestCoordinator(t *testing.T) {
 	t.Run("ClientWithoutAgent", func(t *testing.T) {
 		t.Parallel()
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		coordinator := tailnet.NewCoordinator(logger, emptyDerpMapFn)
+		coordinator := tailnet.NewCoordinator(logger)
 		client, server := net.Pipe()
-		sendNode, errChan := tailnet.ServeCoordinator(client, func(_ tailnet.CoordinatorNodeUpdate) error {
+		sendNode, errChan := tailnet.ServeCoordinator(client, func(node []*tailnet.Node) error {
 			return nil
 		})
 		id := uuid.New()
@@ -53,9 +52,9 @@ func TestCoordinator(t *testing.T) {
 	t.Run("AgentWithoutClients", func(t *testing.T) {
 		t.Parallel()
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		coordinator := tailnet.NewCoordinator(logger, emptyDerpMapFn)
+		coordinator := tailnet.NewCoordinator(logger)
 		client, server := net.Pipe()
-		sendNode, errChan := tailnet.ServeCoordinator(client, func(_ tailnet.CoordinatorNodeUpdate) error {
+		sendNode, errChan := tailnet.ServeCoordinator(client, func(node []*tailnet.Node) error {
 			return nil
 		})
 		id := uuid.New()
@@ -78,7 +77,7 @@ func TestCoordinator(t *testing.T) {
 	t.Run("AgentWithClient", func(t *testing.T) {
 		t.Parallel()
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		coordinator := tailnet.NewCoordinator(logger, emptyDerpMapFn)
+		coordinator := tailnet.NewCoordinator(logger)
 
 		// in this test we use real websockets to test use of deadlines
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
@@ -86,8 +85,8 @@ func TestCoordinator(t *testing.T) {
 		agentWS, agentServerWS := websocketConn(ctx, t)
 		defer agentWS.Close()
 		agentNodeChan := make(chan []*tailnet.Node)
-		sendAgentNode, agentErrChan := tailnet.ServeCoordinator(agentWS, func(update tailnet.CoordinatorNodeUpdate) error {
-			agentNodeChan <- update.Nodes
+		sendAgentNode, agentErrChan := tailnet.ServeCoordinator(agentWS, func(nodes []*tailnet.Node) error {
+			agentNodeChan <- nodes
 			return nil
 		})
 		agentID := uuid.New()
@@ -106,8 +105,8 @@ func TestCoordinator(t *testing.T) {
 		defer clientWS.Close()
 		defer clientServerWS.Close()
 		clientNodeChan := make(chan []*tailnet.Node)
-		sendClientNode, clientErrChan := tailnet.ServeCoordinator(clientWS, func(update tailnet.CoordinatorNodeUpdate) error {
-			clientNodeChan <- update.Nodes
+		sendClientNode, clientErrChan := tailnet.ServeCoordinator(clientWS, func(nodes []*tailnet.Node) error {
+			clientNodeChan <- nodes
 			return nil
 		})
 		clientID := uuid.New()
@@ -150,8 +149,8 @@ func TestCoordinator(t *testing.T) {
 		agentWS, agentServerWS = net.Pipe()
 		defer agentWS.Close()
 		agentNodeChan = make(chan []*tailnet.Node)
-		_, agentErrChan = tailnet.ServeCoordinator(agentWS, func(update tailnet.CoordinatorNodeUpdate) error {
-			agentNodeChan <- update.Nodes
+		_, agentErrChan = tailnet.ServeCoordinator(agentWS, func(nodes []*tailnet.Node) error {
+			agentNodeChan <- nodes
 			return nil
 		})
 		closeAgentChan = make(chan struct{})
@@ -178,13 +177,13 @@ func TestCoordinator(t *testing.T) {
 	t.Run("AgentDoubleConnect", func(t *testing.T) {
 		t.Parallel()
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		coordinator := tailnet.NewCoordinator(logger, emptyDerpMapFn)
+		coordinator := tailnet.NewCoordinator(logger)
 
 		agentWS1, agentServerWS1 := net.Pipe()
 		defer agentWS1.Close()
 		agentNodeChan1 := make(chan []*tailnet.Node)
-		sendAgentNode1, agentErrChan1 := tailnet.ServeCoordinator(agentWS1, func(update tailnet.CoordinatorNodeUpdate) error {
-			agentNodeChan1 <- update.Nodes
+		sendAgentNode1, agentErrChan1 := tailnet.ServeCoordinator(agentWS1, func(nodes []*tailnet.Node) error {
+			agentNodeChan1 <- nodes
 			return nil
 		})
 		agentID := uuid.New()
@@ -203,8 +202,8 @@ func TestCoordinator(t *testing.T) {
 		defer clientWS.Close()
 		defer clientServerWS.Close()
 		clientNodeChan := make(chan []*tailnet.Node)
-		sendClientNode, clientErrChan := tailnet.ServeCoordinator(clientWS, func(update tailnet.CoordinatorNodeUpdate) error {
-			clientNodeChan <- update.Nodes
+		sendClientNode, clientErrChan := tailnet.ServeCoordinator(clientWS, func(nodes []*tailnet.Node) error {
+			clientNodeChan <- nodes
 			return nil
 		})
 		clientID := uuid.New()
@@ -229,8 +228,8 @@ func TestCoordinator(t *testing.T) {
 		agentWS2, agentServerWS2 := net.Pipe()
 		defer agentWS2.Close()
 		agentNodeChan2 := make(chan []*tailnet.Node)
-		_, agentErrChan2 := tailnet.ServeCoordinator(agentWS2, func(update tailnet.CoordinatorNodeUpdate) error {
-			agentNodeChan2 <- update.Nodes
+		_, agentErrChan2 := tailnet.ServeCoordinator(agentWS2, func(nodes []*tailnet.Node) error {
+			agentNodeChan2 <- nodes
 			return nil
 		})
 		closeAgentChan2 := make(chan struct{})
@@ -269,99 +268,6 @@ func TestCoordinator(t *testing.T) {
 		<-agentErrChan1
 		<-closeAgentChan1
 	})
-
-	t.Run("SendsDERPMap", func(t *testing.T) {
-		t.Parallel()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-
-		derpMapFn := func() *tailcfg.DERPMap {
-			return &tailcfg.DERPMap{
-				Regions: map[int]*tailcfg.DERPRegion{
-					1: {
-						RegionID: 1,
-						Nodes: []*tailcfg.DERPNode{
-							{
-								Name:     "derp1",
-								RegionID: 1,
-								HostName: "derp1.example.com",
-								// blah
-							},
-						},
-					},
-				},
-			}
-		}
-
-		coordinator := tailnet.NewCoordinator(logger, derpMapFn)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
-		defer cancel()
-		agentWS, agentServerWS := websocketConn(ctx, t)
-		defer agentWS.Close()
-		agentUpdateChan := make(chan tailnet.CoordinatorNodeUpdate)
-		sendAgentNode, agentErrChan := tailnet.ServeCoordinator(agentWS, func(update tailnet.CoordinatorNodeUpdate) error {
-			agentUpdateChan <- update
-			return nil
-		})
-		agentID := uuid.New()
-		closeAgentChan := make(chan struct{})
-		go func() {
-			err := coordinator.ServeAgent(agentServerWS, agentID, "")
-			assert.NoError(t, err)
-			close(closeAgentChan)
-		}()
-		sendAgentNode(&tailnet.Node{})
-		require.Eventually(t, func() bool {
-			return coordinator.Node(agentID) != nil
-		}, testutil.WaitShort, testutil.IntervalFast)
-
-		clientWS, clientServerWS := websocketConn(ctx, t)
-		defer clientWS.Close()
-		defer clientServerWS.Close()
-		clientUpdateChan := make(chan tailnet.CoordinatorNodeUpdate)
-		sendClientNode, clientErrChan := tailnet.ServeCoordinator(clientWS, func(update tailnet.CoordinatorNodeUpdate) error {
-			clientUpdateChan <- update
-			return nil
-		})
-		clientID := uuid.New()
-		closeClientChan := make(chan struct{})
-		go func() {
-			err := coordinator.ServeClient(clientServerWS, clientID, agentID)
-			assert.NoError(t, err)
-			close(closeClientChan)
-		}()
-		select {
-		case clientUpdate := <-clientUpdateChan:
-			require.Equal(t, derpMapFn(), clientUpdate.DERPMap)
-			require.Len(t, clientUpdate.Nodes, 1)
-		case <-ctx.Done():
-			t.Fatal("timed out")
-		}
-		sendClientNode(&tailnet.Node{})
-		agentUpdate := <-agentUpdateChan
-		require.Equal(t, derpMapFn(), agentUpdate.DERPMap)
-		require.Len(t, agentUpdate.Nodes, 1)
-
-		// Ensure an update to the agent node reaches the client!
-		sendAgentNode(&tailnet.Node{})
-		select {
-		case clientUpdate := <-clientUpdateChan:
-			require.Equal(t, derpMapFn(), clientUpdate.DERPMap)
-			require.Len(t, clientUpdate.Nodes, 1)
-		case <-ctx.Done():
-			t.Fatal("timed out")
-		}
-
-		err := agentWS.Close()
-		require.NoError(t, err)
-		<-agentErrChan
-		<-closeAgentChan
-
-		err = clientWS.Close()
-		require.NoError(t, err)
-		<-clientErrChan
-		<-closeClientChan
-	})
 }
 
 // TestCoordinator_AgentUpdateWhileClientConnects tests for regression on
@@ -369,7 +275,7 @@ func TestCoordinator(t *testing.T) {
 func TestCoordinator_AgentUpdateWhileClientConnects(t *testing.T) {
 	t.Parallel()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	coordinator := tailnet.NewCoordinator(logger, emptyDerpMapFn)
+	coordinator := tailnet.NewCoordinator(logger)
 	agentWS, agentServerWS := net.Pipe()
 	defer agentWS.Close()
 
@@ -404,7 +310,9 @@ func TestCoordinator_AgentUpdateWhileClientConnects(t *testing.T) {
 
 	// peek one byte from the node update, so we know the coordinator is
 	// trying to write to the client.
-	buf := make([]byte, 2048)
+	// buffer needs to be 2 characters longer because return value is a list
+	// so, it needs [ and ]
+	buf := make([]byte, len(aData)+2)
 	err = clientWS.SetReadDeadline(time.Now().Add(testutil.WaitShort))
 	require.NoError(t, err)
 	n, err := clientWS.Read(buf[:1])
@@ -426,24 +334,25 @@ func TestCoordinator_AgentUpdateWhileClientConnects(t *testing.T) {
 	require.NoError(t, err)
 	n, err = clientWS.Read(buf[1:])
 	require.NoError(t, err)
-	var cUpdate tailnet.CoordinatorNodeUpdate
-	err = json.Unmarshal(buf[:n+1], &cUpdate)
+	require.Equal(t, len(buf)-1, n)
+	var cNodes []*tailnet.Node
+	err = json.Unmarshal(buf, &cNodes)
 	require.NoError(t, err)
-	require.Len(t, cUpdate.Nodes, 1)
-	require.Equal(t, 0, cUpdate.Nodes[0].PreferredDERP)
+	require.Len(t, cNodes, 1)
+	require.Equal(t, 0, cNodes[0].PreferredDERP)
 
 	// read second update
 	// without a fix for https://github.com/coder/coder/issues/7295 our
 	// read would time out here.
 	err = clientWS.SetReadDeadline(time.Now().Add(testutil.WaitShort))
 	require.NoError(t, err)
-	buf = make([]byte, 2048)
 	n, err = clientWS.Read(buf)
 	require.NoError(t, err)
-	err = json.Unmarshal(buf[:n], &cUpdate)
+	require.Equal(t, len(buf), n)
+	err = json.Unmarshal(buf, &cNodes)
 	require.NoError(t, err)
-	require.Len(t, cUpdate.Nodes, 1)
-	require.Equal(t, 1, cUpdate.Nodes[0].PreferredDERP)
+	require.Len(t, cNodes, 1)
+	require.Equal(t, 1, cNodes[0].PreferredDERP)
 }
 
 func websocketConn(ctx context.Context, t *testing.T) (client net.Conn, server net.Conn) {
@@ -467,8 +376,4 @@ func websocketConn(ctx context.Context, t *testing.T) (client net.Conn, server n
 	server, ok := <-sc
 	require.True(t, ok)
 	return client, server
-}
-
-func emptyDerpMapFn() *tailcfg.DERPMap {
-	return &tailcfg.DERPMap{}
 }

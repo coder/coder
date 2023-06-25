@@ -232,6 +232,9 @@ func New(options *Options) *API {
 	if options.DERPServer == nil {
 		options.DERPServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger.Named("derp")))
 	}
+	if options.TailnetCoordinator == nil {
+		options.TailnetCoordinator = tailnet.NewCoordinator(options.Logger)
+	}
 	if options.Auditor == nil {
 		options.Auditor = audit.NewNop()
 	}
@@ -317,9 +320,6 @@ func New(options *Options) *API {
 		TemplateScheduleStore: options.TemplateScheduleStore,
 		Experiments:           experiments,
 		healthCheckGroup:      &singleflight.Group[string, *healthcheck.Report]{},
-	}
-	if options.TailnetCoordinator == nil {
-		options.TailnetCoordinator = tailnet.NewCoordinator(options.Logger, api.DERPMap)
 	}
 	if options.HealthcheckFunc == nil {
 		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *healthcheck.Report {

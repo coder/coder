@@ -418,13 +418,13 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	}
 
 	if changed, enabled := featureChanged(codersdk.FeatureHighAvailability); changed {
-		coordinator := agpltailnet.NewCoordinator(api.Logger, api.AGPL.DERPMap)
+		coordinator := agpltailnet.NewCoordinator(api.Logger)
 		if enabled {
 			var haCoordinator agpltailnet.Coordinator
 			if api.AGPL.Experiments.Enabled(codersdk.ExperimentTailnetPGCoordinator) {
 				haCoordinator, err = tailnet.NewPGCoord(ctx, api.Logger, api.Pubsub, api.Database)
 			} else {
-				haCoordinator, err = tailnet.NewCoordinator(api.Logger, api.Pubsub, api.AGPL.DERPMap, api.AGPL.DERPMap)
+				haCoordinator, err = tailnet.NewCoordinator(api.Logger, api.Pubsub)
 			}
 			if err != nil {
 				api.Logger.Error(ctx, "unable to set up high availability coordinator", slog.Error(err))

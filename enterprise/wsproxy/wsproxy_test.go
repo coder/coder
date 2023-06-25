@@ -158,7 +158,7 @@ resourceLoop:
 			proxy2Region  *tailcfg.DERPRegion
 		)
 		for _, r := range connInfo.DERPMap.Regions {
-			if r.RegionName == "Coder" {
+			if r.EmbeddedRelay {
 				primaryRegion = r
 				continue
 			}
@@ -175,16 +175,10 @@ resourceLoop:
 		}
 
 		// The primary region:
-		require.Equal(t, "Coder", primaryRegion.RegionName)
+		require.Equal(t, "Coder Embedded Relay", primaryRegion.RegionName)
 		require.Equal(t, "coder", primaryRegion.RegionCode)
-		require.Equal(t, 1, primaryRegion.RegionID)
+		require.Equal(t, 999, primaryRegion.RegionID)
 		require.True(t, primaryRegion.EmbeddedRelay)
-		require.Len(t, primaryRegion.Nodes, 1)
-		require.Equal(t, "1a", primaryRegion.Nodes[0].Name)
-		require.Equal(t, 1, primaryRegion.Nodes[0].RegionID)
-		require.Equal(t, "", primaryRegion.Nodes[0].HostName) // embedded region has no hostname returned
-		require.Equal(t, api.AccessURL.Port(), fmt.Sprint(primaryRegion.Nodes[0].DERPPort))
-		require.Equal(t, api.AccessURL.Scheme == "http", primaryRegion.Nodes[0].ForceHTTP)
 
 		// The first proxy region:
 		require.Equal(t, "best-proxy", proxy1Region.RegionName)

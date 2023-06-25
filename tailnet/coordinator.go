@@ -76,21 +76,8 @@ type Node struct {
 	Endpoints []string `json:"endpoints"`
 }
 
-// CoordinatorNewNodes is written to a coordinator websocket when there are new
-// nodes or existing nodes have been updated.
-//
-// The DERPMap is provided so the client can always use an up-to-date DERPMap.
-// The DERPMap should only be applied to the tailnet if it is different from
-// the current one.
-type CoordinatorNodeUpdate struct {
-	// DERPMap is the current DERP map used by Coder.
-	DERPMap *tailcfg.DERPMap `json:"derp_map,omitempty"`
-	// Nodes are the new list of nodes to add to the tailnet.
-	Nodes []*Node `json:"nodes"`
-}
-
 // ServeCoordinator matches the RW structure of a coordinator to exchange node messages.
-func ServeCoordinator(conn net.Conn, callback func(update CoordinatorNodeUpdate) error) (func(node *Node), <-chan error) {
+func ServeCoordinator(conn net.Conn, updateNodes func(node []*Node) error) (func(node *Node), <-chan error) {
 	errChan := make(chan error, 1)
 	sendErr := func(err error) {
 		select {
@@ -101,15 +88,15 @@ func ServeCoordinator(conn net.Conn, callback func(update CoordinatorNodeUpdate)
 	go func() {
 		decoder := json.NewDecoder(conn)
 		for {
-			var data CoordinatorNodeUpdate
-			err := decoder.Decode(&data)
+			var nodes []*Node
+			err := decoder.Decode(&nodes)
 			if err != nil {
 				sendErr(xerrors.Errorf("read: %w", err))
 				return
 			}
-			err = callback(data)
+			err = updateNodes(nodes)
 			if err != nil {
-				sendErr(xerrors.Errorf("run callback fn: %w", err))
+				sendErr(xerrors.Errorf("update nodes: %w", err))
 			}
 		}
 	}()
@@ -132,9 +119,9 @@ const LoggerName = "coord"
 // NewCoordinator constructs a new in-memory connection coordinator. This
 // coordinator is incompatible with multiple Coder replicas as all node data is
 // in-memory.
-func NewCoordinator(logger slog.Logger, derpMapFn func() *tailcfg.DERPMap) Coordinator {
+func NewCoordinator(logger slog.Logger) Coordinator {
 	return &coordinator{
-		core: newCore(logger, derpMapFn),
+		core: newCore(logger),
 	}
 }
 
@@ -156,8 +143,6 @@ type core struct {
 	mutex  sync.RWMutex
 	closed bool
 
-	derpMapFn func() *tailcfg.DERPMap
-
 	// nodes maps agent and connection IDs their respective node.
 	nodes map[uuid.UUID]*Node
 	// agentSockets maps agent IDs to their open websocket.
@@ -171,7 +156,7 @@ type core struct {
 	agentNameCache *lru.Cache[uuid.UUID, string]
 }
 
-func newCore(logger slog.Logger, derpMapFn func() *tailcfg.DERPMap) *core {
+func newCore(logger slog.Logger) *core {
 	nameCache, err := lru.New[uuid.UUID, string](512)
 	if err != nil {
 		panic("make lru cache: " + err.Error())
@@ -180,7 +165,6 @@ func newCore(logger slog.Logger, derpMapFn func() *tailcfg.DERPMap) *core {
 	return &core{
 		logger:                   logger,
 		closed:                   false,
-		derpMapFn:                derpMapFn,
 		nodes:                    make(map[uuid.UUID]*Node),
 		agentSockets:             map[uuid.UUID]*TrackedConn{},
 		agentToConnectionSockets: map[uuid.UUID]map[uuid.UUID]*TrackedConn{},
@@ -194,7 +178,7 @@ type TrackedConn struct {
 	ctx      context.Context
 	cancel   func()
 	conn     net.Conn
-	updates  chan CoordinatorNodeUpdate
+	updates  chan []*Node
 	logger   slog.Logger
 	lastData []byte
 
@@ -208,10 +192,10 @@ type TrackedConn struct {
 	Overwrites int64
 }
 
-func (t *TrackedConn) Enqueue(update CoordinatorNodeUpdate) (err error) {
+func (t *TrackedConn) Enqueue(n []*Node) (err error) {
 	atomic.StoreInt64(&t.LastWrite, time.Now().Unix())
 	select {
-	case t.updates <- update:
+	case t.updates <- n:
 		return nil
 	default:
 		return ErrWouldBlock
@@ -236,14 +220,14 @@ func (t *TrackedConn) SendUpdates() {
 		case <-t.ctx.Done():
 			t.logger.Debug(t.ctx, "done sending updates")
 			return
-		case update := <-t.updates:
-			data, err := json.Marshal(update)
+		case nodes := <-t.updates:
+			data, err := json.Marshal(nodes)
 			if err != nil {
-				t.logger.Error(t.ctx, "unable to marshal nodes update", slog.Error(err), slog.F("data", update))
+				t.logger.Error(t.ctx, "unable to marshal nodes update", slog.Error(err), slog.F("nodes", nodes))
 				return
 			}
 			if bytes.Equal(t.lastData, data) {
-				t.logger.Debug(t.ctx, "skipping duplicate update", slog.F("update", update))
+				t.logger.Debug(t.ctx, "skipping duplicate update", slog.F("nodes", nodes))
 				continue
 			}
 
@@ -259,11 +243,11 @@ func (t *TrackedConn) SendUpdates() {
 			_, err = t.conn.Write(data)
 			if err != nil {
 				// often, this is just because the connection is closed/broken, so only log at debug.
-				t.logger.Debug(t.ctx, "could not write nodes to connection", slog.Error(err), slog.F("nodes", update))
+				t.logger.Debug(t.ctx, "could not write nodes to connection", slog.Error(err), slog.F("nodes", nodes))
 				_ = t.Close()
 				return
 			}
-			t.logger.Debug(t.ctx, "wrote node update", slog.F("data", update))
+			t.logger.Debug(t.ctx, "wrote nodes", slog.F("nodes", nodes))
 
 			// nhooyr.io/websocket has a bugged implementation of deadlines on a websocket net.Conn.  What they are
 			// *supposed* to do is set a deadline for any subsequent writes to complete, otherwise the call to Write()
@@ -287,7 +271,7 @@ func NewTrackedConn(ctx context.Context, cancel func(), conn net.Conn, id uuid.U
 	// coordinator mutex while queuing.  Node updates don't
 	// come quickly, so 512 should be plenty for all but
 	// the most pathological cases.
-	updates := make(chan CoordinatorNodeUpdate, 512)
+	updates := make(chan []*Node, 512)
 	now := time.Now().Unix()
 	return &TrackedConn{
 		ctx:        ctx,
@@ -388,10 +372,7 @@ func (c *core) initAndTrackClient(
 	// node of the agent. This allows the connection to establish.
 	node, ok := c.nodes[agent]
 	if ok {
-		err := tc.Enqueue(CoordinatorNodeUpdate{
-			DERPMap: c.derpMapFn(),
-			Nodes:   []*Node{node},
-		})
+		err := tc.Enqueue([]*Node{node})
 		// this should never error since we're still the only goroutine that
 		// knows about the TrackedConn.  If we hit an error something really
 		// wrong is happening
@@ -459,10 +440,7 @@ func (c *core) clientNodeUpdate(id, agent uuid.UUID, node *Node) error {
 		return nil
 	}
 
-	err := agentSocket.Enqueue(CoordinatorNodeUpdate{
-		DERPMap: c.derpMapFn(),
-		Nodes:   []*Node{node},
-	})
+	err := agentSocket.Enqueue([]*Node{node})
 	if err != nil {
 		return xerrors.Errorf("Enqueue node: %w", err)
 	}
@@ -558,10 +536,7 @@ func (c *core) initAndTrackAgent(ctx context.Context, cancel func(), conn net.Co
 			}
 			nodes = append(nodes, node)
 		}
-		err := tc.Enqueue(CoordinatorNodeUpdate{
-			DERPMap: c.derpMapFn(),
-			Nodes:   nodes,
-		})
+		err := tc.Enqueue(nodes)
 		// this should never error since we're still the only goroutine that
 		// knows about the TrackedConn.  If we hit an error something really
 		// wrong is happening
@@ -600,12 +575,8 @@ func (c *core) agentNodeUpdate(id uuid.UUID, node *Node) error {
 	}
 
 	// Publish the new node to every listening socket.
-	derpMap := c.derpMapFn()
 	for clientID, connectionSocket := range connectionSockets {
-		err := connectionSocket.Enqueue(CoordinatorNodeUpdate{
-			DERPMap: derpMap,
-			Nodes:   []*Node{node},
-		})
+		err := connectionSocket.Enqueue([]*Node{node})
 		if err == nil {
 			logger.Debug(context.Background(), "enqueued agent node to client",
 				slog.F("client_id", clientID))

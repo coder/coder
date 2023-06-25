@@ -20,7 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 	"go.uber.org/goleak"
-	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -160,9 +159,7 @@ func setupAgent(t *testing.T, manifest agentsdk.Manifest, ptyTimeout time.Durati
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	manifest.DERPMap = tailnettest.RunDERPAndSTUN(t)
 
-	coordinator := tailnet.NewCoordinator(logger, func() *tailcfg.DERPMap {
-		return manifest.DERPMap
-	})
+	coordinator := tailnet.NewCoordinator(logger)
 	t.Cleanup(func() {
 		_ = coordinator.Close()
 	})
@@ -193,10 +190,8 @@ func setupAgent(t *testing.T, manifest agentsdk.Manifest, ptyTimeout time.Durati
 		_ = conn.Close()
 	})
 	go coordinator.ServeClient(serverConn, uuid.New(), agentID)
-	sendNode, _ := tailnet.ServeCoordinator(clientConn, func(update tailnet.CoordinatorNodeUpdate) error {
-		// Don't need to worry about updating the DERP map since it'll never
-		// change in this test (as we aren't dealing with proxies etc.)
-		return conn.UpdateNodes(update.Nodes, false)
+	sendNode, _ := tailnet.ServeCoordinator(clientConn, func(nodes []*tailnet.Node) error {
+		return conn.UpdateNodes(nodes, false)
 	})
 	conn.SetNodeCallback(sendNode)
 	agentConn := &codersdk.WorkspaceAgentConn{

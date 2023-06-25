@@ -27,7 +27,7 @@ func (r *RootCmd) netcheck() *clibase.Cmd {
 			ctx, cancel := context.WithTimeout(inv.Context(), 30*time.Second)
 			defer cancel()
 
-			connInfo, err := client.WorkspaceAgentConnectionInfo(ctx)
+			connInfo, err := client.WorkspaceAgentConnectionInfoGeneric(ctx)
 			if err != nil {
 				return err
 			}
