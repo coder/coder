@@ -399,6 +399,13 @@ func (m metricsStore) GetGroupsByOrganizationID(ctx context.Context, organizatio
 	return groups, err
 }
 
+func (m metricsStore) GetHungProvisionerJobs(ctx context.Context, hungSince time.Time) ([]database.ProvisionerJob, error) {
+	start := time.Now()
+	jobs, err := m.s.GetHungProvisionerJobs(ctx, hungSince)
+	m.queryLatencies.WithLabelValues("GetHungProvisionerJobs").Observe(time.Since(start).Seconds())
+	return jobs, err
+}
+
 func (m metricsStore) GetLastUpdateCheck(ctx context.Context) (string, error) {
 	start := time.Now()
 	version, err := m.s.GetLastUpdateCheck(ctx)

@@ -78,6 +78,7 @@ import (
 	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/telemetry"
 	"github.com/coder/coder/coderd/tracing"
+	"github.com/coder/coder/coderd/unhanger"
 	"github.com/coder/coder/coderd/updatecheck"
 	"github.com/coder/coder/coderd/util/slice"
 	"github.com/coder/coder/coderd/workspaceapps"
@@ -898,10 +899,16 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("notify systemd: %w", err)
 			}
 
-			autobuildPoller := time.NewTicker(cfg.AutobuildPollInterval.Value())
-			defer autobuildPoller.Stop()
-			autobuildExecutor := autobuild.NewExecutor(ctx, options.Database, coderAPI.TemplateScheduleStore, logger, autobuildPoller.C)
+			autobuildTicker := time.NewTicker(cfg.AutobuildPollInterval.Value())
+			defer autobuildTicker.Stop()
+			autobuildExecutor := autobuild.NewExecutor(ctx, options.Database, coderAPI.TemplateScheduleStore, logger, autobuildTicker.C)
 			autobuildExecutor.Run()
+
+			hangDetectorTicker := time.NewTicker(cfg.JobHangDetectorInterval.Value())
+			defer hangDetectorTicker.Stop()
+			hangDetector := unhanger.New(ctx, options.Database, options.Pubsub, logger, hangDetectorTicker.C)
+			hangDetector.Start()
+			defer hangDetector.Close()
 
 			// Currently there is no way to ask the server to shut
 			// itself down, so any exit signal will result in a non-zero

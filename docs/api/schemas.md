@@ -1891,6 +1891,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     },
     "http_address": "string",
     "in_memory_database": true,
+    "job_hang_detector_interval": 0,
     "logging": {
       "human": "string",
       "json": "string",
@@ -2221,6 +2222,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "http_address": "string",
   "in_memory_database": true,
+  "job_hang_detector_interval": 0,
   "logging": {
     "human": "string",
     "json": "string",
@@ -2400,6 +2402,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `git_auth`                           | [clibase.Struct-array_codersdk_GitAuthConfig](#clibasestruct-array_codersdk_gitauthconfig) | false    |              |                                                                    |
 | `http_address`                       | string                                                                                     | false    |              | Http address is a string because it may be set to zero to disable. |
 | `in_memory_database`                 | boolean                                                                                    | false    |              |                                                                    |
+| `job_hang_detector_interval`         | integer                                                                                    | false    |              |                                                                    |
 | `logging`                            | [codersdk.LoggingConfig](#codersdkloggingconfig)                                           | false    |              |                                                                    |
 | `max_session_expiry`                 | integer                                                                                    | false    |              |                                                                    |
 | `max_token_lifetime`                 | integer                                                                                    | false    |              |                                                                    |

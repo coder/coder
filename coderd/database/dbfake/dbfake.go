@@ -1753,6 +1753,19 @@ func (q *fakeQuerier) GetGroupsByOrganizationID(_ context.Context, organizationI
 	return groups, nil
 }
 
+func (q *fakeQuerier) GetHungProvisionerJobs(_ context.Context, hungSince time.Time) ([]database.ProvisionerJob, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	hungJobs := []database.ProvisionerJob{}
+	for _, provisionerJob := range q.provisionerJobs {
+		if provisionerJob.StartedAt.Valid && !provisionerJob.CompletedAt.Valid && provisionerJob.UpdatedAt.Before(hungSince) {
+			hungJobs = append(hungJobs, provisionerJob)
+		}
+	}
+	return hungJobs, nil
+}
+
 func (q *fakeQuerier) GetLastUpdateCheck(_ context.Context) (string, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -2135,7 +2148,7 @@ func (q *fakeQuerier) GetProvisionerLogsAfterID(_ context.Context, arg database.
 		if jobLog.JobID != arg.JobID {
 			continue
 		}
-		if arg.CreatedAfter != 0 && jobLog.ID < arg.CreatedAfter {
+		if jobLog.ID <= arg.CreatedAfter {
 			continue
 		}
 		logs = append(logs, jobLog)
