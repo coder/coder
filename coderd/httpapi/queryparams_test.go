@@ -69,13 +69,12 @@ func TestParseQueryParams(t *testing.T) {
 
 	t.Run("Time", func(t *testing.T) {
 		t.Parallel()
-		const layout = "2006-01-02"
 
 		expParams := []queryParamTestCase[time.Time]{
 			{
 				QueryParam: "date",
-				Value:      "2010-01-01",
-				Expected:   must(time.Parse(layout, "2010-01-01")),
+				Value:      "2023-01-16T00:00:00+12:00",
+				Expected:   time.Date(2023, 1, 15, 12, 0, 0, 0, time.UTC),
 			},
 			{
 				QueryParam:            "bad_date",
@@ -86,7 +85,7 @@ func TestParseQueryParams(t *testing.T) {
 
 		parser := httpapi.NewQueryParamParser()
 		testQueryParams(t, expParams, parser, func(vals url.Values, def time.Time, queryParam string) time.Time {
-			return parser.Time(vals, time.Time{}, queryParam, layout)
+			return parser.Time3339Nano(vals, time.Time{}, queryParam)
 		})
 	})
 
@@ -308,11 +307,4 @@ func testQueryParams[T any](t *testing.T, testCases []queryParamTestCase[T], par
 			}
 		})
 	}
-}
-
-func must[T any](value T, err error) T {
-	if err != nil {
-		panic(err)
-	}
-	return value
 }

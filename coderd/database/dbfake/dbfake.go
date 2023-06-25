@@ -20,9 +20,11 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/db2sdk"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/util/slice"
+	"github.com/coder/coder/codersdk"
 )
 
 var validProxyByHostnameRegex = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
@@ -1031,6 +1033,10 @@ func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 		return provisionerJob, nil
 	}
 	return database.ProvisionerJob{}, sql.ErrNoRows
+}
+
+func (*fakeQuerier) CleanTailnetCoordinators(_ context.Context) error {
+	return ErrUnimplemented
 }
 
 func (q *fakeQuerier) DeleteAPIKeyByID(_ context.Context, id string) error {
@@ -2699,6 +2705,26 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 		users = usersFilteredByRole
 	}
 
+	if !params.LastSeenBefore.IsZero() {
+		usersFilteredByLastSeen := make([]database.User, 0, len(users))
+		for i, user := range users {
+			if user.LastSeenAt.Before(params.LastSeenBefore) {
+				usersFilteredByLastSeen = append(usersFilteredByLastSeen, users[i])
+			}
+		}
+		users = usersFilteredByLastSeen
+	}
+
+	if !params.LastSeenAfter.IsZero() {
+		usersFilteredByLastSeen := make([]database.User, 0, len(users))
+		for i, user := range users {
+			if user.LastSeenAt.After(params.LastSeenAfter) {
+				usersFilteredByLastSeen = append(usersFilteredByLastSeen, users[i])
+			}
+		}
+		users = usersFilteredByLastSeen
+	}
+
 	beforePageCount := len(users)
 
 	if params.OffsetOpt > 0 {
@@ -3445,7 +3471,7 @@ func (q *fakeQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorkspa
 	return workspaceRows, err
 }
 
-func (q *fakeQuerier) GetWorkspacesEligibleForAutoStartStop(ctx context.Context, now time.Time) ([]database.Workspace, error) {
+func (q *fakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -3462,6 +3488,15 @@ func (q *fakeQuerier) GetWorkspacesEligibleForAutoStartStop(ctx context.Context,
 		}
 
 		if build.Transition == database.WorkspaceTransitionStop && workspace.AutostartSchedule.Valid {
+			workspaces = append(workspaces, workspace)
+			continue
+		}
+
+		job, err := q.getProvisionerJobByIDNoLock(ctx, build.JobID)
+		if err != nil {
+			return nil, xerrors.Errorf("get provisioner job by ID: %w", err)
+		}
+		if db2sdk.ProvisionerJobStatus(job) == codersdk.ProvisionerJobFailed {
 			workspaces = append(workspaces, workspace)
 			continue
 		}

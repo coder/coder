@@ -708,6 +708,13 @@ func (q *querier) AcquireProvisionerJob(ctx context.Context, arg database.Acquir
 	return q.db.AcquireProvisionerJob(ctx, arg)
 }
 
+func (q *querier) CleanTailnetCoordinators(ctx context.Context) error {
+	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
+		return err
+	}
+	return q.db.CleanTailnetCoordinators(ctx)
+}
+
 func (q *querier) DeleteAPIKeyByID(ctx context.Context, id string) error {
 	return deleteQ(q.log, q.auth, q.db.GetAPIKeyByID, q.db.DeleteAPIKeyByID)(ctx, id)
 }
@@ -1750,8 +1757,8 @@ func (q *querier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesP
 	return q.db.GetAuthorizedWorkspaces(ctx, arg, prep)
 }
 
-func (q *querier) GetWorkspacesEligibleForAutoStartStop(ctx context.Context, now time.Time) ([]database.Workspace, error) {
-	return q.db.GetWorkspacesEligibleForAutoStartStop(ctx, now)
+func (q *querier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.Workspace, error) {
+	return q.db.GetWorkspacesEligibleForTransition(ctx, now)
 }
 
 func (q *querier) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {

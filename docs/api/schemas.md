@@ -232,6 +232,7 @@
     }
   },
   "directory": "string",
+  "disable_direct_connections": true,
   "environment_variables": {
     "property1": "string",
     "property2": "string"
@@ -257,21 +258,22 @@
 
 ### Properties
 
-| Name                      | Type                                                                                              | Required | Restrictions | Description                                                                                                                                                |
-| ------------------------- | ------------------------------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps`                    | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)                                           | false    |              |                                                                                                                                                            |
-| `derpmap`                 | [tailcfg.DERPMap](#tailcfgderpmap)                                                                | false    |              |                                                                                                                                                            |
-| `directory`               | string                                                                                            | false    |              |                                                                                                                                                            |
-| `environment_variables`   | object                                                                                            | false    |              |                                                                                                                                                            |
-| » `[any property]`        | string                                                                                            | false    |              |                                                                                                                                                            |
-| `git_auth_configs`        | integer                                                                                           | false    |              | Git auth configs stores the number of Git configurations the Coder deployment has. If this number is >0, we set up special configuration in the workspace. |
-| `metadata`                | array of [codersdk.WorkspaceAgentMetadataDescription](#codersdkworkspaceagentmetadatadescription) | false    |              |                                                                                                                                                            |
-| `motd_file`               | string                                                                                            | false    |              |                                                                                                                                                            |
-| `shutdown_script`         | string                                                                                            | false    |              |                                                                                                                                                            |
-| `shutdown_script_timeout` | integer                                                                                           | false    |              |                                                                                                                                                            |
-| `startup_script`          | string                                                                                            | false    |              |                                                                                                                                                            |
-| `startup_script_timeout`  | integer                                                                                           | false    |              |                                                                                                                                                            |
-| `vscode_port_proxy_uri`   | string                                                                                            | false    |              |                                                                                                                                                            |
+| Name                         | Type                                                                                              | Required | Restrictions | Description                                                                                                                                                |
+| ---------------------------- | ------------------------------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps`                       | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)                                           | false    |              |                                                                                                                                                            |
+| `derpmap`                    | [tailcfg.DERPMap](#tailcfgderpmap)                                                                | false    |              |                                                                                                                                                            |
+| `directory`                  | string                                                                                            | false    |              |                                                                                                                                                            |
+| `disable_direct_connections` | boolean                                                                                           | false    |              |                                                                                                                                                            |
+| `environment_variables`      | object                                                                                            | false    |              |                                                                                                                                                            |
+| » `[any property]`           | string                                                                                            | false    |              |                                                                                                                                                            |
+| `git_auth_configs`           | integer                                                                                           | false    |              | Git auth configs stores the number of Git configurations the Coder deployment has. If this number is >0, we set up special configuration in the workspace. |
+| `metadata`                   | array of [codersdk.WorkspaceAgentMetadataDescription](#codersdkworkspaceagentmetadatadescription) | false    |              |                                                                                                                                                            |
+| `motd_file`                  | string                                                                                            | false    |              |                                                                                                                                                            |
+| `shutdown_script`            | string                                                                                            | false    |              |                                                                                                                                                            |
+| `shutdown_script_timeout`    | integer                                                                                           | false    |              |                                                                                                                                                            |
+| `startup_script`             | string                                                                                            | false    |              |                                                                                                                                                            |
+| `startup_script_timeout`     | integer                                                                                           | false    |              |                                                                                                                                                            |
+| `vscode_port_proxy_uri`      | string                                                                                            | false    |              |                                                                                                                                                            |
 
 ## agentsdk.PatchStartupLogs
 
@@ -1669,6 +1671,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "config": {
+    "block_direct": true,
     "path": "string",
     "url": "string"
   },
@@ -1706,6 +1709,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "block_direct": true,
   "path": "string",
   "url": "string"
 }
@@ -1713,10 +1717,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name   | Type   | Required | Restrictions | Description |
-| ------ | ------ | -------- | ------------ | ----------- |
-| `path` | string | false    |              |             |
-| `url`  | string | false    |              |             |
+| Name           | Type    | Required | Restrictions | Description |
+| -------------- | ------- | -------- | ------------ | ----------- |
+| `block_direct` | boolean | false    |              |             |
+| `path`         | string  | false    |              |             |
+| `url`          | string  | false    |              |             |
 
 ## codersdk.DERPRegion
 
@@ -1839,6 +1844,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     },
     "derp": {
       "config": {
+        "block_direct": true,
         "path": "string",
         "url": "string"
       },
@@ -1955,6 +1961,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "daemon_poll_interval": 0,
       "daemon_poll_jitter": 0,
       "daemons": 0,
+      "daemons_echo": true,
       "force_cancel_interval": 0
     },
     "proxy_health_status_interval": 0,
@@ -2168,6 +2175,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "derp": {
     "config": {
+      "block_direct": true,
       "path": "string",
       "url": "string"
     },
@@ -2284,6 +2292,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "daemon_poll_interval": 0,
     "daemon_poll_jitter": 0,
     "daemons": 0,
+    "daemons_echo": true,
     "force_cancel_interval": 0
   },
   "proxy_health_status_interval": 0,
@@ -2489,10 +2498,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value               |
-| ------------------- |
-| `moons`             |
-| `workspace_actions` |
+| Value                    |
+| ------------------------ |
+| `moons`                  |
+| `workspace_actions`      |
+| `tailnet_pg_coordinator` |
 
 ## codersdk.Feature
 
@@ -3121,6 +3131,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "daemon_poll_interval": 0,
   "daemon_poll_jitter": 0,
   "daemons": 0,
+  "daemons_echo": true,
   "force_cancel_interval": 0
 }
 ```
@@ -3132,6 +3143,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `daemon_poll_interval`  | integer | false    |              |             |
 | `daemon_poll_jitter`    | integer | false    |              |             |
 | `daemons`               | integer | false    |              |             |
+| `daemons_echo`          | boolean | false    |              |             |
 | `force_cancel_interval` | integer | false    |              |             |
 
 ## codersdk.ProvisionerDaemon
@@ -4766,15 +4778,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "regionName": "string"
       }
     }
-  }
+  },
+  "disable_direct_connections": true
 }
 ```
 
 ### Properties
 
-| Name       | Type                               | Required | Restrictions | Description |
-| ---------- | ---------------------------------- | -------- | ------------ | ----------- |
-| `derp_map` | [tailcfg.DERPMap](#tailcfgderpmap) | false    |              |             |
+| Name                         | Type                               | Required | Restrictions | Description |
+| ---------------------------- | ---------------------------------- | -------- | ------------ | ----------- |
+| `derp_map`                   | [tailcfg.DERPMap](#tailcfgderpmap) | false    |              |             |
+| `disable_direct_connections` | boolean                            | false    |              |             |
 
 ## codersdk.WorkspaceAgentLifecycle
 

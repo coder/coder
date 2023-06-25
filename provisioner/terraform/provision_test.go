@@ -20,7 +20,6 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/provisioner/terraform"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/provisionersdk/proto"
@@ -352,7 +351,7 @@ func TestProvision(t *testing.T) {
 			Files: map[string]string{
 				"main.tf": `a`,
 			},
-			ErrorContains:     "initialize terraform",
+			ErrorContains:     "plan terraform",
 			ExpectLogContains: "Argument or block definition required",
 		},
 		{
@@ -360,7 +359,7 @@ func TestProvision(t *testing.T) {
 			Files: map[string]string{
 				"main.tf": `;asdf;`,
 			},
-			ErrorContains:     "initialize terraform",
+			ErrorContains:     "plan terraform",
 			ExpectLogContains: `The ";" character is not valid.`,
 		},
 		{

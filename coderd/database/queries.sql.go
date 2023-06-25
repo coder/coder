@@ -3310,6 +3310,17 @@ func (q *sqlQuerier) UpsertServiceBanner(ctx context.Context, value string) erro
 	return err
 }
 
+const cleanTailnetCoordinators = `-- name: CleanTailnetCoordinators :exec
+DELETE
+FROM tailnet_coordinators
+WHERE heartbeat_at < now() - INTERVAL '24 HOURS'
+`
+
+func (q *sqlQuerier) CleanTailnetCoordinators(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, cleanTailnetCoordinators)
+	return err
+}
+
 const deleteCoordinator = `-- name: DeleteCoordinator :exec
 DELETE
 FROM tailnet_coordinators
@@ -5239,22 +5250,35 @@ WHERE
 		    rbac_roles && $4 :: text[]
 		ELSE true
 	END
+	-- Filter by last_seen
+	AND CASE
+		WHEN $5 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			last_seen_at <= $5
+		ELSE true
+	END
+	AND CASE
+		WHEN $6 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			last_seen_at >= $6
+		ELSE true
+	END
 	-- End of filters
 ORDER BY
 	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
-	LOWER(username) ASC OFFSET $5
+	LOWER(username) ASC OFFSET $7
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
-	NULLIF($6 :: int, 0)
+	NULLIF($8 :: int, 0)
 `
 
 type GetUsersParams struct {
-	AfterID   uuid.UUID    `db:"after_id" json:"after_id"`
-	Search    string       `db:"search" json:"search"`
-	Status    []UserStatus `db:"status" json:"status"`
-	RbacRole  []string     `db:"rbac_role" json:"rbac_role"`
-	OffsetOpt int32        `db:"offset_opt" json:"offset_opt"`
-	LimitOpt  int32        `db:"limit_opt" json:"limit_opt"`
+	AfterID        uuid.UUID    `db:"after_id" json:"after_id"`
+	Search         string       `db:"search" json:"search"`
+	Status         []UserStatus `db:"status" json:"status"`
+	RbacRole       []string     `db:"rbac_role" json:"rbac_role"`
+	LastSeenBefore time.Time    `db:"last_seen_before" json:"last_seen_before"`
+	LastSeenAfter  time.Time    `db:"last_seen_after" json:"last_seen_after"`
+	OffsetOpt      int32        `db:"offset_opt" json:"offset_opt"`
+	LimitOpt       int32        `db:"limit_opt" json:"limit_opt"`
 }
 
 type GetUsersRow struct {
@@ -5280,6 +5304,8 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 		arg.Search,
 		pq.Array(arg.Status),
 		pq.Array(arg.RbacRole),
+		arg.LastSeenBefore,
+		arg.LastSeenAfter,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)
@@ -8554,13 +8580,15 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 	return items, nil
 }
 
-const getWorkspacesEligibleForAutoStartStop = `-- name: GetWorkspacesEligibleForAutoStartStop :many
+const getWorkspacesEligibleForTransition = `-- name: GetWorkspacesEligibleForTransition :many
 SELECT
 	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at
 FROM
 	workspaces
 LEFT JOIN
 	workspace_builds ON workspace_builds.workspace_id = workspaces.id
+INNER JOIN
+	provisioner_jobs ON workspace_builds.job_id = provisioner_jobs.id
 WHERE
 	workspace_builds.build_number = (
 		SELECT
@@ -8590,12 +8618,20 @@ WHERE
 		(
 			workspace_builds.transition = 'stop'::workspace_transition AND
 			workspaces.autostart_schedule IS NOT NULL
+		) OR
+
+		-- If the workspace's most recent job resulted in an error
+		-- it may be eligible for failed stop.
+		(
+			provisioner_jobs.error IS NOT NULL AND
+			provisioner_jobs.error != '' AND
+			workspace_builds.transition = 'start'::workspace_transition
 		)
-	)
+	) AND workspaces.deleted = 'false'
 `
 
-func (q *sqlQuerier) GetWorkspacesEligibleForAutoStartStop(ctx context.Context, now time.Time) ([]Workspace, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspacesEligibleForAutoStartStop, now)
+func (q *sqlQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]Workspace, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspacesEligibleForTransition, now)
 	if err != nil {
 		return nil, err
 	}

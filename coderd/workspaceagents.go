@@ -161,18 +161,19 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.Manifest{
-		Apps:                  convertApps(dbApps),
-		DERPMap:               api.DERPMap,
-		GitAuthConfigs:        len(api.GitAuthConfigs),
-		EnvironmentVariables:  apiAgent.EnvironmentVariables,
-		StartupScript:         apiAgent.StartupScript,
-		Directory:             apiAgent.Directory,
-		VSCodePortProxyURI:    vscodeProxyURI,
-		MOTDFile:              workspaceAgent.MOTDFile,
-		StartupScriptTimeout:  time.Duration(apiAgent.StartupScriptTimeoutSeconds) * time.Second,
-		ShutdownScript:        apiAgent.ShutdownScript,
-		ShutdownScriptTimeout: time.Duration(apiAgent.ShutdownScriptTimeoutSeconds) * time.Second,
-		Metadata:              convertWorkspaceAgentMetadataDesc(metadata),
+		Apps:                     convertApps(dbApps),
+		DERPMap:                  api.DERPMap,
+		GitAuthConfigs:           len(api.GitAuthConfigs),
+		EnvironmentVariables:     apiAgent.EnvironmentVariables,
+		StartupScript:            apiAgent.StartupScript,
+		Directory:                apiAgent.Directory,
+		VSCodePortProxyURI:       vscodeProxyURI,
+		MOTDFile:                 workspaceAgent.MOTDFile,
+		StartupScriptTimeout:     time.Duration(apiAgent.StartupScriptTimeoutSeconds) * time.Second,
+		ShutdownScript:           apiAgent.ShutdownScript,
+		ShutdownScriptTimeout:    time.Duration(apiAgent.ShutdownScriptTimeoutSeconds) * time.Second,
+		DisableDirectConnections: api.DeploymentValues.DERP.Config.BlockDirect.Value(),
+		Metadata:                 convertWorkspaceAgentMetadataDesc(metadata),
 	})
 }
 
@@ -731,9 +732,10 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 func (api *API) dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
 	clientConn, serverConn := net.Pipe()
 	conn, err := tailnet.NewConn(&tailnet.Options{
-		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
-		DERPMap:   api.DERPMap,
-		Logger:    api.Logger.Named("tailnet"),
+		Addresses:      []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+		DERPMap:        api.DERPMap,
+		Logger:         api.Logger.Named("tailnet"),
+		BlockEndpoints: api.DeploymentValues.DERP.Config.BlockDirect.Value(),
 	})
 	if err != nil {
 		_ = clientConn.Close()
@@ -798,6 +800,26 @@ func (api *API) dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.Workspac
 // @Success 200 {object} codersdk.WorkspaceAgentConnectionInfo
 // @Router /workspaceagents/{workspaceagent}/connection [get]
 func (api *API) workspaceAgentConnection(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceAgentConnectionInfo{
+		DERPMap:                  api.DERPMap,
+		DisableDirectConnections: api.DeploymentValues.DERP.Config.BlockDirect.Value(),
+	})
+}
+
+// workspaceAgentConnectionGeneric is the same as workspaceAgentConnection but
+// without the workspaceagent path parameter.
+//
+// @Summary Get connection info for workspace agent generic
+// @ID get-connection-info-for-workspace-agent-generic
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Agents
+// @Success 200 {object} codersdk.WorkspaceAgentConnectionInfo
+// @Router /workspaceagents/connection [get]
+// @x-apidocgen {"skip": true}
+func (api *API) workspaceAgentConnectionGeneric(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceAgentConnectionInfo{

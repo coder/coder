@@ -15,7 +15,7 @@ test("tar", async () => {
     group: "codergroup",
     mode: parseInt("777", 8),
   })
-  const blob = await writer.write()
+  const blob = (await writer.write()) as Blob
 
   // Read
   const reader = new TarReader()

@@ -211,23 +211,58 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 
 	// simulate a second coordinator via DB calls only --- our goal is to test broken heart-beating, so we can't use a
 	// real coordinator
-	fCoord := &fakeCoordinator{
+	fCoord2 := &fakeCoordinator{
+		ctx:   ctx,
+		t:     t,
+		store: store,
+		id:    uuid.New(),
+	}
+	// heatbeat until canceled
+	ctx2, cancel2 := context.WithCancel(ctx)
+	go func() {
+		t := time.NewTicker(tailnet.HeartbeatPeriod)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx2.Done():
+				return
+			case <-t.C:
+				fCoord2.heartbeat()
+			}
+		}
+	}()
+	fCoord2.heartbeat()
+	fCoord2.agentNode(agent.id, &agpl.Node{PreferredDERP: 12})
+	nodes = client.recvNodes(ctx, t)
+	assertHasDERPs(t, nodes, 12)
+
+	fCoord3 := &fakeCoordinator{
 		ctx:   ctx,
 		t:     t,
 		store: store,
 		id:    uuid.New(),
 	}
 	start := time.Now()
-	fCoord.heartbeat()
-	fCoord.agentNode(agent.id, &agpl.Node{PreferredDERP: 12})
+	fCoord3.heartbeat()
+	fCoord3.agentNode(agent.id, &agpl.Node{PreferredDERP: 13})
 	nodes = client.recvNodes(ctx, t)
-	assertHasDERPs(t, nodes, 12)
+	assertHasDERPs(t, nodes, 13)
 
-	// when the fake coordinator misses enough heartbeats, the real coordinator should send an update with the old
-	// node for the agent.
+	// when the fCoord3 misses enough heartbeats, the real coordinator should send an update with the
+	// node from fCoord2 for the agent.
 	nodes = client.recvNodes(ctx, t)
 	assert.Greater(t, time.Since(start), tailnet.HeartbeatPeriod*tailnet.MissedHeartbeats)
+	assertHasDERPs(t, nodes, 12)
+
+	// stop fCoord2 heartbeats, which should cause us to revert to the original agent mapping
+	cancel2()
+	nodes = client.recvNodes(ctx, t)
 	assertHasDERPs(t, nodes, 10)
+
+	// send fCoord3 heartbeat, which should trigger us to consider that mapping valid again.
+	fCoord3.heartbeat()
+	nodes = client.recvNodes(ctx, t)
+	assertHasDERPs(t, nodes, 13)
 
 	err = agent.close()
 	require.NoError(t, err)

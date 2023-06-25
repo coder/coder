@@ -24,6 +24,7 @@ type sqlcQuerier interface {
 	// multiple provisioners from acquiring the same jobs. See:
 	// https://www.postgresql.org/docs/9.5/sql-select.html#SQL-FOR-UPDATE-SHARE
 	AcquireProvisionerJob(ctx context.Context, arg AcquireProvisionerJobParams) (ProvisionerJob, error)
+	CleanTailnetCoordinators(ctx context.Context) error
 	DeleteAPIKeyByID(ctx context.Context, id string) error
 	DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
 	DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
@@ -170,7 +171,7 @@ type sqlcQuerier interface {
 	GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceResource, error)
 	GetWorkspaceResourcesCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceResource, error)
 	GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]GetWorkspacesRow, error)
-	GetWorkspacesEligibleForAutoStartStop(ctx context.Context, now time.Time) ([]Workspace, error)
+	GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]Workspace, error)
 	InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error)
 	// We use the organization_id as the id
 	// for simplicity since all users is
