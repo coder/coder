@@ -47,8 +47,10 @@ jobs:
             docs:
               - "docs/**"
               - "README.md"
-              # For testing:
-              # - ".github/**"
+              - "examples/templates/**"
+              - "examples/web-server/**"
+              - "examples/monitoring/**"
+              - "examples/lima/**"
             go:
               - "**.sql"
               - "**.go"
