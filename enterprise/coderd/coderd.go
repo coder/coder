@@ -313,8 +313,9 @@ type API struct {
 	// ProxyHealth checks the reachability of all workspace proxies.
 	ProxyHealth *proxyhealth.ProxyHealth
 
-	entitlementsMu sync.RWMutex
-	entitlements   codersdk.Entitlements
+	entitlementsUpdateMu sync.Mutex
+	entitlementsMu       sync.RWMutex
+	entitlements         codersdk.Entitlements
 }
 
 func (api *API) Close() error {
@@ -329,8 +330,8 @@ func (api *API) Close() error {
 }
 
 func (api *API) updateEntitlements(ctx context.Context) error {
-	api.entitlementsMu.Lock()
-	defer api.entitlementsMu.Unlock()
+	api.entitlementsUpdateMu.Lock()
+	defer api.entitlementsUpdateMu.Unlock()
 
 	entitlements, err := license.Entitlements(
 		ctx, api.Database,
@@ -457,6 +458,8 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		}
 	}
 
+	api.entitlementsMu.Lock()
+	defer api.entitlementsMu.Unlock()
 	api.entitlements = entitlements
 	api.AGPL.SiteHandler.Entitlements.Store(&entitlements)
 
