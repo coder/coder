@@ -738,15 +738,16 @@ func orderedRichParametersResources(tfResourcesRichParameters []*tfjson.StateRes
 	// Those parameters will be prepended to the "ordered" list.
 	var external []*tfjson.StateResource
 	for _, resource := range tfResourcesRichParameters {
+		isExternal := true
 		for _, o := range ordered {
 			if resource.Name == o.Name {
-				goto next
+				isExternal = false
+				break
 			}
 		}
-
-		// This is external parameter.
-		external = append(external, resource)
-	next:
+		if isExternal {
+			external = append(external, resource)
+		}
 	}
 
 	if len(external) > 0 {
@@ -754,10 +755,7 @@ func orderedRichParametersResources(tfResourcesRichParameters []*tfjson.StateRes
 			return external[i].Name < external[j].Name
 		})
 
-		withExternal := make([]*tfjson.StateResource, 0, len(ordered)+len(external))
-		withExternal = append(withExternal, external...)
-		withExternal = append(withExternal, ordered...)
-		ordered = withExternal
+		ordered = append(external, ordered...)
 	}
 	return ordered
 }
