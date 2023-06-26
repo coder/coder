@@ -25,6 +25,7 @@ jobs:
           fi
 
       - name: Delete image
+        continue-on-error: true
         uses: bots-house/ghcr-delete-image-action@v1.1.0
         with:
           owner: coder
