@@ -709,9 +709,11 @@ func (c *Conn) selfNode() *Node {
 		DERPLatency:         derpLatency,
 		DERPForcedWebsocket: derpForcedWebsocket,
 	}
+	c.mutex.Lock()
 	if c.blockEndpoints {
 		node.Endpoints = nil
 	}
+	c.mutex.Unlock()
 	return node
 }
 
