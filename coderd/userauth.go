@@ -1322,7 +1322,6 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 		}
 	}
 	return nil
-
 }
 
 // githubLinkedID returns the unique ID for a GitHub user.
@@ -1393,8 +1392,5 @@ func findLinkedUser(ctx context.Context, db database.Store, linkedID string, ema
 }
 
 func isMergeStateString(state string) bool {
-	if strings.HasPrefix(state, mergeStateStringPrefix) {
-		return true
-	}
-	return false
+	return strings.HasPrefix(state, mergeStateStringPrefix)
 }
