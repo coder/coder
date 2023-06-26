@@ -20,6 +20,8 @@
   <br>
   <br>
 
+Test
+
 [Quickstart](#quickstart) | [Docs](https://coder.com/docs) | [Why Coder](https://coder.com/why) | [Enterprise](https://coder.com/docs/v2/latest/enterprise)
 
 [![discord](https://img.shields.io/discord/747933592273027093?label=discord)](https://discord.gg/coder)
