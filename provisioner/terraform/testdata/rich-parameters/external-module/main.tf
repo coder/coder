@@ -11,6 +11,10 @@ terraform {
   }
 }
 
+module "this_is_external_child_module" {
+  source = "./child-external-module"
+}
+
 data "coder_parameter" "first_parameter_from_module" {
   name        = "First parameter from module"
   mutable     = true
