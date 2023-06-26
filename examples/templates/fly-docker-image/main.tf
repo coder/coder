@@ -12,7 +12,7 @@ terraform {
 }
 
 provider "fly" {
-  fly_api_token  = var.fly_api_token == "" ? null : var.fly_api_token
+  fly_api_token = var.fly_api_token == "" ? null : var.fly_api_token
 }
 
 provider "coder" {
