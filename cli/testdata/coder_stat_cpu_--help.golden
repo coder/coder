@@ -9,8 +9,5 @@ Show CPU usage, in cores.
   -o, --output string (default: text)
           Output format. Available formats: text, json.
 
-      --prefix string
-          Unit prefix.
-
 ---
 Run `coder --help` for a list of global options.
