@@ -7,7 +7,7 @@ import (
 
 // Disk returns the disk usage of the given path.
 // If path is empty, it defaults to C:\
-func (*Statter) Disk(path string) (*Result, error) {
+func (*Statter) Disk(p Prefix, path string) (*Result, error) {
 	if path == "" {
 		path = `C:\`
 	}
@@ -31,5 +31,6 @@ func (*Statter) Disk(path string) (*Result, error) {
 	r.Total = ptr.To(float64(totalBytes))
 	r.Used = float64(totalBytes - freeBytes)
 	r.Unit = "B"
+	r.Prefix = p
 	return &r, nil
 }
