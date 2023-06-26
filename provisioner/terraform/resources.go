@@ -2,6 +2,7 @@ package terraform
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/awalterschulze/gographviz"
@@ -732,11 +733,12 @@ func orderedRichParametersResources(tfResourcesRichParameters []*tfjson.StateRes
 		}
 	}
 
-	// There's an edge case possible for us to have a parameter name that isn't
-	// present in the state, since the ordered names come statically from
-	// parsing the Terraform file. We need to filter out the nil values if there
-	// are any present.
 	if len(tfResourcesRichParameters) != len(orderedNames) {
+		// There's an edge case possible for us to have a parameter name that isn't
+		// present in the state, since the ordered names come statically from
+		// parsing the Terraform file. We need to filter out the nil values if there
+		// are any present.
+
 		nonNil := make([]*tfjson.StateResource, 0, len(ordered))
 		for _, resource := range ordered {
 			if resource != nil {
@@ -745,7 +747,33 @@ func orderedRichParametersResources(tfResourcesRichParameters []*tfjson.StateRes
 		}
 
 		ordered = nonNil
-	}
 
+		// Another edge case: a parameter is present in an external module (Git repository, static files, etc.),
+		// which can't be easily parsed to check the parameter order.
+		// Those parameters will be prepended to the "ordered" list.
+		var external []*tfjson.StateResource
+		for _, resource := range tfResourcesRichParameters {
+			for _, o := range ordered {
+				if resource.Name == o.Name {
+					goto next
+				}
+			}
+
+			// This is external parameter.
+			external = append(external, resource)
+		next:
+		}
+
+		if len(external) > 0 {
+			sort.Slice(external, func(i, j int) bool {
+				return external[i].Name < external[j].Name
+			})
+
+			withExternal := make([]*tfjson.StateResource, 0, len(ordered)+len(external))
+			withExternal = append(withExternal, external...)
+			withExternal = append(withExternal, ordered...)
+			ordered = withExternal
+		}
+	}
 	return ordered
 }
