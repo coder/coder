@@ -86,7 +86,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 		// startup logs.
 		showStartupLogs = true
 
-		stage := "Waiting for initial connection from the workspace agent"
+		stage := "Waiting for the workspace agent to connect"
 		sw.Start(stage)
 		for agent.Status == codersdk.WorkspaceAgentConnecting {
 			if agent, err = fetch(); err != nil {
@@ -96,7 +96,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 
 		if agent.Status == codersdk.WorkspaceAgentTimeout {
 			now := time.Now()
-			sw.Log(now, codersdk.LogLevelInfo, "The workspace agent is having trouble connecting, we will keep trying to reach it")
+			sw.Log(now, codersdk.LogLevelInfo, "The workspace agent is having trouble connecting, wait for it to connect or restart your workspace.")
 			sw.Log(now, codersdk.LogLevelInfo, troubleshootingMessage(agent, "https://coder.com/docs/v2/latest/templates#agent-connection-issues"))
 			for agent.Status == codersdk.WorkspaceAgentTimeout {
 				if agent, err = fetch(); err != nil {
@@ -218,8 +218,9 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 		case codersdk.WorkspaceAgentDisconnected:
 			showInitialConnection = false
 
-			stage := "The workspace agent lost connection, waiting for it to reconnect"
+			stage := "The workspace agent lost connection"
 			sw.Start(stage)
+			sw.Log(time.Now(), codersdk.LogLevelWarn, "Wait for it to reconnect or restart your workspace.")
 			sw.Log(time.Now(), codersdk.LogLevelWarn, troubleshootingMessage(agent, "https://coder.com/docs/v2/latest/templates#agent-connection-issues"))
 			for agent.Status == codersdk.WorkspaceAgentDisconnected {
 				if agent, err = fetch(); err != nil {
