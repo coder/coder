@@ -298,11 +298,7 @@ func (s *ServerTailnet) DialAgentNetConn(ctx context.Context, agentID uuid.UUID,
 		return nil, xerrors.Errorf("acquire agent conn: %w", err)
 	}
 	defer release()
-
-	reachable := conn.AwaitReachable(ctx)
-	if !reachable {
-		return nil, xerrors.New("agent is unreachable")
-	}
+	defer conn.Close()
 
 	node, err := s.getNode(agentID)
 	if err != nil {
