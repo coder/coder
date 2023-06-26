@@ -157,7 +157,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"token_name":       ActionIgnore,
 	},
 	&database.OauthMergeState{}: {
-		"state_string":    ActionSecret,
+		"state":           ActionSecret,
 		"created_at":      ActionTrack,
 		"expires_at":      ActionTrack,
 		"from_login_type": ActionTrack,

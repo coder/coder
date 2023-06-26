@@ -134,7 +134,7 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 
 		mergeState, err = store.InsertUserOauthMergeState(ctx, database.InsertUserOauthMergeStateParams{
 			UserID:        user.ID,
-			StateString:   stateString,
+			State:         stateString,
 			FromLoginType: user.LoginType,
 			ToLoginType:   database.LoginType(req.ToLoginType),
 			CreatedAt:     now,
@@ -156,7 +156,7 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 
 	aReq.New = mergeState
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.OauthConversionResponse{
-		StateString: mergeState.StateString,
+		StateString: mergeState.State,
 		ExpiresAt:   mergeState.ExpiresAt,
 		ToLoginType: codersdk.LoginType(mergeState.ToLoginType),
 		UserID:      mergeState.UserID,

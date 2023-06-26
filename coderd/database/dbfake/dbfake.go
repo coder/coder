@@ -2655,7 +2655,7 @@ func (q *fakeQuerier) GetUserOauthMergeState(_ context.Context, arg database.Get
 	defer q.mutex.RUnlock()
 
 	for _, s := range q.oauthMergeStates {
-		if s.StateString == arg.StateString && s.UserID == arg.UserID {
+		if s.State == arg.StateString && s.UserID == arg.UserID {
 			return s, nil
 		}
 	}
@@ -4092,7 +4092,7 @@ func (q *fakeQuerier) InsertUserOauthMergeState(_ context.Context, arg database.
 	}
 
 	s := database.OauthMergeState{
-		StateString:   arg.StateString,
+		State:         arg.State,
 		CreatedAt:     arg.CreatedAt,
 		ExpiresAt:     arg.ExpiresAt,
 		FromLoginType: arg.FromLoginType,

@@ -1431,8 +1431,8 @@ type License struct {
 
 // Stores the state string for Oauth merge requests. If an Oauth state string is found in this table, it is assumed the user had a LoginType "password" and is switching to an Oauth based authentication.
 type OauthMergeState struct {
-	StateString string    `db:"state_string" json:"state_string"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	State     string    `db:"state" json:"state"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	// The time at which the state string expires, a merge request times out if the user does not perform it quick enough.
 	ExpiresAt     time.Time `db:"expires_at" json:"expires_at"`
 	FromLoginType LoginType `db:"from_login_type" json:"from_login_type"`

@@ -307,7 +307,7 @@ CREATE SEQUENCE licenses_id_seq
 ALTER SEQUENCE licenses_id_seq OWNED BY licenses.id;
 
 CREATE TABLE oauth_merge_state (
-    state_string text NOT NULL,
+    state text NOT NULL,
     created_at timestamp with time zone NOT NULL,
     expires_at timestamp with time zone NOT NULL,
     from_login_type login_type NOT NULL,
@@ -880,7 +880,7 @@ ALTER TABLE ONLY licenses
     ADD CONSTRAINT licenses_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY oauth_merge_state
-    ADD CONSTRAINT oauth_merge_state_pkey PRIMARY KEY (state_string);
+    ADD CONSTRAINT oauth_merge_state_pkey PRIMARY KEY (state);
 
 ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_pkey PRIMARY KEY (organization_id, user_id);

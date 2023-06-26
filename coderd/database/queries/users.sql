@@ -5,13 +5,13 @@ FROM
 	oauth_merge_state
 WHERE
 	user_id = @user_id AND
-	state_string = @state_string;
+	state = @state_string;
 
 -- name: InsertUserOauthMergeState :one
 INSERT INTO
 	oauth_merge_state (
 		user_id,
-		state_string,
+		state,
 	    from_login_type,
 		to_login_type,
 		created_at,
