@@ -32,11 +32,11 @@
     },
     "helperText": {
       "defaultTTLHelperText_zero": "Workspaces will run until stopped manually.",
-      "defaultTTLHelperText_one": "Workspaces will default to stopping after {{count}} hour.",
-      "defaultTTLHelperText_other": "Workspaces will default to stopping after {{count}} hours.",
+      "defaultTTLHelperText_one": "Workspaces will default to stopping after {{count}} hour. If Coder detects workspace connection activity, the autostop timer is bumped up one hour.",
+      "defaultTTLHelperText_other": "Workspaces will default to stopping after {{count}} hours. If Coder detects workspace connection activity, the autostop timer is bumped up one hour.",
       "maxTTLHelperText_zero": "Workspaces may run indefinitely.",
-      "maxTTLHelperText_one": "Workspaces must stop within 1 hour of starting.",
-      "maxTTLHelperText_other": "Workspaces must stop within {{count}} hours of starting.",
+      "maxTTLHelperText_one": "Workspaces must stop within 1 hour of starting, regardless of any active connections.",
+      "maxTTLHelperText_other": "Workspaces must stop within {{count}} hours of starting, regardless of any active connections.",
       "allowUsersToCancel": "If checked, users may be able to corrupt their workspace."
     },
     "upload": {

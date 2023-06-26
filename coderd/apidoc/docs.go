@@ -7239,6 +7239,9 @@ const docTemplate = `{
                 "in_memory_database": {
                     "type": "boolean"
                 },
+                "job_hang_detector_interval": {
+                    "type": "integer"
+                },
                 "logging": {
                     "$ref": "#/definitions/codersdk.LoggingConfig"
                 },

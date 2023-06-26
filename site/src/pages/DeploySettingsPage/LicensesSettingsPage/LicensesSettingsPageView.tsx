@@ -71,8 +71,8 @@ const LicensesSettingsPageView: FC<Props> = ({
           {licenses
             ?.sort(
               (a, b) =>
-                new Date(b.claims.license_expires as number).valueOf() -
-                new Date(a.claims.license_expires as number).valueOf(),
+                new Date(b.claims.license_expires).valueOf() -
+                new Date(a.claims.license_expires).valueOf(),
             )
             .map((license) => (
               <LicenseCard

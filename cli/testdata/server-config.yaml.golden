@@ -148,6 +148,9 @@ networking:
 # Interval to poll for scheduled workspace builds.
 # (default: 1m0s, type: duration)
 autobuildPollInterval: 1m0s
+# Interval to poll for hung jobs and automatically terminate them.
+# (default: 1m0s, type: duration)
+jobHangDetectorInterval: 1m0s
 introspection:
   prometheus:
     # Serve prometheus metrics on the address defined by prometheus address.

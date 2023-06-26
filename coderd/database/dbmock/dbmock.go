@@ -68,6 +68,20 @@ func (mr *MockStoreMockRecorder) AcquireProvisionerJob(arg0, arg1 interface{}) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireProvisionerJob", reflect.TypeOf((*MockStore)(nil).AcquireProvisionerJob), arg0, arg1)
 }
 
+// CleanTailnetCoordinators mocks base method.
+func (m *MockStore) CleanTailnetCoordinators(arg0 context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CleanTailnetCoordinators", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CleanTailnetCoordinators indicates an expected call of CleanTailnetCoordinators.
+func (mr *MockStoreMockRecorder) CleanTailnetCoordinators(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanTailnetCoordinators", reflect.TypeOf((*MockStore)(nil).CleanTailnetCoordinators), arg0)
+}
+
 // DeleteAPIKeyByID mocks base method.
 func (m *MockStore) DeleteAPIKeyByID(arg0 context.Context, arg1 string) error {
 	m.ctrl.T.Helper()
@@ -685,6 +699,21 @@ func (m *MockStore) GetGroupsByOrganizationID(arg0 context.Context, arg1 uuid.UU
 func (mr *MockStoreMockRecorder) GetGroupsByOrganizationID(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGroupsByOrganizationID", reflect.TypeOf((*MockStore)(nil).GetGroupsByOrganizationID), arg0, arg1)
+}
+
+// GetHungProvisionerJobs mocks base method.
+func (m *MockStore) GetHungProvisionerJobs(arg0 context.Context, arg1 time.Time) ([]database.ProvisionerJob, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetHungProvisionerJobs", arg0, arg1)
+	ret0, _ := ret[0].([]database.ProvisionerJob)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetHungProvisionerJobs indicates an expected call of GetHungProvisionerJobs.
+func (mr *MockStoreMockRecorder) GetHungProvisionerJobs(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHungProvisionerJobs", reflect.TypeOf((*MockStore)(nil).GetHungProvisionerJobs), arg0, arg1)
 }
 
 // GetLastUpdateCheck mocks base method.

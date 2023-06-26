@@ -45,7 +45,7 @@ func NewExecutor(ctx context.Context, db database.Store, tss *atomic.Pointer[sch
 		db:                    db,
 		templateScheduleStore: tss,
 		tick:                  tick,
-		log:                   log,
+		log:                   log.Named("autobuild"),
 	}
 	return le
 }
@@ -166,7 +166,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					Reason(reason)
 
 				if _, _, err := builder.Build(e.ctx, tx, nil); err != nil {
-					log.Error(e.ctx, "unable to transition workspace",
+					log.Error(e.ctx, "workspace build error",
 						slog.F("transition", nextTransition),
 						slog.Error(err),
 					)

@@ -68,6 +68,7 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/telemetry"
+	"github.com/coder/coder/coderd/unhanger"
 	"github.com/coder/coder/coderd/updatecheck"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/coderd/workspaceapps"
@@ -255,6 +256,12 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.AutobuildTicker,
 	).WithStatsChannel(options.AutobuildStats)
 	lifecycleExecutor.Run()
+
+	hangDetectorTicker := time.NewTicker(options.DeploymentValues.JobHangDetectorInterval.Value())
+	defer hangDetectorTicker.Stop()
+	hangDetector := unhanger.New(ctx, options.Database, options.Pubsub, slogtest.Make(t, nil).Named("unhanger.detector"), hangDetectorTicker.C)
+	hangDetector.Start()
+	t.Cleanup(hangDetector.Close)
 
 	var mutex sync.RWMutex
 	var handler http.Handler

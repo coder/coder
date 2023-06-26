@@ -1035,6 +1035,10 @@ func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 	return database.ProvisionerJob{}, sql.ErrNoRows
 }
 
+func (*fakeQuerier) CleanTailnetCoordinators(_ context.Context) error {
+	return ErrUnimplemented
+}
+
 func (q *fakeQuerier) DeleteAPIKeyByID(_ context.Context, id string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -1749,6 +1753,19 @@ func (q *fakeQuerier) GetGroupsByOrganizationID(_ context.Context, organizationI
 	return groups, nil
 }
 
+func (q *fakeQuerier) GetHungProvisionerJobs(_ context.Context, hungSince time.Time) ([]database.ProvisionerJob, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	hungJobs := []database.ProvisionerJob{}
+	for _, provisionerJob := range q.provisionerJobs {
+		if provisionerJob.StartedAt.Valid && !provisionerJob.CompletedAt.Valid && provisionerJob.UpdatedAt.Before(hungSince) {
+			hungJobs = append(hungJobs, provisionerJob)
+		}
+	}
+	return hungJobs, nil
+}
+
 func (q *fakeQuerier) GetLastUpdateCheck(_ context.Context) (string, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -2131,7 +2148,7 @@ func (q *fakeQuerier) GetProvisionerLogsAfterID(_ context.Context, arg database.
 		if jobLog.JobID != arg.JobID {
 			continue
 		}
-		if arg.CreatedAfter != 0 && jobLog.ID < arg.CreatedAfter {
+		if jobLog.ID <= arg.CreatedAfter {
 			continue
 		}
 		logs = append(logs, jobLog)
@@ -2686,6 +2703,26 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 			}
 		}
 		users = usersFilteredByRole
+	}
+
+	if !params.LastSeenBefore.IsZero() {
+		usersFilteredByLastSeen := make([]database.User, 0, len(users))
+		for i, user := range users {
+			if user.LastSeenAt.Before(params.LastSeenBefore) {
+				usersFilteredByLastSeen = append(usersFilteredByLastSeen, users[i])
+			}
+		}
+		users = usersFilteredByLastSeen
+	}
+
+	if !params.LastSeenAfter.IsZero() {
+		usersFilteredByLastSeen := make([]database.User, 0, len(users))
+		for i, user := range users {
+			if user.LastSeenAt.After(params.LastSeenAfter) {
+				usersFilteredByLastSeen = append(usersFilteredByLastSeen, users[i])
+			}
+		}
+		users = usersFilteredByLastSeen
 	}
 
 	beforePageCount := len(users)
