@@ -1,5 +1,5 @@
 // Package wsconncache caches workspace agent connections by UUID.
-// DEPRECATED
+// Deprecated
 package wsconncache
 
 import (
@@ -66,6 +66,7 @@ func (a *AgentProvider) Close() error {
 //
 // Deprecated: Use coderd.NewServerTailnet instead. wsconncache is being phased
 // out because it creates a unique Tailnet for each agent.
+// See: https://github.com/coder/coder/issues/8218
 func New(dialer Dialer, inactiveTimeout time.Duration) *Cache {
 	if inactiveTimeout == 0 {
 		inactiveTimeout = 5 * time.Minute

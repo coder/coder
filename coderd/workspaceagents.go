@@ -730,6 +730,7 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 }
 
 // Deprecated: use api.tailnet.AgentConn instead.
+// See: https://github.com/coder/coder/issues/8218
 func (api *API) _dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
 	clientConn, serverConn := net.Pipe()
 	conn, err := tailnet.NewConn(&tailnet.Options{
