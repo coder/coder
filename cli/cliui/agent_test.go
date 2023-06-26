@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/clitest"
@@ -248,6 +249,26 @@ func TestAgent(t *testing.T) {
 				"⧗ Running workspace agent startup script",
 				"Hello world",
 				"✔ Running workspace agent startup script",
+			},
+			wantErr: true,
+		},
+		{
+			name: "Error during fetch",
+			opts: cliui.AgentOptions{
+				FetchInterval: time.Millisecond,
+				Wait:          true,
+			},
+			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentStartupLog) error{
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentStartupLog) error {
+					agent.Status = codersdk.WorkspaceAgentConnecting
+					return nil
+				},
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentStartupLog) error {
+					return xerrors.New("bad")
+				},
+			},
+			want: []string{
+				"⧗ Waiting for initial connection from the workspace agent",
 			},
 			wantErr: true,
 		},
