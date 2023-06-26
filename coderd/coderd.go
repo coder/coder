@@ -351,8 +351,17 @@ func New(options *Options) *API {
 	}
 
 	api.Auditor.Store(&options.Auditor)
-	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
+	api.tailnet, err = NewServerTailnet(api.ctx,
+		options.Logger,
+		options.DERPServer,
+		options.DERPMap,
+		&api.TailnetCoordinator,
+		wsconncache.New(api._dialWorkspaceAgentTailnet, 0),
+	)
+	if err != nil {
+		panic("failed to setup server tailnet: " + err.Error())
+	}
 
 	api.workspaceAppServer = &workspaceapps.Server{
 		Logger: options.Logger.Named("workspaceapps"),
@@ -364,7 +373,7 @@ func New(options *Options) *API {
 		RealIPConfig:  options.RealIPConfig,
 
 		SignedTokenProvider: api.WorkspaceAppsProvider,
-		WorkspaceConnCache:  api.workspaceAgentCache,
+		AgentProvider:       api.tailnet,
 		AppSecurityKey:      options.AppSecurityKey,
 
 		DisablePathApps:  options.DeploymentValues.DisablePathApps.Value(),
@@ -874,10 +883,10 @@ type API struct {
 	derpCloseFunc      func()
 
 	metricsCache          *metricscache.Cache
-	workspaceAgentCache   *wsconncache.Cache
 	updateChecker         *updatecheck.Checker
 	WorkspaceAppsProvider workspaceapps.SignedTokenProvider
 	workspaceAppServer    *workspaceapps.Server
+	tailnet               *ServerTailnet
 
 	// Experiments contains the list of experiments currently enabled.
 	// This is used to gate features that are not yet ready for production.
@@ -904,7 +913,8 @@ func (api *API) Close() error {
 	if coordinator != nil {
 		_ = (*coordinator).Close()
 	}
-	return api.workspaceAgentCache.Close()
+	_ = api.tailnet.Close()
+	return nil
 }
 
 func compressHandler(h http.Handler) http.Handler {

@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 	"go.uber.org/goleak"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -157,7 +158,7 @@ func TestCache(t *testing.T) {
 func setupAgent(t *testing.T, manifest agentsdk.Manifest, ptyTimeout time.Duration) *codersdk.WorkspaceAgentConn {
 	t.Helper()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	manifest.DERPMap = tailnettest.RunDERPAndSTUN(t)
+	manifest.DERPMap, _ = tailnettest.RunDERPAndSTUN(t)
 
 	coordinator := tailnet.NewCoordinator(logger)
 	t.Cleanup(func() {
@@ -194,9 +195,16 @@ func setupAgent(t *testing.T, manifest agentsdk.Manifest, ptyTimeout time.Durati
 		return conn.UpdateNodes(node, false)
 	})
 	conn.SetNodeCallback(sendNode)
-	agentConn := &codersdk.WorkspaceAgentConn{
-		Conn: conn,
-	}
+	agentConn := codersdk.NewWorkspaceAgentConn(conn, codersdk.WorkspaceAgentConnOptions{
+		AgentID: agentID,
+		GetNode: func(agentID uuid.UUID) (*tailnet.Node, error) {
+			node := coordinator.Node(agentID)
+			if node == nil {
+				return nil, xerrors.Errorf("node not found %q", err)
+			}
+			return node, nil
+		},
+	})
 	t.Cleanup(func() {
 		_ = agentConn.Close()
 	})

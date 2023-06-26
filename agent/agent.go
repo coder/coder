@@ -64,6 +64,7 @@ type Options struct {
 	SSHMaxTimeout          time.Duration
 	TailnetListenPort      uint16
 	Subsystem              codersdk.AgentSubsystem
+	Addresses              []netip.Prefix
 
 	PrometheusRegistry *prometheus.Registry
 }
@@ -111,6 +112,16 @@ func New(options Options) Agent {
 		prometheusRegistry = prometheus.NewRegistry()
 	}
 
+	if len(options.Addresses) == 0 {
+		options.Addresses = []netip.Prefix{
+			// This is the IP that should be used primarily.
+			netip.PrefixFrom(tailnet.IP(), 128),
+			// We also listen on the legacy codersdk.WorkspaceAgentIP. This
+			// allows for a transition away from wsconncache.
+			netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128),
+		}
+	}
+
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	a := &agent{
 		tailnetListenPort:      options.TailnetListenPort,
@@ -131,6 +142,7 @@ func New(options Options) Agent {
 		connStatsChan:          make(chan *agentsdk.Stats, 1),
 		sshMaxTimeout:          options.SSHMaxTimeout,
 		subsystem:              options.Subsystem,
+		addresses:              options.Addresses,
 
 		prometheusRegistry: prometheusRegistry,
 		metrics:            newAgentMetrics(prometheusRegistry),
@@ -174,6 +186,7 @@ type agent struct {
 	lifecycleStates   []agentsdk.PostLifecycleRequest
 
 	network       *tailnet.Conn
+	addresses     []netip.Prefix
 	connStatsChan chan *agentsdk.Stats
 	latestStat    atomic.Pointer[agentsdk.Stats]
 
@@ -639,7 +652,7 @@ func (a *agent) trackConnGoroutine(fn func()) error {
 
 func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap, disableDirectConnections bool) (_ *tailnet.Conn, err error) {
 	network, err := tailnet.NewConn(&tailnet.Options{
-		Addresses:      []netip.Prefix{netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128)},
+		Addresses:      a.addresses,
 		DERPMap:        derpMap,
 		Logger:         a.logger.Named("tailnet"),
 		ListenPort:     a.tailnetListenPort,

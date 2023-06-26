@@ -34,7 +34,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/maps"
 	"golang.org/x/xerrors"
 	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
@@ -43,6 +42,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/agent/agentssh"
+	"github.com/coder/coder/agent/agenttest"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
@@ -881,16 +881,15 @@ func TestAgent_StartupScript(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		client := &client{
-			t:       t,
-			agentID: uuid.New(),
-			manifest: agentsdk.Manifest{
+		client := agenttest.NewClient(t,
+			uuid.New(),
+			agentsdk.Manifest{
 				StartupScript: command,
 				DERPMap:       &tailcfg.DERPMap{},
 			},
-			statsChan:   make(chan *agentsdk.Stats),
-			coordinator: tailnet.NewCoordinator(logger),
-		}
+			make(chan *agentsdk.Stats),
+			tailnet.NewCoordinator(logger),
+		)
 		closer := agent.New(agent.Options{
 			Client:                 client,
 			Filesystem:             afero.NewMemMapFs(),
@@ -901,36 +900,35 @@ func TestAgent_StartupScript(t *testing.T) {
 			_ = closer.Close()
 		})
 		assert.Eventually(t, func() bool {
-			got := client.getLifecycleStates()
+			got := client.GetLifecycleStates()
 			return len(got) > 0 && got[len(got)-1] == codersdk.WorkspaceAgentLifecycleReady
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
-		require.Len(t, client.getStartupLogs(), 1)
-		require.Equal(t, output, client.getStartupLogs()[0].Output)
+		require.Len(t, client.GetStartupLogs(), 1)
+		require.Equal(t, output, client.GetStartupLogs()[0].Output)
 	})
 	// This ensures that even when coderd sends back that the startup
 	// script has written too many lines it will still succeed!
 	t.Run("OverflowsAndSkips", func(t *testing.T) {
 		t.Parallel()
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		client := &client{
-			t:       t,
-			agentID: uuid.New(),
-			manifest: agentsdk.Manifest{
+		client := agenttest.NewClient(t,
+			uuid.New(),
+			agentsdk.Manifest{
 				StartupScript: command,
 				DERPMap:       &tailcfg.DERPMap{},
 			},
-			patchWorkspaceLogs: func() error {
-				resp := httptest.NewRecorder()
-				httpapi.Write(context.Background(), resp, http.StatusRequestEntityTooLarge, codersdk.Response{
-					Message: "Too many lines!",
-				})
-				res := resp.Result()
-				defer res.Body.Close()
-				return codersdk.ReadBodyAsError(res)
-			},
-			statsChan:   make(chan *agentsdk.Stats),
-			coordinator: tailnet.NewCoordinator(logger),
+			make(chan *agentsdk.Stats, 50),
+			tailnet.NewCoordinator(logger),
+		)
+		client.PatchWorkspaceLogs = func() error {
+			resp := httptest.NewRecorder()
+			httpapi.Write(context.Background(), resp, http.StatusRequestEntityTooLarge, codersdk.Response{
+				Message: "Too many lines!",
+			})
+			res := resp.Result()
+			defer res.Body.Close()
+			return codersdk.ReadBodyAsError(res)
 		}
 		closer := agent.New(agent.Options{
 			Client:                 client,
@@ -942,10 +940,10 @@ func TestAgent_StartupScript(t *testing.T) {
 			_ = closer.Close()
 		})
 		assert.Eventually(t, func() bool {
-			got := client.getLifecycleStates()
+			got := client.GetLifecycleStates()
 			return len(got) > 0 && got[len(got)-1] == codersdk.WorkspaceAgentLifecycleReady
 		}, testutil.WaitShort, testutil.IntervalMedium)
-		require.Len(t, client.getStartupLogs(), 0)
+		require.Len(t, client.GetStartupLogs(), 0)
 	})
 }
 
@@ -969,14 +967,14 @@ func TestAgent_Metadata(t *testing.T) {
 
 		var gotMd map[string]agentsdk.PostMetadataRequest
 		require.Eventually(t, func() bool {
-			gotMd = client.getMetadata()
+			gotMd = client.GetMetadata()
 			return len(gotMd) == 1
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
 		collectedAt := gotMd["greeting"].CollectedAt
 
 		require.Never(t, func() bool {
-			gotMd = client.getMetadata()
+			gotMd = client.GetMetadata()
 			if len(gotMd) != 1 {
 				panic("unexpected number of metadata")
 			}
@@ -1000,7 +998,7 @@ func TestAgent_Metadata(t *testing.T) {
 
 		var gotMd map[string]agentsdk.PostMetadataRequest
 		require.Eventually(t, func() bool {
-			gotMd = client.getMetadata()
+			gotMd = client.GetMetadata()
 			return len(gotMd) == 1
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
@@ -1010,7 +1008,7 @@ func TestAgent_Metadata(t *testing.T) {
 		}
 
 		if !assert.Eventually(t, func() bool {
-			gotMd = client.getMetadata()
+			gotMd = client.GetMetadata()
 			return gotMd["greeting"].CollectedAt.After(collectedAt1)
 		}, testutil.WaitShort, testutil.IntervalMedium) {
 			t.Fatalf("expected metadata to be collected again")
@@ -1052,11 +1050,11 @@ func TestAgentMetadata_Timing(t *testing.T) {
 	}, 0)
 
 	require.Eventually(t, func() bool {
-		return len(client.getMetadata()) == 2
+		return len(client.GetMetadata()) == 2
 	}, testutil.WaitShort, testutil.IntervalMedium)
 
 	for start := time.Now(); time.Since(start) < testutil.WaitMedium; time.Sleep(testutil.IntervalMedium) {
-		md := client.getMetadata()
+		md := client.GetMetadata()
 		require.Len(t, md, 2, "got: %+v", md)
 
 		require.Equal(t, "hello\n", md["greeting"].Value)
@@ -1110,7 +1108,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 		var got []codersdk.WorkspaceAgentLifecycle
 		assert.Eventually(t, func() bool {
-			got = client.getLifecycleStates()
+			got = client.GetLifecycleStates()
 			return len(got) > 0 && got[len(got)-1] == want[len(want)-1]
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
@@ -1132,7 +1130,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 		var got []codersdk.WorkspaceAgentLifecycle
 		assert.Eventually(t, func() bool {
-			got = client.getLifecycleStates()
+			got = client.GetLifecycleStates()
 			return len(got) > 0 && got[len(got)-1] == want[len(want)-1]
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
@@ -1154,7 +1152,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 		var got []codersdk.WorkspaceAgentLifecycle
 		assert.Eventually(t, func() bool {
-			got = client.getLifecycleStates()
+			got = client.GetLifecycleStates()
 			return len(got) > 0 && got[len(got)-1] == want[len(want)-1]
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
@@ -1171,7 +1169,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 		var ready []codersdk.WorkspaceAgentLifecycle
 		assert.Eventually(t, func() bool {
-			ready = client.getLifecycleStates()
+			ready = client.GetLifecycleStates()
 			return len(ready) > 0 && ready[len(ready)-1] == codersdk.WorkspaceAgentLifecycleReady
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
@@ -1192,7 +1190,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 		var got []codersdk.WorkspaceAgentLifecycle
 		assert.Eventually(t, func() bool {
-			got = client.getLifecycleStates()[len(ready):]
+			got = client.GetLifecycleStates()[len(ready):]
 			return len(got) > 0 && got[len(got)-1] == want[len(want)-1]
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
@@ -1209,7 +1207,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 		var ready []codersdk.WorkspaceAgentLifecycle
 		assert.Eventually(t, func() bool {
-			ready = client.getLifecycleStates()
+			ready = client.GetLifecycleStates()
 			return len(ready) > 0 && ready[len(ready)-1] == codersdk.WorkspaceAgentLifecycleReady
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
@@ -1231,7 +1229,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 		var got []codersdk.WorkspaceAgentLifecycle
 		assert.Eventually(t, func() bool {
-			got = client.getLifecycleStates()[len(ready):]
+			got = client.GetLifecycleStates()[len(ready):]
 			return len(got) > 0 && got[len(got)-1] == want[len(want)-1]
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
@@ -1248,7 +1246,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 		var ready []codersdk.WorkspaceAgentLifecycle
 		assert.Eventually(t, func() bool {
-			ready = client.getLifecycleStates()
+			ready = client.GetLifecycleStates()
 			return len(ready) > 0 && ready[len(ready)-1] == codersdk.WorkspaceAgentLifecycleReady
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
@@ -1270,7 +1268,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 		var got []codersdk.WorkspaceAgentLifecycle
 		assert.Eventually(t, func() bool {
-			got = client.getLifecycleStates()[len(ready):]
+			got = client.GetLifecycleStates()[len(ready):]
 			return len(got) > 0 && got[len(got)-1] == want[len(want)-1]
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
@@ -1281,17 +1279,18 @@ func TestAgent_Lifecycle(t *testing.T) {
 		t.Parallel()
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		expected := "this-is-shutdown"
-		client := &client{
-			t:       t,
-			agentID: uuid.New(),
-			manifest: agentsdk.Manifest{
-				DERPMap:        tailnettest.RunDERPAndSTUN(t),
+		derpMap, _ := tailnettest.RunDERPAndSTUN(t)
+
+		client := agenttest.NewClient(t,
+			uuid.New(),
+			agentsdk.Manifest{
+				DERPMap:        derpMap,
 				StartupScript:  "echo 1",
 				ShutdownScript: "echo " + expected,
 			},
-			statsChan:   make(chan *agentsdk.Stats),
-			coordinator: tailnet.NewCoordinator(logger),
-		}
+			make(chan *agentsdk.Stats, 50),
+			tailnet.NewCoordinator(logger),
+		)
 
 		fs := afero.NewMemMapFs()
 		agent := agent.New(agent.Options{
@@ -1343,9 +1342,9 @@ func TestAgent_Startup(t *testing.T) {
 			Directory:            "",
 		}, 0)
 		assert.Eventually(t, func() bool {
-			return client.getStartup().Version != ""
+			return client.GetStartup().Version != ""
 		}, testutil.WaitShort, testutil.IntervalFast)
-		require.Equal(t, "", client.getStartup().ExpandedDirectory)
+		require.Equal(t, "", client.GetStartup().ExpandedDirectory)
 	})
 
 	t.Run("HomeDirectory", func(t *testing.T) {
@@ -1357,11 +1356,11 @@ func TestAgent_Startup(t *testing.T) {
 			Directory:            "~",
 		}, 0)
 		assert.Eventually(t, func() bool {
-			return client.getStartup().Version != ""
+			return client.GetStartup().Version != ""
 		}, testutil.WaitShort, testutil.IntervalFast)
 		homeDir, err := os.UserHomeDir()
 		require.NoError(t, err)
-		require.Equal(t, homeDir, client.getStartup().ExpandedDirectory)
+		require.Equal(t, homeDir, client.GetStartup().ExpandedDirectory)
 	})
 
 	t.Run("NotAbsoluteDirectory", func(t *testing.T) {
@@ -1373,11 +1372,11 @@ func TestAgent_Startup(t *testing.T) {
 			Directory:            "coder/coder",
 		}, 0)
 		assert.Eventually(t, func() bool {
-			return client.getStartup().Version != ""
+			return client.GetStartup().Version != ""
 		}, testutil.WaitShort, testutil.IntervalFast)
 		homeDir, err := os.UserHomeDir()
 		require.NoError(t, err)
-		require.Equal(t, filepath.Join(homeDir, "coder/coder"), client.getStartup().ExpandedDirectory)
+		require.Equal(t, filepath.Join(homeDir, "coder/coder"), client.GetStartup().ExpandedDirectory)
 	})
 
 	t.Run("HomeEnvironmentVariable", func(t *testing.T) {
@@ -1389,11 +1388,11 @@ func TestAgent_Startup(t *testing.T) {
 			Directory:            "$HOME",
 		}, 0)
 		assert.Eventually(t, func() bool {
-			return client.getStartup().Version != ""
+			return client.GetStartup().Version != ""
 		}, testutil.WaitShort, testutil.IntervalFast)
 		homeDir, err := os.UserHomeDir()
 		require.NoError(t, err)
-		require.Equal(t, homeDir, client.getStartup().ExpandedDirectory)
+		require.Equal(t, homeDir, client.GetStartup().ExpandedDirectory)
 	})
 }
 
@@ -1532,7 +1531,7 @@ func TestAgent_Speedtest(t *testing.T) {
 	t.Skip("This test is relatively flakey because of Tailscale's speedtest code...")
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
-	derpMap := tailnettest.RunDERPAndSTUN(t)
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
 	//nolint:dogsled
 	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{
 		DERPMap: derpMap,
@@ -1552,17 +1551,16 @@ func TestAgent_Reconnect(t *testing.T) {
 	defer coordinator.Close()
 
 	agentID := uuid.New()
-	statsCh := make(chan *agentsdk.Stats)
-	derpMap := tailnettest.RunDERPAndSTUN(t)
-	client := &client{
-		t:       t,
-		agentID: agentID,
-		manifest: agentsdk.Manifest{
+	statsCh := make(chan *agentsdk.Stats, 50)
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
+	client := agenttest.NewClient(t,
+		agentID,
+		agentsdk.Manifest{
 			DERPMap: derpMap,
 		},
-		statsChan:   statsCh,
-		coordinator: coordinator,
-	}
+		statsCh,
+		coordinator,
+	)
 	initialized := atomic.Int32{}
 	closer := agent.New(agent.Options{
 		ExchangeToken: func(ctx context.Context) (string, error) {
@@ -1577,7 +1575,7 @@ func TestAgent_Reconnect(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return coordinator.Node(agentID) != nil
 	}, testutil.WaitShort, testutil.IntervalFast)
-	client.lastWorkspaceAgent()
+	client.LastWorkspaceAgent()
 	require.Eventually(t, func() bool {
 		return initialized.Load() == 2
 	}, testutil.WaitShort, testutil.IntervalFast)
@@ -1589,16 +1587,15 @@ func TestAgent_WriteVSCodeConfigs(t *testing.T) {
 	coordinator := tailnet.NewCoordinator(logger)
 	defer coordinator.Close()
 
-	client := &client{
-		t:       t,
-		agentID: uuid.New(),
-		manifest: agentsdk.Manifest{
+	client := agenttest.NewClient(t,
+		uuid.New(),
+		agentsdk.Manifest{
 			GitAuthConfigs: 1,
 			DERPMap:        &tailcfg.DERPMap{},
 		},
-		statsChan:   make(chan *agentsdk.Stats),
-		coordinator: coordinator,
-	}
+		make(chan *agentsdk.Stats, 50),
+		coordinator,
+	)
 	filesystem := afero.NewMemMapFs()
 	closer := agent.New(agent.Options{
 		ExchangeToken: func(ctx context.Context) (string, error) {
@@ -1683,22 +1680,16 @@ func setupSSHSession(t *testing.T, options agentsdk.Manifest) *ssh.Session {
 	return session
 }
 
-type closeFunc func() error
-
-func (c closeFunc) Close() error {
-	return c()
-}
-
 func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Duration, opts ...func(agent.Options) agent.Options) (
 	*codersdk.WorkspaceAgentConn,
-	*client,
+	*agenttest.Client,
 	<-chan *agentsdk.Stats,
 	afero.Fs,
 	io.Closer,
 ) {
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	if metadata.DERPMap == nil {
-		metadata.DERPMap = tailnettest.RunDERPAndSTUN(t)
+		metadata.DERPMap, _ = tailnettest.RunDERPAndSTUN(t)
 	}
 	coordinator := tailnet.NewCoordinator(logger)
 	t.Cleanup(func() {
@@ -1707,13 +1698,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	agentID := uuid.New()
 	statsCh := make(chan *agentsdk.Stats, 50)
 	fs := afero.NewMemMapFs()
-	c := &client{
-		t:           t,
-		agentID:     agentID,
-		manifest:    metadata,
-		statsChan:   statsCh,
-		coordinator: coordinator,
-	}
+	c := agenttest.NewClient(t, agentID, metadata, statsCh, coordinator)
 
 	options := agent.Options{
 		Client:                 c,
@@ -1752,9 +1737,16 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 		return conn.UpdateNodes(node, false)
 	})
 	conn.SetNodeCallback(sendNode)
-	agentConn := &codersdk.WorkspaceAgentConn{
-		Conn: conn,
-	}
+	agentConn := codersdk.NewWorkspaceAgentConn(conn, codersdk.WorkspaceAgentConnOptions{
+		AgentID: agentID,
+		GetNode: func(agentID uuid.UUID) (*tailnet.Node, error) {
+			node := coordinator.Node(agentID)
+			if node == nil {
+				return nil, xerrors.Errorf("node not found %q", err)
+			}
+			return node, nil
+		},
+	})
 	t.Cleanup(func() {
 		_ = agentConn.Close()
 	})
@@ -1797,136 +1789,6 @@ func assertWritePayload(t *testing.T, w io.Writer, payload []byte) {
 	n, err := w.Write(payload)
 	assert.NoError(t, err, "write payload")
 	assert.Equal(t, len(payload), n, "payload length does not match")
-}
-
-type client struct {
-	t                  *testing.T
-	agentID            uuid.UUID
-	manifest           agentsdk.Manifest
-	metadata           map[string]agentsdk.PostMetadataRequest
-	statsChan          chan *agentsdk.Stats
-	coordinator        tailnet.Coordinator
-	lastWorkspaceAgent func()
-	patchWorkspaceLogs func() error
-
-	mu              sync.Mutex // Protects following.
-	lifecycleStates []codersdk.WorkspaceAgentLifecycle
-	startup         agentsdk.PostStartupRequest
-	logs            []agentsdk.StartupLog
-}
-
-func (c *client) Manifest(_ context.Context) (agentsdk.Manifest, error) {
-	return c.manifest, nil
-}
-
-func (c *client) Listen(_ context.Context) (net.Conn, error) {
-	clientConn, serverConn := net.Pipe()
-	closed := make(chan struct{})
-	c.lastWorkspaceAgent = func() {
-		_ = serverConn.Close()
-		_ = clientConn.Close()
-		<-closed
-	}
-	c.t.Cleanup(c.lastWorkspaceAgent)
-	go func() {
-		_ = c.coordinator.ServeAgent(serverConn, c.agentID, "")
-		close(closed)
-	}()
-	return clientConn, nil
-}
-
-func (c *client) ReportStats(ctx context.Context, _ slog.Logger, statsChan <-chan *agentsdk.Stats, setInterval func(time.Duration)) (io.Closer, error) {
-	doneCh := make(chan struct{})
-	ctx, cancel := context.WithCancel(ctx)
-
-	go func() {
-		defer close(doneCh)
-
-		setInterval(500 * time.Millisecond)
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case stat := <-statsChan:
-				select {
-				case c.statsChan <- stat:
-				case <-ctx.Done():
-					return
-				default:
-					// We don't want to send old stats.
-					continue
-				}
-			}
-		}
-	}()
-	return closeFunc(func() error {
-		cancel()
-		<-doneCh
-		close(c.statsChan)
-		return nil
-	}), nil
-}
-
-func (c *client) getLifecycleStates() []codersdk.WorkspaceAgentLifecycle {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.lifecycleStates
-}
-
-func (c *client) PostLifecycle(_ context.Context, req agentsdk.PostLifecycleRequest) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.lifecycleStates = append(c.lifecycleStates, req.State)
-	return nil
-}
-
-func (*client) PostAppHealth(_ context.Context, _ agentsdk.PostAppHealthsRequest) error {
-	return nil
-}
-
-func (c *client) getStartup() agentsdk.PostStartupRequest {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.startup
-}
-
-func (c *client) getMetadata() map[string]agentsdk.PostMetadataRequest {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return maps.Clone(c.metadata)
-}
-
-func (c *client) PostMetadata(_ context.Context, key string, req agentsdk.PostMetadataRequest) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.metadata == nil {
-		c.metadata = make(map[string]agentsdk.PostMetadataRequest)
-	}
-	c.metadata[key] = req
-	return nil
-}
-
-func (c *client) PostStartup(_ context.Context, startup agentsdk.PostStartupRequest) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.startup = startup
-	return nil
-}
-
-func (c *client) getStartupLogs() []agentsdk.StartupLog {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.logs
-}
-
-func (c *client) PatchStartupLogs(_ context.Context, logs agentsdk.PatchStartupLogs) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.patchWorkspaceLogs != nil {
-		return c.patchWorkspaceLogs()
-	}
-	c.logs = append(c.logs, logs.Logs...)
-	return nil
 }
 
 // tempDirUnixSocket returns a temporary directory that can safely hold unix

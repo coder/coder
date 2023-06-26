@@ -302,7 +302,7 @@ func TestAgents(t *testing.T) {
 	coordinator := tailnet.NewCoordinator(slogtest.Make(t, nil).Leveled(slog.LevelDebug))
 	coordinatorPtr := atomic.Pointer[tailnet.Coordinator]{}
 	coordinatorPtr.Store(&coordinator)
-	derpMap := tailnettest.RunDERPAndSTUN(t)
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
 	agentInactiveDisconnectTimeout := 1 * time.Hour // don't need to focus on this value in tests
 	registry := prometheus.NewRegistry()
 

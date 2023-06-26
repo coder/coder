@@ -40,6 +40,7 @@ func NewCoordinator(logger slog.Logger, ps pubsub.Pubsub) (agpl.Coordinator, err
 		agentSockets:             map[uuid.UUID]*agpl.TrackedConn{},
 		agentToConnectionSockets: map[uuid.UUID]map[uuid.UUID]*agpl.TrackedConn{},
 		agentNameCache:           nameCache,
+		agentCallbacks:           map[uuid.UUID]map[uuid.UUID]func(uuid.UUID, *agpl.Node){},
 	}
 
 	if err := coord.runPubsub(ctx); err != nil {
@@ -47,6 +48,47 @@ func NewCoordinator(logger slog.Logger, ps pubsub.Pubsub) (agpl.Coordinator, err
 	}
 
 	return coord, nil
+}
+
+func (c *haCoordinator) SubscribeAgent(agentID uuid.UUID, cb func(agentID uuid.UUID, node *agpl.Node)) func() {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	id := uuid.New()
+	cbMap, ok := c.agentCallbacks[agentID]
+	if !ok {
+		cbMap = map[uuid.UUID]func(uuid.UUID, *agpl.Node){}
+		c.agentCallbacks[agentID] = cbMap
+	}
+
+	cbMap[id] = cb
+
+	return func() {
+		c.mutex.Lock()
+		defer c.mutex.Unlock()
+		delete(cbMap, id)
+	}
+}
+
+func (c *haCoordinator) BroadcastToAgents(agents []uuid.UUID, node *agpl.Node) error {
+	ctx := context.Background()
+
+	for _, id := range agents {
+		c.mutex.Lock()
+		agentSocket, ok := c.agentSockets[id]
+		c.mutex.Unlock()
+		if !ok {
+			continue
+		}
+
+		// Write the new node from this client to the actively connected agent.
+		err := agentSocket.Enqueue([]*agpl.Node{node})
+		if err != nil {
+			c.log.Debug(ctx, "failed to write to agent", slog.Error(err))
+		}
+	}
+
+	return nil
 }
 
 type haCoordinator struct {
@@ -68,6 +110,8 @@ type haCoordinator struct {
 	// agentNameCache holds a cache of agent names. If one of them disappears,
 	// it's helpful to have a name cached for debugging.
 	agentNameCache *lru.Cache[uuid.UUID, string]
+
+	agentCallbacks map[uuid.UUID]map[uuid.UUID]func(uuid.UUID, *agpl.Node)
 }
 
 // Node returns an in-memory node by ID.
@@ -311,6 +355,19 @@ func (c *haCoordinator) handleAgentUpdate(id uuid.UUID, decoder *json.Decoder) (
 	for _, connectionSocket := range connectionSockets {
 		_ = connectionSocket.Enqueue([]*agpl.Node{&node})
 	}
+
+	wg := sync.WaitGroup{}
+	cbs := c.agentCallbacks[id]
+	wg.Add(len(cbs))
+	for _, cb := range cbs {
+		cb := cb
+		go func() {
+			cb(id, &node)
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+
 	c.mutex.Unlock()
 	return &node, nil
 }

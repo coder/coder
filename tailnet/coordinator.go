@@ -44,6 +44,9 @@ type Coordinator interface {
 	ServeAgent(conn net.Conn, id uuid.UUID, name string) error
 	// Close closes the coordinator.
 	Close() error
+
+	SubscribeAgent(agentID uuid.UUID, cb func(agentID uuid.UUID, node *Node)) func()
+	BroadcastToAgents(agents []uuid.UUID, node *Node) error
 }
 
 // Node represents a node in the network.
@@ -54,10 +57,11 @@ type Node struct {
 	AsOf time.Time `json:"as_of"`
 	// Key is the Wireguard public key of the node.
 	Key key.NodePublic `json:"key"`
-	// DiscoKey is used for discovery messages over DERP to establish peer-to-peer connections.
+	// DiscoKey is used for discovery messages over DERP to establish
+	// peer-to-peer connections.
 	DiscoKey key.DiscoPublic `json:"disco"`
-	// PreferredDERP is the DERP server that peered connections
-	// should meet at to establish.
+	// PreferredDERP is the DERP server that peered connections should meet at
+	// to establish.
 	PreferredDERP int `json:"preferred_derp"`
 	// DERPLatency is the latency in seconds to each DERP server.
 	DERPLatency map[string]float64 `json:"derp_latency"`
@@ -68,8 +72,8 @@ type Node struct {
 	DERPForcedWebsocket map[int]string `json:"derp_forced_websockets"`
 	// Addresses are the IP address ranges this connection exposes.
 	Addresses []netip.Prefix `json:"addresses"`
-	// AllowedIPs specify what addresses can dial the connection.
-	// We allow all by default.
+	// AllowedIPs specify what addresses can dial the connection. We allow all
+	// by default.
 	AllowedIPs []netip.Prefix `json:"allowed_ips"`
 	// Endpoints are ip:port combinations that can be used to establish
 	// peer-to-peer connections.
@@ -130,8 +134,8 @@ func NewCoordinator(logger slog.Logger) Coordinator {
 // ┌──────────────────┐   ┌────────────────────┐   ┌───────────────────┐   ┌──────────────────┐
 // │tailnet.Coordinate├──►│tailnet.AcceptClient│◄─►│tailnet.AcceptAgent│◄──┤tailnet.Coordinate│
 // └──────────────────┘   └────────────────────┘   └───────────────────┘   └──────────────────┘
-// This coordinator is incompatible with multiple Coder
-// replicas as all node data is in-memory.
+// This coordinator is incompatible with multiple Coder replicas as all node
+// data is in-memory.
 type coordinator struct {
 	core *core
 }
@@ -154,6 +158,8 @@ type core struct {
 	// agentNameCache holds a cache of agent names. If one of them disappears,
 	// it's helpful to have a name cached for debugging.
 	agentNameCache *lru.Cache[uuid.UUID, string]
+
+	agentCallbacks map[uuid.UUID]map[uuid.UUID]func(uuid.UUID, *Node)
 }
 
 func newCore(logger slog.Logger) *core {
@@ -169,6 +175,7 @@ func newCore(logger slog.Logger) *core {
 		agentSockets:             map[uuid.UUID]*TrackedConn{},
 		agentToConnectionSockets: map[uuid.UUID]map[uuid.UUID]*TrackedConn{},
 		agentNameCache:           nameCache,
+		agentCallbacks:           map[uuid.UUID]map[uuid.UUID]func(uuid.UUID, *Node){},
 	}
 }
 
@@ -587,6 +594,19 @@ func (c *core) agentNodeUpdate(id uuid.UUID, node *Node) error {
 				slog.F("client_id", clientID), slog.Error(err))
 		}
 	}
+
+	wg := sync.WaitGroup{}
+	cbs := c.agentCallbacks[id]
+	wg.Add(len(cbs))
+	for _, cb := range cbs {
+		cb := cb
+		go func() {
+			cb(id, node)
+			wg.Done()
+		}()
+	}
+
+	wg.Wait()
 	return nil
 }
 
@@ -766,4 +786,45 @@ func CoordinatorHTTPDebug(
 			_, _ = fmt.Fprintln(w, "</ul>")
 		}
 	}
+}
+
+func (c *coordinator) SubscribeAgent(agentID uuid.UUID, cb func(agentID uuid.UUID, node *Node)) func() {
+	c.core.mutex.Lock()
+	defer c.core.mutex.Unlock()
+
+	id := uuid.New()
+	cbMap, ok := c.core.agentCallbacks[agentID]
+	if !ok {
+		cbMap = map[uuid.UUID]func(uuid.UUID, *Node){}
+		c.core.agentCallbacks[agentID] = cbMap
+	}
+
+	cbMap[id] = cb
+
+	return func() {
+		c.core.mutex.Lock()
+		defer c.core.mutex.Unlock()
+		delete(cbMap, id)
+	}
+}
+
+func (c *coordinator) BroadcastToAgents(agents []uuid.UUID, node *Node) error {
+	ctx := context.Background()
+
+	for _, id := range agents {
+		c.core.mutex.Lock()
+		agentSocket, ok := c.core.agentSockets[id]
+		c.core.mutex.Unlock()
+		if !ok {
+			continue
+		}
+
+		// Write the new node from this client to the actively connected agent.
+		err := agentSocket.Enqueue([]*Node{node})
+		if err != nil {
+			c.core.logger.Debug(ctx, "failed to write to agent", slog.Error(err))
+		}
+	}
+
+	return nil
 }

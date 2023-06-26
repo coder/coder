@@ -11,6 +11,7 @@ import (
 	"net/http/cookiejar"
 	"net/netip"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -262,6 +263,7 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 	}()
 	closed := make(chan struct{})
 	first := make(chan error)
+	var latestNode atomic.Pointer[tailnet.Node]
 	go func() {
 		defer close(closed)
 		isFirst := true
@@ -290,6 +292,11 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 				continue
 			}
 			sendNode, errChan := tailnet.ServeCoordinator(websocket.NetConn(ctx, ws, websocket.MessageBinary), func(node []*tailnet.Node) error {
+				if len(node) != 1 {
+					options.Logger.Warn(ctx, "no nodes returned from ServeCoordinator")
+					return nil
+				}
+				latestNode.Store(node[0])
 				return conn.UpdateNodes(node, false)
 			})
 			conn.SetNodeCallback(sendNode)
@@ -312,13 +319,22 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 		return nil, err
 	}
 
-	agentConn = &WorkspaceAgentConn{
-		Conn: conn,
-		CloseFunc: func() {
+	agentConn = NewWorkspaceAgentConn(conn, WorkspaceAgentConnOptions{
+		AgentID: agentID,
+		GetNode: func(agentID uuid.UUID) (*tailnet.Node, error) {
+			node := latestNode.Load()
+			if node == nil {
+				return nil, xerrors.New("node not found")
+			}
+			return node, nil
+		},
+		CloseFunc: func() error {
 			cancel()
 			<-closed
+			return conn.Close()
 		},
-	}
+	})
+
 	if !agentConn.AwaitReachable(ctx) {
 		_ = agentConn.Close()
 		return nil, xerrors.Errorf("timed out waiting for agent to become reachable: %w", ctx.Err())
