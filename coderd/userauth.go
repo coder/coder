@@ -1054,10 +1054,11 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		// If you do a convert to OIDC and your email does not match, we need to
 		// catch this and not make a new account.
 		if isMergeStateString(params.State.StateString) {
-			err := api.convertUserToOauth(ctx, r, tx, params)
+			user, err = api.convertUserToOauth(ctx, r, tx, params)
 			if err != nil {
 				return err
 			}
+			params.User = user
 		}
 
 		if user.ID == uuid.Nil && !params.AllowSignups {
@@ -1242,13 +1243,13 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 
 // convertUserToOauth will convert a user from password base loginType to
 // an oauth login type. If it fails, it will return a httpError
-func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db database.Store, params oauthLoginParams) error {
+func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db database.Store, params oauthLoginParams) (database.User, error) {
 	user := params.User
 
 	// Trying to convert to OIDC, but the email does not match.
 	// So do not make a new user, just block the request.
 	if user.ID == uuid.Nil {
-		return httpError{
+		return database.User{}, httpError{
 			code: http.StatusBadRequest,
 			msg:  fmt.Sprintf("The oidc account with the email %q does not match the email of the account you are trying to convert. Contact your administrator to resolve this issue.", params.Email),
 		}
@@ -1260,13 +1261,13 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 		StateString: params.State.StateString,
 	})
 	if xerrors.Is(err, sql.ErrNoRows) {
-		return httpError{
+		return database.User{}, httpError{
 			code: http.StatusBadRequest,
 			msg:  "No convert login request found with given state. Restart the convert process and try again.",
 		}
 	}
 	if err != nil {
-		return httpError{
+		return database.User{}, httpError{
 			code: http.StatusInternalServerError,
 			msg:  err.Error(),
 		}
@@ -1288,7 +1289,7 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 
 	// If we do not allow converting to oauth, return an error.
 	if !params.OauthConversionEnabled {
-		return httpError{
+		return database.User{}, httpError{
 			code: http.StatusForbidden,
 			msg: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q",
 				params.LoginType,
@@ -1301,7 +1302,7 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 	// It needs to have the correct login type information for this
 	// user.
 	if user.ID != mergeState.UserID || user.LoginType != mergeState.FromLoginType || params.LoginType != mergeState.ToLoginType {
-		return httpError{
+		return database.User{}, httpError{
 			code: http.StatusForbidden,
 			msg:  fmt.Sprintf("Request to convert login type from %s to %s failed", user.LoginType, params.LoginType),
 		}
@@ -1316,12 +1317,12 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 		UserID:    user.ID,
 	})
 	if err != nil {
-		return httpError{
+		return database.User{}, httpError{
 			code: http.StatusInternalServerError,
 			msg:  "Failed to convert user to new login type",
 		}
 	}
-	return nil
+	return user, nil
 }
 
 // githubLinkedID returns the unique ID for a GitHub user.
