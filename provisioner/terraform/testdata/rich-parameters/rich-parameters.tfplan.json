@@ -127,7 +127,7 @@
               "description": null,
               "display_name": null,
               "icon": null,
-              "id": "62a57280-032d-4528-9705-c663e6971d9d",
+              "id": "39ffc3cf-47a6-40f0-89ed-35b5000ccaa5",
               "legacy_variable": null,
               "legacy_variable_name": null,
               "mutable": false,
@@ -170,7 +170,7 @@
               "description": null,
               "display_name": null,
               "icon": null,
-              "id": "37b849a7-1830-4662-b804-e23a6fb0a0dd",
+              "id": "0813ad0d-5e92-4f8d-9cbc-e4d86b081fa2",
               "legacy_variable": null,
               "legacy_variable_name": null,
               "mutable": false,
@@ -195,7 +195,7 @@
               "description": null,
               "display_name": null,
               "icon": null,
-              "id": "21eddf29-7529-4ea4-9416-c0c6c156c3ad",
+              "id": "d1756aa8-9bdc-4cfd-97b2-3db501c346f7",
               "legacy_variable": null,
               "legacy_variable_name": null,
               "mutable": false,
@@ -232,7 +232,7 @@
               "description": null,
               "display_name": null,
               "icon": null,
-              "id": "826afb7f-80fe-4563-95d3-1f8da1f8c274",
+              "id": "e352b95e-c510-40b4-98b7-b69a46a539c7",
               "legacy_variable": null,
               "legacy_variable_name": null,
               "mutable": false,
@@ -269,7 +269,7 @@
               "description": null,
               "display_name": null,
               "icon": null,
-              "id": "9656b8ff-4e7b-4ba0-8377-569b358ff110",
+              "id": "a8b5cfc6-c428-4e2e-8920-f3c27961a980",
               "legacy_variable": null,
               "legacy_variable_name": null,
               "mutable": false,
@@ -306,7 +306,7 @@
               "description": "blah blah",
               "display_name": null,
               "icon": null,
-              "id": "07dd798d-22fe-437d-ae78-2092d01f4b0b",
+              "id": "cf4d916c-3b20-4427-9f7f-c4d01c62ac61",
               "legacy_variable": null,
               "legacy_variable_name": null,
               "mutable": false,
@@ -319,6 +319,63 @@
             },
             "sensitive_values": {}
           }
+        ],
+        "child_modules": [
+          {
+            "resources": [
+              {
+                "address": "module.this_is_external_module.data.coder_parameter.first_parameter_from_module",
+                "mode": "data",
+                "type": "coder_parameter",
+                "name": "first_parameter_from_module",
+                "provider_name": "registry.terraform.io/coder/coder",
+                "schema_version": 0,
+                "values": {
+                  "default": "abcdef",
+                  "description": "First parameter from module",
+                  "display_name": null,
+                  "icon": null,
+                  "id": "20767647-94e4-414b-a7cd-34eadd0c7b62",
+                  "legacy_variable": null,
+                  "legacy_variable_name": null,
+                  "mutable": true,
+                  "name": "First parameter from module",
+                  "option": null,
+                  "optional": true,
+                  "type": "string",
+                  "validation": null,
+                  "value": "abcdef"
+                },
+                "sensitive_values": {}
+              },
+              {
+                "address": "module.this_is_external_module.data.coder_parameter.second_parameter_from_module",
+                "mode": "data",
+                "type": "coder_parameter",
+                "name": "second_parameter_from_module",
+                "provider_name": "registry.terraform.io/coder/coder",
+                "schema_version": 0,
+                "values": {
+                  "default": "ghijkl",
+                  "description": "Second parameter from module",
+                  "display_name": null,
+                  "icon": null,
+                  "id": "e0d6df8e-8feb-42c8-94e1-1f8f4c3a87c4",
+                  "legacy_variable": null,
+                  "legacy_variable_name": null,
+                  "mutable": true,
+                  "name": "Second parameter from module",
+                  "option": null,
+                  "optional": true,
+                  "type": "string",
+                  "validation": null,
+                  "value": "ghijkl"
+                },
+                "sensitive_values": {}
+              }
+            ],
+            "address": "module.this_is_external_module"
+          }
         ]
       }
     }
@@ -329,6 +386,12 @@
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
         "version_constraint": "0.7.0"
+      },
+      "module.this_is_external_module:docker": {
+        "name": "docker",
+        "full_name": "registry.terraform.io/kreuzwerker/docker",
+        "version_constraint": "~> 2.22",
+        "module_address": "module.this_is_external_module"
       },
       "null": {
         "name": "null",
@@ -526,7 +589,66 @@
           },
           "schema_version": 0
         }
-      ]
+      ],
+      "module_calls": {
+        "this_is_external_module": {
+          "source": "./external-module",
+          "module": {
+            "resources": [
+              {
+                "address": "data.coder_parameter.first_parameter_from_module",
+                "mode": "data",
+                "type": "coder_parameter",
+                "name": "first_parameter_from_module",
+                "provider_config_key": "coder",
+                "expressions": {
+                  "default": {
+                    "constant_value": "abcdef"
+                  },
+                  "description": {
+                    "constant_value": "First parameter from module"
+                  },
+                  "mutable": {
+                    "constant_value": true
+                  },
+                  "name": {
+                    "constant_value": "First parameter from module"
+                  },
+                  "type": {
+                    "constant_value": "string"
+                  }
+                },
+                "schema_version": 0
+              },
+              {
+                "address": "data.coder_parameter.second_parameter_from_module",
+                "mode": "data",
+                "type": "coder_parameter",
+                "name": "second_parameter_from_module",
+                "provider_config_key": "coder",
+                "expressions": {
+                  "default": {
+                    "constant_value": "ghijkl"
+                  },
+                  "description": {
+                    "constant_value": "Second parameter from module"
+                  },
+                  "mutable": {
+                    "constant_value": true
+                  },
+                  "name": {
+                    "constant_value": "Second parameter from module"
+                  },
+                  "type": {
+                    "constant_value": "string"
+                  }
+                },
+                "schema_version": 0
+              }
+            ]
+          }
+        }
+      }
     }
   }
 }

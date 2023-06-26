@@ -16,7 +16,7 @@
             "description": null,
             "display_name": null,
             "icon": null,
-            "id": "5860f577-b0e7-4bb6-a4de-9de71a801ba0",
+            "id": "211d3d9a-b131-42d7-b0e7-30b194bbfb35",
             "legacy_variable": null,
             "legacy_variable_name": null,
             "mutable": false,
@@ -59,7 +59,7 @@
             "description": null,
             "display_name": null,
             "icon": null,
-            "id": "ecac8658-4def-424a-a24e-0a8c906cf8e8",
+            "id": "229a50ba-e1df-4fa7-8790-86f04b8caa43",
             "legacy_variable": null,
             "legacy_variable_name": null,
             "mutable": false,
@@ -84,7 +84,7 @@
             "description": null,
             "display_name": null,
             "icon": null,
-            "id": "6996b908-2bd9-4043-8821-59aada8fa202",
+            "id": "a2ef64c1-3f91-402c-a1b7-10e0056fd9e7",
             "legacy_variable": null,
             "legacy_variable_name": null,
             "mutable": false,
@@ -121,7 +121,7 @@
             "description": null,
             "display_name": null,
             "icon": null,
-            "id": "a368fde8-b9ab-479f-92fb-776f4d5d3e53",
+            "id": "5f23857a-62f7-4a4e-82cb-18873a73b85e",
             "legacy_variable": null,
             "legacy_variable_name": null,
             "mutable": false,
@@ -158,7 +158,7 @@
             "description": null,
             "display_name": null,
             "icon": null,
-            "id": "55ff394f-995a-43d8-b05f-9fbf72f62d18",
+            "id": "5aedf1af-ce43-4eac-af9e-4c50c680bd8e",
             "legacy_variable": null,
             "legacy_variable_name": null,
             "mutable": false,
@@ -195,7 +195,7 @@
             "description": "blah blah",
             "display_name": null,
             "icon": null,
-            "id": "6a1fb6c7-eb4d-443b-9968-1813668794d0",
+            "id": "011b009e-9d6e-4be4-b209-0f318c7a1201",
             "legacy_variable": null,
             "legacy_variable_name": null,
             "mutable": false,
@@ -221,7 +221,7 @@
             "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "id": "9e190fb1-8087-4c64-b99d-1e0bd1067ed8",
+            "id": "b91a350f-5f8a-4e3d-b203-637983b915e2",
             "init_script": "",
             "login_before_ready": true,
             "metadata": [],
@@ -231,7 +231,7 @@
             "shutdown_script_timeout": 300,
             "startup_script": null,
             "startup_script_timeout": 300,
-            "token": "1e09aaa2-0700-4968-abbd-0b8ab8f9fefc",
+            "token": "cb825ffb-869b-4c3e-b0db-152c257ec798",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -246,13 +246,70 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "7817924891856217249",
+            "id": "7399774983467665930",
             "triggers": null
           },
           "sensitive_values": {},
           "depends_on": [
             "coder_agent.dev"
           ]
+        }
+      ],
+      "child_modules": [
+        {
+          "resources": [
+            {
+              "address": "module.this_is_external_module.data.coder_parameter.first_parameter_from_module",
+              "mode": "data",
+              "type": "coder_parameter",
+              "name": "first_parameter_from_module",
+              "provider_name": "registry.terraform.io/coder/coder",
+              "schema_version": 0,
+              "values": {
+                "default": "abcdef",
+                "description": "First parameter from module",
+                "display_name": null,
+                "icon": null,
+                "id": "ee0fbe84-0497-4bd3-b4d3-97610cbad6b9",
+                "legacy_variable": null,
+                "legacy_variable_name": null,
+                "mutable": true,
+                "name": "First parameter from module",
+                "option": null,
+                "optional": true,
+                "type": "string",
+                "validation": null,
+                "value": "abcdef"
+              },
+              "sensitive_values": {}
+            },
+            {
+              "address": "module.this_is_external_module.data.coder_parameter.second_parameter_from_module",
+              "mode": "data",
+              "type": "coder_parameter",
+              "name": "second_parameter_from_module",
+              "provider_name": "registry.terraform.io/coder/coder",
+              "schema_version": 0,
+              "values": {
+                "default": "ghijkl",
+                "description": "Second parameter from module",
+                "display_name": null,
+                "icon": null,
+                "id": "dc8a50d1-1b52-4bb4-bfbd-e2718b0dccb0",
+                "legacy_variable": null,
+                "legacy_variable_name": null,
+                "mutable": true,
+                "name": "Second parameter from module",
+                "option": null,
+                "optional": true,
+                "type": "string",
+                "validation": null,
+                "value": "ghijkl"
+              },
+              "sensitive_values": {}
+            }
+          ],
+          "address": "module.this_is_external_module"
         }
       ]
     }
