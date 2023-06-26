@@ -1015,8 +1015,11 @@ type oauthLoginParams struct {
 	AvatarURL    string
 	// Is UsingGroups is true, then the user will be assigned
 	// to the Groups provided.
-	UsingGroups bool
-	Groups      []string
+	UsingGroups            bool
+	Groups                 []string
+	OauthConversionEnabled bool
+
+	InitAuditRequest func(params *audit.RequestParams) (*audit.Request[database.OauthMergeState], func())
 }
 
 type httpError struct {
@@ -1047,6 +1050,15 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 
 		user = params.User
 		link = params.Link
+
+		// If you do a convert to OIDC and your email does not match, we need to
+		// catch this and not make a new account.
+		if isMergeStateString(params.State.StateString) {
+			err := api.convertUserToOauth(ctx, r, tx, params)
+			if err != nil {
+				return err
+			}
+		}
 
 		if user.ID == uuid.Nil && !params.AllowSignups {
 			return httpError{
@@ -1228,6 +1240,91 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 	return cookie, *key, nil
 }
 
+// convertUserToOauth will convert a user from password base loginType to
+// an oauth login type. If it fails, it will return a httpError
+func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db database.Store, params oauthLoginParams) error {
+	user := params.User
+
+	// Trying to convert to OIDC, but the email does not match.
+	// So do not make a new user, just block the request.
+	if user.ID == uuid.Nil {
+		return httpError{
+			code: http.StatusBadRequest,
+			msg:  fmt.Sprintf("The oidc account with the email %q does not match the email of the account you are trying to convert. Contact your administrator to resolve this issue.", params.Email),
+		}
+	}
+
+	// nolint:gocritic // Required to auth the oidc convert
+	mergeState, err := db.GetUserOauthMergeState(dbauthz.AsSystemRestricted(ctx), database.GetUserOauthMergeStateParams{
+		UserID:      user.ID,
+		StateString: params.State.StateString,
+	})
+	if xerrors.Is(err, sql.ErrNoRows) {
+		return httpError{
+			code: http.StatusBadRequest,
+			msg:  "No convert login request found with given state. Restart the convert process and try again.",
+		}
+	}
+	if err != nil {
+		return httpError{
+			code: http.StatusInternalServerError,
+			msg:  err.Error(),
+		}
+	}
+
+	// At this point, this request could be an attempt to convert from
+	// password auth to oauth auth. Always log these attempts.
+	var (
+		auditor                                    = *api.Auditor.Load()
+		oauthConvertAudit, commitOauthConvertAudit = params.InitAuditRequest(&audit.RequestParams{
+			Audit:   auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionLogin,
+		})
+	)
+	oauthConvertAudit.Old = mergeState
+	defer commitOauthConvertAudit()
+
+	// If we do not allow converting to oauth, return an error.
+	if !params.OauthConversionEnabled {
+		return httpError{
+			code: http.StatusForbidden,
+			msg: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q",
+				params.LoginType,
+				user.LoginType,
+			),
+		}
+	}
+
+	// Make sure the merge state generated matches this OIDC login request.
+	// It needs to have the correct login type information for this
+	// user.
+	if user.ID != mergeState.UserID || user.LoginType != mergeState.FromLoginType || params.LoginType != mergeState.ToLoginType {
+		return httpError{
+			code: http.StatusForbidden,
+			msg:  fmt.Sprintf("Request to convert login type from %s to %s failed", user.LoginType, params.LoginType),
+		}
+	}
+
+	// Convert the user and default to the normal login flow.
+	// If the login succeeds, this transaction will commit and the user
+	// will be converted.
+	// nolint:gocritic // system query to update user login type
+	user, err = db.UpdateUserLoginType(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLoginTypeParams{
+		LoginType: params.LoginType,
+		UserID:    user.ID,
+	})
+	if err != nil {
+		return httpError{
+			code: http.StatusInternalServerError,
+			msg:  "Failed to convert user to new login type",
+		}
+	}
+	return nil
+
+}
+
 // githubLinkedID returns the unique ID for a GitHub user.
 func githubLinkedID(u *github.User) string {
 	return strconv.FormatInt(u.GetID(), 10)
@@ -1293,4 +1390,11 @@ func findLinkedUser(ctx context.Context, db database.Store, linkedID string, ema
 	}
 
 	return user, link, nil
+}
+
+func isMergeStateString(state string) bool {
+	if strings.HasPrefix(state, mergeStateStringPrefix) {
+		return true
+	}
+	return false
 }
