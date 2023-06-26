@@ -50,6 +50,13 @@ const mergeStateStringPrefix = "convert-"
 // @Success 201 {object} codersdk.OauthConversionResponse
 // @Router /users/convert-login [post]
 func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
+	if !api.Options.DeploymentValues.EnableOauthAccountConversion.Value() {
+		httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
+			Message: "Oauth conversion is not allowed, contact an administrator to turn on this feature.",
+		})
+		return
+	}
+
 	var (
 		ctx               = r.Context()
 		auditor           = api.Auditor.Load()

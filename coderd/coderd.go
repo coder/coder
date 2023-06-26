@@ -626,13 +626,7 @@ func New(options *Options) *API {
 					r.Use(
 						apiKeyMiddleware,
 					)
-					if allowOauthConversion {
-						r.Post("/", api.postConvertLoginType)
-					} else {
-						r.Post("/", func(rw http.ResponseWriter, r *http.Request) {
-							http.Error(rw, "Oauth conversion is not allowed, contact an administrator to turn on this feature.", http.StatusForbidden)
-						})
-					}
+					r.Post("/", api.postConvertLoginType)
 				})
 			})
 			r.Group(func(r chi.Router) {
