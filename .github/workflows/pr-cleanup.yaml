@@ -34,7 +34,6 @@ jobs:
           tag: pr${{ steps.pr_number.outputs.PR_NUMBER }}
 
       - name: Set up kubeconfig
-        if: always()
         run: |
           set -euxo pipefail
           mkdir -p ~/.kube
@@ -42,12 +41,10 @@ jobs:
           export KUBECONFIG=~/.kube/config
 
       - name: Delete helm release
-        if: always()
         run: |
           set -euxo pipefail
           helm delete --namespace "pr${{ steps.pr_number.outputs.PR_NUMBER }}" "pr${{ steps.pr_number.outputs.PR_NUMBER }}" || echo "helm release not found"
 
       - name: "Remove PR namespace"
-        if: always()
         run: |
           kubectl delete namespace "pr${{ steps.pr_number.outputs.PR_NUMBER }}" || echo "namespace not found"
