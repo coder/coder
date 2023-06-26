@@ -25,11 +25,11 @@ import (
 	"github.com/coder/coder/tailnet"
 )
 
-var defaultTransport *http.Transport
+var tailnetTransport *http.Transport
 
 func init() {
 	var valid bool
-	defaultTransport, valid = http.DefaultTransport.(*http.Transport)
+	tailnetTransport, valid = http.DefaultTransport.(*http.Transport)
 	if !valid {
 		panic("dev error: default transport is the wrong type")
 	}
@@ -62,7 +62,7 @@ func NewServerTailnet(
 		coordinator: coord,
 		cache:       cache,
 		agentNodes:  map[uuid.UUID]*tailnetNode{},
-		transport:   defaultTransport.Clone(),
+		transport:   tailnetTransport.Clone(),
 	}
 	tn.transport.DialContext = tn.dialContext
 	tn.transport.MaxIdleConnsPerHost = 10
