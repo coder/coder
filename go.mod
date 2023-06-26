@@ -146,7 +146,7 @@ require (
 	github.com/tabbed/pqtype v0.1.1
 	github.com/u-root/u-root v0.11.0
 	github.com/unrolled/secure v1.13.0
-	github.com/valyala/fasthttp v1.47.0
+	github.com/valyala/fasthttp v1.48.0
 	github.com/wagslane/go-password-validator v0.3.0
 	go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1
 	go.nhat.io/otelsql v0.9.0
