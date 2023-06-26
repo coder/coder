@@ -44,13 +44,13 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 				return
 			case <-t.C:
 				agent, err := opts.Fetch(ctx)
-				if err != nil {
-					fetchedAgent <- fetchAgent{err: xerrors.Errorf("fetch workspace agent: %w", err)}
-					return
-				}
 				select {
 				case <-fetchedAgent:
 				default:
+				}
+				if err != nil {
+					fetchedAgent <- fetchAgent{err: xerrors.Errorf("fetch workspace agent: %w", err)}
+					return
 				}
 				fetchedAgent <- fetchAgent{agent: agent}
 				t.Reset(opts.FetchInterval)
