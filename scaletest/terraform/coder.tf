@@ -121,6 +121,7 @@ coder:
     readOnlyRootFilesystem: true
   service:
     enable: true
+    sessionAffinity: None
     loadBalancerIP: "${local.coder_address}"
   volumeMounts:
   - mountPath: "/tmp"
