@@ -724,11 +724,11 @@ func orderedRichParametersResources(tfResourcesRichParameters []*tfjson.StateRes
 		return tfResourcesRichParameters
 	}
 
-	ordered := make([]*tfjson.StateResource, len(orderedNames))
-	for i, name := range orderedNames {
+	var ordered []*tfjson.StateResource
+	for _, name := range orderedNames {
 		for _, resource := range tfResourcesRichParameters {
 			if resource.Name == name {
-				ordered[i] = resource
+				ordered = append(ordered, resource)
 			}
 		}
 	}
@@ -758,21 +758,6 @@ func orderedRichParametersResources(tfResourcesRichParameters []*tfjson.StateRes
 		withExternal = append(withExternal, external...)
 		withExternal = append(withExternal, ordered...)
 		ordered = withExternal
-	}
-
-	// There's an edge case possible for us to have a parameter name that isn't
-	// present in the state, since the ordered names come statically from
-	// parsing the Terraform file. We need to filter out the nil values if there
-	// are any present.
-	if len(tfResourcesRichParameters) != len(orderedNames) {
-		nonNil := make([]*tfjson.StateResource, 0, len(ordered))
-		for _, resource := range ordered {
-			if resource != nil {
-				nonNil = append(nonNil, resource)
-			}
-		}
-
-		ordered = nonNil
 	}
 	return ordered
 }
