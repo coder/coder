@@ -294,11 +294,13 @@ If you see an error like the following, you may have an invalid scope.
 The application '<oidc_application>' asked for scope 'groups' that doesn't exist on the resource...
 ```
 
-A solution is typically because the identity provider has a different name for the scope. For example, Azure AD uses `GroupMember.Read.All` instead of `groups`. You can find the correct scope name in the IDP's documentation. Some IDP's allow configuring the name of this scope.
+This can happen because the identity provider has a different name for the scope. For example, Azure AD uses `GroupMember.Read.All` instead of `groups`. You can find the correct scope name in the IDP's documentation. Some IDP's allow configuring the name of this scope.
+
+The solution is to update the value of `CODER_OIDC_SCOPES` to the correct value for the identity provider.
 
 #### No `group` claim in the `got oidc claims` log
 
-Steps to take
+Steps to troubleshoot.
 
 1. Ensure the user is a part of a group in the IDP. If the user has 0 groups, no `groups` claim will be sent.
 2. Check if another claim appears to be the correct claim with a different name. A common name is `memberOf` instead of `groups`. If this is present, update `CODER_OIDC_GROUP_FIELD=memberOf`.
