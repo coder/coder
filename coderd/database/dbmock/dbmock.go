@@ -68,6 +68,20 @@ func (mr *MockStoreMockRecorder) AcquireProvisionerJob(arg0, arg1 interface{}) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireProvisionerJob", reflect.TypeOf((*MockStore)(nil).AcquireProvisionerJob), arg0, arg1)
 }
 
+// CleanTailnetCoordinators mocks base method.
+func (m *MockStore) CleanTailnetCoordinators(arg0 context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CleanTailnetCoordinators", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CleanTailnetCoordinators indicates an expected call of CleanTailnetCoordinators.
+func (mr *MockStoreMockRecorder) CleanTailnetCoordinators(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanTailnetCoordinators", reflect.TypeOf((*MockStore)(nil).CleanTailnetCoordinators), arg0)
+}
+
 // DeleteAPIKeyByID mocks base method.
 func (m *MockStore) DeleteAPIKeyByID(arg0 context.Context, arg1 string) error {
 	m.ctrl.T.Helper()
@@ -699,6 +713,21 @@ func (m *MockStore) GetGroupsByOrganizationID(arg0 context.Context, arg1 uuid.UU
 func (mr *MockStoreMockRecorder) GetGroupsByOrganizationID(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGroupsByOrganizationID", reflect.TypeOf((*MockStore)(nil).GetGroupsByOrganizationID), arg0, arg1)
+}
+
+// GetHungProvisionerJobs mocks base method.
+func (m *MockStore) GetHungProvisionerJobs(arg0 context.Context, arg1 time.Time) ([]database.ProvisionerJob, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetHungProvisionerJobs", arg0, arg1)
+	ret0, _ := ret[0].([]database.ProvisionerJob)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetHungProvisionerJobs indicates an expected call of GetHungProvisionerJobs.
+func (mr *MockStoreMockRecorder) GetHungProvisionerJobs(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHungProvisionerJobs", reflect.TypeOf((*MockStore)(nil).GetHungProvisionerJobs), arg0, arg1)
 }
 
 // GetLastUpdateCheck mocks base method.
@@ -2036,19 +2065,19 @@ func (mr *MockStoreMockRecorder) GetWorkspaces(arg0, arg1 interface{}) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaces", reflect.TypeOf((*MockStore)(nil).GetWorkspaces), arg0, arg1)
 }
 
-// GetWorkspacesEligibleForAutoStartStop mocks base method.
-func (m *MockStore) GetWorkspacesEligibleForAutoStartStop(arg0 context.Context, arg1 time.Time) ([]database.Workspace, error) {
+// GetWorkspacesEligibleForTransition mocks base method.
+func (m *MockStore) GetWorkspacesEligibleForTransition(arg0 context.Context, arg1 time.Time) ([]database.Workspace, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWorkspacesEligibleForAutoStartStop", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetWorkspacesEligibleForTransition", arg0, arg1)
 	ret0, _ := ret[0].([]database.Workspace)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetWorkspacesEligibleForAutoStartStop indicates an expected call of GetWorkspacesEligibleForAutoStartStop.
-func (mr *MockStoreMockRecorder) GetWorkspacesEligibleForAutoStartStop(arg0, arg1 interface{}) *gomock.Call {
+// GetWorkspacesEligibleForTransition indicates an expected call of GetWorkspacesEligibleForTransition.
+func (mr *MockStoreMockRecorder) GetWorkspacesEligibleForTransition(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspacesEligibleForAutoStartStop", reflect.TypeOf((*MockStore)(nil).GetWorkspacesEligibleForAutoStartStop), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspacesEligibleForTransition", reflect.TypeOf((*MockStore)(nil).GetWorkspacesEligibleForTransition), arg0, arg1)
 }
 
 // InTx mocks base method.

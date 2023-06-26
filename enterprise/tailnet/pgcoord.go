@@ -31,6 +31,7 @@ const (
 	numQuerierWorkers = 10
 	numBinderWorkers  = 10
 	dbMaxBackoff      = 10 * time.Second
+	cleanupPeriod     = time.Hour
 )
 
 // pgCoord is a postgres-backed coordinator
@@ -1041,6 +1042,9 @@ type heartbeats struct {
 	lock         sync.RWMutex
 	coordinators map[uuid.UUID]time.Time
 	timer        *time.Timer
+
+	// overwritten in tests, but otherwise constant
+	cleanupPeriod time.Duration
 }
 
 func newHeartbeats(
@@ -1058,9 +1062,11 @@ func newHeartbeats(
 		update:         update,
 		firstHeartbeat: firstHeartbeat,
 		coordinators:   make(map[uuid.UUID]time.Time),
+		cleanupPeriod:  cleanupPeriod,
 	}
 	go h.subscribe()
 	go h.sendBeats()
+	go h.cleanupLoop()
 	return h
 }
 
@@ -1131,7 +1137,13 @@ func (h *heartbeats) recvBeat(id uuid.UUID) {
 	h.logger.Debug(h.ctx, "got heartbeat", slog.F("other_coordinator_id", id))
 	h.lock.Lock()
 	defer h.lock.Unlock()
-	var oldestTime time.Time
+	if _, ok := h.coordinators[id]; !ok {
+		h.logger.Info(h.ctx, "heartbeats (re)started", slog.F("other_coordinator_id", id))
+		// send on a separate goroutine to avoid holding lock.  Triggering update can be async
+		go func() {
+			_ = sendCtx(h.ctx, h.update, struct{}{})
+		}()
+	}
 	h.coordinators[id] = time.Now()
 
 	if h.timer == nil {
@@ -1140,7 +1152,11 @@ func (h *heartbeats) recvBeat(id uuid.UUID) {
 		h.logger.Debug(h.ctx, "set initial heartbeat timeout")
 		return
 	}
+	h.resetExpiryTimerWithLock()
+}
 
+func (h *heartbeats) resetExpiryTimerWithLock() {
+	var oldestTime time.Time
 	for _, t := range h.coordinators {
 		if oldestTime.IsZero() || t.Before(oldestTime) {
 			oldestTime = t
@@ -1157,6 +1173,7 @@ func (h *heartbeats) recvBeat(id uuid.UUID) {
 func (h *heartbeats) checkExpiry() {
 	h.logger.Debug(h.ctx, "checking heartbeat expiry")
 	h.lock.Lock()
+	defer h.lock.Unlock()
 	now := time.Now()
 	expired := false
 	for id, t := range h.coordinators {
@@ -1168,10 +1185,14 @@ func (h *heartbeats) checkExpiry() {
 			h.logger.Info(h.ctx, "coordinator failed heartbeat check", slog.F("other_coordinator_id", id), slog.F("last_heartbeat", lastHB))
 		}
 	}
-	h.lock.Unlock()
 	if expired {
-		_ = sendCtx(h.ctx, h.update, struct{}{})
+		// send on a separate goroutine to avoid holding lock.  Triggering update can be async
+		go func() {
+			_ = sendCtx(h.ctx, h.update, struct{}{})
+		}()
 	}
+	// we need to reset the timer for when the next oldest coordinator will expire, if any.
+	h.resetExpiryTimerWithLock()
 }
 
 func (h *heartbeats) sendBeats() {
@@ -1210,4 +1231,32 @@ func (h *heartbeats) sendDelete() {
 		return
 	}
 	h.logger.Debug(h.ctx, "deleted coordinator")
+}
+
+func (h *heartbeats) cleanupLoop() {
+	h.cleanup()
+	tkr := time.NewTicker(h.cleanupPeriod)
+	defer tkr.Stop()
+	for {
+		select {
+		case <-h.ctx.Done():
+			h.logger.Debug(h.ctx, "ending cleanupLoop", slog.Error(h.ctx.Err()))
+			return
+		case <-tkr.C:
+			h.cleanup()
+		}
+	}
+}
+
+// cleanup issues a DB command to clean out any old expired coordinators state.  The cleanup is idempotent, so no need
+// to synchronize with other coordinators.
+func (h *heartbeats) cleanup() {
+	err := h.store.CleanTailnetCoordinators(h.ctx)
+	if err != nil {
+		// the records we are attempting to clean up do no serious harm other than
+		// accumulating in the tables, so we don't bother retrying if it fails.
+		h.logger.Error(h.ctx, "failed to cleanup old coordinators", slog.Error(err))
+		return
+	}
+	h.logger.Debug(h.ctx, "cleaned up old coordinators")
 }

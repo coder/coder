@@ -506,7 +506,7 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 		err = server.Pubsub.Publish(provisionersdk.ProvisionerJobLogsNotifyChannel(parsedID), data)
 		if err != nil {
 			server.Logger.Error(ctx, "failed to publish job logs", slog.F("job_id", parsedID), slog.Error(err))
-			return nil, xerrors.Errorf("publish job log: %w", err)
+			return nil, xerrors.Errorf("publish job logs: %w", err)
 		}
 		server.Logger.Debug(ctx, "published job logs", slog.F("job_id", parsedID))
 	}

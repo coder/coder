@@ -387,3 +387,61 @@ func TestQueuePosition(t *testing.T) {
 		require.Equal(t, job.ProvisionerJob.ID, jobs[index].ID)
 	}
 }
+
+func TestUserLastSeenFilter(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+	t.Run("Before", func(t *testing.T) {
+		t.Parallel()
+		sqlDB := testSQLDB(t)
+		err := migrations.Up(sqlDB)
+		require.NoError(t, err)
+		db := database.New(sqlDB)
+		ctx := context.Background()
+		now := time.Now()
+
+		yesterday := dbgen.User(t, db, database.User{
+			LastSeenAt: now.Add(time.Hour * -25),
+		})
+		today := dbgen.User(t, db, database.User{
+			LastSeenAt: now,
+		})
+		lastWeek := dbgen.User(t, db, database.User{
+			LastSeenAt: now.Add((time.Hour * -24 * 7) + (-1 * time.Hour)),
+		})
+
+		beforeToday, err := db.GetUsers(ctx, database.GetUsersParams{
+			LastSeenBefore: now.Add(time.Hour * -24),
+		})
+		require.NoError(t, err)
+		database.ConvertUserRows(beforeToday)
+
+		requireUsersMatch(t, []database.User{yesterday, lastWeek}, beforeToday, "before today")
+
+		justYesterday, err := db.GetUsers(ctx, database.GetUsersParams{
+			LastSeenBefore: now.Add(time.Hour * -24),
+			LastSeenAfter:  now.Add(time.Hour * -24 * 2),
+		})
+		require.NoError(t, err)
+		requireUsersMatch(t, []database.User{yesterday}, justYesterday, "just yesterday")
+
+		all, err := db.GetUsers(ctx, database.GetUsersParams{
+			LastSeenBefore: now.Add(time.Hour),
+		})
+		require.NoError(t, err)
+		requireUsersMatch(t, []database.User{today, yesterday, lastWeek}, all, "all")
+
+		allAfterLastWeek, err := db.GetUsers(ctx, database.GetUsersParams{
+			LastSeenAfter: now.Add(time.Hour * -24 * 7),
+		})
+		require.NoError(t, err)
+		requireUsersMatch(t, []database.User{today, yesterday}, allAfterLastWeek, "after last week")
+	})
+}
+
+func requireUsersMatch(t testing.TB, expected []database.User, found []database.GetUsersRow, msg string) {
+	t.Helper()
+	require.ElementsMatch(t, expected, database.ConvertUserRows(found), msg)
+}

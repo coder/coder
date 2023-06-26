@@ -176,6 +176,25 @@ var (
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
 
+	// See unhanger package.
+	subjectHangDetector = rbac.Subject{
+		ID: uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Name:        "hangdetector",
+				DisplayName: "Hang Detector Daemon",
+				Site: rbac.Permissions(map[string][]rbac.Action{
+					rbac.ResourceSystem.Type:    {rbac.WildcardSymbol},
+					rbac.ResourceTemplate.Type:  {rbac.ActionRead},
+					rbac.ResourceWorkspace.Type: {rbac.ActionRead, rbac.ActionUpdate},
+				}),
+				Org:  map[string][]rbac.Permission{},
+				User: []rbac.Permission{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
+
 	subjectSystemRestricted = rbac.Subject{
 		ID: uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
@@ -215,6 +234,12 @@ func AsProvisionerd(ctx context.Context) context.Context {
 // for autostart to function.
 func AsAutostart(ctx context.Context) context.Context {
 	return context.WithValue(ctx, authContextKey{}, subjectAutostart)
+}
+
+// AsHangDetector returns a context with an actor that has permissions required
+// for unhanger.Detector to function.
+func AsHangDetector(ctx context.Context) context.Context {
+	return context.WithValue(ctx, authContextKey{}, subjectHangDetector)
 }
 
 // AsSystemRestricted returns a context with an actor that has permissions
@@ -683,6 +708,13 @@ func (q *querier) AcquireProvisionerJob(ctx context.Context, arg database.Acquir
 	return q.db.AcquireProvisionerJob(ctx, arg)
 }
 
+func (q *querier) CleanTailnetCoordinators(ctx context.Context) error {
+	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
+		return err
+	}
+	return q.db.CleanTailnetCoordinators(ctx)
+}
+
 func (q *querier) DeleteAPIKeyByID(ctx context.Context, id string) error {
 	return deleteQ(q.log, q.auth, q.db.GetAPIKeyByID, q.db.DeleteAPIKeyByID)(ctx, id)
 }
@@ -948,6 +980,14 @@ func (q *querier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]dat
 
 func (q *querier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.Group, error) {
 	return fetchWithPostFilter(q.auth, q.db.GetGroupsByOrganizationID)(ctx, organizationID)
+}
+
+// TODO: We need to create a ProvisionerJob resource type
+func (q *querier) GetHungProvisionerJobs(ctx context.Context, hungSince time.Time) ([]database.ProvisionerJob, error) {
+	// if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+	// return nil, err
+	// }
+	return q.db.GetHungProvisionerJobs(ctx, hungSince)
 }
 
 func (q *querier) GetLastUpdateCheck(ctx context.Context) (string, error) {
@@ -1731,8 +1771,8 @@ func (q *querier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesP
 	return q.db.GetAuthorizedWorkspaces(ctx, arg, prep)
 }
 
-func (q *querier) GetWorkspacesEligibleForAutoStartStop(ctx context.Context, now time.Time) ([]database.Workspace, error) {
-	return q.db.GetWorkspacesEligibleForAutoStartStop(ctx, now)
+func (q *querier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.Workspace, error) {
+	return q.db.GetWorkspacesEligibleForTransition(ctx, now)
 }
 
 func (q *querier) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {

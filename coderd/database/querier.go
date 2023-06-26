@@ -16,8 +16,6 @@ type sqlcQuerier interface {
 	//
 	// This must be called from within a transaction. The lock will be automatically
 	// released when the transaction ends.
-	//
-	// Use database.LockID() to generate a unique lock ID from a string.
 	AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error
 	// Acquires the lock for a single job that isn't started, completed,
 	// canceled, and that matches an array of provisioner types.
@@ -26,6 +24,7 @@ type sqlcQuerier interface {
 	// multiple provisioners from acquiring the same jobs. See:
 	// https://www.postgresql.org/docs/9.5/sql-select.html#SQL-FOR-UPDATE-SHARE
 	AcquireProvisionerJob(ctx context.Context, arg AcquireProvisionerJobParams) (ProvisionerJob, error)
+	CleanTailnetCoordinators(ctx context.Context) error
 	DeleteAPIKeyByID(ctx context.Context, id string) error
 	DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
 	DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
@@ -75,6 +74,7 @@ type sqlcQuerier interface {
 	GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrgAndNameParams) (Group, error)
 	GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]User, error)
 	GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]Group, error)
+	GetHungProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]ProvisionerJob, error)
 	GetLastUpdateCheck(ctx context.Context) (string, error)
 	GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (WorkspaceBuild, error)
 	GetLatestWorkspaceBuilds(ctx context.Context) ([]WorkspaceBuild, error)
@@ -173,7 +173,7 @@ type sqlcQuerier interface {
 	GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceResource, error)
 	GetWorkspaceResourcesCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceResource, error)
 	GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]GetWorkspacesRow, error)
-	GetWorkspacesEligibleForAutoStartStop(ctx context.Context, now time.Time) ([]Workspace, error)
+	GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]Workspace, error)
 	InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error)
 	// We use the organization_id as the id
 	// for simplicity since all users is
@@ -219,8 +219,6 @@ type sqlcQuerier interface {
 	//
 	// This must be called from within a transaction. The lock will be automatically
 	// released when the transaction ends.
-	//
-	// Use database.LockID() to generate a unique lock ID from a string.
 	TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock int64) (bool, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
 	UpdateGitAuthLink(ctx context.Context, arg UpdateGitAuthLinkParams) (GitAuthLink, error)

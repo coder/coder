@@ -141,7 +141,7 @@ describe("CreateWorkspacePage", () => {
     renderCreateWorkspacePage()
     await waitForLoaderToBeRemoved()
 
-    const element = await screen.findByText("Create workspace")
+    const element = await screen.findByText("Create Workspace")
     expect(element).toBeDefined()
     const secondParameter = await screen.findByText(
       MockTemplateVersionParameter2.description,

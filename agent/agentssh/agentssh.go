@@ -111,9 +111,18 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 			"direct-streamlocal@openssh.com": directStreamLocalHandler,
 			"session":                        ssh.DefaultSessionHandler,
 		},
-		ConnectionFailedCallback: func(_ net.Conn, err error) {
-			s.logger.Warn(ctx, "ssh connection failed", slog.Error(err))
+		ConnectionFailedCallback: func(conn net.Conn, err error) {
+			s.logger.Warn(ctx, "ssh connection failed",
+				slog.F("remote_addr", conn.RemoteAddr()),
+				slog.F("local_addr", conn.LocalAddr()),
+				slog.Error(err))
 			metrics.failedConnectionsTotal.Add(1)
+		},
+		ConnectionCompleteCallback: func(conn *gossh.ServerConn, err error) {
+			s.logger.Info(ctx, "ssh connection complete",
+				slog.F("remote_addr", conn.RemoteAddr()),
+				slog.F("local_addr", conn.LocalAddr()),
+				slog.Error(err))
 		},
 		Handler:     s.sessionHandler,
 		HostSigners: []ssh.Signer{randomSigner},
@@ -603,10 +612,7 @@ func (s *Server) handleConn(l net.Listener, c net.Conn) {
 	}
 	defer s.trackConn(l, c, false)
 	logger.Info(context.Background(), "started serving connection")
-	defer func() {
-		logger.Info(context.Background(), "stopped serving connection")
-	}()
-
+	// note: srv.ConnectionCompleteCallback logs completion of the connection
 	s.srv.HandleConn(c)
 }
 

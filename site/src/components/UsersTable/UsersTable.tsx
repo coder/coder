@@ -22,6 +22,7 @@ export interface UsersTableProps {
   roles?: TypesGen.AssignableRoles[]
   isUpdatingUserRoles?: boolean
   canEditUsers?: boolean
+  canViewActivity?: boolean
   isLoading?: boolean
   onSuspendUser: (user: TypesGen.User) => void
   onActivateUser: (user: TypesGen.User) => void
@@ -49,6 +50,7 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
   onUpdateUserRoles,
   isUpdatingUserRoles,
   canEditUsers,
+  canViewActivity,
   isLoading,
   isNonInitialPage,
   actorID,
@@ -78,6 +80,7 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
             roles={roles}
             isLoading={isLoading}
             canEditUsers={canEditUsers}
+            canViewActivity={canViewActivity}
             isUpdatingUserRoles={isUpdatingUserRoles}
             onActivateUser={onActivateUser}
             onDeleteUser={onDeleteUser}

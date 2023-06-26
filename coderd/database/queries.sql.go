@@ -1527,8 +1527,6 @@ SELECT pg_advisory_xact_lock($1)
 //
 // This must be called from within a transaction. The lock will be automatically
 // released when the transaction ends.
-//
-// Use database.LockID() to generate a unique lock ID from a string.
 func (q *sqlQuerier) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
 	_, err := q.db.ExecContext(ctx, acquireLock, pgAdvisoryXactLock)
 	return err
@@ -1542,8 +1540,6 @@ SELECT pg_try_advisory_xact_lock($1)
 //
 // This must be called from within a transaction. The lock will be automatically
 // released when the transaction ends.
-//
-// Use database.LockID() to generate a unique lock ID from a string.
 func (q *sqlQuerier) TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock int64) (bool, error) {
 	row := q.db.QueryRowContext(ctx, tryAcquireLock, pgTryAdvisoryXactLock)
 	var pg_try_advisory_xact_lock bool
@@ -2199,6 +2195,59 @@ func (q *sqlQuerier) AcquireProvisionerJob(ctx context.Context, arg AcquireProvi
 		&i.TraceMetadata,
 	)
 	return i, err
+}
+
+const getHungProvisionerJobs = `-- name: GetHungProvisionerJobs :many
+SELECT
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata
+FROM
+	provisioner_jobs
+WHERE
+	updated_at < $1
+	AND started_at IS NOT NULL
+	AND completed_at IS NULL
+`
+
+func (q *sqlQuerier) GetHungProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]ProvisionerJob, error) {
+	rows, err := q.db.QueryContext(ctx, getHungProvisionerJobs, updatedAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProvisionerJob
+	for rows.Next() {
+		var i ProvisionerJob
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.StartedAt,
+			&i.CanceledAt,
+			&i.CompletedAt,
+			&i.Error,
+			&i.OrganizationID,
+			&i.InitiatorID,
+			&i.Provisioner,
+			&i.StorageMethod,
+			&i.Type,
+			&i.Input,
+			&i.WorkerID,
+			&i.FileID,
+			&i.Tags,
+			&i.ErrorCode,
+			&i.TraceMetadata,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getProvisionerJobByID = `-- name: GetProvisionerJobByID :one
@@ -3258,6 +3307,17 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'service_ban
 
 func (q *sqlQuerier) UpsertServiceBanner(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertServiceBanner, value)
+	return err
+}
+
+const cleanTailnetCoordinators = `-- name: CleanTailnetCoordinators :exec
+DELETE
+FROM tailnet_coordinators
+WHERE heartbeat_at < now() - INTERVAL '24 HOURS'
+`
+
+func (q *sqlQuerier) CleanTailnetCoordinators(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, cleanTailnetCoordinators)
 	return err
 }
 
@@ -5228,22 +5288,35 @@ WHERE
 			rbac_roles && $4 :: text[]
 		ELSE true
 	END
+	-- Filter by last_seen
+	AND CASE
+		WHEN $5 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			last_seen_at <= $5
+		ELSE true
+	END
+	AND CASE
+		WHEN $6 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			last_seen_at >= $6
+		ELSE true
+	END
 	-- End of filters
 ORDER BY
 	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
-	LOWER(username) ASC OFFSET $5
+	LOWER(username) ASC OFFSET $7
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
-	NULLIF($6 :: int, 0)
+	NULLIF($8 :: int, 0)
 `
 
 type GetUsersParams struct {
-	AfterID   uuid.UUID    `db:"after_id" json:"after_id"`
-	Search    string       `db:"search" json:"search"`
-	Status    []UserStatus `db:"status" json:"status"`
-	RbacRole  []string     `db:"rbac_role" json:"rbac_role"`
-	OffsetOpt int32        `db:"offset_opt" json:"offset_opt"`
-	LimitOpt  int32        `db:"limit_opt" json:"limit_opt"`
+	AfterID        uuid.UUID    `db:"after_id" json:"after_id"`
+	Search         string       `db:"search" json:"search"`
+	Status         []UserStatus `db:"status" json:"status"`
+	RbacRole       []string     `db:"rbac_role" json:"rbac_role"`
+	LastSeenBefore time.Time    `db:"last_seen_before" json:"last_seen_before"`
+	LastSeenAfter  time.Time    `db:"last_seen_after" json:"last_seen_after"`
+	OffsetOpt      int32        `db:"offset_opt" json:"offset_opt"`
+	LimitOpt       int32        `db:"limit_opt" json:"limit_opt"`
 }
 
 type GetUsersRow struct {
@@ -5269,6 +5342,8 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 		arg.Search,
 		pq.Array(arg.Status),
 		pq.Array(arg.RbacRole),
+		arg.LastSeenBefore,
+		arg.LastSeenAfter,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)
@@ -8621,13 +8696,15 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 	return items, nil
 }
 
-const getWorkspacesEligibleForAutoStartStop = `-- name: GetWorkspacesEligibleForAutoStartStop :many
+const getWorkspacesEligibleForTransition = `-- name: GetWorkspacesEligibleForTransition :many
 SELECT
 	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at
 FROM
 	workspaces
 LEFT JOIN
 	workspace_builds ON workspace_builds.workspace_id = workspaces.id
+INNER JOIN
+	provisioner_jobs ON workspace_builds.job_id = provisioner_jobs.id
 WHERE
 	workspace_builds.build_number = (
 		SELECT
@@ -8657,12 +8734,20 @@ WHERE
 		(
 			workspace_builds.transition = 'stop'::workspace_transition AND
 			workspaces.autostart_schedule IS NOT NULL
+		) OR
+
+		-- If the workspace's most recent job resulted in an error
+		-- it may be eligible for failed stop.
+		(
+			provisioner_jobs.error IS NOT NULL AND
+			provisioner_jobs.error != '' AND
+			workspace_builds.transition = 'start'::workspace_transition
 		)
-	)
+	) AND workspaces.deleted = 'false'
 `
 
-func (q *sqlQuerier) GetWorkspacesEligibleForAutoStartStop(ctx context.Context, now time.Time) ([]Workspace, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspacesEligibleForAutoStartStop, now)
+func (q *sqlQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]Workspace, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspacesEligibleForTransition, now)
 	if err != nil {
 		return nil, err
 	}

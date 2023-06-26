@@ -4,7 +4,7 @@
     "getTemplatesError": "Something went wrong fetching templates."
   },
   "empty": {
-    "message": "Create your first template",
+    "message": "Create a Template",
     "descriptionWithoutPermissions": "Contact your Coder administrator to create a template. You can share the code below."
   }
 }

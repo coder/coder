@@ -122,6 +122,13 @@ func (m metricsStore) AcquireProvisionerJob(ctx context.Context, arg database.Ac
 	return provisionerJob, err
 }
 
+func (m metricsStore) CleanTailnetCoordinators(ctx context.Context) error {
+	start := time.Now()
+	err := m.s.CleanTailnetCoordinators(ctx)
+	m.queryLatencies.WithLabelValues("CleanTailnetCoordinators").Observe(time.Since(start).Seconds())
+	return err
+}
+
 func (m metricsStore) DeleteAPIKeyByID(ctx context.Context, id string) error {
 	start := time.Now()
 	err := m.s.DeleteAPIKeyByID(ctx, id)
@@ -397,6 +404,13 @@ func (m metricsStore) GetGroupsByOrganizationID(ctx context.Context, organizatio
 	groups, err := m.s.GetGroupsByOrganizationID(ctx, organizationID)
 	m.queryLatencies.WithLabelValues("GetGroupsByOrganizationID").Observe(time.Since(start).Seconds())
 	return groups, err
+}
+
+func (m metricsStore) GetHungProvisionerJobs(ctx context.Context, hungSince time.Time) ([]database.ProvisionerJob, error) {
+	start := time.Now()
+	jobs, err := m.s.GetHungProvisionerJobs(ctx, hungSince)
+	m.queryLatencies.WithLabelValues("GetHungProvisionerJobs").Observe(time.Since(start).Seconds())
+	return jobs, err
 }
 
 func (m metricsStore) GetLastUpdateCheck(ctx context.Context) (string, error) {
@@ -1006,9 +1020,9 @@ func (m metricsStore) GetWorkspaces(ctx context.Context, arg database.GetWorkspa
 	return workspaces, err
 }
 
-func (m metricsStore) GetWorkspacesEligibleForAutoStartStop(ctx context.Context, now time.Time) ([]database.Workspace, error) {
+func (m metricsStore) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.Workspace, error) {
 	start := time.Now()
-	workspaces, err := m.s.GetWorkspacesEligibleForAutoStartStop(ctx, now)
+	workspaces, err := m.s.GetWorkspacesEligibleForTransition(ctx, now)
 	m.queryLatencies.WithLabelValues("GetWorkspacesEligibleForAutoStartStop").Observe(time.Since(start).Seconds())
 	return workspaces, err
 }

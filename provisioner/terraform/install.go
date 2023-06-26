@@ -22,7 +22,7 @@ var (
 	TerraformVersion = version.Must(version.NewVersion("1.4.6"))
 
 	minTerraformVersion = version.Must(version.NewVersion("1.1.0"))
-	maxTerraformVersion = version.Must(version.NewVersion("1.4.9"))
+	maxTerraformVersion = version.Must(version.NewVersion("1.5.9")) // use .9 to automatically allow patch releases
 
 	terraformMinorVersionMismatch = xerrors.New("Terraform binary minor version mismatch.")
 )

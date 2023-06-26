@@ -18,6 +18,8 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
@@ -747,9 +749,11 @@ func TestUserOIDC(t *testing.T) {
 			config.IgnoreEmailVerified = tc.IgnoreEmailVerified
 			config.IgnoreUserInfo = tc.IgnoreUserInfo
 
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 			client := coderdtest.New(t, &coderdtest.Options{
 				Auditor:    auditor,
 				OIDCConfig: config,
+				Logger:     &logger,
 			})
 			numLogs := len(auditor.AuditLogs())
 

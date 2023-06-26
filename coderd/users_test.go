@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
@@ -1102,7 +1103,7 @@ func TestGetUser(t *testing.T) {
 func TestUsersFilter(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 	first := coderdtest.CreateFirstUser(t, client)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -1111,6 +1112,13 @@ func TestUsersFilter(t *testing.T) {
 	firstUser, err := client.User(ctx, codersdk.Me)
 	require.NoError(t, err, "fetch me")
 
+	// Noon on Jan 18 is the "now" for this test for last_seen timestamps.
+	// All these values are equal
+	// 2023-01-18T12:00:00Z (UTC)
+	// 2023-01-18T07:00:00-05:00 (America/New_York)
+	// 2023-01-18T13:00:00+01:00 (Europe/Madrid)
+	// 2023-01-16T00:00:00+12:00 (Asia/Anadyr)
+	lastSeenNow := time.Date(2023, 1, 18, 12, 0, 0, 0, time.UTC)
 	users := make([]codersdk.User, 0)
 	users = append(users, firstUser)
 	for i := 0; i < 15; i++ {
@@ -1121,7 +1129,16 @@ func TestUsersFilter(t *testing.T) {
 		if i%3 == 0 {
 			roles = append(roles, "auditor")
 		}
-		userClient, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, roles...)
+		userClient, userData := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, roles...)
+		// Set the last seen for each user to a unique day
+		// nolint:gocritic // Unit test
+		_, err := api.Database.UpdateUserLastSeenAt(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLastSeenAtParams{
+			ID:         userData.ID,
+			LastSeenAt: lastSeenNow.Add(-1 * time.Hour * 24 * time.Duration(i)),
+			UpdatedAt:  time.Now(),
+		})
+		require.NoError(t, err, "set a last seen")
+
 		user, err := userClient.User(ctx, codersdk.Me)
 		require.NoError(t, err, "fetch me")
 
@@ -1260,6 +1277,26 @@ func TestUsersFilter(t *testing.T) {
 					}
 				}
 				return false
+			},
+		},
+		{
+			Name: "LastSeenBeforeNow",
+			Filter: codersdk.UsersRequest{
+				SearchQuery: `last_seen_before:"2023-01-16T00:00:00+12:00"`,
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				return u.LastSeenAt.Before(lastSeenNow)
+			},
+		},
+		{
+			Name: "LastSeenLastWeek",
+			Filter: codersdk.UsersRequest{
+				SearchQuery: `last_seen_before:"2023-01-14T23:59:59Z" last_seen_after:"2023-01-08T00:00:00Z"`,
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				start := time.Date(2023, 1, 8, 0, 0, 0, 0, time.UTC)
+				end := time.Date(2023, 1, 14, 23, 59, 59, 0, time.UTC)
+				return u.LastSeenAt.Before(end) && u.LastSeenAt.After(start)
 			},
 		},
 	}

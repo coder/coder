@@ -18,13 +18,6 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// Well-known lock IDs for lock functions in the database. These should not
-// change. If locks are deprecated, they should be kept to avoid reusing the
-// same ID.
-const (
-	LockIDDeploymentSetup = iota + 1
-)
-
 // Store contains all queryable database functions.
 // It extends the generated interface to add transaction support.
 type Store interface {

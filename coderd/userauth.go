@@ -32,6 +32,9 @@ import (
 	"github.com/coder/coder/cryptorand"
 )
 
+const (
+	userAuthLoggerName = "userauth"
+)
 const mergeStateStringPrefix = "convert-"
 
 // postConvertLoginType replies with an oauth state token capable of converting
@@ -167,6 +170,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
 		auditor           = api.Auditor.Load()
+		logger            = api.Logger.Named(userAuthLoggerName)
 		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     api.Logger,
@@ -206,6 +210,7 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 		DeploymentValues: api.DeploymentValues,
 	})
 	if err != nil {
+		logger.Error(ctx, "unable to create API key", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to create API key.",
 			Detail:  err.Error(),
@@ -229,11 +234,14 @@ func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 // The user struct is always returned, even if authentication failed. This is
 // to support knowing what user attempted to login.
 func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req codersdk.LoginWithPasswordRequest) (database.User, database.GetAuthorizationUserRolesRow, bool) {
+	logger := api.Logger.Named(userAuthLoggerName)
+
 	//nolint:gocritic // In order to login, we need to get the user first!
 	user, err := api.Database.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
 		Email: req.Email,
 	})
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		logger.Error(ctx, "unable to fetch user by email", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error.",
 		})
@@ -243,6 +251,7 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 	// If the user doesn't exist, it will be a default struct.
 	equal, err := userpassword.Compare(string(user.HashedPassword), req.Password)
 	if err != nil {
+		logger.Error(ctx, "unable to compare passwords", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error.",
 		})
@@ -277,6 +286,7 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 	//nolint:gocritic // System needs to fetch user roles in order to login user.
 	roles, err := api.Database.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), user.ID)
 	if err != nil {
+		logger.Error(ctx, "unable to fetch authorization user roles", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error.",
 		})
@@ -329,8 +339,11 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	aReq.Old = apiKey
 
+	logger := api.Logger.Named(userAuthLoggerName)
+
 	err := api.Database.DeleteAPIKeyByID(ctx, apiKey.ID)
 	if err != nil {
+		logger.Error(ctx, "unable to delete API key", slog.F("api_key", apiKey.ID), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error deleting API key.",
 			Detail:  err.Error(),
@@ -344,6 +357,7 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 	// to access the app again.
 	err = api.Database.DeleteApplicationConnectAPIKeysByUserID(ctx, apiKey.UserID)
 	if err != nil {
+		logger.Error(ctx, "unable to invalidate subdomain app tokens", slog.F("user_id", apiKey.UserID), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error deleting app tokens.",
 			Detail:  err.Error(),
@@ -449,11 +463,14 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 
 	oauthClient := oauth2.NewClient(ctx, oauth2.StaticTokenSource(state.Token))
 
+	logger := api.Logger.Named(userAuthLoggerName)
+
 	var selectedMemberships []*github.Membership
 	var organizationNames []string
 	if !api.GithubOAuth2Config.AllowEveryone {
 		memberships, err := api.GithubOAuth2Config.ListOrganizationMemberships(ctx, oauthClient)
 		if err != nil {
+			logger.Error(ctx, "unable to list organization members", slog.Error(err))
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching authenticated Github user organizations.",
 				Detail:  err.Error(),
@@ -484,6 +501,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 
 	ghUser, err := api.GithubOAuth2Config.AuthenticatedUser(ctx, oauthClient)
 	if err != nil {
+		logger.Error(ctx, "oauth2: unable to fetch authenticated user", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching authenticated Github user.",
 			Detail:  err.Error(),
@@ -522,6 +540,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 
 	emails, err := api.GithubOAuth2Config.ListEmails(ctx, oauthClient)
 	if err != nil {
+		logger.Error(ctx, "oauth2: unable to list emails", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching personal Github user.",
 			Detail:  err.Error(),
@@ -546,6 +565,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 
 	user, link, err := findLinkedUser(ctx, api.Database, githubLinkedID(ghUser), verifiedEmail.GetEmail())
 	if err != nil {
+		logger.Error(ctx, "oauth2: unable to find linked user", slog.F("gh_user", ghUser.Name), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to find linked user.",
 			Detail:  err.Error(),
@@ -583,6 +603,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
+		logger.Error(ctx, "oauth2: login failed", slog.F("user", user.Username), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to process OAuth login.",
 			Detail:  err.Error(),
@@ -681,12 +702,15 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	logger := api.Logger.Named(userAuthLoggerName)
+
 	// "email_verified" is an optional claim that changes the behavior
 	// of our OIDC handler, so each property must be pulled manually out
 	// of the claim mapping.
 	claims := map[string]interface{}{}
 	err = idToken.Claims(&claims)
 	if err != nil {
+		logger.Error(ctx, "oauth2: unable to extract OIDC claims", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to extract OIDC claims.",
 			Detail:  err.Error(),
@@ -694,7 +718,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.Logger.Debug(ctx, "got oidc claims",
+	logger.Debug(ctx, "got oidc claims",
 		slog.F("source", "id_token"),
 		slog.F("claim_fields", claimFields(claims)),
 		slog.F("blank", blankFields(claims)),
@@ -716,13 +740,14 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			userInfoClaims := map[string]interface{}{}
 			err = userInfo.Claims(&userInfoClaims)
 			if err != nil {
+				logger.Error(ctx, "oauth2: unable to unmarshal user info claims", slog.Error(err))
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: "Failed to unmarshal user info claims.",
 					Detail:  err.Error(),
 				})
 				return
 			}
-			api.Logger.Debug(ctx, "got oidc claims",
+			logger.Debug(ctx, "got oidc claims",
 				slog.F("source", "userinfo"),
 				slog.F("claim_fields", claimFields(userInfoClaims)),
 				slog.F("blank", blankFields(userInfoClaims)),
@@ -733,12 +758,13 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			claims = mergeClaims(claims, userInfoClaims)
 
 			// Log all of the field names after merging.
-			api.Logger.Debug(ctx, "got oidc claims",
+			logger.Debug(ctx, "got oidc claims",
 				slog.F("source", "merged"),
 				slog.F("claim_fields", claimFields(claims)),
 				slog.F("blank", blankFields(claims)),
 			)
 		} else if !strings.Contains(err.Error(), "user info endpoint is not supported by this provider") {
+			logger.Error(ctx, "oauth2: unable to obtain user information claims", slog.Error(err))
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to obtain user information claims.",
 				Detail:  "The attempt to fetch claims via the UserInfo endpoint failed: " + err.Error(),
@@ -748,7 +774,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			// The OIDC provider does not support the UserInfo endpoint.
 			// This is not an error, but we should log it as it may mean
 			// that some claims are missing.
-			api.Logger.Warn(ctx, "OIDC provider does not support the user info endpoint, ensure that all required claims are present in the id_token")
+			logger.Warn(ctx, "OIDC provider does not support the user info endpoint, ensure that all required claims are present in the id_token")
 		}
 	}
 
@@ -792,7 +818,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 				})
 				return
 			}
-			api.Logger.Warn(ctx, "allowing unverified oidc email %q")
+			logger.Warn(ctx, "allowing unverified oidc email %q")
 		}
 	}
 
@@ -807,7 +833,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			// Convert the []interface{} we get to a []string.
 			groupsInterface, ok := groupsRaw.([]interface{})
 			if ok {
-				api.Logger.Debug(ctx, "groups returned in oidc claims",
+				logger.Debug(ctx, "groups returned in oidc claims",
 					slog.F("len", len(groupsInterface)),
 					slog.F("groups", groupsInterface),
 				)
@@ -828,7 +854,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 					groups = append(groups, group)
 				}
 			} else {
-				api.Logger.Debug(ctx, "groups field was an unknown type",
+				logger.Debug(ctx, "groups field was an unknown type",
 					slog.F("type", fmt.Sprintf("%T", groupsRaw)),
 				)
 			}
@@ -838,7 +864,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	// This conditional is purely to warn the user they might have misconfigured their OIDC
 	// configuration.
 	if _, groupClaimExists := claims["groups"]; !usingGroups && groupClaimExists {
-		api.Logger.Debug(ctx, "claim 'groups' was returned, but 'oidc-group-field' is not set, check your coder oidc settings")
+		logger.Debug(ctx, "claim 'groups' was returned, but 'oidc-group-field' is not set, check your coder oidc settings")
 	}
 
 	// The username is a required property in Coder. We make a best-effort
@@ -879,6 +905,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 
 	user, link, err := findLinkedUser(ctx, api.Database, oidcLinkedID(idToken), email)
 	if err != nil {
+		logger.Error(ctx, "oauth2: unable to find linked user", slog.F("email", email), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to find linked user.",
 			Detail:  err.Error(),
@@ -918,6 +945,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
+		logger.Error(ctx, "oauth2: login failed", slog.F("user", user.Username), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to process OAuth login.",
 			Detail:  err.Error(),
@@ -987,11 +1015,8 @@ type oauthLoginParams struct {
 	AvatarURL    string
 	// Is UsingGroups is true, then the user will be assigned
 	// to the Groups provided.
-	UsingGroups            bool
-	Groups                 []string
-	OauthConversionEnabled bool
-
-	InitAuditRequest func(params *audit.RequestParams) (*audit.Request[database.OauthMergeState], func())
+	UsingGroups bool
+	Groups      []string
 }
 
 type httpError struct {
@@ -1030,12 +1055,13 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 			}
 		}
 
-		// If you do a convert to OIDC and your email does not match, we need to
-		// catch this and not make a new account.
-		if isMergeStateString(params.State.StateString) {
-			err := api.convertUserToOauth(ctx, r, tx, params)
-			if err != nil {
-				return err
+		if user.ID != uuid.Nil && user.LoginType != params.LoginType {
+			return httpError{
+				code: http.StatusForbidden,
+				msg: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q",
+					params.LoginType,
+					user.LoginType,
+				),
 			}
 		}
 
@@ -1202,91 +1228,6 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 	return cookie, *key, nil
 }
 
-// convertUserToOauth will convert a user from password base loginType to
-// an oauth login type. If it fails, it will return a httpError
-func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db database.Store, params oauthLoginParams) error {
-	user := params.User
-
-	// Trying to convert to OIDC, but the email does not match.
-	// So do not make a new user, just block the request.
-	if user.ID == uuid.Nil {
-		return httpError{
-			code: http.StatusBadRequest,
-			msg:  fmt.Sprintf("The oidc account with the email %q does not match the email of the account you are trying to convert. Contact your administrator to resolve this issue.", params.Email),
-		}
-	}
-
-	// nolint:gocritic // Required to auth the oidc convert
-	mergeState, err := db.GetUserOauthMergeState(dbauthz.AsSystemRestricted(ctx), database.GetUserOauthMergeStateParams{
-		UserID:      user.ID,
-		StateString: params.State.StateString,
-	})
-	if xerrors.Is(err, sql.ErrNoRows) {
-		return httpError{
-			code: http.StatusBadRequest,
-			msg:  "No convert login request found with given state. Restart the convert process and try again.",
-		}
-	}
-	if err != nil {
-		return httpError{
-			code: http.StatusInternalServerError,
-			msg:  err.Error(),
-		}
-	}
-
-	// At this point, this request could be an attempt to convert from
-	// password auth to oauth auth. Always log these attempts.
-	var (
-		auditor                                    = *api.Auditor.Load()
-		oauthConvertAudit, commitOauthConvertAudit = params.InitAuditRequest(&audit.RequestParams{
-			Audit:   auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionLogin,
-		})
-	)
-	oauthConvertAudit.Old = mergeState
-	defer commitOauthConvertAudit()
-
-	// If we do not allow converting to oauth, return an error.
-	if !params.OauthConversionEnabled {
-		return httpError{
-			code: http.StatusForbidden,
-			msg: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q",
-				params.LoginType,
-				user.LoginType,
-			),
-		}
-	}
-
-	// Make sure the merge state generated matches this OIDC login request.
-	// It needs to have the correct login type information for this
-	// user.
-	if user.ID != mergeState.UserID || user.LoginType != mergeState.FromLoginType || params.LoginType != mergeState.ToLoginType {
-		return httpError{
-			code: http.StatusForbidden,
-			msg:  fmt.Sprintf("Request to convert login type from %s to %s failed", user.LoginType, params.LoginType),
-		}
-	}
-
-	// Convert the user and default to the normal login flow.
-	// If the login succeeds, this transaction will commit and the user
-	// will be converted.
-	// nolint:gocritic // system query to update user login type
-	user, err = db.UpdateUserLoginType(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLoginTypeParams{
-		LoginType: params.LoginType,
-		UserID:    user.ID,
-	})
-	if err != nil {
-		return httpError{
-			code: http.StatusInternalServerError,
-			msg:  "Failed to convert user to new login type",
-		}
-	}
-	return nil
-
-}
-
 // githubLinkedID returns the unique ID for a GitHub user.
 func githubLinkedID(u *github.User) string {
 	return strconv.FormatInt(u.GetID(), 10)
@@ -1352,11 +1293,4 @@ func findLinkedUser(ctx context.Context, db database.Store, linkedID string, ema
 	}
 
 	return user, link, nil
-}
-
-func isMergeStateString(state string) bool {
-	if strings.HasPrefix(state, mergeStateStringPrefix) {
-		return true
-	}
-	return false
 }

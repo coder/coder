@@ -310,11 +310,11 @@ func websocketNetConn(ctx context.Context, conn *websocket.Conn, msgType websock
 	}
 }
 
-type enterpriseTemplateScheduleStore struct{}
+type EnterpriseTemplateScheduleStore struct{}
 
-var _ schedule.TemplateScheduleStore = &enterpriseTemplateScheduleStore{}
+var _ schedule.TemplateScheduleStore = &EnterpriseTemplateScheduleStore{}
 
-func (*enterpriseTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context, db database.Store, templateID uuid.UUID) (schedule.TemplateScheduleOptions, error) {
+func (*EnterpriseTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context, db database.Store, templateID uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 	tpl, err := db.GetTemplateByID(ctx, templateID)
 	if err != nil {
 		return schedule.TemplateScheduleOptions{}, err
@@ -331,7 +331,7 @@ func (*enterpriseTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.C
 	}, nil
 }
 
-func (*enterpriseTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, tpl database.Template, opts schedule.TemplateScheduleOptions) (database.Template, error) {
+func (*EnterpriseTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, tpl database.Template, opts schedule.TemplateScheduleOptions) (database.Template, error) {
 	if int64(opts.DefaultTTL) == tpl.DefaultTTL &&
 		int64(opts.MaxTTL) == tpl.MaxTTL &&
 		int64(opts.FailureTTL) == tpl.FailureTTL &&
