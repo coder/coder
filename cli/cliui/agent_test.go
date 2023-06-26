@@ -272,6 +272,29 @@ func TestAgent(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "Shows agent troubleshooting URL",
+			opts: cliui.AgentOptions{
+				FetchInterval: time.Millisecond,
+				Wait:          true,
+			},
+			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentStartupLog) error{
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentStartupLog) error {
+					agent.Status = codersdk.WorkspaceAgentTimeout
+					agent.TroubleshootingURL = "https://troubleshoot"
+					return nil
+				},
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentStartupLog) error {
+					return xerrors.New("bad")
+				},
+			},
+			want: []string{
+				"⧗ Waiting for initial connection from the workspace agent",
+				"The workspace agent is having trouble connecting, we will keep trying to reach it",
+				"https://troubleshoot",
+			},
+			wantErr: true,
+		},
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
