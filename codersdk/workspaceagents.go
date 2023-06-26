@@ -548,6 +548,7 @@ func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.
 	return listeningPorts, json.NewDecoder(res.Body).Decode(&listeningPorts)
 }
 
+//nolint:revive // Follow is a control flag on the server as well.
 func (c *Client) WorkspaceAgentStartupLogsAfter(ctx context.Context, agentID uuid.UUID, after int64, follow bool) (<-chan []WorkspaceAgentStartupLog, io.Closer, error) {
 	var queryParams []string
 	if after != 0 {
