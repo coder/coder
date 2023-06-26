@@ -127,7 +127,7 @@
               "description": null,
               "display_name": null,
               "icon": null,
-              "id": "62a57280-032d-4528-9705-c663e6971d9d",
+              "id": "5b7b6210-ce5d-4cc4-bbd6-0b329ca1c04f",
               "legacy_variable": null,
               "legacy_variable_name": null,
               "mutable": false,
@@ -170,7 +170,7 @@
               "description": null,
               "display_name": null,
               "icon": null,
-              "id": "37b849a7-1830-4662-b804-e23a6fb0a0dd",
+              "id": "72a5396c-0b3f-427d-b491-2700b025b3a1",
               "legacy_variable": null,
               "legacy_variable_name": null,
               "mutable": false,
@@ -195,7 +195,7 @@
               "description": null,
               "display_name": null,
               "icon": null,
-              "id": "21eddf29-7529-4ea4-9416-c0c6c156c3ad",
+              "id": "63769975-a1e0-42ed-92c1-e003af6b4c54",
               "legacy_variable": null,
               "legacy_variable_name": null,
               "mutable": false,
@@ -232,7 +232,7 @@
               "description": null,
               "display_name": null,
               "icon": null,
-              "id": "826afb7f-80fe-4563-95d3-1f8da1f8c274",
+              "id": "2fce5c05-7018-402b-b653-98d75ad076a2",
               "legacy_variable": null,
               "legacy_variable_name": null,
               "mutable": false,
@@ -269,7 +269,7 @@
               "description": null,
               "display_name": null,
               "icon": null,
-              "id": "9656b8ff-4e7b-4ba0-8377-569b358ff110",
+              "id": "4408d7e5-3353-4434-810c-d8c913f29edd",
               "legacy_variable": null,
               "legacy_variable_name": null,
               "mutable": false,
@@ -306,7 +306,7 @@
               "description": "blah blah",
               "display_name": null,
               "icon": null,
-              "id": "07dd798d-22fe-437d-ae78-2092d01f4b0b",
+              "id": "2b05e465-b243-4ae0-9210-634cf0f65d20",
               "legacy_variable": null,
               "legacy_variable_name": null,
               "mutable": false,
@@ -319,6 +319,120 @@
             },
             "sensitive_values": {}
           }
+        ],
+        "child_modules": [
+          {
+            "resources": [
+              {
+                "address": "module.this_is_external_module.data.coder_parameter.first_parameter_from_module",
+                "mode": "data",
+                "type": "coder_parameter",
+                "name": "first_parameter_from_module",
+                "provider_name": "registry.terraform.io/coder/coder",
+                "schema_version": 0,
+                "values": {
+                  "default": "abcdef",
+                  "description": "First parameter from module",
+                  "display_name": null,
+                  "icon": null,
+                  "id": "fc0491e2-ea2e-4fa7-9b0b-08298fb768f4",
+                  "legacy_variable": null,
+                  "legacy_variable_name": null,
+                  "mutable": true,
+                  "name": "First parameter from module",
+                  "option": null,
+                  "optional": true,
+                  "type": "string",
+                  "validation": null,
+                  "value": "abcdef"
+                },
+                "sensitive_values": {}
+              },
+              {
+                "address": "module.this_is_external_module.data.coder_parameter.second_parameter_from_module",
+                "mode": "data",
+                "type": "coder_parameter",
+                "name": "second_parameter_from_module",
+                "provider_name": "registry.terraform.io/coder/coder",
+                "schema_version": 0,
+                "values": {
+                  "default": "ghijkl",
+                  "description": "Second parameter from module",
+                  "display_name": null,
+                  "icon": null,
+                  "id": "693fb916-39ed-4798-8724-0e751a2458e4",
+                  "legacy_variable": null,
+                  "legacy_variable_name": null,
+                  "mutable": true,
+                  "name": "Second parameter from module",
+                  "option": null,
+                  "optional": true,
+                  "type": "string",
+                  "validation": null,
+                  "value": "ghijkl"
+                },
+                "sensitive_values": {}
+              }
+            ],
+            "address": "module.this_is_external_module",
+            "child_modules": [
+              {
+                "resources": [
+                  {
+                    "address": "module.this_is_external_module.module.this_is_external_child_module.data.coder_parameter.child_first_parameter_from_module",
+                    "mode": "data",
+                    "type": "coder_parameter",
+                    "name": "child_first_parameter_from_module",
+                    "provider_name": "registry.terraform.io/coder/coder",
+                    "schema_version": 0,
+                    "values": {
+                      "default": "abcdef",
+                      "description": "First parameter from child module",
+                      "display_name": null,
+                      "icon": null,
+                      "id": "8014f515-a467-4dfe-ac63-8c7eadfc3521",
+                      "legacy_variable": null,
+                      "legacy_variable_name": null,
+                      "mutable": true,
+                      "name": "First parameter from child module",
+                      "option": null,
+                      "optional": true,
+                      "type": "string",
+                      "validation": null,
+                      "value": "abcdef"
+                    },
+                    "sensitive_values": {}
+                  },
+                  {
+                    "address": "module.this_is_external_module.module.this_is_external_child_module.data.coder_parameter.child_second_parameter_from_module",
+                    "mode": "data",
+                    "type": "coder_parameter",
+                    "name": "child_second_parameter_from_module",
+                    "provider_name": "registry.terraform.io/coder/coder",
+                    "schema_version": 0,
+                    "values": {
+                      "default": "ghijkl",
+                      "description": "Second parameter from child module",
+                      "display_name": null,
+                      "icon": null,
+                      "id": "e94a306e-c1aa-47f5-833f-19719868d9ce",
+                      "legacy_variable": null,
+                      "legacy_variable_name": null,
+                      "mutable": true,
+                      "name": "Second parameter from child module",
+                      "option": null,
+                      "optional": true,
+                      "type": "string",
+                      "validation": null,
+                      "value": "ghijkl"
+                    },
+                    "sensitive_values": {}
+                  }
+                ],
+                "address": "module.this_is_external_module.module.this_is_external_child_module"
+              }
+            ]
+          }
         ]
       }
     }
@@ -329,6 +443,12 @@
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
         "version_constraint": "0.7.0"
+      },
+      "module.this_is_external_module:docker": {
+        "name": "docker",
+        "full_name": "registry.terraform.io/kreuzwerker/docker",
+        "version_constraint": "~> 2.22",
+        "module_address": "module.this_is_external_module"
       },
       "null": {
         "name": "null",
@@ -526,7 +646,125 @@
           },
           "schema_version": 0
         }
-      ]
+      ],
+      "module_calls": {
+        "this_is_external_module": {
+          "source": "./external-module",
+          "module": {
+            "resources": [
+              {
+                "address": "data.coder_parameter.first_parameter_from_module",
+                "mode": "data",
+                "type": "coder_parameter",
+                "name": "first_parameter_from_module",
+                "provider_config_key": "coder",
+                "expressions": {
+                  "default": {
+                    "constant_value": "abcdef"
+                  },
+                  "description": {
+                    "constant_value": "First parameter from module"
+                  },
+                  "mutable": {
+                    "constant_value": true
+                  },
+                  "name": {
+                    "constant_value": "First parameter from module"
+                  },
+                  "type": {
+                    "constant_value": "string"
+                  }
+                },
+                "schema_version": 0
+              },
+              {
+                "address": "data.coder_parameter.second_parameter_from_module",
+                "mode": "data",
+                "type": "coder_parameter",
+                "name": "second_parameter_from_module",
+                "provider_config_key": "coder",
+                "expressions": {
+                  "default": {
+                    "constant_value": "ghijkl"
+                  },
+                  "description": {
+                    "constant_value": "Second parameter from module"
+                  },
+                  "mutable": {
+                    "constant_value": true
+                  },
+                  "name": {
+                    "constant_value": "Second parameter from module"
+                  },
+                  "type": {
+                    "constant_value": "string"
+                  }
+                },
+                "schema_version": 0
+              }
+            ],
+            "module_calls": {
+              "this_is_external_child_module": {
+                "source": "./child-external-module",
+                "module": {
+                  "resources": [
+                    {
+                      "address": "data.coder_parameter.child_first_parameter_from_module",
+                      "mode": "data",
+                      "type": "coder_parameter",
+                      "name": "child_first_parameter_from_module",
+                      "provider_config_key": "coder",
+                      "expressions": {
+                        "default": {
+                          "constant_value": "abcdef"
+                        },
+                        "description": {
+                          "constant_value": "First parameter from child module"
+                        },
+                        "mutable": {
+                          "constant_value": true
+                        },
+                        "name": {
+                          "constant_value": "First parameter from child module"
+                        },
+                        "type": {
+                          "constant_value": "string"
+                        }
+                      },
+                      "schema_version": 0
+                    },
+                    {
+                      "address": "data.coder_parameter.child_second_parameter_from_module",
+                      "mode": "data",
+                      "type": "coder_parameter",
+                      "name": "child_second_parameter_from_module",
+                      "provider_config_key": "coder",
+                      "expressions": {
+                        "default": {
+                          "constant_value": "ghijkl"
+                        },
+                        "description": {
+                          "constant_value": "Second parameter from child module"
+                        },
+                        "mutable": {
+                          "constant_value": true
+                        },
+                        "name": {
+                          "constant_value": "Second parameter from child module"
+                        },
+                        "type": {
+                          "constant_value": "string"
+                        }
+                      },
+                      "schema_version": 0
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
