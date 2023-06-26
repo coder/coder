@@ -61,11 +61,18 @@ var nonCanonicalHeaders = map[string]string{
 }
 
 type AgentProvider interface {
+	// ReverseProxy returns an httputil.ReverseProxy for proxying HTTP requests
+	// to the specified agent.
+	//
+	// TODO: after wsconncache is deleted this doesn't need to return an error.
+	ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID) (_ *httputil.ReverseProxy, release func(), _ error)
+
+	// AgentConn returns a new connection to the specified agent.
+	//
 	// TODO: after wsconncache is deleted this doesn't need to return a release
 	// func.
 	AgentConn(ctx context.Context, agentID uuid.UUID) (_ *codersdk.WorkspaceAgentConn, release func(), _ error)
-	// TODO: after wsconncache is deleted this doesn't need to return an error.
-	ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID) (_ *httputil.ReverseProxy, release func(), _ error)
+
 	Close() error
 }
 

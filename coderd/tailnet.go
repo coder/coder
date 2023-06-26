@@ -138,7 +138,7 @@ func (s *ServerTailnet) updateNode(id uuid.UUID, node *tailnet.Node) {
 	}
 }
 
-func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID) (*httputil.ReverseProxy, func(), error) {
+func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID) (_ *httputil.ReverseProxy, release func(), _ error) {
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		site.RenderStaticErrorPage(w, r, site.ErrorPageData{
@@ -257,7 +257,7 @@ func (*ServerTailnet) nodeIsLegacy(node *tailnet.Node) bool {
 	return node.Addresses[0].Addr() == codersdk.WorkspaceAgentIP
 }
 
-func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (*codersdk.WorkspaceAgentConn, func(), error) {
+func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (_ *codersdk.WorkspaceAgentConn, release func(), _ error) {
 	node, err := s.awaitNodeExists(ctx, agentID, 5*time.Second)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("get agent node: %w", err)
@@ -297,8 +297,6 @@ func (s *ServerTailnet) DialAgentNetConn(ctx context.Context, agentID uuid.UUID,
 	if err != nil {
 		return nil, xerrors.Errorf("acquire agent conn: %w", err)
 	}
-	defer release()
-	defer conn.Close()
 
 	node, err := s.getNode(agentID)
 	if err != nil {
@@ -309,13 +307,29 @@ func (s *ServerTailnet) DialAgentNetConn(ctx context.Context, agentID uuid.UUID,
 	port, _ := strconv.ParseUint(rawPort, 10, 16)
 	ipp := netip.AddrPortFrom(node.Addresses[0].Addr(), uint16(port))
 
+	var nc net.Conn
 	if network == "tcp" {
-		return conn.DialContextTCP(ctx, ipp)
+		nc, err = conn.DialContextTCP(ctx, ipp)
 	} else if network == "udp" {
-		return conn.DialContextUDP(ctx, ipp)
+		nc, err = conn.DialContextUDP(ctx, ipp)
 	} else {
 		return nil, xerrors.Errorf("unknown network %q", network)
 	}
+
+	return &netConnCloser{Conn: nc, close: func() {
+		release()
+		conn.Close()
+	}}, err
+}
+
+type netConnCloser struct {
+	net.Conn
+	close func()
+}
+
+func (c *netConnCloser) Close() error {
+	c.close()
+	return c.Conn.Close()
 }
 
 func (s *ServerTailnet) Close() error {
