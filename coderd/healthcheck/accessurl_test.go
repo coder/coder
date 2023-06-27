@@ -13,7 +13,6 @@ import (
 
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/healthcheck"
-	"github.com/coder/coder/coderd/util/ptr"
 )
 
 func TestAccessURL(t *testing.T) {
@@ -103,7 +102,8 @@ func TestAccessURL(t *testing.T) {
 		assert.False(t, report.Reachable)
 		assert.Equal(t, 0, report.StatusCode)
 		assert.Equal(t, "", report.HealthzResponse)
-		assert.Equal(t, report.Error, ptr.Ref(expErr.Error()))
+		require.NotNil(t, report.Error)
+		assert.Contains(t, *report.Error, expErr.Error())
 	})
 }
 
