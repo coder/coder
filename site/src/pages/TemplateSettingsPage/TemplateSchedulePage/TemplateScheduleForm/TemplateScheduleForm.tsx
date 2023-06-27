@@ -82,7 +82,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
     validationSchema,
     onSubmit: () => {
       if (
-        form.values.inactivity_cleanup_enabled &&
+        form.values.locked_cleanup_enabled &&
         workspacesToBeDeletedToday &&
         workspacesToBeDeletedToday.length > 0
       ) {
