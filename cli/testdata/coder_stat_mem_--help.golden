@@ -9,5 +9,8 @@ Show memory usage, in gigabytes.
   -o, --output string (default: text)
           Output format. Available formats: text, json.
 
+      --prefix Ki|Mi|Gi|Ti (default: Gi)
+          SI Prefix for memory measurement.
+
 ---
 Run `coder --help` for a list of global options.

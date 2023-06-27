@@ -112,6 +112,7 @@ resource "kubernetes_secret" "prometheus-postgres-password" {
 
 # Install Prometheus Postgres exporter helm chart
 resource "helm_release" "prometheus-exporter-chart" {
+  depends_on = [helm_release.prometheus-chart]
   repository = local.prometheus_exporter_helm_repo
   chart      = local.prometheus_exporter_helm_chart
   name       = local.prometheus_exporter_release_name
