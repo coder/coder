@@ -37,6 +37,11 @@ export interface ProxyContextValue {
 
   // proxies is the list of proxies returned by coderd. This is fetched async.
   // isFetched, isLoading, and error are used to track the state of the async call.
+  //
+  // Region[] is returned if the user is a non-admin.
+  // WorkspaceProxy[] is returned if the user is an admin. WorkspaceProxy extends Region with
+  //  more information about the proxy and the status. More information includes the error message if
+  //  the proxy is unhealthy.
   proxies?: Region[] | WorkspaceProxy[]
   // isFetched is true when the 'proxies' api call is complete.
   isFetched: boolean
