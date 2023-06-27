@@ -11,7 +11,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-var AgentShuttingDown = xerrors.New("agent is shutting down")
+var errAgentShuttingDown = xerrors.New("agent is shutting down")
 
 type AgentOptions struct {
 	FetchInterval time.Duration
@@ -25,8 +25,12 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 	if opts.FetchInterval == 0 {
 		opts.FetchInterval = 500 * time.Millisecond
 	}
-	if opts.Wait && opts.FetchLogs == nil {
-		return xerrors.Errorf("fetch logs required when waiting for agent")
+	if opts.FetchLogs == nil {
+		opts.FetchLogs = func(_ context.Context, _ uuid.UUID, _ int64, _ bool) (<-chan []codersdk.WorkspaceAgentStartupLog, io.Closer, error) {
+			c := make(chan []codersdk.WorkspaceAgentStartupLog)
+			close(c)
+			return c, closeFunc(func() error { return nil }), nil
+		}
 	}
 
 	type fetchAgent struct {
@@ -112,7 +116,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 		// It doesn't matter if we're connected or not, if the agent is
 		// shutting down, we don't know if it's coming back.
 		if agent.LifecycleState.ShuttingDown() {
-			return AgentShuttingDown
+			return errAgentShuttingDown
 		}
 
 		switch agent.Status {
@@ -123,10 +127,6 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 			}
 
 		case codersdk.WorkspaceAgentConnected:
-			if opts.FetchLogs == nil {
-				// Only agent connection status was requested.
-				return nil
-			}
 			if !showStartupLogs && agent.LifecycleState == codersdk.WorkspaceAgentLifecycleReady {
 				// The workspace is ready, there's nothing to do but connect.
 				return nil
@@ -209,7 +209,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 					// We no longer know if the startup script failed or not,
 					// but we need to tell the user something.
 					sw.Complete(stage, agent.ReadyAt.Sub(*agent.StartedAt))
-					return AgentShuttingDown
+					return errAgentShuttingDown
 				}
 			}
 
