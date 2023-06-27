@@ -458,11 +458,17 @@ func New(options *Options) *API {
 	r.Route("/gitauth", func(r chi.Router) {
 		for _, gitAuthConfig := range options.GitAuthConfigs {
 			r.Route(fmt.Sprintf("/%s", gitAuthConfig.ID), func(r chi.Router) {
-				r.Use(
-					httpmw.ExtractOAuth2(gitAuthConfig, options.HTTPClient, nil),
-					apiKeyMiddlewareRedirect,
-				)
-				r.Get("/callback", api.gitAuthCallback(gitAuthConfig))
+				r.Use(apiKeyMiddlewareRedirect)
+
+				useDeviceAuth := gitAuthConfig.DeviceAuth != nil
+				if useDeviceAuth {
+					r.Use(api.gitAuthDeviceRedirect(gitAuthConfig))
+					r.Post("/exchange", api.postGitAuthExchange(gitAuthConfig))
+				} else {
+					// If device auth isn't in use, then the git provider is using OAuth2!
+					r.Use(httpmw.ExtractOAuth2(gitAuthConfig, options.HTTPClient, nil))
+					r.Get("/callback", api.gitAuthCallback(gitAuthConfig))
+				}
 			})
 		}
 	})

@@ -7449,6 +7449,12 @@ const docTemplate = `{
                 "client_id": {
                     "type": "string"
                 },
+                "device_auth_url": {
+                    "type": "string"
+                },
+                "device_flow": {
+                    "type": "boolean"
+                },
                 "id": {
                     "type": "string"
                 },

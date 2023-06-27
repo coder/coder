@@ -116,6 +116,9 @@ const NetworkSettingsPage = lazy(
     ),
 )
 const GitAuthPage = lazy(() => import("./pages/GitAuthPage/GitAuthPage"))
+const GitAuthDevicePage = lazy(
+  () => import("./pages/GitAuthDevicePage/GitAuthDevicePage"),
+)
 const TemplateVersionPage = lazy(
   () => import("./pages/TemplateVersionPage/TemplateVersionPage"),
 )
@@ -193,7 +196,12 @@ export const AppRouter: FC = () => {
             <Route element={<DashboardLayout />}>
               <Route index element={<IndexPage />} />
 
-              <Route path="gitauth" element={<GitAuthPage />} />
+              <Route path="gitauth">
+                <Route index element={<GitAuthPage />} />
+                <Route path=":provider">
+                  <Route path="device" element={<GitAuthDevicePage />} />
+                </Route>
+              </Route>
 
               <Route path="workspaces" element={<WorkspacesPage />} />
 

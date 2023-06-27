@@ -799,6 +799,14 @@ export const getExperiments = async (): Promise<TypesGen.Experiment[]> => {
   }
 }
 
+export const exchangeGitAuth = async (
+  provider: string,
+  req: TypesGen.ExchangeGitAuthRequest,
+): Promise<void> => {
+  const resp = await axios.post(`/gitauth/${provider}/exchange`, req)
+  return resp.data
+}
+
 export const getAuditLogs = async (
   options: TypesGen.AuditLogsRequest,
 ): Promise<TypesGen.AuditLogResponse> => {

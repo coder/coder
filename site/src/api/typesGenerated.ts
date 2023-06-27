@@ -392,6 +392,11 @@ export interface Entitlements {
   readonly require_telemetry: boolean
 }
 
+// From codersdk/authorization.go
+export interface ExchangeGitAuthRequest {
+  readonly device_code: string
+}
+
 // From codersdk/deployment.go
 export type Experiments = Experiment[]
 
@@ -425,6 +430,8 @@ export interface GitAuthConfig {
   readonly regex: string
   readonly no_refresh: boolean
   readonly scopes: string[]
+  readonly device_flow: boolean
+  readonly device_auth_url: string
 }
 
 // From codersdk/gitsshkey.go

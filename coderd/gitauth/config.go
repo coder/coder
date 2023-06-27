@@ -36,6 +36,8 @@ type Config struct {
 	// returning it to the user. If omitted, tokens will
 	// not be validated before being returned.
 	ValidateURL string
+	// DeviceAuth is set if the provider uses the device flow.
+	DeviceAuth *DeviceAuth
 }
 
 // RefreshToken automatically refreshes the token if expired and permitted.
@@ -187,17 +189,33 @@ func ConvertConfig(entries []codersdk.GitAuthConfig, accessURL *url.URL) ([]*Con
 		var oauthConfig httpmw.OAuth2Config = oauth2Config
 		// Azure DevOps uses JWT token authentication!
 		if typ == codersdk.GitProviderAzureDevops {
-			oauthConfig = newJWTOAuthConfig(oauth2Config)
+			oauthConfig = &jwtConfig{oauth2Config}
 		}
 
-		configs = append(configs, &Config{
+		cfg := &Config{
 			OAuth2Config: oauthConfig,
 			ID:           entry.ID,
 			Regex:        regex,
 			Type:         typ,
 			NoRefresh:    entry.NoRefresh,
 			ValidateURL:  entry.ValidateURL,
-		})
+		}
+
+		if entry.DeviceFlow {
+			if entry.DeviceAuthURL == "" {
+				entry.DeviceAuthURL = deviceAuthURL[typ]
+			}
+			if entry.DeviceAuthURL == "" {
+				return nil, xerrors.Errorf("git auth provider %q: device auth url must be provided", entry.ID)
+			}
+			cfg.DeviceAuth = &DeviceAuth{
+				config: oauth2Config,
+				URL:    entry.DeviceAuthURL,
+				ID:     entry.ID,
+			}
+		}
+
+		configs = append(configs, cfg)
 	}
 	return configs, nil
 }

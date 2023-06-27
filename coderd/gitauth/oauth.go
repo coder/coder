@@ -1,14 +1,18 @@
 package gitauth
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"net/http"
 	"net/url"
 	"regexp"
+	"strings"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
+	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -36,6 +40,10 @@ var validateURL = map[codersdk.GitProvider]string{
 	codersdk.GitProviderBitBucket: "https://api.bitbucket.org/2.0/user",
 }
 
+var deviceAuthURL = map[codersdk.GitProvider]string{
+	codersdk.GitProviderGitHub: "https://github.com/login/device/code",
+}
+
 // scope contains defaults for each Git provider.
 var scope = map[codersdk.GitProvider][]string{
 	codersdk.GitProviderAzureDevops: {"vso.code_write"},
@@ -54,13 +62,9 @@ var regex = map[codersdk.GitProvider]*regexp.Regexp{
 	codersdk.GitProviderGitHub:      regexp.MustCompile(`^(https?://)?github\.com(/.*)?$`),
 }
 
-// newJWTOAuthConfig creates a new OAuth2 config that uses a custom
+// jwtConfig is a new OAuth2 config that uses a custom
 // assertion method that works with Azure Devops. See:
 // https://learn.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/oauth?view=azure-devops
-func newJWTOAuthConfig(config *oauth2.Config) httpmw.OAuth2Config {
-	return &jwtConfig{config}
-}
-
 type jwtConfig struct {
 	*oauth2.Config
 }
@@ -88,4 +92,110 @@ func (c *jwtConfig) Exchange(ctx context.Context, code string, opts ...oauth2.Au
 			oauth2.SetAuthURLParam("code", ""),
 		)...,
 	)
+}
+
+type DeviceAuth struct {
+	config *oauth2.Config
+
+	ID  string
+	URL string
+}
+
+// DeviceAuthorization is the response from the device authorization endpoint.
+// See: https://tools.ietf.org/html/rfc8628#section-3.2
+type DeviceAuthorization struct {
+	DeviceCode      string `json:"device_code"`
+	UserCode        string `json:"user_code"`
+	VerificationURI string `json:"verification_uri"`
+	ExpiresIn       int    `json:"expires_in"`
+	Interval        int    `json:"interval"`
+}
+
+// AuthorizeDevice begins the device authorization flow.
+// See: https://tools.ietf.org/html/rfc8628#section-3.1
+func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*DeviceAuthorization, error) {
+	if c.URL == "" {
+		return nil, xerrors.New("oauth2: device code URL not set")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.formatDeviceCodeURL(), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var da DeviceAuthorization
+	return &da, json.NewDecoder(resp.Body).Decode(&da)
+}
+
+// ExchangeDeviceCode exchanges a device code for an access token.
+// The boolean returned indicates whether the device code is still pending
+// and the caller should try again.
+func (c *DeviceAuth) ExchangeDeviceCode(ctx context.Context, deviceCode string) (*oauth2.Token, error) {
+	if c.URL == "" {
+		return nil, xerrors.New("oauth2: device code URL not set")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.formatDeviceTokenURL(deviceCode), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, codersdk.ReadBodyAsError(resp)
+	}
+	var body struct {
+		*oauth2.Token
+		Error            string `json:"error"`
+		ErrorDescription string `json:"error_description"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	if err != nil {
+		return nil, err
+	}
+	if body.Error != "" {
+		return nil, xerrors.Errorf("%s", body.Error)
+	}
+	return body.Token, nil
+}
+
+func (c *DeviceAuth) formatDeviceTokenURL(deviceCode string) string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString(c.config.Endpoint.TokenURL)
+	v := url.Values{
+		"client_id":   {c.config.ClientID},
+		"device_code": {deviceCode},
+		"grant_type":  {"urn:ietf:params:oauth:grant-type:device_code"},
+	}
+	if strings.Contains(c.config.Endpoint.TokenURL, "?") {
+		_ = buf.WriteByte('&')
+	} else {
+		_ = buf.WriteByte('?')
+	}
+	_, _ = buf.WriteString(v.Encode())
+	return buf.String()
+}
+
+func (c *DeviceAuth) formatDeviceCodeURL() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString(c.URL)
+
+	v := url.Values{
+		"client_id": {c.config.ClientID},
+		"scope":     c.config.Scopes,
+	}
+	if strings.Contains(c.URL, "?") {
+		_ = buf.WriteByte('&')
+	} else {
+		_ = buf.WriteByte('?')
+	}
+	_, _ = buf.WriteString(v.Encode())
+	return buf.String()
 }

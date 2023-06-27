@@ -16,6 +16,9 @@ export const useStyles = makeStyles((theme) => ({
   container: {
     marginTop: theme.spacing(-8),
     maxWidth: 385,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
   },
   footer: {
     fontSize: 12,
