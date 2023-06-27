@@ -67,7 +67,7 @@ type Server struct {
 	Env           map[string]string
 	AgentToken    func() string
 	Manifest      *atomic.Pointer[agentsdk.Manifest]
-	ServiceBanner func(ctx context.Context) (codersdk.ServiceBannerConfig, error)
+	ServiceBanner *atomic.Pointer[codersdk.ServiceBannerConfig]
 
 	connCountVSCode     atomic.Int64
 	connCountJetBrains  atomic.Int64
@@ -348,7 +348,8 @@ func (s *Server) startPTYSession(session ptySession, magicTypeLabel string, cmd 
 	session.DisablePTYEmulation()
 
 	if !isQuietLogin(session.RawCommand()) {
-		err := s.showServiceBanner(ctx, session)
+		serviceBanner := s.ServiceBanner.Load()
+		err := showServiceBanner(session, serviceBanner)
 		if err != nil {
 			s.logger.Error(ctx, "agent failed to show service banner", slog.Error(err))
 			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "service_banner").Add(1)
@@ -431,22 +432,6 @@ func (s *Server) startPTYSession(session ptySession, magicTypeLabel string, cmd 
 	}
 	if err != nil {
 		return xerrors.Errorf("process wait: %w", err)
-	}
-	return nil
-}
-
-func (s *Server) showServiceBanner(ctx context.Context, session io.Writer) error {
-	banner, err := s.ServiceBanner(ctx)
-	if err != nil {
-		return err
-	}
-	if banner.Enabled && banner.Message != "" {
-		// The banner supports Markdown so we might want to parse it but Markdown is
-		// still fairly readable in its raw form.
-		_, err = io.WriteString(session, banner.Message+"\n\n\r")
-		if err != nil {
-			return err
-		}
 	}
 	return nil
 }
@@ -784,6 +769,20 @@ func isQuietLogin(rawCommand string) bool {
 
 	_, err = os.Stat(filepath.Join(homedir, ".hushlogin"))
 	return err == nil
+}
+
+// showServiceBanner will write the service banner if enabled and not blank
+// along with a blank line for spacing.
+func showServiceBanner(session io.Writer, banner *codersdk.ServiceBannerConfig) error {
+	if banner.Enabled && banner.Message != "" {
+		// The banner supports Markdown so we might want to parse it but Markdown is
+		// still fairly readable in its raw form.
+		_, err := io.WriteString(session, banner.Message+"\n\n\r")
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // showMOTD will output the message of the day from
