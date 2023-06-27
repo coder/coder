@@ -14,7 +14,7 @@ type DatabaseReport struct {
 	Healthy   bool          `json:"healthy"`
 	Reachable bool          `json:"reachable"`
 	Latency   time.Duration `json:"latency"`
-	Error     error         `json:"error"`
+	Error     *string       `json:"error"`
 }
 
 type DatabaseReportOptions struct {
@@ -31,7 +31,7 @@ func (r *DatabaseReport) Run(ctx context.Context, opts *DatabaseReportOptions) {
 	for i := 0; i < pingCount; i++ {
 		pong, err := opts.DB.Ping(ctx)
 		if err != nil {
-			r.Error = xerrors.Errorf("ping: %w", err)
+			r.Error = convertError(xerrors.Errorf("ping: %w", err))
 			return
 		}
 		pings = append(pings, pong)
