@@ -18,6 +18,7 @@ export const checks = {
   createGroup: "createGroup",
   viewUpdateCheck: "viewUpdateCheck",
   viewDeploymentStats: "viewDeploymentStats",
+  editWorkspaceProxies: "editWorkspaceProxies",
 } as const
 
 export const permissionsToCheck = {
@@ -81,6 +82,12 @@ export const permissionsToCheck = {
     },
     action: "read",
   },
+  [checks.editWorkspaceProxies]: {
+    object: {
+      resource_type: "workspace_proxy",
+    },
+    action: "create",
+  }
 } as const
 
 export type Permissions = Record<keyof typeof permissionsToCheck, boolean>

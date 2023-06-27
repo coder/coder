@@ -1579,6 +1579,7 @@ export const MockPermissions: Permissions = {
   viewDeploymentValues: true,
   viewUpdateCheck: true,
   viewDeploymentStats: true,
+  editWorkspaceProxies: true,
 }
 
 export const MockAppearance: TypesGen.AppearanceConfig = {
