@@ -289,3 +289,105 @@ func notImplementsFullResponseWriter(ctx *dsl.VarFilterContext) bool {
 		!(types.Implements(p, flusher) || types.Implements(ctx.Type, flusher)) ||
 		!(types.Implements(p, hijacker) || types.Implements(ctx.Type, hijacker))
 }
+
+// slogFieldNameSnakeCase is a lint rule that ensures naming consistency
+// of logged field names.
+func slogFieldNameSnakeCase(m dsl.Matcher) {
+	m.Import("cdr.dev/slog")
+	m.Match(
+		`slog.F($name, $value)`,
+	).
+		Where(m["name"].Const && !m["name"].Text.Matches(`^"[a-z]+(_[a-z]+)*"$`)).
+		Report("Field name $name must be snake_case.")
+}
+
+// slogUUIDFieldNameHasIDSuffix ensures that "uuid.UUID" field has ID prefix
+// in the field name.
+func slogUUIDFieldNameHasIDSuffix(m dsl.Matcher) {
+	m.Import("cdr.dev/slog")
+	m.Import("github.com/google/uuid")
+	m.Match(
+		`slog.F($name, $value)`,
+	).
+		Where(m["value"].Type.Is("uuid.UUID") && !m["name"].Text.Matches(`_id"$`)).
+		Report(`uuid.UUID field $name must have "_id" suffix.`)
+}
+
+// slogMessageFormat ensures that the log message starts with lowercase, and does not
+// end with special character.
+func slogMessageFormat(m dsl.Matcher) {
+	m.Import("cdr.dev/slog")
+	m.Match(
+		`logger.Error($ctx, $message, $*args)`,
+		`logger.Warn($ctx, $message, $*args)`,
+		`logger.Info($ctx, $message, $*args)`,
+		`logger.Debug($ctx, $message, $*args)`,
+
+		`$foo.logger.Error($ctx, $message, $*args)`,
+		`$foo.logger.Warn($ctx, $message, $*args)`,
+		`$foo.logger.Info($ctx, $message, $*args)`,
+		`$foo.logger.Debug($ctx, $message, $*args)`,
+
+		`Logger.Error($ctx, $message, $*args)`,
+		`Logger.Warn($ctx, $message, $*args)`,
+		`Logger.Info($ctx, $message, $*args)`,
+		`Logger.Debug($ctx, $message, $*args)`,
+
+		`$foo.Logger.Error($ctx, $message, $*args)`,
+		`$foo.Logger.Warn($ctx, $message, $*args)`,
+		`$foo.Logger.Info($ctx, $message, $*args)`,
+		`$foo.Logger.Debug($ctx, $message, $*args)`,
+	).
+		Where(
+			(
+			// It doesn't end with a special character:
+			m["message"].Text.Matches(`[.!?]"$`) ||
+				// it starts with lowercase:
+				m["message"].Text.Matches(`^"[A-Z]{1}`) &&
+					// but there are exceptions:
+					!m["message"].Text.Matches(`^"Prometheus`) &&
+					!m["message"].Text.Matches(`^"X11`) &&
+					!m["message"].Text.Matches(`^"CSP`) &&
+					!m["message"].Text.Matches(`^"OIDC`))).
+		Report(`Message $message must start with lowercase, and does not end with a special characters.`)
+}
+
+// slogMessageLength ensures that important log messages are meaningful, and must be at least 16 characters long.
+func slogMessageLength(m dsl.Matcher) {
+	m.Import("cdr.dev/slog")
+	m.Match(
+		`logger.Error($ctx, $message, $*args)`,
+		`logger.Warn($ctx, $message, $*args)`,
+		`logger.Info($ctx, $message, $*args)`,
+
+		`$foo.logger.Error($ctx, $message, $*args)`,
+		`$foo.logger.Warn($ctx, $message, $*args)`,
+		`$foo.logger.Info($ctx, $message, $*args)`,
+
+		`Logger.Error($ctx, $message, $*args)`,
+		`Logger.Warn($ctx, $message, $*args)`,
+		`Logger.Info($ctx, $message, $*args)`,
+
+		`$foo.Logger.Error($ctx, $message, $*args)`,
+		`$foo.Logger.Warn($ctx, $message, $*args)`,
+		`$foo.Logger.Info($ctx, $message, $*args)`,
+
+		// no debug
+	).
+		Where(
+			// It has at least 16 characters (+ ""):
+			m["message"].Text.Matches(`^".{0,15}"$`) &&
+				// but there are exceptions:
+				!m["message"].Text.Matches(`^"command exit"$`)).
+		Report(`Message $message is too short, it must be at least 16 characters long.`)
+}
+
+// slogErr ensures that errors are logged with "slog.Error" instead of "slog.F"
+func slogError(m dsl.Matcher) {
+	m.Import("cdr.dev/slog")
+	m.Match(
+		`slog.F($name, $value)`,
+	).
+		Where(m["name"].Const && m["value"].Type.Is("error") && !m["name"].Text.Matches(`^"internal_error"$`)).
+		Report(`Error should be logged using "slog.Error" instead.`)
+}

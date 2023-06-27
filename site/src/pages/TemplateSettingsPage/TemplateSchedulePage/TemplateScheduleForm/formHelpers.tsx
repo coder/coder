@@ -5,6 +5,7 @@ import i18next from "i18next"
 export interface TemplateScheduleFormValues extends UpdateTemplateMeta {
   failure_cleanup_enabled: boolean
   inactivity_cleanup_enabled: boolean
+  locked_cleanup_enabled: boolean
 }
 
 const MAX_TTL_DAYS = 7
@@ -57,6 +58,20 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
         function (value) {
           const parent = this.parent as TemplateScheduleFormValues
           if (parent.inactivity_cleanup_enabled) {
+            return Boolean(value)
+          } else {
+            return true
+          }
+        },
+      ),
+    locked_ttl_ms: Yup.number()
+      .min(0, "Locked cleanup days must not be less than 0.")
+      .test(
+        "positive-if-enabled",
+        "Locked cleanup days must be greater than zero when enabled.",
+        function (value) {
+          const parent = this.parent as TemplateScheduleFormValues
+          if (parent.locked_cleanup_enabled) {
             return Boolean(value)
           } else {
             return true

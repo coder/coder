@@ -179,6 +179,7 @@ export interface CreateTemplateRequest {
   readonly allow_user_autostop?: boolean
   readonly failure_ttl_ms?: number
   readonly inactivity_ttl_ms?: number
+  readonly locked_ttl_ms?: number
   readonly disable_everyone_group_access: boolean
 }
 
@@ -280,6 +281,7 @@ export interface DERP {
 
 // From codersdk/deployment.go
 export interface DERPConfig {
+  readonly block_direct: boolean
   readonly url: string
   readonly path: string
 }
@@ -325,6 +327,7 @@ export interface DeploymentValues {
   readonly redirect_to_access_url?: boolean
   readonly http_address?: string
   readonly autobuild_poll_interval?: number
+  readonly job_hang_detector_interval?: number
   readonly derp?: DERP
   readonly prometheus?: PrometheusConfig
   readonly pprof?: PprofConfig
@@ -612,6 +615,7 @@ export interface PrometheusConfig {
 // From codersdk/deployment.go
 export interface ProvisionerConfig {
   readonly daemons: number
+  readonly daemons_echo: boolean
   readonly daemon_poll_interval: number
   readonly daemon_poll_jitter: number
   readonly force_cancel_interval: number
@@ -640,6 +644,8 @@ export interface ProvisionerJob {
   readonly worker_id?: string
   readonly file_id: string
   readonly tags: Record<string, string>
+  readonly queue_position: number
+  readonly queue_size: number
 }
 
 // From codersdk/provisionerdaemons.go
@@ -805,6 +811,7 @@ export interface Template {
   readonly allow_user_cancel_workspace_jobs: boolean
   readonly failure_ttl_ms: number
   readonly inactivity_ttl_ms: number
+  readonly locked_ttl_ms: number
 }
 
 // From codersdk/templates.go
@@ -972,6 +979,7 @@ export interface UpdateTemplateMeta {
   readonly allow_user_cancel_workspace_jobs?: boolean
   readonly failure_ttl_ms?: number
   readonly inactivity_ttl_ms?: number
+  readonly locked_ttl_ms?: number
 }
 
 // From codersdk/users.go
@@ -1077,6 +1085,8 @@ export interface WorkspaceAgent {
   readonly first_connected_at?: string
   readonly last_connected_at?: string
   readonly disconnected_at?: string
+  readonly started_at?: string
+  readonly ready_at?: string
   readonly status: WorkspaceAgentStatus
   readonly lifecycle_state: WorkspaceAgentLifecycle
   readonly name: string
@@ -1086,6 +1096,8 @@ export interface WorkspaceAgent {
   readonly environment_variables: Record<string, string>
   readonly operating_system: string
   readonly startup_script?: string
+  readonly startup_script_behavior: WorkspaceAgentStartupScriptBehavior
+  readonly startup_script_timeout_seconds: number
   readonly startup_logs_length: number
   readonly startup_logs_overflowed: boolean
   readonly directory?: string
@@ -1096,8 +1108,6 @@ export interface WorkspaceAgent {
   readonly connection_timeout_seconds: number
   readonly troubleshooting_url: string
   readonly login_before_ready: boolean
-  readonly startup_script_behavior: WorkspaceAgentStartupScriptBehavior
-  readonly startup_script_timeout_seconds: number
   readonly shutdown_script?: string
   readonly shutdown_script_timeout_seconds: number
   readonly subsystem: AgentSubsystem
@@ -1144,7 +1154,6 @@ export interface WorkspaceAgentStartupLog {
   readonly created_at: string
   readonly output: string
   readonly level: LogLevel
-  readonly eof: boolean
 }
 
 // From codersdk/workspaceapps.go
@@ -1338,11 +1347,14 @@ export const Entitlements: Entitlement[] = [
 ]
 
 // From codersdk/deployment.go
-export type Experiment = "moons" | "workspace_actions" | "workspace_filter"
+export type Experiment =
+  | "moons"
+  | "tailnet_pg_coordinator"
+  | "workspace_actions"
 export const Experiments: Experiment[] = [
   "moons",
+  "tailnet_pg_coordinator",
   "workspace_actions",
-  "workspace_filter",
 ]
 
 // From codersdk/deployment.go

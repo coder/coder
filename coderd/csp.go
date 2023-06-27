@@ -31,7 +31,7 @@ func (api *API) logReportCSPViolations(rw http.ResponseWriter, r *http.Request) 
 	dec := json.NewDecoder(r.Body)
 	err := dec.Decode(&v)
 	if err != nil {
-		api.Logger.Warn(ctx, "csp violation", slog.Error(err))
+		api.Logger.Warn(ctx, "CSP violation reported", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to read body, invalid json.",
 			Detail:  err.Error(),
@@ -43,7 +43,7 @@ func (api *API) logReportCSPViolations(rw http.ResponseWriter, r *http.Request) 
 	for k, v := range v.Report {
 		fields = append(fields, slog.F(k, v))
 	}
-	api.Logger.Debug(ctx, "csp violation", fields...)
+	api.Logger.Debug(ctx, "CSP violation reported", fields...)
 
 	httpapi.Write(ctx, rw, http.StatusOK, "ok")
 }

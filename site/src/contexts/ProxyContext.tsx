@@ -92,6 +92,23 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
   )
 
   const queryKey = ["get-proxies"]
+  // This doesn't seem like an idiomatic way to get react-query to use the
+  // initial data without performing an API request on mount, but it works.
+  //
+  // If anyone would like to clean this up in the future, it should seed data
+  // from the `meta` tag if it exists, and not fetch the regions route.
+  const [initialData] = useState(() => {
+    // Build info is injected by the Coder server into the HTML document.
+    const regions = document.querySelector("meta[property=regions]")
+    if (regions) {
+      const rawContent = regions.getAttribute("content")
+      try {
+        return JSON.parse(rawContent as string)
+      } catch (ex) {
+        // Ignore this and fetch as normal!
+      }
+    }
+  })
   const {
     data: proxiesResp,
     error: proxiesError,
@@ -100,6 +117,8 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
   } = useQuery({
     queryKey,
     queryFn: getWorkspaceProxies,
+    staleTime: initialData ? Infinity : undefined,
+    initialData,
   })
 
   // Every time we get a new proxiesResponse, update the latency check
@@ -117,6 +136,9 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
         proxiesResp?.regions ?? [],
         loadUserSelectedProxy(),
         proxyLatencies,
+        // Do not auto select based on latencies, as inconsistent latencies can cause this
+        // to behave poorly.
+        false,
       ),
     )
   }, [proxiesResp, proxyLatencies])
@@ -189,6 +211,7 @@ export const getPreferredProxy = (
   proxies: Region[],
   selectedProxy?: Region,
   latencies?: Record<string, ProxyLatencyReport>,
+  autoSelectBasedOnLatency = true,
 ): PreferredProxy => {
   // If a proxy is selected, make sure it is in the list of proxies. If it is not
   // we should default to the primary.
@@ -200,35 +223,50 @@ export const getPreferredProxy = (
   if (!selectedProxy || !selectedProxy.healthy) {
     // By default, use the primary proxy.
     selectedProxy = proxies.find((proxy) => proxy.name === "primary")
+
     // If we have latencies, then attempt to use the best proxy by latency instead.
-    if (latencies) {
-      const proxyMap = proxies.reduce((acc, proxy) => {
-        acc[proxy.id] = proxy
-        return acc
-      }, {} as Record<string, Region>)
-
-      const best = Object.keys(latencies)
-        .map((proxyId) => {
-          return {
-            id: proxyId,
-            ...latencies[proxyId],
-          }
-        })
-        // If the proxy is not in our list, or it is unhealthy, ignore it.
-        .filter((latency) => proxyMap[latency.id]?.healthy)
-        .sort((a, b) => a.latencyMS - b.latencyMS)
-        .at(0)
-
-      // Found a new best, use it!
-      if (best) {
-        const bestProxy = proxies.find((proxy) => proxy.id === best.id)
-        // Default to w/e it was before
-        selectedProxy = bestProxy || selectedProxy
-      }
+    const best = selectByLatency(proxies, latencies)
+    if (autoSelectBasedOnLatency && best) {
+      selectedProxy = best
     }
   }
 
   return computeUsableURLS(selectedProxy)
+}
+
+const selectByLatency = (
+  proxies: Region[],
+  latencies?: Record<string, ProxyLatencyReport>,
+): Region | undefined => {
+  if (!latencies) {
+    return undefined
+  }
+
+  const proxyMap = proxies.reduce((acc, proxy) => {
+    acc[proxy.id] = proxy
+    return acc
+  }, {} as Record<string, Region>)
+
+  const best = Object.keys(latencies)
+    .map((proxyId) => {
+      return {
+        id: proxyId,
+        ...latencies[proxyId],
+      }
+    })
+    // If the proxy is not in our list, or it is unhealthy, ignore it.
+    .filter((latency) => proxyMap[latency.id]?.healthy)
+    .sort((a, b) => a.latencyMS - b.latencyMS)
+    .at(0)
+
+  // Found a new best, use it!
+  if (best) {
+    const bestProxy = proxies.find((proxy) => proxy.id === best.id)
+    // Default to w/e it was before
+    return bestProxy
+  }
+
+  return undefined
 }
 
 const computeUsableURLS = (proxy?: Region): PreferredProxy => {

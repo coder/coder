@@ -97,17 +97,6 @@ func TestProvisionerJobStatus(t *testing.T) {
 			status: codersdk.ProvisionerJobFailed,
 		},
 		{
-			name: "not_updated",
-			job: database.ProvisionerJob{
-				StartedAt: sql.NullTime{
-					Time:  database.Now().Add(-time.Minute),
-					Valid: true,
-				},
-				UpdatedAt: database.Now().Add(-31 * time.Second),
-			},
-			status: codersdk.ProvisionerJobFailed,
-		},
-		{
 			name: "updated",
 			job: database.ProvisionerJob{
 				StartedAt: sql.NullTime{

@@ -18,6 +18,7 @@ func AllResources() []Object {
 		ResourceReplicas,
 		ResourceRoleAssignment,
 		ResourceSystem,
+		ResourceTailnetCoordinator,
 		ResourceTemplate,
 		ResourceUser,
 		ResourceUserData,

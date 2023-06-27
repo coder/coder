@@ -192,11 +192,12 @@ func sshPrepareWorkspaceConfigs(ctx context.Context, client *codersdk.Client) (r
 //nolint:gocyclo
 func (r *RootCmd) configSSH() *clibase.Cmd {
 	var (
-		sshConfigFile    string
-		sshConfigOpts    sshConfigOptions
-		usePreviousOpts  bool
-		dryRun           bool
-		skipProxyCommand bool
+		sshConfigFile       string
+		sshConfigOpts       sshConfigOptions
+		usePreviousOpts     bool
+		dryRun              bool
+		skipProxyCommand    bool
+		forceUnixSeparators bool
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -236,13 +237,13 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 			if err != nil {
 				return err
 			}
-			escapedCoderBinary, err := sshConfigExecEscape(coderBinary)
+			escapedCoderBinary, err := sshConfigExecEscape(coderBinary, forceUnixSeparators)
 			if err != nil {
 				return xerrors.Errorf("escape coder binary for ssh failed: %w", err)
 			}
 
 			root := r.createConfig()
-			escapedGlobalConfig, err := sshConfigExecEscape(string(root))
+			escapedGlobalConfig, err := sshConfigExecEscape(string(root), forceUnixSeparators)
 			if err != nil {
 				return xerrors.Errorf("escape global config for ssh failed: %w", err)
 			}
@@ -540,6 +541,19 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 			Default:     "auto",
 			Value:       clibase.EnumOf(&sshConfigOpts.waitEnum, "yes", "no", "auto"),
 		},
+		{
+			Flag: "force-unix-filepaths",
+			Env:  "CODER_CONFIGSSH_UNIX_FILEPATHS",
+			Description: "By default, 'config-ssh' uses the os path separator when writing the ssh config. " +
+				"This might be an issue in Windows machine that use a unix-like shell. " +
+				"This flag forces the use of unix file paths (the forward slash '/').",
+			Value: clibase.BoolOf(&forceUnixSeparators),
+			// On non-windows showing this command is useless because it is a noop.
+			// Hide vs disable it though so if a command is copied from a Windows
+			// machine to a unix machine it will still work and not throw an
+			// "unknown flag" error.
+			Hidden: hideForceUnixSlashes,
+		},
 		cliui.SkipPromptOption(),
 	}
 
@@ -727,7 +741,31 @@ func writeWithTempFileAndMove(path string, r io.Reader) (err error) {
 //   - https://github.com/openssh/openssh-portable/blob/V_9_0_P1/sshconnect.c#L158-L167
 //   - https://github.com/PowerShell/openssh-portable/blob/v8.1.0.0/sshconnect.c#L231-L293
 //   - https://github.com/PowerShell/openssh-portable/blob/v8.1.0.0/contrib/win32/win32compat/w32fd.c#L1075-L1100
-func sshConfigExecEscape(path string) (string, error) {
+//
+// Additional Windows-specific notes:
+//
+// In some situations a Windows user could be using a unix-like shell such as
+// git bash. In these situations the coder.exe is using the windows filepath
+// separator (\), but the shell wants the unix filepath separator (/).
+// Trying to determine if the shell is unix-like is difficult, so this function
+// takes the argument 'forceUnixPath' to force the filepath to be unix-like.
+//
+// On actual unix machines, this is **always** a noop. Even if a windows
+// path is provided.
+//
+// Passing a "false" for forceUnixPath will result in the filepath separator
+// untouched from the original input.
+// ---
+// This is a control flag, and that is ok. It is a control flag
+// based on the OS of the user. Making this a different file is excessive.
+// nolint:revive
+func sshConfigExecEscape(path string, forceUnixPath bool) (string, error) {
+	if forceUnixPath {
+		// This is a workaround for #7639, where the filepath separator is
+		// incorrectly the Windows separator (\) instead of the unix separator (/).
+		path = filepath.ToSlash(path)
+	}
+
 	// This is unlikely to ever happen, but newlines are allowed on
 	// certain filesystems, but cannot be used inside ssh config.
 	if strings.ContainsAny(path, "\n") {

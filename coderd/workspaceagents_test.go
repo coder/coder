@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -301,124 +302,6 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 			}
 		}
 	})
-	t.Run("AllowEOFAfterOverflowAndCloseFollowWebsocket", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		client := coderdtest.New(t, &coderdtest.Options{
-			IncludeProvisionerDaemon: true,
-		})
-		user := coderdtest.CreateFirstUser(t, client)
-		authToken := uuid.NewString()
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.ProvisionComplete,
-			ProvisionApply: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Resources: []*proto.Resource{{
-							Name: "example",
-							Type: "aws_instance",
-							Agents: []*proto.Agent{{
-								Id: uuid.NewString(),
-								Auth: &proto.Agent_Token{
-									Token: authToken,
-								},
-							}},
-						}},
-					},
-				},
-			}},
-		})
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		build := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-
-		updates, err := client.WatchWorkspace(ctx, workspace.ID)
-		require.NoError(t, err)
-
-		logs, closeLogs, err := client.WorkspaceAgentStartupLogsAfter(ctx, build.Resources[0].Agents[0].ID, 0)
-		require.NoError(t, err)
-		defer closeLogs.Close()
-
-		wantLogs := []codersdk.WorkspaceAgentStartupLog{
-			{
-				CreatedAt: database.Now(),
-				Output:    "testing",
-				Level:     "info",
-			},
-			{
-				CreatedAt: database.Now().Add(time.Minute),
-				Level:     "info",
-				EOF:       true,
-			},
-		}
-
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(authToken)
-
-		var convertedLogs []agentsdk.StartupLog
-		for _, log := range wantLogs {
-			convertedLogs = append(convertedLogs, agentsdk.StartupLog{
-				CreatedAt: log.CreatedAt,
-				Output:    log.Output,
-				Level:     log.Level,
-				EOF:       log.EOF,
-			})
-		}
-		initialLogs := convertedLogs[:len(convertedLogs)-1]
-		eofLog := convertedLogs[len(convertedLogs)-1]
-		err = agentClient.PatchStartupLogs(ctx, agentsdk.PatchStartupLogs{Logs: initialLogs})
-		require.NoError(t, err)
-
-		overflowLogs := []agentsdk.StartupLog{
-			{
-				CreatedAt: database.Now(),
-				Output:    strings.Repeat("a", (1<<20)+1),
-			},
-			eofLog, // Include EOF which will be discarded due to overflow.
-		}
-		err = agentClient.PatchStartupLogs(ctx, agentsdk.PatchStartupLogs{Logs: overflowLogs})
-		var apiError *codersdk.Error
-		require.ErrorAs(t, err, &apiError)
-		require.Equal(t, http.StatusRequestEntityTooLarge, apiError.StatusCode())
-
-		// It's possible we have multiple updates queued, but that's alright, we just
-		// wait for the one where it overflows.
-		for {
-			var update codersdk.Workspace
-			select {
-			case <-ctx.Done():
-				require.Fail(t, "timed out waiting for overflow")
-			case update = <-updates:
-			}
-			if update.LatestBuild.Resources[0].Agents[0].StartupLogsOverflowed {
-				break
-			}
-		}
-
-		// Now we should still be able to send the EOF.
-		err = agentClient.PatchStartupLogs(ctx, agentsdk.PatchStartupLogs{Logs: []agentsdk.StartupLog{eofLog}})
-		require.NoError(t, err)
-
-		var gotLogs []codersdk.WorkspaceAgentStartupLog
-	logsLoop:
-		for {
-			select {
-			case <-ctx.Done():
-				require.Fail(t, "timed out waiting for logs")
-			case l, ok := <-logs:
-				if !ok {
-					break logsLoop
-				}
-				gotLogs = append(gotLogs, l...)
-			}
-		}
-		for i := range gotLogs {
-			gotLogs[i].ID = 0 // Ignore ID for comparison.
-		}
-		require.Equal(t, wantLogs, gotLogs)
-	})
 	t.Run("CloseAfterLifecycleStateIsNotRunning", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitMedium)
@@ -472,25 +355,26 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 		require.NoError(t, err)
 
 		err = agentClient.PostLifecycle(ctx, agentsdk.PostLifecycleRequest{
-			State: codersdk.WorkspaceAgentLifecycleReady,
+			State:     codersdk.WorkspaceAgentLifecycleReady,
+			ChangedAt: time.Now(),
 		})
 		require.NoError(t, err)
 
+		var gotLogs []codersdk.WorkspaceAgentStartupLog
 		for {
 			select {
 			case <-ctx.Done():
-				require.Fail(t, "timed out waiting for logs EOF")
-			case l := <-logs:
-				for _, log := range l {
-					if log.EOF {
-						// Success.
-						return
-					}
+				require.Fail(t, "timed out waiting for logs to end")
+			case l, ok := <-logs:
+				gotLogs = append(gotLogs, l...)
+				if !ok {
+					require.Len(t, gotLogs, 1, "expected one log")
+					return // Success.
 				}
 			}
 		}
 	})
-	t.Run("NoLogAfterEOF", func(t *testing.T) {
+	t.Run("NoLogAfterScriptEnded", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := coderdtest.New(t, &coderdtest.Options{
@@ -526,13 +410,9 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 		agentClient := agentsdk.New(client.URL)
 		agentClient.SetSessionToken(authToken)
 
-		err := agentClient.PatchStartupLogs(ctx, agentsdk.PatchStartupLogs{
-			Logs: []agentsdk.StartupLog{
-				{
-					CreatedAt: database.Now(),
-					EOF:       true,
-				},
-			},
+		err := agentClient.PostLifecycle(ctx, agentsdk.PostLifecycleRequest{
+			State:     codersdk.WorkspaceAgentLifecycleReady,
+			ChangedAt: time.Now(),
 		})
 		require.NoError(t, err)
 
@@ -544,7 +424,7 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 				},
 			},
 		})
-		require.Error(t, err, "insert after EOF should not succeed")
+		require.Error(t, err, "insert after script ended should not succeed")
 	})
 }
 
@@ -694,6 +574,82 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 	_ = sshClient.Close()
 	_ = conn.Close()
 	require.Equal(t, "test", strings.TrimSpace(string(output)))
+}
+
+func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	err := dv.DERP.Config.BlockDirect.Set("true")
+	require.NoError(t, err)
+	require.True(t, dv.DERP.Config.BlockDirect.Value())
+
+	client, daemonCloser := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
+		DeploymentValues: dv,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+	authToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.ProvisionComplete,
+		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+	})
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	daemonCloser.Close()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Verify that the manifest has DisableDirectConnections set to true.
+	agentClient := agentsdk.New(client.URL)
+	agentClient.SetSessionToken(authToken)
+	manifest, err := agentClient.Manifest(ctx)
+	require.NoError(t, err)
+	require.True(t, manifest.DisableDirectConnections)
+
+	agentCloser := agent.New(agent.Options{
+		Client: agentClient,
+		Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+	})
+	defer agentCloser.Close()
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+	agentID := resources[0].Agents[0].ID
+
+	// Verify that the connection data has no STUN ports and
+	// DisableDirectConnections set to true.
+	res, err := client.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/connection", agentID), nil)
+	require.NoError(t, err)
+	defer res.Body.Close()
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	var connInfo codersdk.WorkspaceAgentConnectionInfo
+	err = json.NewDecoder(res.Body).Decode(&connInfo)
+	require.NoError(t, err)
+	require.True(t, connInfo.DisableDirectConnections)
+	for _, region := range connInfo.DERPMap.Regions {
+		t.Logf("region %s (%v)", region.RegionCode, region.EmbeddedRelay)
+		for _, node := range region.Nodes {
+			t.Logf("  node %s (stun %d)", node.Name, node.STUNPort)
+			require.EqualValues(t, -1, node.STUNPort)
+			// tailnet.NewDERPMap() will create nodes with "stun" in the name,
+			// but not if direct is disabled.
+			require.NotContains(t, node.Name, "stun")
+			require.False(t, node.STUNOnly)
+		}
+	}
+
+	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
+		Logger: slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
+	})
+	require.NoError(t, err)
+	defer conn.Close()
+	require.True(t, conn.BlockEndpoints())
+
+	require.True(t, conn.AwaitReachable(ctx))
+	_, p2p, _, err := conn.Ping(ctx)
+	require.NoError(t, err)
+	require.False(t, p2p)
 }
 
 func TestWorkspaceAgentListeningPorts(t *testing.T) {
@@ -1410,7 +1366,8 @@ func TestWorkspaceAgent_LifecycleState(t *testing.T) {
 				ctx := testutil.Context(t, testutil.WaitLong)
 
 				err := agentClient.PostLifecycle(ctx, agentsdk.PostLifecycleRequest{
-					State: tt.state,
+					State:     tt.state,
+					ChangedAt: time.Now(),
 				})
 				if tt.wantErr {
 					require.Error(t, err)

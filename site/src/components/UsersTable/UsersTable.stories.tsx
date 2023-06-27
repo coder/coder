@@ -28,6 +28,7 @@ Editable.args = {
   users: [MockUser, MockUser2],
   roles: MockAssignableSiteRoles,
   canEditUsers: true,
+  canViewActivity: true,
 }
 
 export const Empty = Template.bind({})

@@ -49,7 +49,7 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// Create a separate context for forcefull cancellation not tied to
+	// Create a separate context for forceful cancellation not tied to
 	// the stream so that we can control when to terminate the process.
 	killCtx, kill := context.WithCancel(context.Background())
 	defer kill()
@@ -57,13 +57,15 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 	// Ensure processes are eventually cleaned up on graceful
 	// cancellation or disconnect.
 	go func() {
-		<-stream.Context().Done()
+		<-ctx.Done()
 
 		// TODO(mafredri): We should track this provision request as
 		// part of graceful server shutdown procedure. Waiting on a
 		// process here should delay provisioner/coder shutdown.
+		t := time.NewTimer(s.exitTimeout)
+		defer t.Stop()
 		select {
-		case <-time.After(s.exitTimeout):
+		case <-t.C:
 			kill()
 		case <-killCtx.Done():
 		}

@@ -9,18 +9,22 @@ import (
 
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
+
+	"github.com/coder/coder/coderd/database"
 )
 
 const (
 	SectionDERP      string = "DERP"
 	SectionAccessURL string = "AccessURL"
 	SectionWebsocket string = "Websocket"
+	SectionDatabase  string = "Database"
 )
 
 type Checker interface {
 	DERP(ctx context.Context, opts *DERPReportOptions) DERPReport
-	AccessURL(ctx context.Context, opts *AccessURLOptions) AccessURLReport
+	AccessURL(ctx context.Context, opts *AccessURLReportOptions) AccessURLReport
 	Websocket(ctx context.Context, opts *WebsocketReportOptions) WebsocketReport
+	Database(ctx context.Context, opts *DatabaseReportOptions) DatabaseReport
 }
 
 type Report struct {
@@ -33,9 +37,11 @@ type Report struct {
 	DERP      DERPReport      `json:"derp"`
 	AccessURL AccessURLReport `json:"access_url"`
 	Websocket WebsocketReport `json:"websocket"`
+	Database  DatabaseReport  `json:"database"`
 }
 
 type ReportOptions struct {
+	DB database.Store
 	// TODO: support getting this over HTTP?
 	DERPMap   *tailcfg.DERPMap
 	AccessURL *url.URL
@@ -52,12 +58,17 @@ func (defaultChecker) DERP(ctx context.Context, opts *DERPReportOptions) (report
 	return report
 }
 
-func (defaultChecker) AccessURL(ctx context.Context, opts *AccessURLOptions) (report AccessURLReport) {
+func (defaultChecker) AccessURL(ctx context.Context, opts *AccessURLReportOptions) (report AccessURLReport) {
 	report.Run(ctx, opts)
 	return report
 }
 
 func (defaultChecker) Websocket(ctx context.Context, opts *WebsocketReportOptions) (report WebsocketReport) {
+	report.Run(ctx, opts)
+	return report
+}
+
+func (defaultChecker) Database(ctx context.Context, opts *DatabaseReportOptions) (report DatabaseReport) {
 	report.Run(ctx, opts)
 	return report
 }
@@ -95,7 +106,7 @@ func Run(ctx context.Context, opts *ReportOptions) *Report {
 			}
 		}()
 
-		report.AccessURL = opts.Checker.AccessURL(ctx, &AccessURLOptions{
+		report.AccessURL = opts.Checker.AccessURL(ctx, &AccessURLReportOptions{
 			AccessURL: opts.AccessURL,
 			Client:    opts.Client,
 		})
@@ -116,6 +127,20 @@ func Run(ctx context.Context, opts *ReportOptions) *Report {
 		})
 	}()
 
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer func() {
+			if err := recover(); err != nil {
+				report.Database.Error = xerrors.Errorf("%v", err)
+			}
+		}()
+
+		report.Database = opts.Checker.Database(ctx, &DatabaseReportOptions{
+			DB: opts.DB,
+		})
+	}()
+
 	wg.Wait()
 	report.Time = time.Now()
 	if !report.DERP.Healthy {
@@ -126,6 +151,9 @@ func Run(ctx context.Context, opts *ReportOptions) *Report {
 	}
 	if !report.Websocket.Healthy {
 		report.FailingSections = append(report.FailingSections, SectionWebsocket)
+	}
+	if !report.Database.Healthy {
+		report.FailingSections = append(report.FailingSections, SectionDatabase)
 	}
 
 	report.Healthy = len(report.FailingSections) == 0

@@ -49,6 +49,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>speedtest</code>](./cli/speedtest.md)           | Run upload and download tests from your machine to a workspace         |
 | [<code>ssh</code>](./cli/ssh.md)                       | Start a shell into a workspace                                         |
 | [<code>start</code>](./cli/start.md)                   | Start a workspace                                                      |
+| [<code>stat</code>](./cli/stat.md)                     | Show resource usage for the current workspace.                         |
 | [<code>state</code>](./cli/state.md)                   | Manually manage Terraform state to fix broken workspaces               |
 | [<code>stop</code>](./cli/stop.md)                     | Stop a workspace                                                       |
 | [<code>templates</code>](./cli/templates.md)           | Manage templates                                                       |
@@ -66,6 +67,15 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | Type | <code>bool</code> |
 
 Print all options, how they're set, then exit.
+
+### --disable-direct-connections
+
+|             |                                                |
+| ----------- | ---------------------------------------------- |
+| Type        | <code>bool</code>                              |
+| Environment | <code>$CODER_DISABLE_DIRECT_CONNECTIONS</code> |
+
+Disable direct (P2P) connections to workspaces.
 
 ### --global-config
 

@@ -206,6 +206,15 @@ func User(t testing.TB, db database.Store, orig database.User) database.User {
 		LoginType:      takeFirst(orig.LoginType, database.LoginTypePassword),
 	})
 	require.NoError(t, err, "insert user")
+
+	if !orig.LastSeenAt.IsZero() {
+		user, err = db.UpdateUserLastSeenAt(genCtx, database.UpdateUserLastSeenAtParams{
+			ID:         user.ID,
+			LastSeenAt: orig.LastSeenAt,
+			UpdatedAt:  user.UpdatedAt,
+		})
+		require.NoError(t, err, "user last seen")
+	}
 	return user
 }
 

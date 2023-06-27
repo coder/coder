@@ -318,6 +318,30 @@ func TestConvertResources(t *testing.T) {
 				}},
 			}},
 			parameters: []*proto.RichParameter{{
+				Name:         "First parameter from child module",
+				Type:         "string",
+				Description:  "First parameter from child module",
+				Mutable:      true,
+				DefaultValue: "abcdef",
+			}, {
+				Name:         "Second parameter from child module",
+				Type:         "string",
+				Description:  "Second parameter from child module",
+				Mutable:      true,
+				DefaultValue: "ghijkl",
+			}, {
+				Name:         "First parameter from module",
+				Type:         "string",
+				Description:  "First parameter from module",
+				Mutable:      true,
+				DefaultValue: "abcdef",
+			}, {
+				Name:         "Second parameter from module",
+				Type:         "string",
+				Description:  "Second parameter from module",
+				Mutable:      true,
+				DefaultValue: "ghijkl",
+			}, {
 				Name: "Example",
 				Type: "string",
 				Options: []*proto.RichParameterOption{{

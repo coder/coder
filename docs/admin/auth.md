@@ -282,6 +282,32 @@ OIDC provider will be added to the `myCoderGroupName` group in Coder.
 
 [azure-gids]: https://github.com/MicrosoftDocs/azure-docs/issues/59766#issuecomment-664387195
 
+### Troubleshooting
+
+Some common issues when enabling group sync.
+
+#### Invalid Scope
+
+If you see an error like the following, you may have an invalid scope.
+
+```console
+The application '<oidc_application>' asked for scope 'groups' that doesn't exist on the resource...
+```
+
+This can happen because the identity provider has a different name for the scope. For example, Azure AD uses `GroupMember.Read.All` instead of `groups`. You can find the correct scope name in the IDP's documentation. Some IDP's allow configuring the name of this scope.
+
+The solution is to update the value of `CODER_OIDC_SCOPES` to the correct value for the identity provider.
+
+#### No `group` claim in the `got oidc claims` log
+
+Steps to troubleshoot.
+
+1. Ensure the user is a part of a group in the IDP. If the user has 0 groups, no `groups` claim will be sent.
+2. Check if another claim appears to be the correct claim with a different name. A common name is `memberOf` instead of `groups`. If this is present, update `CODER_OIDC_GROUP_FIELD=memberOf`.
+3. Make sure the number of groups being sent is under the limit of the IDP. Some IDPs will return an error, while others will just omit the `groups` claim. A common solution is to create a filter on the identity provider that returns less than the limit for your IDP.
+   - [Azure AD limit is 200, and omits groups if exceeded.](https://learn.microsoft.com/en-us/azure/active-directory/hybrid/connect/how-to-connect-fed-group-claims#options-for-applications-to-consume-group-information)
+   - [Okta limit is 100, and returns an error if exceeded.](hhttps://developer.okta.com/docs/reference/api/oidc/#scope-dependent-claims-not-always-returned)
+
 ## Provider-Specific Guides
 
 Below are some details specific to individual OIDC providers.

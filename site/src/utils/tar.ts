@@ -232,7 +232,12 @@ export class TarWriter {
       view.set(data, offset + 512)
       offset += 512 + 512 * Math.floor((item.size + 511) / 512)
     }
-    return new Blob([this.buffer], { type: "application/x-tar" })
+    // Required so it works in the browser and node.
+    if (typeof Blob !== "undefined") {
+      return new Blob([this.buffer], { type: "application/x-tar" })
+    } else {
+      return this.buffer
+    }
   }
 
   private writeString(str: string, offset: number, size: number) {

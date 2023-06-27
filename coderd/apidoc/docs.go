@@ -4006,6 +4006,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/connection": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get connection info for workspace agent generic",
+                "operationId": "get-connection-info-for-workspace-agent-generic",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentConnectionInfo"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/workspaceagents/google-instance-identity": {
             "post": {
                 "security": [
@@ -4598,6 +4626,12 @@ const docTemplate = `{
                         "type": "boolean",
                         "description": "Follow log stream",
                         "name": "follow",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Disable compression for WebSocket connection",
+                        "name": "no_compression",
                         "in": "query"
                     }
                 ],
@@ -5750,6 +5784,9 @@ const docTemplate = `{
                 "directory": {
                     "type": "string"
                 },
+                "disable_direct_connections": {
+                    "type": "boolean"
+                },
                 "environment_variables": {
                     "type": "object",
                     "additionalProperties": {
@@ -5812,6 +5849,9 @@ const docTemplate = `{
         "agentsdk.PostLifecycleRequest": {
             "type": "object",
             "properties": {
+                "changed_at": {
+                    "type": "string"
+                },
                 "state": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
                 }
@@ -5855,9 +5895,6 @@ const docTemplate = `{
             "properties": {
                 "created_at": {
                     "type": "string"
-                },
-                "eof": {
-                    "type": "boolean"
                 },
                 "level": {
                     "$ref": "#/definitions/codersdk.LogLevel"
@@ -6684,7 +6721,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "inactivity_ttl_ms": {
-                    "description": "InactivityTTLMillis allows optionally specifying the max lifetime before Coder\ndeletes inactive workspaces created from this template.",
+                    "description": "InactivityTTLMillis allows optionally specifying the max lifetime before Coder\nlocks inactive workspaces created from this template.",
+                    "type": "integer"
+                },
+                "locked_ttl_ms": {
+                    "description": "LockedTTL allows optionally specifying the max lifetime before Coder\npermanently deletes locked workspaces created from this template.",
                     "type": "integer"
                 },
                 "max_ttl_ms": {
@@ -7027,6 +7068,9 @@ const docTemplate = `{
         "codersdk.DERPConfig": {
             "type": "object",
             "properties": {
+                "block_direct": {
+                    "type": "boolean"
+                },
                 "path": {
                     "type": "string"
                 },
@@ -7195,6 +7239,9 @@ const docTemplate = `{
                 "in_memory_database": {
                     "type": "boolean"
                 },
+                "job_hang_detector_interval": {
+                    "type": "integer"
+                },
                 "logging": {
                     "$ref": "#/definitions/codersdk.LoggingConfig"
                 },
@@ -7346,12 +7393,12 @@ const docTemplate = `{
             "enum": [
                 "moons",
                 "workspace_actions",
-                "workspace_filter"
+                "tailnet_pg_coordinator"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
                 "ExperimentWorkspaceActions",
-                "ExperimentWorkspaceFilter"
+                "ExperimentTailnetPGCoordinator"
             ]
         },
         "codersdk.Feature": {
@@ -7903,6 +7950,9 @@ const docTemplate = `{
                 "daemons": {
                     "type": "integer"
                 },
+                "daemons_echo": {
+                    "type": "boolean"
+                },
                 "force_cancel_interval": {
                     "type": "integer"
                 }
@@ -7980,6 +8030,12 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "queue_position": {
+                    "type": "integer"
+                },
+                "queue_size": {
+                    "type": "integer"
                 },
                 "started_at": {
                     "type": "string",
@@ -8500,7 +8556,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "failure_ttl_ms": {
-                    "description": "FailureTTLMillis and InactivityTTLMillis are enterprise-only. Their\nvalues are used if your license is entitled to use the advanced\ntemplate scheduling feature.",
+                    "description": "FailureTTLMillis, InactivityTTLMillis, and LockedTTLMillis are enterprise-only. Their\nvalues are used if your license is entitled to use the advanced\ntemplate scheduling feature.",
                     "type": "integer"
                 },
                 "icon": {
@@ -8511,6 +8567,9 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "inactivity_ttl_ms": {
+                    "type": "integer"
+                },
+                "locked_ttl_ms": {
                     "type": "integer"
                 },
                 "max_ttl_ms": {
@@ -9249,6 +9308,10 @@ const docTemplate = `{
                 "operating_system": {
                     "type": "string"
                 },
+                "ready_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "resource_id": {
                     "type": "string",
                     "format": "uuid"
@@ -9258,6 +9321,10 @@ const docTemplate = `{
                 },
                 "shutdown_script_timeout_seconds": {
                     "type": "integer"
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "startup_logs_length": {
                     "type": "integer"
@@ -9298,6 +9365,9 @@ const docTemplate = `{
             "properties": {
                 "derp_map": {
                     "$ref": "#/definitions/tailcfg.DERPMap"
+                },
+                "disable_direct_connections": {
+                    "type": "boolean"
                 }
             }
         },
@@ -9380,10 +9450,6 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
-                },
-                "eof": {
-                    "description": "EOF indicates that this is the last log entry and the file is closed.",
-                    "type": "boolean"
                 },
                 "id": {
                     "type": "integer"
@@ -10000,11 +10066,29 @@ const docTemplate = `{
                 "error": {}
             }
         },
+        "healthcheck.DatabaseReport": {
+            "type": "object",
+            "properties": {
+                "error": {},
+                "healthy": {
+                    "type": "boolean"
+                },
+                "latency": {
+                    "type": "integer"
+                },
+                "reachable": {
+                    "type": "boolean"
+                }
+            }
+        },
         "healthcheck.Report": {
             "type": "object",
             "properties": {
                 "access_url": {
                     "$ref": "#/definitions/healthcheck.AccessURLReport"
+                },
+                "database": {
+                    "$ref": "#/definitions/healthcheck.DatabaseReport"
                 },
                 "derp": {
                     "$ref": "#/definitions/healthcheck.DERPReport"

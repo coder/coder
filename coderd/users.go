@@ -199,12 +199,14 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	userRows, err := api.Database.GetUsers(ctx, database.GetUsersParams{
-		AfterID:   paginationParams.AfterID,
-		OffsetOpt: int32(paginationParams.Offset),
-		LimitOpt:  int32(paginationParams.Limit),
-		Search:    params.Search,
-		Status:    params.Status,
-		RbacRole:  params.RbacRole,
+		AfterID:        paginationParams.AfterID,
+		Search:         params.Search,
+		Status:         params.Status,
+		RbacRole:       params.RbacRole,
+		LastSeenBefore: params.LastSeenBefore,
+		LastSeenAfter:  params.LastSeenAfter,
+		OffsetOpt:      int32(paginationParams.Offset),
+		LimitOpt:       int32(paginationParams.Limit),
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

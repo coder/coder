@@ -286,6 +286,8 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
   file_id: MockOrganization.id,
   completed_at: "2022-05-17T17:39:01.382927298Z",
   tags: {},
+  queue_position: 0,
+  queue_size: 0,
 }
 
 export const MockFailedProvisionerJob: TypesGen.ProvisionerJob = {
@@ -388,6 +390,7 @@ export const MockTemplate: TypesGen.Template = {
   allow_user_cancel_workspace_jobs: true,
   failure_ttl_ms: 0,
   inactivity_ttl_ms: 0,
+  locked_ttl_ms: 0,
   allow_user_autostart: false,
   allow_user_autostop: false,
 }
@@ -1402,7 +1405,6 @@ export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
 export const MockExperiments: TypesGen.Experiment[] = [
   "workspace_actions",
   "moons",
-  "workspace_filter",
 ]
 
 export const MockAuditLog: TypesGen.AuditLog = {
@@ -1649,7 +1651,6 @@ export const MockStartupLogs: TypesGen.WorkspaceAgentStartupLog[] = [
     created_at: "2023-05-04T11:30:41.402072Z",
     output: "+ curl -fsSL https://code-server.dev/install.sh",
     level: "info",
-    eof: false,
   },
   {
     id: 166664,
@@ -1657,28 +1658,18 @@ export const MockStartupLogs: TypesGen.WorkspaceAgentStartupLog[] = [
     output:
       "+ sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.8.3",
     level: "info",
-    eof: false,
   },
   {
     id: 166665,
     created_at: "2023-05-04T11:30:42.590731Z",
     output: "Ubuntu 22.04.2 LTS",
     level: "info",
-    eof: false,
   },
   {
     id: 166666,
     created_at: "2023-05-04T11:30:42.593686Z",
     output: "Installing v4.8.3 of the amd64 release from GitHub.",
     level: "info",
-    eof: false,
-  },
-  {
-    id: 166667,
-    created_at: "2023-05-04T11:30:42.599999Z",
-    output: "",
-    level: "info",
-    eof: true,
   },
 ]
 
