@@ -1,4 +1,4 @@
-import { Region, RegionsResponse } from "api/typesGenerated"
+import { Region } from "api/typesGenerated"
 import { useEffect, useReducer, useState } from "react"
 import PerformanceObserver from "@fastly/performance-observer-polyfill"
 import axios from "axios"
@@ -33,7 +33,7 @@ const proxyLatenciesReducer = (
 }
 
 export const useProxyLatency = (
-  proxies?: RegionsResponse,
+  proxies?: Region[],
 ): {
   // Refetch can be called to refetch the proxy latencies.
   // Until the new values are loaded, the old values will still be used.
@@ -74,7 +74,7 @@ export const useProxyLatency = (
     // proxyMap is a map of the proxy path_app_url to the proxy object.
     // This is for the observer to know which requests are important to
     // record.
-    const proxyChecks = proxies.regions.reduce((acc, proxy) => {
+    const proxyChecks = proxies.reduce((acc, proxy) => {
       // Only run the latency check on healthy proxies.
       if (!proxy.healthy) {
         return acc
@@ -216,7 +216,7 @@ const updateStoredLatencies = (action: ProxyLatencyAction): void => {
 // garbageCollectStoredLatencies will remove any latencies that are older then 1 week or latencies of proxies
 // that no longer exist. This is intended to keep the size of local storage down.
 const garbageCollectStoredLatencies = (
-  regions: RegionsResponse,
+  regions: Region[],
   maxStored: number,
 ): void => {
   const latencies = loadStoredLatencies()
@@ -228,12 +228,12 @@ const garbageCollectStoredLatencies = (
 
 const cleanupLatencies = (
   stored: Record<string, ProxyLatencyReport[]>,
-  regions: RegionsResponse,
+  regions: Region[],
   now: Date,
   maxStored: number,
 ): Record<string, ProxyLatencyReport[]> => {
   Object.keys(stored).forEach((proxyID) => {
-    if (!regions.regions.find((region) => region.id === proxyID)) {
+    if (!regions.find((region) => region.id === proxyID)) {
       delete stored[proxyID]
       return
     }

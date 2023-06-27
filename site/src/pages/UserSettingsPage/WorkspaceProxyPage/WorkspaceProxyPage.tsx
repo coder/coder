@@ -2,16 +2,13 @@ import { FC, PropsWithChildren } from "react"
 import { Section } from "components/SettingsLayout/Section"
 import { WorkspaceProxyView } from "./WorkspaceProxyView"
 import makeStyles from "@mui/styles/makeStyles"
-import { displayError } from "components/GlobalSnackbar/utils"
 import { useProxy } from "contexts/ProxyContext"
 
 export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
   const styles = useStyles()
 
   const description =
-    "Workspace proxies are used to reduce the latency of connections to your workspaces." +
-    "To get the best experience, choose the workspace proxy that is closest to you." +
-    "This selection only affects browser connections to your workspace."
+    "Workspace proxies are used to reduce the latency of connections to your workspaces."
 
   const {
     proxyLatencies,
@@ -20,7 +17,6 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
     isFetched: proxiesFetched,
     isLoading: proxiesLoading,
     proxy,
-    setProxy,
   } = useProxy()
 
   return (
@@ -37,14 +33,6 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
         hasLoaded={proxiesFetched}
         getWorkspaceProxiesError={proxiesError}
         preferredProxy={proxy.proxy}
-        onSelect={(proxy) => {
-          if (!proxy.healthy) {
-            displayError("Please select a healthy workspace proxy.")
-            return
-          }
-
-          setProxy(proxy)
-        }}
       />
     </Section>
   )
