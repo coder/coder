@@ -155,6 +155,7 @@ func TestHealthcheck(t *testing.T) {
 			assert.Equal(t, c.checker.AccessURLReport.Healthy, report.AccessURL.Healthy)
 			assert.Equal(t, c.checker.WebsocketReport.Healthy, report.Websocket.Healthy)
 			assert.NotZero(t, report.Time)
+			assert.NotZero(t, report.CoderVersion)
 		})
 	}
 }
