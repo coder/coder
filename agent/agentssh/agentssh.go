@@ -444,8 +444,11 @@ func (s *Server) showServiceBanner(ctx context.Context, session io.Writer) error
 		// The banner supports Markdown so we might want to parse it but Markdown is
 		// still fairly readable in its raw form.
 		_, err = io.WriteString(session, banner.Message+"\n\n\r")
+		if err != nil {
+			return err
+		}
 	}
-	return err
+	return nil
 }
 
 func (s *Server) sftpHandler(session ssh.Session) {
