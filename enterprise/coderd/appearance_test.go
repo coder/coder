@@ -125,6 +125,17 @@ func TestServiceBanners(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, cfg.ServiceBanner, banner)
 
+		// No enterprise means a 404 on the endpoint meaning no banner.
+		client = coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		agentClient = agentsdk.New(client.URL)
+		agentClient.SetSessionToken(authToken)
+		banner, err = agentClient.GetServiceBanner(ctx)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ServiceBannerConfig{}, banner)
+
+		// No license means no banner.
 		client.DeleteLicense(ctx, license.ID)
 		banner, err = agentClient.GetServiceBanner(ctx)
 		require.NoError(t, err)
