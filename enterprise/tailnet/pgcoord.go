@@ -18,7 +18,9 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/database/pubsub"
+	"github.com/coder/coder/coderd/rbac"
 	agpl "github.com/coder/coder/tailnet"
 )
 
@@ -82,7 +84,21 @@ type pgCoord struct {
 // NewPGCoord creates a high-availability coordinator that stores state in the PostgreSQL database and
 // receives notifications of updates via the pubsub.
 func NewPGCoord(ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store) (agpl.Coordinator, error) {
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(dbauthz.As(ctx, rbac.Subject{
+		ID: uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Name:        "tailnetcoordinator",
+				DisplayName: "Tailnet Coordinator",
+				Site: rbac.Permissions(map[string][]rbac.Action{
+					rbac.ResourceTailnetCoordinator.Type: {rbac.WildcardSymbol},
+				}),
+				Org:  map[string][]rbac.Permission{},
+				User: []rbac.Permission{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()))
 	id := uuid.New()
 	logger = logger.Named("pgcoord").With(slog.F("coordinator_id", id))
 	bCh := make(chan binding)
@@ -103,6 +119,7 @@ func NewPGCoord(ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store
 		querier:        newQuerier(ctx, logger, ps, store, id, cCh, numQuerierWorkers, fHB),
 		closed:         make(chan struct{}),
 	}
+	logger.Info(ctx, "starting coordinator")
 	return c, nil
 }
 
@@ -171,6 +188,7 @@ func (c *pgCoord) ServeAgent(conn net.Conn, id uuid.UUID, name string) error {
 }
 
 func (c *pgCoord) Close() error {
+	c.logger.Info(c.ctx, "closing coordinator")
 	c.cancel()
 	c.closeOnce.Do(func() { close(c.closed) })
 	return nil

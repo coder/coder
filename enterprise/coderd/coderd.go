@@ -417,7 +417,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		if enabled {
 			var haCoordinator agpltailnet.Coordinator
 			if api.AGPL.Experiments.Enabled(codersdk.ExperimentTailnetPGCoordinator) {
-				haCoordinator, err = tailnet.NewPGCoord(ctx, api.Logger, api.Pubsub, api.Database)
+				haCoordinator, err = tailnet.NewPGCoord(api.ctx, api.Logger, api.Pubsub, api.Database)
 			} else {
 				haCoordinator, err = tailnet.NewCoordinator(api.Logger, api.Pubsub)
 			}
