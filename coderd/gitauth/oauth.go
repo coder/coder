@@ -44,6 +44,10 @@ var deviceAuthURL = map[codersdk.GitProvider]string{
 	codersdk.GitProviderGitHub: "https://github.com/login/device/code",
 }
 
+var appInstallationsURL = map[codersdk.GitProvider]string{
+	codersdk.GitProviderGitHub: "https://api.github.com/user/installations",
+}
+
 // scope contains defaults for each Git provider.
 var scope = map[codersdk.GitProvider][]string{
 	codersdk.GitProviderAzureDevops: {"vso.code_write"},
@@ -95,26 +99,16 @@ func (c *jwtConfig) Exchange(ctx context.Context, code string, opts ...oauth2.Au
 }
 
 type DeviceAuth struct {
-	config *oauth2.Config
-
-	ID  string
-	URL string
-}
-
-// DeviceAuthorization is the response from the device authorization endpoint.
-// See: https://tools.ietf.org/html/rfc8628#section-3.2
-type DeviceAuthorization struct {
-	DeviceCode      string `json:"device_code"`
-	UserCode        string `json:"user_code"`
-	VerificationURI string `json:"verification_uri"`
-	ExpiresIn       int    `json:"expires_in"`
-	Interval        int    `json:"interval"`
+	ClientID string
+	TokenURL string
+	Scopes   []string
+	CodeURL  string
 }
 
 // AuthorizeDevice begins the device authorization flow.
 // See: https://tools.ietf.org/html/rfc8628#section-3.1
-func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*DeviceAuthorization, error) {
-	if c.URL == "" {
+func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*codersdk.GitAuthDevice, error) {
+	if c.CodeURL == "" {
 		return nil, xerrors.New("oauth2: device code URL not set")
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.formatDeviceCodeURL(), nil)
@@ -127,16 +121,22 @@ func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*DeviceAuthorization,
 		return nil, err
 	}
 	defer resp.Body.Close()
-	var da DeviceAuthorization
+	var da codersdk.GitAuthDevice
 	return &da, json.NewDecoder(resp.Body).Decode(&da)
+}
+
+type ExchangeDeviceCodeResponse struct {
+	*oauth2.Token
+	Error            string `json:"error"`
+	ErrorDescription string `json:"error_description"`
 }
 
 // ExchangeDeviceCode exchanges a device code for an access token.
 // The boolean returned indicates whether the device code is still pending
 // and the caller should try again.
 func (c *DeviceAuth) ExchangeDeviceCode(ctx context.Context, deviceCode string) (*oauth2.Token, error) {
-	if c.URL == "" {
-		return nil, xerrors.New("oauth2: device code URL not set")
+	if c.TokenURL == "" {
+		return nil, xerrors.New("oauth2: token URL not set")
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.formatDeviceTokenURL(deviceCode), nil)
 	if err != nil {
@@ -151,11 +151,7 @@ func (c *DeviceAuth) ExchangeDeviceCode(ctx context.Context, deviceCode string) 
 	if resp.StatusCode != http.StatusOK {
 		return nil, codersdk.ReadBodyAsError(resp)
 	}
-	var body struct {
-		*oauth2.Token
-		Error            string `json:"error"`
-		ErrorDescription string `json:"error_description"`
-	}
+	var body ExchangeDeviceCodeResponse
 	err = json.NewDecoder(resp.Body).Decode(&body)
 	if err != nil {
 		return nil, err
@@ -168,13 +164,13 @@ func (c *DeviceAuth) ExchangeDeviceCode(ctx context.Context, deviceCode string) 
 
 func (c *DeviceAuth) formatDeviceTokenURL(deviceCode string) string {
 	var buf bytes.Buffer
-	_, _ = buf.WriteString(c.config.Endpoint.TokenURL)
+	_, _ = buf.WriteString(c.TokenURL)
 	v := url.Values{
-		"client_id":   {c.config.ClientID},
+		"client_id":   {c.ClientID},
 		"device_code": {deviceCode},
 		"grant_type":  {"urn:ietf:params:oauth:grant-type:device_code"},
 	}
-	if strings.Contains(c.config.Endpoint.TokenURL, "?") {
+	if strings.Contains(c.TokenURL, "?") {
 		_ = buf.WriteByte('&')
 	} else {
 		_ = buf.WriteByte('?')
@@ -185,13 +181,13 @@ func (c *DeviceAuth) formatDeviceTokenURL(deviceCode string) string {
 
 func (c *DeviceAuth) formatDeviceCodeURL() string {
 	var buf bytes.Buffer
-	_, _ = buf.WriteString(c.URL)
+	_, _ = buf.WriteString(c.CodeURL)
 
 	v := url.Values{
-		"client_id": {c.config.ClientID},
-		"scope":     c.config.Scopes,
+		"client_id": {c.ClientID},
+		"scope":     c.Scopes,
 	}
-	if strings.Contains(c.URL, "?") {
+	if strings.Contains(c.CodeURL, "?") {
 		_ = buf.WriteByte('&')
 	} else {
 		_ = buf.WriteByte('?')

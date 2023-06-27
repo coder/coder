@@ -1902,18 +1902,16 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 			if gitAuthLink.OAuthExpiry.Before(database.Now()) && !gitAuthLink.OAuthExpiry.IsZero() {
 				continue
 			}
-			if gitAuthConfig.ValidateURL != "" {
-				valid, err := gitAuthConfig.ValidateToken(ctx, gitAuthLink.OAuthAccessToken)
-				if err != nil {
-					api.Logger.Warn(ctx, "failed to validate git auth token",
-						slog.F("workspace_owner_id", workspace.OwnerID.String()),
-						slog.F("validate_url", gitAuthConfig.ValidateURL),
-						slog.Error(err),
-					)
-				}
-				if !valid {
-					continue
-				}
+			valid, _, err := gitAuthConfig.ValidateToken(ctx, gitAuthLink.OAuthAccessToken)
+			if err != nil {
+				api.Logger.Warn(ctx, "failed to validate git auth token",
+					slog.F("workspace_owner_id", workspace.OwnerID.String()),
+					slog.F("validate_url", gitAuthConfig.ValidateURL),
+					slog.Error(err),
+				)
+			}
+			if !valid {
+				continue
 			}
 			httpapi.Write(ctx, rw, http.StatusOK, formatGitAuthAccessToken(gitAuthConfig.Type, gitAuthLink.OAuthAccessToken))
 			return

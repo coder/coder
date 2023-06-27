@@ -297,18 +297,20 @@ type TraceConfig struct {
 }
 
 type GitAuthConfig struct {
-	ID            string   `json:"id"`
-	Type          string   `json:"type"`
-	ClientID      string   `json:"client_id"`
-	ClientSecret  string   `json:"-" yaml:"client_secret"`
-	AuthURL       string   `json:"auth_url"`
-	TokenURL      string   `json:"token_url"`
-	ValidateURL   string   `json:"validate_url"`
-	Regex         string   `json:"regex"`
-	NoRefresh     bool     `json:"no_refresh"`
-	Scopes        []string `json:"scopes"`
-	DeviceFlow    bool     `json:"device_flow"`
-	DeviceAuthURL string   `json:"device_auth_url"`
+	ID                  string   `json:"id"`
+	Type                string   `json:"type"`
+	ClientID            string   `json:"client_id"`
+	ClientSecret        string   `json:"-" yaml:"client_secret"`
+	AuthURL             string   `json:"auth_url"`
+	TokenURL            string   `json:"token_url"`
+	ValidateURL         string   `json:"validate_url"`
+	AppInstallURL       string   `json:"app_install_url"`
+	AppInstallationsURL string   `json:"app_installations_url"`
+	Regex               string   `json:"regex"`
+	NoRefresh           bool     `json:"no_refresh"`
+	Scopes              []string `json:"scopes"`
+	DeviceFlow          bool     `json:"device_flow"`
+	DeviceAuthURL       string   `json:"device_auth_url"`
 }
 
 type ProvisionerConfig struct {

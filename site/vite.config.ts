@@ -62,12 +62,6 @@ export default defineConfig({
           })
         },
       },
-      // The device route is visual!
-      "^/gitauth/(?!.*(device))": {
-        changeOrigin: true,
-        target: process.env.CODER_HOST || "http://localhost:3000",
-        secure: process.env.NODE_ENV === "production",
-      },
       "/swagger": {
         target: process.env.CODER_HOST || "http://localhost:3000",
         secure: process.env.NODE_ENV === "production",

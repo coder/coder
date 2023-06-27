@@ -455,23 +455,23 @@ func New(options *Options) *API {
 		})
 	})
 
+	// Register callback handlers for each OAuth2 provider.
 	r.Route("/gitauth", func(r chi.Router) {
 		for _, gitAuthConfig := range options.GitAuthConfigs {
+			// We don't need to register a callback handler for device auth.
+			if gitAuthConfig.DeviceAuth != nil {
+				continue
+			}
 			r.Route(fmt.Sprintf("/%s", gitAuthConfig.ID), func(r chi.Router) {
-				r.Use(apiKeyMiddlewareRedirect)
-
-				useDeviceAuth := gitAuthConfig.DeviceAuth != nil
-				if useDeviceAuth {
-					r.Use(api.gitAuthDeviceRedirect(gitAuthConfig))
-					r.Post("/exchange", api.postGitAuthExchange(gitAuthConfig))
-				} else {
-					// If device auth isn't in use, then the git provider is using OAuth2!
-					r.Use(httpmw.ExtractOAuth2(gitAuthConfig, options.HTTPClient, nil))
-					r.Get("/callback", api.gitAuthCallback(gitAuthConfig))
-				}
+				r.Use(
+					apiKeyMiddlewareRedirect,
+					httpmw.ExtractOAuth2(gitAuthConfig, options.HTTPClient, nil),
+				)
+				r.Get("/callback", api.gitAuthCallback(gitAuthConfig))
 			})
 		}
 	})
+
 	r.Route("/api/v2", func(r chi.Router) {
 		api.APIHandler = r
 
@@ -518,6 +518,15 @@ func New(options *Options) *API {
 			)
 			r.Get("/{fileID}", api.fileByID)
 			r.Post("/", api.postFile)
+		})
+		r.Route("/gitauth/{gitauth}", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractGitAuthParam(options.GitAuthConfigs),
+			)
+			r.Get("/", api.gitAuthByID)
+			r.Post("/device", api.postGitAuthDeviceByID)
+			r.Get("/device", api.gitAuthDeviceByID)
 		})
 		r.Route("/organizations", func(r chi.Router) {
 			r.Use(

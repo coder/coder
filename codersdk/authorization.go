@@ -3,7 +3,6 @@ package codersdk
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 )
 
@@ -19,10 +18,6 @@ type AuthorizationRequest struct {
 	// The key ensures that each permission check has the same key in the
 	// response.
 	Checks map[string]AuthorizationCheck `json:"checks"`
-}
-
-type ExchangeGitAuthRequest struct {
-	DeviceCode string `json:"device_code"`
 }
 
 // AuthorizationCheck is used to check if the currently authenticated user (or the specified user) can do a given action to a given set of objects.
@@ -74,17 +69,4 @@ func (c *Client) AuthCheck(ctx context.Context, req AuthorizationRequest) (Autho
 	}
 	var resp AuthorizationResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
-}
-
-// ExchangeGitAuth exchanges a device code for a git auth token.
-func (c *Client) ExchangeGitAuth(ctx context.Context, provider string, req ExchangeGitAuthRequest) error {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/gitauth/%s/exchange", provider), req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
 }
