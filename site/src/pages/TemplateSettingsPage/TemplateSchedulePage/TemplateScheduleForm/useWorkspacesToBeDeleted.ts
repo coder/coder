@@ -13,10 +13,11 @@ const inactiveStatuses: WorkspaceStatus[] = [
 
 export const useWorkspacesToBeDeleted = (
   formValues: TemplateScheduleFormValues,
+  templateName: string,
 ) => {
   const { data: workspacesData } = useQuery({
     queryKey: ["workspaces"],
-    queryFn: () => getWorkspaces({}),
+    queryFn: () => getWorkspaces({ q: `template:${templateName}`}),
     enabled: formValues.inactivity_cleanup_enabled,
   })
   return workspacesData?.workspaces?.filter((workspace: Workspace) => {

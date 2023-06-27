@@ -100,7 +100,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
   const { t } = useTranslation("templateSettingsPage")
   const styles = useStyles()
 
-  const workspacesToBeDeletedToday = useWorkspacesToBeDeleted(form.values)
+  const workspacesToBeDeletedToday = useWorkspacesToBeDeleted(form.values, template.name)
 
   const [isInactivityDialogOpen, setIsInactivityDialogOpen] =
     useState<boolean>(false)
