@@ -147,7 +147,7 @@
     "msw": "1.1.0",
     "prettier": "2.8.1",
     "resize-observer": "1.0.4",
-    "semver": "7.3.7",
+    "semver": "7.5.2",
     "storybook": "7.0.4",
     "storybook-react-context": "0.6.0",
     "ts-proto": "1.150.0",
