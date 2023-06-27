@@ -1291,3 +1291,82 @@ func TestTemplateVersionPatch(t *testing.T) {
 		require.Error(t, err)
 	})
 }
+
+func TestTemplateVersionParameters_Priority(t *testing.T) {
+	t.Parallel()
+
+	const (
+		firstParameterName  = "first_parameter"
+		firstParameterType  = "string"
+		firstParameterValue = "aaa"
+		// no priority
+
+		secondParameterName     = "second_parameter"
+		secondParameterType     = "number"
+		secondParameterValue    = "2"
+		secondParameterPriority = 14
+
+		thirdParameterName     = "third_parameter"
+		thirdParameterType     = "number"
+		thirdParameterValue    = "3"
+		thirdParameterPriority = 14
+
+		fourthParameterName     = "fourth_parameter"
+		fourthParameterType     = "number"
+		fourthParameterValue    = "3"
+		fourthParameterPriority = 10
+	)
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Provision_Response{
+			{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Parameters: []*proto.RichParameter{
+							{
+								Name: firstParameterName,
+								Type: firstParameterType,
+								// No priority
+							},
+							{
+								Name:     secondParameterName,
+								Type:     secondParameterType,
+								Priority: secondParameterPriority,
+							},
+							{
+								Name:     thirdParameterName,
+								Type:     thirdParameterType,
+								Priority: thirdParameterPriority,
+							},
+							{
+								Name:     fourthParameterName,
+								Type:     fourthParameterType,
+								Priority: fourthParameterPriority,
+							},
+						},
+					},
+				},
+			},
+		},
+		ProvisionApply: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{},
+			},
+		}},
+	})
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	templateRichParameters, err := client.TemplateVersionRichParameters(ctx, version.ID)
+	require.NoError(t, err)
+	require.Len(t, templateRichParameters, 4)
+	require.Equal(t, secondParameterName, templateRichParameters[0].Name)
+	require.Equal(t, thirdParameterName, templateRichParameters[1].Name)
+	require.Equal(t, fourthParameterName, templateRichParameters[2].Name)
+	require.Equal(t, firstParameterName, templateRichParameters[3].Name)
+}

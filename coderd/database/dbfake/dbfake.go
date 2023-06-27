@@ -2412,7 +2412,7 @@ func (q *fakeQuerier) GetTemplateVersionParameters(_ context.Context, templateVe
 	}
 	sort.Slice(parameters, func(i, j int) bool {
 		if parameters[i].Priority != parameters[j].Priority {
-			return parameters[i].Priority < parameters[j].Priority
+			return parameters[i].Priority > parameters[j].Priority
 		}
 		return parameters[i].Name < parameters[j].Name
 	})
@@ -3940,6 +3940,7 @@ func (q *fakeQuerier) InsertTemplateVersionParameter(_ context.Context, arg data
 		ValidationMax:       arg.ValidationMax,
 		ValidationMonotonic: arg.ValidationMonotonic,
 		Required:            arg.Required,
+		Priority:            arg.Priority,
 		LegacyVariableName:  arg.LegacyVariableName,
 	}
 	q.templateVersionParameters = append(q.templateVersionParameters, param)
