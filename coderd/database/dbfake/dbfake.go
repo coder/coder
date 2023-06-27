@@ -2410,6 +2410,12 @@ func (q *fakeQuerier) GetTemplateVersionParameters(_ context.Context, templateVe
 		}
 		parameters = append(parameters, param)
 	}
+	sort.Slice(parameters, func(i, j int) bool {
+		if parameters[i].Priority != parameters[j].Priority {
+			return parameters[i].Priority < parameters[j].Priority
+		}
+		return parameters[i].Name < parameters[j].Name
+	})
 	return parameters, nil
 }
 
