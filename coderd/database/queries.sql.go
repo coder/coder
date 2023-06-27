@@ -4215,7 +4215,8 @@ INSERT INTO
         validation_monotonic,
         required,
         legacy_variable_name,
-        display_name
+        display_name,
+		priority
     )
 VALUES
     (
@@ -4234,7 +4235,8 @@ VALUES
         $13,
         $14,
         $15,
-		$16
+		$16,
+		$17
     ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, legacy_variable_name, display_name, priority
 `
 
@@ -4255,6 +4257,7 @@ type InsertTemplateVersionParameterParams struct {
 	Required            bool            `db:"required" json:"required"`
 	LegacyVariableName  string          `db:"legacy_variable_name" json:"legacy_variable_name"`
 	DisplayName         string          `db:"display_name" json:"display_name"`
+	Priority            int32           `db:"priority" json:"priority"`
 }
 
 func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg InsertTemplateVersionParameterParams) (TemplateVersionParameter, error) {
@@ -4275,6 +4278,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		arg.Required,
 		arg.LegacyVariableName,
 		arg.DisplayName,
+		arg.Priority,
 	)
 	var i TemplateVersionParameter
 	err := row.Scan(
