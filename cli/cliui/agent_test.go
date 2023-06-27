@@ -161,8 +161,6 @@ func TestAgent(t *testing.T) {
 				},
 			},
 			want: []string{
-				"⧗ Waiting for the workspace agent to connect",
-				"✔ Waiting for the workspace agent to connect",
 				"⧗ Running workspace agent startup script",
 				"Hello world",
 				"Bye now",
@@ -193,13 +191,11 @@ func TestAgent(t *testing.T) {
 				},
 			},
 			want: []string{
-				"⧗ Waiting for the workspace agent to connect",
-				"✔ Waiting for the workspace agent to connect",
 				"⧗ Running workspace agent startup script",
 				"Hello world",
+				"✘ Running workspace agent startup script",
 				"Warning: The startup script exited with an error and your workspace may be incomplete.",
 				"For more information and troubleshooting, see",
-				"✘ Running workspace agent startup script",
 			},
 		},
 		{
@@ -245,8 +241,6 @@ func TestAgent(t *testing.T) {
 				},
 			},
 			want: []string{
-				"⧗ Waiting for the workspace agent to connect",
-				"✔ Waiting for the workspace agent to connect",
 				"⧗ Running workspace agent startup script",
 				"Hello world",
 				"✔ Running workspace agent startup script",

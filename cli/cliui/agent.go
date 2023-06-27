@@ -80,38 +80,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 
 	sw := &stageWriter{w: writer}
 
-	showInitialConnection := true
 	showStartupLogs := false
-
-	printInitialConnection := func() error {
-		showInitialConnection = false
-
-		// Since we were waiting for the agent to connect, also show
-		// startup logs.
-		showStartupLogs = true
-
-		stage := "Waiting for the workspace agent to connect"
-		sw.Start(stage)
-		for agent.Status == codersdk.WorkspaceAgentConnecting {
-			if agent, err = fetch(); err != nil {
-				return xerrors.Errorf("fetch: %w", err)
-			}
-		}
-
-		if agent.Status == codersdk.WorkspaceAgentTimeout {
-			now := time.Now()
-			sw.Log(now, codersdk.LogLevelInfo, "The workspace agent is having trouble connecting, wait for it to connect or restart your workspace.")
-			sw.Log(now, codersdk.LogLevelInfo, troubleshootingMessage(agent, "https://coder.com/docs/v2/latest/templates#agent-connection-issues"))
-			for agent.Status == codersdk.WorkspaceAgentTimeout {
-				if agent, err = fetch(); err != nil {
-					return xerrors.Errorf("fetch: %w", err)
-				}
-			}
-		}
-		sw.Complete(stage, agent.FirstConnectedAt.Sub(agent.CreatedAt))
-		return nil
-	}
-
 	for {
 		// It doesn't matter if we're connected or not, if the agent is
 		// shutting down, we don't know if it's coming back.
@@ -121,23 +90,34 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 
 		switch agent.Status {
 		case codersdk.WorkspaceAgentConnecting, codersdk.WorkspaceAgentTimeout:
-			err = printInitialConnection()
-			if err != nil {
-				return xerrors.Errorf("initial connection: %w", err)
+			// Since we were waiting for the agent to connect, also show
+			// startup logs if applicable.
+			showStartupLogs = true
+
+			stage := "Waiting for the workspace agent to connect"
+			sw.Start(stage)
+			for agent.Status == codersdk.WorkspaceAgentConnecting {
+				if agent, err = fetch(); err != nil {
+					return xerrors.Errorf("fetch: %w", err)
+				}
 			}
+
+			if agent.Status == codersdk.WorkspaceAgentTimeout {
+				now := time.Now()
+				sw.Log(now, codersdk.LogLevelInfo, "The workspace agent is having trouble connecting, wait for it to connect or restart your workspace.")
+				sw.Log(now, codersdk.LogLevelInfo, troubleshootingMessage(agent, "https://coder.com/docs/v2/latest/templates#agent-connection-issues"))
+				for agent.Status == codersdk.WorkspaceAgentTimeout {
+					if agent, err = fetch(); err != nil {
+						return xerrors.Errorf("fetch: %w", err)
+					}
+				}
+			}
+			sw.Complete(stage, agent.FirstConnectedAt.Sub(agent.CreatedAt))
 
 		case codersdk.WorkspaceAgentConnected:
 			if !showStartupLogs && agent.LifecycleState == codersdk.WorkspaceAgentLifecycleReady {
 				// The workspace is ready, there's nothing to do but connect.
 				return nil
-			}
-
-			if showInitialConnection {
-				// Like with provisioner build logs, show a bit of history.
-				err = printInitialConnection()
-				if err != nil {
-					return xerrors.Errorf("initial connection: %w", err)
-				}
 			}
 
 			stage := "Running workspace agent startup script"
@@ -192,10 +172,10 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 			case codersdk.WorkspaceAgentLifecycleReady:
 				sw.Complete(stage, agent.ReadyAt.Sub(*agent.StartedAt))
 			case codersdk.WorkspaceAgentLifecycleStartError:
+				sw.Fail(stage, agent.ReadyAt.Sub(*agent.StartedAt))
 				// Use zero time (omitted) to separate these from the startup logs.
 				sw.Log(time.Time{}, codersdk.LogLevelWarn, "Warning: The startup script exited with an error and your workspace may be incomplete.")
 				sw.Log(time.Time{}, codersdk.LogLevelWarn, troubleshootingMessage(agent, "https://coder.com/docs/v2/latest/templates#startup-script-exited-with-an-error"))
-				sw.Fail(stage, agent.ReadyAt.Sub(*agent.StartedAt))
 			default:
 				switch {
 				case agent.LifecycleState.Starting():
@@ -216,7 +196,9 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 			return nil
 
 		case codersdk.WorkspaceAgentDisconnected:
-			showInitialConnection = false
+			// If the agent was still starting during disconnect, we'll
+			// show startup logs.
+			showStartupLogs = agent.LifecycleState.Starting()
 
 			stage := "The workspace agent lost connection"
 			sw.Start(stage)
@@ -238,4 +220,10 @@ func troubleshootingMessage(agent codersdk.WorkspaceAgent, url string) string {
 		m += " and " + agent.TroubleshootingURL
 	}
 	return m
+}
+
+type closeFunc func() error
+
+func (c closeFunc) Close() error {
+	return c()
 }
