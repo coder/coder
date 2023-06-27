@@ -1,1 +1,1 @@
-ALTER TABLE template_version_parameters DROP COLUMN display_name;
+ALTER TABLE template_version_parameters DROP COLUMN priority;
