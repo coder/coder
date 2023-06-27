@@ -156,7 +156,7 @@ maybedryrun "$DRY_RUN" kubectl --kubeconfig="${KUBECONFIG}" -n "coder-${SCALETES
 echo "Initializing Coder deployment."
 DRY_RUN="$DRY_RUN" "${PROJECT_ROOT}/scaletest/lib/coder_init.sh" "${SCALETEST_CODER_URL}"
 
-if [[ ! -z "${SCALETEST_CODER_LICENSE}" ]]; then
+if [[ -n "${SCALETEST_CODER_LICENSE}" ]]; then
 	echo "Applying Coder Enterprise License"
 	DRY_RUN="$DRY_RUN" "${PROJECT_ROOT}/scaletest/lib/coder_shim.sh" license add -l "${SCALETEST_CODER_LICENSE}"
 fi

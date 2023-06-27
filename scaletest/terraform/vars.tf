@@ -160,5 +160,5 @@ variable "prometheus_remote_write_send_interval" {
 
 variable "coder_experiments" {
   description = "Coder Experiments to enable"
-  default = ""
+  default     = ""
 }
