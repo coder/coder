@@ -64,10 +64,10 @@ type Server struct {
 	srv          *ssh.Server
 	x11SocketDir string
 
-	Env              map[string]string
-	AgentToken       func() string
-	Manifest         *atomic.Pointer[agentsdk.Manifest]
-	GetServiceBanner func(ctx context.Context) (codersdk.ServiceBannerConfig, error)
+	Env           map[string]string
+	AgentToken    func() string
+	Manifest      *atomic.Pointer[agentsdk.Manifest]
+	ServiceBanner func(ctx context.Context) (codersdk.ServiceBannerConfig, error)
 
 	connCountVSCode     atomic.Int64
 	connCountJetBrains  atomic.Int64
@@ -436,7 +436,7 @@ func (s *Server) startPTYSession(session ptySession, magicTypeLabel string, cmd 
 }
 
 func (s *Server) showServiceBanner(ctx context.Context, session io.Writer) error {
-	banner, err := s.GetServiceBanner(ctx)
+	banner, err := s.ServiceBanner(ctx)
 	if err != nil {
 		return err
 	}
