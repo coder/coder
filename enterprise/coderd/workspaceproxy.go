@@ -76,15 +76,7 @@ func (api *API) fetchRegions(ctx context.Context) (codersdk.RegionsResponse, err
 			}
 
 			health := proxyHealth[proxy.ID]
-			regions = append(regions, codersdk.Region{
-				ID:               proxy.ID,
-				Name:             proxy.Name,
-				DisplayName:      proxy.DisplayName,
-				IconURL:          proxy.Icon,
-				Healthy:          health.Status == proxyhealth.Healthy,
-				PathAppURL:       proxy.Url,
-				WildcardHostname: proxy.WildcardHostname,
-			})
+			regions = append(regions, convertRegion(proxy, health))
 		}
 	}
 
@@ -710,6 +702,18 @@ func convertProxies(p []database.WorkspaceProxy, statuses map[uuid.UUID]proxyhea
 	return resp
 }
 
+func convertRegion(proxy database.WorkspaceProxy, status proxyhealth.ProxyStatus) codersdk.Region {
+	return codersdk.Region{
+		ID:               proxy.ID,
+		Name:             proxy.Name,
+		DisplayName:      proxy.DisplayName,
+		IconURL:          proxy.Icon,
+		Healthy:          status.Status == proxyhealth.Healthy,
+		PathAppURL:       proxy.Url,
+		WildcardHostname: proxy.WildcardHostname,
+	}
+}
+
 func convertProxy(p database.WorkspaceProxy, status proxyhealth.ProxyStatus) codersdk.WorkspaceProxy {
 	if p.IsPrimary() {
 		// Primary is always healthy since the primary serves the api that this
@@ -727,15 +731,10 @@ func convertProxy(p database.WorkspaceProxy, status proxyhealth.ProxyStatus) cod
 		status.Status = proxyhealth.Unknown
 	}
 	return codersdk.WorkspaceProxy{
-		ID:               p.ID,
-		Name:             p.Name,
-		DisplayName:      p.DisplayName,
-		Icon:             p.Icon,
-		URL:              p.Url,
-		WildcardHostname: p.WildcardHostname,
-		CreatedAt:        p.CreatedAt,
-		UpdatedAt:        p.UpdatedAt,
-		Deleted:          p.Deleted,
+		Region:    convertRegion(p, status),
+		CreatedAt: p.CreatedAt,
+		UpdatedAt: p.UpdatedAt,
+		Deleted:   p.Deleted,
 		Status: codersdk.WorkspaceProxyStatus{
 			Status:    codersdk.ProxyHealthStatus(status.Status),
 			Report:    status.Report,

@@ -63,7 +63,7 @@ func (r *RootCmd) regenerateProxyToken() *clibase.Cmd {
 				ID:              proxy.ID,
 				Name:            proxy.Name,
 				DisplayName:     proxy.DisplayName,
-				Icon:            proxy.Icon,
+				Icon:            proxy.IconURL,
 				RegenerateToken: true,
 			})
 			if err != nil {
@@ -138,7 +138,7 @@ func (r *RootCmd) patchProxy() *clibase.Cmd {
 				displayName = proxy.DisplayName
 			}
 			if proxyIcon == "" {
-				proxyIcon = proxy.Icon
+				proxyIcon = proxy.IconURL
 			}
 
 			updated, err := client.PatchWorkspaceProxy(ctx, codersdk.PatchWorkspaceProxy{
@@ -322,7 +322,7 @@ func (r *RootCmd) listProxies() *clibase.Cmd {
 			sep := ""
 			for i, proxy := range resp {
 				_, _ = str.WriteString(sep)
-				_, _ = str.WriteString(fmt.Sprintf("%d: %s %s %s", i, proxy.Name, proxy.URL, proxy.Status.Status))
+				_, _ = str.WriteString(fmt.Sprintf("%d: %s %s %s", i, proxy.Name, proxy.PathAppURL, proxy.Status.Status))
 				for _, errMsg := range proxy.Status.Report.Errors {
 					_, _ = str.WriteString(color.RedString("\n\tErr: %s", errMsg))
 				}

@@ -288,7 +288,7 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, expName, found.Name, "name")
 		require.Equal(t, expDisplayName, found.DisplayName, "display name")
-		require.Equal(t, expIcon, found.Icon, "icon")
+		require.Equal(t, expIcon, found.IconURL, "icon")
 	})
 
 	t.Run("Delete", func(t *testing.T) {

@@ -1236,17 +1236,11 @@ export interface WorkspaceOptions {
 }
 
 // From codersdk/workspaceproxy.go
-export interface WorkspaceProxy {
-  readonly id: string
-  readonly name: string
-  readonly display_name: string
-  readonly icon: string
-  readonly url: string
-  readonly wildcard_hostname: string
+export interface WorkspaceProxy extends Region {
+  readonly status?: WorkspaceProxyStatus
   readonly created_at: string
   readonly updated_at: string
   readonly deleted: boolean
-  readonly status?: WorkspaceProxyStatus
 }
 
 // From codersdk/deployment.go
