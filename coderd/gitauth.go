@@ -24,6 +24,8 @@ func (api *API) gitAuthByID(w http.ResponseWriter, r *http.Request) {
 	res := codersdk.GitAuth{
 		Authenticated: false,
 		Device:        config.DeviceAuth != nil,
+		AppInstallURL: config.AppInstallURL,
+		Type:          config.Type.Pretty(),
 	}
 
 	link, err := api.Database.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
@@ -37,7 +39,7 @@ func (api *API) gitAuthByID(w http.ResponseWriter, r *http.Request) {
 			return err
 		})
 		eg.Go(func() (err error) {
-			res.AppInstallations, err = config.AppInstallations(ctx, link.OAuthAccessToken)
+			res.AppInstallations, res.AppInstallable, err = config.AppInstallations(ctx, link.OAuthAccessToken)
 			return err
 		})
 		err = eg.Wait()

@@ -44,7 +44,7 @@ type Config struct {
 	// returning it to the user. If omitted, tokens will
 	// not be validated before being returned.
 	ValidateURL string
-	// InstallURL is for GitHub App's (and hopefully others eventually)
+	// AppInstallURL is for GitHub App's (and hopefully others eventually)
 	// to provide a link to install the app. There's installation
 	// of the application, and user authentication. It's possible
 	// for the user to authenticate but the application to not.
@@ -155,29 +155,31 @@ type AppInstallation struct {
 
 // AppInstallations returns a list of app installations for the given token.
 // If the provider does not support app installations, it returns nil.
-func (c *Config) AppInstallations(ctx context.Context, token string) ([]codersdk.GitAuthAppInstallation, error) {
+func (c *Config) AppInstallations(ctx context.Context, token string) ([]codersdk.GitAuthAppInstallation, bool, error) {
 	if c.AppInstallationsURL == "" {
-		return nil, nil
+		return nil, false, nil
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.AppInstallationsURL, nil)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	defer res.Body.Close()
 
 	installs := []codersdk.GitAuthAppInstallation{}
 	if c.Type == codersdk.GitProviderGitHub {
-		var ghInstalls []github.Installation
+		var ghInstalls struct {
+			Installations []*github.Installation `json:"installations"`
+		}
 		err = json.NewDecoder(res.Body).Decode(&ghInstalls)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
-		for _, installation := range ghInstalls {
+		for _, installation := range ghInstalls.Installations {
 			install := codersdk.GitAuthAppInstallation{
 				ID:           int(installation.GetID()),
 				ConfigureURL: installation.GetHTMLURL(),
@@ -194,7 +196,7 @@ func (c *Config) AppInstallations(ctx context.Context, token string) ([]codersdk
 			installs = append(installs, install)
 		}
 	}
-	return installs, nil
+	return installs, true, nil
 }
 
 // ConvertConfig converts the SDK configuration entry format
@@ -301,7 +303,7 @@ func ConvertConfig(entries []codersdk.GitAuthConfig, accessURL *url.URL) ([]*Con
 			}
 			cfg.DeviceAuth = &DeviceAuth{
 				ClientID: entry.ClientID,
-				TokenURL: entry.TokenURL,
+				TokenURL: oc.Endpoint.TokenURL,
 				Scopes:   entry.Scopes,
 				CodeURL:  entry.DeviceAuthURL,
 			}

@@ -196,12 +196,7 @@ export const AppRouter: FC = () => {
             <Route element={<DashboardLayout />}>
               <Route index element={<IndexPage />} />
 
-              <Route path="gitauth">
-                <Route index element={<GitAuthPage />} />
-                <Route path=":provider">
-                  <Route path="device" element={<GitAuthDevicePage />} />
-                </Route>
-              </Route>
+              <Route path="gitauth/:provider" element={<GitAuthPage />} />
 
               <Route path="workspaces" element={<WorkspacesPage />} />
 

@@ -8,13 +8,18 @@ import (
 )
 
 type GitAuth struct {
-	Authenticated bool `json:"authenticated"`
-	Device        bool `json:"device"`
+	Authenticated bool   `json:"authenticated"`
+	Device        bool   `json:"device"`
+	Type          string `json:"type"`
 
 	// User is the user that authenticated with the provider.
 	User *GitAuthUser `json:"user"`
+	// AppInstallable is true if the request for app installs was successful.
+	AppInstallable bool `json:"app_installable"`
 	// AppInstallations are the installations that the user has access to.
 	AppInstallations []GitAuthAppInstallation `json:"installations"`
+	// AppInstallURL is the URL to install the app.
+	AppInstallURL string `json:"app_install_url"`
 }
 
 type GitAuthAppInstallation struct {
@@ -24,10 +29,10 @@ type GitAuthAppInstallation struct {
 }
 
 type GitAuthUser struct {
-	Login      string
-	AvatarURL  string
-	ProfileURL string
-	Name       string
+	Login      string `json:"login"`
+	AvatarURL  string `json:"avatar_url"`
+	ProfileURL string `json:"profile_url"`
+	Name       string `json:"name"`
 }
 
 // GitAuthDevice is the response from the device authorization endpoint.

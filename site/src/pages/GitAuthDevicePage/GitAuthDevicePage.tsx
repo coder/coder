@@ -3,14 +3,13 @@ import CircularProgress from "@mui/material/CircularProgress"
 import Link from "@mui/material/Link"
 import { makeStyles } from "@mui/styles"
 import { useQuery } from "@tanstack/react-query"
-import { exchangeGitAuth } from "api/api"
-import { ApiErrorResponse } from "api/errors"
+import { exchangeGitAuthDevice } from "api/api"
 import { isAxiosError } from "axios"
 import { Alert } from "components/Alert/Alert"
 import { CopyButton } from "components/CopyButton/CopyButton"
 import { SignInLayout } from "components/SignInLayout/SignInLayout"
 import { Welcome } from "components/Welcome/Welcome"
-import { FC, useEffect, useMemo, useState } from "react"
+import { FC, useEffect, useState } from "react"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 
 const GitAuthDevicePage: FC = () => {
@@ -38,7 +37,7 @@ const GitAuthDevicePage: FC = () => {
 
   const exchange = useQuery({
     queryFn: () =>
-      exchangeGitAuth(provider as string, { device_code: deviceCode }),
+      exchangeGitAuthDevice(provider as string, { device_code: deviceCode }),
     queryKey: ["gitauth", provider as string, deviceCode],
     retry: true,
     retryDelay: interval * 1000,

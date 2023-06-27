@@ -799,11 +799,25 @@ export const getExperiments = async (): Promise<TypesGen.Experiment[]> => {
   }
 }
 
-export const exchangeGitAuth = async (
+export const getGitAuthProvider = async (
   provider: string,
-  req: TypesGen.ExchangeGitAuthRequest,
+): Promise<TypesGen.GitAuth> => {
+  const resp = await axios.get(`/api/v2/gitauth/${provider}`)
+  return resp.data
+}
+
+export const getGitAuthDevice = async (
+  provider: string,
+): Promise<TypesGen.GitAuthDevice> => {
+  const resp = await axios.get(`/api/v2/gitauth/${provider}/device`)
+  return resp.data
+}
+
+export const exchangeGitAuthDevice = async (
+  provider: string,
+  req: TypesGen.GitAuthDeviceExchange,
 ): Promise<void> => {
-  const resp = await axios.post(`/gitauth/${provider}/exchange`, req)
+  const resp = await axios.post(`/api/v2/gitauth/${provider}/device`, req)
   return resp.data
 }
 

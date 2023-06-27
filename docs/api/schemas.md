@@ -593,6 +593,8 @@
 {
   "value": [
     {
+      "app_install_url": "string",
+      "app_installations_url": "string",
       "auth_url": "string",
       "client_id": "string",
       "device_auth_url": "string",
@@ -1879,6 +1881,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "git_auth": {
       "value": [
         {
+          "app_install_url": "string",
+          "app_installations_url": "string",
           "auth_url": "string",
           "client_id": "string",
           "device_auth_url": "string",
@@ -2212,6 +2216,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "git_auth": {
     "value": [
       {
+        "app_install_url": "string",
+        "app_installations_url": "string",
         "auth_url": "string",
         "client_id": "string",
         "device_auth_url": "string",
@@ -2581,6 +2587,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "app_install_url": "string",
+  "app_installations_url": "string",
   "auth_url": "string",
   "client_id": "string",
   "device_auth_url": "string",
@@ -2597,19 +2605,21 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type            | Required | Restrictions | Description |
-| ----------------- | --------------- | -------- | ------------ | ----------- |
-| `auth_url`        | string          | false    |              |             |
-| `client_id`       | string          | false    |              |             |
-| `device_auth_url` | string          | false    |              |             |
-| `device_flow`     | boolean         | false    |              |             |
-| `id`              | string          | false    |              |             |
-| `no_refresh`      | boolean         | false    |              |             |
-| `regex`           | string          | false    |              |             |
-| `scopes`          | array of string | false    |              |             |
-| `token_url`       | string          | false    |              |             |
-| `type`            | string          | false    |              |             |
-| `validate_url`    | string          | false    |              |             |
+| Name                    | Type            | Required | Restrictions | Description |
+| ----------------------- | --------------- | -------- | ------------ | ----------- |
+| `app_install_url`       | string          | false    |              |             |
+| `app_installations_url` | string          | false    |              |             |
+| `auth_url`              | string          | false    |              |             |
+| `client_id`             | string          | false    |              |             |
+| `device_auth_url`       | string          | false    |              |             |
+| `device_flow`           | boolean         | false    |              |             |
+| `id`                    | string          | false    |              |             |
+| `no_refresh`            | boolean         | false    |              |             |
+| `regex`                 | string          | false    |              |             |
+| `scopes`                | array of string | false    |              |             |
+| `token_url`             | string          | false    |              |             |
+| `type`                  | string          | false    |              |             |
+| `validate_url`          | string          | false    |              |             |
 
 ## codersdk.GitProvider
 

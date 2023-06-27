@@ -44,7 +44,7 @@ const useStyles = makeStyles((theme) => ({
     margin: 0,
     marginBottom: theme.spacing(2),
     marginTop: theme.spacing(2),
-    lineHeight: 1,
+    lineHeight: 1.25,
 
     "& strong": {
       fontWeight: 600,

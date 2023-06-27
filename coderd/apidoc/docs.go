@@ -7443,6 +7443,12 @@ const docTemplate = `{
         "codersdk.GitAuthConfig": {
             "type": "object",
             "properties": {
+                "app_install_url": {
+                    "type": "string"
+                },
+                "app_installations_url": {
+                    "type": "string"
+                },
                 "auth_url": {
                     "type": "string"
                 },

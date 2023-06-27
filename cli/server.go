@@ -164,6 +164,10 @@ func ReadGitAuthProvidersFromEnv(environ []string) ([]codersdk.GitAuthConfig, er
 			provider.NoRefresh = b
 		case "SCOPES":
 			provider.Scopes = strings.Split(v.Value, " ")
+		case "APP_INSTALL_URL":
+			provider.AppInstallURL = v.Value
+		case "APP_INSTALLATIONS_URL":
+			provider.AppInstallationsURL = v.Value
 		}
 		providers[providerNum] = provider
 	}

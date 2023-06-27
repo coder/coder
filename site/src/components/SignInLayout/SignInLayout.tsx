@@ -3,7 +3,7 @@ import { FC, ReactNode } from "react"
 
 export const useStyles = makeStyles((theme) => ({
   root: {
-    height: "100vh",
+    flex: 1,
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
