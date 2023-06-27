@@ -399,7 +399,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         submitValues={submitValues}
         isInactivityDialogOpen={isInactivityDialogOpen}
         setIsInactivityDialogOpen={setIsInactivityDialogOpen}
-        workspacesToBeDeletedToday={workspacesToBeDeletedToday?.length ?? 0}
+        numberWorkspacesToBeDeletedToday={workspacesToBeDeletedToday?.length ?? 0}
       />
       <FormFooter
         onCancel={onCancel}
