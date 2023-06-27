@@ -36,8 +36,8 @@ VALUES
         $13,
         $14,
         $15,
-		$16,
-		$17
+        $16,
+        $17
     ) RETURNING *;
 
 -- name: GetTemplateVersionParameters :many
