@@ -825,6 +825,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				ValidationMax:       validationMax,
 				ValidationMonotonic: richParameter.ValidationMonotonic,
 				Required:            richParameter.Required,
+				Priority:            richParameter.Priority,
 				LegacyVariableName:  richParameter.LegacyVariableName,
 			})
 			if err != nil {
