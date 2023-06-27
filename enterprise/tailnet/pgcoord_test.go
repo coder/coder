@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -615,22 +616,13 @@ func assertEventuallyHasDERPs(ctx context.Context, t *testing.T, c *testConn, ex
 			derps = append(derps, n.PreferredDERP)
 		}
 		for _, e := range expected {
-			if !contains(derps, e) {
+			if !slices.Contains(derps, e) {
 				t.Logf("expected DERP %d to be in %v", e, derps)
 				continue
 			}
 		}
 		return
 	}
-}
-
-func contains(s []int, i int) bool {
-	for _, k := range s {
-		if k == i {
-			return true
-		}
-	}
-	return false
 }
 
 func assertEventuallyNoAgents(ctx context.Context, t *testing.T, store database.Store, agentID uuid.UUID) {
