@@ -305,6 +305,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                     onChange={handleToggleFailureCleanup}
                   />
                 }
+                disabled={isSubmitting}
                 label="Enable Failure Cleanup"
               />
               <TextField
@@ -337,6 +338,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                     onChange={handleToggleInactivityCleanup}
                   />
                 }
+                disabled={isSubmitting}
                 label="Enable Inactivity Cleanup"
               />
               <TextField
@@ -371,6 +373,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                     onChange={handleToggleLockedCleanup}
                   />
                 }
+                disabled={isSubmitting || !form.values.inactivity_cleanup_enabled}
                 label="Enable Locked Cleanup"
               />
               <TextField
