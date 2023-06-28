@@ -83,6 +83,8 @@ coder:
               operator: "In"
               values:   ["${local.coder_release_name}"]
   env:
+    - name: "CODER_ACCESS_URL"
+      value: "${local.coder_url}"
     - name: "CODER_CACHE_DIRECTORY"
       value: "/tmp/coder"
     - name: "CODER_ENABLE_TELEMETRY"
@@ -108,6 +110,8 @@ coder:
       value: "true"
     - name: "CODER_EXPERIMENTS"
       value: "${var.coder_experiments}"
+    - name: "CODER_DANGEROUS_DISABLE_RATE_LIMITS"
+      value: "true"
   image:
     repo: ${var.coder_image_repo}
     tag: ${var.coder_image_tag}
@@ -197,7 +201,7 @@ resource "local_file" "kubernetes_template" {
           }
           resources {
             requests = {
-              "cpu"    = "0.1"
+              "cpu"    = "0.01"
               "memory" = "128Mi"
             }
             limits = {

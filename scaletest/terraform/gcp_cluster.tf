@@ -3,12 +3,13 @@ data "google_compute_default_service_account" "default" {
 }
 
 resource "google_container_cluster" "primary" {
-  name            = var.name
-  location        = var.zone
-  project         = var.project_id
-  network         = google_compute_network.vpc.name
-  subnetwork      = google_compute_subnetwork.subnet.name
-  networking_mode = "VPC_NATIVE"
+  name                      = var.name
+  location                  = var.zone
+  project                   = var.project_id
+  network                   = google_compute_network.vpc.name
+  subnetwork                = google_compute_subnetwork.subnet.name
+  networking_mode           = "VPC_NATIVE"
+  default_max_pods_per_node = 256
   ip_allocation_policy { # Required with networking_mode=VPC_NATIVE
 
   }
