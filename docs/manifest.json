@@ -175,6 +175,12 @@
           "description": "Use docker inside containerized templates",
           "path": "./templates/docker-in-workspaces.md",
           "icon_path": "./images/icons/docker.svg"
+        },
+        {
+          "title": "Devcontainers",
+          "description": "Use devcontainers in workspaces",
+          "path": "./templates/devcontainers.md",
+          "state": "alpha"
         }
       ]
     },
