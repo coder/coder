@@ -119,7 +119,6 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
   const permissions = usePermissions()
   let query = async (): Promise<Region[]> => {
     const resp = await getWorkspaceProxyRegions()
-    console.log("!!!!!!!!!!!!11", resp.regions)
     return resp.regions
   }
 
