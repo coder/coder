@@ -310,7 +310,7 @@ func (r *RootCmd) createProxy() *clibase.Cmd {
 
 func (r *RootCmd) listProxies() *clibase.Cmd {
 	formatter := cliui.NewOutputFormatter(
-		cliui.TableFormat([]codersdk.WorkspaceProxy{}, []string{"name", "path_app_url", "proxy status"}),
+		cliui.TableFormat([]codersdk.WorkspaceProxy{}, []string{"name", "url", "proxy status"}),
 		cliui.JSONFormat(),
 		cliui.ChangeFormatterData(cliui.TextFormat(), func(data any) (any, error) {
 			resp, ok := data.([]codersdk.WorkspaceProxy)

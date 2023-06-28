@@ -188,7 +188,7 @@ type Region struct {
 	// PathAppURL is the URL to the base path for path apps. Optional
 	// unless wildcard_hostname is set.
 	// E.g. https://us.example.com
-	PathAppURL string `json:"path_app_url" table:"path_app_url"`
+	PathAppURL string `json:"path_app_url" table:"url"`
 
 	// WildcardHostname is the wildcard hostname for subdomain apps.
 	// E.g. *.us.example.com
