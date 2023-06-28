@@ -275,7 +275,7 @@ const getPendingWorkspaceStatusText = (
   if (provisionerJob === undefined || provisionerJob.queue_size === 0) {
     return t("workspaceStatus.pending", { ns: "common" })
   }
-  return "Pending in queue: " + provisionerJob.queue_position
+  return "Position in queue: " + provisionerJob.queue_position
 }
 
 const LoadingIcon = () => {
