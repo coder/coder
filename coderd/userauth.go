@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -601,7 +602,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		aReq.Action = database.AuditActionRegister
 	}
 
-	cookies, key, err := api.oauthLogin(r, oauthLoginParams{
+	params := (&oauthLoginParams{
 		User:                   user,
 		Link:                   link,
 		State:                  state,
@@ -612,10 +613,11 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		Username:               ghUser.GetLogin(),
 		AvatarURL:              ghUser.GetAvatarURL(),
 		OauthConversionEnabled: api.DeploymentValues.EnableOauthAccountConversion.Value(),
-		InitAuditRequest: func(params *audit.RequestParams) (*audit.Request[database.AuditOauthConvertState], func()) {
-			return audit.InitRequest[database.AuditOauthConvertState](rw, params)
-		},
+	}).SetInitAuditRequest(func(params *audit.RequestParams) (*audit.Request[database.User], func()) {
+		return audit.InitRequest[database.User](rw, params)
 	})
+	cookies, key, err := api.oauthLogin(r, params)
+	defer params.CommitAuditLogs()
 	var httpErr httpError
 	if xerrors.As(err, &httpErr) {
 		httpapi.Write(ctx, rw, httpErr.code, codersdk.Response{
@@ -943,7 +945,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		aReq.Action = database.AuditActionRegister
 	}
 
-	cookies, key, err := api.oauthLogin(r, oauthLoginParams{
+	params := (&oauthLoginParams{
 		User:                   user,
 		Link:                   link,
 		State:                  state,
@@ -956,10 +958,12 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		UsingGroups:            usingGroups,
 		Groups:                 groups,
 		OauthConversionEnabled: api.DeploymentValues.EnableOauthAccountConversion.Value(),
-		InitAuditRequest: func(params *audit.RequestParams) (*audit.Request[database.AuditOauthConvertState], func()) {
-			return audit.InitRequest[database.AuditOauthConvertState](rw, params)
-		},
+	}).SetInitAuditRequest(func(params *audit.RequestParams) (*audit.Request[database.User], func()) {
+		return audit.InitRequest[database.User](rw, params)
 	})
+	cookies, key, err := api.oauthLogin(r, params)
+	defer commitAudit()
+	defer params.CommitAuditLogs()
 	var httpErr httpError
 	if xerrors.As(err, &httpErr) {
 		httpapi.Write(ctx, rw, httpErr.code, codersdk.Response{
@@ -1045,7 +1049,28 @@ type oauthLoginParams struct {
 	Groups                 []string
 	OauthConversionEnabled bool
 
-	InitAuditRequest func(params *audit.RequestParams) (*audit.Request[database.AuditOauthConvertState], func())
+	commitLock       sync.Mutex
+	initAuditRequest func(params *audit.RequestParams) *audit.Request[database.User]
+	commits          []func()
+}
+
+func (p *oauthLoginParams) SetInitAuditRequest(f func(params *audit.RequestParams) (*audit.Request[database.User], func())) *oauthLoginParams {
+	p.initAuditRequest = func(params *audit.RequestParams) *audit.Request[database.User] {
+		p.commitLock.Lock()
+		defer p.commitLock.Unlock()
+		req, commit := f(params)
+		p.commits = append(p.commits, commit)
+		return req
+	}
+	return p
+}
+
+func (p *oauthLoginParams) CommitAuditLogs() {
+	p.commitLock.Lock()
+	defer p.commitLock.Unlock()
+	for _, f := range p.commits {
+		f()
+	}
 }
 
 type httpError struct {
@@ -1062,7 +1087,7 @@ func (e httpError) Error() string {
 	return e.msg
 }
 
-func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) ([]*http.Cookie, database.APIKey, error) {
+func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.Cookie, database.APIKey, error) {
 	var (
 		ctx     = r.Context()
 		user    database.User
@@ -1273,7 +1298,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) ([]*http.Co
 
 // convertUserToOauth will convert a user from password base loginType to
 // an oauth login type. If it fails, it will return a httpError
-func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db database.Store, params oauthLoginParams) (database.User, error) {
+func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db database.Store, params *oauthLoginParams) (database.User, error) {
 	user := params.User
 
 	// Trying to convert to OIDC, but the email does not match.
@@ -1314,29 +1339,17 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 	// At this point, this request could be an attempt to convert from
 	// password auth to oauth auth. Always log these attempts.
 	var (
-		auditor                                    = *api.Auditor.Load()
-		oauthConvertAudit, commitOauthConvertAudit = params.InitAuditRequest(&audit.RequestParams{
+		auditor           = *api.Auditor.Load()
+		oauthConvertAudit = params.initAuditRequest(&audit.RequestParams{
 			Audit:   auditor,
 			Log:     api.Logger,
 			Request: r,
-			Action:  database.AuditActionLogin,
+			Action:  database.AuditActionWrite,
 		})
 	)
-	safeTime := func(t *jwt.NumericDate) time.Time {
-		if t != nil {
-			return t.Time
-		}
-		return time.Time{}
-	}
+
 	oauthConvertAudit.UserID = claims.UserID
-	oauthConvertAudit.Old = database.AuditOauthConvertState{
-		CreatedAt:     safeTime(claims.IssuedAt),
-		ExpiresAt:     safeTime(claims.ExpiresAt),
-		FromLoginType: database.LoginType(claims.FromLoginType),
-		ToLoginType:   database.LoginType(claims.ToLoginType),
-		UserID:        claims.UserID,
-	}
-	defer commitOauthConvertAudit()
+	oauthConvertAudit.Old = user
 
 	// If we do not allow converting to oauth, return an error.
 	if !params.OauthConversionEnabled {
@@ -1389,6 +1402,7 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 			msg:  "Failed to convert user to new login type",
 		}
 	}
+	oauthConvertAudit.New = user
 	return user, nil
 }
 

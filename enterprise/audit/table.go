@@ -100,7 +100,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"updated_at":      ActionIgnore, // Changes, but is implicit and not helpful in a diff.
 		"status":          ActionTrack,
 		"rbac_roles":      ActionTrack,
-		"login_type":      ActionIgnore,
+		"login_type":      ActionTrack,
 		"avatar_url":      ActionIgnore,
 		"last_seen_at":    ActionIgnore,
 		"deleted":         ActionTrack,
