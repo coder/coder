@@ -1,5 +1,5 @@
 INSERT INTO oauth_merge_state(
-	state_string,
+	state,
 	created_at,
 	expires_at,
 	from_login_type,
