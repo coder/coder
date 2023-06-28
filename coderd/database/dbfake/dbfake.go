@@ -5229,6 +5229,7 @@ func (q *fakeQuerier) UpdateWorkspaceLockedAt(_ context.Context, arg database.Up
 			continue
 		}
 		workspace.LockedAt = arg.LockedAt
+		workspace.LastUsedAt = database.Now()
 		q.workspaces[index] = workspace
 		return nil
 	}

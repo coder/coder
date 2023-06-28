@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/coderd/autobuild"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd"
@@ -235,6 +236,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		t.Parallel()
 
 		var (
+			ctx         = testutil.Context(t, testutil.WaitMedium)
 			ticker      = make(chan time.Time)
 			statCh      = make(chan autobuild.Stats)
 			inactiveTTL = time.Millisecond
@@ -277,6 +279,15 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		ws = coderdtest.MustWorkspace(t, client, ws.ID)
 		// The workspace should be locked.
 		require.NotNil(t, ws.LockedAt)
+		lastUsedAt := ws.LastUsedAt
+
+		err := client.UpdateWorkspaceLock(ctx, ws.ID, codersdk.UpdateWorkspaceLock{Lock: false})
+		require.NoError(t, err)
+
+		// Assert that we updated our last_used_at so that we don't immediately
+		// retrigger another lock action.
+		ws = coderdtest.MustWorkspace(t, client, ws.ID)
+		require.True(t, ws.LastUsedAt.After(lastUsedAt))
 	})
 
 	t.Run("InactiveTTLTooEarly", func(t *testing.T) {
@@ -495,6 +506,88 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		cerr, ok := codersdk.AsError(err)
 		require.True(t, ok)
 		require.Equal(t, http.StatusGone, cerr.StatusCode())
+	})
+
+	t.Run("LockedNoAutostart", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx     = testutil.Context(t, testutil.WaitMedium)
+			tickCh  = make(chan time.Time)
+			statsCh = make(chan autobuild.Stats)
+			client  = coderdenttest.New(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					AutobuildTicker:          tickCh,
+					IncludeProvisionerDaemon: true,
+					AutobuildStats:           statsCh,
+					TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
+				},
+			})
+			inactiveTTL = time.Millisecond
+		)
+
+		user := coderdtest.CreateFirstUser(t, client)
+		_ = coderdenttest.AddFullLicense(t, client)
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionComplete,
+		})
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		sched, err := schedule.Weekly("CRON_TZ=UTC 0 * * * *")
+		require.NoError(t, err)
+
+		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.AutostartSchedule = ptr.Ref(sched.String())
+		})
+		coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
+		coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+
+		// Assert that autostart works when the workspace isn't locked..
+		tickCh <- sched.Next(ws.LatestBuild.CreatedAt)
+		// Then: the workspace should eventually be started
+		stats := <-statsCh
+		require.NoError(t, stats.Error)
+		require.Len(t, stats.Transitions, 1)
+		require.Contains(t, stats.Transitions, ws.ID)
+		require.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[ws.ID])
+		ws = coderdtest.MustWorkspace(t, client, ws.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
+
+		// Now that we've validated that the workspace is eligible for autostart
+		// lets cause it to become locked.
+		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			InactivityTTLMillis: inactiveTTL.Milliseconds(),
+		})
+		require.NoError(t, err)
+		// Wait for the workspace to breach the inactivity threshold.
+		require.Eventually(t,
+			func() bool {
+				return database.Now().Sub(ws.LastUsedAt) > inactiveTTL
+			},
+			testutil.IntervalMedium, testutil.IntervalFast)
+
+		tickCh <- time.Now()
+		// Then: the workspace should eventually be started
+		stats = <-statsCh
+		require.NoError(t, stats.Error)
+		require.Len(t, stats.Transitions, 1)
+		require.Contains(t, stats.Transitions, ws.ID)
+		require.Equal(t, database.WorkspaceTransitionStop, stats.Transitions[ws.ID])
+		ws = coderdtest.MustWorkspace(t, client, ws.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
+		// The workspace should be locked now.
+		require.NotNil(t, ws.LockedAt)
+
+		// Assert that autostart is no longer triggered since workspace is locked.
+		tickCh <- sched.Next(ws.LatestBuild.CreatedAt)
+		// Then: the workspace should eventually be started
+		stats = <-statsCh
+		require.Len(t, stats.Transitions, 0)
 	})
 }
 

@@ -245,7 +245,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 // as well as the reason for why it is transitioning. It is possible
 // for this function to return a nil error as well as an empty transition.
 // In such cases it means no provisioning should occur but the workspace
-// may be "transitioning" to a new state (such as a inactive, stopped
+// may be "transitioning" to a new state (such as an inactive, stopped
 // workspace transitioning to the locked state).
 func getNextTransition(
 	ws database.Workspace,

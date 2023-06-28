@@ -8847,7 +8847,8 @@ const updateWorkspaceLockedAt = `-- name: UpdateWorkspaceLockedAt :exec
 UPDATE
 	workspaces
 SET
-	locked_at = $2
+	locked_at = $2,
+	last_used_at = now() at time zone 'utc'
 WHERE
 	id = $1
 `
