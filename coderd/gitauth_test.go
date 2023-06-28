@@ -96,12 +96,16 @@ func TestGitAuthByID(t *testing.T) {
 					AvatarURL: github.String("https://avatars.githubusercontent.com/u/12345678?v=4"),
 				})
 			case "/installs":
-				httpapi.Write(r.Context(), w, http.StatusOK, []github.Installation{{
-					ID: github.Int64(12345678),
-					Account: &github.User{
-						Login: github.String("coder"),
-					},
-				}})
+				httpapi.Write(r.Context(), w, http.StatusOK, struct {
+					Installations []github.Installation `json:"installations"`
+				}{
+					Installations: []github.Installation{{
+						ID: github.Int64(12345678),
+						Account: &github.User{
+							Login: github.String("coder"),
+						},
+					}},
+				})
 			}
 		}))
 		defer srv.Close()
