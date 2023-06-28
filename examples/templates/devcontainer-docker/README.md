@@ -24,8 +24,7 @@ the dashboard UI over `localhost:13337`.
 
 ## Extending this template
 
-See the [kreuzwerker/docker](https://registry.terraform.io/providers/kreuzwerker/docker) Terraform provider documentation to
-add the following features to your Coder template:
+See the [kreuzwerker/docker](https://registry.terraform.io/providers/kreuzwerker/docker) Terraform provider documentation to add the following features to your Coder template:
 
 - SSH/TCP docker host
 - Registry authentication

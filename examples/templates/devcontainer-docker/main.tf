@@ -157,6 +157,7 @@ resource "docker_volume" "workspaces" {
 data "coder_parameter" "repo" {
   name         = "repo"
   display_name = "Repository (auto)"
+  order        = 1
   description  = "Select a repository to automatically clone and start working with a devcontainer."
   mutable      = true
   option {
@@ -190,14 +191,20 @@ data "coder_parameter" "repo" {
     description = "Code editing. Redefined."
     value       = "https://github.com/microsoft/vscode"
   }
+  option {
+    name        = "Custom"
+    icon        = "/emojis/1f5c3.png"
+    description = "Specify a custom repo URL below"
+    value       = "custom"
+  }
 }
 
 data "coder_parameter" "custom_repo_url" {
-  type         = "string"
   name         = "custom_repo"
-  default      = ""
   display_name = "Repository URL (custom)"
-  description  = "Or enter a custom repository URL, see [awesome-devcontainers](https://github.com/manekinekko/awesome-devcontainers) Leave blank to use a predefined option above"
+  order        = 2
+  default      = ""
+  description  = "Optionally enter a custom repository URL, see [awesome-devcontainers](https://github.com/manekinekko/awesome-devcontainers)."
   mutable      = true
 }
 
@@ -212,8 +219,9 @@ resource "docker_container" "workspace" {
   env = [
     "CODER_AGENT_TOKEN=${coder_agent.main.token}",
     "CODER_AGENT_URL=${replace(data.coder_workspace.me.access_url, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")}",
-    "GIT_URL=${data.coder_parameter.custom_repo_url.value == "" ? data.coder_parameter.repo.value : data.coder_parameter.custom_repo_url.value}",
-    "INIT_SCRIPT=${replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")}"
+    "GIT_URL=${data.coder_parameter.repo.value == "custom" ? data.coder_parameter.custom_repo_url.value : data.coder_parameter.repo.value}",
+    "INIT_SCRIPT=${replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")}",
+    "FALLBACK_IMAGE=codercom/enterprise-base:ubuntu" # This image runs if builds fail
   ]
   host {
     host = "host.docker.internal"

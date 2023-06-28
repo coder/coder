@@ -12,10 +12,18 @@ There are several benefits to adding a devcontainer-compatible template to Coder
 
 - Coder admins add a devcontainer-compatible template to Coder (envbuilder can run on Docker or Kubernetes)
 
-- Developers enter their repository URL as a [parameter](./parameters.md) when creating workspaces. [envbuilder](https://github.com/coder/envbuilder) clones the repo and builds a container from the `devcontainer.json` specified in the repo.
+- Developers enter their repository URL as a [parameter](./parameters.md) when they create their workspace. [envbuilder](https://github.com/coder/envbuilder) clones the repo and builds a container from the `devcontainer.json` specified in the repo.
 
 - Developers can edit the `devcontainer.json` in their workspace to rebuild to iterate on their development environments.
 
+## Example templates
 
+- [Docker](https://github.com/coder/coder/tree/main/examples/templates/devcontainer-docker)
+
+## Authentication
+
+You may need to authenticate to your container registry (e.g. Artifactory) or git provider (e.g. GitLab) to use envbuilder. Refer to the [envbuilder documentation](https://github.com/coder/envbuilder/) for more information.
 
 ## Caching
+
+To improve build times, devcontainers can be cached. Refer to the [envbuilder documentation](https://github.com/coder/envbuilder/) for more information.
