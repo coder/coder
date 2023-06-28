@@ -1426,18 +1426,18 @@ func (m metricsStore) UpdateUserLinkedID(ctx context.Context, arg database.Updat
 	return link, err
 }
 
-func (m metricsStore) UpdateUserQuietHoursSchedule(ctx context.Context, arg database.UpdateUserQuietHoursScheduleParams) (database.User, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpdateUserQuietHoursSchedule(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateUserQuietHoursSchedule").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m metricsStore) UpdateUserProfile(ctx context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
 	start := time.Now()
 	user, err := m.s.UpdateUserProfile(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserProfile").Observe(time.Since(start).Seconds())
 	return user, err
+}
+
+func (m metricsStore) UpdateUserQuietHoursSchedule(ctx context.Context, arg database.UpdateUserQuietHoursScheduleParams) (database.User, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserQuietHoursSchedule(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserQuietHoursSchedule").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) UpdateUserRoles(ctx context.Context, arg database.UpdateUserRolesParams) (database.User, error) {

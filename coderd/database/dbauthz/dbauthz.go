@@ -2348,13 +2348,6 @@ func (q *querier) UpdateUserLinkedID(ctx context.Context, arg database.UpdateUse
 	return q.db.UpdateUserLinkedID(ctx, arg)
 }
 
-func (q *querier) UpdateUserQuietHoursSchedule(ctx context.Context, arg database.UpdateUserQuietHoursScheduleParams) (database.User, error) {
-	fetch := func(ctx context.Context, arg database.UpdateUserQuietHoursScheduleParams) (database.User, error) {
-		return q.db.GetUserByID(ctx, arg.ID)
-	}
-	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateUserQuietHoursSchedule)(ctx, arg)
-}
-
 func (q *querier) UpdateUserProfile(ctx context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
 	u, err := q.db.GetUserByID(ctx, arg.ID)
 	if err != nil {
@@ -2364,6 +2357,13 @@ func (q *querier) UpdateUserProfile(ctx context.Context, arg database.UpdateUser
 		return database.User{}, err
 	}
 	return q.db.UpdateUserProfile(ctx, arg)
+}
+
+func (q *querier) UpdateUserQuietHoursSchedule(ctx context.Context, arg database.UpdateUserQuietHoursScheduleParams) (database.User, error) {
+	fetch := func(ctx context.Context, arg database.UpdateUserQuietHoursScheduleParams) (database.User, error) {
+		return q.db.GetUserByID(ctx, arg.ID)
+	}
+	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateUserQuietHoursSchedule)(ctx, arg)
 }
 
 // UpdateUserRoles updates the site roles of a user. The validation for this function include more than

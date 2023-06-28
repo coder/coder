@@ -1066,7 +1066,7 @@ func (q *sqlQuerier) DeleteGroupMembersByOrgAndUser(ctx context.Context, arg Del
 
 const getGroupMembers = `-- name: GetGroupMembers :many
 SELECT
-	users.id, users.email, users.username, users.hashed_password, users.created_at, users.updated_at, users.status, users.rbac_roles, users.login_type, users.avatar_url, users.deleted, users.last_seen_at, users.maintenance_schedule
+	users.id, users.email, users.username, users.hashed_password, users.created_at, users.updated_at, users.status, users.rbac_roles, users.login_type, users.avatar_url, users.deleted, users.last_seen_at, users.quiet_hours_schedule
 FROM
 	users
 JOIN
@@ -5118,7 +5118,7 @@ func (q *sqlQuerier) GetFilteredUserCount(ctx context.Context, arg GetFilteredUs
 
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, maintenance_schedule
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
 FROM
 	users
 WHERE
@@ -5156,7 +5156,7 @@ func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserBy
 
 const getUserByID = `-- name: GetUserByID :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, maintenance_schedule
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
 FROM
 	users
 WHERE
@@ -5204,7 +5204,7 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
 
 const getUsers = `-- name: GetUsers :many
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, maintenance_schedule, COUNT(*) OVER() AS count
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, COUNT(*) OVER() AS count
 FROM
 	users
 WHERE
@@ -5285,20 +5285,20 @@ type GetUsersParams struct {
 }
 
 type GetUsersRow struct {
-	ID                  uuid.UUID      `db:"id" json:"id"`
-	Email               string         `db:"email" json:"email"`
-	Username            string         `db:"username" json:"username"`
-	HashedPassword      []byte         `db:"hashed_password" json:"hashed_password"`
-	CreatedAt           time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt           time.Time      `db:"updated_at" json:"updated_at"`
-	Status              UserStatus     `db:"status" json:"status"`
-	RBACRoles           pq.StringArray `db:"rbac_roles" json:"rbac_roles"`
-	LoginType           LoginType      `db:"login_type" json:"login_type"`
-	AvatarURL           sql.NullString `db:"avatar_url" json:"avatar_url"`
-	Deleted             bool           `db:"deleted" json:"deleted"`
-	LastSeenAt          time.Time      `db:"last_seen_at" json:"last_seen_at"`
-	MaintenanceSchedule string         `db:"maintenance_schedule" json:"maintenance_schedule"`
-	Count               int64          `db:"count" json:"count"`
+	ID                 uuid.UUID      `db:"id" json:"id"`
+	Email              string         `db:"email" json:"email"`
+	Username           string         `db:"username" json:"username"`
+	HashedPassword     []byte         `db:"hashed_password" json:"hashed_password"`
+	CreatedAt          time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt          time.Time      `db:"updated_at" json:"updated_at"`
+	Status             UserStatus     `db:"status" json:"status"`
+	RBACRoles          pq.StringArray `db:"rbac_roles" json:"rbac_roles"`
+	LoginType          LoginType      `db:"login_type" json:"login_type"`
+	AvatarURL          sql.NullString `db:"avatar_url" json:"avatar_url"`
+	Deleted            bool           `db:"deleted" json:"deleted"`
+	LastSeenAt         time.Time      `db:"last_seen_at" json:"last_seen_at"`
+	QuietHoursSchedule string         `db:"quiet_hours_schedule" json:"quiet_hours_schedule"`
+	Count              int64          `db:"count" json:"count"`
 }
 
 // This will never return deleted users.
@@ -5333,7 +5333,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 			&i.AvatarURL,
 			&i.Deleted,
 			&i.LastSeenAt,
-			&i.MaintenanceSchedule,
+			&i.QuietHoursSchedule,
 			&i.Count,
 		); err != nil {
 			return nil, err
@@ -5350,7 +5350,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 }
 
 const getUsersByIDs = `-- name: GetUsersByIDs :many
-SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, maintenance_schedule FROM users WHERE id = ANY($1 :: uuid [ ])
+SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule FROM users WHERE id = ANY($1 :: uuid [ ])
 `
 
 // This shouldn't check for deleted, because it's frequently used
@@ -5406,7 +5406,7 @@ INSERT INTO
 		login_type
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, maintenance_schedule
+	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
 `
 
 type InsertUserParams struct {
@@ -5495,7 +5495,7 @@ SET
 	last_seen_at = $2,
 	updated_at = $3
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, maintenance_schedule
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
 `
 
 type UpdateUserLastSeenAtParams struct {
@@ -5525,42 +5525,6 @@ func (q *sqlQuerier) UpdateUserLastSeenAt(ctx context.Context, arg UpdateUserLas
 	return i, err
 }
 
-const UpdateUserQuietHoursSchedule = `-- name: UpdateUserQuietHoursSchedule :one
-UPDATE
-	users
-SET
-	maintenance_schedule = $2
-WHERE
-	id = $1
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, maintenance_schedule
-`
-
-type UpdateUserQuietHoursScheduleParams struct {
-	ID                 uuid.UUID `db:"id" json:"id"`
-	QuietHoursSchedule string    `db:"quiet_hours_schedule" json:"quiet_hours_schedule"`
-}
-
-func (q *sqlQuerier) UpdateUserQuietHoursSchedule(ctx context.Context, arg UpdateUserQuietHoursScheduleParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, UpdateUserQuietHoursSchedule, arg.ID, arg.QuietHoursSchedule)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.Username,
-		&i.HashedPassword,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Status,
-		&i.RBACRoles,
-		&i.LoginType,
-		&i.AvatarURL,
-		&i.Deleted,
-		&i.LastSeenAt,
-		&i.QuietHoursSchedule,
-	)
-	return i, err
-}
-
 const updateUserProfile = `-- name: UpdateUserProfile :one
 UPDATE
 	users
@@ -5570,7 +5534,7 @@ SET
 	avatar_url = $4,
 	updated_at = $5
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, maintenance_schedule
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
 `
 
 type UpdateUserProfileParams struct {
@@ -5608,6 +5572,42 @@ func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfil
 	return i, err
 }
 
+const updateUserQuietHoursSchedule = `-- name: UpdateUserQuietHoursSchedule :one
+UPDATE
+	users
+SET
+	quiet_hours_schedule = $2
+WHERE
+	id = $1
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
+`
+
+type UpdateUserQuietHoursScheduleParams struct {
+	ID                 uuid.UUID `db:"id" json:"id"`
+	QuietHoursSchedule string    `db:"quiet_hours_schedule" json:"quiet_hours_schedule"`
+}
+
+func (q *sqlQuerier) UpdateUserQuietHoursSchedule(ctx context.Context, arg UpdateUserQuietHoursScheduleParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUserQuietHoursSchedule, arg.ID, arg.QuietHoursSchedule)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Username,
+		&i.HashedPassword,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.RBACRoles,
+		&i.LoginType,
+		&i.AvatarURL,
+		&i.Deleted,
+		&i.LastSeenAt,
+		&i.QuietHoursSchedule,
+	)
+	return i, err
+}
+
 const updateUserRoles = `-- name: UpdateUserRoles :one
 UPDATE
 	users
@@ -5616,7 +5616,7 @@ SET
 	rbac_roles = ARRAY(SELECT DISTINCT UNNEST($1 :: text[]))
 WHERE
 	id = $2
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, maintenance_schedule
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
 `
 
 type UpdateUserRolesParams struct {
@@ -5652,7 +5652,7 @@ SET
 	status = $2,
 	updated_at = $3
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, maintenance_schedule
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
 `
 
 type UpdateUserStatusParams struct {

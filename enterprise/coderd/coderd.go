@@ -53,7 +53,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		options.Options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
 	}
 	if options.QuietHoursWindowDuration < time.Hour {
-		return nil, xerrors.Errorf("quiet hours window duration must be at least 1 hour")
+		return nil, xerrors.Errorf("quiet hours window duration (%v) must be at least 1 hour", options.QuietHoursWindowDuration)
 	}
 
 	ctx, cancelFunc := context.WithCancel(ctx)

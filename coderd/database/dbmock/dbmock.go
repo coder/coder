@@ -2949,21 +2949,6 @@ func (mr *MockStoreMockRecorder) UpdateUserLinkedID(arg0, arg1 interface{}) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserLinkedID", reflect.TypeOf((*MockStore)(nil).UpdateUserLinkedID), arg0, arg1)
 }
 
-// UpdateUserQuietHoursSchedule mocks base method.
-func (m *MockStore) UpdateUserQuietHoursSchedule(arg0 context.Context, arg1 database.UpdateUserQuietHoursScheduleParams) (database.User, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateUserQuietHoursSchedule", arg0, arg1)
-	ret0, _ := ret[0].(database.User)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateUserQuietHoursSchedule indicates an expected call of UpdateUserQuietHoursSchedule.
-func (mr *MockStoreMockRecorder) UpdateUserQuietHoursSchedule(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserQuietHoursSchedule", reflect.TypeOf((*MockStore)(nil).UpdateUserQuietHoursSchedule), arg0, arg1)
-}
-
 // UpdateUserProfile mocks base method.
 func (m *MockStore) UpdateUserProfile(arg0 context.Context, arg1 database.UpdateUserProfileParams) (database.User, error) {
 	m.ctrl.T.Helper()
@@ -2977,6 +2962,21 @@ func (m *MockStore) UpdateUserProfile(arg0 context.Context, arg1 database.Update
 func (mr *MockStoreMockRecorder) UpdateUserProfile(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserProfile", reflect.TypeOf((*MockStore)(nil).UpdateUserProfile), arg0, arg1)
+}
+
+// UpdateUserQuietHoursSchedule mocks base method.
+func (m *MockStore) UpdateUserQuietHoursSchedule(arg0 context.Context, arg1 database.UpdateUserQuietHoursScheduleParams) (database.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserQuietHoursSchedule", arg0, arg1)
+	ret0, _ := ret[0].(database.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateUserQuietHoursSchedule indicates an expected call of UpdateUserQuietHoursSchedule.
+func (mr *MockStoreMockRecorder) UpdateUserQuietHoursSchedule(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserQuietHoursSchedule", reflect.TypeOf((*MockStore)(nil).UpdateUserQuietHoursSchedule), arg0, arg1)
 }
 
 // UpdateUserRoles mocks base method.

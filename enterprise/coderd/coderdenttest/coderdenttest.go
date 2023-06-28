@@ -77,6 +77,8 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		EntitlementsUpdateInterval: options.EntitlementsUpdateInterval,
 		Keys:                       Keys,
 		ProxyHealthInterval:        options.ProxyHealthInterval,
+		DefaultQuietHoursSchedule:  oop.DeploymentValues.UserQuietHoursSchedule.DefaultSchedule.Value(),
+		QuietHoursWindowDuration:   oop.DeploymentValues.UserQuietHoursSchedule.WindowDuration.Value(),
 	})
 	require.NoError(t, err)
 	setHandler(coderAPI.AGPL.RootHandler)
