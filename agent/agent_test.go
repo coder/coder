@@ -1912,10 +1912,35 @@ type client struct {
 	lifecycleStates []codersdk.WorkspaceAgentLifecycle
 	startup         agentsdk.PostStartupRequest
 	logs            []agentsdk.StartupLog
+
+	derpMapUpdates chan agentsdk.DERPMapUpdate
 }
 
 func (c *client) Manifest(_ context.Context) (agentsdk.Manifest, error) {
 	return c.manifest, nil
+}
+
+type closer struct {
+	closeFunc func() error
+}
+
+func (c *closer) Close() error {
+	return c.closeFunc()
+}
+
+func (c *client) DERPMapUpdates(_ context.Context) (<-chan agentsdk.DERPMapUpdate, io.Closer, error) {
+	updates := c.derpMapUpdates
+	if updates == nil {
+		updates = make(chan agentsdk.DERPMapUpdate)
+	}
+
+	closed := make(chan struct{})
+	return updates, &closer{
+		closeFunc: func() error {
+			close(closed)
+			return nil
+		},
+	}, nil
 }
 
 func (c *client) Listen(_ context.Context) (net.Conn, error) {

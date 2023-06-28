@@ -731,6 +731,8 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 
 func (api *API) dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
 	clientConn, serverConn := net.Pipe()
+
+	derpMap := api.DERPMap()
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:      []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 		DERPMap:        api.DERPMap(),
@@ -761,6 +763,28 @@ func (api *API) dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.Workspac
 		return conn.UpdateNodes(nodes, true)
 	})
 	conn.SetNodeCallback(sendNodes)
+	go func() {
+		for {
+			ticker := time.NewTicker(5 * time.Second)
+			defer ticker.Stop()
+
+			lastDERPMap := derpMap
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+				}
+
+				derpMap := api.DERPMap()
+				if lastDERPMap == nil || tailnet.CompareDERPMaps(lastDERPMap, derpMap) {
+					conn.SetDERPMap(derpMap)
+					lastDERPMap = derpMap
+				}
+			}
+		}
+	}()
+
 	agentConn := &codersdk.WorkspaceAgentConn{
 		Conn: conn,
 		CloseFunc: func() {
@@ -782,6 +806,9 @@ func (api *API) dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.Workspac
 	}()
 	if !agentConn.AwaitReachable(ctx) {
 		_ = agentConn.Close()
+		_ = serverConn.Close()
+		_ = clientConn.Close()
+		cancel()
 		return nil, xerrors.Errorf("agent not reachable")
 	}
 	return agentConn, nil
@@ -822,6 +849,55 @@ func (api *API) workspaceAgentConnectionGeneric(rw http.ResponseWriter, r *http.
 		DERPMap:                  api.DERPMap(),
 		DisableDirectConnections: api.DeploymentValues.DERP.Config.BlockDirect.Value(),
 	})
+}
+
+// @Summary Get DERP map updates
+// @ID get-derp-map-updates
+// @Security CoderSessionToken
+// @Tags Agents
+// @Success 101
+// @Router /derpmap [get]
+func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	api.WebsocketWaitMutex.Lock()
+	api.WebsocketWaitGroup.Add(1)
+	api.WebsocketWaitMutex.Unlock()
+	defer api.WebsocketWaitGroup.Done()
+
+	ws, err := websocket.Accept(rw, r, nil)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to accept websocket.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	nconn := websocket.NetConn(ctx, ws, websocket.MessageBinary)
+
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	var lastDERPMap *tailcfg.DERPMap
+	for {
+		derpMap := api.DERPMap()
+		if lastDERPMap == nil || !tailnet.CompareDERPMaps(lastDERPMap, derpMap) {
+			err := json.NewEncoder(nconn).Encode(derpMap)
+			if err != nil {
+				_ = ws.Close(websocket.StatusInternalError, err.Error())
+				return
+			}
+			lastDERPMap = derpMap
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-api.ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
 }
 
 // @Summary Coordinate workspace agent via Tailnet
