@@ -100,7 +100,10 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
   const { t } = useTranslation("templateSettingsPage")
   const styles = useStyles()
 
-  const workspacesToBeDeletedToday = useWorkspacesToBeDeleted(form.values, template.name)
+  const workspacesToBeDeletedToday = useWorkspacesToBeDeleted(
+    form.values,
+    template.name,
+  )
 
   const [isInactivityDialogOpen, setIsInactivityDialogOpen] =
     useState<boolean>(false)
@@ -373,7 +376,9 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                     onChange={handleToggleLockedCleanup}
                   />
                 }
-                disabled={isSubmitting || !form.values.inactivity_cleanup_enabled}
+                disabled={
+                  isSubmitting || !form.values.inactivity_cleanup_enabled
+                }
                 label="Enable Locked Cleanup"
               />
               <TextField
@@ -399,7 +404,9 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         submitValues={submitValues}
         isInactivityDialogOpen={isInactivityDialogOpen}
         setIsInactivityDialogOpen={setIsInactivityDialogOpen}
-        numberWorkspacesToBeDeletedToday={workspacesToBeDeletedToday?.length ?? 0}
+        numberWorkspacesToBeDeletedToday={
+          workspacesToBeDeletedToday?.length ?? 0
+        }
       />
       <FormFooter
         onCancel={onCancel}

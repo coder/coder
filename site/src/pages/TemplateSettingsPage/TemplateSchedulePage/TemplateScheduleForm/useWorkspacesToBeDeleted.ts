@@ -17,7 +17,7 @@ export const useWorkspacesToBeDeleted = (
 ) => {
   const { data: workspacesData } = useQuery({
     queryKey: ["workspaces"],
-    queryFn: () => getWorkspaces({ q: `template:${templateName}`}),
+    queryFn: () => getWorkspaces({ q: `template:${templateName}` }),
     enabled: formValues.locked_cleanup_enabled,
   })
   return workspacesData?.workspaces?.filter((workspace: Workspace) => {

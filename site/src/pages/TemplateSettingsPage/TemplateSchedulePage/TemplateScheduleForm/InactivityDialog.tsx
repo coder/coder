@@ -25,7 +25,9 @@ export const InactivityDialog = ({
       onClose={() => setIsInactivityDialogOpen(false)}
       title="Delete inactive workspaces"
       confirmText="Delete Workspaces"
-      description={t("inactivityDialogDescription", { count: numberWorkspacesToBeDeletedToday })}
+      description={t("inactivityDialogDescription", {
+        count: numberWorkspacesToBeDeletedToday,
+      })}
     />
   )
 }
