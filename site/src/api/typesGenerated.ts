@@ -998,6 +998,11 @@ export interface UpdateWorkspaceAutostartRequest {
   readonly schedule?: string
 }
 
+// From codersdk/workspaces.go
+export interface UpdateWorkspaceLock {
+  readonly lock: boolean
+}
+
 // From codersdk/workspaceproxy.go
 export interface UpdateWorkspaceProxyResponse {
   readonly proxy: WorkspaceProxy
@@ -1075,6 +1080,7 @@ export interface Workspace {
   readonly ttl_ms?: number
   readonly last_used_at: string
   readonly deleting_at?: string
+  readonly locked_at?: string
 }
 
 // From codersdk/workspaceagents.go
