@@ -2,12 +2,7 @@
   "name": "Development environments on your infrastructure",
   "context": "../dogfood",
   "dockerFile": "../dogfood/Dockerfile",
-  "runArgs": ["--init", "--privileged"],
-  "overrideCommand": false,
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:1": {
-      "version": "latest",
-      "moby": true
-    }
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
   }
 }
