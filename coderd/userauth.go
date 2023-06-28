@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/go-github/v43/github"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
@@ -33,9 +34,19 @@ import (
 )
 
 const (
-	userAuthLoggerName = "userauth"
+	userAuthLoggerName      = "userauth"
+	OauthConvertCookieValue = "coder_oauth_convert_jwt"
+	mergeStateStringPrefix  = "convert-"
 )
-const mergeStateStringPrefix = "convert-"
+
+type OAuthConvertStateClaims struct {
+	jwt.RegisteredClaims
+
+	UserID        uuid.UUID          `json:"user_id"`
+	State         string             `json:"state"`
+	FromLoginType codersdk.LoginType `json:"from_login_type"`
+	ToLoginType   codersdk.LoginType `json:"to_login_type"`
+}
 
 // postConvertLoginType replies with an oauth state token capable of converting
 // the user to an oauth user.
@@ -121,45 +132,82 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 	// without needing to hit the database. The random string is the CSRF protection.
 	stateString = fmt.Sprintf("%s%s", mergeStateStringPrefix, stateString)
 
+	// JWT
+	// TODO: Comment
 	now := time.Now()
-	var mergeState database.OauthMergeState
-	err = api.Database.InTx(func(store database.Store) error {
-		// We should only ever have 1 oauth merge state per user. So delete
-		// any existing if they exist.
-		//nolint:gocritic // Keeping the table clean
-		err := store.DeleteUserOauthMergeStates(dbauthz.AsSystemRestricted(ctx), user.ID)
-		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-			return err
-		}
+	claims := &OAuthConvertStateClaims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    api.DeploymentID,
+			Subject:   stateString,
+			Audience:  []string{user.ID.String()},
+			ExpiresAt: jwt.NewNumericDate(now.Add(time.Minute * 5)),
+			NotBefore: jwt.NewNumericDate(now.Add(time.Second * -1)),
+			IssuedAt:  jwt.NewNumericDate(now),
+			ID:        uuid.NewString(),
+		},
+		UserID:        user.ID,
+		State:         stateString,
+		FromLoginType: codersdk.LoginType(user.LoginType),
+		ToLoginType:   req.ToLoginType,
+	}
 
-		mergeState, err = store.InsertUserOauthMergeState(ctx, database.InsertUserOauthMergeStateParams{
-			UserID:        user.ID,
-			State:         stateString,
-			FromLoginType: user.LoginType,
-			ToLoginType:   database.LoginType(req.ToLoginType),
-			CreatedAt:     now,
-			ExpiresAt:     now.Add(time.Minute * 5),
-		})
-		if err != nil {
-			return err
-		}
-		return nil
-	}, nil)
-
+	token := jwt.NewWithClaims(jwt.SigningMethodHS512, claims)
+	// Key must be a byte slice, not an array. So make sure to include the [:]
+	tokenString, err := token.SignedString(api.OAuthSigningKey[:])
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal Server Error",
+			Message: "Internal error signing state jwt.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	aReq.New = mergeState
+	//var mergeState database.OauthMergeState
+	//err = api.Database.InTx(func(store database.Store) error {
+	//	// We should only ever have 1 oauth merge state per user. So delete
+	//	// any existing if they exist.
+	//	//nolint:gocritic // Keeping the table clean
+	//	err := store.DeleteUserOauthMergeStates(dbauthz.AsSystemRestricted(ctx), user.ID)
+	//	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	//		return err
+	//	}
+	//
+	//	mergeState, err = store.InsertUserOauthMergeState(ctx, database.InsertUserOauthMergeStateParams{
+	//		UserID:        user.ID,
+	//		State:         stateString,
+	//		FromLoginType: user.LoginType,
+	//		ToLoginType:   database.LoginType(req.ToLoginType),
+	//		CreatedAt:     now,
+	//		ExpiresAt:     now.Add(time.Minute * 5),
+	//	})
+	//	if err != nil {
+	//		return err
+	//	}
+	//	return nil
+	//}, nil)
+	//
+	//if err != nil {
+	//	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+	//		Message: "Internal Server Error",
+	//		Detail:  err.Error(),
+	//	})
+	//	return
+	//}
+
+	//aReq.New = mergeState
+	http.SetCookie(rw, &http.Cookie{
+		Name:     OauthConvertCookieValue,
+		Value:    tokenString,
+		Expires:  claims.ExpiresAt.Time,
+		Secure:   api.SecureAuthCookie,
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+	})
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.OauthConversionResponse{
-		StateString: mergeState.State,
-		ExpiresAt:   mergeState.ExpiresAt,
-		ToLoginType: codersdk.LoginType(mergeState.ToLoginType),
-		UserID:      mergeState.UserID,
+		StateString: stateString,
+		ExpiresAt:   claims.ExpiresAt.Time,
+		ToLoginType: claims.ToLoginType,
+		UserID:      claims.UserID,
 	})
 }
 
@@ -572,7 +620,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		aReq.Action = database.AuditActionRegister
 	}
 
-	cookie, key, err := api.oauthLogin(r, oauthLoginParams{
+	cookies, key, err := api.oauthLogin(r, oauthLoginParams{
 		User:                   user,
 		Link:                   link,
 		State:                  state,
@@ -606,7 +654,9 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	aReq.New = key
 	aReq.UserID = key.UserID
 
-	http.SetCookie(rw, cookie)
+	for i := range cookies {
+		http.SetCookie(rw, cookies[i])
+	}
 
 	redirect := state.Redirect
 	if redirect == "" {
@@ -912,7 +962,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		aReq.Action = database.AuditActionRegister
 	}
 
-	cookie, key, err := api.oauthLogin(r, oauthLoginParams{
+	cookies, key, err := api.oauthLogin(r, oauthLoginParams{
 		User:                   user,
 		Link:                   link,
 		State:                  state,
@@ -948,7 +998,9 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	aReq.New = key
 	aReq.UserID = key.UserID
 
-	http.SetCookie(rw, cookie)
+	for i := range cookies {
+		http.SetCookie(rw, cookies[i])
+	}
 
 	redirect := state.Redirect
 	if redirect == "" {
@@ -1029,10 +1081,11 @@ func (e httpError) Error() string {
 	return e.msg
 }
 
-func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cookie, database.APIKey, error) {
+func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) ([]*http.Cookie, database.APIKey, error) {
 	var (
-		ctx  = r.Context()
-		user database.User
+		ctx     = r.Context()
+		user    database.User
+		cookies []*http.Cookie
 	)
 
 	err := api.Database.InTx(func(tx database.Store) error {
@@ -1047,6 +1100,9 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		// If you do a convert to OIDC and your email does not match, we need to
 		// catch this and not make a new account.
 		if isMergeStateString(params.State.StateString) {
+			// Always clear this cookie. If it succeeds, we no longer need it.
+			// If it fails, we no longer care about it.
+			cookies = append(cookies, clearOAuthConvertCookie())
 			user, err = api.convertUserToOauth(ctx, r, tx, params)
 			if err != nil {
 				return err
@@ -1231,7 +1287,7 @@ func (api *API) oauthLogin(r *http.Request, params oauthLoginParams) (*http.Cook
 		return nil, database.APIKey{}, xerrors.Errorf("create API key: %w", err)
 	}
 
-	return cookie, *key, nil
+	return append(cookies, cookie), *key, nil
 }
 
 // convertUserToOauth will convert a user from password base loginType to
@@ -1248,23 +1304,49 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 		}
 	}
 
-	// nolint:gocritic // Required to auth the oidc convert
-	mergeState, err := db.GetUserOauthMergeState(dbauthz.AsSystemRestricted(ctx), database.GetUserOauthMergeStateParams{
-		UserID:      user.ID,
-		StateString: params.State.StateString,
-	})
-	if xerrors.Is(err, sql.ErrNoRows) {
+	jwtCookie, err := r.Cookie(OauthConvertCookieValue)
+	if err != nil {
 		return database.User{}, httpError{
 			code: http.StatusBadRequest,
-			msg:  "No convert login request found with given state. Restart the convert process and try again.",
+			msg: fmt.Sprintf("Convert to oauth cookie not found. Missing signed jwt to authorize this action. " +
+				"Please try again."),
+		}
+	}
+	var claims OAuthConvertStateClaims
+	token, err := jwt.ParseWithClaims(jwtCookie.Value, &claims, func(token *jwt.Token) (interface{}, error) {
+		return api.OAuthSigningKey[:], nil
+	})
+	if xerrors.Is(err, jwt.ErrSignatureInvalid) || !token.Valid {
+		// These errors are probably because the user is mixing 2 coder deployments.
+		return database.User{}, httpError{
+			code: http.StatusBadRequest,
+			msg:  fmt.Sprintf("Using an invalid jwt to authorize this action. Ensure there is only 1 coder deployment and try again."),
 		}
 	}
 	if err != nil {
 		return database.User{}, httpError{
 			code: http.StatusInternalServerError,
-			msg:  err.Error(),
+			msg:  fmt.Sprintf("Error parsing jwt: %v", err),
 		}
 	}
+
+	//// nolint:gocritic // Required to auth the oidc convert
+	//mergeState, err := db.GetUserOauthMergeState(dbauthz.AsSystemRestricted(ctx), database.GetUserOauthMergeStateParams{
+	//	UserID:      user.ID,
+	//	StateString: params.State.StateString,
+	//})
+	//if xerrors.Is(err, sql.ErrNoRows) {
+	//	return database.User{}, httpError{
+	//		code: http.StatusBadRequest,
+	//		msg:  "No convert login request found with given state. Restart the convert process and try again.",
+	//	}
+	//}
+	//if err != nil {
+	//	return database.User{}, httpError{
+	//		code: http.StatusInternalServerError,
+	//		msg:  err.Error(),
+	//	}
+	//}
 
 	// At this point, this request could be an attempt to convert from
 	// password auth to oauth auth. Always log these attempts.
@@ -1277,7 +1359,8 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 			Action:  database.AuditActionLogin,
 		})
 	)
-	oauthConvertAudit.Old = mergeState
+	var _ = oauthConvertAudit
+	//oauthConvertAudit.Old = mergeState
 	defer commitOauthConvertAudit()
 
 	// If we do not allow converting to oauth, return an error.
@@ -1291,10 +1374,26 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 		}
 	}
 
+	if claims.RegisteredClaims.Issuer != api.DeploymentID {
+		return database.User{}, httpError{
+			code: http.StatusForbidden,
+			msg:  "Request to convert login type failed. Issuer mismatch. Found a cookie from another coder deployment, please try again.",
+		}
+	}
+
+	if params.State.StateString != claims.State {
+		return database.User{}, httpError{
+			code: http.StatusForbidden,
+			msg:  "Request to convert login type failed. State mismatch.",
+		}
+	}
+
 	// Make sure the merge state generated matches this OIDC login request.
 	// It needs to have the correct login type information for this
 	// user.
-	if user.ID != mergeState.UserID || user.LoginType != mergeState.FromLoginType || params.LoginType != mergeState.ToLoginType {
+	if user.ID != claims.UserID ||
+		codersdk.LoginType(user.LoginType) != claims.FromLoginType ||
+		codersdk.LoginType(params.LoginType) != claims.ToLoginType {
 		return database.User{}, httpError{
 			code: http.StatusForbidden,
 			msg:  fmt.Sprintf("Request to convert login type from %s to %s failed", user.LoginType, params.LoginType),
@@ -1387,4 +1486,11 @@ func findLinkedUser(ctx context.Context, db database.Store, linkedID string, ema
 
 func isMergeStateString(state string) bool {
 	return strings.HasPrefix(state, mergeStateStringPrefix)
+}
+
+func clearOAuthConvertCookie() *http.Cookie {
+	return &http.Cookie{
+		Name:   OauthConvertCookieValue,
+		MaxAge: -1,
+	}
 }

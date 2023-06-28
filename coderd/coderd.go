@@ -132,6 +132,11 @@ type Options struct {
 	HealthcheckTimeout time.Duration
 	HealthcheckRefresh time.Duration
 
+	// OAuthSigningKey is the crypto key used to sign and encrypt state strings
+	// related to OAuth. This is a symmetric secret key using hmac to sign payloads.
+	// So this secret should **never** be exposed to the client.
+	OAuthSigningKey [32]byte
+
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
 	// Setting a rate limit <0 will disable the rate limiter across the entire
 	// app. Some specific routes have their own configurable rate limits.
@@ -309,9 +314,16 @@ func New(options *Options) *API {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	r := chi.NewRouter()
+
+	// nolint:gocritic // Load deployment ID. This never changes
+	depID, err := options.Database.GetDeploymentID(dbauthz.AsSystemRestricted(ctx))
+	if err != nil {
+		panic(xerrors.Errorf("get deployment ID: %w", err))
+	}
 	api := &API{
-		ctx:    ctx,
-		cancel: cancel,
+		ctx:          ctx,
+		cancel:       cancel,
+		DeploymentID: depID,
 
 		ID:          uuid.New(),
 		Options:     options,
@@ -853,6 +865,9 @@ type API struct {
 	// interruptible tasks.
 	ctx    context.Context
 	cancel context.CancelFunc
+
+	// DeploymentID is loaded from the database on startup.
+	DeploymentID string
 
 	*Options
 	// ID is a uniquely generated ID on initialization.

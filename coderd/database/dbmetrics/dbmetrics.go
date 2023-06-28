@@ -462,6 +462,13 @@ func (m metricsStore) GetLogoURL(ctx context.Context) (string, error) {
 	return url, err
 }
 
+func (m metricsStore) GetOauthSigningKey(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOauthSigningKey(ctx)
+	m.queryLatencies.WithLabelValues("GetOauthSigningKey").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {
 	start := time.Now()
 	organization, err := m.s.GetOrganizationByID(ctx, id)
@@ -1612,6 +1619,13 @@ func (m metricsStore) UpsertLogoURL(ctx context.Context, value string) error {
 	start := time.Now()
 	r0 := m.s.UpsertLogoURL(ctx, value)
 	m.queryLatencies.WithLabelValues("UpsertLogoURL").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m metricsStore) UpsertOauthSigningKey(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.UpsertOauthSigningKey(ctx, value)
+	m.queryLatencies.WithLabelValues("UpsertOauthSigningKey").Observe(time.Since(start).Seconds())
 	return r0
 }
 

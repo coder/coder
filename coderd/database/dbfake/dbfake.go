@@ -150,6 +150,7 @@ type data struct {
 	serviceBanner           []byte
 	logoURL                 string
 	appSecurityKey          string
+	oauthSigningKey         string
 	lastLicenseID           int32
 	defaultProxyDisplayName string
 	defaultProxyIconURL     string
@@ -1888,6 +1889,13 @@ func (q *fakeQuerier) GetLogoURL(_ context.Context) (string, error) {
 	}
 
 	return q.logoURL, nil
+}
+
+func (q *fakeQuerier) GetOauthSigningKey(ctx context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	return q.oauthSigningKey, nil
 }
 
 func (q *fakeQuerier) GetOrganizationByID(_ context.Context, id uuid.UUID) (database.Organization, error) {
@@ -5376,6 +5384,14 @@ func (q *fakeQuerier) UpsertLogoURL(_ context.Context, data string) error {
 	defer q.mutex.RUnlock()
 
 	q.logoURL = data
+	return nil
+}
+
+func (q *fakeQuerier) UpsertOauthSigningKey(ctx context.Context, value string) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.oauthSigningKey = value
 	return nil
 }
 

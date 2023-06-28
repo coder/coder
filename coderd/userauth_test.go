@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
 	"strings"
 	"testing"
 
@@ -809,6 +810,10 @@ func TestUserOIDC(t *testing.T) {
 			"email": userData.Email,
 		})
 
+		var err error
+		user.HTTPClient.Jar, err = cookiejar.New(nil)
+		require.NoError(t, err)
+
 		ctx := testutil.Context(t, testutil.WaitShort)
 		convertResponse, err := user.ConvertToOAuthLogin(ctx, codersdk.ConvertLoginRequest{
 			ToLoginType: codersdk.LoginTypeOIDC,
@@ -819,7 +824,7 @@ func TestUserOIDC(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		resp := oidcCallbackWithState(t, client, code, convertResponse.StateString)
+		resp := oidcCallbackWithState(t, user, code, convertResponse.StateString)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 	})
 
@@ -1050,6 +1055,7 @@ func oidcCallback(t *testing.T, client *codersdk.Client, code string) *http.Resp
 
 func oidcCallbackWithState(t *testing.T, client *codersdk.Client, code, state string) *http.Response {
 	t.Helper()
+
 	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
