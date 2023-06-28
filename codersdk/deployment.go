@@ -310,7 +310,7 @@ type GitAuthConfig struct {
 	NoRefresh           bool     `json:"no_refresh"`
 	Scopes              []string `json:"scopes"`
 	DeviceFlow          bool     `json:"device_flow"`
-	DeviceAuthURL       string   `json:"device_auth_url"`
+	DeviceCodeURL       string   `json:"device_code_url"`
 }
 
 type ProvisionerConfig struct {

@@ -154,8 +154,8 @@ func ReadGitAuthProvidersFromEnv(environ []string) ([]codersdk.GitAuthConfig, er
 				return nil, xerrors.Errorf("parse bool: %s", v.Value)
 			}
 			provider.DeviceFlow = b
-		case "DEVICE_AUTH_URL":
-			provider.DeviceAuthURL = v.Value
+		case "DEVICE_CODE_URL":
+			provider.DeviceCodeURL = v.Value
 		case "NO_REFRESH":
 			b, err := strconv.ParseBool(v.Value)
 			if err != nil {

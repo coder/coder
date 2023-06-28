@@ -239,9 +239,6 @@ func ConvertConfig(entries []codersdk.GitAuthConfig, accessURL *url.URL) ([]*Con
 		if entry.ClientID == "" {
 			return nil, xerrors.Errorf("%q git auth provider: client_id must be provided", entry.ID)
 		}
-		if entry.ClientSecret == "" {
-			return nil, xerrors.Errorf("%q git auth provider: client_secret must be provided", entry.ID)
-		}
 		authRedirect, err := accessURL.Parse(fmt.Sprintf("/gitauth/%s/callback", entry.ID))
 		if err != nil {
 			return nil, xerrors.Errorf("parse gitauth callback url: %w", err)
@@ -296,17 +293,17 @@ func ConvertConfig(entries []codersdk.GitAuthConfig, accessURL *url.URL) ([]*Con
 		}
 
 		if entry.DeviceFlow {
-			if entry.DeviceAuthURL == "" {
-				entry.DeviceAuthURL = deviceAuthURL[typ]
+			if entry.DeviceCodeURL == "" {
+				entry.DeviceCodeURL = deviceAuthURL[typ]
 			}
-			if entry.DeviceAuthURL == "" {
+			if entry.DeviceCodeURL == "" {
 				return nil, xerrors.Errorf("git auth provider %q: device auth url must be provided", entry.ID)
 			}
 			cfg.DeviceAuth = &DeviceAuth{
 				ClientID: entry.ClientID,
 				TokenURL: oc.Endpoint.TokenURL,
 				Scopes:   entry.Scopes,
-				CodeURL:  entry.DeviceAuthURL,
+				CodeURL:  entry.DeviceCodeURL,
 			}
 		}
 

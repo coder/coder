@@ -99,6 +99,7 @@
     "yup": "0.32.11"
   },
   "devDependencies": {
+    "@octokit/types": "10.0.0",
     "@playwright/test": "1.35.1",
     "@storybook/addon-actions": "7.0.4",
     "@storybook/addon-essentials": "7.0.4",

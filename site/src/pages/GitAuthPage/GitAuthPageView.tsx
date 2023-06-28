@@ -119,10 +119,8 @@ const GitAuthPageView: FC<GitAuthPageViewProps> = ({
       <div className={styles.links}>
         {!hasInstallations && gitAuth.app_installable && (
           <Alert severity="warning" className={styles.installAlert}>
-            You must{" "}
-            {installTheApp}{" "}
-            to clone private repositories. Accounts will appear here once
-            authorized.
+            You must {installTheApp} to clone private repositories. Accounts
+            will appear here once authorized.
           </Alert>
         )}
 
