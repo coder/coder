@@ -100,7 +100,7 @@ must include credentials (set `credentials: "include"` if using `fetch`) or the
 requests cannot be authenticated and you will see an error resembling the
 following:
 
-> Access to fetch at 'https://dev.coder.com/api/v2/applications/auth-redirect' from origin 'https://8000--dev--user--apps.dev.coder.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. If an opaque response serves your needs, set the request's mode to 'no-cors' to fetch the resource with CORS disabled.
+> Access to fetch at 'https://coder.example.com/api/v2/applications/auth-redirect' from origin 'https://8000--dev--user--apps.coder.example.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. If an opaque response serves your needs, set the request's mode to 'no-cors' to fetch the resource with CORS disabled.
 
 #### Headers
 
@@ -110,7 +110,7 @@ Below is a list of the cross-origin headers Coder sets with example values:
 access-control-allow-credentials: true
 access-control-allow-methods: PUT
 access-control-allow-headers: X-Custom-Header
-access-control-allow-origin: https://8000--dev--user--apps.dev.coder.com
+access-control-allow-origin: https://8000--dev--user--apps.coder.example.com
 vary: Origin
 vary: Access-Control-Request-Method
 vary: Access-Control-Request-Headers
@@ -124,12 +124,12 @@ will echo whatever the request sends.
 
 These cross-origin headers are not configurable by administrative settings.
 
-Applications can set their own headers which will override the defaults but this
-will only apply to non-preflight requests. Preflight requests through the
-dashboard are never sent to applications and thus cannot be modified by
-them. Read more about the difference between simple requests and requests that
-trigger preflights
-[here](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#simple_requests).
+If applications set any of the above headers they will be stripped from the
+response except for `Vary` headers that are set to a value other than the ones
+listed above.
+
+In other words, CORS behavior through the dashboard is not currently
+configurable by either admins or users.
 
 #### Allowed by default
 

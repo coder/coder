@@ -20,9 +20,11 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/db2sdk"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/util/slice"
+	"github.com/coder/coder/codersdk"
 )
 
 var validProxyByHostnameRegex = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
@@ -966,6 +968,14 @@ func isNotNull(v interface{}) bool {
 	return reflect.ValueOf(v).FieldByName("Valid").Bool()
 }
 
+// ErrUnimplemented is returned by methods only used by the enterprise/tailnet.pgCoord.  This coordinator explicitly
+// depends on  postgres triggers that announce changes on the pubsub.  Implementing support for this in the fake
+// database would  strongly couple the fakeQuerier to the pubsub, which is undesirable.  Furthermore, it makes little
+// sense to directly  test the pgCoord against anything other than postgres.  The fakeQuerier is designed to allow us to
+// test the Coderd  API, and for that kind of test, the in-memory, AGPL tailnet coordinator is sufficient.  Therefore,
+// these methods  remain unimplemented in the fakeQuerier.
+var ErrUnimplemented = xerrors.New("unimplemented")
+
 func (*fakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -1025,6 +1035,10 @@ func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 	return database.ProvisionerJob{}, sql.ErrNoRows
 }
 
+func (*fakeQuerier) CleanTailnetCoordinators(_ context.Context) error {
+	return ErrUnimplemented
+}
+
 func (q *fakeQuerier) DeleteAPIKeyByID(_ context.Context, id string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -1064,6 +1078,10 @@ func (q *fakeQuerier) DeleteApplicationConnectAPIKeysByUserID(_ context.Context,
 	}
 
 	return nil
+}
+
+func (*fakeQuerier) DeleteCoordinator(context.Context, uuid.UUID) error {
+	return ErrUnimplemented
 }
 
 func (q *fakeQuerier) DeleteGitSSHKey(_ context.Context, userID uuid.UUID) error {
@@ -1172,6 +1190,14 @@ func (q *fakeQuerier) DeleteReplicasUpdatedBefore(_ context.Context, before time
 	}
 
 	return nil
+}
+
+func (*fakeQuerier) DeleteTailnetAgent(context.Context, database.DeleteTailnetAgentParams) (database.DeleteTailnetAgentRow, error) {
+	return database.DeleteTailnetAgentRow{}, ErrUnimplemented
+}
+
+func (*fakeQuerier) DeleteTailnetClient(context.Context, database.DeleteTailnetClientParams) (database.DeleteTailnetClientRow, error) {
+	return database.DeleteTailnetClientRow{}, ErrUnimplemented
 }
 
 func (q *fakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIKey, error) {
@@ -1727,6 +1753,19 @@ func (q *fakeQuerier) GetGroupsByOrganizationID(_ context.Context, organizationI
 	return groups, nil
 }
 
+func (q *fakeQuerier) GetHungProvisionerJobs(_ context.Context, hungSince time.Time) ([]database.ProvisionerJob, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	hungJobs := []database.ProvisionerJob{}
+	for _, provisionerJob := range q.provisionerJobs {
+		if provisionerJob.StartedAt.Valid && !provisionerJob.CompletedAt.Valid && provisionerJob.UpdatedAt.Before(hungSince) {
+			hungJobs = append(hungJobs, provisionerJob)
+		}
+	}
+	return hungJobs, nil
+}
+
 func (q *fakeQuerier) GetLastUpdateCheck(_ context.Context) (string, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -2051,6 +2090,38 @@ func (q *fakeQuerier) GetProvisionerJobsByIDs(_ context.Context, ids []uuid.UUID
 	return jobs, nil
 }
 
+func (q *fakeQuerier) GetProvisionerJobsByIDsWithQueuePosition(_ context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	jobs := make([]database.GetProvisionerJobsByIDsWithQueuePositionRow, 0)
+	queuePosition := int64(1)
+	for _, job := range q.provisionerJobs {
+		for _, id := range ids {
+			if id == job.ID {
+				job := database.GetProvisionerJobsByIDsWithQueuePositionRow{
+					ProvisionerJob: job,
+				}
+				if !job.ProvisionerJob.StartedAt.Valid {
+					job.QueuePosition = queuePosition
+				}
+				jobs = append(jobs, job)
+				break
+			}
+		}
+		if !job.StartedAt.Valid {
+			queuePosition++
+		}
+	}
+	for _, job := range jobs {
+		if !job.ProvisionerJob.StartedAt.Valid {
+			// Set it to the max position!
+			job.QueueSize = queuePosition
+		}
+	}
+	return jobs, nil
+}
+
 func (q *fakeQuerier) GetProvisionerJobsCreatedAfter(_ context.Context, after time.Time) ([]database.ProvisionerJob, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -2077,7 +2148,7 @@ func (q *fakeQuerier) GetProvisionerLogsAfterID(_ context.Context, arg database.
 		if jobLog.JobID != arg.JobID {
 			continue
 		}
-		if arg.CreatedAfter != 0 && jobLog.ID < arg.CreatedAfter {
+		if jobLog.ID <= arg.CreatedAfter {
 			continue
 		}
 		logs = append(logs, jobLog)
@@ -2151,6 +2222,14 @@ func (q *fakeQuerier) GetServiceBanner(_ context.Context) (string, error) {
 	}
 
 	return string(q.serviceBanner), nil
+}
+
+func (*fakeQuerier) GetTailnetAgents(context.Context, uuid.UUID) ([]database.TailnetAgent, error) {
+	return nil, ErrUnimplemented
+}
+
+func (*fakeQuerier) GetTailnetClientsForAgent(context.Context, uuid.UUID) ([]database.TailnetClient, error) {
+	return nil, ErrUnimplemented
 }
 
 func (q *fakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
@@ -2624,6 +2703,26 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 			}
 		}
 		users = usersFilteredByRole
+	}
+
+	if !params.LastSeenBefore.IsZero() {
+		usersFilteredByLastSeen := make([]database.User, 0, len(users))
+		for i, user := range users {
+			if user.LastSeenAt.Before(params.LastSeenBefore) {
+				usersFilteredByLastSeen = append(usersFilteredByLastSeen, users[i])
+			}
+		}
+		users = usersFilteredByLastSeen
+	}
+
+	if !params.LastSeenAfter.IsZero() {
+		usersFilteredByLastSeen := make([]database.User, 0, len(users))
+		for i, user := range users {
+			if user.LastSeenAt.After(params.LastSeenAfter) {
+				usersFilteredByLastSeen = append(usersFilteredByLastSeen, users[i])
+			}
+		}
+		users = usersFilteredByLastSeen
 	}
 
 	beforePageCount := len(users)
@@ -3372,7 +3471,7 @@ func (q *fakeQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorkspa
 	return workspaceRows, err
 }
 
-func (q *fakeQuerier) GetWorkspacesEligibleForAutoStartStop(ctx context.Context, now time.Time) ([]database.Workspace, error) {
+func (q *fakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -3389,6 +3488,15 @@ func (q *fakeQuerier) GetWorkspacesEligibleForAutoStartStop(ctx context.Context,
 		}
 
 		if build.Transition == database.WorkspaceTransitionStop && workspace.AutostartSchedule.Valid {
+			workspaces = append(workspaces, workspace)
+			continue
+		}
+
+		job, err := q.getProvisionerJobByIDNoLock(ctx, build.JobID)
+		if err != nil {
+			return nil, xerrors.Errorf("get provisioner job by ID: %w", err)
+		}
+		if db2sdk.ProvisionerJobStatus(job) == codersdk.ProvisionerJobFailed {
 			workspaces = append(workspaces, workspace)
 			continue
 		}
@@ -5224,4 +5332,16 @@ func (q *fakeQuerier) UpsertServiceBanner(_ context.Context, data string) error 
 
 	q.serviceBanner = []byte(data)
 	return nil
+}
+
+func (*fakeQuerier) UpsertTailnetAgent(context.Context, database.UpsertTailnetAgentParams) (database.TailnetAgent, error) {
+	return database.TailnetAgent{}, ErrUnimplemented
+}
+
+func (*fakeQuerier) UpsertTailnetClient(context.Context, database.UpsertTailnetClientParams) (database.TailnetClient, error) {
+	return database.TailnetClient{}, ErrUnimplemented
+}
+
+func (*fakeQuerier) UpsertTailnetCoordinator(context.Context, uuid.UUID) (database.TailnetCoordinator, error) {
+	return database.TailnetCoordinator{}, ErrUnimplemented
 }

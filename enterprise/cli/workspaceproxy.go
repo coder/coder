@@ -15,8 +15,11 @@ import (
 
 func (r *RootCmd) workspaceProxy() *clibase.Cmd {
 	cmd := &clibase.Cmd{
-		Use:     "workspace-proxy",
-		Short:   "Manage workspace proxies",
+		Use:   "workspace-proxy",
+		Short: "Workspace proxies provide low-latency experiences for geo-distributed teams.",
+		Long: "Workspace proxies provide low-latency experiences for geo-distributed teams. " +
+			"It will act as a connection gateway to your workspace providing a lower latency solution " +
+			"to connecting to your workspace if Coder and your workspace are deployed in different regions.",
 		Aliases: []string{"wsproxy"},
 		Hidden:  true,
 		Handler: func(inv *clibase.Invocation) error {

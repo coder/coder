@@ -136,6 +136,9 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
         proxiesResp?.regions ?? [],
         loadUserSelectedProxy(),
         proxyLatencies,
+        // Do not auto select based on latencies, as inconsistent latencies can cause this
+        // to behave poorly.
+        false,
       ),
     )
   }, [proxiesResp, proxyLatencies])
@@ -208,6 +211,7 @@ export const getPreferredProxy = (
   proxies: Region[],
   selectedProxy?: Region,
   latencies?: Record<string, ProxyLatencyReport>,
+  autoSelectBasedOnLatency = true,
 ): PreferredProxy => {
   // If a proxy is selected, make sure it is in the list of proxies. If it is not
   // we should default to the primary.
@@ -219,35 +223,50 @@ export const getPreferredProxy = (
   if (!selectedProxy || !selectedProxy.healthy) {
     // By default, use the primary proxy.
     selectedProxy = proxies.find((proxy) => proxy.name === "primary")
+
     // If we have latencies, then attempt to use the best proxy by latency instead.
-    if (latencies) {
-      const proxyMap = proxies.reduce((acc, proxy) => {
-        acc[proxy.id] = proxy
-        return acc
-      }, {} as Record<string, Region>)
-
-      const best = Object.keys(latencies)
-        .map((proxyId) => {
-          return {
-            id: proxyId,
-            ...latencies[proxyId],
-          }
-        })
-        // If the proxy is not in our list, or it is unhealthy, ignore it.
-        .filter((latency) => proxyMap[latency.id]?.healthy)
-        .sort((a, b) => a.latencyMS - b.latencyMS)
-        .at(0)
-
-      // Found a new best, use it!
-      if (best) {
-        const bestProxy = proxies.find((proxy) => proxy.id === best.id)
-        // Default to w/e it was before
-        selectedProxy = bestProxy || selectedProxy
-      }
+    const best = selectByLatency(proxies, latencies)
+    if (autoSelectBasedOnLatency && best) {
+      selectedProxy = best
     }
   }
 
   return computeUsableURLS(selectedProxy)
+}
+
+const selectByLatency = (
+  proxies: Region[],
+  latencies?: Record<string, ProxyLatencyReport>,
+): Region | undefined => {
+  if (!latencies) {
+    return undefined
+  }
+
+  const proxyMap = proxies.reduce((acc, proxy) => {
+    acc[proxy.id] = proxy
+    return acc
+  }, {} as Record<string, Region>)
+
+  const best = Object.keys(latencies)
+    .map((proxyId) => {
+      return {
+        id: proxyId,
+        ...latencies[proxyId],
+      }
+    })
+    // If the proxy is not in our list, or it is unhealthy, ignore it.
+    .filter((latency) => proxyMap[latency.id]?.healthy)
+    .sort((a, b) => a.latencyMS - b.latencyMS)
+    .at(0)
+
+  // Found a new best, use it!
+  if (best) {
+    const bestProxy = proxies.find((proxy) => proxy.id === best.id)
+    // Default to w/e it was before
+    return bestProxy
+  }
+
+  return undefined
 }
 
 const computeUsableURLS = (proxy?: Region): PreferredProxy => {

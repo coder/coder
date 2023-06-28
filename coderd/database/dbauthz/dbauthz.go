@@ -176,6 +176,25 @@ var (
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
 
+	// See unhanger package.
+	subjectHangDetector = rbac.Subject{
+		ID: uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Name:        "hangdetector",
+				DisplayName: "Hang Detector Daemon",
+				Site: rbac.Permissions(map[string][]rbac.Action{
+					rbac.ResourceSystem.Type:    {rbac.WildcardSymbol},
+					rbac.ResourceTemplate.Type:  {rbac.ActionRead},
+					rbac.ResourceWorkspace.Type: {rbac.ActionRead, rbac.ActionUpdate},
+				}),
+				Org:  map[string][]rbac.Permission{},
+				User: []rbac.Permission{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
+
 	subjectSystemRestricted = rbac.Subject{
 		ID: uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
@@ -215,6 +234,12 @@ func AsProvisionerd(ctx context.Context) context.Context {
 // for autostart to function.
 func AsAutostart(ctx context.Context) context.Context {
 	return context.WithValue(ctx, authContextKey{}, subjectAutostart)
+}
+
+// AsHangDetector returns a context with an actor that has permissions required
+// for unhanger.Detector to function.
+func AsHangDetector(ctx context.Context) context.Context {
+	return context.WithValue(ctx, authContextKey{}, subjectHangDetector)
 }
 
 // AsSystemRestricted returns a context with an actor that has permissions
@@ -683,6 +708,13 @@ func (q *querier) AcquireProvisionerJob(ctx context.Context, arg database.Acquir
 	return q.db.AcquireProvisionerJob(ctx, arg)
 }
 
+func (q *querier) CleanTailnetCoordinators(ctx context.Context) error {
+	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
+		return err
+	}
+	return q.db.CleanTailnetCoordinators(ctx)
+}
+
 func (q *querier) DeleteAPIKeyByID(ctx context.Context, id string) error {
 	return deleteQ(q.log, q.auth, q.db.GetAPIKeyByID, q.db.DeleteAPIKeyByID)(ctx, id)
 }
@@ -705,6 +737,13 @@ func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, u
 		return err
 	}
 	return q.db.DeleteApplicationConnectAPIKeysByUserID(ctx, userID)
+}
+
+func (q *querier) DeleteCoordinator(ctx context.Context, id uuid.UUID) error {
+	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
+		return err
+	}
+	return q.db.DeleteCoordinator(ctx, id)
 }
 
 func (q *querier) DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error {
@@ -763,6 +802,20 @@ func (q *querier) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt tim
 		return err
 	}
 	return q.db.DeleteReplicasUpdatedBefore(ctx, updatedAt)
+}
+
+func (q *querier) DeleteTailnetAgent(ctx context.Context, arg database.DeleteTailnetAgentParams) (database.DeleteTailnetAgentRow, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTailnetCoordinator); err != nil {
+		return database.DeleteTailnetAgentRow{}, err
+	}
+	return q.db.DeleteTailnetAgent(ctx, arg)
+}
+
+func (q *querier) DeleteTailnetClient(ctx context.Context, arg database.DeleteTailnetClientParams) (database.DeleteTailnetClientRow, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
+		return database.DeleteTailnetClientRow{}, err
+	}
+	return q.db.DeleteTailnetClient(ctx, arg)
 }
 
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
@@ -920,6 +973,14 @@ func (q *querier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]dat
 
 func (q *querier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.Group, error) {
 	return fetchWithPostFilter(q.auth, q.db.GetGroupsByOrganizationID)(ctx, organizationID)
+}
+
+// TODO: We need to create a ProvisionerJob resource type
+func (q *querier) GetHungProvisionerJobs(ctx context.Context, hungSince time.Time) ([]database.ProvisionerJob, error) {
+	// if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+	// return nil, err
+	// }
+	return q.db.GetHungProvisionerJobs(ctx, hungSince)
 }
 
 func (q *querier) GetLastUpdateCheck(ctx context.Context) (string, error) {
@@ -1087,6 +1148,11 @@ func (q *querier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) 
 	return q.db.GetProvisionerJobsByIDs(ctx, ids)
 }
 
+// TODO: we need to add a provisioner job resource
+func (q *querier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+	return q.db.GetProvisionerJobsByIDsWithQueuePosition(ctx, ids)
+}
+
 // TODO: We need to create a ProvisionerJob resource type
 func (q *querier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ProvisionerJob, error) {
 	// if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
@@ -1130,6 +1196,20 @@ func (q *querier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Ti
 func (q *querier) GetServiceBanner(ctx context.Context) (string, error) {
 	// No authz checks
 	return q.db.GetServiceBanner(ctx)
+}
+
+func (q *querier) GetTailnetAgents(ctx context.Context, id uuid.UUID) ([]database.TailnetAgent, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
+		return nil, err
+	}
+	return q.db.GetTailnetAgents(ctx, id)
+}
+
+func (q *querier) GetTailnetClientsForAgent(ctx context.Context, agentID uuid.UUID) ([]database.TailnetClient, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
+		return nil, err
+	}
+	return q.db.GetTailnetClientsForAgent(ctx, agentID)
 }
 
 // Only used by metrics cache.
@@ -1677,8 +1757,8 @@ func (q *querier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesP
 	return q.db.GetAuthorizedWorkspaces(ctx, arg, prep)
 }
 
-func (q *querier) GetWorkspacesEligibleForAutoStartStop(ctx context.Context, now time.Time) ([]database.Workspace, error) {
-	return q.db.GetWorkspacesEligibleForAutoStartStop(ctx, now)
+func (q *querier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.Workspace, error) {
+	return q.db.GetWorkspacesEligibleForTransition(ctx, now)
 }
 
 func (q *querier) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
@@ -2516,4 +2596,25 @@ func (q *querier) UpsertServiceBanner(ctx context.Context, value string) error {
 		return err
 	}
 	return q.db.UpsertServiceBanner(ctx, value)
+}
+
+func (q *querier) UpsertTailnetAgent(ctx context.Context, arg database.UpsertTailnetAgentParams) (database.TailnetAgent, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTailnetCoordinator); err != nil {
+		return database.TailnetAgent{}, err
+	}
+	return q.db.UpsertTailnetAgent(ctx, arg)
+}
+
+func (q *querier) UpsertTailnetClient(ctx context.Context, arg database.UpsertTailnetClientParams) (database.TailnetClient, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTailnetCoordinator); err != nil {
+		return database.TailnetClient{}, err
+	}
+	return q.db.UpsertTailnetClient(ctx, arg)
+}
+
+func (q *querier) UpsertTailnetCoordinator(ctx context.Context, id uuid.UUID) (database.TailnetCoordinator, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTailnetCoordinator); err != nil {
+		return database.TailnetCoordinator{}, err
+	}
+	return q.db.UpsertTailnetCoordinator(ctx, id)
 }

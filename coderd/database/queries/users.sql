@@ -181,6 +181,17 @@ WHERE
 		    rbac_roles && @rbac_role :: text[]
 		ELSE true
 	END
+	-- Filter by last_seen
+	AND CASE
+		WHEN @last_seen_before :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			last_seen_at <= @last_seen_before
+		ELSE true
+	END
+	AND CASE
+		WHEN @last_seen_after :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			last_seen_at >= @last_seen_after
+		ELSE true
+	END
 	-- End of filters
 ORDER BY
 	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.

@@ -232,6 +232,7 @@
     }
   },
   "directory": "string",
+  "disable_direct_connections": true,
   "environment_variables": {
     "property1": "string",
     "property2": "string"
@@ -257,21 +258,22 @@
 
 ### Properties
 
-| Name                      | Type                                                                                              | Required | Restrictions | Description                                                                                                                                                |
-| ------------------------- | ------------------------------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps`                    | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)                                           | false    |              |                                                                                                                                                            |
-| `derpmap`                 | [tailcfg.DERPMap](#tailcfgderpmap)                                                                | false    |              |                                                                                                                                                            |
-| `directory`               | string                                                                                            | false    |              |                                                                                                                                                            |
-| `environment_variables`   | object                                                                                            | false    |              |                                                                                                                                                            |
-| » `[any property]`        | string                                                                                            | false    |              |                                                                                                                                                            |
-| `git_auth_configs`        | integer                                                                                           | false    |              | Git auth configs stores the number of Git configurations the Coder deployment has. If this number is >0, we set up special configuration in the workspace. |
-| `metadata`                | array of [codersdk.WorkspaceAgentMetadataDescription](#codersdkworkspaceagentmetadatadescription) | false    |              |                                                                                                                                                            |
-| `motd_file`               | string                                                                                            | false    |              |                                                                                                                                                            |
-| `shutdown_script`         | string                                                                                            | false    |              |                                                                                                                                                            |
-| `shutdown_script_timeout` | integer                                                                                           | false    |              |                                                                                                                                                            |
-| `startup_script`          | string                                                                                            | false    |              |                                                                                                                                                            |
-| `startup_script_timeout`  | integer                                                                                           | false    |              |                                                                                                                                                            |
-| `vscode_port_proxy_uri`   | string                                                                                            | false    |              |                                                                                                                                                            |
+| Name                         | Type                                                                                              | Required | Restrictions | Description                                                                                                                                                |
+| ---------------------------- | ------------------------------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps`                       | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)                                           | false    |              |                                                                                                                                                            |
+| `derpmap`                    | [tailcfg.DERPMap](#tailcfgderpmap)                                                                | false    |              |                                                                                                                                                            |
+| `directory`                  | string                                                                                            | false    |              |                                                                                                                                                            |
+| `disable_direct_connections` | boolean                                                                                           | false    |              |                                                                                                                                                            |
+| `environment_variables`      | object                                                                                            | false    |              |                                                                                                                                                            |
+| » `[any property]`           | string                                                                                            | false    |              |                                                                                                                                                            |
+| `git_auth_configs`           | integer                                                                                           | false    |              | Git auth configs stores the number of Git configurations the Coder deployment has. If this number is >0, we set up special configuration in the workspace. |
+| `metadata`                   | array of [codersdk.WorkspaceAgentMetadataDescription](#codersdkworkspaceagentmetadatadescription) | false    |              |                                                                                                                                                            |
+| `motd_file`                  | string                                                                                            | false    |              |                                                                                                                                                            |
+| `shutdown_script`            | string                                                                                            | false    |              |                                                                                                                                                            |
+| `shutdown_script_timeout`    | integer                                                                                           | false    |              |                                                                                                                                                            |
+| `startup_script`             | string                                                                                            | false    |              |                                                                                                                                                            |
+| `startup_script_timeout`     | integer                                                                                           | false    |              |                                                                                                                                                            |
+| `vscode_port_proxy_uri`      | string                                                                                            | false    |              |                                                                                                                                                            |
 
 ## agentsdk.PatchStartupLogs
 
@@ -1669,6 +1671,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "config": {
+    "block_direct": true,
     "path": "string",
     "url": "string"
   },
@@ -1706,6 +1709,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "block_direct": true,
   "path": "string",
   "url": "string"
 }
@@ -1713,10 +1717,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name   | Type   | Required | Restrictions | Description |
-| ------ | ------ | -------- | ------------ | ----------- |
-| `path` | string | false    |              |             |
-| `url`  | string | false    |              |             |
+| Name           | Type    | Required | Restrictions | Description |
+| -------------- | ------- | -------- | ------------ | ----------- |
+| `block_direct` | boolean | false    |              |             |
+| `path`         | string  | false    |              |             |
+| `url`          | string  | false    |              |             |
 
 ## codersdk.DERPRegion
 
@@ -1839,6 +1844,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     },
     "derp": {
       "config": {
+        "block_direct": true,
         "path": "string",
         "url": "string"
       },
@@ -1885,6 +1891,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     },
     "http_address": "string",
     "in_memory_database": true,
+    "job_hang_detector_interval": 0,
     "logging": {
       "human": "string",
       "json": "string",
@@ -1954,6 +1961,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "daemon_poll_interval": 0,
       "daemon_poll_jitter": 0,
       "daemons": 0,
+      "daemons_echo": true,
       "force_cancel_interval": 0
     },
     "proxy_health_status_interval": 0,
@@ -2171,6 +2179,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "derp": {
     "config": {
+      "block_direct": true,
       "path": "string",
       "url": "string"
     },
@@ -2217,6 +2226,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "http_address": "string",
   "in_memory_database": true,
+  "job_hang_detector_interval": 0,
   "logging": {
     "human": "string",
     "json": "string",
@@ -2286,6 +2296,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "daemon_poll_interval": 0,
     "daemon_poll_jitter": 0,
     "daemons": 0,
+    "daemons_echo": true,
     "force_cancel_interval": 0
   },
   "proxy_health_status_interval": 0,
@@ -2399,6 +2410,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `git_auth`                           | [clibase.Struct-array_codersdk_GitAuthConfig](#clibasestruct-array_codersdk_gitauthconfig) | false    |              |                                                                    |
 | `http_address`                       | string                                                                                     | false    |              | Http address is a string because it may be set to zero to disable. |
 | `in_memory_database`                 | boolean                                                                                    | false    |              |                                                                    |
+| `job_hang_detector_interval`         | integer                                                                                    | false    |              |                                                                    |
 | `logging`                            | [codersdk.LoggingConfig](#codersdkloggingconfig)                                           | false    |              |                                                                    |
 | `max_session_expiry`                 | integer                                                                                    | false    |              |                                                                    |
 | `max_token_lifetime`                 | integer                                                                                    | false    |              |                                                                    |
@@ -2495,11 +2507,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value               |
-| ------------------- |
-| `moons`             |
-| `workspace_actions` |
-| `workspace_filter`  |
+| Value                    |
+| ------------------------ |
+| `moons`                  |
+| `workspace_actions`      |
+| `tailnet_pg_coordinator` |
 
 ## codersdk.Feature
 
@@ -3128,6 +3140,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "daemon_poll_interval": 0,
   "daemon_poll_jitter": 0,
   "daemons": 0,
+  "daemons_echo": true,
   "force_cancel_interval": 0
 }
 ```
@@ -3139,6 +3152,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `daemon_poll_interval`  | integer | false    |              |             |
 | `daemon_poll_jitter`    | integer | false    |              |             |
 | `daemons`               | integer | false    |              |             |
+| `daemons_echo`          | boolean | false    |              |             |
 | `force_cancel_interval` | integer | false    |              |             |
 
 ## codersdk.ProvisionerDaemon
@@ -3183,6 +3197,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "error_code": "MISSING_TEMPLATE_PARAMETER",
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "queue_position": 0,
+  "queue_size": 0,
   "started_at": "2019-08-24T14:15:22Z",
   "status": "pending",
   "tags": {
@@ -3204,6 +3220,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `error_code`       | [codersdk.JobErrorCode](#codersdkjoberrorcode)                 | false    |              |             |
 | `file_id`          | string                                                         | false    |              |             |
 | `id`               | string                                                         | false    |              |             |
+| `queue_position`   | integer                                                        | false    |              |             |
+| `queue_size`       | integer                                                        | false    |              |             |
 | `started_at`       | string                                                         | false    |              |             |
 | `status`           | [codersdk.ProvisionerJobStatus](#codersdkprovisionerjobstatus) | false    |              |             |
 | `tags`             | object                                                         | false    |              |             |
@@ -3924,6 +3942,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "error_code": "MISSING_TEMPLATE_PARAMETER",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "queue_position": 0,
+    "queue_size": 0,
     "started_at": "2019-08-24T14:15:22Z",
     "status": "pending",
     "tags": {
@@ -4516,6 +4536,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "error_code": "MISSING_TEMPLATE_PARAMETER",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "queue_position": 0,
+      "queue_size": 0,
       "started_at": "2019-08-24T14:15:22Z",
       "status": "pending",
       "tags": {
@@ -4822,15 +4844,17 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "regionName": "string"
       }
     }
-  }
+  },
+  "disable_direct_connections": true
 }
 ```
 
 ### Properties
 
-| Name       | Type                               | Required | Restrictions | Description |
-| ---------- | ---------------------------------- | -------- | ------------ | ----------- |
-| `derp_map` | [tailcfg.DERPMap](#tailcfgderpmap) | false    |              |             |
+| Name                         | Type                               | Required | Restrictions | Description |
+| ---------------------------- | ---------------------------------- | -------- | ------------ | ----------- |
+| `derp_map`                   | [tailcfg.DERPMap](#tailcfgderpmap) | false    |              |             |
+| `disable_direct_connections` | boolean                            | false    |              |             |
 
 ## codersdk.WorkspaceAgentLifecycle
 
@@ -5064,6 +5088,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "error_code": "MISSING_TEMPLATE_PARAMETER",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "queue_position": 0,
+    "queue_size": 0,
     "started_at": "2019-08-24T14:15:22Z",
     "status": "pending",
     "tags": {
@@ -5555,6 +5581,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "error_code": "MISSING_TEMPLATE_PARAMETER",
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "queue_position": 0,
+          "queue_size": 0,
           "started_at": "2019-08-24T14:15:22Z",
           "status": "pending",
           "tags": {
@@ -5703,7 +5731,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "error": null,
+  "access_url": "string",
+  "error": "string",
   "healthy": true,
   "healthz_response": "string",
   "reachable": true,
@@ -5715,7 +5744,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name               | Type    | Required | Restrictions | Description |
 | ------------------ | ------- | -------- | ------------ | ----------- |
-| `error`            | any     | false    |              |             |
+| `access_url`       | string  | false    |              |             |
+| `error`            | string  | false    |              |             |
 | `healthy`          | boolean | false    |              |             |
 | `healthz_response` | string  | false    |              |             |
 | `reachable`        | boolean | false    |              |             |
@@ -5726,9 +5756,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
   "can_exchange_messages": true,
-  "client_errs": [[null]],
+  "client_errs": [["string"]],
   "client_logs": [["string"]],
-  "error": null,
+  "error": "string",
   "healthy": true,
   "node": {
     "certName": "string",
@@ -5765,7 +5795,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `can_exchange_messages` | boolean                                                  | false    |              |             |
 | `client_errs`           | array of array                                           | false    |              |             |
 | `client_logs`           | array of array                                           | false    |              |             |
-| `error`                 | any                                                      | false    |              |             |
+| `error`                 | string                                                   | false    |              |             |
 | `healthy`               | boolean                                                  | false    |              |             |
 | `node`                  | [tailcfg.DERPNode](#tailcfgderpnode)                     | false    |              |             |
 | `node_info`             | [derp.ServerInfoMessage](#derpserverinfomessage)         | false    |              |             |
@@ -5777,14 +5807,14 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "error": null,
+  "error": "string",
   "healthy": true,
   "node_reports": [
     {
       "can_exchange_messages": true,
-      "client_errs": [[null]],
+      "client_errs": [["string"]],
       "client_logs": [["string"]],
-      "error": null,
+      "error": "string",
       "healthy": true,
       "node": {
         "certName": "string",
@@ -5843,7 +5873,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name           | Type                                                              | Required | Restrictions | Description |
 | -------------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `error`        | any                                                               | false    |              |             |
+| `error`        | string                                                            | false    |              |             |
 | `healthy`      | boolean                                                           | false    |              |             |
 | `node_reports` | array of [healthcheck.DERPNodeReport](#healthcheckderpnodereport) | false    |              |             |
 | `region`       | [tailcfg.DERPRegion](#tailcfgderpregion)                          | false    |              |             |
@@ -5852,7 +5882,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "error": null,
+  "error": "string",
   "healthy": true,
   "netcheck": {
     "captivePortal": "string",
@@ -5884,18 +5914,18 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "udp": true,
     "upnP": "string"
   },
-  "netcheck_err": null,
+  "netcheck_err": "string",
   "netcheck_logs": ["string"],
   "regions": {
     "property1": {
-      "error": null,
+      "error": "string",
       "healthy": true,
       "node_reports": [
         {
           "can_exchange_messages": true,
-          "client_errs": [[null]],
+          "client_errs": [["string"]],
           "client_logs": [["string"]],
-          "error": null,
+          "error": "string",
           "healthy": true,
           "node": {
             "certName": "string",
@@ -5949,14 +5979,14 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       }
     },
     "property2": {
-      "error": null,
+      "error": "string",
       "healthy": true,
       "node_reports": [
         {
           "can_exchange_messages": true,
-          "client_errs": [[null]],
+          "client_errs": [["string"]],
           "client_logs": [["string"]],
-          "error": null,
+          "error": "string",
           "healthy": true,
           "node": {
             "certName": "string",
@@ -6017,10 +6047,10 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name               | Type                                                         | Required | Restrictions | Description |
 | ------------------ | ------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `error`            | any                                                          | false    |              |             |
+| `error`            | string                                                       | false    |              |             |
 | `healthy`          | boolean                                                      | false    |              |             |
 | `netcheck`         | [netcheck.Report](#netcheckreport)                           | false    |              |             |
-| `netcheck_err`     | any                                                          | false    |              |             |
+| `netcheck_err`     | string                                                       | false    |              |             |
 | `netcheck_logs`    | array of string                                              | false    |              |             |
 | `regions`          | object                                                       | false    |              |             |
 | » `[any property]` | [healthcheck.DERPRegionReport](#healthcheckderpregionreport) | false    |              |             |
@@ -6043,19 +6073,47 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `enabled` | boolean | false    |              |             |
 | `error`   | any     | false    |              |             |
 
+## healthcheck.DatabaseReport
+
+```json
+{
+  "error": "string",
+  "healthy": true,
+  "latency": 0,
+  "reachable": true
+}
+```
+
+### Properties
+
+| Name        | Type    | Required | Restrictions | Description |
+| ----------- | ------- | -------- | ------------ | ----------- |
+| `error`     | string  | false    |              |             |
+| `healthy`   | boolean | false    |              |             |
+| `latency`   | integer | false    |              |             |
+| `reachable` | boolean | false    |              |             |
+
 ## healthcheck.Report
 
 ```json
 {
   "access_url": {
-    "error": null,
+    "access_url": "string",
+    "error": "string",
     "healthy": true,
     "healthz_response": "string",
     "reachable": true,
     "status_code": 0
   },
+  "coder_version": "string",
+  "database": {
+    "error": "string",
+    "healthy": true,
+    "latency": 0,
+    "reachable": true
+  },
   "derp": {
-    "error": null,
+    "error": "string",
     "healthy": true,
     "netcheck": {
       "captivePortal": "string",
@@ -6087,18 +6145,18 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "udp": true,
       "upnP": "string"
     },
-    "netcheck_err": null,
+    "netcheck_err": "string",
     "netcheck_logs": ["string"],
     "regions": {
       "property1": {
-        "error": null,
+        "error": "string",
         "healthy": true,
         "node_reports": [
           {
             "can_exchange_messages": true,
-            "client_errs": [[null]],
+            "client_errs": [["string"]],
             "client_logs": [["string"]],
-            "error": null,
+            "error": "string",
             "healthy": true,
             "node": {
               "certName": "string",
@@ -6152,14 +6210,14 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         }
       },
       "property2": {
-        "error": null,
+        "error": "string",
         "healthy": true,
         "node_reports": [
           {
             "can_exchange_messages": true,
-            "client_errs": [[null]],
+            "client_errs": [["string"]],
             "client_logs": [["string"]],
-            "error": null,
+            "error": "string",
             "healthy": true,
             "node": {
               "certName": "string",
@@ -6218,7 +6276,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "healthy": true,
   "time": "string",
   "websocket": {
-    "error": null,
+    "error": "string",
     "healthy": true,
     "response": {
       "body": "string",
@@ -6230,20 +6288,22 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name               | Type                                                       | Required | Restrictions | Description                                      |
-| ------------------ | ---------------------------------------------------------- | -------- | ------------ | ------------------------------------------------ |
-| `access_url`       | [healthcheck.AccessURLReport](#healthcheckaccessurlreport) | false    |              |                                                  |
-| `derp`             | [healthcheck.DERPReport](#healthcheckderpreport)           | false    |              |                                                  |
-| `failing_sections` | array of string                                            | false    |              |                                                  |
-| `healthy`          | boolean                                                    | false    |              | Healthy is true if the report returns no errors. |
-| `time`             | string                                                     | false    |              | Time is the time the report was generated at.    |
-| `websocket`        | [healthcheck.WebsocketReport](#healthcheckwebsocketreport) | false    |              |                                                  |
+| Name               | Type                                                       | Required | Restrictions | Description                                                                |
+| ------------------ | ---------------------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------- |
+| `access_url`       | [healthcheck.AccessURLReport](#healthcheckaccessurlreport) | false    |              |                                                                            |
+| `coder_version`    | string                                                     | false    |              | The Coder version of the server that the report was generated on.          |
+| `database`         | [healthcheck.DatabaseReport](#healthcheckdatabasereport)   | false    |              |                                                                            |
+| `derp`             | [healthcheck.DERPReport](#healthcheckderpreport)           | false    |              |                                                                            |
+| `failing_sections` | array of string                                            | false    |              | Failing sections is a list of sections that have failed their healthcheck. |
+| `healthy`          | boolean                                                    | false    |              | Healthy is true if the report returns no errors.                           |
+| `time`             | string                                                     | false    |              | Time is the time the report was generated at.                              |
+| `websocket`        | [healthcheck.WebsocketReport](#healthcheckwebsocketreport) | false    |              |                                                                            |
 
 ## healthcheck.WebsocketReport
 
 ```json
 {
-  "error": null,
+  "error": "string",
   "healthy": true,
   "response": {
     "body": "string",
@@ -6256,7 +6316,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name       | Type                                                           | Required | Restrictions | Description |
 | ---------- | -------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `error`    | any                                                            | false    |              |             |
+| `error`    | string                                                         | false    |              |             |
 | `healthy`  | boolean                                                        | false    |              |             |
 | `response` | [healthcheck.WebsocketResponse](#healthcheckwebsocketresponse) | false    |              |             |
 

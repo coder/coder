@@ -30,6 +30,16 @@ coder server [flags]
 
 The URL that users will use to access the Coder deployment.
 
+### --block-direct-connections
+
+|             |                                          |
+| ----------- | ---------------------------------------- |
+| Type        | <code>bool</code>                        |
+| Environment | <code>$CODER_BLOCK_DIRECT</code>         |
+| YAML        | <code>networking.derp.blockDirect</code> |
+
+Block peer-to-peer (aka. direct) workspace connections. All workspace connections from the CLI will be proxied through Coder (or custom configured DERP servers) and will never be peer-to-peer when enabled. Workspaces may still reach out to STUN servers to get their address until they are restarted after this change has been made, but new connections will still be proxied regardless.
+
 ### --browser-only
 
 |             |                                     |

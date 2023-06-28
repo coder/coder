@@ -15,6 +15,12 @@ Add an SSH Host entry for your workspaces "ssh coder.workspace"
   -n, --dry-run bool, $CODER_SSH_DRY_RUN
           Perform a trial run with no changes made, showing a diff at the end.
 
+      --force-unix-filepaths bool, $CODER_CONFIGSSH_UNIX_FILEPATHS
+          By default, 'config-ssh' uses the os path separator when writing the
+          ssh config. This might be an issue in Windows machine that use a
+          unix-like shell. This flag forces the use of unix file paths (the
+          forward slash '/').
+
       --ssh-config-file string, $CODER_SSH_CONFIG_FILE (default: ~/.ssh/config)
           Specifies the path to an SSH config.
 

@@ -259,7 +259,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
             />
             <Stack spacing={0.5}>
               <strong>
-                Allow users to autostart workspaces on a schedule.
+                Allow users to automatically start workspaces on a schedule.
               </strong>
             </Stack>
           </Stack>

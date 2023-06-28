@@ -353,6 +353,14 @@ func (c *Conn) SetDERPMap(derpMap *tailcfg.DERPMap) {
 	c.wireguardEngine.SetNetworkMap(&netMapCopy)
 }
 
+// SetBlockEndpoints sets whether or not to block P2P endpoints. This setting
+// will only apply to new peers.
+func (c *Conn) SetBlockEndpoints(blockEndpoints bool) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	c.blockEndpoints = blockEndpoints
+}
+
 // SetDERPRegionDialer updates the dialer to use for connecting to DERP regions.
 func (c *Conn) SetDERPRegionDialer(dialer func(ctx context.Context, region *tailcfg.DERPRegion) net.Conn) {
 	c.magicConn.SetDERPRegionDialer(dialer)
@@ -514,6 +522,13 @@ func (c *Conn) DERPMap() *tailcfg.DERPMap {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	return c.netMap.DERPMap
+}
+
+// BlockEndpoints returns whether or not P2P is blocked.
+func (c *Conn) BlockEndpoints() bool {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	return c.blockEndpoints
 }
 
 // AwaitReachable pings the provided IP continually until the
@@ -694,9 +709,11 @@ func (c *Conn) selfNode() *Node {
 		DERPLatency:         derpLatency,
 		DERPForcedWebsocket: derpForcedWebsocket,
 	}
+	c.mutex.Lock()
 	if c.blockEndpoints {
 		node.Endpoints = nil
 	}
+	c.mutex.Unlock()
 	return node
 }
 

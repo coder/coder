@@ -29,3 +29,12 @@ Output format. Available formats: text, json.
 | Default | <code>/</code>      |
 
 Path for which to check disk usage.
+
+### --prefix
+
+|         |                 |
+| ------- | --------------- | --- | --- | ---------- |
+| Type    | <code>enum[Ki   | Mi  | Gi  | Ti]</code> |
+| Default | <code>Gi</code> |
+
+SI Prefix for disk measurement.

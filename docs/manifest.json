@@ -156,8 +156,7 @@
           "title": "Agent Metadata",
           "description": "Learn how to expose live agent information to users",
           "path": "./templates/agent-metadata.md",
-          "icon_path": "./images/icons/table-rows.svg",
-          "state": "alpha"
+          "icon_path": "./images/icons/table-rows.svg"
         },
         {
           "title": "Parameters",
@@ -313,6 +312,12 @@
           "path": "./admin/workspace-proxies.md",
           "icon_path": "./images/icons/networking.svg",
           "state": "enterprise"
+        },
+        {
+          "title": "Application Logs",
+          "description": "Learn how to use Application Logs in your Coder deployment",
+          "path": "./admin/app-logs.md",
+          "icon_path": "./images/icons/notes.svg"
         },
         {
           "title": "Audit Logs",

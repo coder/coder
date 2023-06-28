@@ -363,6 +363,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/manifest \
     }
   },
   "directory": "string",
+  "disable_direct_connections": true,
   "environment_variables": {
     "property1": "string",
     "property2": "string"
@@ -567,7 +568,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
         "regionName": "string"
       }
     }
-  }
+  },
+  "disable_direct_connections": true
 }
 ```
 

@@ -4092,6 +4092,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/connection": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get connection info for workspace agent generic",
+                "operationId": "get-connection-info-for-workspace-agent-generic",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentConnectionInfo"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/workspaceagents/google-instance-identity": {
             "post": {
                 "security": [
@@ -5842,6 +5870,9 @@ const docTemplate = `{
                 "directory": {
                     "type": "string"
                 },
+                "disable_direct_connections": {
+                    "type": "boolean"
+                },
                 "environment_variables": {
                     "type": "object",
                     "additionalProperties": {
@@ -7123,6 +7154,9 @@ const docTemplate = `{
         "codersdk.DERPConfig": {
             "type": "object",
             "properties": {
+                "block_direct": {
+                    "type": "boolean"
+                },
                 "path": {
                     "type": "string"
                 },
@@ -7291,6 +7325,9 @@ const docTemplate = `{
                 "in_memory_database": {
                     "type": "boolean"
                 },
+                "job_hang_detector_interval": {
+                    "type": "integer"
+                },
                 "logging": {
                     "$ref": "#/definitions/codersdk.LoggingConfig"
                 },
@@ -7445,12 +7482,12 @@ const docTemplate = `{
             "enum": [
                 "moons",
                 "workspace_actions",
-                "workspace_filter"
+                "tailnet_pg_coordinator"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
                 "ExperimentWorkspaceActions",
-                "ExperimentWorkspaceFilter"
+                "ExperimentTailnetPGCoordinator"
             ]
         },
         "codersdk.Feature": {
@@ -8002,6 +8039,9 @@ const docTemplate = `{
                 "daemons": {
                     "type": "integer"
                 },
+                "daemons_echo": {
+                    "type": "boolean"
+                },
                 "force_cancel_interval": {
                     "type": "integer"
                 }
@@ -8079,6 +8119,12 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "queue_position": {
+                    "type": "integer"
+                },
+                "queue_size": {
+                    "type": "integer"
                 },
                 "started_at": {
                     "type": "string",
@@ -9460,6 +9506,9 @@ const docTemplate = `{
             "properties": {
                 "derp_map": {
                     "$ref": "#/definitions/tailcfg.DERPMap"
+                },
+                "disable_direct_connections": {
+                    "type": "boolean"
                 }
             }
         },
@@ -10045,7 +10094,12 @@ const docTemplate = `{
         "healthcheck.AccessURLReport": {
             "type": "object",
             "properties": {
-                "error": {},
+                "access_url": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
                 "healthy": {
                     "type": "boolean"
                 },
@@ -10070,7 +10124,9 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "type": "array",
-                        "items": {}
+                        "items": {
+                            "type": "string"
+                        }
                     }
                 },
                 "client_logs": {
@@ -10082,7 +10138,9 @@ const docTemplate = `{
                         }
                     }
                 },
-                "error": {},
+                "error": {
+                    "type": "string"
+                },
                 "healthy": {
                     "type": "boolean"
                 },
@@ -10106,7 +10164,9 @@ const docTemplate = `{
         "healthcheck.DERPRegionReport": {
             "type": "object",
             "properties": {
-                "error": {},
+                "error": {
+                    "type": "string"
+                },
                 "healthy": {
                     "type": "boolean"
                 },
@@ -10124,14 +10184,18 @@ const docTemplate = `{
         "healthcheck.DERPReport": {
             "type": "object",
             "properties": {
-                "error": {},
+                "error": {
+                    "type": "string"
+                },
                 "healthy": {
                     "type": "boolean"
                 },
                 "netcheck": {
                     "$ref": "#/definitions/netcheck.Report"
                 },
-                "netcheck_err": {},
+                "netcheck_err": {
+                    "type": "string"
+                },
                 "netcheck_logs": {
                     "type": "array",
                     "items": {
@@ -10158,16 +10222,41 @@ const docTemplate = `{
                 "error": {}
             }
         },
+        "healthcheck.DatabaseReport": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "healthy": {
+                    "type": "boolean"
+                },
+                "latency": {
+                    "type": "integer"
+                },
+                "reachable": {
+                    "type": "boolean"
+                }
+            }
+        },
         "healthcheck.Report": {
             "type": "object",
             "properties": {
                 "access_url": {
                     "$ref": "#/definitions/healthcheck.AccessURLReport"
                 },
+                "coder_version": {
+                    "description": "The Coder version of the server that the report was generated on.",
+                    "type": "string"
+                },
+                "database": {
+                    "$ref": "#/definitions/healthcheck.DatabaseReport"
+                },
                 "derp": {
                     "$ref": "#/definitions/healthcheck.DERPReport"
                 },
                 "failing_sections": {
+                    "description": "FailingSections is a list of sections that have failed their healthcheck.",
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -10189,7 +10278,9 @@ const docTemplate = `{
         "healthcheck.WebsocketReport": {
             "type": "object",
             "properties": {
-                "error": {},
+                "error": {
+                    "type": "string"
+                },
                 "healthy": {
                     "type": "boolean"
                 },

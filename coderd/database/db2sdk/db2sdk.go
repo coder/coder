@@ -3,7 +3,6 @@ package db2sdk
 
 import (
 	"encoding/json"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -81,6 +80,9 @@ func TemplateVersionParameter(param database.TemplateVersionParameter) (codersdk
 }
 
 func ProvisionerJobStatus(provisionerJob database.ProvisionerJob) codersdk.ProvisionerJobStatus {
+	// The case where jobs are hung is handled by the unhang package. We can't
+	// just return Failed here when it's hung because that doesn't reflect in
+	// the database.
 	switch {
 	case provisionerJob.CanceledAt.Valid:
 		if !provisionerJob.CompletedAt.Valid {
@@ -96,8 +98,6 @@ func ProvisionerJobStatus(provisionerJob database.ProvisionerJob) codersdk.Provi
 		if provisionerJob.Error.String == "" {
 			return codersdk.ProvisionerJobSucceeded
 		}
-		return codersdk.ProvisionerJobFailed
-	case database.Now().Sub(provisionerJob.UpdatedAt) > 30*time.Second:
 		return codersdk.ProvisionerJobFailed
 	default:
 		return codersdk.ProvisionerJobRunning

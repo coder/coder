@@ -74,6 +74,8 @@ export const useFilter = ({
   }
 }
 
+export type UseFilterResult = ReturnType<typeof useFilter>
+
 const parseFilterQuery = (filterQuery: string): FilterValues => {
   if (filterQuery === "") {
     return {}
@@ -209,6 +211,9 @@ export const Filter = ({
                   },
                   "& .MuiInputAdornment-root": {
                     marginLeft: 0,
+                  },
+                  "&.Mui-error": {
+                    zIndex: 3,
                   },
                 },
                 startAdornment: (

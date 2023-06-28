@@ -454,6 +454,10 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}, nil)
 	var bldErr wsbuilder.BuildError
 	if xerrors.As(err, &bldErr) {
+		if bldErr.Status == http.StatusInternalServerError {
+			api.Logger.Error(ctx, "workspace build error", slog.Error(bldErr.Wrapped))
+		}
+
 		httpapi.Write(ctx, rw, bldErr.Status, codersdk.Response{
 			Message: bldErr.Message,
 			Detail:  bldErr.Error(),
@@ -487,7 +491,10 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	apiBuild, err := api.convertWorkspaceBuild(
 		*workspaceBuild,
 		workspace,
-		*provisionerJob,
+		database.GetProvisionerJobsByIDsWithQueuePositionRow{
+			ProvisionerJob: *provisionerJob,
+			QueuePosition:  0,
+		},
 		users,
 		[]database.WorkspaceResource{},
 		[]database.WorkspaceResourceMetadatum{},

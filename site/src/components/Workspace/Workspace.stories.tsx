@@ -98,6 +98,13 @@ export const WithoutUpdateAccess: Story = {
   },
 }
 
+export const PendingInQueue: Story = {
+  args: {
+    ...Running.args,
+    workspace: Mocks.MockPendingWorkspace,
+  },
+}
+
 export const Starting: Story = {
   args: {
     ...Running.args,

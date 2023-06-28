@@ -18,6 +18,8 @@ import { makeStyles } from "@mui/styles"
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
 import { displaySuccess } from "components/GlobalSnackbar/utils"
 import { FC } from "react"
+import { isApiValidationError } from "api/errors"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 const getWorkspaceParameters = async (workspace: Workspace) => {
   const latestBuild = workspace.latest_build
@@ -89,6 +91,10 @@ export const WorkspaceParametersPageView: FC<
       <PageHeader className={styles.pageHeader}>
         <PageHeaderTitle>Workspace parameters</PageHeaderTitle>
       </PageHeader>
+
+      {submitError && !isApiValidationError(submitError) && (
+        <ErrorAlert error={submitError} sx={{ mb: 6 }} />
+      )}
 
       {data ? (
         <WorkspaceParametersForm

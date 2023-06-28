@@ -19,8 +19,6 @@ import { ImpendingDeletionBanner, Count } from "components/WorkspaceDeletion"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
 import { WorkspacesFilter } from "./filter/filter"
 import { hasError, isApiValidationError } from "api/errors"
-import { workspaceFilterQuery } from "utils/filters"
-import { SearchBarWithFilter } from "components/SearchBarWithFilter/SearchBarWithFilter"
 import { PaginationStatus } from "components/PaginationStatus/PaginationStatus"
 
 export const Language = {
@@ -32,24 +30,10 @@ export const Language = {
   template: "Template",
 }
 
-const presetFilters = [
-  { query: workspaceFilterQuery.me, name: Language.yourWorkspacesButton },
-  { query: workspaceFilterQuery.all, name: Language.allWorkspacesButton },
-  {
-    query: workspaceFilterQuery.running,
-    name: Language.runningWorkspacesButton,
-  },
-  {
-    query: workspaceFilterQuery.failed,
-    name: "Failed workspaces",
-  },
-]
-
 export interface WorkspacesPageViewProps {
   error: unknown
   workspaces?: Workspace[]
   count?: number
-  useNewFilter?: boolean
   filterProps: ComponentProps<typeof WorkspacesFilter>
   page: number
   limit: number
@@ -67,7 +51,6 @@ export const WorkspacesPageView: FC<
   filterProps,
   onPageChange,
   onUpdateWorkspace,
-  useNewFilter,
   page,
 }) => {
   const { saveLocal, getLocal } = useLocalStorage()
@@ -133,22 +116,13 @@ export const WorkspacesPageView: FC<
           count={Count.Multiple}
         />
 
-        {useNewFilter ? (
-          <WorkspacesFilter error={error} {...filterProps} />
-        ) : (
-          <SearchBarWithFilter
-            filter={filterProps.filter.query}
-            onFilter={filterProps.filter.debounceUpdate}
-            presetFilters={presetFilters}
-            error={error}
-          />
-        )}
+        <WorkspacesFilter error={error} {...filterProps} />
       </Stack>
 
       <PaginationStatus
-        isLoading={!workspaces}
-        showing={workspaces?.length}
-        total={count}
+        isLoading={!workspaces && !error}
+        showing={workspaces?.length ?? 0}
+        total={count ?? 0}
         label="workspaces"
       />
 

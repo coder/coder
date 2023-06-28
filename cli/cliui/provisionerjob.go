@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"time"
 
@@ -63,35 +64,32 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 	var (
 		currentStage          = "Queued"
 		currentStageStartedAt = time.Now().UTC()
-		didLogBetweenStage    = false
 
 		errChan  = make(chan error, 1)
 		job      codersdk.ProvisionerJob
 		jobMutex sync.Mutex
 	)
 
+	sw := &stageWriter{w: writer, verbose: opts.Verbose, silentLogs: opts.Silent}
+
 	printStage := func() {
-		_, _ = fmt.Fprintf(writer, DefaultStyles.Prompt.Render("⧗")+"%s\n", DefaultStyles.Field.Render(currentStage))
+		sw.Start(currentStage)
 	}
 
 	updateStage := func(stage string, startedAt time.Time) {
 		if currentStage != "" {
-			prefix := ""
-			if !didLogBetweenStage {
-				prefix = "\033[1A\r"
-			}
-			mark := DefaultStyles.Checkmark
+			duration := startedAt.Sub(currentStageStartedAt)
 			if job.CompletedAt != nil && job.Status != codersdk.ProvisionerJobSucceeded {
-				mark = DefaultStyles.Crossmark
+				sw.Fail(currentStage, duration)
+			} else {
+				sw.Complete(currentStage, duration)
 			}
-			_, _ = fmt.Fprintf(writer, prefix+mark.String()+DefaultStyles.Placeholder.Render(" %s [%dms]")+"\n", currentStage, startedAt.Sub(currentStageStartedAt).Milliseconds())
 		}
 		if stage == "" {
 			return
 		}
 		currentStage = stage
 		currentStageStartedAt = startedAt
-		didLogBetweenStage = false
 		printStage()
 	}
 
@@ -129,7 +127,7 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 					return
 				}
 			}
-			_, _ = fmt.Fprintf(writer, "\033[2K\r\n"+DefaultStyles.FocusedPrompt.String()+DefaultStyles.Bold.Render("Gracefully canceling...")+"\n\n")
+			_, _ = fmt.Fprintf(writer, DefaultStyles.FocusedPrompt.String()+DefaultStyles.Bold.Render("Gracefully canceling...")+"\n\n")
 			err := opts.Cancel()
 			if err != nil {
 				errChan <- xerrors.Errorf("cancel: %w", err)
@@ -149,30 +147,15 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 	}
 	defer closer.Close()
 
-	var (
-		// logOutput is where log output is written
-		logOutput = writer
-		// logBuffer is where logs are buffered if opts.Silent is true
-		logBuffer = &bytes.Buffer{}
-	)
-	if opts.Silent {
-		logOutput = logBuffer
-	}
-	flushLogBuffer := func() {
-		if opts.Silent {
-			_, _ = io.Copy(writer, logBuffer)
-		}
-	}
-
 	ticker := time.NewTicker(opts.FetchInterval)
 	defer ticker.Stop()
 	for {
 		select {
 		case err = <-errChan:
-			flushLogBuffer()
+			sw.Fail(currentStage, time.Since(currentStageStartedAt))
 			return err
 		case <-ctx.Done():
-			flushLogBuffer()
+			sw.Fail(currentStage, time.Since(currentStageStartedAt))
 			return ctx.Err()
 		case <-ticker.C:
 			updateJob()
@@ -196,24 +179,9 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 					Message: job.Error,
 					Code:    job.ErrorCode,
 				}
+				sw.Fail(currentStage, time.Since(currentStageStartedAt))
 				jobMutex.Unlock()
-				flushLogBuffer()
 				return err
-			}
-
-			output := ""
-			switch log.Level {
-			case codersdk.LogLevelTrace, codersdk.LogLevelDebug:
-				if !opts.Verbose {
-					continue
-				}
-				output = DefaultStyles.Placeholder.Render(log.Output)
-			case codersdk.LogLevelError:
-				output = DefaultStyles.Error.Render(log.Output)
-			case codersdk.LogLevelWarn:
-				output = DefaultStyles.Warn.Render(log.Output)
-			case codersdk.LogLevelInfo:
-				output = log.Output
 			}
 
 			jobMutex.Lock()
@@ -222,11 +190,78 @@ func ProvisionerJob(ctx context.Context, writer io.Writer, opts ProvisionerJobOp
 				jobMutex.Unlock()
 				continue
 			}
-			_, _ = fmt.Fprintf(logOutput, "%s %s\n", DefaultStyles.Placeholder.Render(" "), output)
-			if !opts.Silent {
-				didLogBetweenStage = true
-			}
+			sw.Log(log.CreatedAt, log.Level, log.Output)
 			jobMutex.Unlock()
 		}
 	}
+}
+
+type stageWriter struct {
+	w          io.Writer
+	verbose    bool
+	silentLogs bool
+	logBuf     bytes.Buffer
+}
+
+func (s *stageWriter) Start(stage string) {
+	_, _ = fmt.Fprintf(s.w, "==> ⧗ %s\n", stage)
+}
+
+func (s *stageWriter) Complete(stage string, duration time.Duration) {
+	s.end(stage, duration, true)
+}
+
+func (s *stageWriter) Fail(stage string, duration time.Duration) {
+	s.flushLogs()
+	s.end(stage, duration, false)
+}
+
+//nolint:revive
+func (s *stageWriter) end(stage string, duration time.Duration, ok bool) {
+	s.logBuf.Reset()
+
+	mark := "✔"
+	if !ok {
+		mark = "✘"
+	}
+	if duration < 0 {
+		duration = 0
+	}
+	_, _ = fmt.Fprintf(s.w, "=== %s %s [%dms]\n", mark, stage, duration.Milliseconds())
+}
+
+func (s *stageWriter) Log(createdAt time.Time, level codersdk.LogLevel, line string) {
+	w := s.w
+	if s.silentLogs {
+		w = &s.logBuf
+	}
+
+	render := func(s ...string) string { return strings.Join(s, " ") }
+
+	var lines []string
+	if !createdAt.IsZero() {
+		lines = append(lines, createdAt.Local().Format("2006-01-02 15:04:05.000Z07:00"))
+	}
+	lines = append(lines, line)
+
+	switch level {
+	case codersdk.LogLevelTrace, codersdk.LogLevelDebug:
+		if !s.verbose {
+			return
+		}
+		render = DefaultStyles.Placeholder.Render
+	case codersdk.LogLevelError:
+		render = DefaultStyles.Error.Render
+	case codersdk.LogLevelWarn:
+		render = DefaultStyles.Warn.Render
+	case codersdk.LogLevelInfo:
+	}
+	_, _ = fmt.Fprintf(w, "%s\n", render(lines...))
+}
+
+func (s *stageWriter) flushLogs() {
+	if s.silentLogs {
+		_, _ = io.Copy(s.w, &s.logBuf)
+	}
+	s.logBuf.Reset()
 }

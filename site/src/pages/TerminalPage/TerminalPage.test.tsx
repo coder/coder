@@ -38,7 +38,7 @@ Object.defineProperty(window, "TextEncoder", {
 const renderTerminal = async (
   route = `/${MockUser.username}/${MockWorkspace.name}/terminal`,
 ) => {
-  const utils = renderWithAuth(<TerminalPage />, {
+  const utils = renderWithAuth(<TerminalPage renderer="dom" />, {
     route,
     path: "/:username/:workspace/terminal",
   })

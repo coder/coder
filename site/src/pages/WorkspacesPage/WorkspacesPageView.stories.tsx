@@ -1,5 +1,3 @@
-/* eslint-disable eslint-comments/disable-enable-pair -- ignore */
-/* eslint-disable @typescript-eslint/no-explicit-any -- We don't care about any here */
 import { Meta, StoryObj } from "@storybook/react"
 import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils"
 import dayjs from "dayjs"
@@ -15,13 +13,14 @@ import {
   MockBuildInfo,
   MockEntitlementsWithScheduling,
   MockExperiments,
-  MockUser,
   mockApiError,
+  MockUser,
+  MockPendingProvisionerJob,
 } from "testHelpers/entities"
 import { WorkspacesPageView } from "./WorkspacesPageView"
 import { DashboardProviderContext } from "components/Dashboard/DashboardProvider"
-import { action } from "@storybook/addon-actions"
 import { ComponentProps } from "react"
+import { MockMenu, getDefaultFilterProps } from "components/Filter/storyHelpers"
 
 const createWorkspace = (
   status: WorkspaceStatus,
@@ -35,6 +34,10 @@ const createWorkspace = (
     latest_build: {
       ...MockWorkspace.latest_build,
       status,
+      job:
+        status === "pending"
+          ? MockPendingProvisionerJob
+          : MockWorkspace.latest_build.job,
     },
     last_used_at: lastUsedAt,
   }
@@ -71,35 +74,21 @@ const MockedAppearance = {
   save: () => null,
 }
 
-const mockMenu = {
-  initialOption: undefined,
-  isInitializing: false,
-  isSearching: false,
-  query: "",
-  searchOptions: [],
-  selectedOption: undefined,
-  selectOption: action("selectOption"),
-  setQuery: action("updateQuery"),
-}
+type FilterProps = ComponentProps<typeof WorkspacesPageView>["filterProps"]
 
-const defaultFilterProps = {
-  filter: {
-    query: `owner:me`,
-    update: () => action("update"),
-    debounceUpdate: action("debounce") as any,
-    used: false,
-    values: {
-      owner: MockUser.username,
-      template: undefined,
-      status: undefined,
-    },
-  },
+const defaultFilterProps = getDefaultFilterProps<FilterProps>({
+  query: "owner:me",
   menus: {
-    user: mockMenu,
-    template: mockMenu,
-    status: mockMenu,
+    user: MockMenu,
+    template: MockMenu,
+    status: MockMenu,
   },
-} as ComponentProps<typeof WorkspacesPageView>["filterProps"]
+  values: {
+    owner: MockUser.username,
+    template: undefined,
+    status: undefined,
+  },
+})
 
 const meta: Meta<typeof WorkspacesPageView> = {
   title: "pages/WorkspacesPageView",

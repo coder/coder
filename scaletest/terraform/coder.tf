@@ -106,6 +106,8 @@ coder:
       value: "true"
     - name: "CODER_VERBOSE"
       value: "true"
+    - name: "CODER_EXPERIMENTS"
+      value: "${var.coder_experiments}"
   image:
     repo: ${var.coder_image_repo}
     tag: ${var.coder_image_tag}
@@ -121,6 +123,7 @@ coder:
     readOnlyRootFilesystem: true
   service:
     enable: true
+    sessionAffinity: None
     loadBalancerIP: "${local.coder_address}"
   volumeMounts:
   - mountPath: "/tmp"

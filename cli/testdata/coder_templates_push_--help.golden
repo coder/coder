@@ -13,6 +13,10 @@ Push a new template version from the current directory or as specified by flag
   -d, --directory string (default: .)
           Specify the directory to create from, use '-' to read tar from stdin.
 
+      --ignore-lockfile bool (default: false)
+          Ignore warnings about not having a .terraform.lock.hcl file present in
+          the template.
+
       --name string
           Specify a name for the new template version. It will be automatically
           generated if not provided.

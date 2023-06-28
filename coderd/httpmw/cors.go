@@ -10,6 +10,20 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 )
 
+const (
+	// Server headers.
+	AccessControlAllowOriginHeader      = "Access-Control-Allow-Origin"
+	AccessControlAllowCredentialsHeader = "Access-Control-Allow-Credentials"
+	AccessControlAllowMethodsHeader     = "Access-Control-Allow-Methods"
+	AccessControlAllowHeadersHeader     = "Access-Control-Allow-Headers"
+	VaryHeader                          = "Vary"
+
+	// Client headers.
+	OriginHeader                      = "Origin"
+	AccessControlRequestMethodsHeader = "Access-Control-Request-Methods"
+	AccessControlRequestHeadersHeader = "Access-Control-Request-Headers"
+)
+
 //nolint:revive
 func Cors(allowAll bool, origins ...string) func(next http.Handler) http.Handler {
 	if len(origins) == 0 {

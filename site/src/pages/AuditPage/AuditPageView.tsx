@@ -13,7 +13,6 @@ import {
   PageHeaderSubtitle,
   PageHeaderTitle,
 } from "components/PageHeader/PageHeader"
-import { SearchBarWithFilter } from "components/SearchBarWithFilter/SearchBarWithFilter"
 import { Stack } from "components/Stack/Stack"
 import { TableLoader } from "components/TableLoader/TableLoader"
 import { Timeline } from "components/Timeline/Timeline"
@@ -30,23 +29,6 @@ export const Language = {
   subtitle: "View events in your audit log.",
 }
 
-const presetFilters = [
-  {
-    query: "resource_type:workspace action:create",
-    name: "Created workspaces",
-  },
-  { query: "resource_type:template action:create", name: "Added templates" },
-  { query: "resource_type:user action:delete", name: "Deleted users" },
-  {
-    query: "resource_type:workspace_build action:start build_reason:initiator",
-    name: "Builds started by a user",
-  },
-  {
-    query: "resource_type:api_key action:login",
-    name: "User logins",
-  },
-]
-
 export interface AuditPageViewProps {
   auditLogs?: AuditLog[]
   count?: number
@@ -56,9 +38,7 @@ export interface AuditPageViewProps {
   isNonInitialPage: boolean
   isAuditLogVisible: boolean
   error?: Error | unknown
-  filterProps:
-    | ComponentProps<typeof SearchBarWithFilter>
-    | ComponentProps<typeof AuditFilter>
+  filterProps: ComponentProps<typeof AuditFilter>
 }
 
 export const AuditPageView: FC<AuditPageViewProps> = ({
@@ -74,8 +54,8 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 }) => {
   const { t } = useTranslation("auditLog")
 
-  const isLoading = auditLogs === undefined || count === undefined
-  const isEmpty = !isLoading && auditLogs.length === 0
+  const isLoading = (auditLogs === undefined || count === undefined) && !error
+  const isEmpty = !isLoading && auditLogs?.length === 0
 
   return (
     <Margins>
@@ -91,21 +71,12 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 
       <ChooseOne>
         <Cond condition={isAuditLogVisible}>
-          {"onFilter" in filterProps ? (
-            <SearchBarWithFilter
-              {...filterProps}
-              docs="https://coder.com/docs/coder-oss/latest/admin/audit-logs#filtering-logs"
-              presetFilters={presetFilters}
-              error={error}
-            />
-          ) : (
-            <AuditFilter {...filterProps} />
-          )}
+          <AuditFilter {...filterProps} />
 
           <PaginationStatus
             isLoading={Boolean(isLoading)}
-            showing={auditLogs?.length}
-            total={count}
+            showing={auditLogs?.length ?? 0}
+            total={count ?? 0}
             label="audit logs"
           />
 

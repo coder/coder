@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/binary"
@@ -332,7 +331,7 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 			lastCollectedAts[mr.key] = mr.result.CollectedAt
 			err := a.client.PostMetadata(ctx, mr.key, *mr.result)
 			if err != nil {
-				a.logger.Error(ctx, "report metadata", slog.Error(err))
+				a.logger.Error(ctx, "agent failed to report metadata", slog.Error(err))
 			}
 		case <-baseTicker.C:
 		}
@@ -462,7 +461,7 @@ func (a *agent) reportLifecycleLoop(ctx context.Context) {
 				return
 			}
 			// If we fail to report the state we probably shouldn't exit, log only.
-			a.logger.Error(ctx, "post state", slog.Error(err))
+			a.logger.Error(ctx, "agent failed to report the lifecycle state", slog.Error(err))
 		}
 	}
 }
@@ -593,7 +592,7 @@ func (a *agent) run(ctx context.Context) error {
 	network := a.network
 	a.closeMutex.Unlock()
 	if network == nil {
-		network, err = a.createTailnet(ctx, manifest.DERPMap)
+		network, err = a.createTailnet(ctx, manifest.DERPMap, manifest.DisableDirectConnections)
 		if err != nil {
 			return xerrors.Errorf("create tailnet: %w", err)
 		}
@@ -611,8 +610,9 @@ func (a *agent) run(ctx context.Context) error {
 
 		a.startReportingConnectionStats(ctx)
 	} else {
-		// Update the DERP map!
+		// Update the DERP map and allow/disallow direct connections.
 		network.SetDERPMap(manifest.DERPMap)
+		network.SetBlockEndpoints(manifest.DisableDirectConnections)
 	}
 
 	a.logger.Debug(ctx, "running tailnet connection coordinator")
@@ -637,12 +637,13 @@ func (a *agent) trackConnGoroutine(fn func()) error {
 	return nil
 }
 
-func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ *tailnet.Conn, err error) {
+func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap, disableDirectConnections bool) (_ *tailnet.Conn, err error) {
 	network, err := tailnet.NewConn(&tailnet.Options{
-		Addresses:  []netip.Prefix{netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128)},
-		DERPMap:    derpMap,
-		Logger:     a.logger.Named("tailnet"),
-		ListenPort: a.tailnetListenPort,
+		Addresses:      []netip.Prefix{netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128)},
+		DERPMap:        derpMap,
+		Logger:         a.logger.Named("tailnet"),
+		ListenPort:     a.tailnetListenPort,
+		BlockEndpoints: disableDirectConnections,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)
@@ -861,26 +862,30 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) (err er
 	}
 	cmd := cmdPty.AsExec()
 
-	var writer io.Writer = fileWriter
+	var stdout, stderr io.Writer = fileWriter, fileWriter
 	if lifecycle == "startup" {
-		// Create pipes for startup logs reader and writer
-		logsReader, logsWriter := io.Pipe()
+		send, flushAndClose := agentsdk.StartupLogsSender(a.client.PatchStartupLogs, logger)
+		// If ctx is canceled here (or in a writer below), we may be
+		// discarding logs, but that's okay because we're shutting down
+		// anyway. We could consider creating a new context here if we
+		// want better control over flush during shutdown.
 		defer func() {
-			_ = logsReader.Close()
+			if err := flushAndClose(ctx); err != nil {
+				logger.Warn(ctx, "flush startup logs failed", slog.Error(err))
+			}
 		}()
-		writer = io.MultiWriter(fileWriter, logsWriter)
-		flushedLogs, err := a.trackScriptLogs(ctx, logsReader)
-		if err != nil {
-			return xerrors.Errorf("track %s script logs: %w", lifecycle, err)
-		}
-		defer func() {
-			_ = logsWriter.Close()
-			<-flushedLogs
-		}()
+
+		infoW := agentsdk.StartupLogsWriter(ctx, send, codersdk.LogLevelInfo)
+		defer infoW.Close()
+		errW := agentsdk.StartupLogsWriter(ctx, send, codersdk.LogLevelError)
+		defer errW.Close()
+
+		stdout = io.MultiWriter(fileWriter, infoW)
+		stderr = io.MultiWriter(fileWriter, errW)
 	}
 
-	cmd.Stdout = writer
-	cmd.Stderr = writer
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
 
 	start := time.Now()
 	defer func() {
@@ -909,124 +914,6 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) (err er
 		return xerrors.Errorf("%s script: run: %w", lifecycle, err)
 	}
 	return nil
-}
-
-func (a *agent) trackScriptLogs(ctx context.Context, reader io.Reader) (chan struct{}, error) {
-	// Initialize variables for log management
-	queuedLogs := make([]agentsdk.StartupLog, 0)
-	var flushLogsTimer *time.Timer
-	var logMutex sync.Mutex
-	logsFlushed := sync.NewCond(&sync.Mutex{})
-	var logsSending bool
-	defer func() {
-		logMutex.Lock()
-		if flushLogsTimer != nil {
-			flushLogsTimer.Stop()
-		}
-		logMutex.Unlock()
-	}()
-
-	// sendLogs function uploads the queued logs to the server
-	sendLogs := func() {
-		// Lock logMutex and check if logs are already being sent
-		logMutex.Lock()
-		if logsSending {
-			logMutex.Unlock()
-			return
-		}
-		if flushLogsTimer != nil {
-			flushLogsTimer.Stop()
-		}
-		if len(queuedLogs) == 0 {
-			logMutex.Unlock()
-			return
-		}
-		// Move the current queued logs to logsToSend and clear the queue
-		logsToSend := queuedLogs
-		logsSending = true
-		queuedLogs = make([]agentsdk.StartupLog, 0)
-		logMutex.Unlock()
-
-		// Retry uploading logs until successful or a specific error occurs
-		for r := retry.New(time.Second, 5*time.Second); r.Wait(ctx); {
-			err := a.client.PatchStartupLogs(ctx, agentsdk.PatchStartupLogs{
-				Logs: logsToSend,
-			})
-			if err == nil {
-				break
-			}
-			var sdkErr *codersdk.Error
-			if errors.As(err, &sdkErr) {
-				if sdkErr.StatusCode() == http.StatusRequestEntityTooLarge {
-					a.logger.Warn(ctx, "startup logs too large, dropping logs")
-					break
-				}
-			}
-			a.logger.Error(ctx, "upload startup logs", slog.Error(err), slog.F("to_send", logsToSend))
-		}
-		// Reset logsSending flag
-		logMutex.Lock()
-		logsSending = false
-		flushLogsTimer.Reset(100 * time.Millisecond)
-		logMutex.Unlock()
-		logsFlushed.Broadcast()
-	}
-	// queueLog function appends a log to the queue and triggers sendLogs if necessary
-	queueLog := func(log agentsdk.StartupLog) {
-		logMutex.Lock()
-		defer logMutex.Unlock()
-
-		// Append log to the queue
-		queuedLogs = append(queuedLogs, log)
-
-		// If there are more than 100 logs, send them immediately
-		if len(queuedLogs) > 100 {
-			// Don't early return after this, because we still want
-			// to reset the timer just in case logs come in while
-			// we're sending.
-			go sendLogs()
-		}
-		// Reset or set the flushLogsTimer to trigger sendLogs after 100 milliseconds
-		if flushLogsTimer != nil {
-			flushLogsTimer.Reset(100 * time.Millisecond)
-			return
-		}
-		flushLogsTimer = time.AfterFunc(100*time.Millisecond, sendLogs)
-	}
-
-	// It's important that we either flush or drop all logs before returning
-	// because the startup state is reported after flush.
-	//
-	// It'd be weird for the startup state to be ready, but logs are still
-	// coming in.
-	logsFinished := make(chan struct{})
-	err := a.trackConnGoroutine(func() {
-		scanner := bufio.NewScanner(reader)
-		for scanner.Scan() {
-			queueLog(agentsdk.StartupLog{
-				CreatedAt: database.Now(),
-				Output:    scanner.Text(),
-			})
-		}
-		if err := scanner.Err(); err != nil {
-			a.logger.Error(ctx, "scan startup logs", slog.Error(err))
-		}
-		defer close(logsFinished)
-		logsFlushed.L.Lock()
-		for {
-			logMutex.Lock()
-			if len(queuedLogs) == 0 {
-				logMutex.Unlock()
-				break
-			}
-			logMutex.Unlock()
-			logsFlushed.Wait()
-		}
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("track conn goroutine: %w", err)
-	}
-	return logsFinished, nil
 }
 
 func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, msg codersdk.WorkspaceAgentReconnectingPTYInit, conn net.Conn) (retErr error) {
@@ -1346,7 +1233,7 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 		)
 	})
 	if err != nil {
-		a.logger.Error(ctx, "report stats", slog.Error(err))
+		a.logger.Error(ctx, "agent failed to report stats", slog.Error(err))
 	} else {
 		if err = a.trackConnGoroutine(func() {
 			// This is OK because the agent never re-creates the tailnet

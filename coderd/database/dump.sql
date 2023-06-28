@@ -171,6 +171,45 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION tailnet_notify_agent_change() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	IF (OLD IS NOT NULL) THEN
+		PERFORM pg_notify('tailnet_agent_update', OLD.id::text);
+		RETURN NULL;
+	END IF;
+	IF (NEW IS NOT NULL) THEN
+		PERFORM pg_notify('tailnet_agent_update', NEW.id::text);
+		RETURN NULL;
+	END IF;
+END;
+$$;
+
+CREATE FUNCTION tailnet_notify_client_change() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	IF (OLD IS NOT NULL) THEN
+		PERFORM pg_notify('tailnet_client_update', OLD.id || ',' || OLD.agent_id);
+		RETURN NULL;
+	END IF;
+	IF (NEW IS NOT NULL) THEN
+		PERFORM pg_notify('tailnet_client_update', NEW.id || ',' || NEW.agent_id);
+		RETURN NULL;
+	END IF;
+END;
+$$;
+
+CREATE FUNCTION tailnet_notify_coordinator_heartbeat() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	PERFORM pg_notify('tailnet_coordinator_heartbeat', NEW.id::text);
+	RETURN NULL;
+END;
+$$;
+
 CREATE TABLE api_keys (
     id text NOT NULL,
     hashed_secret bytea NOT NULL,
@@ -382,6 +421,28 @@ CREATE TABLE site_configs (
     key character varying(256) NOT NULL,
     value character varying(8192) NOT NULL
 );
+
+CREATE TABLE tailnet_agents (
+    id uuid NOT NULL,
+    coordinator_id uuid NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    node jsonb NOT NULL
+);
+
+CREATE TABLE tailnet_clients (
+    id uuid NOT NULL,
+    coordinator_id uuid NOT NULL,
+    agent_id uuid NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    node jsonb NOT NULL
+);
+
+CREATE TABLE tailnet_coordinators (
+    id uuid NOT NULL,
+    heartbeat_at timestamp with time zone NOT NULL
+);
+
+COMMENT ON TABLE tailnet_coordinators IS 'We keep this separate from replicas in case we need to break the coordinator out into its own service';
 
 CREATE TABLE template_version_parameters (
     template_version_id uuid NOT NULL,
@@ -836,6 +897,15 @@ ALTER TABLE ONLY provisioner_jobs
 ALTER TABLE ONLY site_configs
     ADD CONSTRAINT site_configs_key_key UNIQUE (key);
 
+ALTER TABLE ONLY tailnet_agents
+    ADD CONSTRAINT tailnet_agents_pkey PRIMARY KEY (id, coordinator_id);
+
+ALTER TABLE ONLY tailnet_clients
+    ADD CONSTRAINT tailnet_clients_pkey PRIMARY KEY (id, coordinator_id);
+
+ALTER TABLE ONLY tailnet_coordinators
+    ADD CONSTRAINT tailnet_coordinators_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_name_key UNIQUE (template_version_id, name);
 
@@ -923,6 +993,12 @@ CREATE UNIQUE INDEX idx_organization_name ON organizations USING btree (name);
 
 CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lower(name));
 
+CREATE INDEX idx_tailnet_agents_coordinator ON tailnet_agents USING btree (coordinator_id);
+
+CREATE INDEX idx_tailnet_clients_agent ON tailnet_clients USING btree (agent_id);
+
+CREATE INDEX idx_tailnet_clients_coordinator ON tailnet_clients USING btree (coordinator_id);
+
 CREATE UNIQUE INDEX idx_users_email ON users USING btree (email) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX idx_users_username ON users USING btree (username) WHERE (deleted = false);
@@ -948,6 +1024,12 @@ CREATE UNIQUE INDEX workspace_proxies_lower_name_idx ON workspace_proxies USING 
 CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (job_id);
 
 CREATE UNIQUE INDEX workspaces_owner_id_lower_idx ON workspaces USING btree (owner_id, lower((name)::text)) WHERE (deleted = false);
+
+CREATE TRIGGER tailnet_notify_agent_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_agents FOR EACH ROW EXECUTE FUNCTION tailnet_notify_agent_change();
+
+CREATE TRIGGER tailnet_notify_client_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_clients FOR EACH ROW EXECUTE FUNCTION tailnet_notify_client_change();
+
+CREATE TRIGGER tailnet_notify_coordinator_heartbeat AFTER INSERT OR UPDATE ON tailnet_coordinators FOR EACH ROW EXECUTE FUNCTION tailnet_notify_coordinator_heartbeat();
 
 CREATE TRIGGER trigger_insert_apikeys BEFORE INSERT ON api_keys FOR EACH ROW EXECUTE FUNCTION insert_apikey_fail_if_user_deleted();
 
@@ -982,6 +1064,12 @@ ALTER TABLE ONLY provisioner_job_logs
 
 ALTER TABLE ONLY provisioner_jobs
     ADD CONSTRAINT provisioner_jobs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY tailnet_agents
+    ADD CONSTRAINT tailnet_agents_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY tailnet_clients
+    ADD CONSTRAINT tailnet_clients_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
