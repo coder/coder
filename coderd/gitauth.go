@@ -52,6 +52,10 @@ func (api *API) gitAuthByID(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if res.AppInstallations == nil {
+		res.AppInstallations = []codersdk.GitAuthAppInstallation{}
+	}
+
 	httpapi.Write(ctx, w, http.StatusOK, res)
 }
 

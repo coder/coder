@@ -23,9 +23,9 @@ type GitAuth struct {
 }
 
 type GitAuthAppInstallation struct {
-	ID           int          `json:"id"`
-	Account      *GitAuthUser `json:"account"`
-	ConfigureURL string       `json:"configure_url"`
+	ID           int         `json:"id"`
+	Account      GitAuthUser `json:"account"`
+	ConfigureURL string      `json:"configure_url"`
 }
 
 type GitAuthUser struct {

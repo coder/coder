@@ -428,7 +428,7 @@ export interface GitAuth {
 // From codersdk/gitauth.go
 export interface GitAuthAppInstallation {
   readonly id: number
-  readonly account?: GitAuthUser
+  readonly account: GitAuthUser
   readonly configure_url: string
 }
 

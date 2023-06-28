@@ -180,20 +180,21 @@ func (c *Config) AppInstallations(ctx context.Context, token string) ([]codersdk
 			return nil, false, err
 		}
 		for _, installation := range ghInstalls.Installations {
-			install := codersdk.GitAuthAppInstallation{
+
+			account := installation.GetAccount()
+			if account == nil {
+				continue
+			}
+			installs = append(installs, codersdk.GitAuthAppInstallation{
 				ID:           int(installation.GetID()),
 				ConfigureURL: installation.GetHTMLURL(),
-			}
-			account := installation.GetAccount()
-			if account != nil {
-				install.Account = &codersdk.GitAuthUser{
+				Account: codersdk.GitAuthUser{
 					Login:      account.GetLogin(),
 					AvatarURL:  account.GetAvatarURL(),
 					ProfileURL: account.GetHTMLURL(),
 					Name:       account.GetName(),
-				}
-			}
-			installs = append(installs, install)
+				},
+			})
 		}
 	}
 	return installs, true, nil
