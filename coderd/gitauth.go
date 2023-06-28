@@ -15,7 +15,14 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-// gitAuthByID returns the git auth status for the given git auth config ID.
+// @Summary Get git auth by ID
+// @ID get-git-auth-by-id
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Git
+// @Param gitauth path string true "Git Provider ID" format(string)
+// @Success 200 {object} codersdk.GitAuth
+// @Router /gitauth/{gitauth} [get]
 func (api *API) gitAuthByID(w http.ResponseWriter, r *http.Request) {
 	config := httpmw.GitAuthParam(r)
 	apiKey := httpmw.APIKey(r)
@@ -59,6 +66,13 @@ func (api *API) gitAuthByID(w http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, w, http.StatusOK, res)
 }
 
+// @Summary Post git auth device by ID
+// @ID post-git-auth-device-by-id
+// @Security CoderSessionToken
+// @Tags Git
+// @Param gitauth path string true "Git Provider ID" format(string)
+// @Success 204
+// @Router /gitauth/{gitauth}/device [post]
 func (api *API) postGitAuthDeviceByID(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -134,7 +148,14 @@ func (api *API) postGitAuthDeviceByID(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
 }
 
-// gitAuthDeviceByID issues a new device auth code for the given git auth config ID.
+// @Summary Get git auth device by ID.
+// @ID get-git-auth-device-by-id
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Git
+// @Param gitauth path string true "Git Provider ID" format(string)
+// @Success 200 {object} codersdk.GitAuthDevice
+// @Router /gitauth/{gitauth}/device [get]
 func (*API) gitAuthDeviceByID(rw http.ResponseWriter, r *http.Request) {
 	config := httpmw.GitAuthParam(r)
 	ctx := r.Context()
