@@ -31,6 +31,7 @@ import { ImpendingDeletionBanner } from "components/WorkspaceDeletion"
 import { useLocalStorage } from "hooks"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import AlertTitle from "@mui/material/AlertTitle"
+import { Maybe } from "components/Conditionals/Maybe"
 
 export enum WorkspaceErrors {
   GET_BUILDS_ERROR = "getBuildsError",
@@ -207,6 +208,29 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 
           <TemplateVersionWarnings warnings={templateWarnings} />
 
+          <Maybe
+            condition={
+              workspace.latest_build.status === "pending" &&
+              workspace.latest_build.job.queue_size > 0
+            }
+          >
+            <Alert severity="info">
+              <AlertTitle>Workspace build is pending</AlertTitle>
+              <AlertDetail>
+                <div className={styles.alertPendingInQueue}>
+                  This workspace build job is waiting for a provisioner to
+                  become available. If you have been waiting for an extended
+                  period of time, please contact your administrator for
+                  assistance.
+                </div>
+                <div>
+                  Position in queue:{" "}
+                  <strong>{workspace.latest_build.job.queue_position}</strong>
+                </div>
+              </AlertDetail>
+            </Alert>
+          </Maybe>
+
           {failedBuildLogs && (
             <Stack>
               <Alert
@@ -318,6 +342,10 @@ export const useStyles = makeStyles((theme) => {
 
     fullWidth: {
       width: "100%",
+    },
+
+    alertPendingInQueue: {
+      marginBottom: 12,
     },
   }
 })
