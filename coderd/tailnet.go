@@ -114,9 +114,8 @@ func (s *ServerTailnet) watchAgentUpdates() {
 
 		s.nodesMu.Lock()
 		for _, node := range nodes {
-			cached, ok := s.agentNodes[node.AgentID]
+			_, ok := s.agentNodes[node.AgentID]
 			if ok {
-				cached.node = node.Node
 				toUpdate = append(toUpdate, node.Node)
 			}
 		}
@@ -133,7 +132,6 @@ func (s *ServerTailnet) watchAgentUpdates() {
 }
 
 type tailnetNode struct {
-	node           *tailnet.Node
 	lastConnection time.Time
 }
 
@@ -192,97 +190,32 @@ func (s *ServerTailnet) dialContext(ctx context.Context, network, addr string) (
 	return s.DialAgentNetConn(ctx, agentID, network, addr)
 }
 
-func (s *ServerTailnet) getNode(agentID uuid.UUID) (*tailnet.Node, error) {
+func (s *ServerTailnet) ensureAgent(agentID uuid.UUID) error {
 	s.nodesMu.Lock()
 	tnode, ok := s.agentNodes[agentID]
-	// If we don't have the node, fetch it from the coordinator.
+	// If we don't have the node, subscribe.
 	if !ok {
-		coord := *s.coordinator.Load()
-		node := coord.Node(agentID)
-		// The coordinator doesn't have the node either. Nothing we can do here.
-		if node == nil {
-			s.nodesMu.Unlock()
-			return nil, xerrors.Errorf("node %q not found", agentID.String())
-		}
-
 		err := s.agentConn.SubscribeAgent(agentID, s.conn.Node())
 		if err != nil {
-			return nil, xerrors.Errorf("subscribe agent: %w", err)
+			return xerrors.Errorf("subscribe agent: %w", err)
 		}
 		tnode = &tailnetNode{
-			node:           node,
 			lastConnection: time.Now(),
 		}
 		s.agentNodes[agentID] = tnode
 	}
 	s.nodesMu.Unlock()
 
-	if len(tnode.node.Addresses) == 0 {
-		return nil, xerrors.New("agent has no reachable addresses")
-	}
-
-	// if we didn't already have the node locally, add it to our tailnet.
-	if !ok {
-		err := s.conn.UpdateNodes([]*tailnet.Node{tnode.node}, false)
-		if err != nil {
-			return nil, xerrors.Errorf("update nodes: %w", err)
-		}
-	}
-
-	return tnode.node, nil
-}
-
-func (s *ServerTailnet) awaitNodeExists(ctx context.Context, id uuid.UUID, timeout time.Duration) (*tailnet.Node, error) {
-	// Short circuit, if the node already exists, don't spend time setting up
-	// the ticker and loop.
-	if node, err := s.getNode(id); err == nil {
-		return node, nil
-	}
-
-	var (
-		ticker = time.NewTicker(10 * time.Millisecond)
-
-		tries int
-		node  *tailnet.Node
-		err   error
-	)
-	defer ticker.Stop()
-
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	for {
-		select {
-		case <-ctx.Done():
-			// return the last error we got from getNode.
-			return nil, xerrors.Errorf("tries %d, last error: %w", tries, err)
-		case <-ticker.C:
-		}
-
-		tries++
-		node, err = s.getNode(id)
-		if err == nil {
-			return node, nil
-		}
-	}
-}
-
-func (*ServerTailnet) nodeIsLegacy(node *tailnet.Node) bool {
-	return node.Addresses[0].Addr() == codersdk.WorkspaceAgentIP
+	return nil
 }
 
 func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (*codersdk.WorkspaceAgentConn, func(), error) {
-	node, err := s.awaitNodeExists(ctx, agentID, 5*time.Second)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("get agent node: %w", err)
-	}
-
 	var (
 		conn *codersdk.WorkspaceAgentConn
 		ret  = func() {}
 	)
 
-	if s.nodeIsLegacy(node) {
+	if s.agentConn.AgentIsLegacy(agentID) {
 		cconn, release, err := s.cache.Acquire(agentID)
 		if err != nil {
 			return nil, nil, xerrors.Errorf("acquire legacy agent conn: %w", err)
@@ -291,9 +224,13 @@ func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (*code
 		conn = cconn.WorkspaceAgentConn
 		ret = release
 	} else {
+		err := s.ensureAgent(agentID)
+		if err != nil {
+			return nil, nil, xerrors.Errorf("ensure agent: %w", err)
+		}
+
 		conn = codersdk.NewWorkspaceAgentConn(s.conn, codersdk.WorkspaceAgentConnOptions{
 			AgentID:   agentID,
-			GetNode:   s.getNode,
 			CloseFunc: func() error { return codersdk.ErrSkipClose },
 		})
 	}
@@ -320,16 +257,9 @@ func (s *ServerTailnet) DialAgentNetConn(ctx context.Context, agentID uuid.UUID,
 	// Since we now have an open conn, be careful to close it if we error
 	// without returning it to the user.
 
-	node, err := s.getNode(agentID)
-	if err != nil {
-		release()
-		conn.Close()
-		return nil, xerrors.New("get agent node")
-	}
-
 	_, rawPort, _ := net.SplitHostPort(addr)
 	port, _ := strconv.ParseUint(rawPort, 10, 16)
-	ipp := netip.AddrPortFrom(node.Addresses[0].Addr(), uint16(port))
+	ipp := netip.AddrPortFrom(tailnet.IPFromUUID(agentID), uint16(port))
 
 	var nc net.Conn
 	switch network {

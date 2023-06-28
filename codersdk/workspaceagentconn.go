@@ -148,17 +148,16 @@ type WorkspaceAgentConn struct {
 // @typescript-ignore WorkspaceAgentConnOptions
 type WorkspaceAgentConnOptions struct {
 	AgentID   uuid.UUID
-	GetNode   func(agentID uuid.UUID) (*tailnet.Node, error)
+	IP        netip.Addr
 	CloseFunc func() error
 }
 
-func (c *WorkspaceAgentConn) getAgentAddress() (netip.Addr, error) {
-	node, err := c.opts.GetNode(c.opts.AgentID)
-	if err != nil {
-		return netip.Addr{}, err
+func (c *WorkspaceAgentConn) agentAddress() netip.Addr {
+	if c.opts.IP.Compare(netip.IPv6Unspecified()) == 0 {
+		return c.opts.IP
 	}
 
-	return node.Addresses[0].Addr(), nil
+	return tailnet.IPFromUUID(c.opts.AgentID)
 }
 
 // AwaitReachable waits for the agent to be reachable.
@@ -166,28 +165,7 @@ func (c *WorkspaceAgentConn) AwaitReachable(ctx context.Context) bool {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	var (
-		addr   netip.Addr
-		err    error
-		ticker = time.NewTicker(10 * time.Millisecond)
-	)
-	defer ticker.Stop()
-
-	for {
-		addr, err = c.getAgentAddress()
-		if err == nil {
-			break
-		}
-
-		select {
-		case <-ctx.Done():
-			return false
-		case <-ticker.C:
-			continue
-		}
-	}
-
-	return c.Conn.AwaitReachable(ctx, addr)
+	return c.Conn.AwaitReachable(ctx, c.agentAddress())
 }
 
 // Ping pings the agent and returns the round-trip time.
@@ -196,12 +174,7 @@ func (c *WorkspaceAgentConn) Ping(ctx context.Context) (time.Duration, bool, *ip
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	addr, err := c.getAgentAddress()
-	if err != nil {
-		return 0, false, nil, err
-	}
-
-	return c.Conn.Ping(ctx, addr)
+	return c.Conn.Ping(ctx, c.agentAddress())
 }
 
 // Close ends the connection to the workspace agent.
@@ -248,12 +221,7 @@ func (c *WorkspaceAgentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, 
 		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
 	}
 
-	addr, err := c.getAgentAddress()
-	if err != nil {
-		return nil, err
-	}
-
-	conn, err := c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(addr, WorkspaceAgentReconnectingPTYPort))
+	conn, err := c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), WorkspaceAgentReconnectingPTYPort))
 	if err != nil {
 		return nil, err
 	}
@@ -288,12 +256,7 @@ func (c *WorkspaceAgentConn) SSH(ctx context.Context) (net.Conn, error) {
 		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
 	}
 
-	addr, err := c.getAgentAddress()
-	if err != nil {
-		return nil, err
-	}
-
-	return c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(addr, WorkspaceAgentSSHPort))
+	return c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), WorkspaceAgentSSHPort))
 }
 
 // SSHClient calls SSH to create a client that uses a weak cipher
@@ -329,12 +292,7 @@ func (c *WorkspaceAgentConn) Speedtest(ctx context.Context, direction speedtest.
 		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
 	}
 
-	addr, err := c.getAgentAddress()
-	if err != nil {
-		return nil, err
-	}
-
-	speedConn, err := c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(addr, WorkspaceAgentSpeedtestPort))
+	speedConn, err := c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), WorkspaceAgentSpeedtestPort))
 	if err != nil {
 		return nil, xerrors.Errorf("dial speedtest: %w", err)
 	}
@@ -357,20 +315,16 @@ func (c *WorkspaceAgentConn) DialContext(ctx context.Context, network string, ad
 		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
 	}
 
-	agentAddr, err := c.getAgentAddress()
-	if err != nil {
-		return nil, err
-	}
-
 	_, rawPort, _ := net.SplitHostPort(addr)
 	port, _ := strconv.ParseUint(rawPort, 10, 16)
-	ipp := netip.AddrPortFrom(agentAddr, uint16(port))
+	ipp := netip.AddrPortFrom(c.agentAddress(), uint16(port))
 
-	if network == "tcp" {
+	switch network {
+	case "tcp":
 		return c.Conn.DialContextTCP(ctx, ipp)
-	} else if network == "udp" {
+	case "udp":
 		return c.Conn.DialContextUDP(ctx, ipp)
-	} else {
+	default:
 		return nil, xerrors.Errorf("unknown network %q", network)
 	}
 }
@@ -411,12 +365,7 @@ func (c *WorkspaceAgentConn) apiRequest(ctx context.Context, method, path string
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	agentAddr, err := c.getAgentAddress()
-	if err != nil {
-		return nil, xerrors.Errorf("get agent address: %w", err)
-	}
-
-	host := net.JoinHostPort(agentAddr.String(), strconv.Itoa(WorkspaceAgentHTTPAPIServerPort))
+	host := net.JoinHostPort(c.agentAddress().String(), strconv.Itoa(WorkspaceAgentHTTPAPIServerPort))
 	url := fmt.Sprintf("http://%s%s", host, path)
 
 	req, err := http.NewRequestWithContext(ctx, method, url, body)

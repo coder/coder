@@ -321,13 +321,6 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 
 	agentConn = NewWorkspaceAgentConn(conn, WorkspaceAgentConnOptions{
 		AgentID: agentID,
-		GetNode: func(agentID uuid.UUID) (*tailnet.Node, error) {
-			node := latestNode.Load()
-			if node == nil {
-				return nil, xerrors.New("node not found")
-			}
-			return node, nil
-		},
 		CloseFunc: func() error {
 			cancel()
 			<-closed

@@ -25,6 +25,7 @@ type MultiAgent struct {
 	Logger slog.Logger
 
 	AgentIsLegacyFunc func(agentID uuid.UUID) bool
+	OnSubscribe       func(id uuid.UUID, agent uuid.UUID, node *Node) error
 	OnNodeUpdate      func(id uuid.UUID, agents []uuid.UUID, node *Node) error
 	OnClose           func(id uuid.UUID)
 
@@ -78,7 +79,7 @@ func (m *MultiAgent) SubscribeAgent(agentID uuid.UUID, node *Node) error {
 	m.subscribedAgents[agentID] = struct{}{}
 	m.mu.Unlock()
 
-	return m.OnNodeUpdate(m.ID, []uuid.UUID{agentID}, node)
+	return m.OnSubscribe(m.ID, agentID, node)
 }
 
 func (m *MultiAgent) UnsubscribeAgent(agentID uuid.UUID) {

@@ -770,13 +770,7 @@ func (api *API) _dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.Workspa
 	conn.SetNodeCallback(sendNodes)
 	agentConn := codersdk.NewWorkspaceAgentConn(conn, codersdk.WorkspaceAgentConnOptions{
 		AgentID: agentID,
-		GetNode: func(agentID uuid.UUID) (*tailnet.Node, error) {
-			return &tailnet.Node{
-				// Since this is a legacy function only used by wsconncache as a
-				// fallback, we hardcode the node to use the wsconncache IP.
-				Addresses: []netip.Prefix{netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128)},
-			}, nil
-		},
+		IP:      codersdk.WorkspaceAgentIP,
 		CloseFunc: func() error {
 			cancel()
 			_ = clientConn.Close()

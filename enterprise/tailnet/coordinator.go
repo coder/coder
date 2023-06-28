@@ -58,6 +58,7 @@ func (c *haCoordinator) ServeMultiAgent(id uuid.UUID) agpl.MultiAgentConn {
 		ID:                id,
 		Logger:            c.log,
 		AgentIsLegacyFunc: c.agentIsLegacy,
+		OnSubscribe:       c.multiAgentSubscribe,
 		OnNodeUpdate:      c.multiAgentUpdate,
 		OnClose:           c.removeMultiAgent,
 	}).Init()
@@ -75,6 +76,36 @@ func (c *haCoordinator) removeMultiAgent(id uuid.UUID) {
 	c.mutex.Lock()
 	delete(c.multiAgents, id)
 	c.mutex.Unlock()
+}
+
+func (c *haCoordinator) multiAgentSubscribe(id, agent uuid.UUID, node *agpl.Node) error {
+	c.mutex.Lock()
+
+	agentNode, ok := c.nodes[agent]
+	// If we have the node locally, publish it immediately to the multiagent.
+	if ok {
+		multiAgent, ok := c.multiAgents[id]
+		if !ok {
+			return xerrors.Errorf("unknown multi agent %q", id)
+		}
+
+		c.mutex.Unlock()
+		multiAgent.OnAgentUpdate(agent, agentNode)
+	} else {
+		// If we don't have the node locally, notify other coordinators.
+		c.mutex.Unlock()
+		err := c.publishClientHello(agent)
+		if err != nil {
+			return xerrors.Errorf("publish client hello: %w", err)
+		}
+	}
+
+	err := c.handleClientUpdate(id, agent, node)
+	if err != nil {
+		return xerrors.Errorf("handle client update: %w", err)
+	}
+
+	return nil
 }
 
 func (c *haCoordinator) multiAgentUpdate(id uuid.UUID, agents []uuid.UUID, node *agpl.Node) error {
@@ -136,7 +167,7 @@ func (c *haCoordinator) agentLogger(agent uuid.UUID) slog.Logger {
 
 // ServeClient accepts a WebSocket connection that wants to connect to an agent
 // with the specified ID.
-func (c *haCoordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) error {
+func (c *haCoordinator) ServeClient(conn net.Conn, id, agent uuid.UUID) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	logger := c.clientLogger(id, agent)

@@ -15,7 +15,6 @@ import (
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -179,14 +178,7 @@ func setupAgent(t *testing.T, agentAddresses []netip.Prefix) (uuid.UUID, agent.A
 		})
 		conn.SetNodeCallback(sendNode)
 		return codersdk.NewWorkspaceAgentConn(conn, codersdk.WorkspaceAgentConnOptions{
-			AgentID: agentID,
-			GetNode: func(agentID uuid.UUID) (*tailnet.Node, error) {
-				node := coordinator.Node(agentID)
-				if node == nil {
-					return nil, xerrors.Errorf("node not found %q", agentID)
-				}
-				return node, nil
-			},
+			AgentID:   agentID,
 			CloseFunc: func() error { return codersdk.ErrSkipClose },
 		}), nil
 	}, 0)

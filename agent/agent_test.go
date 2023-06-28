@@ -1691,14 +1691,16 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	if metadata.DERPMap == nil {
 		metadata.DERPMap, _ = tailnettest.RunDERPAndSTUN(t)
 	}
+	if metadata.AgentID == uuid.Nil {
+		metadata.AgentID = uuid.New()
+	}
 	coordinator := tailnet.NewCoordinator(logger)
 	t.Cleanup(func() {
 		_ = coordinator.Close()
 	})
-	agentID := uuid.New()
 	statsCh := make(chan *agentsdk.Stats, 50)
 	fs := afero.NewMemMapFs()
-	c := agenttest.NewClient(t, agentID, metadata, statsCh, coordinator)
+	c := agenttest.NewClient(t, metadata.AgentID, metadata, statsCh, coordinator)
 
 	options := agent.Options{
 		Client:                 c,
@@ -1731,21 +1733,14 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	})
 	go func() {
 		defer close(serveClientDone)
-		coordinator.ServeClient(serverConn, uuid.New(), agentID)
+		coordinator.ServeClient(serverConn, uuid.New(), metadata.AgentID)
 	}()
 	sendNode, _ := tailnet.ServeCoordinator(clientConn, func(node []*tailnet.Node) error {
 		return conn.UpdateNodes(node, false)
 	})
 	conn.SetNodeCallback(sendNode)
 	agentConn := codersdk.NewWorkspaceAgentConn(conn, codersdk.WorkspaceAgentConnOptions{
-		AgentID: agentID,
-		GetNode: func(agentID uuid.UUID) (*tailnet.Node, error) {
-			node := coordinator.Node(agentID)
-			if node == nil {
-				return nil, xerrors.Errorf("node not found %q", err)
-			}
-			return node, nil
-		},
+		AgentID: metadata.AgentID,
 	})
 	t.Cleanup(func() {
 		_ = agentConn.Close()

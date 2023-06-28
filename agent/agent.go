@@ -112,16 +112,6 @@ func New(options Options) Agent {
 		prometheusRegistry = prometheus.NewRegistry()
 	}
 
-	if len(options.Addresses) == 0 {
-		options.Addresses = []netip.Prefix{
-			// This is the IP that should be used primarily.
-			netip.PrefixFrom(tailnet.IP(), 128),
-			// We also listen on the legacy codersdk.WorkspaceAgentIP. This
-			// allows for a transition away from wsconncache.
-			netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128),
-		}
-	}
-
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	a := &agent{
 		tailnetListenPort:      options.TailnetListenPort,

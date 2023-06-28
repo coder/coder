@@ -145,8 +145,11 @@ func (c *coordinator) ServeMultiAgent(id uuid.UUID) MultiAgentConn {
 		ID:                id,
 		Logger:            c.core.logger,
 		AgentIsLegacyFunc: c.core.agentIsLegacy,
-		OnNodeUpdate:      c.core.multiAgentUpdate,
-		OnClose:           c.core.removeMultiAgent,
+		OnSubscribe: func(id, agent uuid.UUID, node *Node) error {
+			return c.core.multiAgentUpdate(id, []uuid.UUID{agent}, node)
+		},
+		OnNodeUpdate: c.core.multiAgentUpdate,
+		OnClose:      c.core.removeMultiAgent,
 	}).Init()
 	c.core.addMultiAgent(m)
 	return m
