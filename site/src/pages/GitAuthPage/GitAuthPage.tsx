@@ -6,7 +6,7 @@ import {
 } from "api/api"
 import { usePermissions } from "hooks"
 import { FC, useEffect } from "react"
-import { redirect, useParams } from "react-router-dom"
+import { useParams } from "react-router-dom"
 import { REFRESH_GITAUTH_BROADCAST_CHANNEL } from "xServices/createWorkspace/createWorkspaceXService"
 import GitAuthPageView from "./GitAuthPageView"
 import { ApiErrorResponse } from "api/errors"
