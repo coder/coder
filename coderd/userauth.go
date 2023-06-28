@@ -962,7 +962,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return audit.InitRequest[database.User](rw, params)
 	})
 	cookies, key, err := api.oauthLogin(r, params)
-	defer commitAudit()
 	defer params.CommitAuditLogs()
 	var httpErr httpError
 	if xerrors.As(err, &httpErr) {
