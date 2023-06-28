@@ -208,7 +208,7 @@ Alice   25
 						str: "Alice",
 					},
 					Age:         25,
-					NotIncluded: "IngnoreMe",
+					NotIncluded: "IgnoreMe",
 				},
 			},
 		}
