@@ -159,7 +159,8 @@ RUN apt-get update --quiet && apt-get install --yes \
 	terraform \
 	fish \
 	unzip \
-	zstd && \
+	zstd \
+	gettext-base && \
 	# Delete package cache to avoid consuming space in layer
 	apt-get clean && \
 	# Configure FIPS-compliant policies

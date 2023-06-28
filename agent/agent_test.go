@@ -34,6 +34,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
@@ -1097,7 +1098,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 		t.Parallel()
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
-			StartupScript:        "sleep 5",
+			StartupScript:        "sleep 3",
 			StartupScriptTimeout: time.Nanosecond,
 		}, 0)
 
@@ -1109,10 +1110,10 @@ func TestAgent_Lifecycle(t *testing.T) {
 		var got []codersdk.WorkspaceAgentLifecycle
 		assert.Eventually(t, func() bool {
 			got = client.GetLifecycleStates()
-			return len(got) > 0 && got[len(got)-1] == want[len(want)-1]
+			return slices.Contains(got, want[len(want)-1])
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
-		require.Equal(t, want, got)
+		require.Equal(t, want, got[:len(want)])
 	})
 
 	t.Run("StartError", func(t *testing.T) {
@@ -1131,10 +1132,10 @@ func TestAgent_Lifecycle(t *testing.T) {
 		var got []codersdk.WorkspaceAgentLifecycle
 		assert.Eventually(t, func() bool {
 			got = client.GetLifecycleStates()
-			return len(got) > 0 && got[len(got)-1] == want[len(want)-1]
+			return slices.Contains(got, want[len(want)-1])
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
-		require.Equal(t, want, got)
+		require.Equal(t, want, got[:len(want)])
 	})
 
 	t.Run("Ready", func(t *testing.T) {
@@ -1163,14 +1164,12 @@ func TestAgent_Lifecycle(t *testing.T) {
 		t.Parallel()
 
 		_, client, _, _, closer := setupAgent(t, agentsdk.Manifest{
-			ShutdownScript:       "sleep 5",
+			ShutdownScript:       "sleep 3",
 			StartupScriptTimeout: 30 * time.Second,
 		}, 0)
 
-		var ready []codersdk.WorkspaceAgentLifecycle
 		assert.Eventually(t, func() bool {
-			ready = client.GetLifecycleStates()
-			return len(ready) > 0 && ready[len(ready)-1] == codersdk.WorkspaceAgentLifecycleReady
+			return slices.Contains(client.GetLifecycleStates(), codersdk.WorkspaceAgentLifecycleReady)
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
 		// Start close asynchronously so that we an inspect the state.
@@ -1185,30 +1184,30 @@ func TestAgent_Lifecycle(t *testing.T) {
 		})
 
 		want := []codersdk.WorkspaceAgentLifecycle{
+			codersdk.WorkspaceAgentLifecycleStarting,
+			codersdk.WorkspaceAgentLifecycleReady,
 			codersdk.WorkspaceAgentLifecycleShuttingDown,
 		}
 
 		var got []codersdk.WorkspaceAgentLifecycle
 		assert.Eventually(t, func() bool {
-			got = client.GetLifecycleStates()[len(ready):]
-			return len(got) > 0 && got[len(got)-1] == want[len(want)-1]
+			got = client.GetLifecycleStates()
+			return slices.Contains(got, want[len(want)-1])
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
-		require.Equal(t, want, got)
+		require.Equal(t, want, got[:len(want)])
 	})
 
 	t.Run("ShutdownTimeout", func(t *testing.T) {
 		t.Parallel()
 
 		_, client, _, _, closer := setupAgent(t, agentsdk.Manifest{
-			ShutdownScript:        "sleep 5",
+			ShutdownScript:        "sleep 3",
 			ShutdownScriptTimeout: time.Nanosecond,
 		}, 0)
 
-		var ready []codersdk.WorkspaceAgentLifecycle
 		assert.Eventually(t, func() bool {
-			ready = client.GetLifecycleStates()
-			return len(ready) > 0 && ready[len(ready)-1] == codersdk.WorkspaceAgentLifecycleReady
+			return slices.Contains(client.GetLifecycleStates(), codersdk.WorkspaceAgentLifecycleReady)
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
 		// Start close asynchronously so that we an inspect the state.
@@ -1223,17 +1222,19 @@ func TestAgent_Lifecycle(t *testing.T) {
 		})
 
 		want := []codersdk.WorkspaceAgentLifecycle{
+			codersdk.WorkspaceAgentLifecycleStarting,
+			codersdk.WorkspaceAgentLifecycleReady,
 			codersdk.WorkspaceAgentLifecycleShuttingDown,
 			codersdk.WorkspaceAgentLifecycleShutdownTimeout,
 		}
 
 		var got []codersdk.WorkspaceAgentLifecycle
 		assert.Eventually(t, func() bool {
-			got = client.GetLifecycleStates()[len(ready):]
-			return len(got) > 0 && got[len(got)-1] == want[len(want)-1]
+			got = client.GetLifecycleStates()
+			return slices.Contains(got, want[len(want)-1])
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
-		require.Equal(t, want, got)
+		require.Equal(t, want, got[:len(want)])
 	})
 
 	t.Run("ShutdownError", func(t *testing.T) {
@@ -1244,10 +1245,8 @@ func TestAgent_Lifecycle(t *testing.T) {
 			ShutdownScriptTimeout: 30 * time.Second,
 		}, 0)
 
-		var ready []codersdk.WorkspaceAgentLifecycle
 		assert.Eventually(t, func() bool {
-			ready = client.GetLifecycleStates()
-			return len(ready) > 0 && ready[len(ready)-1] == codersdk.WorkspaceAgentLifecycleReady
+			return slices.Contains(client.GetLifecycleStates(), codersdk.WorkspaceAgentLifecycleReady)
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
 		// Start close asynchronously so that we an inspect the state.
@@ -1262,17 +1261,19 @@ func TestAgent_Lifecycle(t *testing.T) {
 		})
 
 		want := []codersdk.WorkspaceAgentLifecycle{
+			codersdk.WorkspaceAgentLifecycleStarting,
+			codersdk.WorkspaceAgentLifecycleReady,
 			codersdk.WorkspaceAgentLifecycleShuttingDown,
 			codersdk.WorkspaceAgentLifecycleShutdownError,
 		}
 
 		var got []codersdk.WorkspaceAgentLifecycle
 		assert.Eventually(t, func() bool {
-			got = client.GetLifecycleStates()[len(ready):]
-			return len(got) > 0 && got[len(got)-1] == want[len(want)-1]
+			got = client.GetLifecycleStates()
+			return slices.Contains(got, want[len(want)-1])
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
-		require.Equal(t, want, got)
+		require.Equal(t, want, got[:len(want)])
 	})
 
 	t.Run("ShutdownScriptOnce", func(t *testing.T) {

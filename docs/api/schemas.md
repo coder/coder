@@ -5667,7 +5667,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "error": null,
+  "access_url": "string",
+  "error": "string",
   "healthy": true,
   "healthz_response": "string",
   "reachable": true,
@@ -5679,7 +5680,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name               | Type    | Required | Restrictions | Description |
 | ------------------ | ------- | -------- | ------------ | ----------- |
-| `error`            | any     | false    |              |             |
+| `access_url`       | string  | false    |              |             |
+| `error`            | string  | false    |              |             |
 | `healthy`          | boolean | false    |              |             |
 | `healthz_response` | string  | false    |              |             |
 | `reachable`        | boolean | false    |              |             |
@@ -5690,9 +5692,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "can_exchange_messages": true,
-  "client_errs": [[null]],
+  "client_errs": [["string"]],
   "client_logs": [["string"]],
-  "error": null,
+  "error": "string",
   "healthy": true,
   "node": {
     "certName": "string",
@@ -5729,7 +5731,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `can_exchange_messages` | boolean                                                  | false    |              |             |
 | `client_errs`           | array of array                                           | false    |              |             |
 | `client_logs`           | array of array                                           | false    |              |             |
-| `error`                 | any                                                      | false    |              |             |
+| `error`                 | string                                                   | false    |              |             |
 | `healthy`               | boolean                                                  | false    |              |             |
 | `node`                  | [tailcfg.DERPNode](#tailcfgderpnode)                     | false    |              |             |
 | `node_info`             | [derp.ServerInfoMessage](#derpserverinfomessage)         | false    |              |             |
@@ -5741,14 +5743,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "error": null,
+  "error": "string",
   "healthy": true,
   "node_reports": [
     {
       "can_exchange_messages": true,
-      "client_errs": [[null]],
+      "client_errs": [["string"]],
       "client_logs": [["string"]],
-      "error": null,
+      "error": "string",
       "healthy": true,
       "node": {
         "certName": "string",
@@ -5807,7 +5809,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name           | Type                                                              | Required | Restrictions | Description |
 | -------------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `error`        | any                                                               | false    |              |             |
+| `error`        | string                                                            | false    |              |             |
 | `healthy`      | boolean                                                           | false    |              |             |
 | `node_reports` | array of [healthcheck.DERPNodeReport](#healthcheckderpnodereport) | false    |              |             |
 | `region`       | [tailcfg.DERPRegion](#tailcfgderpregion)                          | false    |              |             |
@@ -5816,7 +5818,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "error": null,
+  "error": "string",
   "healthy": true,
   "netcheck": {
     "captivePortal": "string",
@@ -5848,18 +5850,18 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "udp": true,
     "upnP": "string"
   },
-  "netcheck_err": null,
+  "netcheck_err": "string",
   "netcheck_logs": ["string"],
   "regions": {
     "property1": {
-      "error": null,
+      "error": "string",
       "healthy": true,
       "node_reports": [
         {
           "can_exchange_messages": true,
-          "client_errs": [[null]],
+          "client_errs": [["string"]],
           "client_logs": [["string"]],
-          "error": null,
+          "error": "string",
           "healthy": true,
           "node": {
             "certName": "string",
@@ -5913,14 +5915,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       }
     },
     "property2": {
-      "error": null,
+      "error": "string",
       "healthy": true,
       "node_reports": [
         {
           "can_exchange_messages": true,
-          "client_errs": [[null]],
+          "client_errs": [["string"]],
           "client_logs": [["string"]],
-          "error": null,
+          "error": "string",
           "healthy": true,
           "node": {
             "certName": "string",
@@ -5981,10 +5983,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name               | Type                                                         | Required | Restrictions | Description |
 | ------------------ | ------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `error`            | any                                                          | false    |              |             |
+| `error`            | string                                                       | false    |              |             |
 | `healthy`          | boolean                                                      | false    |              |             |
 | `netcheck`         | [netcheck.Report](#netcheckreport)                           | false    |              |             |
-| `netcheck_err`     | any                                                          | false    |              |             |
+| `netcheck_err`     | string                                                       | false    |              |             |
 | `netcheck_logs`    | array of string                                              | false    |              |             |
 | `regions`          | object                                                       | false    |              |             |
 | » `[any property]` | [healthcheck.DERPRegionReport](#healthcheckderpregionreport) | false    |              |             |
@@ -6011,7 +6013,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "error": null,
+  "error": "string",
   "healthy": true,
   "latency": 0,
   "reachable": true
@@ -6022,7 +6024,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name        | Type    | Required | Restrictions | Description |
 | ----------- | ------- | -------- | ------------ | ----------- |
-| `error`     | any     | false    |              |             |
+| `error`     | string  | false    |              |             |
 | `healthy`   | boolean | false    |              |             |
 | `latency`   | integer | false    |              |             |
 | `reachable` | boolean | false    |              |             |
@@ -6032,20 +6034,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "access_url": {
-    "error": null,
+    "access_url": "string",
+    "error": "string",
     "healthy": true,
     "healthz_response": "string",
     "reachable": true,
     "status_code": 0
   },
+  "coder_version": "string",
   "database": {
-    "error": null,
+    "error": "string",
     "healthy": true,
     "latency": 0,
     "reachable": true
   },
   "derp": {
-    "error": null,
+    "error": "string",
     "healthy": true,
     "netcheck": {
       "captivePortal": "string",
@@ -6077,18 +6081,18 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "udp": true,
       "upnP": "string"
     },
-    "netcheck_err": null,
+    "netcheck_err": "string",
     "netcheck_logs": ["string"],
     "regions": {
       "property1": {
-        "error": null,
+        "error": "string",
         "healthy": true,
         "node_reports": [
           {
             "can_exchange_messages": true,
-            "client_errs": [[null]],
+            "client_errs": [["string"]],
             "client_logs": [["string"]],
-            "error": null,
+            "error": "string",
             "healthy": true,
             "node": {
               "certName": "string",
@@ -6142,14 +6146,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         }
       },
       "property2": {
-        "error": null,
+        "error": "string",
         "healthy": true,
         "node_reports": [
           {
             "can_exchange_messages": true,
-            "client_errs": [[null]],
+            "client_errs": [["string"]],
             "client_logs": [["string"]],
-            "error": null,
+            "error": "string",
             "healthy": true,
             "node": {
               "certName": "string",
@@ -6208,7 +6212,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "healthy": true,
   "time": "string",
   "websocket": {
-    "error": null,
+    "error": "string",
     "healthy": true,
     "response": {
       "body": "string",
@@ -6220,21 +6224,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name               | Type                                                       | Required | Restrictions | Description                                      |
-| ------------------ | ---------------------------------------------------------- | -------- | ------------ | ------------------------------------------------ |
-| `access_url`       | [healthcheck.AccessURLReport](#healthcheckaccessurlreport) | false    |              |                                                  |
-| `database`         | [healthcheck.DatabaseReport](#healthcheckdatabasereport)   | false    |              |                                                  |
-| `derp`             | [healthcheck.DERPReport](#healthcheckderpreport)           | false    |              |                                                  |
-| `failing_sections` | array of string                                            | false    |              |                                                  |
-| `healthy`          | boolean                                                    | false    |              | Healthy is true if the report returns no errors. |
-| `time`             | string                                                     | false    |              | Time is the time the report was generated at.    |
-| `websocket`        | [healthcheck.WebsocketReport](#healthcheckwebsocketreport) | false    |              |                                                  |
+| Name               | Type                                                       | Required | Restrictions | Description                                                                |
+| ------------------ | ---------------------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------- |
+| `access_url`       | [healthcheck.AccessURLReport](#healthcheckaccessurlreport) | false    |              |                                                                            |
+| `coder_version`    | string                                                     | false    |              | The Coder version of the server that the report was generated on.          |
+| `database`         | [healthcheck.DatabaseReport](#healthcheckdatabasereport)   | false    |              |                                                                            |
+| `derp`             | [healthcheck.DERPReport](#healthcheckderpreport)           | false    |              |                                                                            |
+| `failing_sections` | array of string                                            | false    |              | Failing sections is a list of sections that have failed their healthcheck. |
+| `healthy`          | boolean                                                    | false    |              | Healthy is true if the report returns no errors.                           |
+| `time`             | string                                                     | false    |              | Time is the time the report was generated at.                              |
+| `websocket`        | [healthcheck.WebsocketReport](#healthcheckwebsocketreport) | false    |              |                                                                            |
 
 ## healthcheck.WebsocketReport
 
 ```json
 {
-  "error": null,
+  "error": "string",
   "healthy": true,
   "response": {
     "body": "string",
@@ -6247,7 +6252,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name       | Type                                                           | Required | Restrictions | Description |
 | ---------- | -------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `error`    | any                                                            | false    |              |             |
+| `error`    | string                                                         | false    |              |             |
 | `healthy`  | boolean                                                        | false    |              |             |
 | `response` | [healthcheck.WebsocketResponse](#healthcheckwebsocketresponse) | false    |              |             |
 

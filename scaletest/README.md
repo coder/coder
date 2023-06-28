@@ -46,7 +46,14 @@ All of the above arguments may be specified as environment variables. Consult th
 
 ### Prometheus Metrics
 
-To capture Prometheus metrics from the loadtest, two environment
+To capture Prometheus metrics from the loadtest, two environment variables are required:
+
+- `SCALETEST_PROMETHEUS_REMOTE_WRITE_USER`
+- `SCALETEST_PROMETHEUS_REMOTE_WRITE_PASSWORD`
+
+### Enterprise License
+
+To add an Enterprise license, set the `SCALETEST_CODER_LICENSE` environment variable to the JWT string
 
 ## Scenarios
 

@@ -94,6 +94,7 @@
     "vite": "4.3.9",
     "xstate": "4.37.2",
     "xterm": "5.1.0",
+    "xterm-addon-canvas": "0.4.0",
     "xterm-addon-fit": "0.7.0",
     "xterm-addon-web-links": "0.8.0",
     "yup": "0.32.11"
@@ -147,7 +148,7 @@
     "msw": "1.1.0",
     "prettier": "2.8.1",
     "resize-observer": "1.0.4",
-    "semver": "7.3.7",
+    "semver": "7.5.2",
     "storybook": "7.0.4",
     "storybook-react-context": "0.6.0",
     "ts-proto": "1.150.0",
