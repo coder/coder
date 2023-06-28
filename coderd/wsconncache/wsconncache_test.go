@@ -200,7 +200,7 @@ func setupAgent(t *testing.T, manifest agentsdk.Manifest, ptyTimeout time.Durati
 		GetNode: func(agentID uuid.UUID) (*tailnet.Node, error) {
 			node := coordinator.Node(agentID)
 			if node == nil {
-				return nil, xerrors.Errorf("node not found %q", err)
+				return nil, xerrors.Errorf("node not found %q", agentID)
 			}
 			return node, nil
 		},

@@ -5772,6 +5772,9 @@ const docTemplate = `{
         "agentsdk.Manifest": {
             "type": "object",
             "properties": {
+                "agent_id": {
+                    "type": "string"
+                },
                 "apps": {
                     "type": "array",
                     "items": {

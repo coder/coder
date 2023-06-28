@@ -167,9 +167,12 @@ func (c *WorkspaceAgentConn) AwaitReachable(ctx context.Context) bool {
 	defer span.End()
 
 	var (
-		addr netip.Addr
-		err  error
+		addr   netip.Addr
+		err    error
+		ticker = time.NewTicker(10 * time.Millisecond)
 	)
+	defer ticker.Stop()
+
 	for {
 		addr, err = c.getAgentAddress()
 		if err == nil {
@@ -179,7 +182,7 @@ func (c *WorkspaceAgentConn) AwaitReachable(ctx context.Context) bool {
 		select {
 		case <-ctx.Done():
 			return false
-		case <-time.After(10 * time.Millisecond):
+		case <-ticker.C:
 			continue
 		}
 	}

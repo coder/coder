@@ -12,11 +12,13 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/go-multierror"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database/pubsub"
+	"github.com/coder/coder/codersdk"
 	agpl "github.com/coder/coder/tailnet"
 )
 
@@ -40,7 +42,8 @@ func NewCoordinator(logger slog.Logger, ps pubsub.Pubsub) (agpl.Coordinator, err
 		agentSockets:             map[uuid.UUID]*agpl.TrackedConn{},
 		agentToConnectionSockets: map[uuid.UUID]map[uuid.UUID]*agpl.TrackedConn{},
 		agentNameCache:           nameCache,
-		agentCallbacks:           map[uuid.UUID]map[uuid.UUID]func(uuid.UUID, *agpl.Node){},
+		legacyAgents:             map[uuid.UUID]struct{}{},
+		multiAgents:              map[uuid.UUID]*agpl.MultiAgent{},
 	}
 
 	if err := coord.runPubsub(ctx); err != nil {
@@ -50,42 +53,42 @@ func NewCoordinator(logger slog.Logger, ps pubsub.Pubsub) (agpl.Coordinator, err
 	return coord, nil
 }
 
-func (c *haCoordinator) SubscribeAgent(agentID uuid.UUID, cb func(agentID uuid.UUID, node *agpl.Node)) func() {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
-	id := uuid.New()
-	cbMap, ok := c.agentCallbacks[agentID]
-	if !ok {
-		cbMap = map[uuid.UUID]func(uuid.UUID, *agpl.Node){}
-		c.agentCallbacks[agentID] = cbMap
-	}
-
-	cbMap[id] = cb
-
-	return func() {
-		c.mutex.Lock()
-		defer c.mutex.Unlock()
-		delete(cbMap, id)
-	}
+func (c *haCoordinator) ServeMultiAgent(id uuid.UUID) agpl.MultiAgentConn {
+	m := (&agpl.MultiAgent{
+		ID:                id,
+		Logger:            c.log,
+		AgentIsLegacyFunc: c.agentIsLegacy,
+		OnNodeUpdate:      c.multiAgentUpdate,
+		OnClose:           c.removeMultiAgent,
+	}).Init()
+	c.addMultiAgent(m)
+	return m
 }
 
-func (c *haCoordinator) BroadcastToAgents(agents []uuid.UUID, node *agpl.Node) error {
-	ctx := context.Background()
+func (c *haCoordinator) addMultiAgent(m *agpl.MultiAgent) {
+	c.mutex.Lock()
+	c.multiAgents[m.ID] = m
+	c.mutex.Unlock()
+}
 
-	for _, id := range agents {
-		c.mutex.Lock()
-		agentSocket, ok := c.agentSockets[id]
-		c.mutex.Unlock()
-		if !ok {
-			continue
-		}
+func (c *haCoordinator) removeMultiAgent(id uuid.UUID) {
+	c.mutex.Lock()
+	delete(c.multiAgents, id)
+	c.mutex.Unlock()
+}
 
-		// Write the new node from this client to the actively connected agent.
-		err := agentSocket.Enqueue([]*agpl.Node{node})
+func (c *haCoordinator) multiAgentUpdate(id uuid.UUID, agents []uuid.UUID, node *agpl.Node) error {
+	var errs *multierror.Error
+	// This isn't the most efficient, but this coordinator is being deprecated
+	// soon anyways.
+	for _, agent := range agents {
+		err := c.handleClientUpdate(id, agent, node)
 		if err != nil {
-			c.log.Debug(ctx, "failed to write to agent", slog.Error(err))
+			errs = multierror.Append(errs, err)
 		}
+	}
+	if errs != nil {
+		return errs
 	}
 
 	return nil
@@ -111,7 +114,8 @@ type haCoordinator struct {
 	// it's helpful to have a name cached for debugging.
 	agentNameCache *lru.Cache[uuid.UUID, string]
 
-	agentCallbacks map[uuid.UUID]map[uuid.UUID]func(uuid.UUID, *agpl.Node)
+	legacyAgents map[uuid.UUID]struct{}
+	multiAgents  map[uuid.UUID]*agpl.MultiAgent
 }
 
 // Node returns an in-memory node by ID.
@@ -203,28 +207,32 @@ func (c *haCoordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *js
 		return xerrors.Errorf("read json: %w", err)
 	}
 
+	return c.handleClientUpdate(id, agent, &node)
+}
+
+func (c *haCoordinator) handleClientUpdate(id, agent uuid.UUID, node *agpl.Node) error {
 	c.mutex.Lock()
 	// Update the node of this client in our in-memory map. If an agent entirely
 	// shuts down and reconnects, it needs to be aware of all clients attempting
 	// to establish connections.
-	c.nodes[id] = &node
+	c.nodes[id] = node
+
 	// Write the new node from this client to the actively connected agent.
 	agentSocket, ok := c.agentSockets[agent]
-
 	if !ok {
 		c.mutex.Unlock()
 		// If we don't own the agent locally, send it over pubsub to a node that
 		// owns the agent.
-		err := c.publishNodesToAgent(agent, []*agpl.Node{&node})
+		err := c.publishNodesToAgent(agent, []*agpl.Node{node})
 		if err != nil {
 			return xerrors.Errorf("publish node to agent")
 		}
 		return nil
 	}
-	err = agentSocket.Enqueue([]*agpl.Node{&node})
+	err := agentSocket.Enqueue([]*agpl.Node{node})
 	c.mutex.Unlock()
 	if err != nil {
-		return xerrors.Errorf("enqueu nodes: %w", err)
+		return xerrors.Errorf("enqueue node: %w", err)
 	}
 	return nil
 }
@@ -329,6 +337,13 @@ func (c *haCoordinator) handleClientHello(id uuid.UUID) error {
 	return c.publishAgentToNodes(id, node)
 }
 
+func (c *haCoordinator) agentIsLegacy(agentID uuid.UUID) bool {
+	c.mutex.RLock()
+	_, ok := c.legacyAgents[agentID]
+	c.mutex.RUnlock()
+	return ok
+}
+
 func (c *haCoordinator) handleAgentUpdate(id uuid.UUID, decoder *json.Decoder) (*agpl.Node, error) {
 	var node agpl.Node
 	err := decoder.Decode(&node)
@@ -337,6 +352,11 @@ func (c *haCoordinator) handleAgentUpdate(id uuid.UUID, decoder *json.Decoder) (
 	}
 
 	c.mutex.Lock()
+	// Keep a cache of all legacy agents.
+	if len(node.Addresses) > 0 && node.Addresses[0].Addr() == codersdk.WorkspaceAgentIP {
+		c.legacyAgents[id] = struct{}{}
+	}
+
 	oldNode := c.nodes[id]
 	if oldNode != nil {
 		if oldNode.AsOf.After(node.AsOf) {
@@ -356,19 +376,13 @@ func (c *haCoordinator) handleAgentUpdate(id uuid.UUID, decoder *json.Decoder) (
 		_ = connectionSocket.Enqueue([]*agpl.Node{&node})
 	}
 
-	wg := sync.WaitGroup{}
-	cbs := c.agentCallbacks[id]
-	wg.Add(len(cbs))
-	for _, cb := range cbs {
-		cb := cb
-		go func() {
-			cb(id, &node)
-			wg.Done()
-		}()
+	// Publish the new node to every active multiAgent.
+	for _, multiAgent := range c.multiAgents {
+		multiAgent.OnAgentUpdate(id, &node)
 	}
-	wg.Wait()
 
 	c.mutex.Unlock()
+
 	return &node, nil
 }
 
@@ -405,6 +419,15 @@ func (c *haCoordinator) Close() error {
 				wg.Done()
 			}()
 		}
+	}
+
+	wg.Add(len(c.multiAgents))
+	for _, multiAgent := range c.multiAgents {
+		multiAgent := multiAgent
+		go func() {
+			_ = multiAgent.Close()
+			wg.Done()
+		}()
 	}
 
 	wg.Wait()
@@ -479,13 +502,12 @@ func (c *haCoordinator) runPubsub(ctx context.Context) error {
 	}
 	go func() {
 		for {
-			var message []byte
 			select {
 			case <-ctx.Done():
 				return
-			case message = <-messageQueue:
+			case message := <-messageQueue:
+				c.handlePubsubMessage(ctx, message)
 			}
-			c.handlePubsubMessage(ctx, message)
 		}
 	}()
 

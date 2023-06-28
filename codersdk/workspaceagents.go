@@ -291,13 +291,13 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 				options.Logger.Debug(ctx, "failed to dial", slog.Error(err))
 				continue
 			}
-			sendNode, errChan := tailnet.ServeCoordinator(websocket.NetConn(ctx, ws, websocket.MessageBinary), func(node []*tailnet.Node) error {
-				if len(node) != 1 {
-					options.Logger.Warn(ctx, "no nodes returned from ServeCoordinator")
+			sendNode, errChan := tailnet.ServeCoordinator(websocket.NetConn(ctx, ws, websocket.MessageBinary), func(nodes []*tailnet.Node) error {
+				if len(nodes) != 1 {
+					options.Logger.Warn(ctx, "incorrect number of nodes returned from ServeCoordinator", slog.F("len", len(nodes)))
 					return nil
 				}
-				latestNode.Store(node[0])
-				return conn.UpdateNodes(node, false)
+				latestNode.Store(nodes[0])
+				return conn.UpdateNodes(nodes, false)
 			})
 			conn.SetNodeCallback(sendNode)
 			options.Logger.Debug(ctx, "serving coordinator")

@@ -139,6 +139,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		}
 	}()
 
+	IP()
 	dialer := &tsdial.Dialer{
 		Logf: Logger(options.Logger.Named("tsdial")),
 	}
@@ -302,20 +303,28 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	return server, nil
 }
 
-// IP generates a new IP with a static service prefix.
-func IP() netip.Addr {
-	// This is Tailscale's ephemeral service prefix.
-	// This can be changed easily later-on, because
-	// all of our nodes are ephemeral.
+func maskUUID(uid uuid.UUID) uuid.UUID {
+	// This is Tailscale's ephemeral service prefix. This can be changed easily
+	// later-on, because all of our nodes are ephemeral.
 	// fd7a:115c:a1e0
-	uid := uuid.New()
 	uid[0] = 0xfd
 	uid[1] = 0x7a
 	uid[2] = 0x11
 	uid[3] = 0x5c
 	uid[4] = 0xa1
 	uid[5] = 0xe0
+	return uid
+}
+
+// IP generates a random IP with a static service prefix.
+func IP() netip.Addr {
+	uid := maskUUID(uuid.New())
 	return netip.AddrFrom16(uid)
+}
+
+// IP generates a new IP from a UUID.
+func IPFromUUID(uid uuid.UUID) netip.Addr {
+	return netip.AddrFrom16(maskUUID(uid))
 }
 
 // Conn is an actively listening Wireguard connection.
@@ -350,6 +359,23 @@ type Conn struct {
 	nodeCallback             func(node *Node)
 
 	trafficStats *connstats.Statistics
+}
+
+func (c *Conn) SetAddresses(ips []netip.Prefix) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	c.netMap.Addresses = ips
+
+	netMapCopy := *c.netMap
+	c.logger.Debug(context.Background(), "updating network map")
+	c.wireguardEngine.SetNetworkMap(&netMapCopy)
+	err := c.reconfig()
+	if err != nil {
+		return xerrors.Errorf("reconfig: %w", err)
+	}
+
+	return nil
 }
 
 func (c *Conn) Addresses() []netip.Prefix {
@@ -460,6 +486,15 @@ func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 	netMapCopy := *c.netMap
 	c.logger.Debug(context.Background(), "updating network map")
 	c.wireguardEngine.SetNetworkMap(&netMapCopy)
+	err := c.reconfig()
+	if err != nil {
+		return xerrors.Errorf("reconfig: %w", err)
+	}
+
+	return nil
+}
+
+func (c *Conn) reconfig() error {
 	cfg, err := nmcfg.WGCfg(c.netMap, Logger(c.logger.Named("wgconfig")), netmap.AllowSingleHosts, "")
 	if err != nil {
 		return xerrors.Errorf("update wireguard config: %w", err)

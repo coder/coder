@@ -106,13 +106,8 @@ func NewPGCoord(ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store
 	return c, nil
 }
 
-func (*pgCoord) SubscribeAgent(agentID uuid.UUID, cb func(agentID uuid.UUID, node *agpl.Node)) func() {
-	_, _ = agentID, cb
-	panic("not implemented") // TODO: Implement
-}
-
-func (*pgCoord) BroadcastToAgents(agents []uuid.UUID, node *agpl.Node) error {
-	_, _ = agents, node
+func (c *pgCoord) ServeMultiAgent(id uuid.UUID) agpl.MultiAgentConn {
+	_, _ = c, id
 	panic("not implemented") // TODO: Implement
 }
 

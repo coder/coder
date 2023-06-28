@@ -14,14 +14,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	"cdr.dev/slog"
-
 	"github.com/google/uuid"
+	"github.com/hashicorp/go-multierror"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
+
+	"cdr.dev/slog"
 )
 
 // Coordinator exchanges nodes with agents to establish connections.
@@ -45,8 +46,7 @@ type Coordinator interface {
 	// Close closes the coordinator.
 	Close() error
 
-	SubscribeAgent(agentID uuid.UUID, cb func(agentID uuid.UUID, node *Node)) func()
-	BroadcastToAgents(agents []uuid.UUID, node *Node) error
+	ServeMultiAgent(id uuid.UUID) MultiAgentConn
 }
 
 // Node represents a node in the network.
@@ -140,6 +140,30 @@ type coordinator struct {
 	core *core
 }
 
+func (c *coordinator) ServeMultiAgent(id uuid.UUID) MultiAgentConn {
+	m := (&MultiAgent{
+		ID:                id,
+		Logger:            c.core.logger,
+		AgentIsLegacyFunc: c.core.agentIsLegacy,
+		OnNodeUpdate:      c.core.multiAgentUpdate,
+		OnClose:           c.core.removeMultiAgent,
+	}).Init()
+	c.core.addMultiAgent(m)
+	return m
+}
+
+func (c *core) addMultiAgent(m *MultiAgent) {
+	c.mutex.Lock()
+	c.multiAgents[m.ID] = m
+	c.mutex.Unlock()
+}
+
+func (c *core) removeMultiAgent(id uuid.UUID) {
+	c.mutex.Lock()
+	delete(c.multiAgents, id)
+	c.mutex.Unlock()
+}
+
 // core is an in-memory structure of Node and TrackedConn mappings.  Its methods may be called from multiple goroutines;
 // it is protected by a mutex to ensure data stay consistent.
 type core struct {
@@ -159,7 +183,8 @@ type core struct {
 	// it's helpful to have a name cached for debugging.
 	agentNameCache *lru.Cache[uuid.UUID, string]
 
-	agentCallbacks map[uuid.UUID]map[uuid.UUID]func(uuid.UUID, *Node)
+	legacyAgents map[uuid.UUID]struct{}
+	multiAgents  map[uuid.UUID]*MultiAgent
 }
 
 func newCore(logger slog.Logger) *core {
@@ -171,11 +196,12 @@ func newCore(logger slog.Logger) *core {
 	return &core{
 		logger:                   logger,
 		closed:                   false,
-		nodes:                    make(map[uuid.UUID]*Node),
+		nodes:                    map[uuid.UUID]*Node{},
 		agentSockets:             map[uuid.UUID]*TrackedConn{},
 		agentToConnectionSockets: map[uuid.UUID]map[uuid.UUID]*TrackedConn{},
 		agentNameCache:           nameCache,
-		agentCallbacks:           map[uuid.UUID]map[uuid.UUID]func(uuid.UUID, *Node){},
+		legacyAgents:             map[uuid.UUID]struct{}{},
+		multiAgents:              map[uuid.UUID]*MultiAgent{},
 	}
 }
 
@@ -433,9 +459,14 @@ func (c *coordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *json
 }
 
 func (c *core) clientNodeUpdate(id, agent uuid.UUID, node *Node) error {
-	logger := c.clientLogger(id, agent)
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+
+	return c.clientNodeUpdateUnlocked(id, agent, node)
+}
+
+func (c *core) clientNodeUpdateUnlocked(id, agent uuid.UUID, node *Node) error {
+	logger := c.clientLogger(id, agent)
 	// Update the node of this client in our in-memory map. If an agent entirely
 	// shuts down and reconnects, it needs to be aware of all clients attempting
 	// to establish connections.
@@ -449,9 +480,27 @@ func (c *core) clientNodeUpdate(id, agent uuid.UUID, node *Node) error {
 
 	err := agentSocket.Enqueue([]*Node{node})
 	if err != nil {
-		return xerrors.Errorf("Enqueue node: %w", err)
+		return xerrors.Errorf("enqueue node: %w", err)
 	}
 	logger.Debug(context.Background(), "enqueued node to agent")
+	return nil
+}
+
+func (c *core) multiAgentUpdate(id uuid.UUID, agents []uuid.UUID, node *Node) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	var errs *multierror.Error
+	for _, aid := range agents {
+		err := c.clientNodeUpdateUnlocked(id, aid, node)
+		if err != nil {
+			errs = multierror.Append(errs, err)
+		}
+	}
+	if errs != nil {
+		return errs
+	}
+
 	return nil
 }
 
@@ -570,11 +619,36 @@ func (c *coordinator) handleNextAgentMessage(id uuid.UUID, decoder *json.Decoder
 	return c.core.agentNodeUpdate(id, &node)
 }
 
+// This is copied from codersdk because importing it here would cause an import
+// cycle. This is just temporary until wsconncache is phased out.
+var legacyAgentIP = netip.MustParseAddr("fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4")
+
+// This is temporary until we no longer need to detect for agent backwards
+// compatibility.
+// See: https://github.com/coder/coder/issues/8218
+func (c *core) agentIsLegacy(agentID uuid.UUID) bool {
+	c.mutex.RLock()
+	_, ok := c.legacyAgents[agentID]
+	c.mutex.RUnlock()
+	return ok
+}
+
 func (c *core) agentNodeUpdate(id uuid.UUID, node *Node) error {
 	logger := c.agentLogger(id)
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	c.nodes[id] = node
+
+	// Keep a cache of all legacy agents.
+	if len(node.Addresses) > 0 && node.Addresses[0].Addr() == legacyAgentIP {
+		c.legacyAgents[id] = struct{}{}
+	}
+
+	// Publish the new node to every active multiAgent.
+	for _, multiAgent := range c.multiAgents {
+		multiAgent.OnAgentUpdate(id, node)
+	}
+
 	connectionSockets, ok := c.agentToConnectionSockets[id]
 	if !ok {
 		logger.Debug(context.Background(), "no client sockets; unable to send node")
@@ -595,18 +669,6 @@ func (c *core) agentNodeUpdate(id uuid.UUID, node *Node) error {
 		}
 	}
 
-	wg := sync.WaitGroup{}
-	cbs := c.agentCallbacks[id]
-	wg.Add(len(cbs))
-	for _, cb := range cbs {
-		cb := cb
-		go func() {
-			cb(id, node)
-			wg.Done()
-		}()
-	}
-
-	wg.Wait()
 	return nil
 }
 
@@ -644,6 +706,15 @@ func (c *core) close() error {
 				wg.Done()
 			}()
 		}
+	}
+
+	wg.Add(len(c.multiAgents))
+	for _, multiAgent := range c.multiAgents {
+		multiAgent := multiAgent
+		go func() {
+			_ = multiAgent.Close()
+			wg.Done()
+		}()
 	}
 
 	c.mutex.Unlock()
@@ -786,45 +857,4 @@ func CoordinatorHTTPDebug(
 			_, _ = fmt.Fprintln(w, "</ul>")
 		}
 	}
-}
-
-func (c *coordinator) SubscribeAgent(agentID uuid.UUID, cb func(agentID uuid.UUID, node *Node)) func() {
-	c.core.mutex.Lock()
-	defer c.core.mutex.Unlock()
-
-	id := uuid.New()
-	cbMap, ok := c.core.agentCallbacks[agentID]
-	if !ok {
-		cbMap = map[uuid.UUID]func(uuid.UUID, *Node){}
-		c.core.agentCallbacks[agentID] = cbMap
-	}
-
-	cbMap[id] = cb
-
-	return func() {
-		c.core.mutex.Lock()
-		defer c.core.mutex.Unlock()
-		delete(cbMap, id)
-	}
-}
-
-func (c *coordinator) BroadcastToAgents(agents []uuid.UUID, node *Node) error {
-	ctx := context.Background()
-
-	for _, id := range agents {
-		c.core.mutex.Lock()
-		agentSocket, ok := c.core.agentSockets[id]
-		c.core.mutex.Unlock()
-		if !ok {
-			continue
-		}
-
-		// Write the new node from this client to the actively connected agent.
-		err := agentSocket.Enqueue([]*Node{node})
-		if err != nil {
-			c.core.logger.Debug(ctx, "failed to write to agent", slog.Error(err))
-		}
-	}
-
-	return nil
 }

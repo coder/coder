@@ -68,6 +68,7 @@ func TestRun(t *testing.T) {
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,
 	})
+
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	t.Cleanup(func() {

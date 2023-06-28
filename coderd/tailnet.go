@@ -35,7 +35,7 @@ func init() {
 	}
 }
 
-// TODO: ServerTailnet does not currently remove stale peers.
+// TODO(coadler): ServerTailnet does not currently remove stale peers.
 
 // NewServerTailnet creates a new tailnet intended for use by coderd. It
 // automatically falls back to wsconncache if a legacy agent is encountered.
@@ -56,10 +56,17 @@ func NewServerTailnet(
 		return nil, xerrors.Errorf("create tailnet conn: %w", err)
 	}
 
+	id := uuid.New()
+	ma := (*coord.Load()).ServeMultiAgent(id)
+
+	serverCtx, cancel := context.WithCancel(ctx)
 	tn := &ServerTailnet{
+		ctx:         serverCtx,
+		cancel:      cancel,
 		logger:      logger,
 		conn:        conn,
 		coordinator: coord,
+		agentConn:   ma,
 		cache:       cache,
 		agentNodes:  map[uuid.UUID]*tailnetNode{},
 		transport:   tailnetTransport.Clone(),
@@ -69,16 +76,9 @@ func NewServerTailnet(
 	tn.transport.MaxIdleConns = 0
 
 	conn.SetNodeCallback(func(node *tailnet.Node) {
-		tn.nodesMu.Lock()
-		ids := make([]uuid.UUID, 0, len(tn.agentNodes))
-		for id := range tn.agentNodes {
-			ids = append(ids, id)
-		}
-		tn.nodesMu.Unlock()
-
-		err := (*tn.coordinator.Load()).BroadcastToAgents(ids, node)
+		err := tn.agentConn.UpdateSelf(node)
 		if err != nil {
-			tn.logger.Error(context.Background(), "broadcast server node to agents", slog.Error(err))
+			tn.logger.Warn(context.Background(), "broadcast server node to agents", slog.Error(err))
 		}
 	})
 
@@ -99,19 +99,52 @@ func NewServerTailnet(
 		return left
 	})
 
+	go tn.watchAgentUpdates()
 	return tn, nil
+}
+
+func (s *ServerTailnet) watchAgentUpdates() {
+	for {
+		nodes := s.agentConn.NextUpdate(s.ctx)
+		if nodes == nil {
+			return
+		}
+
+		toUpdate := make([]*tailnet.Node, 0)
+
+		s.nodesMu.Lock()
+		for _, node := range nodes {
+			cached, ok := s.agentNodes[node.AgentID]
+			if ok {
+				cached.node = node.Node
+				toUpdate = append(toUpdate, node.Node)
+			}
+		}
+		s.nodesMu.Unlock()
+
+		if len(toUpdate) > 0 {
+			err := s.conn.UpdateNodes(toUpdate, false)
+			if err != nil {
+				s.logger.Error(context.Background(), "update node in server tailnet", slog.Error(err))
+				return
+			}
+		}
+	}
 }
 
 type tailnetNode struct {
 	node           *tailnet.Node
 	lastConnection time.Time
-	stop           func()
 }
 
 type ServerTailnet struct {
+	ctx    context.Context
+	cancel func()
+
 	logger      slog.Logger
 	conn        *tailnet.Conn
 	coordinator *atomic.Pointer[tailnet.Coordinator]
+	agentConn   tailnet.MultiAgentConn
 	cache       *wsconncache.Cache
 	nodesMu     sync.Mutex
 	// agentNodes is a map of agent tailnetNodes the server wants to keep a
@@ -119,23 +152,6 @@ type ServerTailnet struct {
 	agentNodes map[uuid.UUID]*tailnetNode
 
 	transport *http.Transport
-}
-
-func (s *ServerTailnet) updateNode(id uuid.UUID, node *tailnet.Node) {
-	s.nodesMu.Lock()
-	cached, ok := s.agentNodes[id]
-	if ok {
-		cached.node = node
-	}
-	s.nodesMu.Unlock()
-
-	if ok {
-		err := s.conn.UpdateNodes([]*tailnet.Node{node}, false)
-		if err != nil {
-			s.logger.Error(context.Background(), "update node in server tailnet", slog.Error(err))
-			return
-		}
-	}
 }
 
 func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID) (_ *httputil.ReverseProxy, release func(), _ error) {
@@ -188,18 +204,16 @@ func (s *ServerTailnet) getNode(agentID uuid.UUID) (*tailnet.Node, error) {
 			s.nodesMu.Unlock()
 			return nil, xerrors.Errorf("node %q not found", agentID.String())
 		}
-		stop := coord.SubscribeAgent(agentID, s.updateNode)
+
+		err := s.agentConn.SubscribeAgent(agentID, s.conn.Node())
+		if err != nil {
+			return nil, xerrors.Errorf("subscribe agent: %w", err)
+		}
 		tnode = &tailnetNode{
 			node:           node,
 			lastConnection: time.Now(),
-			stop:           stop,
 		}
 		s.agentNodes[agentID] = tnode
-
-		err := coord.BroadcastToAgents([]uuid.UUID{agentID}, s.conn.Node())
-		if err != nil {
-			s.logger.Debug(context.Background(), "broadcast server node to agents", slog.Error(err))
-		}
 	}
 	s.nodesMu.Unlock()
 
@@ -257,7 +271,7 @@ func (*ServerTailnet) nodeIsLegacy(node *tailnet.Node) bool {
 	return node.Addresses[0].Addr() == codersdk.WorkspaceAgentIP
 }
 
-func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (_ *codersdk.WorkspaceAgentConn, release func(), _ error) {
+func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (*codersdk.WorkspaceAgentConn, func(), error) {
 	node, err := s.awaitNodeExists(ctx, agentID, 5*time.Second)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("get agent node: %w", err)
@@ -284,8 +298,13 @@ func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (_ *co
 		})
 	}
 
+	// Since we now have an open conn, be careful to close it if we error
+	// without returning it to the user.
+
 	reachable := conn.AwaitReachable(ctx)
 	if !reachable {
+		ret()
+		conn.Close()
 		return nil, nil, xerrors.New("agent is unreachable")
 	}
 
@@ -298,8 +317,13 @@ func (s *ServerTailnet) DialAgentNetConn(ctx context.Context, agentID uuid.UUID,
 		return nil, xerrors.Errorf("acquire agent conn: %w", err)
 	}
 
+	// Since we now have an open conn, be careful to close it if we error
+	// without returning it to the user.
+
 	node, err := s.getNode(agentID)
 	if err != nil {
+		release()
+		conn.Close()
 		return nil, xerrors.New("get agent node")
 	}
 
@@ -308,11 +332,14 @@ func (s *ServerTailnet) DialAgentNetConn(ctx context.Context, agentID uuid.UUID,
 	ipp := netip.AddrPortFrom(node.Addresses[0].Addr(), uint16(port))
 
 	var nc net.Conn
-	if network == "tcp" {
+	switch network {
+	case "tcp":
 		nc, err = conn.DialContextTCP(ctx, ipp)
-	} else if network == "udp" {
+	case "udp":
 		nc, err = conn.DialContextUDP(ctx, ipp)
-	} else {
+	default:
+		release()
+		conn.Close()
 		return nil, xerrors.Errorf("unknown network %q", network)
 	}
 
@@ -333,6 +360,7 @@ func (c *netConnCloser) Close() error {
 }
 
 func (s *ServerTailnet) Close() error {
+	s.cancel()
 	_ = s.cache.Close()
 	_ = s.conn.Close()
 	s.transport.CloseIdleConnections()

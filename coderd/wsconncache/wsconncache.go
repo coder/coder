@@ -1,5 +1,5 @@
 // Package wsconncache caches workspace agent connections by UUID.
-// Deprecated
+// Deprecated: Use ServerTailnet instead.
 package wsconncache
 
 import (
