@@ -512,7 +512,7 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 // @Param user path string true "User ID, name, or me"
 // @Success 200 {object} codersdk.UserLoginType
 // @Router /users/{user}/login-type [get]
-func (api *API) userLoginType(rw http.ResponseWriter, r *http.Request) {
+func (*API) userLoginType(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx  = r.Context()
 		user = httpmw.UserParam(r)

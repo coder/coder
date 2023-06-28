@@ -1326,7 +1326,7 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 		// These errors are probably because the user is mixing 2 coder deployments.
 		return database.User{}, httpError{
 			code: http.StatusBadRequest,
-			msg:  fmt.Sprintf("Using an invalid jwt to authorize this action. Ensure there is only 1 coder deployment and try again."),
+			msg:  "Using an invalid jwt to authorize this action. Ensure there is only 1 coder deployment and try again.",
 		}
 	}
 	if err != nil {
