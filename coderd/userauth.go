@@ -407,19 +407,6 @@ type GithubOAuth2Config struct {
 // @Success 200 {object} codersdk.AuthMethods
 // @Router /users/authmethods [get]
 func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
-	key, ok := httpmw.APIKeyOptional(r)
-	var currentUserLoginType codersdk.LoginType
-	if ok {
-		user, err := api.Database.GetUserByID(r.Context(), key.UserID)
-		if err != nil {
-			httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		currentUserLoginType = codersdk.LoginType(user.LoginType)
-	}
 	var signInText string
 	var iconURL string
 
@@ -431,8 +418,7 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.AuthMethods{
-		UserAuthenticationType: currentUserLoginType,
-		ConvertToOIDCEnabled:   api.Options.DeploymentValues.EnableOauthAccountConversion.Value(),
+		ConvertToOIDCEnabled: api.Options.DeploymentValues.EnableOauthAccountConversion.Value(),
 		Password: codersdk.AuthMethod{
 			Enabled: !api.DeploymentValues.DisablePasswordAuth.Value(),
 		},

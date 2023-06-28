@@ -593,10 +593,6 @@ func New(options *Options) *API {
 			r.Get("/first", api.firstUser)
 			r.Post("/first", api.postFirstUser)
 			r.Route("/authmethods", func(r chi.Router) {
-				// The API Key allows this method to return the auth method
-				// for the logged-in user. This information is useful for the
-				// caller. If not authenticated, this information is omitted.
-				r.Use(apiKeyMiddlewareOptional)
 				r.Get("/", api.userAuthMethods)
 			})
 
@@ -642,6 +638,7 @@ func New(options *Options) *API {
 					r.Use(httpmw.ExtractUserParam(options.Database, false))
 					r.Delete("/", api.deleteUser)
 					r.Get("/", api.userByName)
+					r.Get("/login-type", api.userLoginType)
 					r.Put("/profile", api.putUserProfile)
 					r.Route("/status", func(r chi.Router) {
 						r.Put("/suspend", api.putSuspendUserAccount())
