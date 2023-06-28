@@ -4,7 +4,7 @@ import { FC, ReactNode } from "react"
 export const useStyles = makeStyles((theme) => ({
   "@global": {
     // Necessary for when this is on lonely pages!
-    "#root": {
+    "html, body, #root, #storybook-root": {
       height: "100vh",
     },
   },
