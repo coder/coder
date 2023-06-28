@@ -840,7 +840,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			// Convert the []interface{} we get to a []string.
 			groupsInterface, ok := groupsRaw.([]interface{})
 			if ok {
-				logger.Debug(ctx, "groups returned in oidc claims",
+				api.Logger.Debug(ctx, "groups returned in oidc claims",
 					slog.F("len", len(groupsInterface)),
 					slog.F("groups", groupsInterface),
 				)
@@ -861,7 +861,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 					groups = append(groups, group)
 				}
 			} else {
-				logger.Debug(ctx, "groups field was an unknown type",
+				api.Logger.Debug(ctx, "groups field was an unknown type",
 					slog.F("type", fmt.Sprintf("%T", groupsRaw)),
 				)
 			}

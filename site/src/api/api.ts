@@ -108,33 +108,12 @@ export const login = async (
   return response.data
 }
 
-export const convertToOauth = async (
-  email: string,
-  password: string,
-  to_login_type: string,
-): Promise<TypesGen.OauthConversionResponse | undefined> => {
-  const payload = JSON.stringify({
-    email,
-    password,
-    to_login_type,
-  })
-
-  try {
-    const response = await axios.post<TypesGen.OauthConversionResponse>(
-      "/api/v2/users/convert-login",
-      payload,
-      {
-        headers: { ...CONTENT_TYPE_JSON },
-      },
-    )
-    return response.data
-  } catch (error) {
-    if (axios.isAxiosError(error) && error.response?.status === 401) {
-      return undefined
-    }
-
-    throw error
-  }
+export const convertToOAUTH = async (request: TypesGen.ConvertLoginRequest) => {
+  const response = await axios.post<TypesGen.OauthConversionResponse>(
+    "/api/v2/users/convert-login",
+    request,
+  )
+  return response.data
 }
 
 export const logout = async (): Promise<void> => {
