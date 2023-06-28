@@ -24,6 +24,12 @@ export const handlers = [
       }),
     )
   }),
+  rest.get("/api/v2/workspaceproxies", async (req, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.json(M.MockWorkspaceProxies),
+    )
+  }),
   // build info
   rest.get("/api/v2/buildinfo", async (req, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockBuildInfo))
