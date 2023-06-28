@@ -169,7 +169,11 @@ func (c *Config) AppInstallations(ctx context.Context, token string) ([]codersdk
 		return nil, false, err
 	}
 	defer res.Body.Close()
-
+	// It's possible the installation URL is misconfigured, so we don't
+	// want to return an error here.
+	if res.StatusCode != http.StatusOK {
+		return nil, false, nil
+	}
 	installs := []codersdk.GitAuthAppInstallation{}
 	if c.Type == codersdk.GitProviderGitHub {
 		var ghInstalls struct {
@@ -180,7 +184,6 @@ func (c *Config) AppInstallations(ctx context.Context, token string) ([]codersdk
 			return nil, false, err
 		}
 		for _, installation := range ghInstalls.Installations {
-
 			account := installation.GetAccount()
 			if account == nil {
 				continue

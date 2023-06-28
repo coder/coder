@@ -4,6 +4,7 @@ import { Endpoints } from "@octokit/types"
 import { GitAuthDevice } from "api/typesGenerated"
 import { Awaiter, createServer } from "../helpers"
 
+// Ensures that a Git auth provider with the device flow functions and completes!
 test("git auth device", async ({ page }) => {
   const device: GitAuthDevice = {
     device_code: "1234",
@@ -13,8 +14,8 @@ test("git auth device", async ({ page }) => {
     verification_uri: "",
   }
 
+  // Start a server to mock the GitHub API.
   const srv = await createServer(gitAuth.devicePort)
-  // The GitHub validate endpoint returns the currently authenticated user!
   srv.use(gitAuth.validatePath, (req, res) => {
     res.write(JSON.stringify(ghUser))
     res.end()
@@ -33,7 +34,8 @@ test("git auth device", async ({ page }) => {
     error: "authorization_pending",
     error_description: "",
   }
-
+  // First we send a result from the API that the token hasn't been
+  // authorized yet to ensure the UI reacts properly.
   const sentPending = new Awaiter()
   srv.use(gitAuth.tokenPath, (req, res) => {
     res.write(JSON.stringify(token))
@@ -46,31 +48,34 @@ test("git auth device", async ({ page }) => {
   })
   await page.getByText(device.user_code).isVisible()
   await sentPending.wait()
+  // Update the token to be valid and ensure the UI updates!
   token.error = ""
   token.access_token = "hello-world"
-  await page.getByText("1 organization authorized").isVisible()
+  await page.waitForSelector("text=1 organization authorized")
 })
 
-test("git auth web", async ({ page }) => {
+test("git auth web", async ({ baseURL, page }) => {
   const srv = await createServer(gitAuth.webPort)
   // The GitHub validate endpoint returns the currently authenticated user!
   srv.use(gitAuth.validatePath, (req, res) => {
     res.write(JSON.stringify(ghUser))
     res.end()
   })
-  srv.use(gitAuth.installationsPath, (req, res) => {
-    res.write(JSON.stringify(ghInstall))
-    res.end()
-  })
   srv.use(gitAuth.tokenPath, (req, res) => {
     res.write(JSON.stringify({ access_token: "hello-world" }))
     res.end()
   })
-
+  srv.use(gitAuth.authPath, (req, res) => {
+    res.redirect(
+      `${baseURL}/gitauth/${gitAuth.webProvider}/callback?code=1234&state=` +
+        req.query.state,
+    )
+  })
   await page.goto(`/gitauth/${gitAuth.webProvider}`, {
     waitUntil: "networkidle",
   })
-  await page.getByText("1 organization authorized").isVisible()
+  // This endpoint doesn't have the installations URL set intentionally!
+  await page.waitForSelector("text=You've authenticated with GitHub!")
 })
 
 const ghUser: Endpoints["GET /user"]["response"]["data"] = {

@@ -446,7 +446,7 @@ export interface GitAuthConfig {
   readonly no_refresh: boolean
   readonly scopes: string[]
   readonly device_flow: boolean
-  readonly device_auth_url: string
+  readonly device_code_url: string
 }
 
 // From codersdk/gitauth.go

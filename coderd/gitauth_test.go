@@ -56,7 +56,8 @@ func TestGitAuthByID(t *testing.T) {
 			}},
 		})
 		coderdtest.CreateFirstUser(t, client)
-		coderdtest.RequestGitAuthCallback(t, "test", client)
+		resp := coderdtest.RequestGitAuthCallback(t, "test", client)
+		_ = resp.Body.Close()
 		auth, err := client.GitAuthByID(context.Background(), "test")
 		require.NoError(t, err)
 		require.True(t, auth.Authenticated)
@@ -79,7 +80,8 @@ func TestGitAuthByID(t *testing.T) {
 			}},
 		})
 		coderdtest.CreateFirstUser(t, client)
-		coderdtest.RequestGitAuthCallback(t, "test", client)
+		resp := coderdtest.RequestGitAuthCallback(t, "test", client)
+		_ = resp.Body.Close()
 		auth, err := client.GitAuthByID(context.Background(), "test")
 		require.NoError(t, err)
 		require.True(t, auth.Authenticated)
@@ -119,7 +121,8 @@ func TestGitAuthByID(t *testing.T) {
 			}},
 		})
 		coderdtest.CreateFirstUser(t, client)
-		coderdtest.RequestGitAuthCallback(t, "test", client)
+		resp := coderdtest.RequestGitAuthCallback(t, "test", client)
+		_ = resp.Body.Close()
 		auth, err := client.GitAuthByID(context.Background(), "test")
 		require.NoError(t, err)
 		require.True(t, auth.Authenticated)

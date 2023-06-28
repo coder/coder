@@ -74,6 +74,7 @@ export default defineConfig({
       CODER_GITAUTH_1_TYPE: "github",
       CODER_GITAUTH_1_CLIENT_ID: "client",
       CODER_GITAUTH_1_CLIENT_SECRET: "secret",
+      CODER_GITAUTH_1_AUTH_URL: localURL(gitAuth.webPort, gitAuth.authPath),
       CODER_GITAUTH_1_TOKEN_URL: localURL(gitAuth.webPort, gitAuth.tokenPath),
       CODER_GITAUTH_1_DEVICE_CODE_URL: localURL(
         gitAuth.webPort,

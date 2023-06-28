@@ -597,7 +597,7 @@
       "app_installations_url": "string",
       "auth_url": "string",
       "client_id": "string",
-      "device_auth_url": "string",
+      "device_code_url": "string",
       "device_flow": true,
       "id": "string",
       "no_refresh": true,
@@ -1885,7 +1885,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "app_installations_url": "string",
           "auth_url": "string",
           "client_id": "string",
-          "device_auth_url": "string",
+          "device_code_url": "string",
           "device_flow": true,
           "id": "string",
           "no_refresh": true,
@@ -2220,7 +2220,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "app_installations_url": "string",
         "auth_url": "string",
         "client_id": "string",
-        "device_auth_url": "string",
+        "device_code_url": "string",
         "device_flow": true,
         "id": "string",
         "no_refresh": true,
@@ -2583,6 +2583,71 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `count` | integer                                 | false    |              |             |
 | `users` | array of [codersdk.User](#codersdkuser) | false    |              |             |
 
+## codersdk.GitAuth
+
+```json
+{
+  "app_install_url": "string",
+  "app_installable": true,
+  "authenticated": true,
+  "device": true,
+  "installations": [
+    {
+      "account": {
+        "avatar_url": "string",
+        "login": "string",
+        "name": "string",
+        "profile_url": "string"
+      },
+      "configure_url": "string",
+      "id": 0
+    }
+  ],
+  "type": "string",
+  "user": {
+    "avatar_url": "string",
+    "login": "string",
+    "name": "string",
+    "profile_url": "string"
+  }
+}
+```
+
+### Properties
+
+| Name              | Type                                                                        | Required | Restrictions | Description                                                             |
+| ----------------- | --------------------------------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------- |
+| `app_install_url` | string                                                                      | false    |              | App install URL is the URL to install the app.                          |
+| `app_installable` | boolean                                                                     | false    |              | App installable is true if the request for app installs was successful. |
+| `authenticated`   | boolean                                                                     | false    |              |                                                                         |
+| `device`          | boolean                                                                     | false    |              |                                                                         |
+| `installations`   | array of [codersdk.GitAuthAppInstallation](#codersdkgitauthappinstallation) | false    |              | Installations are the installations that the user has access to.        |
+| `type`            | string                                                                      | false    |              |                                                                         |
+| `user`            | [codersdk.GitAuthUser](#codersdkgitauthuser)                                | false    |              | User is the user that authenticated with the provider.                  |
+
+## codersdk.GitAuthAppInstallation
+
+```json
+{
+  "account": {
+    "avatar_url": "string",
+    "login": "string",
+    "name": "string",
+    "profile_url": "string"
+  },
+  "configure_url": "string",
+  "id": 0
+}
+```
+
+### Properties
+
+| Name            | Type                                         | Required | Restrictions | Description |
+| --------------- | -------------------------------------------- | -------- | ------------ | ----------- |
+| `account`       | [codersdk.GitAuthUser](#codersdkgitauthuser) | false    |              |             |
+| `configure_url` | string                                       | false    |              |             |
+| `id`            | integer                                      | false    |              |             |
+
 ## codersdk.GitAuthConfig
 
 ```json
@@ -2591,7 +2656,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "app_installations_url": "string",
   "auth_url": "string",
   "client_id": "string",
-  "device_auth_url": "string",
+  "device_code_url": "string",
   "device_flow": true,
   "id": "string",
   "no_refresh": true,
@@ -2611,7 +2676,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `app_installations_url` | string          | false    |              |             |
 | `auth_url`              | string          | false    |              |             |
 | `client_id`             | string          | false    |              |             |
-| `device_auth_url`       | string          | false    |              |             |
+| `device_code_url`       | string          | false    |              |             |
 | `device_flow`           | boolean         | false    |              |             |
 | `id`                    | string          | false    |              |             |
 | `no_refresh`            | boolean         | false    |              |             |
@@ -2620,6 +2685,48 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `token_url`             | string          | false    |              |             |
 | `type`                  | string          | false    |              |             |
 | `validate_url`          | string          | false    |              |             |
+
+## codersdk.GitAuthDevice
+
+```json
+{
+  "device_code": "string",
+  "expires_in": 0,
+  "interval": 0,
+  "user_code": "string",
+  "verification_uri": "string"
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description |
+| ------------------ | ------- | -------- | ------------ | ----------- |
+| `device_code`      | string  | false    |              |             |
+| `expires_in`       | integer | false    |              |             |
+| `interval`         | integer | false    |              |             |
+| `user_code`        | string  | false    |              |             |
+| `verification_uri` | string  | false    |              |             |
+
+## codersdk.GitAuthUser
+
+```json
+{
+  "avatar_url": "string",
+  "login": "string",
+  "name": "string",
+  "profile_url": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+| ------------- | ------ | -------- | ------------ | ----------- |
+| `avatar_url`  | string | false    |              |             |
+| `login`       | string | false    |              |             |
+| `name`        | string | false    |              |             |
+| `profile_url` | string | false    |              |             |
 
 ## codersdk.GitProvider
 

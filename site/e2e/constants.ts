@@ -15,6 +15,7 @@ export const gitAuth = {
   devicePort: 50515,
   webPort: 50516,
 
+  authPath: "/auth",
   tokenPath: "/token",
   codePath: "/code",
   validatePath: "/validate",

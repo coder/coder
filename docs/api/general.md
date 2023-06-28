@@ -204,7 +204,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "app_installations_url": "string",
           "auth_url": "string",
           "client_id": "string",
-          "device_auth_url": "string",
+          "device_code_url": "string",
           "device_flow": true,
           "id": "string",
           "no_refresh": true,

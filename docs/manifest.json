@@ -452,6 +452,10 @@
           "path": "./api/files.md"
         },
         {
+          "title": "Git",
+          "path": "./api/git.md"
+        },
+        {
           "title": "Insights",
           "path": "./api/insights.md"
         },
