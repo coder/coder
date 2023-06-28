@@ -204,7 +204,7 @@ coder:
   # coder.tolerations -- Tolerations for tainted nodes.
   # See: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
   tolerations:
-    {}
+    []
     # - key: "key"
     #   operator: "Equal"
     #   value: "value"
@@ -274,6 +274,196 @@ coder:
 
   # coder.command -- The command to use when running the Coder container. Used
   # for customizing the location of the `coder` binary in your image.
+  command:
+    - /opt/coder
+
+# provisionerd -- The configuration for the external provisionerd server. Note
+# that this is optional and requires an enterprise license to use.
+provisionerd:
+  # provisionerd.replicaCount -- The number of provisionerd replicas to run. If
+  # set to 0, the Deployment and shared Secret key will not be created.
+  #
+  # If you are using external provisioner daemons, you should set
+  # `CODER_PROVISIONER_DAEMONS` to `0` in `coder.env` to disable the built-in
+  # provisioners.
+  replicaCount: 0
+
+  # provisionerd.env -- The environment variables to set for provisionerd.
+  env: []
+  # - name: "CODER_ACCESS_URL"
+  #   value: "https://coder.example.com"
+
+  # provisionerd.image -- The image to use for provisionerd.
+  image:
+    # provisionerd.image.repo -- The repository of the image.
+    repo: "ghcr.io/coder/coder"
+    # provisionerd.image.tag -- The tag of the image, defaults to
+    # {{.Chart.AppVersion}} if not set. If you're using the chart directly from
+    # git, the default app version will not work and you'll need to set this
+    # value. The helm chart helpfully fails quickly in this case.
+    tag: ""
+    # provisionerd.image.pullPolicy -- The pull policy to use for the image.
+    # See:
+    # https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy
+    pullPolicy: IfNotPresent
+    # provisionerd.image.pullSecrets -- The secrets used for pulling the Coder
+    # image from a private registry.
+    pullSecrets: []
+    #  - name: "pull-secret"
+
+  # provisionerd.initContainers -- Init containers for the deployment. See:
+  # https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
+  initContainers:
+    []
+    # - name: init-container
+    #   image: busybox:1.28
+    #   command: ['sh', '-c', "sleep 2"]
+
+  # provisionerd.annotations -- The Deployment annotations. See:
+  # https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+  annotations: {}
+
+  # provisionerd.labels -- The Deployment labels. See:
+  # https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+  labels: {}
+
+  # provisionerd.podAnnotations -- The pod annotations. See:
+  # https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+  podAnnotations: {}
+
+  # provisionerd.podLabels -- The pod labels. See:
+  # https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+  podLabels: {}
+
+  # provisionerd.serviceAccount -- Configuration for the automatically created
+  # service account. Creation of the service account cannot be disabled.
+  serviceAccount:
+    # provisionerd.serviceAccount.workspacePerms -- Whether or not to grant the
+    # provisionerd service account permissions to manage workspaces. This
+    # includes permission to manage pods and persistent volume claims in the
+    # deployment namespace.
+    #
+    # It is recommended to keep this on if you are using Kubernetes templates
+    # within Coder.
+    workspacePerms: true
+    # provisionerd.serviceAccount.enableDeployments -- Provides the service
+    # account permission to manage Kubernetes deployments.
+    enableDeployments: false
+    # provisionerd.serviceAccount.annotations -- The service account
+    # annotations.
+    annotations: {}
+    # provisionerd.serviceAccount.name -- The service account name.
+    name: coder-provisionerd
+
+  # provisionerd.securityContext -- Fields related to the container's security
+  # context (as opposed to the pod). Some fields are also present in the pod
+  # security context, in which case these values will take precedence.
+  securityContext:
+    # provisionerd.securityContext.runAsNonRoot -- Requires that the coder
+    # container runs as an unprivileged user. If setting runAsUser to 0 (root),
+    # this will need to be set to false.
+    runAsNonRoot: true
+    # provisionerd.securityContext.runAsUser -- Sets the user id of the
+    # container. For security reasons, we recommend using a non-root user.
+    runAsUser: 1000
+    # provisionerd.securityContext.runAsGroup -- Sets the group id of the
+    # container.  For security reasons, we recommend using a non-root group.
+    runAsGroup: 1000
+    # provisionerd.securityContext.readOnlyRootFilesystem -- Mounts the
+    # container's root filesystem as read-only.
+    readOnlyRootFilesystem: null
+    # provisionerd.securityContext.seccompProfile -- Sets the seccomp profile
+    # for the provisionerd container.
+    seccompProfile:
+      type: RuntimeDefault
+    # provisionerd.securityContext.allowPrivilegeEscalation -- Controls whether
+    # the container can gain additional privileges, such as escalating to
+    # root. It is recommended to leave this setting disabled in production.
+    allowPrivilegeEscalation: false
+
+  # provisionerd.volumes -- A list of extra volumes to add to each pod.
+  volumes: []
+  # - name: "my-volume"
+  #   emptyDir: {}
+
+  # provisionerd.volumeMounts -- A list of extra volume mounts to add to each
+  # pod.
+  volumeMounts: []
+  # - name: "my-volume"
+  #   mountPath: "/mnt/my-volume"
+
+  # provisionerd.lifecycle -- container lifecycle handlers for the Coder
+  # container, allowing for lifecycle events such as postStart and preStop
+  # events
+  # See: https://kubernetes.io/docs/tasks/configure-pod-container/attach-handler-lifecycle-event/
+  lifecycle:
+    {}
+    # postStart:
+    #   exec:
+    #     command: ["/bin/sh", "-c", "echo postStart"]
+    # preStop:
+    #   exec:
+    #     command: ["/bin/sh","-c","echo preStart"]
+
+  # provisionerd.resources -- The resources to request for each replica. These
+  # are optional and are not set by default.
+  resources:
+    {}
+    # limits:
+    #   cpu: 100m
+    #   memory: 128Mi
+    # requests:
+    #   cpu: 100m
+    #   memory: 128Mi
+
+  # provisionerd.certs -- CA bundles to mount inside each pod.
+  certs:
+    # provisionerd.certs.secrets -- A list of CA bundle secrets to mount into
+    # each pod. The secrets should exist in the same namespace as the Helm
+    # deployment.
+    #
+    # The given key in each secret is mounted at
+    # `/etc/ssl/certs/{secret_name}.crt`.
+    secrets:
+      []
+      # - name: "my-ca-bundle"
+      #   key: "ca-bundle.crt"
+
+  # provisionerd.affinity -- Allows specifying an affinity rule for the
+  # `provisionerd` deployment. The default rule prefers to schedule coder pods
+  # on different nodes, which is only applicable if `provisionerd.replicaCount`
+  # is greater than 1.
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/instance
+                  operator: In
+                  values:
+                    - "coder-provisionerd"
+            topologyKey: kubernetes.io/hostname
+          weight: 1
+
+  # provisionerd.tolerations -- Tolerations for tainted nodes.
+  # See: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+  tolerations:
+    []
+    # - key: "key"
+    #   operator: "Equal"
+    #   value: "value"
+    #   effect: "NoSchedule"
+
+  # provisionerd.nodeSelector -- Node labels for constraining provisionerd pods
+  # to nodes.
+  # See: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
+  nodeSelector: {}
+  #  kubernetes.io/os: linux
+
+  # provisionerd.command -- The command to use when running the provisionerd
+  # container.  Used for customizing the location of the `coder` binary in your
+  # image.
   command:
     - /opt/coder
 

@@ -1,0 +1,8 @@
+coder:
+  image:
+    tag: latest
+
+provisionerd:
+  replicaCount: 1
+  image:
+    tag: latest

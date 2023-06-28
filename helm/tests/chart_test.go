@@ -52,6 +52,18 @@ var TestCases = []TestCase{
 		name:          "command",
 		expectedError: "",
 	},
+	{
+		name:          "provisionerd_basic",
+		expectedError: "",
+	},
+	{
+		name:          "provisionerd_missing_values",
+		expectedError: `You must specify the provisionerd.image.tag value if you're installing the Helm chart directly from Git and you have at least one provisionerd replica.`,
+	},
+	{
+		name:          "provisionerd_full",
+		expectedError: "",
+	},
 }
 
 type TestCase struct {

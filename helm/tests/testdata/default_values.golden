@@ -20,6 +20,7 @@ kind: Role
 metadata:
   name: coder-workspace-perms
 rules:
+  
   - apiGroups: [""]
     resources: ["pods"]
     verbs:

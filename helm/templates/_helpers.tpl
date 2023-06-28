@@ -46,6 +46,16 @@ Coder Docker image URI
 {{- end }}
 
 {{/*
+Provisionerd Docker image URI
+*/}}
+{{- define "provisionerd.image" -}}
+{{- if and (eq .Values.provisionerd.image.tag "") (eq .Chart.AppVersion "0.1.0") -}}
+{{ fail "You must specify the provisionerd.image.tag value if you're installing the Helm chart directly from Git and you have at least one provisionerd replica." }}
+{{- end -}}
+{{ .Values.provisionerd.image.repo }}:{{ .Values.provisionerd.image.tag | default (printf "v%v" .Chart.AppVersion) }}
+{{- end }}
+
+{{/*
 Coder TLS enabled.
 */}}
 {{- define "coder.tlsEnabled" -}}
@@ -116,6 +126,32 @@ volumes: []
 {{- end }}
 
 {{/*
+Provisionerd volume definitions
+*/}}
+{{- define "provisionerd.volumeList" }}
+{{ range $secret := .Values.provisionerd.certs.secrets -}}
+- name: "ca-cert-{{ $secret.name }}"
+  secret:
+    secretName: {{ $secret.name | quote }}
+{{ end -}}
+{{ if gt (len .Values.provisionerd.volumes) 0 -}}
+{{ toYaml .Values.provisionerd.volumes }}
+{{ end -}}
+{{- end }}
+
+{{/*
+Provisionerd volumes yaml.
+*/}}
+{{- define "provisionerd.volumes" }}
+{{- if trim (include "provisionerd.volumeList" .) -}}
+volumes:
+{{- include "provisionerd.volumeList" . -}}
+{{- else -}}
+volumes: []
+{{- end -}}
+{{- end }}
+
+{{/*
 Coder volume mounts.
 */}}
 {{- define "coder.volumeMountList" }}
@@ -142,6 +178,33 @@ Coder volume mounts yaml.
 {{- if trim (include "coder.volumeMountList" .) -}}
 volumeMounts:
 {{- include "coder.volumeMountList" . -}}
+{{- else -}}
+volumeMounts: []
+{{- end -}}
+{{- end }}
+
+{{/*
+Provisionerd volume mounts.
+*/}}
+{{- define "provisionerd.volumeMountList" }}
+{{ range $secret := .Values.provisionerd.certs.secrets -}}
+- name: "ca-cert-{{ $secret.name }}"
+  mountPath: "/etc/ssl/certs/{{ $secret.name }}.crt"
+  subPath: {{ $secret.key | quote }}
+  readOnly: true
+{{ end -}}
+{{ if gt (len .Values.provisionerd.volumeMounts) 0 -}}
+{{ toYaml .Values.provisionerd.volumeMounts }}
+{{ end -}}
+{{- end }}
+
+{{/*
+Provisionerd volume mounts yaml.
+*/}}
+{{- define "provisionerd.volumeMounts" }}
+{{- if trim (include "provisionerd.volumeMountList" .) -}}
+volumeMounts:
+{{- include "provisionerd.volumeMountList" . -}}
 {{- else -}}
 volumeMounts: []
 {{- end -}}

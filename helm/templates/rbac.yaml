@@ -5,6 +5,10 @@ kind: Role
 metadata:
   name: coder-workspace-perms
 rules:
+  {{/*
+    IF YOU CHANGE THESE PERMISSIONS PLEASE ALSO UPDATE THE PERMISSIONS FOR
+    PROVISIONERDS BELOW.
+  */}}
   - apiGroups: [""]
     resources: ["pods"]
     verbs:
@@ -54,4 +58,62 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: coder-workspace-perms
+{{- end }}
+
+{{- if and (gt (int .Values.provisionerd.replicaCount) 0) .Values.provisionerd.serviceAccount.workspacePerms }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: coder-provisionerd-workspace-perms
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs:
+    - create
+    - delete
+    - deletecollection
+    - get
+    - list
+    - patch
+    - update
+    - watch
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs:
+    - create
+    - delete
+    - deletecollection
+    - get
+    - list
+    - patch
+    - update
+    - watch
+{{- if .Values.provisionerd.serviceAccount.enableDeployments }}
+  - apiGroups:
+    - apps
+    resources:
+    - deployments
+    verbs:
+    - create
+    - delete
+    - deletecollection
+    - get
+    - list
+    - patch
+    - update
+    - watch
+{{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Values.provisionerd.serviceAccount.name | quote }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.provisionerd.serviceAccount.name | quote }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: coder-provisionerd-workspace-perms
 {{- end }}

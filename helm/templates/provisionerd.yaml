@@ -1,0 +1,99 @@
+{{- if gt (int .Values.provisionerd.replicaCount) 0 }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.provisionerd.serviceAccount.name | quote }}
+  annotations: {{ toYaml .Values.provisionerd.serviceAccount.annotations | nindent 4 }}
+  labels:
+    {{- include "coder.labels" . | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coder-provisionerd
+  labels:
+    {{- include "coder.labels" . | nindent 4 }}
+    {{- with .Values.provisionerd.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  annotations: {{ toYaml .Values.provisionerd.annotations | nindent 4}}
+spec:
+  replicas: {{ .Values.provisionerd.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "coder.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "coder.labels" . | nindent 8 }}
+        {{- with .Values.provisionerd.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        {{- toYaml .Values.provisionerd.podAnnotations | nindent 8  }}
+    spec:
+      serviceAccountName: {{ .Values.provisionerd.serviceAccount.name | quote }}
+      restartPolicy: Always
+      {{- with .Values.provisionerd.image.pullSecrets }}
+      imagePullSecrets:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: 60
+      {{- with .Values.provisionerd.affinity }}
+      affinity:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.provisionerd.tolerations }}
+      tolerations:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.provisionerd.nodeSelector }}
+      nodeSelector:
+      {{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.provisionerd.initContainers }}
+      initContainers:
+      {{ toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: coder
+          image: {{ include "provisionerd.image" . | quote }}
+          imagePullPolicy: {{ .Values.provisionerd.image.pullPolicy }}
+          command:
+            {{- toYaml .Values.provisionerd.command | nindent 12 }}
+          args:
+            - provisionerd
+            - start
+          resources:
+            {{- toYaml .Values.provisionerd.resources | nindent 12 }}
+          lifecycle:
+            {{- toYaml .Values.provisionerd.lifecycle | nindent 12 }}
+          env:
+            - name: CODER_PROMETHEUS_ADDRESS
+              value: "0.0.0.0:2112"
+            {{- with .Values.provisionerd.env -}}
+            {{ toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            {{- range .Values.provisionerd.env }}
+            {{- if eq .name "CODER_PROMETHEUS_ENABLE" }}
+            {{/*
+            This sadly has to be nested to avoid evaluating the second part
+            of the condition too early and potentially getting type errors if
+            the value is not a string (like a `valueFrom`). We do not support
+            `valueFrom` for this env var specifically.
+            */}}
+            {{- if eq .value "true" }}
+            - name: "prometheus-http"
+              containerPort: 2112
+              protocol: TCP
+            {{- end }}
+            {{- end }}
+            {{- end }}
+          securityContext: {{ toYaml .Values.provisionerd.securityContext | nindent 12 }}
+          {{/* TODO: readiness and liveness probes */}}
+          {{- include "provisionerd.volumeMounts" . | nindent 10 }}
+
+      {{- include "provisionerd.volumes" . | nindent 6 }}
+{{- end }}

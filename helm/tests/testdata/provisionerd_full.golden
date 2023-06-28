@@ -3,9 +3,25 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: "coder-service-account"
+  name: "coder"
   annotations: 
-    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/coder-service-account
+    {}
+  labels:
+    helm.sh/chart: coder-0.1.0
+    app.kubernetes.io/name: coder
+    app.kubernetes.io/instance: release-name
+    app.kubernetes.io/part-of: coder
+    app.kubernetes.io/version: "0.1.0"
+    app.kubernetes.io/managed-by: Helm
+---
+# Source: coder/templates/provisionerd.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: "coder-provisioner-custom-name"
+  annotations: 
+    service-account-annotation-test-1: service-account-annotation-test-1 value
+    service-account-annotation-test-2: service-account-annotation-test-2 value
   labels:
     helm.sh/chart: coder-0.1.0
     app.kubernetes.io/name: coder
@@ -48,10 +64,10 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: "coder-service-account"
+  name: "coder"
 subjects:
   - kind: ServiceAccount
-    name: "coder-service-account"
+    name: "coder"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -116,7 +132,7 @@ spec:
       annotations:
         {}
     spec:
-      serviceAccountName: "coder-service-account"
+      serviceAccountName: "coder"
       restartPolicy: Always
       terminationGracePeriodSeconds: 60
       affinity:
@@ -184,3 +200,133 @@ spec:
               scheme: "HTTP"
           volumeMounts: []
       volumes: []
+---
+# Source: coder/templates/provisionerd.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coder-provisionerd
+  labels:
+    helm.sh/chart: coder-0.1.0
+    app.kubernetes.io/name: coder
+    app.kubernetes.io/instance: release-name
+    app.kubernetes.io/part-of: coder
+    app.kubernetes.io/version: "0.1.0"
+    app.kubernetes.io/managed-by: Helm
+    label-test-1: label-test-1 value
+    label-test-2: label-test-2 value
+  annotations: 
+    annotation-test-1: annotation-test-1 value
+    annotation-test-2: annotation-test-2 value
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: coder
+      app.kubernetes.io/instance: release-name
+  template:
+    metadata:
+      labels:
+        helm.sh/chart: coder-0.1.0
+        app.kubernetes.io/name: coder
+        app.kubernetes.io/instance: release-name
+        app.kubernetes.io/part-of: coder
+        app.kubernetes.io/version: "0.1.0"
+        app.kubernetes.io/managed-by: Helm
+        pod-label-test-1: pod-label-test-1 value
+        pod-label-test-2: pod-label-test-2 value
+      annotations:
+        pod-annotation-test-1: pod-annotation-test-1 value
+        pod-annotation-test-2: pod-annotation-test-2 value
+    spec:
+      serviceAccountName: "coder-provisioner-custom-name"
+      restartPolicy: Always
+      imagePullSecrets:
+        - name: hi
+      terminationGracePeriodSeconds: 60
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app.kubernetes.io/instance
+                  operator: In
+                  values:
+                  - coder-provisionerd-custom
+              topologyKey: kubernetes.io/hostname
+            weight: 1
+      tolerations:
+        - effect: NoSchedule
+          key: key
+          operator: Equal
+          value: value
+      nodeSelector:
+      
+        key: value
+      initContainers:
+      
+        - command:
+          - sh
+          - -c
+          - sleep 2
+          image: busybox:1.28
+          name: init-container
+      containers:
+        - name: coder
+          image: "codercom/provisionerd:latest"
+          imagePullPolicy: Always
+          command:
+            - /opt/coder2
+          args:
+            - provisionerd
+            - start
+          resources:
+            limits:
+              cpu: 100m
+              memory: 128Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                - /bin/sh
+                - -c
+                - echo postStart
+            preStop:
+              exec:
+                command:
+                - /bin/sh
+                - -c
+                - echo preStart
+          env:
+            - name: CODER_PROMETHEUS_ADDRESS
+              value: "0.0.0.0:2112"
+            - name: TEST
+              value: test
+          ports:
+          securityContext: 
+            allowPrivilegeEscalation: true
+            readOnlyRootFilesystem: true
+            runAsGroup: 1001
+            runAsNonRoot: false
+            runAsUser: 1001
+            seccompProfile:
+              type: CoolProfile
+          
+          volumeMounts:
+          - name: "ca-cert-my-ca-bundle"
+            mountPath: "/etc/ssl/certs/my-ca-bundle.crt"
+            subPath: "ca-bundle.crt"
+            readOnly: true
+          - mountPath: /coder-provisioner-volume
+            name: coder-provisioner-volume
+          
+      volumes:
+      - name: "ca-cert-my-ca-bundle"
+        secret:
+          secretName: "my-ca-bundle"
+      - emptyDir: {}
+        name: coder-provisioner-volume

@@ -1,0 +1,7 @@
+coder:
+  image:
+    tag: latest
+
+provisionerd:
+  replicaCount: 1
+  # no image tag set (default)
