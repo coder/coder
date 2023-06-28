@@ -272,7 +272,7 @@ const getPendingWorkspaceStatusText = (
 ): string => {
   const { t } = i18next
 
-  if (provisionerJob === undefined || provisionerJob.queue_size === 0) {
+  if (!provisionerJob || provisionerJob.queue_size === 0) {
     return t("workspaceStatus.pending", { ns: "common" })
   }
   return "Position in queue: " + provisionerJob.queue_position

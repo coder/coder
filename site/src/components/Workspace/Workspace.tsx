@@ -218,9 +218,10 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               <AlertTitle>Workspace build is pending</AlertTitle>
               <AlertDetail>
                 <div className={styles.alertPendingInQueue}>
-                  This build job is waiting for a provisioner to become
-                  available. If you have been waiting for an extended period,
-                  contact your administrator for assistance.
+                  This workspace build job is waiting for a provisioner to
+                  become available. If you have been waiting for an extended
+                  period of time, please contact your administrator for
+                  assistance.
                 </div>
                 <div>
                   Position in queue:{" "}

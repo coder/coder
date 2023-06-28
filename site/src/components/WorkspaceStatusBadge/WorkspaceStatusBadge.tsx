@@ -43,8 +43,6 @@ export const WorkspaceStatusText: FC<
     workspace.latest_build.status,
   )
 
-  workspace.latest_build.job.queue_size
-
   return (
     <ChooseOne>
       {/* <ImpendingDeletionText/> determines its own visibility */}
