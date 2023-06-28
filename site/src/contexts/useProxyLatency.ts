@@ -37,7 +37,7 @@ export const useProxyLatency = (
 ): {
   // Refetch can be called to refetch the proxy latencies.
   // Until the new values are loaded, the old values will still be used.
-  refetch: () => void
+  refetch: () => Date
   proxyLatencies: Record<string, ProxyLatencyReport>
 } => {
   // maxStoredLatencies is the maximum number of latencies to store per proxy in local storage.
@@ -62,7 +62,9 @@ export const useProxyLatency = (
     new Date().toISOString(),
   )
   const refetch = () => {
-    setLatestFetchRequest(new Date().toISOString())
+    const d = new Date()
+    setLatestFetchRequest(d.toISOString())
+    return d
   }
 
   // Only run latency updates when the proxies change.
