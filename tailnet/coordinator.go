@@ -145,26 +145,11 @@ func (c *coordinator) ServeMultiAgent(id uuid.UUID) MultiAgentConn {
 		ID:                id,
 		Logger:            c.core.logger,
 		AgentIsLegacyFunc: c.core.agentIsLegacy,
-		OnSubscribe: func(id, agent uuid.UUID, node *Node) error {
-			return c.core.multiAgentUpdate(id, []uuid.UUID{agent}, node)
-		},
-		OnNodeUpdate: c.core.multiAgentUpdate,
-		OnClose:      c.core.removeMultiAgent,
+		OnSubscribe:       c.core.multiAgentSubscribe,
+		OnNodeUpdate:      c.core.multiAgentUpdate,
+		// OnClose:           c.core.removeMultiAgent,
 	}).Init()
-	c.core.addMultiAgent(m)
 	return m
-}
-
-func (c *core) addMultiAgent(m *MultiAgent) {
-	c.mutex.Lock()
-	c.multiAgents[m.ID] = m
-	c.mutex.Unlock()
-}
-
-func (c *core) removeMultiAgent(id uuid.UUID) {
-	c.mutex.Lock()
-	delete(c.multiAgents, id)
-	c.mutex.Unlock()
 }
 
 // core is an in-memory structure of Node and TrackedConn mappings.  Its methods may be called from multiple goroutines;
@@ -177,17 +162,25 @@ type core struct {
 	// nodes maps agent and connection IDs their respective node.
 	nodes map[uuid.UUID]*Node
 	// agentSockets maps agent IDs to their open websocket.
-	agentSockets map[uuid.UUID]*TrackedConn
+	agentSockets map[uuid.UUID]Enqueueable
 	// agentToConnectionSockets maps agent IDs to connection IDs of conns that
 	// are subscribed to updates for that agent.
-	agentToConnectionSockets map[uuid.UUID]map[uuid.UUID]*TrackedConn
+	agentToConnectionSockets map[uuid.UUID]map[uuid.UUID]Enqueueable
 
 	// agentNameCache holds a cache of agent names. If one of them disappears,
 	// it's helpful to have a name cached for debugging.
 	agentNameCache *lru.Cache[uuid.UUID, string]
 
 	legacyAgents map[uuid.UUID]struct{}
-	multiAgents  map[uuid.UUID]*MultiAgent
+}
+
+type Enqueueable interface {
+	UniqueID() uuid.UUID
+	Enqueue(n []*Node) error
+	Name() string
+	Stats() (start, lastWrite int64)
+	Overwrites() int64
+	Close() error
 }
 
 func newCore(logger slog.Logger) *core {
@@ -200,11 +193,10 @@ func newCore(logger slog.Logger) *core {
 		logger:                   logger,
 		closed:                   false,
 		nodes:                    map[uuid.UUID]*Node{},
-		agentSockets:             map[uuid.UUID]*TrackedConn{},
-		agentToConnectionSockets: map[uuid.UUID]map[uuid.UUID]*TrackedConn{},
+		agentSockets:             map[uuid.UUID]Enqueueable{},
+		agentToConnectionSockets: map[uuid.UUID]map[uuid.UUID]Enqueueable{},
 		agentNameCache:           nameCache,
 		legacyAgents:             map[uuid.UUID]struct{}{},
-		multiAgents:              map[uuid.UUID]*MultiAgent{},
 	}
 }
 
@@ -220,22 +212,38 @@ type TrackedConn struct {
 
 	// ID is an ephemeral UUID used to uniquely identify the owner of the
 	// connection.
-	ID uuid.UUID
+	id uuid.UUID
 
-	Name       string
-	Start      int64
-	LastWrite  int64
-	Overwrites int64
+	name       string
+	start      int64
+	lastWrite  int64
+	overwrites int64
 }
 
 func (t *TrackedConn) Enqueue(n []*Node) (err error) {
-	atomic.StoreInt64(&t.LastWrite, time.Now().Unix())
+	atomic.StoreInt64(&t.lastWrite, time.Now().Unix())
 	select {
 	case t.updates <- n:
 		return nil
 	default:
 		return ErrWouldBlock
 	}
+}
+
+func (t *TrackedConn) UniqueID() uuid.UUID {
+	return t.id
+}
+
+func (t *TrackedConn) Name() string {
+	return t.name
+}
+
+func (t *TrackedConn) Stats() (start, lastWrite int64) {
+	return t.start, atomic.LoadInt64(&t.lastWrite)
+}
+
+func (t *TrackedConn) Overwrites() int64 {
+	return t.overwrites
 }
 
 // Close the connection and cancel the context for reading node updates from the queue
@@ -315,10 +323,10 @@ func NewTrackedConn(ctx context.Context, cancel func(), conn net.Conn, id uuid.U
 		cancel:     cancel,
 		updates:    updates,
 		logger:     logger,
-		ID:         id,
-		Start:      now,
-		LastWrite:  now,
-		Overwrites: overwrites,
+		id:         id,
+		start:      now,
+		lastWrite:  now,
+		overwrites: overwrites,
 	}
 }
 
@@ -420,14 +428,18 @@ func (c *core) initAndTrackClient(
 
 	// Insert this connection into a map so the agent
 	// can publish node updates.
-	connectionSockets, ok := c.agentToConnectionSockets[agent]
-	if !ok {
-		connectionSockets = map[uuid.UUID]*TrackedConn{}
-		c.agentToConnectionSockets[agent] = connectionSockets
-	}
-	connectionSockets[id] = tc
+	c.initOrSetAgentConnectionSocketLocked(agent, tc)
 	logger.Debug(ctx, "added tracked connection")
 	return tc, nil
+}
+
+func (c *core) initOrSetAgentConnectionSocketLocked(agentID uuid.UUID, enq Enqueueable) {
+	connectionSockets, ok := c.agentToConnectionSockets[agentID]
+	if !ok {
+		connectionSockets = map[uuid.UUID]Enqueueable{}
+		c.agentToConnectionSockets[agentID] = connectionSockets
+	}
+	connectionSockets[enq.UniqueID()] = enq
 }
 
 func (c *core) clientDisconnected(id, agent uuid.UUID) {
@@ -465,15 +477,16 @@ func (c *core) clientNodeUpdate(id, agent uuid.UUID, node *Node) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	return c.clientNodeUpdateUnlocked(id, agent, node)
-}
-
-func (c *core) clientNodeUpdateUnlocked(id, agent uuid.UUID, node *Node) error {
-	logger := c.clientLogger(id, agent)
 	// Update the node of this client in our in-memory map. If an agent entirely
 	// shuts down and reconnects, it needs to be aware of all clients attempting
 	// to establish connections.
 	c.nodes[id] = node
+
+	return c.clientNodeUpdateLocked(id, agent, node)
+}
+
+func (c *core) clientNodeUpdateLocked(id, agent uuid.UUID, node *Node) error {
+	logger := c.clientLogger(id, agent)
 
 	agentSocket, ok := c.agentSockets[agent]
 	if !ok {
@@ -489,13 +502,49 @@ func (c *core) clientNodeUpdateUnlocked(id, agent uuid.UUID, node *Node) error {
 	return nil
 }
 
-func (c *core) multiAgentUpdate(id uuid.UUID, agents []uuid.UUID, node *Node) error {
+func (c *core) multiAgentSubscribe(enq Enqueueable, agentID uuid.UUID) (func(), error) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
+	c.initOrSetAgentConnectionSocketLocked(agentID, enq)
+
+	node, ok := c.nodes[enq.UniqueID()]
+	if ok {
+		// If we have the node, send it to the agent. If not, it will be sent
+		// async.
+		err := c.clientNodeUpdateLocked(enq.UniqueID(), agentID, node)
+		if err != nil {
+			return nil, xerrors.Errorf("send update to agent: %w", err)
+		}
+	} else {
+		c.logger.Debug(context.Background(), "multiagent node doesn't exist", slog.F("multiagent_id", enq.UniqueID()))
+	}
+
+	closer := func() {}
+
+	agentNode, ok := c.nodes[agentID]
+	if !ok {
+		// This is ok, once the agent connects the node will be sent over.
+		c.logger.Debug(context.Background(), "agent node doesn't exist", slog.F("agent_id", agentID))
+		return closer, nil
+	}
+
+	// Send the subscribed agent back to the multi agent.
+	err := enq.Enqueue([]*Node{agentNode})
+	return closer, err
+}
+
+func (c *core) multiAgentUpdate(id uuid.UUID, agents []uuid.UUID, node *Node) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	// Update the node of this client in our in-memory map. If an agent entirely
+	// shuts down and reconnects, it needs to be aware of all clients attempting
+	// to establish connections.
+	c.nodes[id] = node
+
 	var errs *multierror.Error
 	for _, aid := range agents {
-		err := c.clientNodeUpdateUnlocked(id, aid, node)
+		err := c.clientNodeUpdateLocked(id, aid, node)
 		if err != nil {
 			errs = multierror.Append(errs, err)
 		}
@@ -551,7 +600,7 @@ func (c *core) agentDisconnected(id, unique uuid.UUID) {
 
 	// Only delete the connection if it's ours. It could have been
 	// overwritten.
-	if idConn, ok := c.agentSockets[id]; ok && idConn.ID == unique {
+	if idConn, ok := c.agentSockets[id]; ok && idConn.UniqueID() == unique {
 		delete(c.agentSockets, id)
 		delete(c.nodes, id)
 		logger.Debug(context.Background(), "deleted agent socket and node")
@@ -577,7 +626,7 @@ func (c *core) initAndTrackAgent(ctx context.Context, cancel func(), conn net.Co
 	// dead.
 	oldAgentSocket, ok := c.agentSockets[id]
 	if ok {
-		overwrites = oldAgentSocket.Overwrites + 1
+		overwrites = oldAgentSocket.Overwrites() + 1
 		_ = oldAgentSocket.Close()
 	}
 	tc := NewTrackedConn(ctx, cancel, conn, unique, logger, overwrites)
@@ -647,11 +696,6 @@ func (c *core) agentNodeUpdate(id uuid.UUID, node *Node) error {
 		c.legacyAgents[id] = struct{}{}
 	}
 
-	// Publish the new node to every active multiAgent.
-	for _, multiAgent := range c.multiAgents {
-		multiAgent.OnAgentUpdate(id, node)
-	}
-
 	connectionSockets, ok := c.agentToConnectionSockets[id]
 	if !ok {
 		logger.Debug(context.Background(), "no client sockets; unable to send node")
@@ -711,15 +755,6 @@ func (c *core) close() error {
 		}
 	}
 
-	wg.Add(len(c.multiAgents))
-	for _, multiAgent := range c.multiAgents {
-		multiAgent := multiAgent
-		go func() {
-			_ = multiAgent.Close()
-			wg.Done()
-		}()
-	}
-
 	c.mutex.Unlock()
 
 	wg.Wait()
@@ -742,8 +777,8 @@ func (c *core) serveHTTPDebug(w http.ResponseWriter, r *http.Request) {
 }
 
 func CoordinatorHTTPDebug(
-	agentSocketsMap map[uuid.UUID]*TrackedConn,
-	agentToConnectionSocketsMap map[uuid.UUID]map[uuid.UUID]*TrackedConn,
+	agentSocketsMap map[uuid.UUID]Enqueueable,
+	agentToConnectionSocketsMap map[uuid.UUID]map[uuid.UUID]Enqueueable,
 	agentNameCache *lru.Cache[uuid.UUID, string],
 ) func(w http.ResponseWriter, _ *http.Request) {
 	return func(w http.ResponseWriter, _ *http.Request) {
@@ -751,7 +786,7 @@ func CoordinatorHTTPDebug(
 
 		type idConn struct {
 			id   uuid.UUID
-			conn *TrackedConn
+			conn Enqueueable
 		}
 
 		{
@@ -764,16 +799,17 @@ func CoordinatorHTTPDebug(
 			}
 
 			slices.SortFunc(agentSockets, func(a, b idConn) bool {
-				return a.conn.Name < b.conn.Name
+				return a.conn.Name() < b.conn.Name()
 			})
 
 			for _, agent := range agentSockets {
+				start, lastWrite := agent.conn.Stats()
 				_, _ = fmt.Fprintf(w, "<li style=\"margin-top:4px\"><b>%s</b> (<code>%s</code>): created %v ago, write %v ago, overwrites %d </li>\n",
-					agent.conn.Name,
+					agent.conn.Name(),
 					agent.id.String(),
-					now.Sub(time.Unix(agent.conn.Start, 0)).Round(time.Second),
-					now.Sub(time.Unix(agent.conn.LastWrite, 0)).Round(time.Second),
-					agent.conn.Overwrites,
+					now.Sub(time.Unix(start, 0)).Round(time.Second),
+					now.Sub(time.Unix(lastWrite, 0)).Round(time.Second),
+					agent.conn.Overwrites(),
 				)
 
 				if conns := agentToConnectionSocketsMap[agent.id]; len(conns) > 0 {
@@ -789,11 +825,12 @@ func CoordinatorHTTPDebug(
 
 					_, _ = fmt.Fprintln(w, "<ul>")
 					for _, connSocket := range connSockets {
+						start, lastWrite := connSocket.conn.Stats()
 						_, _ = fmt.Fprintf(w, "<li><b>%s</b> (<code>%s</code>): created %v ago, write %v ago </li>\n",
-							connSocket.conn.Name,
+							connSocket.conn.Name(),
 							connSocket.id.String(),
-							now.Sub(time.Unix(connSocket.conn.Start, 0)).Round(time.Second),
-							now.Sub(time.Unix(connSocket.conn.LastWrite, 0)).Round(time.Second),
+							now.Sub(time.Unix(start, 0)).Round(time.Second),
+							now.Sub(time.Unix(lastWrite, 0)).Round(time.Second),
 						)
 					}
 					_, _ = fmt.Fprintln(w, "</ul>")
@@ -848,11 +885,12 @@ func CoordinatorHTTPDebug(
 				_, _ = fmt.Fprintf(w, "<h3 style=\"margin:0px;font-size:16px;font-weight:400\">connections: total %d</h3>\n", len(agentConns.conns))
 				_, _ = fmt.Fprintln(w, "<ul>")
 				for _, agentConn := range agentConns.conns {
+					start, lastWrite := agentConn.conn.Stats()
 					_, _ = fmt.Fprintf(w, "<li><b>%s</b> (<code>%s</code>): created %v ago, write %v ago </li>\n",
-						agentConn.conn.Name,
+						agentConn.conn.Name(),
 						agentConn.id.String(),
-						now.Sub(time.Unix(agentConn.conn.Start, 0)).Round(time.Second),
-						now.Sub(time.Unix(agentConn.conn.LastWrite, 0)).Round(time.Second),
+						now.Sub(time.Unix(start, 0)).Round(time.Second),
+						now.Sub(time.Unix(lastWrite, 0)).Round(time.Second),
 					)
 				}
 				_, _ = fmt.Fprintln(w, "</ul>")

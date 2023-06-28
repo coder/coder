@@ -39,11 +39,10 @@ func NewCoordinator(logger slog.Logger, ps pubsub.Pubsub) (agpl.Coordinator, err
 		closeFunc:                cancelFunc,
 		close:                    make(chan struct{}),
 		nodes:                    map[uuid.UUID]*agpl.Node{},
-		agentSockets:             map[uuid.UUID]*agpl.TrackedConn{},
-		agentToConnectionSockets: map[uuid.UUID]map[uuid.UUID]*agpl.TrackedConn{},
+		agentSockets:             map[uuid.UUID]agpl.Enqueueable{},
+		agentToConnectionSockets: map[uuid.UUID]map[uuid.UUID]agpl.Enqueueable{},
 		agentNameCache:           nameCache,
 		legacyAgents:             map[uuid.UUID]struct{}{},
-		multiAgents:              map[uuid.UUID]*agpl.MultiAgent{},
 	}
 
 	if err := coord.runPubsub(ctx); err != nil {
@@ -60,52 +59,39 @@ func (c *haCoordinator) ServeMultiAgent(id uuid.UUID) agpl.MultiAgentConn {
 		AgentIsLegacyFunc: c.agentIsLegacy,
 		OnSubscribe:       c.multiAgentSubscribe,
 		OnNodeUpdate:      c.multiAgentUpdate,
-		OnClose:           c.removeMultiAgent,
 	}).Init()
-	c.addMultiAgent(m)
 	return m
 }
 
-func (c *haCoordinator) addMultiAgent(m *agpl.MultiAgent) {
-	c.mutex.Lock()
-	c.multiAgents[m.ID] = m
-	c.mutex.Unlock()
-}
-
-func (c *haCoordinator) removeMultiAgent(id uuid.UUID) {
-	c.mutex.Lock()
-	delete(c.multiAgents, id)
-	c.mutex.Unlock()
-}
-
-func (c *haCoordinator) multiAgentSubscribe(id, agent uuid.UUID, node *agpl.Node) error {
+func (c *haCoordinator) multiAgentSubscribe(enq agpl.Enqueueable, agentID uuid.UUID) (func(), error) {
 	c.mutex.Lock()
 
-	agentNode, ok := c.nodes[agent]
+	node := c.nodes[enq.UniqueID()]
+
+	agentNode, ok := c.nodes[agentID]
 	// If we have the node locally, publish it immediately to the multiagent.
 	if ok {
-		multiAgent, ok := c.multiAgents[id]
-		if !ok {
-			return xerrors.Errorf("unknown multi agent %q", id)
+		err := enq.Enqueue([]*agpl.Node{agentNode})
+		if err != nil {
+			return nil, xerrors.Errorf("enqueue agent on subscribe: %w", err)
 		}
-
-		c.mutex.Unlock()
-		multiAgent.OnAgentUpdate(agent, agentNode)
 	} else {
 		// If we don't have the node locally, notify other coordinators.
 		c.mutex.Unlock()
-		err := c.publishClientHello(agent)
+		err := c.publishClientHello(agentID)
 		if err != nil {
-			return xerrors.Errorf("publish client hello: %w", err)
+			return nil, xerrors.Errorf("publish client hello: %w", err)
 		}
 	}
 
-	err := c.handleClientUpdate(id, agent, node)
-	if err != nil {
-		return xerrors.Errorf("handle client update: %w", err)
+	if node != nil {
+		err := c.handleClientUpdate(enq.UniqueID(), agentID, node)
+		if err != nil {
+			return nil, xerrors.Errorf("handle client update: %w", err)
+		}
 	}
 
-	return nil
+	return c.cleanupClientConn(enq.UniqueID(), agentID), nil
 }
 
 func (c *haCoordinator) multiAgentUpdate(id uuid.UUID, agents []uuid.UUID, node *agpl.Node) error {
@@ -136,17 +122,16 @@ type haCoordinator struct {
 	// nodes maps agent and connection IDs their respective node.
 	nodes map[uuid.UUID]*agpl.Node
 	// agentSockets maps agent IDs to their open websocket.
-	agentSockets map[uuid.UUID]*agpl.TrackedConn
+	agentSockets map[uuid.UUID]agpl.Enqueueable
 	// agentToConnectionSockets maps agent IDs to connection IDs of conns that
 	// are subscribed to updates for that agent.
-	agentToConnectionSockets map[uuid.UUID]map[uuid.UUID]*agpl.TrackedConn
+	agentToConnectionSockets map[uuid.UUID]map[uuid.UUID]agpl.Enqueueable
 
 	// agentNameCache holds a cache of agent names. If one of them disappears,
 	// it's helpful to have a name cached for debugging.
 	agentNameCache *lru.Cache[uuid.UUID, string]
 
 	legacyAgents map[uuid.UUID]struct{}
-	multiAgents  map[uuid.UUID]*agpl.MultiAgent
 }
 
 // Node returns an in-memory node by ID.
@@ -173,16 +158,9 @@ func (c *haCoordinator) ServeClient(conn net.Conn, id, agent uuid.UUID) error {
 	logger := c.clientLogger(id, agent)
 
 	c.mutex.Lock()
-	connectionSockets, ok := c.agentToConnectionSockets[agent]
-	if !ok {
-		connectionSockets = map[uuid.UUID]*agpl.TrackedConn{}
-		c.agentToConnectionSockets[agent] = connectionSockets
-	}
 
 	tc := agpl.NewTrackedConn(ctx, cancel, conn, id, logger, 0)
-	// Insert this connection into a map so the agent
-	// can publish node updates.
-	connectionSockets[id] = tc
+	c.initOrSetAgentConnectionSocketLocked(agent, tc)
 
 	// When a new connection is requested, we update it with the latest
 	// node of the agent. This allows the connection to establish.
@@ -202,21 +180,7 @@ func (c *haCoordinator) ServeClient(conn net.Conn, id, agent uuid.UUID) error {
 	}
 	go tc.SendUpdates()
 
-	defer func() {
-		c.mutex.Lock()
-		defer c.mutex.Unlock()
-		// Clean all traces of this connection from the map.
-		delete(c.nodes, id)
-		connectionSockets, ok := c.agentToConnectionSockets[agent]
-		if !ok {
-			return
-		}
-		delete(connectionSockets, id)
-		if len(connectionSockets) != 0 {
-			return
-		}
-		delete(c.agentToConnectionSockets, agent)
-	}()
+	defer c.cleanupClientConn(id, agent)
 
 	decoder := json.NewDecoder(conn)
 	// Indefinitely handle messages from the client websocket.
@@ -228,6 +192,33 @@ func (c *haCoordinator) ServeClient(conn net.Conn, id, agent uuid.UUID) error {
 			}
 			return xerrors.Errorf("handle next client message: %w", err)
 		}
+	}
+}
+
+func (c *haCoordinator) initOrSetAgentConnectionSocketLocked(agentID uuid.UUID, enq agpl.Enqueueable) {
+	connectionSockets, ok := c.agentToConnectionSockets[agentID]
+	if !ok {
+		connectionSockets = map[uuid.UUID]agpl.Enqueueable{}
+		c.agentToConnectionSockets[agentID] = connectionSockets
+	}
+	connectionSockets[enq.UniqueID()] = enq
+}
+
+func (c *haCoordinator) cleanupClientConn(id, agentID uuid.UUID) func() {
+	return func() {
+		c.mutex.Lock()
+		defer c.mutex.Unlock()
+		// Clean all traces of this connection from the map.
+		delete(c.nodes, id)
+		connectionSockets, ok := c.agentToConnectionSockets[agentID]
+		if !ok {
+			return
+		}
+		delete(connectionSockets, id)
+		if len(connectionSockets) != 0 {
+			return
+		}
+		delete(c.agentToConnectionSockets, agentID)
 	}
 }
 
@@ -268,6 +259,26 @@ func (c *haCoordinator) handleClientUpdate(id, agent uuid.UUID, node *agpl.Node)
 	return nil
 }
 
+func (c *haCoordinator) handleClientUpdateLocked(id, agent uuid.UUID, node *agpl.Node) error {
+	agentSocket, ok := c.agentSockets[agent]
+	if !ok {
+		c.mutex.Unlock()
+		// If we don't own the agent locally, send it over pubsub to a node that
+		// owns the agent.
+		err := c.publishNodesToAgent(agent, []*agpl.Node{node})
+		if err != nil {
+			return xerrors.Errorf("publish node to agent")
+		}
+		return nil
+	}
+	err := agentSocket.Enqueue([]*agpl.Node{node})
+	c.mutex.Unlock()
+	if err != nil {
+		return xerrors.Errorf("enqueue node: %w", err)
+	}
+	return nil
+}
+
 // ServeAgent accepts a WebSocket connection to an agent that listens to
 // incoming connections and publishes node updates.
 func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) error {
@@ -285,7 +296,7 @@ func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) err
 	// dead.
 	oldAgentSocket, ok := c.agentSockets[id]
 	if ok {
-		overwrites = oldAgentSocket.Overwrites + 1
+		overwrites = oldAgentSocket.Overwrites() + 1
 		_ = oldAgentSocket.Close()
 	}
 	// This uniquely identifies a connection that belongs to this goroutine.
@@ -317,7 +328,7 @@ func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) err
 
 		// Only delete the connection if it's ours. It could have been
 		// overwritten.
-		if idConn, ok := c.agentSockets[id]; ok && idConn.ID == unique {
+		if idConn, ok := c.agentSockets[id]; ok && idConn.UniqueID() == unique {
 			delete(c.agentSockets, id)
 			delete(c.nodes, id)
 		}
@@ -407,11 +418,6 @@ func (c *haCoordinator) handleAgentUpdate(id uuid.UUID, decoder *json.Decoder) (
 		_ = connectionSocket.Enqueue([]*agpl.Node{&node})
 	}
 
-	// Publish the new node to every active multiAgent.
-	for _, multiAgent := range c.multiAgents {
-		multiAgent.OnAgentUpdate(id, &node)
-	}
-
 	c.mutex.Unlock()
 
 	return &node, nil
@@ -450,15 +456,6 @@ func (c *haCoordinator) Close() error {
 				wg.Done()
 			}()
 		}
-	}
-
-	wg.Add(len(c.multiAgents))
-	for _, multiAgent := range c.multiAgents {
-		multiAgent := multiAgent
-		go func() {
-			_ = multiAgent.Close()
-			wg.Done()
-		}()
 	}
 
 	wg.Wait()

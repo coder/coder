@@ -148,13 +148,14 @@ type WorkspaceAgentConn struct {
 // @typescript-ignore WorkspaceAgentConnOptions
 type WorkspaceAgentConnOptions struct {
 	AgentID   uuid.UUID
-	IP        netip.Addr
+	AgentIP   netip.Addr
 	CloseFunc func() error
 }
 
 func (c *WorkspaceAgentConn) agentAddress() netip.Addr {
-	if c.opts.IP.Compare(netip.IPv6Unspecified()) == 0 {
-		return c.opts.IP
+	var emptyIP netip.Addr
+	if cmp := c.opts.AgentIP.Compare(emptyIP); cmp != 0 {
+		return c.opts.AgentIP
 	}
 
 	return tailnet.IPFromUUID(c.opts.AgentID)

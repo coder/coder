@@ -23,6 +23,9 @@ func NewClient(t testing.TB,
 	statsChan chan *agentsdk.Stats,
 	coordinator tailnet.Coordinator,
 ) *Client {
+	if manifest.AgentID == uuid.Nil {
+		manifest.AgentID = agentID
+	}
 	return &Client{
 		t:           t,
 		agentID:     agentID,

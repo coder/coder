@@ -8,9 +8,7 @@ import (
 	"net/http/httputil"
 	"net/netip"
 	"net/url"
-	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -44,37 +42,41 @@ func NewServerTailnet(
 	logger slog.Logger,
 	derpServer *derp.Server,
 	derpMap *tailcfg.DERPMap,
-	coord *atomic.Pointer[tailnet.Coordinator],
+	coord tailnet.Coordinator,
 	cache *wsconncache.Cache,
 ) (*ServerTailnet, error) {
+	logger = logger.Named("servertailnet")
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 		DERPMap:   derpMap,
-		Logger:    logger.Named("tailnet"),
+		Logger:    logger,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet conn: %w", err)
 	}
 
 	id := uuid.New()
-	ma := (*coord.Load()).ServeMultiAgent(id)
+	ma := coord.ServeMultiAgent(id)
 
 	serverCtx, cancel := context.WithCancel(ctx)
 	tn := &ServerTailnet{
-		ctx:         serverCtx,
-		cancel:      cancel,
-		logger:      logger,
-		conn:        conn,
-		coordinator: coord,
-		agentConn:   ma,
-		cache:       cache,
-		agentNodes:  map[uuid.UUID]*tailnetNode{},
-		transport:   tailnetTransport.Clone(),
+		ctx:        serverCtx,
+		cancel:     cancel,
+		logger:     logger,
+		conn:       conn,
+		agentConn:  ma,
+		cache:      cache,
+		agentNodes: map[uuid.UUID]*tailnetNode{},
+		transport:  tailnetTransport.Clone(),
 	}
 	tn.transport.DialContext = tn.dialContext
 	tn.transport.MaxIdleConnsPerHost = 10
 	tn.transport.MaxIdleConns = 0
 
+	err = ma.UpdateSelf(conn.Node())
+	if err != nil {
+		tn.logger.Warn(context.Background(), "server tailnet update self", slog.Error(err))
+	}
 	conn.SetNodeCallback(func(node *tailnet.Node) {
 		err := tn.agentConn.UpdateSelf(node)
 		if err != nil {
@@ -110,41 +112,28 @@ func (s *ServerTailnet) watchAgentUpdates() {
 			return
 		}
 
-		toUpdate := make([]*tailnet.Node, 0)
-
-		s.nodesMu.Lock()
-		for _, node := range nodes {
-			_, ok := s.agentNodes[node.AgentID]
-			if ok {
-				toUpdate = append(toUpdate, node.Node)
-			}
-		}
-		s.nodesMu.Unlock()
-
-		if len(toUpdate) > 0 {
-			err := s.conn.UpdateNodes(toUpdate, false)
-			if err != nil {
-				s.logger.Error(context.Background(), "update node in server tailnet", slog.Error(err))
-				return
-			}
+		err := s.conn.UpdateNodes(nodes, false)
+		if err != nil {
+			s.logger.Error(context.Background(), "update node in server tailnet", slog.Error(err))
+			return
 		}
 	}
 }
 
 type tailnetNode struct {
 	lastConnection time.Time
+	close          func()
 }
 
 type ServerTailnet struct {
 	ctx    context.Context
 	cancel func()
 
-	logger      slog.Logger
-	conn        *tailnet.Conn
-	coordinator *atomic.Pointer[tailnet.Coordinator]
-	agentConn   tailnet.MultiAgentConn
-	cache       *wsconncache.Cache
-	nodesMu     sync.Mutex
+	logger    slog.Logger
+	conn      *tailnet.Conn
+	agentConn tailnet.MultiAgentConn
+	cache     *wsconncache.Cache
+	nodesMu   sync.Mutex
 	// agentNodes is a map of agent tailnetNodes the server wants to keep a
 	// connection to.
 	agentNodes map[uuid.UUID]*tailnetNode
@@ -195,14 +184,18 @@ func (s *ServerTailnet) ensureAgent(agentID uuid.UUID) error {
 	tnode, ok := s.agentNodes[agentID]
 	// If we don't have the node, subscribe.
 	if !ok {
-		err := s.agentConn.SubscribeAgent(agentID, s.conn.Node())
+		s.logger.Debug(s.ctx, "subscribing to agent", slog.F("agent_id", agentID))
+		closer, err := s.agentConn.SubscribeAgent(agentID)
 		if err != nil {
 			return xerrors.Errorf("subscribe agent: %w", err)
 		}
 		tnode = &tailnetNode{
 			lastConnection: time.Now(),
+			close:          closer,
 		}
 		s.agentNodes[agentID] = tnode
+	} else {
+		tnode.lastConnection = time.Now()
 	}
 	s.nodesMu.Unlock()
 
@@ -216,6 +209,7 @@ func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (*code
 	)
 
 	if s.agentConn.AgentIsLegacy(agentID) {
+		s.logger.Debug(s.ctx, "acquiring legacy agent", slog.F("agent_id", agentID))
 		cconn, release, err := s.cache.Acquire(agentID)
 		if err != nil {
 			return nil, nil, xerrors.Errorf("acquire legacy agent conn: %w", err)
@@ -229,6 +223,7 @@ func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (*code
 			return nil, nil, xerrors.Errorf("ensure agent: %w", err)
 		}
 
+		s.logger.Debug(s.ctx, "acquiring agent", slog.F("agent_id", agentID))
 		conn = codersdk.NewWorkspaceAgentConn(s.conn, codersdk.WorkspaceAgentConnOptions{
 			AgentID:   agentID,
 			CloseFunc: func() error { return codersdk.ErrSkipClose },
@@ -257,20 +252,11 @@ func (s *ServerTailnet) DialAgentNetConn(ctx context.Context, agentID uuid.UUID,
 	// Since we now have an open conn, be careful to close it if we error
 	// without returning it to the user.
 
-	_, rawPort, _ := net.SplitHostPort(addr)
-	port, _ := strconv.ParseUint(rawPort, 10, 16)
-	ipp := netip.AddrPortFrom(tailnet.IPFromUUID(agentID), uint16(port))
-
-	var nc net.Conn
-	switch network {
-	case "tcp":
-		nc, err = conn.DialContextTCP(ctx, ipp)
-	case "udp":
-		nc, err = conn.DialContextUDP(ctx, ipp)
-	default:
+	nc, err := conn.DialContext(ctx, network, addr)
+	if err != nil {
 		release()
 		conn.Close()
-		return nil, xerrors.Errorf("unknown network %q", network)
+		return nil, xerrors.Errorf("dial context: %w", err)
 	}
 
 	return &netConnCloser{Conn: nc, close: func() {

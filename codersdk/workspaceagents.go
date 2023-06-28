@@ -11,7 +11,6 @@ import (
 	"net/http/cookiejar"
 	"net/netip"
 	"strconv"
-	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -263,7 +262,6 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 	}()
 	closed := make(chan struct{})
 	first := make(chan error)
-	var latestNode atomic.Pointer[tailnet.Node]
 	go func() {
 		defer close(closed)
 		isFirst := true
@@ -292,11 +290,6 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 				continue
 			}
 			sendNode, errChan := tailnet.ServeCoordinator(websocket.NetConn(ctx, ws, websocket.MessageBinary), func(nodes []*tailnet.Node) error {
-				if len(nodes) != 1 {
-					options.Logger.Warn(ctx, "incorrect number of nodes returned from ServeCoordinator", slog.F("len", len(nodes)))
-					return nil
-				}
-				latestNode.Store(nodes[0])
 				return conn.UpdateNodes(nodes, false)
 			})
 			conn.SetNodeCallback(sendNode)

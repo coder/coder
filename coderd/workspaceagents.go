@@ -770,7 +770,7 @@ func (api *API) _dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.Workspa
 	conn.SetNodeCallback(sendNodes)
 	agentConn := codersdk.NewWorkspaceAgentConn(conn, codersdk.WorkspaceAgentConnOptions{
 		AgentID: agentID,
-		IP:      codersdk.WorkspaceAgentIP,
+		AgentIP: codersdk.WorkspaceAgentIP,
 		CloseFunc: func() error {
 			cancel()
 			_ = clientConn.Close()

@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"net/netip"
 	"net/url"
-	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
@@ -129,18 +128,16 @@ func setupAgent(t *testing.T, agentAddresses []netip.Prefix) (uuid.UUID, agent.A
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	derpMap, derpServer := tailnettest.RunDERPAndSTUN(t)
 	manifest := agentsdk.Manifest{
+		AgentID: uuid.New(),
 		DERPMap: derpMap,
 	}
 
-	var coordPtr atomic.Pointer[tailnet.Coordinator]
 	coordinator := tailnet.NewCoordinator(logger)
-	coordPtr.Store(&coordinator)
 	t.Cleanup(func() {
 		_ = coordinator.Close()
 	})
 
-	agentID := uuid.New()
-	c := agenttest.NewClient(t, agentID, manifest, make(chan *agentsdk.Stats, 50), coordinator)
+	c := agenttest.NewClient(t, manifest.AgentID, manifest, make(chan *agentsdk.Stats, 50), coordinator)
 
 	options := agent.Options{
 		Client:     c,
@@ -153,6 +150,11 @@ func setupAgent(t *testing.T, agentAddresses []netip.Prefix) (uuid.UUID, agent.A
 	t.Cleanup(func() {
 		_ = ag.Close()
 	})
+
+	// Wait for the agent to connect.
+	require.Eventually(t, func() bool {
+		return coordinator.Node(manifest.AgentID) != nil
+	}, testutil.WaitShort, testutil.IntervalFast)
 
 	cache := wsconncache.New(func(id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
 		conn, err := tailnet.NewConn(&tailnet.Options{
@@ -171,24 +173,25 @@ func setupAgent(t *testing.T, agentAddresses []netip.Prefix) (uuid.UUID, agent.A
 		})
 		go func() {
 			defer close(serveClientDone)
-			coordinator.ServeClient(serverConn, uuid.New(), agentID)
+			coordinator.ServeClient(serverConn, uuid.New(), manifest.AgentID)
 		}()
 		sendNode, _ := tailnet.ServeCoordinator(clientConn, func(node []*tailnet.Node) error {
 			return conn.UpdateNodes(node, false)
 		})
 		conn.SetNodeCallback(sendNode)
 		return codersdk.NewWorkspaceAgentConn(conn, codersdk.WorkspaceAgentConnOptions{
-			AgentID:   agentID,
+			AgentID:   manifest.AgentID,
+			AgentIP:   codersdk.WorkspaceAgentIP,
 			CloseFunc: func() error { return codersdk.ErrSkipClose },
 		}), nil
 	}, 0)
 
 	serverTailnet, err := coderd.NewServerTailnet(
 		context.Background(),
-		logger.Named("server"),
+		logger,
 		derpServer,
 		manifest.DERPMap,
-		&coordPtr,
+		coordinator,
 		cache,
 	)
 	require.NoError(t, err)
@@ -197,5 +200,5 @@ func setupAgent(t *testing.T, agentAddresses []netip.Prefix) (uuid.UUID, agent.A
 		_ = serverTailnet.Close()
 	})
 
-	return agentID, ag, serverTailnet
+	return manifest.AgentID, ag, serverTailnet
 }

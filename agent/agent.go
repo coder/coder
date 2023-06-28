@@ -510,6 +510,10 @@ func (a *agent) run(ctx context.Context) error {
 	}
 	a.logger.Info(ctx, "fetched manifest", slog.F("manifest", manifest))
 
+	if manifest.AgentID == uuid.Nil {
+		return xerrors.New("nil agentID returned by manifest")
+	}
+
 	// Expand the directory and send it back to coderd so external
 	// applications that rely on the directory can use it.
 	//

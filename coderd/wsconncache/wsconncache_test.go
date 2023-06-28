@@ -163,16 +163,17 @@ func setupAgent(t *testing.T, manifest agentsdk.Manifest, ptyTimeout time.Durati
 	t.Cleanup(func() {
 		_ = coordinator.Close()
 	})
-	agentID := uuid.New()
+	manifest.AgentID = uuid.New()
 	closer := agent.New(agent.Options{
 		Client: &client{
 			t:           t,
-			agentID:     agentID,
+			agentID:     manifest.AgentID,
 			manifest:    manifest,
 			coordinator: coordinator,
 		},
 		Logger:                 logger.Named("agent"),
 		ReconnectingPTYTimeout: ptyTimeout,
+		Addresses:              []netip.Prefix{netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128)},
 	})
 	t.Cleanup(func() {
 		_ = closer.Close()
@@ -189,14 +190,14 @@ func setupAgent(t *testing.T, manifest agentsdk.Manifest, ptyTimeout time.Durati
 		_ = serverConn.Close()
 		_ = conn.Close()
 	})
-	go coordinator.ServeClient(serverConn, uuid.New(), agentID)
+	go coordinator.ServeClient(serverConn, uuid.New(), manifest.AgentID)
 	sendNode, _ := tailnet.ServeCoordinator(clientConn, func(node []*tailnet.Node) error {
 		return conn.UpdateNodes(node, false)
 	})
 	conn.SetNodeCallback(sendNode)
 	agentConn := codersdk.NewWorkspaceAgentConn(conn, codersdk.WorkspaceAgentConnOptions{
-		AgentID: agentID,
-		IP:      codersdk.WorkspaceAgentIP,
+		AgentID: manifest.AgentID,
+		AgentIP: codersdk.WorkspaceAgentIP,
 	})
 	t.Cleanup(func() {
 		_ = agentConn.Close()
