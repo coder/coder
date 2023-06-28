@@ -259,26 +259,6 @@ func (c *haCoordinator) handleClientUpdate(id, agent uuid.UUID, node *agpl.Node)
 	return nil
 }
 
-func (c *haCoordinator) handleClientUpdateLocked(id, agent uuid.UUID, node *agpl.Node) error {
-	agentSocket, ok := c.agentSockets[agent]
-	if !ok {
-		c.mutex.Unlock()
-		// If we don't own the agent locally, send it over pubsub to a node that
-		// owns the agent.
-		err := c.publishNodesToAgent(agent, []*agpl.Node{node})
-		if err != nil {
-			return xerrors.Errorf("publish node to agent")
-		}
-		return nil
-	}
-	err := agentSocket.Enqueue([]*agpl.Node{node})
-	c.mutex.Unlock()
-	if err != nil {
-		return xerrors.Errorf("enqueue node: %w", err)
-	}
-	return nil
-}
-
 // ServeAgent accepts a WebSocket connection to an agent that listens to
 // incoming connections and publishes node updates.
 func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) error {
