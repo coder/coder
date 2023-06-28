@@ -66,12 +66,7 @@ const GitAuthPageView: FC<GitAuthPageViewProps> = ({
   let installTheApp: JSX.Element = <>{`install the ${gitAuth.type} App`}</>
   if (gitAuth.app_install_url) {
     installTheApp = (
-      <Link
-        href={gitAuth.app_install_url}
-        target="_blank"
-        rel="noreferrer"
-        className={styles.link}
-      >
+      <Link href={gitAuth.app_install_url} target="_blank" rel="noreferrer">
         {installTheApp}
       </Link>
     )
@@ -81,8 +76,9 @@ const GitAuthPageView: FC<GitAuthPageViewProps> = ({
     <SignInLayout>
       <Welcome message={`You've authenticated with ${gitAuth.type}!`} />
       <p className={styles.text}>
-        Hey @{gitAuth.user?.login} 👋! You are now authenticated with Git. Feel
-        free to close this window!
+        Hey @{gitAuth.user?.login} 👋!{" "}
+        {(!gitAuth.app_installable || gitAuth.installations.length > 0) &&
+          "You are now authenticated with Git. Feel free to close this window!"}
       </p>
 
       {gitAuth.installations.length > 0 && (
