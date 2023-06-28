@@ -78,7 +78,9 @@ const GitAuthPage: FC = () => {
     !getGitAuthProviderQuery.data.authenticated &&
     !getGitAuthProviderQuery.data.device
   ) {
-    redirect(`/gitauth/${provider}/callback`)
+    window.location.href = `/gitauth/${provider}/callback`
+
+    return null
   }
 
   return (

@@ -63,6 +63,21 @@ const GitAuthPageView: FC<GitAuthPageViewProps> = ({
 
   const hasInstallations = gitAuth.installations.length > 0
 
+  // We only want to wrap this with a link if an install URL is available!
+  let installTheApp: JSX.Element = <>{`install the ${gitAuth.type} App`}</>
+  if (gitAuth.app_install_url) {
+    installTheApp = (
+      <Link
+        href={gitAuth.app_install_url}
+        target="_blank"
+        rel="noreferrer"
+        className={styles.link}
+      >
+        {installTheApp}
+      </Link>
+    )
+  }
+
   return (
     <SignInLayout>
       <Welcome message={`You've authenticated with ${gitAuth.type}!`} />
@@ -105,13 +120,7 @@ const GitAuthPageView: FC<GitAuthPageViewProps> = ({
         {!hasInstallations && gitAuth.app_installable && (
           <Alert severity="warning" className={styles.installAlert}>
             You must{" "}
-            <Link
-              href={gitAuth.app_install_url}
-              target="_blank"
-              rel="noreferrer"
-            >
-              install the {gitAuth.type} App
-            </Link>{" "}
+            {installTheApp}{" "}
             to clone private repositories. Accounts will appear here once
             authorized.
           </Alert>

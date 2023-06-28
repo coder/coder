@@ -462,12 +462,12 @@ func New(options *Options) *API {
 			if gitAuthConfig.DeviceAuth != nil {
 				continue
 			}
-			r.Route(fmt.Sprintf("/%s", gitAuthConfig.ID), func(r chi.Router) {
+			r.Route(fmt.Sprintf("/%s/callback", gitAuthConfig.ID), func(r chi.Router) {
 				r.Use(
 					apiKeyMiddlewareRedirect,
 					httpmw.ExtractOAuth2(gitAuthConfig, options.HTTPClient, nil),
 				)
-				r.Get("/callback", api.gitAuthCallback(gitAuthConfig))
+				r.Get("/", api.gitAuthCallback(gitAuthConfig))
 			})
 		}
 	})

@@ -121,8 +121,18 @@ func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*codersdk.GitAuthDevi
 		return nil, err
 	}
 	defer resp.Body.Close()
-	var da codersdk.GitAuthDevice
-	return &da, json.NewDecoder(resp.Body).Decode(&da)
+	var r struct {
+		codersdk.GitAuthDevice
+		ErrorDescription string `json:"error_description"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&r)
+	if err != nil {
+		return nil, err
+	}
+	if r.ErrorDescription != "" {
+		return nil, xerrors.Errorf("%s", r.ErrorDescription)
+	}
+	return &r.GitAuthDevice, nil
 }
 
 type ExchangeDeviceCodeResponse struct {
