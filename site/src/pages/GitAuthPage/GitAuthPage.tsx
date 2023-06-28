@@ -5,14 +5,14 @@ import {
   getGitAuthProvider,
 } from "api/api"
 import { usePermissions } from "hooks"
-import { useEffect } from "react"
+import { FC, useEffect } from "react"
 import { redirect, useParams } from "react-router-dom"
 import { REFRESH_GITAUTH_BROADCAST_CHANNEL } from "xServices/createWorkspace/createWorkspaceXService"
 import GitAuthPageView from "./GitAuthPageView"
 import { ApiErrorResponse } from "api/errors"
 import { isAxiosError } from "axios"
 
-const GitAuthPage = () => {
+const GitAuthPage: FC = () => {
   const { provider } = useParams()
   if (!provider) {
     throw new Error("provider must exist")
@@ -78,7 +78,7 @@ const GitAuthPage = () => {
     !getGitAuthProviderQuery.data.authenticated &&
     !getGitAuthProviderQuery.data.device
   ) {
-    return redirect(`/gitauth/${provider}/callback`)
+    redirect(`/gitauth/${provider}/callback`)
   }
 
   return (

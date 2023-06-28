@@ -111,5 +111,6 @@ const useStyles = makeStyles({
     flex: 1,
     paddingBottom: dashboardContentBottomPadding, // Add bottom space since we don't use a footer
     display: "flex",
+    flexDirection: "column",
   },
 })
