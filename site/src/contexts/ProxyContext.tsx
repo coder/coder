@@ -122,7 +122,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     return resp.regions
   }
 
-  if(permissions.editWorkspaceProxies) {
+  if (permissions.editWorkspaceProxies) {
     // Admins should query the more detailed endpoint.
     query = getWorkspaceProxies
   }

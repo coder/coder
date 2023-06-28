@@ -87,7 +87,7 @@ export const permissionsToCheck = {
       resource_type: "workspace_proxy",
     },
     action: "create",
-  }
+  },
 } as const
 
 export type Permissions = Record<keyof typeof permissionsToCheck, boolean>

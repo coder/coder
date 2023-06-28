@@ -282,16 +282,16 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
           </MenuItem>
         ))}
         <Divider sx={{ borderColor: (theme) => theme.palette.divider }} />
-        {
-          Boolean(permissions.editWorkspaceProxies) && <MenuItem
-          sx={{ fontSize: 14 }}
-          onClick={() => {
-            navigate("settings/deployment/workspace-proxies")
-          }}
-        >
-          Proxy settings
-        </MenuItem>
-        }
+        {Boolean(permissions.editWorkspaceProxies) && (
+          <MenuItem
+            sx={{ fontSize: 14 }}
+            onClick={() => {
+              navigate("settings/deployment/workspace-proxies")
+            }}
+          >
+            Proxy settings
+          </MenuItem>
+        )}
         <MenuItem sx={{ fontSize: 14 }} onClick={refreshLatencies}>
           Refresh Latencies
         </MenuItem>

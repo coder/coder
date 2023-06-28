@@ -937,13 +937,14 @@ export const getWorkspaceProxyRegions =
     return response.data
   }
 
-  export const getWorkspaceProxies =
-  async (): Promise<TypesGen.WorkspaceProxy[]> => {
-    const response = await axios.get<TypesGen.WorkspaceProxy[]>(
-      `/api/v2/workspaceproxies`,
-    )
-    return response.data
-  }
+export const getWorkspaceProxies = async (): Promise<
+  TypesGen.WorkspaceProxy[]
+> => {
+  const response = await axios.get<TypesGen.WorkspaceProxy[]>(
+    `/api/v2/workspaceproxies`,
+  )
+  return response.data
+}
 
 export const getAppearance = async (): Promise<TypesGen.AppearanceConfig> => {
   try {

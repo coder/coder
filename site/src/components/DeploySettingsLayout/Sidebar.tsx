@@ -4,7 +4,7 @@ import LaunchOutlined from "@mui/icons-material/LaunchOutlined"
 import ApprovalIcon from "@mui/icons-material/VerifiedUserOutlined"
 import LockRounded from "@mui/icons-material/LockOutlined"
 import Globe from "@mui/icons-material/PublicOutlined"
-import HubOutlinedIcon from '@mui/icons-material/HubOutlined';
+import HubOutlinedIcon from "@mui/icons-material/HubOutlined"
 import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined"
 import { GitIcon } from "components/Icons/GitIcon"
 import { Stack } from "components/Stack/Stack"
@@ -80,7 +80,10 @@ export const Sidebar: React.FC = () => {
         Network
       </SidebarNavItem>
       {dashboard.experiments.includes("moons") && (
-        <SidebarNavItem href="workspace-proxies" icon={<SidebarNavItemIcon icon={HubOutlinedIcon} />}>
+        <SidebarNavItem
+          href="workspace-proxies"
+          icon={<SidebarNavItemIcon icon={HubOutlinedIcon} />}
+        >
           Workspace Proxy
         </SidebarNavItem>
       )}
