@@ -133,7 +133,7 @@ type AuthMethod struct {
 	Enabled bool `json:"enabled"`
 }
 
-type UserAuth struct {
+type UserLoginType struct {
 	LoginType LoginType `json:"login_type"`
 }
 

@@ -19,6 +19,9 @@ const defaultArgs: ComponentProps<typeof SecurityPageView> = {
   },
   oidc: {
     section: {
+      userLoginType: {
+        login_type: "password",
+      },
       authMethods: MockAuthMethods,
       closeConfirmation: action("closeConfirmation"),
       confirm: action("confirm"),

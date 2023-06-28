@@ -510,7 +510,7 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
-// @Success 200 {object} codersdk.UserAuth
+// @Success 200 {object} codersdk.UserLoginType
 // @Router /users/{user}/login-type [get]
 func (api *API) userLoginType(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -527,7 +527,7 @@ func (api *API) userLoginType(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserAuth{
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserLoginType{
 		LoginType: codersdk.LoginType(user.LoginType),
 	})
 }

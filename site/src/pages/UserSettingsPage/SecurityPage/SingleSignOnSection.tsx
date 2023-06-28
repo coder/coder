@@ -10,7 +10,7 @@ import { useLocation } from "react-router-dom"
 import { retrieveRedirect } from "utils/redirect"
 import Typography from "@mui/material/Typography"
 import { convertToOAUTH } from "api/api"
-import { AuthMethods, LoginType } from "api/typesGenerated"
+import { AuthMethods, LoginType, UserLoginType } from "api/typesGenerated"
 import Skeleton from "@mui/material/Skeleton"
 import { Stack } from "components/Stack/Stack"
 import { useMutation } from "@tanstack/react-query"
@@ -77,10 +77,12 @@ export const useSingleSignOnSection = () => {
 
 type SingleSignOnSectionProps = ReturnType<typeof useSingleSignOnSection> & {
   authMethods: AuthMethods
+  userLoginType: UserLoginType
 }
 
 export const SingleSignOnSection = ({
   authMethods,
+  userLoginType,
   openConfirmation,
   closeConfirmation,
   confirm,
@@ -96,8 +98,8 @@ export const SingleSignOnSection = ({
         description="Authenticate in Coder using one-click"
       >
         <Box display="grid" gap="16px">
-          {authMethods ? (
-            authMethods.me_login_type === "password" ? (
+          {authMethods && userLoginType ? (
+            userLoginType.login_type === "password" ? (
               <>
                 {authMethods.github.enabled && (
                   <Button
@@ -144,13 +146,13 @@ export const SingleSignOnSection = ({
                 <span>
                   Authenticated with{" "}
                   <strong>
-                    {authMethods.me_login_type === "github"
+                    {userLoginType.login_type === "github"
                       ? "GitHub"
                       : getOIDCLabel(authMethods)}
                   </strong>
                 </span>
                 <Box sx={{ ml: "auto", lineHeight: 1 }}>
-                  {authMethods.me_login_type === "github" ? (
+                  {userLoginType.login_type === "github" ? (
                     <GitHubIcon sx={{ width: 16, height: 16 }} />
                   ) : (
                     <OIDCIcon authMethods={authMethods} />

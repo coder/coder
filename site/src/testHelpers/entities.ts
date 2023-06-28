@@ -1026,7 +1026,6 @@ export const MockAuthMethods: TypesGen.AuthMethods = {
 
 export const MockAuthMethodsWithPasswordType: TypesGen.AuthMethods = {
   ...MockAuthMethods,
-  me_login_type: "password",
   github: { enabled: true },
   oidc: { enabled: true, signInText: "", iconUrl: "" },
 }

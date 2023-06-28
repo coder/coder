@@ -142,6 +142,13 @@ export const getAuthMethods = async (): Promise<TypesGen.AuthMethods> => {
   return response.data
 }
 
+export const getUserLoginType = async (): Promise<TypesGen.UserLoginType> => {
+  const response = await axios.get<TypesGen.UserLoginType>(
+    "/api/v2/users/me/login-type",
+  )
+  return response.data
+}
+
 export const checkAuthorization = async (
   params: TypesGen.AuthorizationRequest,
 ): Promise<TypesGen.AuthorizationResponse> => {

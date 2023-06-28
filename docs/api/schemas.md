@@ -1113,7 +1113,6 @@
   "github": {
     "enabled": true
   },
-  "me_login_type": "password",
   "oidc": {
     "enabled": true,
     "iconUrl": "string",
@@ -1127,13 +1126,12 @@
 
 ### Properties
 
-| Name                      | Type                                               | Required | Restrictions | Description                                                                                                                             |
-| ------------------------- | -------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `convert_to_oidc_enabled` | boolean                                            | false    |              |                                                                                                                                         |
-| `github`                  | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |                                                                                                                                         |
-| `me_login_type`           | [codersdk.LoginType](#codersdklogintype)           | false    |              | Me login type returns the authentication method for the given caller if the request is an authenticated request. Otherwise it is empty. |
-| `oidc`                    | [codersdk.OIDCAuthMethod](#codersdkoidcauthmethod) | false    |              |                                                                                                                                         |
-| `password`                | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |                                                                                                                                         |
+| Name                      | Type                                               | Required | Restrictions | Description |
+| ------------------------- | -------------------------------------------------- | -------- | ------------ | ----------- |
+| `convert_to_oidc_enabled` | boolean                                            | false    |              |             |
+| `github`                  | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
+| `oidc`                    | [codersdk.OIDCAuthMethod](#codersdkoidcauthmethod) | false    |              |             |
+| `password`                | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
 
 ## codersdk.AuthorizationCheck
 
@@ -4428,6 +4426,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | -------- | ----------- |
 | `status` | `active`    |
 | `status` | `suspended` |
+
+## codersdk.UserLoginType
+
+```json
+{
+  "login_type": "password"
+}
+```
+
+### Properties
+
+| Name         | Type                                     | Required | Restrictions | Description |
+| ------------ | ---------------------------------------- | -------- | ------------ | ----------- |
+| `login_type` | [codersdk.LoginType](#codersdklogintype) | false    |              |             |
 
 ## codersdk.UserStatus
 

@@ -5,7 +5,7 @@ import { userSecuritySettingsMachine } from "xServices/userSecuritySettings/user
 import { Section } from "../../../components/SettingsLayout/Section"
 import { SecurityForm } from "../../../components/SettingsSecurityForm/SettingsSecurityForm"
 import { useQuery } from "@tanstack/react-query"
-import { getAuthMethods } from "api/api"
+import { getAuthMethods, getUserLoginType } from "api/api"
 import {
   SingleSignOnSection,
   useSingleSignOnSection,
@@ -28,9 +28,13 @@ export const SecurityPage: FC = () => {
     queryKey: ["authMethods"],
     queryFn: getAuthMethods,
   })
+  const { data: userLoginType } = useQuery({
+    queryKey: ["loginType"],
+    queryFn: getUserLoginType,
+  })
   const singleSignOnSection = useSingleSignOnSection()
 
-  if (!authMethods) {
+  if (!authMethods || !userLoginType) {
     return <Loader />
   }
 
@@ -38,7 +42,7 @@ export const SecurityPage: FC = () => {
     <SecurityPageView
       security={{
         form: {
-          disabled: authMethods.me_login_type !== "password",
+          disabled: userLoginType.login_type !== "password",
           error,
           isLoading: securityState.matches("updatingSecurity"),
           onSubmit: (data) => {
@@ -54,6 +58,7 @@ export const SecurityPage: FC = () => {
           ? {
               section: {
                 authMethods,
+                userLoginType,
                 ...singleSignOnSection,
               },
             }

@@ -3527,6 +3527,40 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/{user}/login-type": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get user login type",
+                "operationId": "get-user-login-type",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserLoginType"
+                        }
+                    }
+                }
+            }
+        },
         "/users/{user}/organizations": {
             "get": {
                 "security": [
@@ -6551,14 +6585,6 @@ const docTemplate = `{
                 "github": {
                     "$ref": "#/definitions/codersdk.AuthMethod"
                 },
-                "me_login_type": {
-                    "description": "UserAuthenticationType returns the authentication method for the given\ncaller if the request is an authenticated request. Otherwise it is empty.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.LoginType"
-                        }
-                    ]
-                },
                 "oidc": {
                     "$ref": "#/definitions/codersdk.OIDCAuthMethod"
                 },
@@ -9218,6 +9244,14 @@ const docTemplate = `{
                 },
                 "username": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.UserLoginType": {
+            "type": "object",
+            "properties": {
+                "login_type": {
+                    "$ref": "#/definitions/codersdk.LoginType"
                 }
             }
         },

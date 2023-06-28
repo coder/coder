@@ -104,7 +104,6 @@ export interface AuthMethod {
 
 // From codersdk/users.go
 export interface AuthMethods {
-  readonly me_login_type?: LoginType
   readonly convert_to_oidc_enabled: boolean
   readonly password: AuthMethod
   readonly github: AuthMethod
@@ -1046,6 +1045,11 @@ export interface User {
   readonly organization_ids: string[]
   readonly roles: Role[]
   readonly avatar_url: string
+}
+
+// From codersdk/users.go
+export interface UserLoginType {
+  readonly login_type: LoginType
 }
 
 // From codersdk/users.go
