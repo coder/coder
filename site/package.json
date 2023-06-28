@@ -94,6 +94,7 @@
     "vite": "4.3.9",
     "xstate": "4.37.2",
     "xterm": "5.1.0",
+    "xterm-addon-canvas": "0.4.0",
     "xterm-addon-fit": "0.7.0",
     "xterm-addon-web-links": "0.8.0",
     "yup": "0.32.11"

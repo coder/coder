@@ -225,7 +225,7 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		logs, closer, err := client.WorkspaceAgentStartupLogsAfter(ctx, build.Resources[0].Agents[0].ID, 0)
+		logs, closer, err := client.WorkspaceAgentStartupLogsAfter(ctx, build.Resources[0].Agents[0].ID, 0, true)
 		require.NoError(t, err)
 		defer func() {
 			_ = closer.Close()
@@ -338,7 +338,7 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 		agentClient := agentsdk.New(client.URL)
 		agentClient.SetSessionToken(authToken)
 
-		logs, closer, err := client.WorkspaceAgentStartupLogsAfter(ctx, build.Resources[0].Agents[0].ID, 0)
+		logs, closer, err := client.WorkspaceAgentStartupLogsAfter(ctx, build.Resources[0].Agents[0].ID, 0, true)
 		require.NoError(t, err)
 		defer func() {
 			_ = closer.Close()

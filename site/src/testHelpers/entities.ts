@@ -310,6 +310,8 @@ export const MockRunningProvisionerJob: TypesGen.ProvisionerJob = {
 export const MockPendingProvisionerJob: TypesGen.ProvisionerJob = {
   ...MockProvisionerJob,
   status: "pending",
+  queue_position: 2,
+  queue_size: 4,
 }
 export const MockTemplateVersion: TypesGen.TemplateVersion = {
   id: "test-template-version",
