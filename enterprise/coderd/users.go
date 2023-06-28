@@ -11,22 +11,22 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-// @Summary Get user maintenance schedule
-// @ID get-user-maintenance-schedule
+// @Summary Get user quiet hours schedule
+// @ID get-user-quiet-hours-schedule
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
 // @Param user path string true "User ID" format(uuid)
-// @Success 200 {array} codersdk.UserMaintenanceScheduleResponse
-// @Router /users/{user}/maintenance-schedule [get]
-func (api *API) userMaintenanceSchedule(rw http.ResponseWriter, r *http.Request) {
+// @Success 200 {array} codersdk.UserQuietHoursScheduleResponse
+// @Router /users/{user}/quiet-hours-schedule [get]
+func (api *API) userQuietHoursSchedule(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx  = r.Context()
 		user = httpmw.UserParam(r)
 	)
 
 	// TODO: Double query here cuz of the user param
-	opts, err := (*api.UserMaintenanceScheduleStore.Load()).GetUserMaintenanceScheduleOptions(ctx, api.Database, user.ID)
+	opts, err := (*api.UserQuietHoursScheduleStore.Load()).GetUserQuietHoursScheduleOptions(ctx, api.Database, user.ID)
 	if err != nil {
 		// TODO: some of these errors are related to bad syntax, would be nice
 		// to 400
@@ -38,7 +38,7 @@ func (api *API) userMaintenanceSchedule(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserMaintenanceScheduleResponse{
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserQuietHoursScheduleResponse{
 		RawSchedule: opts.Schedule.String(),
 		UserSet:     opts.UserSet,
 		Time:        opts.Schedule.Time(),
@@ -48,21 +48,21 @@ func (api *API) userMaintenanceSchedule(rw http.ResponseWriter, r *http.Request)
 	})
 }
 
-// @Summary Update user maintenance schedule
-// @ID update-user-maintenance-schedule
+// @Summary Update user quiet hours schedule
+// @ID update-user-quiet-hours-schedule
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Enterprise
 // @Param user path string true "User ID" format(uuid)
-// @Param request body codersdk.UpdateUserMaintenanceScheduleRequest true "Update schedule request"
-// @Success 200 {array} codersdk.UserMaintenanceScheduleResponse
-// @Router /users/{user}/maintenance-schedule [put]
-func (api *API) putUserMaintenanceSchedule(rw http.ResponseWriter, r *http.Request) {
+// @Param request body codersdk.UpdateUserQuietHoursScheduleRequest true "Update schedule request"
+// @Success 200 {array} codersdk.UserQuietHoursScheduleResponse
+// @Router /users/{user}/quiet-hours-schedule [put]
+func (api *API) putUserQuietHoursSchedule(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
 		user              = httpmw.UserParam(r)
-		params            codersdk.UpdateUserMaintenanceScheduleRequest
+		params            codersdk.UpdateUserQuietHoursScheduleRequest
 		aReq, commitAudit = audit.InitRequest[database.User](rw, &audit.RequestParams{
 			Audit:   api.Auditor,
 			Log:     api.Logger,
@@ -77,7 +77,7 @@ func (api *API) putUserMaintenanceSchedule(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	opts, err := (*api.UserMaintenanceScheduleStore.Load()).SetUserMaintenanceScheduleOptions(ctx, api.Database, user.ID, params.Schedule)
+	opts, err := (*api.UserQuietHoursScheduleStore.Load()).SetUserQuietHoursScheduleOptions(ctx, api.Database, user.ID, params.Schedule)
 	if err != nil {
 		// TODO: some of these errors are related to bad syntax, would be nice
 		// to 400
@@ -85,7 +85,7 @@ func (api *API) putUserMaintenanceSchedule(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserMaintenanceScheduleResponse{
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserQuietHoursScheduleResponse{
 		RawSchedule: opts.Schedule.String(),
 		UserSet:     opts.UserSet,
 		Time:        opts.Schedule.Time(),

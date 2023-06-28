@@ -372,6 +372,7 @@ export interface DeploymentValues {
   readonly wgtunnel_host?: string
   readonly disable_owner_workspace_exec?: boolean
   readonly proxy_health_status_interval?: number
+  readonly user_quiet_hours_schedule?: UserQuietHoursScheduleConfig
   // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.YAMLConfigPath")
   readonly config?: string
   readonly write_config?: boolean
@@ -978,11 +979,6 @@ export interface UpdateTemplateMeta {
 }
 
 // From codersdk/users.go
-export interface UpdateUserMaintenanceScheduleRequest {
-  readonly schedule: string
-}
-
-// From codersdk/users.go
 export interface UpdateUserPasswordRequest {
   readonly old_password: string
   readonly password: string
@@ -991,6 +987,11 @@ export interface UpdateUserPasswordRequest {
 // From codersdk/users.go
 export interface UpdateUserProfileRequest {
   readonly username: string
+}
+
+// From codersdk/users.go
+export interface UpdateUserQuietHoursScheduleRequest {
+  readonly schedule: string
 }
 
 // From codersdk/workspaces.go
@@ -1032,8 +1033,14 @@ export interface User {
   readonly avatar_url: string
 }
 
+// From codersdk/deployment.go
+export interface UserQuietHoursScheduleConfig {
+  readonly default_schedule: string
+  readonly window_duration: number
+}
+
 // From codersdk/users.go
-export interface UserMaintenanceScheduleResponse {
+export interface UserQuietHoursScheduleResponse {
   readonly raw_schedule: string
   readonly user_set: boolean
   readonly time: string
@@ -1377,7 +1384,7 @@ export type FeatureName =
   | "scim"
   | "template_rbac"
   | "user_limit"
-  | "user_maintenance_schedule"
+  | "user_quiet_hours"
   | "workspace_proxy"
 export const FeatureNames: FeatureName[] = [
   "advanced_template_scheduling",
@@ -1390,7 +1397,7 @@ export const FeatureNames: FeatureName[] = [
   "scim",
   "template_rbac",
   "user_limit",
-  "user_maintenance_schedule",
+  "user_quiet_hours",
   "workspace_proxy",
 ]
 

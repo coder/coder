@@ -349,6 +349,10 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "honeycomb_api_key": "string"
     },
     "update_check": true,
+    "user_quiet_hours_schedule": {
+      "default_schedule": "string",
+      "window_duration": 0
+    },
     "verbose": true,
     "wgtunnel_host": "string",
     "wildcard_access_url": {

@@ -173,6 +173,16 @@ An HTTP URL that is accessible by other replicas to relay DERP traffic. Required
 
 Addresses for STUN servers to establish P2P connections. Use special value 'disable' to turn off STUN.
 
+### --default-quiet-hours-schedule
+
+|             |                                                               |
+| ----------- | ------------------------------------------------------------- |
+| Type        | <code>string</code>                                           |
+| Environment | <code>$CODER_QUIET_HOURS_DEFAULT_SCHEDULE</code>              |
+| YAML        | <code>userQuietHoursSchedule.defaultQuietHoursSchedule</code> |
+
+The default daily cron schedule applied to users that haven't set a custom quiet hours schedule themselves. The quiet hours schedule determines when workspaces will be force stopped due to the template's max TTL, and will round the max TTL up to be within the user's quiet hours window (or default). The format is the same as the standard cron format, but the day-of-month, month and day-of-week must be \*. Only one hour and minute can be specified (ranges or comma separated values are not supported).
+
 ### --disable-owner-workspace-access
 
 |             |                                                    |
@@ -627,6 +637,17 @@ Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip, True-Client
 | YAML        | <code>networking.proxyTrustedOrigins</code> |
 
 Origin addresses to respect "proxy-trusted-headers". e.g. 192.168.1.0/24.
+
+### --quiet-hours-window-duration
+
+|             |                                                              |
+| ----------- | ------------------------------------------------------------ |
+| Type        | <code>string</code>                                          |
+| Environment | <code>$CODER_QUIET_HOURS_WINDOW_DURATION</code>              |
+| YAML        | <code>userQuietHoursSchedule.quietHoursWindowDuration</code> |
+| Default     | <code>4h0m0s</code>                                          |
+
+The duration of quiet hours windows when triggered by cron. Workspaces can only be stopped due to max TTL during this window. Must be at least 1 hour.
 
 ### --redirect-to-access-url
 

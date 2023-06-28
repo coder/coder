@@ -118,14 +118,14 @@ type Options struct {
 	RealIPConfig                   *httpmw.RealIPConfig
 	TrialGenerator                 func(ctx context.Context, email string) error
 	// TLSCertificates is used to mesh DERP servers securely.
-	TLSCertificates              []tls.Certificate
-	TailnetCoordinator           tailnet.Coordinator
-	DERPServer                   *derp.Server
-	DERPMap                      *tailcfg.DERPMap
-	SwaggerEndpoint              bool
-	SetUserGroups                func(ctx context.Context, tx database.Store, userID uuid.UUID, groupNames []string) error
-	TemplateScheduleStore        *atomic.Pointer[schedule.TemplateScheduleStore]
-	UserMaintenanceScheduleStore *atomic.Pointer[schedule.UserMaintenanceScheduleStore]
+	TLSCertificates             []tls.Certificate
+	TailnetCoordinator          tailnet.Coordinator
+	DERPServer                  *derp.Server
+	DERPMap                     *tailcfg.DERPMap
+	SwaggerEndpoint             bool
+	SetUserGroups               func(ctx context.Context, tx database.Store, userID uuid.UUID, groupNames []string) error
+	TemplateScheduleStore       *atomic.Pointer[schedule.TemplateScheduleStore]
+	UserQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
 	// AppSecurityKey is the crypto key used to sign and encrypt tokens related to
 	// workspace applications. It consists of both a signing and encryption key.
 	AppSecurityKey     workspaceapps.SecurityKey
@@ -260,12 +260,12 @@ func New(options *Options) *API {
 		v := schedule.NewAGPLTemplateScheduleStore()
 		options.TemplateScheduleStore.Store(&v)
 	}
-	if options.UserMaintenanceScheduleStore == nil {
-		options.UserMaintenanceScheduleStore = &atomic.Pointer[schedule.UserMaintenanceScheduleStore]{}
+	if options.UserQuietHoursScheduleStore == nil {
+		options.UserQuietHoursScheduleStore = &atomic.Pointer[schedule.UserQuietHoursScheduleStore]{}
 	}
-	if options.UserMaintenanceScheduleStore.Load() == nil {
-		v := schedule.NewAGPLUserMaintenanceScheduleStore()
-		options.UserMaintenanceScheduleStore.Store(&v)
+	if options.UserQuietHoursScheduleStore.Load() == nil {
+		v := schedule.NewAGPLUserQuietHoursScheduleStore()
+		options.UserQuietHoursScheduleStore.Store(&v)
 	}
 	if options.HealthcheckFunc == nil {
 		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *healthcheck.Report {
@@ -338,12 +338,12 @@ func New(options *Options) *API {
 			options.AgentInactiveDisconnectTimeout,
 			options.AppSecurityKey,
 		),
-		metricsCache:                 metricsCache,
-		Auditor:                      atomic.Pointer[audit.Auditor]{},
-		TemplateScheduleStore:        options.TemplateScheduleStore,
-		UserMaintenanceScheduleStore: options.UserMaintenanceScheduleStore,
-		Experiments:                  experiments,
-		healthCheckGroup:             &singleflight.Group[string, *healthcheck.Report]{},
+		metricsCache:                metricsCache,
+		Auditor:                     atomic.Pointer[audit.Auditor]{},
+		TemplateScheduleStore:       options.TemplateScheduleStore,
+		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
+		Experiments:                 experiments,
+		healthCheckGroup:            &singleflight.Group[string, *healthcheck.Report]{},
 	}
 	if options.UpdateCheckOptions != nil {
 		api.updateChecker = updatecheck.New(
@@ -865,9 +865,9 @@ type API struct {
 	// TemplateScheduleStore is a pointer to an atomic pointer because this is
 	// passed to another struct, and we want them all to be the same reference.
 	TemplateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
-	// UserMaintenanceScheduleStore is a pointer to an atomic pointer for the
+	// UserQuietHoursScheduleStore is a pointer to an atomic pointer for the
 	// same reason as TemplateScheduleStore.
-	UserMaintenanceScheduleStore *atomic.Pointer[schedule.UserMaintenanceScheduleStore]
+	UserQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
 
 	HTTPAuth *HTTPAuthorizer
 
@@ -977,23 +977,23 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 	mux := drpcmux.New()
 
 	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdserver.Server{
-		AccessURL:                    api.AccessURL,
-		ID:                           daemon.ID,
-		OIDCConfig:                   api.OIDCConfig,
-		Database:                     api.Database,
-		Pubsub:                       api.Pubsub,
-		Provisioners:                 daemon.Provisioners,
-		GitAuthConfigs:               api.GitAuthConfigs,
-		Telemetry:                    api.Telemetry,
-		Tracer:                       tracer,
-		Tags:                         tags,
-		QuotaCommitter:               &api.QuotaCommitter,
-		Auditor:                      &api.Auditor,
-		TemplateScheduleStore:        api.TemplateScheduleStore,
-		UserMaintenanceScheduleStore: api.UserMaintenanceScheduleStore,
-		AcquireJobDebounce:           debounce,
-		Logger:                       api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
-		DeploymentValues:             api.DeploymentValues,
+		AccessURL:                   api.AccessURL,
+		ID:                          daemon.ID,
+		OIDCConfig:                  api.OIDCConfig,
+		Database:                    api.Database,
+		Pubsub:                      api.Pubsub,
+		Provisioners:                daemon.Provisioners,
+		GitAuthConfigs:              api.GitAuthConfigs,
+		Telemetry:                   api.Telemetry,
+		Tracer:                      tracer,
+		Tags:                        tags,
+		QuotaCommitter:              &api.QuotaCommitter,
+		Auditor:                     &api.Auditor,
+		TemplateScheduleStore:       api.TemplateScheduleStore,
+		UserQuietHoursScheduleStore: api.UserQuietHoursScheduleStore,
+		AcquireJobDebounce:          debounce,
+		Logger:                      api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
+		DeploymentValues:            api.DeploymentValues,
 	})
 	if err != nil {
 		return nil, err

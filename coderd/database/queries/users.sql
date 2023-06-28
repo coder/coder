@@ -249,11 +249,11 @@ FROM
 WHERE
 	id = @user_id;
 
--- name: UpdateUserMaintenanceSchedule :one
+-- name: UpdateUserQuietHoursSchedule :one
 UPDATE
 	users
 SET
-	maintenance_schedule = $2
+	quiet_hours_schedule = $2
 WHERE
 	id = $1
 RETURNING *;

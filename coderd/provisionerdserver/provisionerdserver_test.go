@@ -47,9 +47,9 @@ func testTemplateScheduleStore() *atomic.Pointer[schedule.TemplateScheduleStore]
 	return ptr
 }
 
-func testUserMaintenanceScheduleStore() *atomic.Pointer[schedule.UserMaintenanceScheduleStore] {
-	ptr := &atomic.Pointer[schedule.UserMaintenanceScheduleStore]{}
-	store := schedule.NewAGPLUserMaintenanceScheduleStore()
+func testUserMaintenanceScheduleStore() *atomic.Pointer[schedule.UserQuietHoursScheduleStore] {
+	ptr := &atomic.Pointer[schedule.UserQuietHoursScheduleStore]{}
+	store := schedule.NewAGPLUserQuietHoursScheduleStore()
 	ptr.Store(&store)
 	return ptr
 }
@@ -61,19 +61,19 @@ func TestAcquireJob(t *testing.T) {
 		db := dbfake.New()
 		ps := pubsub.NewInMemory()
 		srv := &provisionerdserver.Server{
-			ID:                           uuid.New(),
-			Logger:                       slogtest.Make(t, nil),
-			AccessURL:                    &url.URL{},
-			Provisioners:                 []database.ProvisionerType{database.ProvisionerTypeEcho},
-			Database:                     db,
-			Pubsub:                       ps,
-			Telemetry:                    telemetry.NewNoop(),
-			AcquireJobDebounce:           time.Hour,
-			Auditor:                      mockAuditor(),
-			TemplateScheduleStore:        testTemplateScheduleStore(),
-			UserMaintenanceScheduleStore: testUserMaintenanceScheduleStore(),
-			Tracer:                       trace.NewNoopTracerProvider().Tracer("noop"),
-			DeploymentValues:             &codersdk.DeploymentValues{},
+			ID:                          uuid.New(),
+			Logger:                      slogtest.Make(t, nil),
+			AccessURL:                   &url.URL{},
+			Provisioners:                []database.ProvisionerType{database.ProvisionerTypeEcho},
+			Database:                    db,
+			Pubsub:                      ps,
+			Telemetry:                   telemetry.NewNoop(),
+			AcquireJobDebounce:          time.Hour,
+			Auditor:                     mockAuditor(),
+			TemplateScheduleStore:       testTemplateScheduleStore(),
+			UserQuietHoursScheduleStore: testUserMaintenanceScheduleStore(),
+			Tracer:                      trace.NewNoopTracerProvider().Tracer("noop"),
+			DeploymentValues:            &codersdk.DeploymentValues{},
 		}
 		job, err := srv.AcquireJob(context.Background(), nil)
 		require.NoError(t, err)
@@ -1268,19 +1268,19 @@ func setup(t *testing.T, ignoreLogErrors bool) *provisionerdserver.Server {
 	ps := pubsub.NewInMemory()
 
 	return &provisionerdserver.Server{
-		ID:                           uuid.New(),
-		Logger:                       slogtest.Make(t, &slogtest.Options{IgnoreErrors: ignoreLogErrors}),
-		OIDCConfig:                   &oauth2.Config{},
-		AccessURL:                    &url.URL{},
-		Provisioners:                 []database.ProvisionerType{database.ProvisionerTypeEcho},
-		Database:                     db,
-		Pubsub:                       ps,
-		Telemetry:                    telemetry.NewNoop(),
-		Auditor:                      mockAuditor(),
-		TemplateScheduleStore:        testTemplateScheduleStore(),
-		UserMaintenanceScheduleStore: testUserMaintenanceScheduleStore(),
-		Tracer:                       trace.NewNoopTracerProvider().Tracer("noop"),
-		DeploymentValues:             &codersdk.DeploymentValues{},
+		ID:                          uuid.New(),
+		Logger:                      slogtest.Make(t, &slogtest.Options{IgnoreErrors: ignoreLogErrors}),
+		OIDCConfig:                  &oauth2.Config{},
+		AccessURL:                   &url.URL{},
+		Provisioners:                []database.ProvisionerType{database.ProvisionerTypeEcho},
+		Database:                    db,
+		Pubsub:                      ps,
+		Telemetry:                   telemetry.NewNoop(),
+		Auditor:                     mockAuditor(),
+		TemplateScheduleStore:       testTemplateScheduleStore(),
+		UserQuietHoursScheduleStore: testUserMaintenanceScheduleStore(),
+		Tracer:                      trace.NewNoopTracerProvider().Tracer("noop"),
+		DeploymentValues:            &codersdk.DeploymentValues{},
 	}
 }
 

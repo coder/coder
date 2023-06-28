@@ -1375,10 +1375,10 @@ func (m metricsStore) UpdateUserLinkedID(ctx context.Context, arg database.Updat
 	return link, err
 }
 
-func (m metricsStore) UpdateUserMaintenanceSchedule(ctx context.Context, arg database.UpdateUserMaintenanceScheduleParams) (database.User, error) {
+func (m metricsStore) UpdateUserQuietHoursSchedule(ctx context.Context, arg database.UpdateUserQuietHoursScheduleParams) (database.User, error) {
 	start := time.Now()
-	r0, r1 := m.s.UpdateUserMaintenanceSchedule(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateUserMaintenanceSchedule").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.UpdateUserQuietHoursSchedule(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserQuietHoursSchedule").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

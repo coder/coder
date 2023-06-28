@@ -57,16 +57,16 @@ func (r *RootCmd) server() *clibase.Cmd {
 		options.TrialGenerator = trialer.New(options.Database, "https://v2-licensor.coder.com/trial", coderd.Keys)
 
 		o := &coderd.Options{
-			Options:                        options,
-			AuditLogging:                   true,
-			BrowserOnly:                    options.DeploymentValues.BrowserOnly.Value(),
-			SCIMAPIKey:                     []byte(options.DeploymentValues.SCIMAPIKey.Value()),
-			RBAC:                           true,
-			DERPServerRelayAddress:         options.DeploymentValues.DERP.Server.RelayURL.String(),
-			DERPServerRegionID:             int(options.DeploymentValues.DERP.Server.RegionID.Value()),
-			ProxyHealthInterval:            options.DeploymentValues.ProxyHealthStatusInterval.Value(),
-			DefaultUserMaintenanceSchedule: options.DeploymentValues.UserMaintenanceSchedule.DefaultSchedule.Value(),
-			UserMaintenanceWindowDuration:  options.DeploymentValues.UserMaintenanceSchedule.WindowDuration.Value(),
+			Options:                   options,
+			AuditLogging:              true,
+			BrowserOnly:               options.DeploymentValues.BrowserOnly.Value(),
+			SCIMAPIKey:                []byte(options.DeploymentValues.SCIMAPIKey.Value()),
+			RBAC:                      true,
+			DERPServerRelayAddress:    options.DeploymentValues.DERP.Server.RelayURL.String(),
+			DERPServerRegionID:        int(options.DeploymentValues.DERP.Server.RegionID.Value()),
+			ProxyHealthInterval:       options.DeploymentValues.ProxyHealthStatusInterval.Value(),
+			DefaultQuietHoursSchedule: options.DeploymentValues.UserQuietHoursSchedule.DefaultSchedule.Value(),
+			QuietHoursWindowDuration:  options.DeploymentValues.UserQuietHoursSchedule.WindowDuration.Value(),
 		}
 
 		api, err := coderd.New(ctx, o)

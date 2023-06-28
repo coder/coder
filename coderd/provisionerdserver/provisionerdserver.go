@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -50,21 +49,21 @@ var (
 )
 
 type Server struct {
-	AccessURL                    *url.URL
-	ID                           uuid.UUID
-	Logger                       slog.Logger
-	Provisioners                 []database.ProvisionerType
-	GitAuthConfigs               []*gitauth.Config
-	Tags                         json.RawMessage
-	Database                     database.Store
-	Pubsub                       pubsub.Pubsub
-	Telemetry                    telemetry.Reporter
-	Tracer                       trace.Tracer
-	QuotaCommitter               *atomic.Pointer[proto.QuotaCommitter]
-	Auditor                      *atomic.Pointer[audit.Auditor]
-	TemplateScheduleStore        *atomic.Pointer[schedule.TemplateScheduleStore]
-	UserMaintenanceScheduleStore *atomic.Pointer[schedule.UserMaintenanceScheduleStore]
-	DeploymentValues             *codersdk.DeploymentValues
+	AccessURL                   *url.URL
+	ID                          uuid.UUID
+	Logger                      slog.Logger
+	Provisioners                []database.ProvisionerType
+	GitAuthConfigs              []*gitauth.Config
+	Tags                        json.RawMessage
+	Database                    database.Store
+	Pubsub                      pubsub.Pubsub
+	Telemetry                   telemetry.Reporter
+	Tracer                      trace.Tracer
+	QuotaCommitter              *atomic.Pointer[proto.QuotaCommitter]
+	Auditor                     *atomic.Pointer[audit.Auditor]
+	TemplateScheduleStore       *atomic.Pointer[schedule.TemplateScheduleStore]
+	UserQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
+	DeploymentValues            *codersdk.DeploymentValues
 
 	AcquireJobDebounce time.Duration
 	OIDCConfig         httpmw.OAuth2Config
@@ -936,51 +935,33 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 					// deadline is sooner than the workspace deadline, use the
 					// max deadline as the actual deadline.
 					//
-					// Notably, this isn't affected by the user's maintenance
+					// Notably, this isn't affected by the user's quiet hours
 					// schedule below because we'd still like to use the max TTL
 					// as the TTL for the workspace if it's not set.
 					deadline = maxDeadline
 				}
 			}
 
-			userMaintenanceSchedule, err := (*server.UserMaintenanceScheduleStore.Load()).GetUserMaintenanceScheduleOptions(ctx, db, workspace.OwnerID)
+			userQuietHoursSchedule, err := (*server.UserQuietHoursScheduleStore.Load()).GetUserQuietHoursScheduleOptions(ctx, db, workspace.OwnerID)
 			if err != nil {
-				return xerrors.Errorf("get user maintenance schedule options: %w", err)
+				return xerrors.Errorf("get user quiet hours schedule options: %w", err)
 			}
-			if userMaintenanceSchedule.Schedule != nil {
+			if userQuietHoursSchedule.Schedule != nil {
 				// Round the max deadline up to the nearest occurrence of the
-				// user's maintenance schedule. This ensures that workspaces
+				// user's quiet hours schedule. This ensures that workspaces
 				// can't be force-stopped due to max TTL during business hours.
 
 				// Get the schedule occurrence that happens right before, during
 				// or after the max deadline.
-				// TODO: change to the maintenance window BEFORE max TTL
-				scheduleDur := userMaintenanceSchedule.Duration
+				// TODO: change to the quiet hours window BEFORE max TTL
+				scheduleDur := userQuietHoursSchedule.Duration
 				if scheduleDur > 1*time.Hour {
 					// Allow a 15 minute buffer when possible so we're not too
 					// constrained with the autostop time.
 					scheduleDur -= 15 * time.Minute
 				}
-				windowStart := userMaintenanceSchedule.Schedule.Next(maxDeadline.Add(scheduleDur))
-
-				// Get the window of time that the workspace can be stopped in.
-				// This must be between windowStart and windowEnd, and also must
-				// be after the current max deadline.
-				minTime := maxDeadline
-				if windowStart.After(minTime) {
-					minTime = windowStart
-				}
-				maxTime := windowStart.Add(scheduleDur)
-				if minTime.After(maxTime) {
-					// TODO: remove this panic once we have good tests, and add
-					// a sensible fallback instead
-					panic("minTime is after maxTime")
-				}
-
-				// Pick a random time between minTime and maxTime.
-				actualDur := maxTime.Sub(minTime)
-				jitter := time.Duration(rand.Int63n(int64(actualDur)))
-				maxDeadline = minTime.Add(jitter)
+				windowStart := userQuietHoursSchedule.Schedule.Next(maxDeadline.Add(scheduleDur))
+				maxDeadline = windowStart
 			}
 
 			err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{

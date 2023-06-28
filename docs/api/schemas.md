@@ -2021,6 +2021,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "honeycomb_api_key": "string"
     },
     "update_check": true,
+    "user_quiet_hours_schedule": {
+      "default_schedule": "string",
+      "window_duration": 0
+    },
     "verbose": true,
     "wgtunnel_host": "string",
     "wildcard_access_url": {
@@ -2349,6 +2353,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "honeycomb_api_key": "string"
   },
   "update_check": true,
+  "user_quiet_hours_schedule": {
+    "default_schedule": "string",
+    "window_duration": 0
+  },
   "verbose": true,
   "wgtunnel_host": "string",
   "wildcard_access_url": {
@@ -2417,6 +2425,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `tls`                                | [codersdk.TLSConfig](#codersdktlsconfig)                                                   | false    |              |                                                                    |
 | `trace`                              | [codersdk.TraceConfig](#codersdktraceconfig)                                               | false    |              |                                                                    |
 | `update_check`                       | boolean                                                                                    | false    |              |                                                                    |
+| `user_quiet_hours_schedule`          | [codersdk.UserQuietHoursScheduleConfig](#codersdkuserquiethoursscheduleconfig)             | false    |              |                                                                    |
 | `verbose`                            | boolean                                                                                    | false    |              |                                                                    |
 | `wgtunnel_host`                      | string                                                                                     | false    |              |                                                                    |
 | `wildcard_access_url`                | [clibase.URL](#clibaseurl)                                                                 | false    |              |                                                                    |
@@ -4265,6 +4274,23 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ---------- | ------ | -------- | ------------ | ----------- |
 | `username` | string | true     |              |             |
 
+## codersdk.UpdateUserQuietHoursScheduleRequest
+
+```json
+{
+  "schedule": "string"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                    |
+| ---------- | ------ | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schedule` | string | true     |              | Schedule is a cron expression that defines when the user's quiet hours window is. Schedule must not be empty. For new users, the schedule is set to 2am in their browser or computer's timezone. The schedule denotes the beginning of a 4 hour window where the workspace is allowed to automatically stop or restart due to maintenance or template max TTL. |
+
+The schedule must be daily with a single time, and should have a timezone specified via a CRON_TZ prefix (otherwise UTC will be used).
+If the schedule is empty, the user will be updated to use the default schedule.|
+
 ## codersdk.UpdateWorkspaceAutostartRequest
 
 ```json
@@ -4362,6 +4388,46 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | -------- | ----------- |
 | `status` | `active`    |
 | `status` | `suspended` |
+
+## codersdk.UserQuietHoursScheduleConfig
+
+```json
+{
+  "default_schedule": "string",
+  "window_duration": 0
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description |
+| ------------------ | ------- | -------- | ------------ | ----------- |
+| `default_schedule` | string  | false    |              |             |
+| `window_duration`  | integer | false    |              |             |
+
+## codersdk.UserQuietHoursScheduleResponse
+
+```json
+{
+  "duration": 0,
+  "next": "2019-08-24T14:15:22Z",
+  "raw_schedule": "string",
+  "time": "string",
+  "timezone": "string",
+  "user_set": true
+}
+```
+
+### Properties
+
+| Name           | Type    | Required | Restrictions | Description                                                                                                            |
+| -------------- | ------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `duration`     | integer | false    |              | Duration is the duration of the quiet hours window.                                                                    |
+| `next`         | string  | false    |              | Next is the next time that the quiet hours window will start.                                                          |
+| `raw_schedule` | string  | false    |              |                                                                                                                        |
+| `time`         | string  | false    |              | Time is the time of day that the quiet hours window starts in the given Timezone each day.                             |
+| `timezone`     | string  | false    |              | raw format from the cron expression, UTC if unspecified                                                                |
+| `user_set`     | boolean | false    |              | User set is true if the user has set their own quiet hours schedule. If false, the user is using the default schedule. |
 
 ## codersdk.UserStatus
 

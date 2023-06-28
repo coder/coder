@@ -3652,6 +3652,92 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/{user}/quiet-hours-schedule": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get user quiet hours schedule",
+                "operationId": "get-user-quiet-hours-schedule",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "User ID",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.UserQuietHoursScheduleResponse"
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Update user quiet hours schedule",
+                "operationId": "update-user-quiet-hours-schedule",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "User ID",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update schedule request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateUserQuietHoursScheduleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.UserQuietHoursScheduleResponse"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/users/{user}/roles": {
             "get": {
                 "security": [
@@ -7292,6 +7378,9 @@ const docTemplate = `{
                 "update_check": {
                     "type": "boolean"
                 },
+                "user_quiet_hours_schedule": {
+                    "$ref": "#/definitions/codersdk.UserQuietHoursScheduleConfig"
+                },
                 "verbose": {
                     "type": "boolean"
                 },
@@ -8985,6 +9074,18 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateUserQuietHoursScheduleRequest": {
+            "type": "object",
+            "required": [
+                "schedule"
+            ],
+            "properties": {
+                "schedule": {
+                    "description": "Schedule is a cron expression that defines when the user's quiet hours\nwindow is. Schedule must not be empty. For new users, the schedule is set\nto 2am in their browser or computer's timezone. The schedule denotes the\nbeginning of a 4 hour window where the workspace is allowed to\nautomatically stop or restart due to maintenance or template max TTL.\n\nThe schedule must be daily with a single time, and should have a timezone\nspecified via a CRON_TZ prefix (otherwise UTC will be used).\n\nIf the schedule is empty, the user will be updated to use the default\nschedule.",
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.UpdateWorkspaceAutostartRequest": {
             "type": "object",
             "properties": {
@@ -9073,6 +9174,46 @@ const docTemplate = `{
                 },
                 "username": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.UserQuietHoursScheduleConfig": {
+            "type": "object",
+            "properties": {
+                "default_schedule": {
+                    "type": "string"
+                },
+                "window_duration": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.UserQuietHoursScheduleResponse": {
+            "type": "object",
+            "properties": {
+                "duration": {
+                    "description": "Duration is the duration of the quiet hours window.",
+                    "type": "integer"
+                },
+                "next": {
+                    "description": "Next is the next time that the quiet hours window will start.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "raw_schedule": {
+                    "type": "string"
+                },
+                "time": {
+                    "description": "Time is the time of day that the quiet hours window starts in the given\nTimezone each day.",
+                    "type": "string"
+                },
+                "timezone": {
+                    "description": "raw format from the cron expression, UTC if unspecified",
+                    "type": "string"
+                },
+                "user_set": {
+                    "description": "UserSet is true if the user has set their own quiet hours schedule. If\nfalse, the user is using the default schedule.",
+                    "type": "boolean"
                 }
             }
         },

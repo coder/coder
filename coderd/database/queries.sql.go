@@ -1103,7 +1103,7 @@ func (q *sqlQuerier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]
 			&i.AvatarURL,
 			&i.Deleted,
 			&i.LastSeenAt,
-			&i.MaintenanceSchedule,
+			&i.QuietHoursSchedule,
 		); err != nil {
 			return nil, err
 		}
@@ -4773,7 +4773,7 @@ func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserBy
 		&i.AvatarURL,
 		&i.Deleted,
 		&i.LastSeenAt,
-		&i.MaintenanceSchedule,
+		&i.QuietHoursSchedule,
 	)
 	return i, err
 }
@@ -4805,7 +4805,7 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (User, error
 		&i.AvatarURL,
 		&i.Deleted,
 		&i.LastSeenAt,
-		&i.MaintenanceSchedule,
+		&i.QuietHoursSchedule,
 	)
 	return i, err
 }
@@ -4987,7 +4987,7 @@ func (q *sqlQuerier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User
 			&i.AvatarURL,
 			&i.Deleted,
 			&i.LastSeenAt,
-			&i.MaintenanceSchedule,
+			&i.QuietHoursSchedule,
 		); err != nil {
 			return nil, err
 		}
@@ -5054,7 +5054,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		&i.AvatarURL,
 		&i.Deleted,
 		&i.LastSeenAt,
-		&i.MaintenanceSchedule,
+		&i.QuietHoursSchedule,
 	)
 	return i, err
 }
@@ -5129,12 +5129,12 @@ func (q *sqlQuerier) UpdateUserLastSeenAt(ctx context.Context, arg UpdateUserLas
 		&i.AvatarURL,
 		&i.Deleted,
 		&i.LastSeenAt,
-		&i.MaintenanceSchedule,
+		&i.QuietHoursSchedule,
 	)
 	return i, err
 }
 
-const updateUserMaintenanceSchedule = `-- name: UpdateUserMaintenanceSchedule :one
+const UpdateUserQuietHoursSchedule = `-- name: UpdateUserQuietHoursSchedule :one
 UPDATE
 	users
 SET
@@ -5144,13 +5144,13 @@ WHERE
 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, maintenance_schedule
 `
 
-type UpdateUserMaintenanceScheduleParams struct {
-	ID                  uuid.UUID `db:"id" json:"id"`
-	MaintenanceSchedule string    `db:"maintenance_schedule" json:"maintenance_schedule"`
+type UpdateUserQuietHoursScheduleParams struct {
+	ID                 uuid.UUID `db:"id" json:"id"`
+	QuietHoursSchedule string    `db:"quiet_hours_schedule" json:"quiet_hours_schedule"`
 }
 
-func (q *sqlQuerier) UpdateUserMaintenanceSchedule(ctx context.Context, arg UpdateUserMaintenanceScheduleParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, updateUserMaintenanceSchedule, arg.ID, arg.MaintenanceSchedule)
+func (q *sqlQuerier) UpdateUserQuietHoursSchedule(ctx context.Context, arg UpdateUserQuietHoursScheduleParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, UpdateUserQuietHoursSchedule, arg.ID, arg.QuietHoursSchedule)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -5165,7 +5165,7 @@ func (q *sqlQuerier) UpdateUserMaintenanceSchedule(ctx context.Context, arg Upda
 		&i.AvatarURL,
 		&i.Deleted,
 		&i.LastSeenAt,
-		&i.MaintenanceSchedule,
+		&i.QuietHoursSchedule,
 	)
 	return i, err
 }
@@ -5212,7 +5212,7 @@ func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfil
 		&i.AvatarURL,
 		&i.Deleted,
 		&i.LastSeenAt,
-		&i.MaintenanceSchedule,
+		&i.QuietHoursSchedule,
 	)
 	return i, err
 }
@@ -5249,7 +5249,7 @@ func (q *sqlQuerier) UpdateUserRoles(ctx context.Context, arg UpdateUserRolesPar
 		&i.AvatarURL,
 		&i.Deleted,
 		&i.LastSeenAt,
-		&i.MaintenanceSchedule,
+		&i.QuietHoursSchedule,
 	)
 	return i, err
 }
@@ -5286,7 +5286,7 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 		&i.AvatarURL,
 		&i.Deleted,
 		&i.LastSeenAt,
-		&i.MaintenanceSchedule,
+		&i.QuietHoursSchedule,
 	)
 	return i, err
 }

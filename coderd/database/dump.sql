@@ -530,7 +530,7 @@ CREATE TABLE users (
     avatar_url text,
     deleted boolean DEFAULT false NOT NULL,
     last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL,
-    maintenance_schedule text DEFAULT ''::text NOT NULL
+    quiet_hours_schedule text DEFAULT ''::text NOT NULL
 );
 
 CREATE UNLOGGED TABLE workspace_agent_metadata (

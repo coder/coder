@@ -45,7 +45,7 @@ const (
 	FeatureExternalProvisionerDaemons FeatureName = "external_provisioner_daemons"
 	FeatureAppearance                 FeatureName = "appearance"
 	FeatureAdvancedTemplateScheduling FeatureName = "advanced_template_scheduling"
-	FeatureUserMaintenanceSchedule    FeatureName = "user_maintenance_schedule"
+	FeatureUserQuietHoursSchedule     FeatureName = "user_quiet_hours"
 	FeatureWorkspaceProxy             FeatureName = "workspace_proxy"
 )
 
@@ -61,7 +61,7 @@ var FeatureNames = []FeatureName{
 	FeatureExternalProvisionerDaemons,
 	FeatureAppearance,
 	FeatureAdvancedTemplateScheduling,
-	FeatureUserMaintenanceSchedule,
+	FeatureUserQuietHoursSchedule,
 	FeatureWorkspaceProxy,
 }
 
@@ -166,7 +166,7 @@ type DeploymentValues struct {
 	WgtunnelHost                    clibase.String                  `json:"wgtunnel_host,omitempty" typescript:",notnull"`
 	DisableOwnerWorkspaceExec       clibase.Bool                    `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
 	ProxyHealthStatusInterval       clibase.Duration                `json:"proxy_health_status_interval,omitempty" typescript:",notnull"`
-	UserMaintenanceSchedule         UserMaintenanceScheduleConfig   `json:"user_maintenance_schedule,omitempty" typescript:",notnull"`
+	UserQuietHoursSchedule          UserQuietHoursScheduleConfig    `json:"user_quiet_hours_schedule,omitempty" typescript:",notnull"`
 
 	Config      clibase.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig clibase.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -338,7 +338,7 @@ type DangerousConfig struct {
 	AllowAllCors                clibase.Bool `json:"allow_all_cors" typescript:",notnull"`
 }
 
-type UserMaintenanceScheduleConfig struct {
+type UserQuietHoursScheduleConfig struct {
 	DefaultSchedule clibase.String   `json:"default_schedule" typescript:",notnull"`
 	WindowDuration  clibase.Duration `json:"window_duration" typescript:",notnull"`
 }
@@ -466,10 +466,10 @@ when required by your organization's security policy.`,
 			Description: `Tune the behavior of the provisioner, which is responsible for creating, updating, and deleting workspace resources.`,
 			YAML:        "provisioning",
 		}
-		deploymentGroupUserMaintenanceSchedule = clibase.Group{
-			Name:        "User Maintenance Schedule",
-			Description: "Allow users to set maintenance schedules each day for workspaces to avoid workspaces stopping during the day due to template max TTL.",
-			YAML:        "user-maintenance-schedule",
+		deploymentGroupUserQuietHoursSchedule = clibase.Group{
+			Name:        "User Quiet Hours Schedule",
+			Description: "Allow users to set quiet hours schedules each day for workspaces to avoid workspaces stopping during the day due to template max TTL.",
+			YAML:        "userQuietHoursSchedule",
 		}
 		deploymentGroupDangerous = clibase.Group{
 			Name: "⚠️ Dangerous",
@@ -1533,24 +1533,24 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "proxyHealthInterval",
 		},
 		{
-			Name:        "Default Maintenance Schedule",
-			Description: "The default daily cron schedule applied to users that haven't set a custom maintenance schedule themselves. The maintenance schedule determines when workspaces will be force stopped due to the template's max TTL, and will round the max TTL up to be within the user's maintenance window (or default). The format is the same as the standard cron format, but the day-of-month, month and day-of-week must be *. Only one hour and minute can be specified (ranges or comma separated values are not supported).",
-			Flag:        "default-maintenance-schedule",
-			Env:         "CODER_MAINTENANCE_DEFAULT_SCHEDULE",
+			Name:        "Default Quiet Hours Schedule",
+			Description: "The default daily cron schedule applied to users that haven't set a custom quiet hours schedule themselves. The quiet hours schedule determines when workspaces will be force stopped due to the template's max TTL, and will round the max TTL up to be within the user's quiet hours window (or default). The format is the same as the standard cron format, but the day-of-month, month and day-of-week must be *. Only one hour and minute can be specified (ranges or comma separated values are not supported).",
+			Flag:        "default-quiet-hours-schedule",
+			Env:         "CODER_QUIET_HOURS_DEFAULT_SCHEDULE",
 			Default:     "",
-			Value:       &c.UserMaintenanceSchedule.DefaultSchedule,
-			Group:       &deploymentGroupUserMaintenanceSchedule,
-			YAML:        "defaultMaintenanceSchedule",
+			Value:       &c.UserQuietHoursSchedule.DefaultSchedule,
+			Group:       &deploymentGroupUserQuietHoursSchedule,
+			YAML:        "defaultQuietHoursSchedule",
 		},
 		{
-			Name:        "Maintenance Window Duration",
-			Description: "The duration of maintenance windows when triggered by cron. Workspaces can only be stopped due to max TTL during this window. Must be at least 1 hour.",
-			Flag:        "maintenance-window-duration",
-			Env:         "CODER_MAINTENANCE_WINDOW_DURATION",
+			Name:        "Quiet Hours Window Duration",
+			Description: "The duration of quiet hours windows when triggered by cron. Workspaces can only be stopped due to max TTL during this window. Must be at least 1 hour.",
+			Flag:        "quiet-hours-window-duration",
+			Env:         "CODER_QUIET_HOURS_WINDOW_DURATION",
 			Default:     (4 * time.Hour).String(),
-			Value:       &c.UserMaintenanceSchedule.DefaultSchedule,
-			Group:       &deploymentGroupUserMaintenanceSchedule,
-			YAML:        "maintenanceWindowDuration",
+			Value:       &c.UserQuietHoursSchedule.DefaultSchedule,
+			Group:       &deploymentGroupUserQuietHoursSchedule,
+			YAML:        "quietHoursWindowDuration",
 		},
 	}
 	return opts

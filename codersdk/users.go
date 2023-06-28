@@ -84,23 +84,23 @@ type UpdateUserPasswordRequest struct {
 	Password    string `json:"password" validate:"required"`
 }
 
-type UserMaintenanceScheduleResponse struct {
+type UserQuietHoursScheduleResponse struct {
 	RawSchedule string `json:"raw_schedule"`
-	// UserSet is true if the user has set their own maintenance schedule. If
+	// UserSet is true if the user has set their own quiet hours schedule. If
 	// false, the user is using the default schedule.
 	UserSet bool `json:"user_set"`
-	// Time is the time of day that the maintenance window starts in the given
+	// Time is the time of day that the quiet hours window starts in the given
 	// Timezone each day.
 	Time     string `json:"time"`     // HH:mm (24-hour)
 	Timezone string `json:"timezone"` // raw format from the cron expression, UTC if unspecified
-	// Duration is the duration of the maintenance window.
+	// Duration is the duration of the quiet hours window.
 	Duration time.Duration `json:"duration"`
-	// Next is the next time that the maintenance window will start.
+	// Next is the next time that the quiet hours window will start.
 	Next time.Time `json:"next" format:"date-time"`
 }
 
-type UpdateUserMaintenanceScheduleRequest struct {
-	// Schedule is a cron expression that defines when the user's maintenance
+type UpdateUserQuietHoursScheduleRequest struct {
+	// Schedule is a cron expression that defines when the user's quiet hours
 	// window is. Schedule must not be empty. For new users, the schedule is set
 	// to 2am in their browser or computer's timezone. The schedule denotes the
 	// beginning of a 4 hour window where the workspace is allowed to

@@ -52,8 +52,8 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if options.Options.Authorizer == nil {
 		options.Options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
 	}
-	if options.UserMaintenanceWindowDuration < time.Hour {
-		return nil, xerrors.Errorf("user maintenance window duration must be at least 1 hour")
+	if options.QuietHoursWindowDuration < time.Hour {
+		return nil, xerrors.Errorf("quiet hours window duration must be at least 1 hour")
 	}
 
 	ctx, cancelFunc := context.WithCancel(ctx)
@@ -203,15 +203,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Get("/", api.appearance)
 			r.Put("/", api.putAppearance)
 		})
-		r.Route("/users/{user}/maintenance-schedule", func(r chi.Router) {
+		r.Route("/users/{user}/quiet-hours", func(r chi.Router) {
 			r.Use(
 				// TODO: enabled MW?
 				apiKeyMiddleware,
 				httpmw.ExtractUserParam(options.Database, false),
 			)
 
-			r.Get("/", api.userMaintenanceSchedule)
-			r.Put("/", api.putUserMaintenanceSchedule)
+			r.Get("/", api.userQuietHoursSchedule)
+			r.Put("/", api.putUserQuietHoursSchedule)
 		})
 	})
 
@@ -307,9 +307,9 @@ type Options struct {
 	DERPServerRelayAddress string
 	DERPServerRegionID     int
 
-	// Used for user maintenance schedules.
-	DefaultUserMaintenanceSchedule string        // cron schedule, if empty user maintenance schedules are disabled
-	UserMaintenanceWindowDuration  time.Duration // how long each window should last
+	// Used for user quiet hours schedules.
+	DefaultQuietHoursSchedule string        // cron schedule, if empty user quiet hours schedules are disabled
+	QuietHoursWindowDuration  time.Duration // how long each window should last
 
 	EntitlementsUpdateInterval time.Duration
 	ProxyHealthInterval        time.Duration
@@ -362,7 +362,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureTemplateRBAC:               api.RBAC,
 			codersdk.FeatureExternalProvisionerDaemons: true,
 			codersdk.FeatureAdvancedTemplateScheduling: true,
-			codersdk.FeatureUserMaintenanceSchedule:    api.DefaultUserMaintenanceSchedule != "",
+			codersdk.FeatureUserQuietHoursSchedule:     api.DefaultQuietHoursSchedule != "",
 			codersdk.FeatureWorkspaceProxy:             true,
 		})
 	if err != nil {
@@ -430,17 +430,17 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		}
 	}
 
-	if changed, enabled := featureChanged(codersdk.FeatureUserMaintenanceSchedule); changed {
-		if enabled && api.DefaultUserMaintenanceSchedule != "" {
-			store, err := schedule.NewEnterpriseUserMaintenanceScheduleStore(api.DefaultUserMaintenanceSchedule, api.UserMaintenanceWindowDuration)
+	if changed, enabled := featureChanged(codersdk.FeatureUserQuietHoursSchedule); changed {
+		if enabled && api.DefaultQuietHoursSchedule != "" {
+			store, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(api.DefaultQuietHoursSchedule, api.QuietHoursWindowDuration)
 			if err != nil {
-				api.Logger.Error(ctx, "unable to set up enterprise user maintenance schedule store, maintenance schedules will not be applied", slog.Error(err))
+				api.Logger.Error(ctx, "unable to set up enterprise user quiet hours schedule store, quiet hours schedules will not be applied", slog.Error(err))
 			} else {
-				api.AGPL.UserMaintenanceScheduleStore.Store(&store)
+				api.AGPL.UserQuietHoursScheduleStore.Store(&store)
 			}
 		} else {
-			store := agplschedule.NewAGPLUserMaintenanceScheduleStore()
-			api.AGPL.UserMaintenanceScheduleStore.Store(&store)
+			store := agplschedule.NewAGPLUserQuietHoursScheduleStore()
+			api.AGPL.UserQuietHoursScheduleStore.Store(&store)
 		}
 	}
 

@@ -1631,19 +1631,19 @@ type TemplateVersionVariable struct {
 }
 
 type User struct {
-	ID                  uuid.UUID      `db:"id" json:"id"`
-	Email               string         `db:"email" json:"email"`
-	Username            string         `db:"username" json:"username"`
-	HashedPassword      []byte         `db:"hashed_password" json:"hashed_password"`
-	CreatedAt           time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt           time.Time      `db:"updated_at" json:"updated_at"`
-	Status              UserStatus     `db:"status" json:"status"`
-	RBACRoles           pq.StringArray `db:"rbac_roles" json:"rbac_roles"`
-	LoginType           LoginType      `db:"login_type" json:"login_type"`
-	AvatarURL           sql.NullString `db:"avatar_url" json:"avatar_url"`
-	Deleted             bool           `db:"deleted" json:"deleted"`
-	LastSeenAt          time.Time      `db:"last_seen_at" json:"last_seen_at"`
-	MaintenanceSchedule string         `db:"maintenance_schedule" json:"maintenance_schedule"`
+	ID                 uuid.UUID      `db:"id" json:"id"`
+	Email              string         `db:"email" json:"email"`
+	Username           string         `db:"username" json:"username"`
+	HashedPassword     []byte         `db:"hashed_password" json:"hashed_password"`
+	CreatedAt          time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt          time.Time      `db:"updated_at" json:"updated_at"`
+	Status             UserStatus     `db:"status" json:"status"`
+	RBACRoles          pq.StringArray `db:"rbac_roles" json:"rbac_roles"`
+	LoginType          LoginType      `db:"login_type" json:"login_type"`
+	AvatarURL          sql.NullString `db:"avatar_url" json:"avatar_url"`
+	Deleted            bool           `db:"deleted" json:"deleted"`
+	LastSeenAt         time.Time      `db:"last_seen_at" json:"last_seen_at"`
+	QuietHoursSchedule string         `db:"quiet_hours_schedule" json:"quiet_hours_schedule"`
 }
 
 type UserLink struct {
