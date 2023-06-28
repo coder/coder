@@ -71,14 +71,14 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
 		auditor           = api.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.OauthMergeState](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.AuditOauthConvertState](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
 			Action:  database.AuditActionCreate,
 		})
 	)
-	aReq.Old = database.OauthMergeState{}
+	aReq.Old = database.AuditOauthConvertState{}
 	defer commitAudit()
 
 	var req codersdk.ConvertLoginRequest
@@ -132,8 +132,14 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 	// without needing to hit the database. The random string is the CSRF protection.
 	stateString = fmt.Sprintf("%s%s", mergeStateStringPrefix, stateString)
 
-	// JWT
-	// TODO: Comment
+	// This JWT is the signed payload to authorize the convert to oauth request.
+	// When the user does the oauth flow, this jwt will be sent back to coderd.
+	// The included information in this payload links it to a state string, so
+	// this request is tied 1:1 with an oauth state.
+	// This JWT also includes information to tie it 1:1 with a coder deployment
+	// and user account. This is mainly to inform the user if they are accidentally
+	// switching between coder deployments if the OIDC is misconfigured.
+	// Eg: Developers with more than 1 deployment.
 	now := time.Now()
 	claims := &OAuthConvertStateClaims{
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -162,39 +168,14 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//var mergeState database.OauthMergeState
-	//err = api.Database.InTx(func(store database.Store) error {
-	//	// We should only ever have 1 oauth merge state per user. So delete
-	//	// any existing if they exist.
-	//	//nolint:gocritic // Keeping the table clean
-	//	err := store.DeleteUserOauthMergeStates(dbauthz.AsSystemRestricted(ctx), user.ID)
-	//	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-	//		return err
-	//	}
-	//
-	//	mergeState, err = store.InsertUserOauthMergeState(ctx, database.InsertUserOauthMergeStateParams{
-	//		UserID:        user.ID,
-	//		State:         stateString,
-	//		FromLoginType: user.LoginType,
-	//		ToLoginType:   database.LoginType(req.ToLoginType),
-	//		CreatedAt:     now,
-	//		ExpiresAt:     now.Add(time.Minute * 5),
-	//	})
-	//	if err != nil {
-	//		return err
-	//	}
-	//	return nil
-	//}, nil)
-	//
-	//if err != nil {
-	//	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-	//		Message: "Internal Server Error",
-	//		Detail:  err.Error(),
-	//	})
-	//	return
-	//}
+	aReq.New = database.AuditOauthConvertState{
+		CreatedAt:     claims.IssuedAt.Time,
+		ExpiresAt:     claims.ExpiresAt.Time,
+		FromLoginType: database.LoginType(claims.FromLoginType),
+		ToLoginType:   database.LoginType(claims.ToLoginType),
+		UserID:        claims.UserID,
+	}
 
-	//aReq.New = mergeState
 	http.SetCookie(rw, &http.Cookie{
 		Name:     OauthConvertCookieValue,
 		Value:    tokenString,
@@ -631,8 +612,8 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		Username:               ghUser.GetLogin(),
 		AvatarURL:              ghUser.GetAvatarURL(),
 		OauthConversionEnabled: api.DeploymentValues.EnableOauthAccountConversion.Value(),
-		InitAuditRequest: func(params *audit.RequestParams) (*audit.Request[database.OauthMergeState], func()) {
-			return audit.InitRequest[database.OauthMergeState](rw, params)
+		InitAuditRequest: func(params *audit.RequestParams) (*audit.Request[database.AuditOauthConvertState], func()) {
+			return audit.InitRequest[database.AuditOauthConvertState](rw, params)
 		},
 	})
 	var httpErr httpError
@@ -975,8 +956,8 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		UsingGroups:            usingGroups,
 		Groups:                 groups,
 		OauthConversionEnabled: api.DeploymentValues.EnableOauthAccountConversion.Value(),
-		InitAuditRequest: func(params *audit.RequestParams) (*audit.Request[database.OauthMergeState], func()) {
-			return audit.InitRequest[database.OauthMergeState](rw, params)
+		InitAuditRequest: func(params *audit.RequestParams) (*audit.Request[database.AuditOauthConvertState], func()) {
+			return audit.InitRequest[database.AuditOauthConvertState](rw, params)
 		},
 	})
 	var httpErr httpError
@@ -1064,7 +1045,7 @@ type oauthLoginParams struct {
 	Groups                 []string
 	OauthConversionEnabled bool
 
-	InitAuditRequest func(params *audit.RequestParams) (*audit.Request[database.OauthMergeState], func())
+	InitAuditRequest func(params *audit.RequestParams) (*audit.Request[database.AuditOauthConvertState], func())
 }
 
 type httpError struct {
@@ -1330,24 +1311,6 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 		}
 	}
 
-	//// nolint:gocritic // Required to auth the oidc convert
-	//mergeState, err := db.GetUserOauthMergeState(dbauthz.AsSystemRestricted(ctx), database.GetUserOauthMergeStateParams{
-	//	UserID:      user.ID,
-	//	StateString: params.State.StateString,
-	//})
-	//if xerrors.Is(err, sql.ErrNoRows) {
-	//	return database.User{}, httpError{
-	//		code: http.StatusBadRequest,
-	//		msg:  "No convert login request found with given state. Restart the convert process and try again.",
-	//	}
-	//}
-	//if err != nil {
-	//	return database.User{}, httpError{
-	//		code: http.StatusInternalServerError,
-	//		msg:  err.Error(),
-	//	}
-	//}
-
 	// At this point, this request could be an attempt to convert from
 	// password auth to oauth auth. Always log these attempts.
 	var (
@@ -1359,8 +1322,20 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 			Action:  database.AuditActionLogin,
 		})
 	)
-	var _ = oauthConvertAudit
-	//oauthConvertAudit.Old = mergeState
+	safeTime := func(t *jwt.NumericDate) time.Time {
+		if t != nil {
+			return t.Time
+		}
+		return time.Time{}
+	}
+	oauthConvertAudit.UserID = claims.UserID
+	oauthConvertAudit.Old = database.AuditOauthConvertState{
+		CreatedAt:     safeTime(claims.IssuedAt),
+		ExpiresAt:     safeTime(claims.ExpiresAt),
+		FromLoginType: database.LoginType(claims.FromLoginType),
+		ToLoginType:   database.LoginType(claims.ToLoginType),
+		UserID:        claims.UserID,
+	}
 	defer commitOauthConvertAudit()
 
 	// If we do not allow converting to oauth, return an error.

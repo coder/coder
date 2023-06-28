@@ -5008,15 +5008,6 @@ func (q *sqlQuerier) UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinke
 	return i, err
 }
 
-const deleteUserOauthMergeStates = `-- name: DeleteUserOauthMergeStates :exec
-DELETE FROM oauth_merge_state WHERE user_id = $1
-`
-
-func (q *sqlQuerier) DeleteUserOauthMergeStates(ctx context.Context, userID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteUserOauthMergeStates, userID)
-	return err
-}
-
 const getActiveUserCount = `-- name: GetActiveUserCount :one
 SELECT
 	COUNT(*)
@@ -5227,35 +5218,6 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
 	var count int64
 	err := row.Scan(&count)
 	return count, err
-}
-
-const getUserOauthMergeState = `-- name: GetUserOauthMergeState :one
-SELECT
-	state, created_at, expires_at, from_login_type, to_login_type, user_id
-FROM
-	oauth_merge_state
-WHERE
-	user_id = $1 AND
-	state = $2
-`
-
-type GetUserOauthMergeStateParams struct {
-	UserID      uuid.UUID `db:"user_id" json:"user_id"`
-	StateString string    `db:"state_string" json:"state_string"`
-}
-
-func (q *sqlQuerier) GetUserOauthMergeState(ctx context.Context, arg GetUserOauthMergeStateParams) (OauthMergeState, error) {
-	row := q.db.QueryRowContext(ctx, getUserOauthMergeState, arg.UserID, arg.StateString)
-	var i OauthMergeState
-	err := row.Scan(
-		&i.State,
-		&i.CreatedAt,
-		&i.ExpiresAt,
-		&i.FromLoginType,
-		&i.ToLoginType,
-		&i.UserID,
-	)
-	return i, err
 }
 
 const getUsers = `-- name: GetUsers :many
@@ -5498,50 +5460,6 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		&i.AvatarURL,
 		&i.Deleted,
 		&i.LastSeenAt,
-	)
-	return i, err
-}
-
-const insertUserOauthMergeState = `-- name: InsertUserOauthMergeState :one
-INSERT INTO
-	oauth_merge_state (
-		user_id,
-		state,
-	    from_login_type,
-		to_login_type,
-		created_at,
-		expires_at
-	)
-VALUES
-	($1, $2, $3, $4, $5, $6) RETURNING state, created_at, expires_at, from_login_type, to_login_type, user_id
-`
-
-type InsertUserOauthMergeStateParams struct {
-	UserID        uuid.UUID `db:"user_id" json:"user_id"`
-	State         string    `db:"state" json:"state"`
-	FromLoginType LoginType `db:"from_login_type" json:"from_login_type"`
-	ToLoginType   LoginType `db:"to_login_type" json:"to_login_type"`
-	CreatedAt     time.Time `db:"created_at" json:"created_at"`
-	ExpiresAt     time.Time `db:"expires_at" json:"expires_at"`
-}
-
-func (q *sqlQuerier) InsertUserOauthMergeState(ctx context.Context, arg InsertUserOauthMergeStateParams) (OauthMergeState, error) {
-	row := q.db.QueryRowContext(ctx, insertUserOauthMergeState,
-		arg.UserID,
-		arg.State,
-		arg.FromLoginType,
-		arg.ToLoginType,
-		arg.CreatedAt,
-		arg.ExpiresAt,
-	)
-	var i OauthMergeState
-	err := row.Scan(
-		&i.State,
-		&i.CreatedAt,
-		&i.ExpiresAt,
-		&i.FromLoginType,
-		&i.ToLoginType,
-		&i.UserID,
 	)
 	return i, err
 }

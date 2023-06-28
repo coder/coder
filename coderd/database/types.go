@@ -8,19 +8,20 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/google/uuid"
 )
 
-// Stores the state string for Oauth merge requests. If an Oauth state string is found in this table, it is assumed the user had a LoginType "password" and is switching to an Oauth based authentication.
-//type OauthConvertState struct {
-//	State     string    `db:"state" json:"state"`
-//	CreatedAt time.Time `db:"created_at" json:"created_at"`
-//	// The time at which the state string expires, a merge request times out if the user does not perform it quick enough.
-//	ExpiresAt     time.Time `db:"expires_at" json:"expires_at"`
-//	FromLoginType LoginType `db:"from_login_type" json:"from_login_type"`
-//	// The login type the user is converting to. Should be github or oidc.
-//	ToLoginType LoginType `db:"to_login_type" json:"to_login_type"`
-//	UserID      uuid.UUID `db:"user_id" json:"user_id"`
-//}
+// AuditOauthConvertState is never stored in the database. It is stored in a cookie
+// clientside as a JWT. This type is provided for audit logging purposes.
+type AuditOauthConvertState struct {
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	// The time at which the state string expires, a merge request times out if the user does not perform it quick enough.
+	ExpiresAt     time.Time `db:"expires_at" json:"expires_at"`
+	FromLoginType LoginType `db:"from_login_type" json:"from_login_type"`
+	// The login type the user is converting to. Should be github or oidc.
+	ToLoginType LoginType `db:"to_login_type" json:"to_login_type"`
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+}
 
 type Actions []rbac.Action
 

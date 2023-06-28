@@ -224,13 +224,6 @@ func (m metricsStore) DeleteTailnetClient(ctx context.Context, arg database.Dele
 	return m.s.DeleteTailnetClient(ctx, arg)
 }
 
-func (m metricsStore) DeleteUserOauthMergeStates(ctx context.Context, userID uuid.UUID) error {
-	start := time.Now()
-	r0 := m.s.DeleteUserOauthMergeStates(ctx, userID)
-	m.queryLatencies.WithLabelValues("DeleteUserOauthMergeStates").Observe(time.Since(start).Seconds())
-	return r0
-}
-
 func (m metricsStore) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
 	start := time.Now()
 	apiKey, err := m.s.GetAPIKeyByID(ctx, id)
@@ -754,13 +747,6 @@ func (m metricsStore) GetUserLinkByUserIDLoginType(ctx context.Context, arg data
 	return link, err
 }
 
-func (m metricsStore) GetUserOauthMergeState(ctx context.Context, arg database.GetUserOauthMergeStateParams) (database.OauthMergeState, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetUserOauthMergeState(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetUserOauthMergeState").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m metricsStore) GetUsers(ctx context.Context, arg database.GetUsersParams) ([]database.GetUsersRow, error) {
 	start := time.Now()
 	users, err := m.s.GetUsers(ctx, arg)
@@ -1200,13 +1186,6 @@ func (m metricsStore) InsertUserLink(ctx context.Context, arg database.InsertUse
 	link, err := m.s.InsertUserLink(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertUserLink").Observe(time.Since(start).Seconds())
 	return link, err
-}
-
-func (m metricsStore) InsertUserOauthMergeState(ctx context.Context, arg database.InsertUserOauthMergeStateParams) (database.OauthMergeState, error) {
-	start := time.Now()
-	r0, r1 := m.s.InsertUserOauthMergeState(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertUserOauthMergeState").Observe(time.Since(start).Seconds())
-	return r0, r1
 }
 
 func (m metricsStore) InsertWorkspace(ctx context.Context, arg database.InsertWorkspaceParams) (database.Workspace, error) {

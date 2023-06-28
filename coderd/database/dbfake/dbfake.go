@@ -139,8 +139,6 @@ type data struct {
 	workspaceResources        []database.WorkspaceResource
 	workspaces                []database.Workspace
 	workspaceProxies          []database.WorkspaceProxy
-	oauthMergeStates          []database.OauthMergeState
-
 	// Locks is a map of lock names. Any keys within the map are currently
 	// locked.
 	locks                   map[int64]struct{}
@@ -1200,27 +1198,6 @@ func (*fakeQuerier) DeleteTailnetAgent(context.Context, database.DeleteTailnetAg
 
 func (*fakeQuerier) DeleteTailnetClient(context.Context, database.DeleteTailnetClientParams) (database.DeleteTailnetClientRow, error) {
 	return database.DeleteTailnetClientRow{}, ErrUnimplemented
-}
-
-func (q *fakeQuerier) DeleteUserOauthMergeStates(_ context.Context, userID uuid.UUID) error {
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	i := 0
-	for {
-		if i >= len(q.oauthMergeStates) {
-			break
-		}
-		k := q.oauthMergeStates[i]
-		if k.UserID == userID {
-			q.oauthMergeStates[i] = q.oauthMergeStates[len(q.oauthMergeStates)-1]
-			q.oauthMergeStates = q.oauthMergeStates[:len(q.oauthMergeStates)-1]
-			// We removed an element, so decrement
-			i--
-		}
-		i++
-	}
-	return nil
 }
 
 func (q *fakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIKey, error) {
@@ -2658,18 +2635,6 @@ func (q *fakeQuerier) GetUserLinkByUserIDLoginType(_ context.Context, params dat
 	return database.UserLink{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetUserOauthMergeState(_ context.Context, arg database.GetUserOauthMergeStateParams) (database.OauthMergeState, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for _, s := range q.oauthMergeStates {
-		if s.State == arg.StateString && s.UserID == arg.UserID {
-			return s, nil
-		}
-	}
-	return database.OauthMergeState{}, sql.ErrNoRows
-}
-
 func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams) ([]database.GetUsersRow, error) {
 	if err := validateDatabaseType(params); err != nil {
 		return nil, err
@@ -4089,26 +4054,6 @@ func (q *fakeQuerier) InsertUserLink(_ context.Context, args database.InsertUser
 	q.userLinks = append(q.userLinks, link)
 
 	return link, nil
-}
-
-func (q *fakeQuerier) InsertUserOauthMergeState(_ context.Context, arg database.InsertUserOauthMergeStateParams) (database.OauthMergeState, error) {
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	if err := validateDatabaseType(arg); err != nil {
-		return database.OauthMergeState{}, err
-	}
-
-	s := database.OauthMergeState{
-		State:         arg.State,
-		CreatedAt:     arg.CreatedAt,
-		ExpiresAt:     arg.ExpiresAt,
-		FromLoginType: arg.FromLoginType,
-		ToLoginType:   arg.ToLoginType,
-		UserID:        arg.UserID,
-	}
-	q.oauthMergeStates = append(q.oauthMergeStates, s)
-	return s, nil
 }
 
 func (q *fakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWorkspaceParams) (database.Workspace, error) {

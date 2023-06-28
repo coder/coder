@@ -306,21 +306,6 @@ CREATE SEQUENCE licenses_id_seq
 
 ALTER SEQUENCE licenses_id_seq OWNED BY licenses.id;
 
-CREATE TABLE oauth_merge_state (
-    state text NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    expires_at timestamp with time zone NOT NULL,
-    from_login_type login_type NOT NULL,
-    to_login_type login_type NOT NULL,
-    user_id uuid NOT NULL
-);
-
-COMMENT ON TABLE oauth_merge_state IS 'Stores the state string for Oauth merge requests. If an Oauth state string is found in this table, it is assumed the user had a LoginType "password" and is switching to an Oauth based authentication.';
-
-COMMENT ON COLUMN oauth_merge_state.expires_at IS 'The time at which the state string expires, a merge request times out if the user does not perform it quick enough.';
-
-COMMENT ON COLUMN oauth_merge_state.to_login_type IS 'The login type the user is converting to. Should be github or oidc.';
-
 CREATE TABLE organization_members (
     user_id uuid NOT NULL,
     organization_id uuid NOT NULL,
@@ -879,9 +864,6 @@ ALTER TABLE ONLY licenses
 ALTER TABLE ONLY licenses
     ADD CONSTRAINT licenses_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY oauth_merge_state
-    ADD CONSTRAINT oauth_merge_state_pkey PRIMARY KEY (state);
-
 ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_pkey PRIMARY KEY (organization_id, user_id);
 
@@ -1067,9 +1049,6 @@ ALTER TABLE ONLY group_members
 
 ALTER TABLE ONLY groups
     ADD CONSTRAINT groups_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY oauth_merge_state
-    ADD CONSTRAINT oauth_merge_state_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_organization_id_uuid_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

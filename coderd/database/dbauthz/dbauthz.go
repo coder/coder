@@ -818,13 +818,6 @@ func (q *querier) DeleteTailnetClient(ctx context.Context, arg database.DeleteTa
 	return q.db.DeleteTailnetClient(ctx, arg)
 }
 
-func (q *querier) DeleteUserOauthMergeStates(ctx context.Context, userID uuid.UUID) error {
-	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceSystem); err != nil {
-		return err
-	}
-	return q.db.DeleteUserOauthMergeStates(ctx, userID)
-}
-
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
 	return fetch(q.log, q.auth, q.db.GetAPIKeyByID)(ctx, id)
 }
@@ -1430,13 +1423,6 @@ func (q *querier) GetUserLinkByUserIDLoginType(ctx context.Context, arg database
 	return q.db.GetUserLinkByUserIDLoginType(ctx, arg)
 }
 
-func (q *querier) GetUserOauthMergeState(ctx context.Context, arg database.GetUserOauthMergeStateParams) (database.OauthMergeState, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
-		return database.OauthMergeState{}, err
-	}
-	return q.db.GetUserOauthMergeState(ctx, arg)
-}
-
 func (q *querier) GetUsers(ctx context.Context, arg database.GetUsersParams) ([]database.GetUsersRow, error) {
 	// TODO: We should use GetUsersWithCount with a better method signature.
 	return fetchWithPostFilter(q.auth, q.db.GetUsers)(ctx, arg)
@@ -1957,15 +1943,6 @@ func (q *querier) InsertUserLink(ctx context.Context, arg database.InsertUserLin
 		return database.UserLink{}, err
 	}
 	return q.db.InsertUserLink(ctx, arg)
-}
-
-func (q *querier) InsertUserOauthMergeState(ctx context.Context, arg database.InsertUserOauthMergeStateParams) (database.OauthMergeState, error) {
-	// TODO: @emyrk this permission feels right?
-	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceAPIKey.WithOwner(arg.UserID.String())); err != nil {
-		return database.OauthMergeState{}, err
-	}
-
-	return q.db.InsertUserOauthMergeState(ctx, arg)
 }
 
 func (q *querier) InsertWorkspace(ctx context.Context, arg database.InsertWorkspaceParams) (database.Workspace, error) {
