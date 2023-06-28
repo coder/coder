@@ -9,15 +9,54 @@ import (
 	"github.com/coder/coder/coderd/database"
 )
 
+var DaysOfWeek = []time.Weekday{
+	time.Sunday,
+	time.Monday,
+	time.Tuesday,
+	time.Wednesday,
+	time.Thursday,
+	time.Friday,
+	time.Saturday,
+}
+
+type TemplateRestartRequirement struct {
+	// DaysOfWeek is a bitmap of which days of the week the workspace must be
+	// restarted. If fully zero, the workspace is not required to be restarted
+	// ever.
+	//
+	// First bit is Sunday, second bit is Monday, ..., seventh bit is Saturday,
+	// eighth bit is unused.
+	DaysOfWeek uint8
+}
+
+// Days returns the days of the week that the workspace must be restarted.
+func (r TemplateRestartRequirement) Days() []time.Weekday {
+	days := make([]time.Weekday, 0, 7)
+	for i, day := range DaysOfWeek {
+		if r.DaysOfWeek&(1<<uint(i)) != 0 {
+			days = append(days, day)
+		}
+	}
+	return days
+}
+
+// DaysMap returns a map of the days of the week that the workspace must be
+// restarted.
+func (r TemplateRestartRequirement) DaysMap() map[time.Weekday]bool {
+	days := make(map[time.Weekday]bool)
+	for i, day := range DaysOfWeek {
+		days[day] = r.DaysOfWeek&(1<<uint(i)) != 0
+	}
+	return days
+}
+
 type TemplateScheduleOptions struct {
 	UserAutostartEnabled bool          `json:"user_autostart_enabled"`
 	UserAutostopEnabled  bool          `json:"user_autostop_enabled"`
 	DefaultTTL           time.Duration `json:"default_ttl"`
-	// If MaxTTL is set, the workspace must be stopped before this time or it
-	// will be stopped automatically.
-	//
-	// If set, users cannot disable automatic workspace shutdown.
-	MaxTTL time.Duration `json:"max_ttl"`
+	// RestartRequirement dictates when the workspace must be restarted. This
+	// used to be handled by MaxTTL.
+	RestartRequirement TemplateRestartRequirement `json:"restart_requirement"`
 	// FailureTTL dictates the duration after which failed workspaces will be
 	// stopped automatically.
 	FailureTTL time.Duration `json:"failure_ttl"`
@@ -56,9 +95,11 @@ func (*agplTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context
 		UserAutostartEnabled: true,
 		UserAutostopEnabled:  true,
 		DefaultTTL:           time.Duration(tpl.DefaultTTL),
-		// Disregard the values in the database, since MaxTTL, FailureTTL,
-		// InactivityTTL, and LockedTTL are enterprise features.
-		MaxTTL:        0,
+		// Disregard the values in the database, since RestartRequirement,
+		// FailureTTL, InactivityTTL, and LockedTTL are enterprise features.
+		RestartRequirement: TemplateRestartRequirement{
+			DaysOfWeek: 0,
+		},
 		FailureTTL:    0,
 		InactivityTTL: 0,
 		LockedTTL:     0,
@@ -71,6 +112,7 @@ func (*agplTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context
 		return tpl, nil
 	}
 
+	// TODO: fix storage to use new restart requirement
 	return db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 		ID:         tpl.ID,
 		UpdatedAt:  database.Now(),

@@ -927,41 +927,68 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 					deadline = now.Add(templateSchedule.DefaultTTL)
 				}
 			}
-			if templateSchedule.MaxTTL > 0 {
-				maxDeadline = now.Add(templateSchedule.MaxTTL)
+			if templateSchedule.RestartRequirement.DaysOfWeek != 0 {
+				// The template has a restart requirement, so determine the max
+				// deadline of this workspace build.
 
-				if deadline.IsZero() || maxDeadline.Before(deadline) {
-					// If the workspace doesn't have a deadline or the max
-					// deadline is sooner than the workspace deadline, use the
-					// max deadline as the actual deadline.
+				// First, get the user's quiet hours schedule (this will return
+				// the default if the user has not set their own schedule).
+				userQuietHoursSchedule, err := (*server.UserQuietHoursScheduleStore.Load()).GetUserQuietHoursScheduleOptions(ctx, db, workspace.OwnerID)
+				if err != nil {
+					return xerrors.Errorf("get user quiet hours schedule options: %w", err)
+				}
+
+				// If the schedule is nil, that means the deployment isn't
+				// entitled to use quiet hours or the default schedule has not
+				// been set. In this case, do not set a max deadline on the
+				// workspace.
+				if userQuietHoursSchedule.Schedule != nil {
+					loc := userQuietHoursSchedule.Schedule.Location()
+					now := time.Now().In(loc)
+					startOfDay := now.Truncate(24 * time.Hour)
+
+					// First, determine if we can restart today or if the
+					// schedule is too near/already passed.
 					//
-					// Notably, this isn't affected by the user's quiet hours
-					// schedule below because we'd still like to use the max TTL
-					// as the TTL for the workspace if it's not set.
+					// Allow an hour of leeway (i.e. any workspaces started
+					// within an hour of the scheduled stop time will always
+					// bounce to the next stop window).
+					todaySchedule := userQuietHoursSchedule.Schedule.Next(startOfDay)
+					if todaySchedule.Before(now.Add(-time.Hour)) {
+						// Set the first stop day we try to tomorrow because
+						// today's schedule is too close to now or has already
+						// passed.
+						startOfDay = startOfDay.Add(24 * time.Hour)
+					}
+
+					// Get the current day of week and iterate through the days
+					// of week until we wrap or find a day present in the
+					// restart requirement.
+					requirementDays := templateSchedule.RestartRequirement.DaysMap()
+					for i := 0; i < len(schedule.DaysOfWeek)+1; i++ {
+						if i == len(schedule.DaysOfWeek) {
+							// We've wrapped, so somehow we couldn't find a day
+							// in the restart requirement. This shouldn't happen
+							// because the restart requirement has a day set.
+							return xerrors.Errorf("could not find suitable day for template restart requirement in the next 7 days")
+						}
+						if requirementDays[startOfDay.Weekday()] {
+							break
+						}
+						startOfDay = startOfDay.Add(24 * time.Hour)
+					}
+
+					// Get the next occurrence of the restart schedule after
+					// the start of today.
+					maxDeadline = userQuietHoursSchedule.Schedule.Next(startOfDay)
+				}
+
+				// If the workspace doesn't have a deadline or the max deadline
+				// is sooner than the workspace deadline, use the max deadline
+				// as the actual deadline.
+				if deadline.IsZero() || maxDeadline.Before(deadline) {
 					deadline = maxDeadline
 				}
-			}
-
-			userQuietHoursSchedule, err := (*server.UserQuietHoursScheduleStore.Load()).GetUserQuietHoursScheduleOptions(ctx, db, workspace.OwnerID)
-			if err != nil {
-				return xerrors.Errorf("get user quiet hours schedule options: %w", err)
-			}
-			if userQuietHoursSchedule.Schedule != nil {
-				// Round the max deadline up to the nearest occurrence of the
-				// user's quiet hours schedule. This ensures that workspaces
-				// can't be force-stopped due to max TTL during business hours.
-
-				// Get the schedule occurrence that happens right before, during
-				// or after the max deadline.
-				// TODO: change to the quiet hours window BEFORE max TTL
-				scheduleDur := userQuietHoursSchedule.Duration
-				if scheduleDur > 1*time.Hour {
-					// Allow a 15 minute buffer when possible so we're not too
-					// constrained with the autostop time.
-					scheduleDur -= 15 * time.Minute
-				}
-				windowStart := userQuietHoursSchedule.Schedule.Next(maxDeadline.Add(scheduleDur))
-				maxDeadline = windowStart
 			}
 
 			err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{

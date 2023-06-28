@@ -47,7 +47,7 @@ func testTemplateScheduleStore() *atomic.Pointer[schedule.TemplateScheduleStore]
 	return ptr
 }
 
-func testUserMaintenanceScheduleStore() *atomic.Pointer[schedule.UserQuietHoursScheduleStore] {
+func testUserQuietHoursScheduleStore() *atomic.Pointer[schedule.UserQuietHoursScheduleStore] {
 	ptr := &atomic.Pointer[schedule.UserQuietHoursScheduleStore]{}
 	store := schedule.NewAGPLUserQuietHoursScheduleStore()
 	ptr.Store(&store)
@@ -71,7 +71,7 @@ func TestAcquireJob(t *testing.T) {
 			AcquireJobDebounce:          time.Hour,
 			Auditor:                     mockAuditor(),
 			TemplateScheduleStore:       testTemplateScheduleStore(),
-			UserQuietHoursScheduleStore: testUserMaintenanceScheduleStore(),
+			UserQuietHoursScheduleStore: testUserQuietHoursScheduleStore(),
 			Tracer:                      trace.NewNoopTracerProvider().Tracer("noop"),
 			DeploymentValues:            &codersdk.DeploymentValues{},
 		}
@@ -1278,7 +1278,7 @@ func setup(t *testing.T, ignoreLogErrors bool) *provisionerdserver.Server {
 		Telemetry:                   telemetry.NewNoop(),
 		Auditor:                     mockAuditor(),
 		TemplateScheduleStore:       testTemplateScheduleStore(),
-		UserQuietHoursScheduleStore: testUserMaintenanceScheduleStore(),
+		UserQuietHoursScheduleStore: testUserQuietHoursScheduleStore(),
 		Tracer:                      trace.NewNoopTracerProvider().Tracer("noop"),
 		DeploymentValues:            &codersdk.DeploymentValues{},
 	}

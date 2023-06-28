@@ -3223,20 +3223,6 @@ func (mr *MockStoreMockRecorder) UpdateWorkspaceTTL(arg0, arg1 interface{}) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceTTL", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceTTL), arg0, arg1)
 }
 
-// UpdateWorkspaceTTLToBeWithinTemplateMax mocks base method.
-func (m *MockStore) UpdateWorkspaceTTLToBeWithinTemplateMax(arg0 context.Context, arg1 database.UpdateWorkspaceTTLToBeWithinTemplateMaxParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateWorkspaceTTLToBeWithinTemplateMax", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpdateWorkspaceTTLToBeWithinTemplateMax indicates an expected call of UpdateWorkspaceTTLToBeWithinTemplateMax.
-func (mr *MockStoreMockRecorder) UpdateWorkspaceTTLToBeWithinTemplateMax(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceTTLToBeWithinTemplateMax", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceTTLToBeWithinTemplateMax), arg0, arg1)
-}
-
 // UpsertAppSecurityKey mocks base method.
 func (m *MockStore) UpsertAppSecurityKey(arg0 context.Context, arg1 string) error {
 	m.ctrl.T.Helper()
