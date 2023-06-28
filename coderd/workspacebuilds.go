@@ -350,6 +350,11 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	)
 	var buildErr wsbuilder.BuildError
 	if xerrors.As(err, &buildErr) {
+		var authErr dbauthz.NotAuthorizedError
+		if xerrors.As(err, &authErr) {
+			buildErr.Status = http.StatusUnauthorized
+		}
+
 		if buildErr.Status == http.StatusInternalServerError {
 			api.Logger.Error(ctx, "workspace build error", slog.Error(buildErr.Wrapped))
 		}

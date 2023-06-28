@@ -13,7 +13,6 @@ const Language = {
   template: "Template",
   lastUsed: "Last Used",
   status: "Status",
-  lastBuiltBy: "Last Built By",
 }
 
 export interface WorkspacesTableProps {

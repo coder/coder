@@ -46,7 +46,7 @@ jobs:
   del_runs:
     runs-on: ubuntu-latest
     steps:
-      - name: Delete workflow runs
+      - name: Delete PR Cleanup workflow runs
         uses: Mattraks/delete-workflow-runs@v2
         with:
           token: ${{ github.token }}
@@ -54,3 +54,13 @@ jobs:
           retain_days: 1
           keep_minimum_runs: 1
           delete_workflow_pattern: pr-cleanup.yaml
+
+      - name: Delete PR Deploy workflow skipped runs
+        uses: Mattraks/delete-workflow-runs@v2
+        with:
+          token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          retain_days: 0
+          keep_minimum_runs: 0
+          delete_run_by_conclusion_pattern: skipped
+          delete_workflow_pattern: pr-deploy.yaml

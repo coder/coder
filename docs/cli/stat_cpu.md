@@ -28,11 +28,3 @@ Force host CPU measurement.
 | Default | <code>text</code>   |
 
 Output format. Available formats: text, json.
-
-### --prefix
-
-|      |                     |
-| ---- | ------------------- |
-| Type | <code>string</code> |
-
-Unit prefix.

@@ -7,8 +7,9 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/rbac"
 	"github.com/google/uuid"
+
+	"github.com/coder/coder/coderd/rbac"
 )
 
 // AuditOauthConvertState is never stored in the database. It is stored in a cookie

@@ -264,11 +264,11 @@ describe("ProxyContextSelection", () => {
         expUserProxyID: MockHealthyWildWorkspaceProxy.id,
       },
     ],
-    // Latency behavior
+    // Latency behavior is disabled, so the primary should be selected.
     [
       "regions_default_low_latency",
       {
-        expProxyID: MockHealthyWildWorkspaceProxy.id,
+        expProxyID: MockPrimaryWorkspaceProxy.id,
         regions: MockWorkspaceProxies,
         storageProxy: undefined,
         latencies: {

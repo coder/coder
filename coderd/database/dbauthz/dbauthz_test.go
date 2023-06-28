@@ -1196,7 +1196,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			WorkspaceID: w.ID,
 			Transition:  database.WorkspaceTransitionStart,
 			Reason:      database.BuildReasonInitiator,
-		}).Asserts(w, rbac.ActionUpdate)
+		}).Asserts(w.WorkspaceBuildRBAC(database.WorkspaceTransitionStart), rbac.ActionUpdate)
 	}))
 	s.Run("Delete/InsertWorkspaceBuild", s.Subtest(func(db database.Store, check *expects) {
 		w := dbgen.Workspace(s.T(), db, database.Workspace{})
@@ -1204,7 +1204,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			WorkspaceID: w.ID,
 			Transition:  database.WorkspaceTransitionDelete,
 			Reason:      database.BuildReasonInitiator,
-		}).Asserts(w, rbac.ActionDelete)
+		}).Asserts(w.WorkspaceBuildRBAC(database.WorkspaceTransitionDelete), rbac.ActionDelete)
 	}))
 	s.Run("InsertWorkspaceBuildParameters", s.Subtest(func(db database.Store, check *expects) {
 		w := dbgen.Workspace(s.T(), db, database.Workspace{})

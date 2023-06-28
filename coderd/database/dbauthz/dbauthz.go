@@ -143,13 +143,14 @@ var (
 				DisplayName: "Provisioner Daemon",
 				Site: rbac.Permissions(map[string][]rbac.Action{
 					// TODO: Add ProvisionerJob resource type.
-					rbac.ResourceFile.Type:      {rbac.ActionRead},
-					rbac.ResourceSystem.Type:    {rbac.WildcardSymbol},
-					rbac.ResourceTemplate.Type:  {rbac.ActionRead, rbac.ActionUpdate},
-					rbac.ResourceUser.Type:      {rbac.ActionRead},
-					rbac.ResourceWorkspace.Type: {rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
-					rbac.ResourceUserData.Type:  {rbac.ActionRead, rbac.ActionUpdate},
-					rbac.ResourceAPIKey.Type:    {rbac.WildcardSymbol},
+					rbac.ResourceFile.Type:           {rbac.ActionRead},
+					rbac.ResourceSystem.Type:         {rbac.WildcardSymbol},
+					rbac.ResourceTemplate.Type:       {rbac.ActionRead, rbac.ActionUpdate},
+					rbac.ResourceUser.Type:           {rbac.ActionRead},
+					rbac.ResourceWorkspace.Type:      {rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
+					rbac.ResourceWorkspaceBuild.Type: {rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
+					rbac.ResourceUserData.Type:       {rbac.ActionRead, rbac.ActionUpdate},
+					rbac.ResourceAPIKey.Type:         {rbac.WildcardSymbol},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -165,9 +166,10 @@ var (
 				Name:        "autostart",
 				DisplayName: "Autostart Daemon",
 				Site: rbac.Permissions(map[string][]rbac.Action{
-					rbac.ResourceSystem.Type:    {rbac.WildcardSymbol},
-					rbac.ResourceTemplate.Type:  {rbac.ActionRead, rbac.ActionUpdate},
-					rbac.ResourceWorkspace.Type: {rbac.ActionRead, rbac.ActionUpdate},
+					rbac.ResourceSystem.Type:         {rbac.WildcardSymbol},
+					rbac.ResourceTemplate.Type:       {rbac.ActionRead, rbac.ActionUpdate},
+					rbac.ResourceWorkspace.Type:      {rbac.ActionRead, rbac.ActionUpdate},
+					rbac.ResourceWorkspaceBuild.Type: {rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -213,6 +215,7 @@ var (
 					rbac.ResourceUser.Type:               {rbac.ActionCreate, rbac.ActionUpdate, rbac.ActionDelete},
 					rbac.ResourceUserData.Type:           {rbac.ActionCreate, rbac.ActionUpdate},
 					rbac.ResourceWorkspace.Type:          {rbac.ActionUpdate},
+					rbac.ResourceWorkspaceBuild.Type:     {rbac.ActionUpdate},
 					rbac.ResourceWorkspaceExecution.Type: {rbac.ActionCreate},
 					rbac.ResourceWorkspaceProxy.Type:     {rbac.ActionCreate, rbac.ActionUpdate, rbac.ActionDelete},
 				}),
@@ -2005,7 +2008,7 @@ func (q *querier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertW
 		action = rbac.ActionDelete
 	}
 
-	if err = q.authorizeContext(ctx, action, w); err != nil {
+	if err = q.authorizeContext(ctx, action, w.WorkspaceBuildRBAC(arg.Transition)); err != nil {
 		return database.WorkspaceBuild{}, err
 	}
 
@@ -2542,6 +2545,13 @@ func (q *querier) UpdateWorkspaceLastUsedAt(ctx context.Context, arg database.Up
 		return q.db.GetWorkspaceByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceLastUsedAt)(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceLockedAt(ctx context.Context, arg database.UpdateWorkspaceLockedAtParams) error {
+	fetch := func(ctx context.Context, arg database.UpdateWorkspaceLockedAtParams) (database.Workspace, error) {
+		return q.db.GetWorkspaceByID(ctx, arg.ID)
+	}
+	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceLockedAt)(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceProxy(ctx context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {

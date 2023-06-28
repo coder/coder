@@ -25,7 +25,9 @@ func AllResources() []Object {
 		ResourceWildcard,
 		ResourceWorkspace,
 		ResourceWorkspaceApplicationConnect,
+		ResourceWorkspaceBuild,
 		ResourceWorkspaceExecution,
+		ResourceWorkspaceLocked,
 		ResourceWorkspaceProxy,
 	}
 }
