@@ -27,7 +27,7 @@ func WorkspaceAgentOptional(r *http.Request) (database.WorkspaceAgent, bool) {
 func WorkspaceAgent(r *http.Request) database.WorkspaceAgent {
 	user, ok := WorkspaceAgentOptional(r)
 	if !ok {
-		panic("developer error: agent middleware not provided")
+		panic("developer error: agent middleware not provided or was made optional")
 	}
 	return user
 }
