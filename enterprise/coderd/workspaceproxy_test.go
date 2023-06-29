@@ -323,7 +323,7 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 		proxies, err := client.WorkspaceProxies(ctx)
 		require.NoError(t, err)
 		// Default proxy is always there
-		require.Len(t, proxies, 1)
+		require.Len(t, proxies.Regions, 1)
 	})
 }
 

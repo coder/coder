@@ -88,21 +88,21 @@ func (c *Client) CreateWorkspaceProxy(ctx context.Context, req CreateWorkspacePr
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-func (c *Client) WorkspaceProxies(ctx context.Context) ([]WorkspaceProxy, error) {
+func (c *Client) WorkspaceProxies(ctx context.Context) (RegionsResponse[WorkspaceProxy], error) {
 	res, err := c.Request(ctx, http.MethodGet,
 		"/api/v2/workspaceproxies",
 		nil,
 	)
 	if err != nil {
-		return nil, xerrors.Errorf("make request: %w", err)
+		return RegionsResponse[WorkspaceProxy]{}, xerrors.Errorf("make request: %w", err)
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
+		return RegionsResponse[WorkspaceProxy]{}, ReadBodyAsError(res)
 	}
 
-	var proxies []WorkspaceProxy
+	var proxies RegionsResponse[WorkspaceProxy]{}
 	return proxies, json.NewDecoder(res.Body).Decode(&proxies)
 }
 

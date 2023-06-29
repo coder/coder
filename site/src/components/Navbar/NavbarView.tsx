@@ -24,7 +24,6 @@ import Skeleton from "@mui/material/Skeleton"
 import { BUTTON_SM_HEIGHT } from "theme/theme"
 import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency"
 import { usePermissions } from "hooks/usePermissions"
-import LinearProgress from "@mui/material/LinearProgress"
 
 export const USERS_LINK = `/users?filter=${encodeURIComponent("status:active")}`
 
@@ -303,7 +302,6 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
           }}
         >
           Refresh Latencies
-          {/* <LinearProgress sx={{width:"100%"}} variant="indeterminate" data-chromatic="ignore"/> */}
         </MenuItem>
       </Menu>
     </>

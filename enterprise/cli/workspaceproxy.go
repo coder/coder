@@ -351,7 +351,7 @@ func (r *RootCmd) listProxies() *clibase.Cmd {
 				return xerrors.Errorf("list workspace proxies: %w", err)
 			}
 
-			output, err := formatter.Format(ctx, proxies)
+			output, err := formatter.Format(ctx, proxies.Regions)
 			if err != nil {
 				return err
 			}

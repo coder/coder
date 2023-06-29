@@ -405,6 +405,7 @@ func (api *API) workspaceProxies(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 				Message: "You are not authorized to use this endpoint.",
 			})
+			return
 		}
 		httpapi.InternalServerError(rw, err)
 		return
