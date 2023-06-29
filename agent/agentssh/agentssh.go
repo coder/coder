@@ -349,10 +349,12 @@ func (s *Server) startPTYSession(session ptySession, magicTypeLabel string, cmd 
 
 	if !isQuietLogin(session.RawCommand()) {
 		serviceBanner := s.ServiceBanner.Load()
-		err := showServiceBanner(session, serviceBanner)
-		if err != nil {
-			s.logger.Error(ctx, "agent failed to show service banner", slog.Error(err))
-			s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "service_banner").Add(1)
+		if serviceBanner != nil {
+			err := showServiceBanner(session, serviceBanner)
+			if err != nil {
+				s.logger.Error(ctx, "agent failed to show service banner", slog.Error(err))
+				s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "service_banner").Add(1)
+			}
 		}
 		manifest := s.Manifest.Load()
 		if manifest != nil {
