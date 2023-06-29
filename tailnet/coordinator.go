@@ -147,9 +147,15 @@ func (c *coordinator) ServeMultiAgent(id uuid.UUID) MultiAgentConn {
 		AgentIsLegacyFunc: c.core.agentIsLegacy,
 		OnSubscribe:       c.core.multiAgentSubscribe,
 		OnNodeUpdate:      c.core.multiAgentUpdate,
-		// OnClose:           c.core.removeMultiAgent,
 	}).Init()
+	c.core.addMultiAgent(id, m)
 	return m
+}
+
+func (c *core) addMultiAgent(id uuid.UUID, ma *MultiAgent) {
+	c.mutex.Lock()
+	c.multiAgents[id] = ma
+	c.mutex.Unlock()
 }
 
 // core is an in-memory structure of Node and TrackedConn mappings.  Its methods may be called from multiple goroutines;
@@ -172,6 +178,11 @@ type core struct {
 	agentNameCache *lru.Cache[uuid.UUID, string]
 
 	legacyAgents map[uuid.UUID]struct{}
+	// multiAgents holds all of the unique multiAgents listening on this
+	// coordinator. We need to keep track of these separately because we need to
+	// make sure they're closed on coordinator shutdown. If not, they won't be
+	// able to reopen another multiAgent on the new coordinator.
+	multiAgents map[uuid.UUID]*MultiAgent
 }
 
 type Enqueueable interface {
@@ -197,6 +208,7 @@ func newCore(logger slog.Logger) *core {
 		agentToConnectionSockets: map[uuid.UUID]map[uuid.UUID]Enqueueable{},
 		agentNameCache:           nameCache,
 		legacyAgents:             map[uuid.UUID]struct{}{},
+		multiAgents:              map[uuid.UUID]*MultiAgent{},
 	}
 }
 
@@ -753,6 +765,10 @@ func (c *core) close() error {
 				wg.Done()
 			}()
 		}
+	}
+
+	for _, multiAgent := range c.multiAgents {
+		multiAgent.CoordinatorClose()
 	}
 
 	c.mutex.Unlock()

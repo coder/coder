@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"net/netip"
 	"net/url"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
@@ -132,12 +133,14 @@ func setupAgent(t *testing.T, agentAddresses []netip.Prefix) (uuid.UUID, agent.A
 		DERPMap: derpMap,
 	}
 
-	coordinator := tailnet.NewCoordinator(logger)
+	var coordPtr atomic.Pointer[tailnet.Coordinator]
+	coord := tailnet.NewCoordinator(logger)
+	coordPtr.Store(&coord)
 	t.Cleanup(func() {
-		_ = coordinator.Close()
+		_ = coord.Close()
 	})
 
-	c := agenttest.NewClient(t, manifest.AgentID, manifest, make(chan *agentsdk.Stats, 50), coordinator)
+	c := agenttest.NewClient(t, manifest.AgentID, manifest, make(chan *agentsdk.Stats, 50), coord)
 
 	options := agent.Options{
 		Client:     c,
@@ -153,7 +156,7 @@ func setupAgent(t *testing.T, agentAddresses []netip.Prefix) (uuid.UUID, agent.A
 
 	// Wait for the agent to connect.
 	require.Eventually(t, func() bool {
-		return coordinator.Node(manifest.AgentID) != nil
+		return coord.Node(manifest.AgentID) != nil
 	}, testutil.WaitShort, testutil.IntervalFast)
 
 	cache := wsconncache.New(func(id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
@@ -173,7 +176,7 @@ func setupAgent(t *testing.T, agentAddresses []netip.Prefix) (uuid.UUID, agent.A
 		})
 		go func() {
 			defer close(serveClientDone)
-			coordinator.ServeClient(serverConn, uuid.New(), manifest.AgentID)
+			coord.ServeClient(serverConn, uuid.New(), manifest.AgentID)
 		}()
 		sendNode, _ := tailnet.ServeCoordinator(clientConn, func(node []*tailnet.Node) error {
 			return conn.UpdateNodes(node, false)
@@ -191,7 +194,7 @@ func setupAgent(t *testing.T, agentAddresses []netip.Prefix) (uuid.UUID, agent.A
 		logger,
 		derpServer,
 		manifest.DERPMap,
-		coordinator,
+		&coordPtr,
 		cache,
 	)
 	require.NoError(t, err)

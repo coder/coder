@@ -17,10 +17,12 @@ type MultiAgentConn interface {
 	NextUpdate(ctx context.Context) []*Node
 	AgentIsLegacy(agentID uuid.UUID) bool
 	Close() error
+	IsClosed() bool
 }
 
 type MultiAgent struct {
-	mu sync.RWMutex
+	mu     sync.RWMutex
+	closed chan struct{}
 
 	ID     uuid.UUID
 	Logger slog.Logger
@@ -34,6 +36,7 @@ type MultiAgent struct {
 }
 
 func (m *MultiAgent) Init() *MultiAgent {
+	m.closed = make(chan struct{})
 	m.updates = make(chan []*Node, 128)
 	m.subscribedAgents = map[uuid.UUID]func(){}
 	return m
@@ -143,12 +146,34 @@ func (m *multiAgentEnqueuer) Close() error {
 	return nil
 }
 
+func (m *MultiAgent) IsClosed() bool {
+	select {
+	case <-m.closed:
+		return true
+	default:
+		return false
+	}
+}
+
+func (m *MultiAgent) CoordinatorClose() {
+	m.mu.Lock()
+	if !m.IsClosed() {
+		close(m.closed)
+		close(m.updates)
+	}
+	m.mu.Unlock()
+}
+
 func (m *MultiAgent) Close() error {
 	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.IsClosed() {
+		return nil
+	}
+	close(m.closed)
 	close(m.updates)
 	for _, closer := range m.subscribedAgents {
 		closer()
 	}
-	m.mu.Unlock()
 	return nil
 }

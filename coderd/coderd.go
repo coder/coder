@@ -356,7 +356,7 @@ func New(options *Options) *API {
 		options.Logger,
 		options.DERPServer,
 		options.DERPMap,
-		*api.TailnetCoordinator.Load(),
+		&api.TailnetCoordinator,
 		wsconncache.New(api._dialWorkspaceAgentTailnet, 0),
 	)
 	if err != nil {

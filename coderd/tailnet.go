@@ -9,6 +9,7 @@ import (
 	"net/netip"
 	"net/url"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -42,7 +43,7 @@ func NewServerTailnet(
 	logger slog.Logger,
 	derpServer *derp.Server,
 	derpMap *tailcfg.DERPMap,
-	coord tailnet.Coordinator,
+	coord *atomic.Pointer[tailnet.Coordinator],
 	cache *wsconncache.Cache,
 ) (*ServerTailnet, error) {
 	logger = logger.Named("servertailnet")
@@ -55,16 +56,13 @@ func NewServerTailnet(
 		return nil, xerrors.Errorf("create tailnet conn: %w", err)
 	}
 
-	id := uuid.New()
-	ma := coord.ServeMultiAgent(id)
-
 	serverCtx, cancel := context.WithCancel(ctx)
 	tn := &ServerTailnet{
 		ctx:        serverCtx,
 		cancel:     cancel,
 		logger:     logger,
 		conn:       conn,
-		agentConn:  ma,
+		coord:      coord,
 		cache:      cache,
 		agentNodes: map[uuid.UUID]*tailnetNode{},
 		transport:  tailnetTransport.Clone(),
@@ -72,13 +70,15 @@ func NewServerTailnet(
 	tn.transport.DialContext = tn.dialContext
 	tn.transport.MaxIdleConnsPerHost = 10
 	tn.transport.MaxIdleConns = 0
+	agentConn := (*coord.Load()).ServeMultiAgent(uuid.New())
+	tn.agentConn.Store(&agentConn)
 
-	err = ma.UpdateSelf(conn.Node())
+	err = tn.getAgentConn().UpdateSelf(conn.Node())
 	if err != nil {
 		tn.logger.Warn(context.Background(), "server tailnet update self", slog.Error(err))
 	}
 	conn.SetNodeCallback(func(node *tailnet.Node) {
-		err := tn.agentConn.UpdateSelf(node)
+		err := tn.getAgentConn().UpdateSelf(node)
 		if err != nil {
 			tn.logger.Warn(context.Background(), "broadcast server node to agents", slog.Error(err))
 		}
@@ -107,8 +107,12 @@ func NewServerTailnet(
 
 func (s *ServerTailnet) watchAgentUpdates() {
 	for {
-		nodes := s.agentConn.NextUpdate(s.ctx)
+		nodes := s.getAgentConn().NextUpdate(s.ctx)
 		if nodes == nil {
+			if s.getAgentConn().IsClosed() && s.ctx.Err() == nil {
+				s.reinitCoordinator()
+				continue
+			}
 			return
 		}
 
@@ -118,6 +122,26 @@ func (s *ServerTailnet) watchAgentUpdates() {
 			return
 		}
 	}
+}
+
+func (s *ServerTailnet) getAgentConn() tailnet.MultiAgentConn {
+	return *s.agentConn.Load()
+}
+
+func (s *ServerTailnet) reinitCoordinator() {
+	agentConn := (*s.coord.Load()).ServeMultiAgent(uuid.New())
+	s.agentConn.Store(&agentConn)
+
+	s.nodesMu.Lock()
+	// Resubscribe to all of the agents we're tracking.
+	for agentID, agentNode := range s.agentNodes {
+		closer, err := agentConn.SubscribeAgent(agentID)
+		if err != nil {
+			s.logger.Warn(s.ctx, "resubscribe to agent", slog.Error(err), slog.F("agent_id", agentID))
+		}
+		agentNode.close = closer
+	}
+	s.nodesMu.Unlock()
 }
 
 type tailnetNode struct {
@@ -131,7 +155,8 @@ type ServerTailnet struct {
 
 	logger    slog.Logger
 	conn      *tailnet.Conn
-	agentConn tailnet.MultiAgentConn
+	coord     *atomic.Pointer[tailnet.Coordinator]
+	agentConn atomic.Pointer[tailnet.MultiAgentConn]
 	cache     *wsconncache.Cache
 	nodesMu   sync.Mutex
 	// agentNodes is a map of agent tailnetNodes the server wants to keep a
@@ -185,7 +210,7 @@ func (s *ServerTailnet) ensureAgent(agentID uuid.UUID) error {
 	// If we don't have the node, subscribe.
 	if !ok {
 		s.logger.Debug(s.ctx, "subscribing to agent", slog.F("agent_id", agentID))
-		closer, err := s.agentConn.SubscribeAgent(agentID)
+		closer, err := s.getAgentConn().SubscribeAgent(agentID)
 		if err != nil {
 			return xerrors.Errorf("subscribe agent: %w", err)
 		}
@@ -208,7 +233,7 @@ func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (*code
 		ret  = func() {}
 	)
 
-	if s.agentConn.AgentIsLegacy(agentID) {
+	if s.getAgentConn().AgentIsLegacy(agentID) {
 		s.logger.Debug(s.ctx, "acquiring legacy agent", slog.F("agent_id", agentID))
 		cconn, release, err := s.cache.Acquire(agentID)
 		if err != nil {
