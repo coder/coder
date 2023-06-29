@@ -646,7 +646,7 @@ func (b *Builder) authorize(authFunc func(action rbac.Action, object rbac.Object
 		}
 	}
 
-	if b.logLevel != "" && b.deploymentValues != nil && b.deploymentValues.DisableTerraformDebugMode {
+	if b.logLevel != "" && b.deploymentValues != nil && !b.deploymentValues.EnableTerraformDebugMode {
 		return BuildError{
 			http.StatusBadRequest,
 			"Terraform debug mode is disabled in the deployment configuration.",

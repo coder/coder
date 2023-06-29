@@ -645,12 +645,9 @@ func TestWorkspaceBuildDebugMode(t *testing.T) {
 
 		// Create user
 		deploymentValues := coderdtest.DeploymentValues(t)
-		deploymentValues.DisableTerraformDebugMode = true
+		deploymentValues.EnableTerraformDebugMode = false
 
-		templateAuthorClient := coderdtest.New(t, &coderdtest.Options{
-			IncludeProvisionerDaemon: true,
-			DeploymentValues:         deploymentValues,
-		})
+		templateAuthorClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, DeploymentValues: deploymentValues})
 		templateAuthor := coderdtest.CreateFirstUser(t, templateAuthorClient)
 
 		// Template author: create a template
@@ -683,7 +680,10 @@ func TestWorkspaceBuildDebugMode(t *testing.T) {
 		t.Parallel()
 
 		// Create users
-		templateAuthorClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		deploymentValues := coderdtest.DeploymentValues(t)
+		deploymentValues.EnableTerraformDebugMode = true
+
+		templateAuthorClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, DeploymentValues: deploymentValues})
 		templateAuthor := coderdtest.CreateFirstUser(t, templateAuthorClient)
 		regularUserClient, _ := coderdtest.CreateAnotherUser(t, templateAuthorClient, templateAuthor.OrganizationID)
 
@@ -717,7 +717,10 @@ func TestWorkspaceBuildDebugMode(t *testing.T) {
 		t.Parallel()
 
 		// Create users
-		adminClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		deploymentValues := coderdtest.DeploymentValues(t)
+		deploymentValues.EnableTerraformDebugMode = true
+
+		adminClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, DeploymentValues: deploymentValues})
 		admin := coderdtest.CreateFirstUser(t, adminClient)
 		templateAdminClient, _ := coderdtest.CreateAnotherUser(t, adminClient, admin.OrganizationID, rbac.RoleTemplateAdmin())
 

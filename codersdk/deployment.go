@@ -165,7 +165,7 @@ type DeploymentValues struct {
 	WgtunnelHost                    clibase.String                  `json:"wgtunnel_host,omitempty" typescript:",notnull"`
 	DisableOwnerWorkspaceExec       clibase.Bool                    `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
 	ProxyHealthStatusInterval       clibase.Duration                `json:"proxy_health_status_interval,omitempty" typescript:",notnull"`
-	DisableTerraformDebugMode       clibase.Bool                    `json:"disable_terraform_debug_mode,omitempty" typescript:",notnull"`
+	EnableTerraformDebugMode        clibase.Bool                    `json:"enable_terraform_debug_mode,omitempty" typescript:",notnull"`
 
 	Config      clibase.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig clibase.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -1217,14 +1217,14 @@ when required by your organization's security policy.`,
 			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
-			Name:        "Disable Terraform debug mode",
-			Description: "Disable debug mode while processing Terraform templates.",
-			Flag:        "disable-terraform-debug-mode",
-			Env:         "CODER_DISABLE_TERRAFORM_DEBUG_MODE",
+			Name:        "Enable Terraform debug mode",
+			Description: "Enable debug mode while processing Terraform templates.",
+			Flag:        "enable-terraform-debug-mode",
+			Env:         "CODER_ENABLE_TERRAFORM_DEBUG_MODE",
 			Default:     "false",
-			Value:       &c.DisableTerraformDebugMode,
+			Value:       &c.EnableTerraformDebugMode,
 			Group:       &deploymentGroupIntrospectionLogging,
-			YAML:        "disableTerraformDebugMode",
+			YAML:        "enableTerraformDebugMode",
 		},
 		// ☢️ Dangerous settings
 		{

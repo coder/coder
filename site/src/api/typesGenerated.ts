@@ -374,7 +374,7 @@ export interface DeploymentValues {
   readonly wgtunnel_host?: string
   readonly disable_owner_workspace_exec?: boolean
   readonly proxy_health_status_interval?: number
-  readonly disable_terraform_debug_mode?: boolean
+  readonly enable_terraform_debug_mode?: boolean
   // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.YAMLConfigPath")
   readonly config?: string
   readonly write_config?: boolean
