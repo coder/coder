@@ -1902,18 +1902,16 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 			if gitAuthLink.OAuthExpiry.Before(database.Now()) && !gitAuthLink.OAuthExpiry.IsZero() {
 				continue
 			}
-			if gitAuthConfig.ValidateURL != "" {
-				valid, err := gitAuthConfig.ValidateToken(ctx, gitAuthLink.OAuthAccessToken)
-				if err != nil {
-					api.Logger.Warn(ctx, "failed to validate git auth token",
-						slog.F("workspace_owner_id", workspace.OwnerID.String()),
-						slog.F("validate_url", gitAuthConfig.ValidateURL),
-						slog.Error(err),
-					)
-				}
-				if !valid {
-					continue
-				}
+			valid, _, err := gitAuthConfig.ValidateToken(ctx, gitAuthLink.OAuthAccessToken)
+			if err != nil {
+				api.Logger.Warn(ctx, "failed to validate git auth token",
+					slog.F("workspace_owner_id", workspace.OwnerID.String()),
+					slog.F("validate_url", gitAuthConfig.ValidateURL),
+					slog.Error(err),
+				)
+			}
+			if !valid {
+				continue
 			}
 			httpapi.Write(ctx, rw, http.StatusOK, formatGitAuthAccessToken(gitAuthConfig.Type, gitAuthLink.OAuthAccessToken))
 			return
@@ -1988,70 +1986,6 @@ func formatGitAuthAccessToken(typ codersdk.GitProvider, token string) agentsdk.G
 		}
 	}
 	return resp
-}
-
-func (api *API) gitAuthCallback(gitAuthConfig *gitauth.Config) http.HandlerFunc {
-	return func(rw http.ResponseWriter, r *http.Request) {
-		var (
-			ctx    = r.Context()
-			state  = httpmw.OAuth2(r)
-			apiKey = httpmw.APIKey(r)
-		)
-
-		_, err := api.Database.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
-			ProviderID: gitAuthConfig.ID,
-			UserID:     apiKey.UserID,
-		})
-		if err != nil {
-			if !errors.Is(err, sql.ErrNoRows) {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Failed to get git auth link.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-
-			_, err = api.Database.InsertGitAuthLink(ctx, database.InsertGitAuthLinkParams{
-				ProviderID:        gitAuthConfig.ID,
-				UserID:            apiKey.UserID,
-				CreatedAt:         database.Now(),
-				UpdatedAt:         database.Now(),
-				OAuthAccessToken:  state.Token.AccessToken,
-				OAuthRefreshToken: state.Token.RefreshToken,
-				OAuthExpiry:       state.Token.Expiry,
-			})
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Failed to insert git auth link.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-		} else {
-			_, err = api.Database.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
-				ProviderID:        gitAuthConfig.ID,
-				UserID:            apiKey.UserID,
-				UpdatedAt:         database.Now(),
-				OAuthAccessToken:  state.Token.AccessToken,
-				OAuthRefreshToken: state.Token.RefreshToken,
-				OAuthExpiry:       state.Token.Expiry,
-			})
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Failed to update git auth link.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-		}
-
-		redirect := state.Redirect
-		if redirect == "" {
-			// This is a nicely rendered screen on the frontend
-			redirect = "/gitauth"
-		}
-		http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
-	}
 }
 
 // wsNetConn wraps net.Conn created by websocket.NetConn(). Cancel func

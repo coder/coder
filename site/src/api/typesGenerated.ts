@@ -415,6 +415,24 @@ export interface GetUsersResponse {
   readonly count: number
 }
 
+// From codersdk/gitauth.go
+export interface GitAuth {
+  readonly authenticated: boolean
+  readonly device: boolean
+  readonly type: string
+  readonly user?: GitAuthUser
+  readonly app_installable: boolean
+  readonly installations: GitAuthAppInstallation[]
+  readonly app_install_url: string
+}
+
+// From codersdk/gitauth.go
+export interface GitAuthAppInstallation {
+  readonly id: number
+  readonly account: GitAuthUser
+  readonly configure_url: string
+}
+
 // From codersdk/deployment.go
 export interface GitAuthConfig {
   readonly id: string
@@ -423,9 +441,35 @@ export interface GitAuthConfig {
   readonly auth_url: string
   readonly token_url: string
   readonly validate_url: string
+  readonly app_install_url: string
+  readonly app_installations_url: string
   readonly regex: string
   readonly no_refresh: boolean
   readonly scopes: string[]
+  readonly device_flow: boolean
+  readonly device_code_url: string
+}
+
+// From codersdk/gitauth.go
+export interface GitAuthDevice {
+  readonly device_code: string
+  readonly user_code: string
+  readonly verification_uri: string
+  readonly expires_in: number
+  readonly interval: number
+}
+
+// From codersdk/gitauth.go
+export interface GitAuthDeviceExchange {
+  readonly device_code: string
+}
+
+// From codersdk/gitauth.go
+export interface GitAuthUser {
+  readonly login: string
+  readonly avatar_url: string
+  readonly profile_url: string
+  readonly name: string
 }
 
 // From codersdk/gitsshkey.go

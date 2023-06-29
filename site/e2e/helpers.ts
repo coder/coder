@@ -2,6 +2,7 @@ import { expect, Page } from "@playwright/test"
 import { spawn } from "child_process"
 import { randomUUID } from "crypto"
 import path from "path"
+import express from "express"
 import { TarWriter } from "utils/tar"
 import {
   Agent,
@@ -226,4 +227,35 @@ const createTemplateVersionTar = async (
 
 const randomName = () => {
   return randomUUID().slice(0, 8)
+}
+
+// Awaiter is a helper that allows you to wait for a callback to be called.
+// It is useful for waiting for events to occur.
+export class Awaiter {
+  private promise: Promise<void>
+  private callback?: () => void
+
+  constructor() {
+    this.promise = new Promise((r) => (this.callback = r))
+  }
+
+  public done(): void {
+    if (this.callback) {
+      this.callback()
+    } else {
+      this.promise = Promise.resolve()
+    }
+  }
+
+  public wait(): Promise<void> {
+    return this.promise
+  }
+}
+
+export const createServer = async (
+  port: number,
+): Promise<ReturnType<typeof express>> => {
+  const e = express()
+  await new Promise<void>((r) => e.listen(port, r))
+  return e
 }
