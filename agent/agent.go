@@ -503,7 +503,7 @@ func (a *agent) setLifecycle(ctx context.Context, state codersdk.WorkspaceAgentL
 // not be fetched immediately; the expectation is that it is primed elsewhere
 // (and must be done before the session actually starts).
 func (a *agent) fetchServiceBannerLoop(ctx context.Context) {
-	ticker := time.NewTicker(adjustIntervalForTests(15*time.Second, time.Millisecond*100))
+	ticker := time.NewTicker(adjustIntervalForTests(2*time.Minute, time.Millisecond*100))
 	defer ticker.Stop()
 	for {
 		select {
