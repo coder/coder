@@ -118,11 +118,11 @@ coder:
   replicaCount: "${var.coder_replicas}"
   resources:
     requests:
-      cpu: "${var.coder_cpu}"
-      memory: "${var.coder_mem}"
+      cpu: "${var.coder_cpu_request}"
+      memory: "${var.coder_mem_request}"
     limits:
-      cpu: "${var.coder_cpu}"
-      memory: "${var.coder_mem}"
+      cpu: "${var.coder_cpu_limit}"
+      memory: "${var.coder_mem_limit}"
   securityContext:
     readOnlyRootFilesystem: true
   service:
@@ -201,12 +201,12 @@ resource "local_file" "kubernetes_template" {
           }
           resources {
             requests = {
-              "cpu"    = "0.01"
-              "memory" = "128Mi"
+              "cpu"    = "${var.workspace_cpu_request}"
+              "memory" = "${var.workspace_mem_request}"
             }
             limits = {
-              "cpu"    = "1"
-              "memory" = "1Gi"
+              "cpu"    = "${var.workspace_cpu_limit}"
+              "memory" = "${var.workspace_mem_limit}"
             }
           }
         }
