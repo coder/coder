@@ -179,15 +179,27 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 
 			template, err := client.TemplateByName(inv.Context(), organization.ID, name)
 			if err != nil {
-				if sdkErr, ok := codersdk.AsError(err); ok && sdkErr.StatusCode() != http.StatusNotFound {
-					return xerrors.Errorf("get template: %w", err)
-				}
 				if !create {
+					if sdkErr, ok := codersdk.AsError(err); ok && sdkErr.StatusCode() != http.StatusNotFound {
+						return xerrors.Errorf("get template: %w", err)
+					}
 					_, _ = fmt.Fprintf(inv.Stdout, "Create a new template with `coder templates create %s`.\n", name)
 					_, _ = fmt.Fprintf(inv.Stdout, "Or use `coder templates push %s --create`.\n", name)
 					return xerrors.Errorf("template %q not found: %w", name, err)
 				}
 				_, _ = fmt.Fprintf(inv.Stdout, "Creating a new template: %s\n", name)
+				job, err := createValidTemplateVersion(inv, createValidTemplateVersionArgs{
+					Client:          client,
+					Organization:    organization,
+					Provisioner:     database.ProvisionerType(provisioner),
+					FileID:          resp.ID,
+					ProvisionerTags: tags,
+					VariablesFile:   variablesFile,
+					Variables:       variables,
+				})
+				if err != nil {
+					return err
+				}
 				defaultTTL := 24 * time.Hour
 				failureTTL := 0 * time.Hour
 				inactivityTTL := 0 * time.Hour
