@@ -696,7 +696,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			if err != nil {
 				return TypescriptType{}, xerrors.Errorf("array: %w", err)
 			}
-			var genValue = ""
+			genValue := ""
 			if underlying.GenericValue != "" {
 				genValue = underlying.GenericValue + "[]"
 			}
