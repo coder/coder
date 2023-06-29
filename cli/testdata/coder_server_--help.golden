@@ -75,7 +75,7 @@ Use a YAML configuration file when your server launch become unwieldy.
 
 [1mIntrospection / Logging Options[0m 
       --enable-terraform-debug-mode bool, $CODER_ENABLE_TERRAFORM_DEBUG_MODE (default: false)
-          Enable debug mode while processing Terraform templates.
+          Allow administrators to enable Terraform debug output.
 
       --log-human string, $CODER_LOGGING_HUMAN (default: /dev/stderr)
           Output human-readable logs to a given file.

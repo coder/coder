@@ -1218,7 +1218,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "Enable Terraform debug mode",
-			Description: "Enable debug mode while processing Terraform templates.",
+			Description: "Allow administrators to enable Terraform debug output.",
 			Flag:        "enable-terraform-debug-mode",
 			Env:         "CODER_ENABLE_TERRAFORM_DEBUG_MODE",
 			Default:     "false",

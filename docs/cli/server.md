@@ -232,7 +232,7 @@ Disable automatic session expiry bumping due to activity. This forces all sessio
 | YAML        | <code>introspection.logging.enableTerraformDebugMode</code> |
 | Default     | <code>false</code>                                          |
 
-Enable debug mode while processing Terraform templates.
+Allow administrators to enable Terraform debug output.
 
 ### --swagger-enable
 

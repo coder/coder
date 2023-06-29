@@ -197,7 +197,7 @@ introspection:
     # Output Stackdriver compatible logs to a given file.
     # (default: <unset>, type: string)
     stackdriverPath: ""
-    # Enable debug mode while processing Terraform templates.
+    # Allow administrators to enable Terraform debug output.
     # (default: false, type: bool)
     enableTerraformDebugMode: false
 oauth2:
