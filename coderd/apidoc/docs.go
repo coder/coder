@@ -7270,6 +7270,9 @@ const docTemplate = `{
                 "disable_session_expiry_refresh": {
                     "type": "boolean"
                 },
+                "disable_terraform_debug_mode": {
+                    "type": "boolean"
+                },
                 "experiments": {
                     "type": "array",
                     "items": {
