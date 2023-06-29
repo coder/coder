@@ -15,6 +15,7 @@ import (
 	"os/user"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -293,6 +294,7 @@ func TestAgent_Session_TTY_MOTD(t *testing.T) {
 		banner     codersdk.ServiceBannerConfig
 		expected   []string
 		unexpected []string
+		expectedRe *regexp.Regexp
 	}{
 		{
 			name:       "WithoutServiceBanner",
@@ -336,13 +338,32 @@ func TestAgent_Session_TTY_MOTD(t *testing.T) {
 			banner:     codersdk.ServiceBannerConfig{},
 			unexpected: []string{wantServiceBanner, wantMOTD},
 		},
+		{
+			name:     "CarriageReturns",
+			manifest: agentsdk.Manifest{},
+			banner: codersdk.ServiceBannerConfig{
+				Enabled: true,
+				Message: "service\n\nbanner\nhere",
+			},
+			expected:   []string{"service\r\n\r\nbanner\r\nhere\r\n\r\n"},
+			unexpected: []string{},
+		},
+		{
+			name:     "Trim",
+			manifest: agentsdk.Manifest{},
+			banner: codersdk.ServiceBannerConfig{
+				Enabled: true,
+				Message: "\n\n\n\n\n\nbanner\n\n\n\n\n\n",
+			},
+			expectedRe: regexp.MustCompile("([^\n\r]|^)banner\r\n\r\n[^\r\n]"),
+		},
 	}
 
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			session := setupSSHSession(t, test.manifest, test.banner)
-			testSessionOutput(t, session, test.expected, test.unexpected)
+			testSessionOutput(t, session, test.expected, test.unexpected, test.expectedRe)
 		})
 	}
 }
@@ -431,7 +452,7 @@ func TestAgent_Session_TTY_MOTD_Update(t *testing.T) {
 			_ = session.Close()
 		})
 
-		testSessionOutput(t, session, test.expected, test.unexpected)
+		testSessionOutput(t, session, test.expected, test.unexpected, nil)
 	}
 }
 
@@ -1963,7 +1984,7 @@ func assertWritePayload(t *testing.T, w io.Writer, payload []byte) {
 	assert.Equal(t, len(payload), n, "payload length does not match")
 }
 
-func testSessionOutput(t *testing.T, session *ssh.Session, expected, unexpected []string) {
+func testSessionOutput(t *testing.T, session *ssh.Session, expected, unexpected []string, expectedRe *regexp.Regexp) {
 	t.Helper()
 
 	err := session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
@@ -1986,6 +2007,9 @@ func testSessionOutput(t *testing.T, session *ssh.Session, expected, unexpected 
 	}
 	for _, expect := range expected {
 		require.Contains(t, stdout.String(), expect, "should show output")
+	}
+	if expectedRe != nil {
+		require.Regexp(t, expectedRe, stdout.String())
 	}
 }
 

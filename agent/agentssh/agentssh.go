@@ -779,10 +779,8 @@ func showServiceBanner(session io.Writer, banner *codersdk.ServiceBannerConfig) 
 	if banner.Enabled && banner.Message != "" {
 		// The banner supports Markdown so we might want to parse it but Markdown is
 		// still fairly readable in its raw form.
-		_, err := io.WriteString(session, banner.Message+"\n\n\r")
-		if err != nil {
-			return err
-		}
+		message := strings.TrimSpace(banner.Message) + "\n\n"
+		return writeWithCarriageReturn(strings.NewReader(message), session)
 	}
 	return nil
 }
@@ -806,19 +804,22 @@ func showMOTD(dest io.Writer, filename string) error {
 	}
 	defer f.Close()
 
-	s := bufio.NewScanner(f)
+	return writeWithCarriageReturn(f, dest)
+}
+
+// writeWithCarriageReturn writes each line with a carriage return to ensure
+// that each line starts at the beginning of the terminal.
+func writeWithCarriageReturn(src io.Reader, dest io.Writer) error {
+	s := bufio.NewScanner(src)
 	for s.Scan() {
-		// Carriage return ensures each line starts
-		// at the beginning of the terminal.
-		_, err = fmt.Fprint(dest, s.Text()+"\r\n")
+		_, err := fmt.Fprint(dest, s.Text()+"\r\n")
 		if err != nil {
-			return xerrors.Errorf("write MOTD: %w", err)
+			return xerrors.Errorf("write line: %w", err)
 		}
 	}
 	if err := s.Err(); err != nil {
-		return xerrors.Errorf("read MOTD: %w", err)
+		return xerrors.Errorf("read line: %w", err)
 	}
-
 	return nil
 }
 
