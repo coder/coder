@@ -646,19 +646,19 @@ func (b *Builder) authorize(authFunc func(action rbac.Action, object rbac.Object
 		}
 	}
 
+	if b.logLevel != "" && !authFunc(rbac.ActionRead, rbac.ResourceDeploymentValues) {
+		return BuildError{
+			http.StatusBadRequest,
+			"Workspace builds with a custom log level are restricted to administrators only.",
+			xerrors.New("Workspace builds with a custom log level are restricted to administrators only."),
+		}
+	}
+
 	if b.logLevel != "" && b.deploymentValues != nil && !b.deploymentValues.EnableTerraformDebugMode {
 		return BuildError{
 			http.StatusBadRequest,
 			"Terraform debug mode is disabled in the deployment configuration.",
 			xerrors.New("Terraform debug mode is disabled in the deployment configuration."),
-		}
-	}
-
-	if b.logLevel != "" && !authFunc(rbac.ActionUpdate, template) {
-		return BuildError{
-			http.StatusBadRequest,
-			"Workspace builds with a custom log level are restricted to template authors only.",
-			xerrors.New("Workspace builds with a custom log level are restricted to template authors only."),
 		}
 	}
 	return nil
