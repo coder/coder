@@ -128,7 +128,10 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
 
   if (permissions.editWorkspaceProxies) {
     // Admins should query the more detailed endpoint.
-    query = getWorkspaceProxies
+    query = async (): Promise<Region[]> => {
+      const resp = await getWorkspaceProxies()
+      return resp.regions
+    }
   }
 
   const {

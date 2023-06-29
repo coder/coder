@@ -48,7 +48,7 @@ func (api *API) regions(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, regions)
 }
 
-func (api *API) fetchRegions(ctx context.Context) (codersdk.RegionsResponse, error) {
+func (api *API) fetchRegions(ctx context.Context) (codersdk.RegionsResponse[codersdk.Region], error) {
 	//nolint:gocritic // this intentionally requests resources that users
 	// cannot usually access in order to give them a full list of available
 	// regions.
@@ -56,13 +56,13 @@ func (api *API) fetchRegions(ctx context.Context) (codersdk.RegionsResponse, err
 
 	primaryRegion, err := api.AGPL.PrimaryRegion(ctx)
 	if err != nil {
-		return codersdk.RegionsResponse{}, err
+		return codersdk.RegionsResponse[codersdk.Region]{}, err
 	}
 	regions := []codersdk.Region{primaryRegion}
 
 	proxies, err := api.Database.GetWorkspaceProxies(ctx)
 	if err != nil {
-		return codersdk.RegionsResponse{}, err
+		return codersdk.RegionsResponse[codersdk.Region]{}, err
 	}
 
 	// Only add additional regions if the proxy health is enabled.
@@ -80,7 +80,7 @@ func (api *API) fetchRegions(ctx context.Context) (codersdk.RegionsResponse, err
 		}
 	}
 
-	return codersdk.RegionsResponse{
+	return codersdk.RegionsResponse[codersdk.Region]{
 		Regions: regions,
 	}, nil
 }
@@ -407,7 +407,7 @@ func validateProxyURL(u string) error {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Success 200 {array} codersdk.WorkspaceProxy
+// @Success 200 {array} codersdk.RegionsResponse[codersdk.WorkspaceProxy]
 // @Router /workspaceproxies [get]
 func (api *API) workspaceProxies(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -427,7 +427,9 @@ func (api *API) workspaceProxies(rw http.ResponseWriter, r *http.Request) {
 	proxies = append([]database.WorkspaceProxy{primaryProxy}, proxies...)
 
 	statues := api.ProxyHealth.HealthStatus()
-	httpapi.Write(ctx, rw, http.StatusOK, convertProxies(proxies, statues))
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.RegionsResponse[codersdk.WorkspaceProxy]{
+		Regions: convertProxies(proxies, statues),
+	})
 }
 
 // @Summary Issue signed workspace app token

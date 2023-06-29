@@ -146,7 +146,7 @@ type Handler struct {
 	buildInfoJSON string
 
 	AppearanceFetcher func(ctx context.Context) (codersdk.AppearanceConfig, error)
-	RegionsFetcher    func(ctx context.Context) (codersdk.RegionsResponse, error)
+	RegionsFetcher    func(ctx context.Context) (codersdk.RegionsResponse[codersdk.Region], error)
 
 	Entitlements atomic.Pointer[codersdk.Entitlements]
 	Experiments  atomic.Pointer[codersdk.Experiments]

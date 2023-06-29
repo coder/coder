@@ -174,8 +174,12 @@ func (c *Client) WorkspaceProxyByID(ctx context.Context, id uuid.UUID) (Workspac
 	return c.WorkspaceProxyByName(ctx, id.String())
 }
 
-type RegionsResponse struct {
-	Regions []Region `json:"regions"`
+type RegionTypes interface {
+	Region | WorkspaceProxy
+}
+
+type RegionsResponse[R RegionTypes] struct {
+	Regions []R `json:"regions"`
 }
 
 type Region struct {
@@ -211,6 +215,6 @@ func (c *Client) Regions(ctx context.Context) ([]Region, error) {
 		return nil, ReadBodyAsError(res)
 	}
 
-	var regions RegionsResponse
+	var regions RegionsResponse[Region]
 	return regions.Regions, json.NewDecoder(res.Body).Decode(&regions)
 }

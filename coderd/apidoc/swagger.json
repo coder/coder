@@ -1406,7 +1406,7 @@
           "200": {
             "description": "OK",
             "schema": {
-              "$ref": "#/definitions/codersdk.RegionsResponse"
+              "$ref": "#/definitions/codersdk.RegionsResponse-codersdk_Region"
             }
           }
         }
@@ -4348,7 +4348,7 @@
             "schema": {
               "type": "array",
               "items": {
-                "$ref": "#/definitions/codersdk.WorkspaceProxy"
+                "$ref": "#/definitions/codersdk.RegionsResponse-codersdk_WorkspaceProxy"
               }
             }
           }
@@ -7430,13 +7430,24 @@
         }
       }
     },
-    "codersdk.RegionsResponse": {
+    "codersdk.RegionsResponse-codersdk_Region": {
       "type": "object",
       "properties": {
         "regions": {
           "type": "array",
           "items": {
             "$ref": "#/definitions/codersdk.Region"
+          }
+        }
+      }
+    },
+    "codersdk.RegionsResponse-codersdk_WorkspaceProxy": {
+      "type": "object",
+      "properties": {
+        "regions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/codersdk.WorkspaceProxy"
           }
         }
       }

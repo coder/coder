@@ -1614,7 +1614,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.RegionsResponse"
+                            "$ref": "#/definitions/codersdk.RegionsResponse-codersdk_Region"
                         }
                     }
                 }
@@ -4932,7 +4932,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.WorkspaceProxy"
+                                "$ref": "#/definitions/codersdk.RegionsResponse-codersdk_WorkspaceProxy"
                             }
                         }
                     }
@@ -8277,13 +8277,24 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.RegionsResponse": {
+        "codersdk.RegionsResponse-codersdk_Region": {
             "type": "object",
             "properties": {
                 "regions": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.Region"
+                    }
+                }
+            }
+        },
+        "codersdk.RegionsResponse-codersdk_WorkspaceProxy": {
+            "type": "object",
+            "properties": {
+                "regions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceProxy"
                     }
                 }
             }
