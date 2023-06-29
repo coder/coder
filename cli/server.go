@@ -148,6 +148,14 @@ func ReadGitAuthProvidersFromEnv(environ []string) ([]codersdk.GitAuthConfig, er
 			provider.ValidateURL = v.Value
 		case "REGEX":
 			provider.Regex = v.Value
+		case "DEVICE_FLOW":
+			b, err := strconv.ParseBool(v.Value)
+			if err != nil {
+				return nil, xerrors.Errorf("parse bool: %s", v.Value)
+			}
+			provider.DeviceFlow = b
+		case "DEVICE_CODE_URL":
+			provider.DeviceCodeURL = v.Value
 		case "NO_REFRESH":
 			b, err := strconv.ParseBool(v.Value)
 			if err != nil {
@@ -156,6 +164,10 @@ func ReadGitAuthProvidersFromEnv(environ []string) ([]codersdk.GitAuthConfig, er
 			provider.NoRefresh = b
 		case "SCOPES":
 			provider.Scopes = strings.Split(v.Value, " ")
+		case "APP_INSTALL_URL":
+			provider.AppInstallURL = v.Value
+		case "APP_INSTALLATIONS_URL":
+			provider.AppInstallationsURL = v.Value
 		}
 		providers[providerNum] = provider
 	}

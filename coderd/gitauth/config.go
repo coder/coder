@@ -2,6 +2,7 @@ package gitauth
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,15 +12,22 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
+	"github.com/google/go-github/v43/github"
+
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/codersdk"
 )
 
+type OAuth2Config interface {
+	AuthCodeURL(state string, opts ...oauth2.AuthCodeOption) string
+	Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error)
+	TokenSource(context.Context, *oauth2.Token) oauth2.TokenSource
+}
+
 // Config is used for authentication for Git operations.
 type Config struct {
-	httpmw.OAuth2Config
+	OAuth2Config
 	// ID is a unique identifier for the authenticator.
 	ID string
 	// Regex is a regexp that URLs will match against.
@@ -36,6 +44,16 @@ type Config struct {
 	// returning it to the user. If omitted, tokens will
 	// not be validated before being returned.
 	ValidateURL string
+	// AppInstallURL is for GitHub App's (and hopefully others eventually)
+	// to provide a link to install the app. There's installation
+	// of the application, and user authentication. It's possible
+	// for the user to authenticate but the application to not.
+	AppInstallURL string
+	// InstallationsURL is an API endpoint that returns a list of
+	// installations for the user. This is used for GitHub Apps.
+	AppInstallationsURL string
+	// DeviceAuth is set if the provider uses the device flow.
+	DeviceAuth *DeviceAuth
 }
 
 // RefreshToken automatically refreshes the token if expired and permitted.
@@ -58,15 +76,13 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, gitAuthLin
 		return gitAuthLink, false, nil
 	}
 
-	if c.ValidateURL != "" {
-		valid, err := c.ValidateToken(ctx, token.AccessToken)
-		if err != nil {
-			return gitAuthLink, false, xerrors.Errorf("validate git auth token: %w", err)
-		}
-		if !valid {
-			// The token is no longer valid!
-			return gitAuthLink, false, nil
-		}
+	valid, _, err := c.ValidateToken(ctx, token.AccessToken)
+	if err != nil {
+		return gitAuthLink, false, xerrors.Errorf("validate git auth token: %w", err)
+	}
+	if !valid {
+		// The token is no longer valid!
+		return gitAuthLink, false, nil
 	}
 
 	if token.AccessToken != gitAuthLink.OAuthAccessToken {
@@ -87,26 +103,104 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, gitAuthLin
 }
 
 // ValidateToken ensures the Git token provided is valid!
-func (c *Config) ValidateToken(ctx context.Context, token string) (bool, error) {
+// The user is optionally returned if the provider supports it.
+func (c *Config) ValidateToken(ctx context.Context, token string) (bool, *codersdk.GitAuthUser, error) {
+	if c.ValidateURL == "" {
+		// Default that the token is valid if no validation URL is provided.
+		return true, nil, nil
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.ValidateURL, nil)
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode == http.StatusUnauthorized {
 		// The token is no longer valid!
-		return false, nil
+		return false, nil, nil
 	}
 	if res.StatusCode != http.StatusOK {
 		data, _ := io.ReadAll(res.Body)
-		return false, xerrors.Errorf("status %d: body: %s", res.StatusCode, data)
+		return false, nil, xerrors.Errorf("status %d: body: %s", res.StatusCode, data)
 	}
-	return true, nil
+
+	var user *codersdk.GitAuthUser
+	if c.Type == codersdk.GitProviderGitHub {
+		var ghUser github.User
+		err = json.NewDecoder(res.Body).Decode(&ghUser)
+		if err == nil {
+			user = &codersdk.GitAuthUser{
+				Login:      ghUser.GetLogin(),
+				AvatarURL:  ghUser.GetAvatarURL(),
+				ProfileURL: ghUser.GetHTMLURL(),
+				Name:       ghUser.GetName(),
+			}
+		}
+	}
+
+	return true, user, nil
+}
+
+type AppInstallation struct {
+	ID int
+	// Login is the username of the installation.
+	Login string
+	// URL is a link to configure the app install.
+	URL string
+}
+
+// AppInstallations returns a list of app installations for the given token.
+// If the provider does not support app installations, it returns nil.
+func (c *Config) AppInstallations(ctx context.Context, token string) ([]codersdk.GitAuthAppInstallation, bool, error) {
+	if c.AppInstallationsURL == "" {
+		return nil, false, nil
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.AppInstallationsURL, nil)
+	if err != nil {
+		return nil, false, err
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, false, err
+	}
+	defer res.Body.Close()
+	// It's possible the installation URL is misconfigured, so we don't
+	// want to return an error here.
+	if res.StatusCode != http.StatusOK {
+		return nil, false, nil
+	}
+	installs := []codersdk.GitAuthAppInstallation{}
+	if c.Type == codersdk.GitProviderGitHub {
+		var ghInstalls struct {
+			Installations []*github.Installation `json:"installations"`
+		}
+		err = json.NewDecoder(res.Body).Decode(&ghInstalls)
+		if err != nil {
+			return nil, false, err
+		}
+		for _, installation := range ghInstalls.Installations {
+			account := installation.GetAccount()
+			if account == nil {
+				continue
+			}
+			installs = append(installs, codersdk.GitAuthAppInstallation{
+				ID:           int(installation.GetID()),
+				ConfigureURL: installation.GetHTMLURL(),
+				Account: codersdk.GitAuthUser{
+					Login:      account.GetLogin(),
+					AvatarURL:  account.GetAvatarURL(),
+					ProfileURL: account.GetHTMLURL(),
+					Name:       account.GetName(),
+				},
+			})
+		}
+	}
+	return installs, true, nil
 }
 
 // ConvertConfig converts the SDK configuration entry format
@@ -148,9 +242,6 @@ func ConvertConfig(entries []codersdk.GitAuthConfig, accessURL *url.URL) ([]*Con
 		if entry.ClientID == "" {
 			return nil, xerrors.Errorf("%q git auth provider: client_id must be provided", entry.ID)
 		}
-		if entry.ClientSecret == "" {
-			return nil, xerrors.Errorf("%q git auth provider: client_secret must be provided", entry.ID)
-		}
 		authRedirect, err := accessURL.Parse(fmt.Sprintf("/gitauth/%s/callback", entry.ID))
 		if err != nil {
 			return nil, xerrors.Errorf("parse gitauth callback url: %w", err)
@@ -163,7 +254,7 @@ func ConvertConfig(entries []codersdk.GitAuthConfig, accessURL *url.URL) ([]*Con
 			}
 		}
 
-		oauth2Config := &oauth2.Config{
+		oc := &oauth2.Config{
 			ClientID:     entry.ClientID,
 			ClientSecret: entry.ClientSecret,
 			Endpoint:     endpoint[typ],
@@ -172,32 +263,54 @@ func ConvertConfig(entries []codersdk.GitAuthConfig, accessURL *url.URL) ([]*Con
 		}
 
 		if entry.AuthURL != "" {
-			oauth2Config.Endpoint.AuthURL = entry.AuthURL
+			oc.Endpoint.AuthURL = entry.AuthURL
 		}
 		if entry.TokenURL != "" {
-			oauth2Config.Endpoint.TokenURL = entry.TokenURL
+			oc.Endpoint.TokenURL = entry.TokenURL
 		}
 		if entry.Scopes != nil && len(entry.Scopes) > 0 {
-			oauth2Config.Scopes = entry.Scopes
+			oc.Scopes = entry.Scopes
 		}
 		if entry.ValidateURL == "" {
 			entry.ValidateURL = validateURL[typ]
 		}
-
-		var oauthConfig httpmw.OAuth2Config = oauth2Config
-		// Azure DevOps uses JWT token authentication!
-		if typ == codersdk.GitProviderAzureDevops {
-			oauthConfig = newJWTOAuthConfig(oauth2Config)
+		if entry.AppInstallationsURL == "" {
+			entry.AppInstallationsURL = appInstallationsURL[typ]
 		}
 
-		configs = append(configs, &Config{
-			OAuth2Config: oauthConfig,
-			ID:           entry.ID,
-			Regex:        regex,
-			Type:         typ,
-			NoRefresh:    entry.NoRefresh,
-			ValidateURL:  entry.ValidateURL,
-		})
+		var oauthConfig OAuth2Config = oc
+		// Azure DevOps uses JWT token authentication!
+		if typ == codersdk.GitProviderAzureDevops {
+			oauthConfig = &jwtConfig{oc}
+		}
+
+		cfg := &Config{
+			OAuth2Config:        oauthConfig,
+			ID:                  entry.ID,
+			Regex:               regex,
+			Type:                typ,
+			NoRefresh:           entry.NoRefresh,
+			ValidateURL:         entry.ValidateURL,
+			AppInstallationsURL: entry.AppInstallationsURL,
+			AppInstallURL:       entry.AppInstallURL,
+		}
+
+		if entry.DeviceFlow {
+			if entry.DeviceCodeURL == "" {
+				entry.DeviceCodeURL = deviceAuthURL[typ]
+			}
+			if entry.DeviceCodeURL == "" {
+				return nil, xerrors.Errorf("git auth provider %q: device auth url must be provided", entry.ID)
+			}
+			cfg.DeviceAuth = &DeviceAuth{
+				ClientID: entry.ClientID,
+				TokenURL: oc.Endpoint.TokenURL,
+				Scopes:   entry.Scopes,
+				CodeURL:  entry.DeviceCodeURL,
+			}
+		}
+
+		configs = append(configs, cfg)
 	}
 	return configs, nil
 }

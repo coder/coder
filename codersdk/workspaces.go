@@ -38,6 +38,11 @@ type Workspace struct {
 	// DeletingAt indicates the time of the upcoming workspace deletion, if applicable; otherwise it is nil.
 	// Workspaces may have impending deletions if Template.InactivityTTL feature is turned on and the workspace is inactive.
 	DeletingAt *time.Time `json:"deleting_at" format:"date-time"`
+	// LockedAt being non-nil indicates a workspace that has been locked.
+	// A locked workspace is no longer accessible by a user and must be
+	// unlocked by an admin. It is subject to deletion if it breaches
+	// the duration of the locked_ttl field on its template.
+	LockedAt *time.Time `json:"locked_at" format:"date-time"`
 }
 
 type WorkspacesRequest struct {
@@ -268,6 +273,25 @@ func (c *Client) PutExtendWorkspace(ctx context.Context, id uuid.UUID, req PutEx
 	res, err := c.Request(ctx, http.MethodPut, path, req)
 	if err != nil {
 		return xerrors.Errorf("extend workspace time until shutdown: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNotModified {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// UpdateWorkspaceLock is a request to lock or unlock a workspace.
+type UpdateWorkspaceLock struct {
+	Lock bool `json:"lock"`
+}
+
+// UpdateWorkspaceLock locks or unlocks a workspace.
+func (c *Client) UpdateWorkspaceLock(ctx context.Context, id uuid.UUID, req UpdateWorkspaceLock) error {
+	path := fmt.Sprintf("/api/v2/workspaces/%s/lock", id.String())
+	res, err := c.Request(ctx, http.MethodPut, path, req)
+	if err != nil {
+		return xerrors.Errorf("update workspace lock: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNotModified {

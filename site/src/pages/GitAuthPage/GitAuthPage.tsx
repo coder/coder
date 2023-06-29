@@ -1,64 +1,102 @@
-import Button from "@mui/material/Button"
-import { makeStyles } from "@mui/styles"
-import { SignInLayout } from "components/SignInLayout/SignInLayout"
-import { Welcome } from "components/Welcome/Welcome"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import {
+  exchangeGitAuthDevice,
+  getGitAuthDevice,
+  getGitAuthProvider,
+} from "api/api"
+import { usePermissions } from "hooks"
 import { FC, useEffect } from "react"
-import { Link as RouterLink } from "react-router-dom"
+import { useParams } from "react-router-dom"
 import { REFRESH_GITAUTH_BROADCAST_CHANNEL } from "xServices/createWorkspace/createWorkspaceXService"
+import GitAuthPageView from "./GitAuthPageView"
+import { ApiErrorResponse } from "api/errors"
+import { isAxiosError } from "axios"
 
 const GitAuthPage: FC = () => {
-  const styles = useStyles()
+  const { provider } = useParams()
+  if (!provider) {
+    throw new Error("provider must exist")
+  }
+  const permissions = usePermissions()
+  const queryClient = useQueryClient()
+  const getGitAuthProviderQuery = useQuery({
+    queryKey: ["gitauth", provider],
+    queryFn: () => getGitAuthProvider(provider),
+    refetchOnWindowFocus: true,
+  })
+
+  const getGitAuthDeviceQuery = useQuery({
+    enabled:
+      Boolean(!getGitAuthProviderQuery.data?.authenticated) &&
+      Boolean(getGitAuthProviderQuery.data?.device),
+    queryFn: () => getGitAuthDevice(provider),
+    queryKey: ["gitauth", provider, "device"],
+    refetchOnMount: false,
+  })
+  const exchangeGitAuthDeviceQuery = useQuery({
+    queryFn: () =>
+      exchangeGitAuthDevice(provider, {
+        device_code: getGitAuthDeviceQuery.data?.device_code || "",
+      }),
+    queryKey: ["gitauth", provider, getGitAuthDeviceQuery.data?.device_code],
+    enabled: Boolean(getGitAuthDeviceQuery.data),
+    onSuccess: () => {
+      // Force a refresh of the Git auth status.
+      queryClient.invalidateQueries(["gitauth", provider]).catch((ex) => {
+        console.error("invalidate queries", ex)
+      })
+    },
+    retry: true,
+    retryDelay: (getGitAuthDeviceQuery.data?.interval || 5) * 1000,
+    refetchOnWindowFocus: (query) =>
+      query.state.status === "success" ? false : "always",
+  })
+
   useEffect(() => {
+    if (!getGitAuthProviderQuery.data?.authenticated) {
+      return
+    }
     // This is used to notify the parent window that the Git auth token has been refreshed.
     // It's critical in the create workspace flow!
     // eslint-disable-next-line compat/compat -- It actually is supported... not sure why it's complaining.
     const bc = new BroadcastChannel(REFRESH_GITAUTH_BROADCAST_CHANNEL)
     // The message doesn't matter, any message refreshes the page!
     bc.postMessage("noop")
-    window.close()
-  }, [])
+  }, [getGitAuthProviderQuery.data?.authenticated])
+
+  if (getGitAuthProviderQuery.isLoading || !getGitAuthProviderQuery.data) {
+    return null
+  }
+
+  let deviceExchangeError: ApiErrorResponse | undefined
+  if (isAxiosError(exchangeGitAuthDeviceQuery.failureReason)) {
+    deviceExchangeError =
+      exchangeGitAuthDeviceQuery.failureReason.response?.data
+  }
+
+  if (
+    !getGitAuthProviderQuery.data.authenticated &&
+    !getGitAuthProviderQuery.data.device
+  ) {
+    window.location.href = `/gitauth/${provider}/callback`
+
+    return null
+  }
 
   return (
-    <SignInLayout>
-      <Welcome message="Authenticated with Git!" />
-      <p className={styles.text}>
-        Your Git authentication token will be refreshed to keep you signed in.
-      </p>
-
-      <div className={styles.links}>
-        <Button component={RouterLink} size="large" to="/workspaces" fullWidth>
-          Go to workspaces
-        </Button>
-      </div>
-    </SignInLayout>
+    <GitAuthPageView
+      gitAuth={getGitAuthProviderQuery.data}
+      onReauthenticate={() => {
+        queryClient.setQueryData(["gitauth", provider], {
+          ...getGitAuthProviderQuery.data,
+          authenticated: false,
+        })
+      }}
+      viewGitAuthConfig={permissions.viewGitAuthConfig}
+      deviceExchangeError={deviceExchangeError}
+      gitAuthDevice={getGitAuthDeviceQuery.data}
+    />
   )
 }
 
 export default GitAuthPage
-
-const useStyles = makeStyles((theme) => ({
-  title: {
-    fontSize: theme.spacing(4),
-    fontWeight: 400,
-    lineHeight: "140%",
-    margin: 0,
-  },
-
-  text: {
-    fontSize: 16,
-    color: theme.palette.text.secondary,
-    marginBottom: theme.spacing(4),
-    textAlign: "center",
-    lineHeight: "160%",
-  },
-
-  lineBreak: {
-    whiteSpace: "nowrap",
-  },
-
-  links: {
-    display: "flex",
-    justifyContent: "flex-end",
-    paddingTop: theme.spacing(1),
-  },
-}))

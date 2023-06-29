@@ -5,12 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/url"
 	"os"
 	"strings"
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
@@ -164,25 +166,91 @@ func main() {
 	root.Children = append(root.Children, &clibase.Cmd{
 		Use: "agent",
 		Handler: func(inv *clibase.Invocation) error {
-			agent := codersdk.WorkspaceAgent{
-				Status:         codersdk.WorkspaceAgentDisconnected,
-				LifecycleState: codersdk.WorkspaceAgentLifecycleReady,
+			var agent codersdk.WorkspaceAgent
+			var logs []codersdk.WorkspaceAgentStartupLog
+
+			fetchSteps := []func(){
+				func() {
+					createdAt := time.Now().Add(-time.Minute)
+					agent = codersdk.WorkspaceAgent{
+						CreatedAt:      createdAt,
+						Status:         codersdk.WorkspaceAgentConnecting,
+						LifecycleState: codersdk.WorkspaceAgentLifecycleCreated,
+					}
+				},
+				func() {
+					time.Sleep(time.Second)
+					agent.Status = codersdk.WorkspaceAgentTimeout
+				},
+				func() {
+					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleStarting
+					startingAt := time.Now()
+					agent.StartedAt = &startingAt
+					for i := 0; i < 10; i++ {
+						level := codersdk.LogLevelInfo
+						if rand.Float64() > 0.75 { //nolint:gosec
+							level = codersdk.LogLevelError
+						}
+						logs = append(logs, codersdk.WorkspaceAgentStartupLog{
+							CreatedAt: time.Now().Add(-time.Duration(10-i) * 144 * time.Millisecond),
+							Output:    fmt.Sprintf("Some log %d", i),
+							Level:     level,
+						})
+					}
+				},
+				func() {
+					time.Sleep(time.Second)
+					firstConnectedAt := time.Now()
+					agent.FirstConnectedAt = &firstConnectedAt
+					lastConnectedAt := firstConnectedAt.Add(0)
+					agent.LastConnectedAt = &lastConnectedAt
+					agent.Status = codersdk.WorkspaceAgentConnected
+				},
+				func() {},
+				func() {
+					time.Sleep(5 * time.Second)
+					agent.Status = codersdk.WorkspaceAgentConnected
+					lastConnectedAt := time.Now()
+					agent.LastConnectedAt = &lastConnectedAt
+				},
 			}
-			go func() {
-				time.Sleep(3 * time.Second)
-				agent.Status = codersdk.WorkspaceAgentConnected
-			}()
 			err := cliui.Agent(inv.Context(), inv.Stdout, cliui.AgentOptions{
-				WorkspaceName: "dev",
-				Fetch: func(ctx context.Context) (codersdk.WorkspaceAgent, error) {
+				FetchInterval: 100 * time.Millisecond,
+				Wait:          true,
+				Fetch: func(_ context.Context) (codersdk.WorkspaceAgent, error) {
+					if len(fetchSteps) == 0 {
+						return agent, nil
+					}
+					step := fetchSteps[0]
+					fetchSteps = fetchSteps[1:]
+					step()
 					return agent, nil
 				},
-				WarnInterval: 2 * time.Second,
+				FetchLogs: func(_ context.Context, _ uuid.UUID, _ int64, follow bool) (<-chan []codersdk.WorkspaceAgentStartupLog, io.Closer, error) {
+					logsC := make(chan []codersdk.WorkspaceAgentStartupLog, len(logs))
+					if follow {
+						go func() {
+							defer close(logsC)
+							for _, log := range logs {
+								logsC <- []codersdk.WorkspaceAgentStartupLog{log}
+								time.Sleep(144 * time.Millisecond)
+							}
+							agent.LifecycleState = codersdk.WorkspaceAgentLifecycleReady
+							readyAt := database.Now()
+							agent.ReadyAt = &readyAt
+						}()
+					} else {
+						logsC <- logs
+						close(logsC)
+					}
+					return logsC, closeFunc(func() error {
+						return nil
+					}), nil
+				},
 			})
 			if err != nil {
 				return err
 			}
-			_, _ = fmt.Printf("Completed!\n")
 			return nil
 		},
 	})
@@ -277,4 +345,10 @@ func main() {
 		_, _ = fmt.Println(err.Error())
 		os.Exit(1)
 	}
+}
+
+type closeFunc func() error
+
+func (f closeFunc) Close() error {
+	return f()
 }

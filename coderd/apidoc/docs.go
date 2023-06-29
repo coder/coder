@@ -658,6 +658,103 @@ const docTemplate = `{
                 }
             }
         },
+        "/gitauth/{gitauth}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Git"
+                ],
+                "summary": "Get git auth by ID",
+                "operationId": "get-git-auth-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "string",
+                        "description": "Git Provider ID",
+                        "name": "gitauth",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GitAuth"
+                        }
+                    }
+                }
+            }
+        },
+        "/gitauth/{gitauth}/device": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Git"
+                ],
+                "summary": "Get git auth device by ID.",
+                "operationId": "get-git-auth-device-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "string",
+                        "description": "Git Provider ID",
+                        "name": "gitauth",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GitAuthDevice"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Git"
+                ],
+                "summary": "Post git auth device by ID",
+                "operationId": "post-git-auth-device-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "string",
+                        "description": "Git Provider ID",
+                        "name": "gitauth",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/groups/{group}": {
             "get": {
                 "security": [
@@ -5558,6 +5655,53 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaces/{workspace}/lock": {
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Update workspace lock by id.",
+                "operationId": "update-workspace-lock-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Lock or unlock a workspace",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateWorkspaceLock"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaces/{workspace}/ttl": {
             "put": {
                 "security": [
@@ -7226,6 +7370,9 @@ const docTemplate = `{
                 "disable_session_expiry_refresh": {
                     "type": "boolean"
                 },
+                "enable_terraform_debug_mode": {
+                    "type": "boolean"
+                },
                 "experiments": {
                     "type": "array",
                     "items": {
@@ -7443,14 +7590,77 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.GitAuth": {
+            "type": "object",
+            "properties": {
+                "app_install_url": {
+                    "description": "AppInstallURL is the URL to install the app.",
+                    "type": "string"
+                },
+                "app_installable": {
+                    "description": "AppInstallable is true if the request for app installs was successful.",
+                    "type": "boolean"
+                },
+                "authenticated": {
+                    "type": "boolean"
+                },
+                "device": {
+                    "type": "boolean"
+                },
+                "installations": {
+                    "description": "AppInstallations are the installations that the user has access to.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.GitAuthAppInstallation"
+                    }
+                },
+                "type": {
+                    "type": "string"
+                },
+                "user": {
+                    "description": "User is the user that authenticated with the provider.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.GitAuthUser"
+                        }
+                    ]
+                }
+            }
+        },
+        "codersdk.GitAuthAppInstallation": {
+            "type": "object",
+            "properties": {
+                "account": {
+                    "$ref": "#/definitions/codersdk.GitAuthUser"
+                },
+                "configure_url": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.GitAuthConfig": {
             "type": "object",
             "properties": {
+                "app_install_url": {
+                    "type": "string"
+                },
+                "app_installations_url": {
+                    "type": "string"
+                },
                 "auth_url": {
                     "type": "string"
                 },
                 "client_id": {
                     "type": "string"
+                },
+                "device_code_url": {
+                    "type": "string"
+                },
+                "device_flow": {
+                    "type": "boolean"
                 },
                 "id": {
                     "type": "string"
@@ -7474,6 +7684,43 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "validate_url": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.GitAuthDevice": {
+            "type": "object",
+            "properties": {
+                "device_code": {
+                    "type": "string"
+                },
+                "expires_in": {
+                    "type": "integer"
+                },
+                "interval": {
+                    "type": "integer"
+                },
+                "user_code": {
+                    "type": "string"
+                },
+                "verification_uri": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.GitAuthUser": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "login": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "profile_url": {
                     "type": "string"
                 }
             }
@@ -9042,6 +9289,14 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateWorkspaceLock": {
+            "type": "object",
+            "properties": {
+                "lock": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.UpdateWorkspaceRequest": {
             "type": "object",
             "properties": {
@@ -9198,6 +9453,11 @@ const docTemplate = `{
                 },
                 "latest_build": {
                     "$ref": "#/definitions/codersdk.WorkspaceBuild"
+                },
+                "locked_at": {
+                    "description": "LockedAt being non-nil indicates a workspace that has been locked.\nA locked workspace is no longer accessible by a user and must be\nunlocked by an admin. It is subject to deletion if it breaches\nthe duration of the locked_ttl field on its template.",
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "name": {
                     "type": "string"

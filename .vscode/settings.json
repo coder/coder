@@ -211,6 +211,5 @@
   "go.testFlags": ["-short", "-coverpkg=./..."],
   // We often use a version of TypeScript that's ahead of the version shipped
   // with VS Code.
-  "typescript.tsdk": "./site/node_modules/typescript/lib",
-  "prettier.prettierPath": "./node_modules/prettier"
+  "typescript.tsdk": "./site/node_modules/typescript/lib"
 }

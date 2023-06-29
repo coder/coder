@@ -464,17 +464,23 @@ func New(options *Options) *API {
 		})
 	})
 
+	// Register callback handlers for each OAuth2 provider.
 	r.Route("/gitauth", func(r chi.Router) {
 		for _, gitAuthConfig := range options.GitAuthConfigs {
-			r.Route(fmt.Sprintf("/%s", gitAuthConfig.ID), func(r chi.Router) {
+			// We don't need to register a callback handler for device auth.
+			if gitAuthConfig.DeviceAuth != nil {
+				continue
+			}
+			r.Route(fmt.Sprintf("/%s/callback", gitAuthConfig.ID), func(r chi.Router) {
 				r.Use(
-					httpmw.ExtractOAuth2(gitAuthConfig, options.HTTPClient, nil),
 					apiKeyMiddlewareRedirect,
+					httpmw.ExtractOAuth2(gitAuthConfig, options.HTTPClient, nil),
 				)
-				r.Get("/callback", api.gitAuthCallback(gitAuthConfig))
+				r.Get("/", api.gitAuthCallback(gitAuthConfig))
 			})
 		}
 	})
+
 	r.Route("/api/v2", func(r chi.Router) {
 		api.APIHandler = r
 
@@ -521,6 +527,15 @@ func New(options *Options) *API {
 			)
 			r.Get("/{fileID}", api.fileByID)
 			r.Post("/", api.postFile)
+		})
+		r.Route("/gitauth/{gitauth}", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractGitAuthParam(options.GitAuthConfigs),
+			)
+			r.Get("/", api.gitAuthByID)
+			r.Post("/device", api.postGitAuthDeviceByID)
+			r.Get("/device", api.gitAuthDeviceByID)
 		})
 		r.Route("/organizations", func(r chi.Router) {
 			r.Use(
@@ -744,6 +759,7 @@ func New(options *Options) *API {
 				})
 				r.Get("/watch", api.watchWorkspace)
 				r.Put("/extend", api.putExtendWorkspace)
+				r.Put("/lock", api.putWorkspaceLock)
 			})
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {

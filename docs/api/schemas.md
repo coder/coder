@@ -595,8 +595,12 @@
 {
   "value": [
     {
+      "app_install_url": "string",
+      "app_installations_url": "string",
       "auth_url": "string",
       "client_id": "string",
+      "device_code_url": "string",
+      "device_flow": true,
       "id": "string",
       "no_refresh": true,
       "regex": "string",
@@ -1875,12 +1879,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "disable_password_auth": true,
     "disable_path_apps": true,
     "disable_session_expiry_refresh": true,
+    "enable_terraform_debug_mode": true,
     "experiments": ["string"],
     "git_auth": {
       "value": [
         {
+          "app_install_url": "string",
+          "app_installations_url": "string",
           "auth_url": "string",
           "client_id": "string",
+          "device_code_url": "string",
+          "device_flow": true,
           "id": "string",
           "no_refresh": true,
           "regex": "string",
@@ -2206,12 +2215,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "disable_password_auth": true,
   "disable_path_apps": true,
   "disable_session_expiry_refresh": true,
+  "enable_terraform_debug_mode": true,
   "experiments": ["string"],
   "git_auth": {
     "value": [
       {
+        "app_install_url": "string",
+        "app_installations_url": "string",
         "auth_url": "string",
         "client_id": "string",
+        "device_code_url": "string",
+        "device_flow": true,
         "id": "string",
         "no_refresh": true,
         "regex": "string",
@@ -2400,6 +2414,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `disable_password_auth`              | boolean                                                                                    | false    |              |                                                                    |
 | `disable_path_apps`                  | boolean                                                                                    | false    |              |                                                                    |
 | `disable_session_expiry_refresh`     | boolean                                                                                    | false    |              |                                                                    |
+| `enable_terraform_debug_mode`        | boolean                                                                                    | false    |              |                                                                    |
 | `experiments`                        | array of string                                                                            | false    |              |                                                                    |
 | `git_auth`                           | [clibase.Struct-array_codersdk_GitAuthConfig](#clibasestruct-array_codersdk_gitauthconfig) | false    |              |                                                                    |
 | `http_address`                       | string                                                                                     | false    |              | Http address is a string because it may be set to zero to disable. |
@@ -2573,12 +2588,81 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `count` | integer                                 | false    |              |             |
 | `users` | array of [codersdk.User](#codersdkuser) | false    |              |             |
 
+## codersdk.GitAuth
+
+```json
+{
+  "app_install_url": "string",
+  "app_installable": true,
+  "authenticated": true,
+  "device": true,
+  "installations": [
+    {
+      "account": {
+        "avatar_url": "string",
+        "login": "string",
+        "name": "string",
+        "profile_url": "string"
+      },
+      "configure_url": "string",
+      "id": 0
+    }
+  ],
+  "type": "string",
+  "user": {
+    "avatar_url": "string",
+    "login": "string",
+    "name": "string",
+    "profile_url": "string"
+  }
+}
+```
+
+### Properties
+
+| Name              | Type                                                                        | Required | Restrictions | Description                                                             |
+| ----------------- | --------------------------------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------- |
+| `app_install_url` | string                                                                      | false    |              | App install URL is the URL to install the app.                          |
+| `app_installable` | boolean                                                                     | false    |              | App installable is true if the request for app installs was successful. |
+| `authenticated`   | boolean                                                                     | false    |              |                                                                         |
+| `device`          | boolean                                                                     | false    |              |                                                                         |
+| `installations`   | array of [codersdk.GitAuthAppInstallation](#codersdkgitauthappinstallation) | false    |              | Installations are the installations that the user has access to.        |
+| `type`            | string                                                                      | false    |              |                                                                         |
+| `user`            | [codersdk.GitAuthUser](#codersdkgitauthuser)                                | false    |              | User is the user that authenticated with the provider.                  |
+
+## codersdk.GitAuthAppInstallation
+
+```json
+{
+  "account": {
+    "avatar_url": "string",
+    "login": "string",
+    "name": "string",
+    "profile_url": "string"
+  },
+  "configure_url": "string",
+  "id": 0
+}
+```
+
+### Properties
+
+| Name            | Type                                         | Required | Restrictions | Description |
+| --------------- | -------------------------------------------- | -------- | ------------ | ----------- |
+| `account`       | [codersdk.GitAuthUser](#codersdkgitauthuser) | false    |              |             |
+| `configure_url` | string                                       | false    |              |             |
+| `id`            | integer                                      | false    |              |             |
+
 ## codersdk.GitAuthConfig
 
 ```json
 {
+  "app_install_url": "string",
+  "app_installations_url": "string",
   "auth_url": "string",
   "client_id": "string",
+  "device_code_url": "string",
+  "device_flow": true,
   "id": "string",
   "no_refresh": true,
   "regex": "string",
@@ -2591,17 +2675,63 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name           | Type            | Required | Restrictions | Description |
-| -------------- | --------------- | -------- | ------------ | ----------- |
-| `auth_url`     | string          | false    |              |             |
-| `client_id`    | string          | false    |              |             |
-| `id`           | string          | false    |              |             |
-| `no_refresh`   | boolean         | false    |              |             |
-| `regex`        | string          | false    |              |             |
-| `scopes`       | array of string | false    |              |             |
-| `token_url`    | string          | false    |              |             |
-| `type`         | string          | false    |              |             |
-| `validate_url` | string          | false    |              |             |
+| Name                    | Type            | Required | Restrictions | Description |
+| ----------------------- | --------------- | -------- | ------------ | ----------- |
+| `app_install_url`       | string          | false    |              |             |
+| `app_installations_url` | string          | false    |              |             |
+| `auth_url`              | string          | false    |              |             |
+| `client_id`             | string          | false    |              |             |
+| `device_code_url`       | string          | false    |              |             |
+| `device_flow`           | boolean         | false    |              |             |
+| `id`                    | string          | false    |              |             |
+| `no_refresh`            | boolean         | false    |              |             |
+| `regex`                 | string          | false    |              |             |
+| `scopes`                | array of string | false    |              |             |
+| `token_url`             | string          | false    |              |             |
+| `type`                  | string          | false    |              |             |
+| `validate_url`          | string          | false    |              |             |
+
+## codersdk.GitAuthDevice
+
+```json
+{
+  "device_code": "string",
+  "expires_in": 0,
+  "interval": 0,
+  "user_code": "string",
+  "verification_uri": "string"
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description |
+| ------------------ | ------- | -------- | ------------ | ----------- |
+| `device_code`      | string  | false    |              |             |
+| `expires_in`       | integer | false    |              |             |
+| `interval`         | integer | false    |              |             |
+| `user_code`        | string  | false    |              |             |
+| `verification_uri` | string  | false    |              |             |
+
+## codersdk.GitAuthUser
+
+```json
+{
+  "avatar_url": "string",
+  "login": "string",
+  "name": "string",
+  "profile_url": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+| ------------- | ------ | -------- | ------------ | ----------- |
+| `avatar_url`  | string | false    |              |             |
+| `login`       | string | false    |              |             |
+| `name`        | string | false    |              |             |
+| `profile_url` | string | false    |              |             |
 
 ## codersdk.GitProvider
 
@@ -4301,6 +4431,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ---------- | ------ | -------- | ------------ | ----------- |
 | `schedule` | string | false    |              |             |
 
+## codersdk.UpdateWorkspaceLock
+
+```json
+{
+  "lock": true
+}
+```
+
+### Properties
+
+| Name   | Type    | Required | Restrictions | Description |
+| ------ | ------- | -------- | ------------ | ----------- |
+| `lock` | boolean | false    |              |             |
+
 ## codersdk.UpdateWorkspaceRequest
 
 ```json
@@ -4580,6 +4724,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
     "workspace_owner_name": "string"
   },
+  "locked_at": "2019-08-24T14:15:22Z",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "outdated": true,
@@ -4597,26 +4742,27 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                                        | Type                                               | Required | Restrictions | Description                                                                                                                                                                                                                  |
-| ------------------------------------------- | -------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `autostart_schedule`                        | string                                             | false    |              |                                                                                                                                                                                                                              |
-| `created_at`                                | string                                             | false    |              |                                                                                                                                                                                                                              |
-| `deleting_at`                               | string                                             | false    |              | Deleting at indicates the time of the upcoming workspace deletion, if applicable; otherwise it is nil. Workspaces may have impending deletions if Template.InactivityTTL feature is turned on and the workspace is inactive. |
-| `id`                                        | string                                             | false    |              |                                                                                                                                                                                                                              |
-| `last_used_at`                              | string                                             | false    |              |                                                                                                                                                                                                                              |
-| `latest_build`                              | [codersdk.WorkspaceBuild](#codersdkworkspacebuild) | false    |              |                                                                                                                                                                                                                              |
-| `name`                                      | string                                             | false    |              |                                                                                                                                                                                                                              |
-| `organization_id`                           | string                                             | false    |              |                                                                                                                                                                                                                              |
-| `outdated`                                  | boolean                                            | false    |              |                                                                                                                                                                                                                              |
-| `owner_id`                                  | string                                             | false    |              |                                                                                                                                                                                                                              |
-| `owner_name`                                | string                                             | false    |              |                                                                                                                                                                                                                              |
-| `template_allow_user_cancel_workspace_jobs` | boolean                                            | false    |              |                                                                                                                                                                                                                              |
-| `template_display_name`                     | string                                             | false    |              |                                                                                                                                                                                                                              |
-| `template_icon`                             | string                                             | false    |              |                                                                                                                                                                                                                              |
-| `template_id`                               | string                                             | false    |              |                                                                                                                                                                                                                              |
-| `template_name`                             | string                                             | false    |              |                                                                                                                                                                                                                              |
-| `ttl_ms`                                    | integer                                            | false    |              |                                                                                                                                                                                                                              |
-| `updated_at`                                | string                                             | false    |              |                                                                                                                                                                                                                              |
+| Name                                        | Type                                               | Required | Restrictions | Description                                                                                                                                                                                                                                               |
+| ------------------------------------------- | -------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `autostart_schedule`                        | string                                             | false    |              |                                                                                                                                                                                                                                                           |
+| `created_at`                                | string                                             | false    |              |                                                                                                                                                                                                                                                           |
+| `deleting_at`                               | string                                             | false    |              | Deleting at indicates the time of the upcoming workspace deletion, if applicable; otherwise it is nil. Workspaces may have impending deletions if Template.InactivityTTL feature is turned on and the workspace is inactive.                              |
+| `id`                                        | string                                             | false    |              |                                                                                                                                                                                                                                                           |
+| `last_used_at`                              | string                                             | false    |              |                                                                                                                                                                                                                                                           |
+| `latest_build`                              | [codersdk.WorkspaceBuild](#codersdkworkspacebuild) | false    |              |                                                                                                                                                                                                                                                           |
+| `locked_at`                                 | string                                             | false    |              | Locked at being non-nil indicates a workspace that has been locked. A locked workspace is no longer accessible by a user and must be unlocked by an admin. It is subject to deletion if it breaches the duration of the locked_ttl field on its template. |
+| `name`                                      | string                                             | false    |              |                                                                                                                                                                                                                                                           |
+| `organization_id`                           | string                                             | false    |              |                                                                                                                                                                                                                                                           |
+| `outdated`                                  | boolean                                            | false    |              |                                                                                                                                                                                                                                                           |
+| `owner_id`                                  | string                                             | false    |              |                                                                                                                                                                                                                                                           |
+| `owner_name`                                | string                                             | false    |              |                                                                                                                                                                                                                                                           |
+| `template_allow_user_cancel_workspace_jobs` | boolean                                            | false    |              |                                                                                                                                                                                                                                                           |
+| `template_display_name`                     | string                                             | false    |              |                                                                                                                                                                                                                                                           |
+| `template_icon`                             | string                                             | false    |              |                                                                                                                                                                                                                                                           |
+| `template_id`                               | string                                             | false    |              |                                                                                                                                                                                                                                                           |
+| `template_name`                             | string                                             | false    |              |                                                                                                                                                                                                                                                           |
+| `ttl_ms`                                    | integer                                            | false    |              |                                                                                                                                                                                                                                                           |
+| `updated_at`                                | string                                             | false    |              |                                                                                                                                                                                                                                                           |
 
 ## codersdk.WorkspaceAgent
 
@@ -5621,6 +5767,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
         "workspace_owner_name": "string"
       },
+      "locked_at": "2019-08-24T14:15:22Z",
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "outdated": true,
