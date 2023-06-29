@@ -1,6 +1,6 @@
 # Devcontainers (alpha)
 
-[Devcontainers](https://containers.dev) are an open source specification for defining development environments. [envbuilder](https://github.com/coder/coder) is an open source project by Coder that runs devcontainers via Coder templates and your underlying infrastructure.
+[Devcontainers](https://containers.dev) are an open source specification for defining development environments. [envbuilder](https://github.com/coder/envbuilder) is an open source project by Coder that runs devcontainers via Coder templates and your underlying infrastructure.
 
 There are several benefits to adding a devcontainer-compatible template to Coder:
 
