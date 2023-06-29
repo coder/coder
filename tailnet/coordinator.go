@@ -11,11 +11,9 @@ import (
 	"net/http"
 	"net/netip"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hashicorp/go-multierror"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
@@ -145,8 +143,9 @@ func (c *coordinator) ServeMultiAgent(id uuid.UUID) MultiAgentConn {
 		ID:                id,
 		Logger:            c.core.logger,
 		AgentIsLegacyFunc: c.core.agentIsLegacy,
-		OnSubscribe:       c.core.multiAgentSubscribe,
-		OnNodeUpdate:      c.core.multiAgentUpdate,
+		OnSubscribe:       c.core.clientSubscribeToAgent,
+		OnNodeUpdate:      c.core.clientNodeUpdate,
+		OnRemove:          c.core.clientDisconnected,
 	}).Init()
 	c.core.addMultiAgent(id, m)
 	return m
@@ -154,7 +153,8 @@ func (c *coordinator) ServeMultiAgent(id uuid.UUID) MultiAgentConn {
 
 func (c *core) addMultiAgent(id uuid.UUID, ma *MultiAgent) {
 	c.mutex.Lock()
-	c.multiAgents[id] = ma
+	c.clients[id] = ma
+	c.clientsToAgents[id] = map[uuid.UUID]struct{}{}
 	c.mutex.Unlock()
 }
 
@@ -173,6 +173,9 @@ type core struct {
 	// are subscribed to updates for that agent.
 	agentToConnectionSockets map[uuid.UUID]map[uuid.UUID]Enqueueable
 
+	clients         map[uuid.UUID]Enqueueable
+	clientsToAgents map[uuid.UUID]map[uuid.UUID]struct{}
+
 	// agentNameCache holds a cache of agent names. If one of them disappears,
 	// it's helpful to have a name cached for debugging.
 	agentNameCache *lru.Cache[uuid.UUID, string]
@@ -182,7 +185,7 @@ type core struct {
 	// coordinator. We need to keep track of these separately because we need to
 	// make sure they're closed on coordinator shutdown. If not, they won't be
 	// able to reopen another multiAgent on the new coordinator.
-	multiAgents map[uuid.UUID]*MultiAgent
+	// multiAgents map[uuid.UUID]*MultiAgent
 }
 
 type Enqueueable interface {
@@ -191,6 +194,7 @@ type Enqueueable interface {
 	Name() string
 	Stats() (start, lastWrite int64)
 	Overwrites() int64
+	CoordinatorClose() error
 	Close() error
 }
 
@@ -208,139 +212,12 @@ func newCore(logger slog.Logger) *core {
 		agentToConnectionSockets: map[uuid.UUID]map[uuid.UUID]Enqueueable{},
 		agentNameCache:           nameCache,
 		legacyAgents:             map[uuid.UUID]struct{}{},
-		multiAgents:              map[uuid.UUID]*MultiAgent{},
+		clients:                  map[uuid.UUID]Enqueueable{},
+		clientsToAgents:          map[uuid.UUID]map[uuid.UUID]struct{}{},
 	}
 }
 
 var ErrWouldBlock = xerrors.New("would block")
-
-type TrackedConn struct {
-	ctx      context.Context
-	cancel   func()
-	conn     net.Conn
-	updates  chan []*Node
-	logger   slog.Logger
-	lastData []byte
-
-	// ID is an ephemeral UUID used to uniquely identify the owner of the
-	// connection.
-	id uuid.UUID
-
-	name       string
-	start      int64
-	lastWrite  int64
-	overwrites int64
-}
-
-func (t *TrackedConn) Enqueue(n []*Node) (err error) {
-	atomic.StoreInt64(&t.lastWrite, time.Now().Unix())
-	select {
-	case t.updates <- n:
-		return nil
-	default:
-		return ErrWouldBlock
-	}
-}
-
-func (t *TrackedConn) UniqueID() uuid.UUID {
-	return t.id
-}
-
-func (t *TrackedConn) Name() string {
-	return t.name
-}
-
-func (t *TrackedConn) Stats() (start, lastWrite int64) {
-	return t.start, atomic.LoadInt64(&t.lastWrite)
-}
-
-func (t *TrackedConn) Overwrites() int64 {
-	return t.overwrites
-}
-
-// Close the connection and cancel the context for reading node updates from the queue
-func (t *TrackedConn) Close() error {
-	t.cancel()
-	return t.conn.Close()
-}
-
-// WriteTimeout is the amount of time we wait to write a node update to a connection before we declare it hung.
-// It is exported so that tests can use it.
-const WriteTimeout = time.Second * 5
-
-// SendUpdates reads node updates and writes them to the connection.  Ends when writes hit an error or context is
-// canceled.
-func (t *TrackedConn) SendUpdates() {
-	for {
-		select {
-		case <-t.ctx.Done():
-			t.logger.Debug(t.ctx, "done sending updates")
-			return
-		case nodes := <-t.updates:
-			data, err := json.Marshal(nodes)
-			if err != nil {
-				t.logger.Error(t.ctx, "unable to marshal nodes update", slog.Error(err), slog.F("nodes", nodes))
-				return
-			}
-			if bytes.Equal(t.lastData, data) {
-				t.logger.Debug(t.ctx, "skipping duplicate update", slog.F("nodes", nodes))
-				continue
-			}
-
-			// Set a deadline so that hung connections don't put back pressure on the system.
-			// Node updates are tiny, so even the dinkiest connection can handle them if it's not hung.
-			err = t.conn.SetWriteDeadline(time.Now().Add(WriteTimeout))
-			if err != nil {
-				// often, this is just because the connection is closed/broken, so only log at debug.
-				t.logger.Debug(t.ctx, "unable to set write deadline", slog.Error(err))
-				_ = t.Close()
-				return
-			}
-			_, err = t.conn.Write(data)
-			if err != nil {
-				// often, this is just because the connection is closed/broken, so only log at debug.
-				t.logger.Debug(t.ctx, "could not write nodes to connection", slog.Error(err), slog.F("nodes", nodes))
-				_ = t.Close()
-				return
-			}
-			t.logger.Debug(t.ctx, "wrote nodes", slog.F("nodes", nodes))
-
-			// nhooyr.io/websocket has a bugged implementation of deadlines on a websocket net.Conn.  What they are
-			// *supposed* to do is set a deadline for any subsequent writes to complete, otherwise the call to Write()
-			// fails.  What nhooyr.io/websocket does is set a timer, after which it expires the websocket write context.
-			// If this timer fires, then the next write will fail *even if we set a new write deadline*.  So, after
-			// our successful write, it is important that we reset the deadline before it fires.
-			err = t.conn.SetWriteDeadline(time.Time{})
-			if err != nil {
-				// often, this is just because the connection is closed/broken, so only log at debug.
-				t.logger.Debug(t.ctx, "unable to extend write deadline", slog.Error(err))
-				_ = t.Close()
-				return
-			}
-			t.lastData = data
-		}
-	}
-}
-
-func NewTrackedConn(ctx context.Context, cancel func(), conn net.Conn, id uuid.UUID, logger slog.Logger, overwrites int64) *TrackedConn {
-	// buffer updates so they don't block, since we hold the
-	// coordinator mutex while queuing.  Node updates don't
-	// come quickly, so 512 should be plenty for all but
-	// the most pathological cases.
-	updates := make(chan []*Node, 512)
-	now := time.Now().Unix()
-	return &TrackedConn{
-		ctx:        ctx,
-		conn:       conn,
-		cancel:     cancel,
-		updates:    updates,
-		logger:     logger,
-		id:         id,
-		start:      now,
-		lastWrite:  now,
-		overwrites: overwrites,
-	}
-}
 
 // Node returns an in-memory node by ID.
 // If the node does not exist, nil is returned.
@@ -376,24 +253,27 @@ func (c *core) agentCount() int {
 
 // ServeClient accepts a WebSocket connection that wants to connect to an agent
 // with the specified ID.
-func (c *coordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) error {
+func (c *coordinator) ServeClient(conn net.Conn, id, agentID uuid.UUID) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	logger := c.core.clientLogger(id, agent)
+	logger := c.core.clientLogger(id, agentID)
 	logger.Debug(ctx, "coordinating client")
-	tc, err := c.core.initAndTrackClient(ctx, cancel, conn, id, agent)
+
+	ma := c.ServeMultiAgent(id)
+	defer ma.Close()
+
+	err := ma.SubscribeAgent(agentID)
 	if err != nil {
-		return err
+		return xerrors.Errorf("subscribe agent: %w", err)
 	}
-	defer c.core.clientDisconnected(id, agent)
 
 	// On this goroutine, we read updates from the client and publish them.  We start a second goroutine
 	// to write updates back to the client.
-	go tc.SendUpdates()
+	go SendUpdatesToConn(ctx, logger, ma, conn)
 
 	decoder := json.NewDecoder(conn)
 	for {
-		err := c.handleNextClientMessage(id, agent, decoder)
+		err := c.handleNextClientMessage(id, decoder)
 		if err != nil {
 			logger.Debug(ctx, "unable to read client update, connection may be closed", slog.Error(err))
 			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) || errors.Is(err, context.Canceled) {
@@ -404,45 +284,64 @@ func (c *coordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) 
 	}
 }
 
-func (c *core) clientLogger(id, agent uuid.UUID) slog.Logger {
-	return c.logger.With(slog.F("client_id", id), slog.F("agent_id", agent))
+func SendUpdatesToConn(ctx context.Context, logger slog.Logger, ma MultiAgentConn, conn net.Conn) {
+	defer logger.Debug(ctx, "done sending updates")
+	defer func() {
+		_ = ma.Close()
+		_ = conn.Close()
+	}()
+
+	lastData := []byte{}
+
+	for {
+		nodes, ok := ma.NextUpdate(ctx)
+		if !ok {
+			return
+		}
+
+		data, err := json.Marshal(nodes)
+		if err != nil {
+			logger.Error(ctx, "unable to marshal nodes update", slog.Error(err), slog.F("nodes", nodes))
+			return
+		}
+		if bytes.Equal(lastData, data) {
+			logger.Debug(ctx, "skipping duplicate update", slog.F("nodes", nodes))
+			continue
+		}
+
+		// Set a deadline so that hung connections don't put back pressure on the system.
+		// Node updates are tiny, so even the dinkiest connection can handle them if it's not hung.
+		err = conn.SetWriteDeadline(time.Now().Add(WriteTimeout))
+		if err != nil {
+			// often, this is just because the connection is closed/broken, so only log at debug.
+			logger.Debug(ctx, "unable to set write deadline", slog.Error(err))
+			return
+		}
+		_, err = conn.Write(data)
+		if err != nil {
+			// often, this is just because the connection is closed/broken, so only log at debug.
+			logger.Debug(ctx, "could not write nodes to connection", slog.Error(err), slog.F("nodes", nodes))
+			return
+		}
+		logger.Debug(ctx, "wrote nodes", slog.F("nodes", nodes))
+
+		// nhooyr.io/websocket has a bugged implementation of deadlines on a websocket net.Conn.  What they are
+		// *supposed* to do is set a deadline for any subsequent writes to complete, otherwise the call to Write()
+		// fails.  What nhooyr.io/websocket does is set a timer, after which it expires the websocket write context.
+		// If this timer fires, then the next write will fail *even if we set a new write deadline*.  So, after
+		// our successful write, it is important that we reset the deadline before it fires.
+		err = conn.SetWriteDeadline(time.Time{})
+		if err != nil {
+			// often, this is just because the connection is closed/broken, so only log at debug.
+			logger.Debug(ctx, "unable to extend write deadline", slog.Error(err))
+			return
+		}
+		lastData = data
+	}
 }
 
-// initAndTrackClient creates a TrackedConn for the client, and sends any initial Node updates if we have any.  It is
-// one function that does two things because it is critical that we hold the mutex for both things, lest we miss some
-// updates.
-func (c *core) initAndTrackClient(
-	ctx context.Context, cancel func(), conn net.Conn, id, agent uuid.UUID,
-) (
-	*TrackedConn, error,
-) {
-	logger := c.clientLogger(id, agent)
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-	if c.closed {
-		return nil, xerrors.New("coordinator is closed")
-	}
-	tc := NewTrackedConn(ctx, cancel, conn, id, logger, 0)
-
-	// When a new connection is requested, we update it with the latest
-	// node of the agent. This allows the connection to establish.
-	node, ok := c.nodes[agent]
-	if ok {
-		err := tc.Enqueue([]*Node{node})
-		// this should never error since we're still the only goroutine that
-		// knows about the TrackedConn.  If we hit an error something really
-		// wrong is happening
-		if err != nil {
-			logger.Critical(ctx, "unable to queue initial node", slog.Error(err))
-			return nil, err
-		}
-	}
-
-	// Insert this connection into a map so the agent
-	// can publish node updates.
-	c.initOrSetAgentConnectionSocketLocked(agent, tc)
-	logger.Debug(ctx, "added tracked connection")
-	return tc, nil
+func (c *core) clientLogger(id, agent uuid.UUID) slog.Logger {
+	return c.logger.With(slog.F("client_id", id), slog.F("agent_id", agent))
 }
 
 func (c *core) initOrSetAgentConnectionSocketLocked(agentID uuid.UUID, enq Enqueueable) {
@@ -452,40 +351,52 @@ func (c *core) initOrSetAgentConnectionSocketLocked(agentID uuid.UUID, enq Enque
 		c.agentToConnectionSockets[agentID] = connectionSockets
 	}
 	connectionSockets[enq.UniqueID()] = enq
+
+	c.clientsToAgents[enq.UniqueID()][agentID] = struct{}{}
 }
 
-func (c *core) clientDisconnected(id, agent uuid.UUID) {
-	logger := c.clientLogger(id, agent)
+func (c *core) clientDisconnected(id uuid.UUID) {
+	logger := c.clientLogger(id, uuid.Nil)
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	// Clean all traces of this connection from the map.
 	delete(c.nodes, id)
 	logger.Debug(context.Background(), "deleted client node")
-	connectionSockets, ok := c.agentToConnectionSockets[agent]
-	if !ok {
-		return
+
+	for agentID := range c.clientsToAgents[id] {
+		connectionSockets, ok := c.agentToConnectionSockets[agentID]
+		if !ok {
+			return
+		}
+		delete(connectionSockets, id)
+		logger.Debug(context.Background(), "deleted client connectionSocket from map", slog.F("agent_id", agentID))
+
+		if len(connectionSockets) != 0 {
+			return
+		}
+		delete(c.agentToConnectionSockets, agentID)
+		logger.Debug(context.Background(), "deleted last client connectionSocket from map", slog.F("agent_id", agentID))
 	}
-	delete(connectionSockets, id)
-	logger.Debug(context.Background(), "deleted client connectionSocket from map")
-	if len(connectionSockets) != 0 {
-		return
-	}
-	delete(c.agentToConnectionSockets, agent)
-	logger.Debug(context.Background(), "deleted last client connectionSocket from map")
+
+	delete(c.clients, id)
+	delete(c.clientsToAgents, id)
+	logger.Debug(context.Background(), "deleted client agents")
 }
 
-func (c *coordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *json.Decoder) error {
-	logger := c.core.clientLogger(id, agent)
+func (c *coordinator) handleNextClientMessage(id uuid.UUID, decoder *json.Decoder) error {
+	logger := c.core.clientLogger(id, uuid.Nil)
+
 	var node Node
 	err := decoder.Decode(&node)
 	if err != nil {
 		return xerrors.Errorf("read json: %w", err)
 	}
+
 	logger.Debug(context.Background(), "got client node update", slog.F("node", node))
-	return c.core.clientNodeUpdate(id, agent, &node)
+	return c.core.clientNodeUpdate(id, &node)
 }
 
-func (c *core) clientNodeUpdate(id, agent uuid.UUID, node *Node) error {
+func (c *core) clientNodeUpdate(id uuid.UUID, node *Node) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -494,29 +405,45 @@ func (c *core) clientNodeUpdate(id, agent uuid.UUID, node *Node) error {
 	// to establish connections.
 	c.nodes[id] = node
 
-	return c.clientNodeUpdateLocked(id, agent, node)
+	return c.clientNodeUpdateLocked(id, node)
 }
 
-func (c *core) clientNodeUpdateLocked(id, agent uuid.UUID, node *Node) error {
-	logger := c.clientLogger(id, agent)
+func (c *core) clientNodeUpdateLocked(id uuid.UUID, node *Node) error {
+	logger := c.clientLogger(id, uuid.Nil)
 
-	agentSocket, ok := c.agentSockets[agent]
+	agents := []uuid.UUID{}
+	for agentID := range c.clientsToAgents[id] {
+		err := c.sendNodeToAgentLocked(agentID, node)
+		if err != nil {
+			logger.Debug(context.Background(), "unable to send node to agent", slog.Error(err), slog.F("agent_id", agentID))
+			continue
+		}
+		agents = append(agents, agentID)
+	}
+
+	logger.Debug(context.Background(), "enqueued node to agents", slog.F("agent_ids", agents))
+	return nil
+}
+
+func (c *core) sendNodeToAgentLocked(agentID uuid.UUID, node *Node) error {
+	agentSocket, ok := c.agentSockets[agentID]
 	if !ok {
-		logger.Debug(context.Background(), "no agent socket, unable to send node")
-		return nil
+		return xerrors.New("no agent socket")
 	}
 
 	err := agentSocket.Enqueue([]*Node{node})
 	if err != nil {
-		return xerrors.Errorf("enqueue node: %w", err)
+		return xerrors.Errorf("enqueue client to agent: %w", err)
 	}
-	logger.Debug(context.Background(), "enqueued node to agent")
+
 	return nil
 }
 
-func (c *core) multiAgentSubscribe(enq Enqueueable, agentID uuid.UUID) (func(), error) {
+func (c *core) clientSubscribeToAgent(enq Enqueueable, agentID uuid.UUID) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+
+	logger := c.clientLogger(enq.UniqueID(), uuid.Nil)
 
 	c.initOrSetAgentConnectionSocketLocked(agentID, enq)
 
@@ -524,48 +451,23 @@ func (c *core) multiAgentSubscribe(enq Enqueueable, agentID uuid.UUID) (func(), 
 	if ok {
 		// If we have the node, send it to the agent. If not, it will be sent
 		// async.
-		err := c.clientNodeUpdateLocked(enq.UniqueID(), agentID, node)
+		err := c.sendNodeToAgentLocked(agentID, node)
 		if err != nil {
-			return nil, xerrors.Errorf("send update to agent: %w", err)
+			logger.Debug(context.Background(), "unable to send node to agent", slog.Error(err), slog.F("agent_id", agentID))
 		}
 	} else {
-		c.logger.Debug(context.Background(), "multiagent node doesn't exist", slog.F("multiagent_id", enq.UniqueID()))
+		logger.Debug(context.Background(), "multiagent node doesn't exist", slog.F("multiagent_id", enq.UniqueID()))
 	}
-
-	closer := func() {}
 
 	agentNode, ok := c.nodes[agentID]
 	if !ok {
 		// This is ok, once the agent connects the node will be sent over.
-		c.logger.Debug(context.Background(), "agent node doesn't exist", slog.F("agent_id", agentID))
-		return closer, nil
+		logger.Debug(context.Background(), "agent node doesn't exist", slog.F("agent_id", agentID))
+		return nil
 	}
 
 	// Send the subscribed agent back to the multi agent.
-	err := enq.Enqueue([]*Node{agentNode})
-	return closer, err
-}
-
-func (c *core) multiAgentUpdate(id uuid.UUID, agents []uuid.UUID, node *Node) error {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-	// Update the node of this client in our in-memory map. If an agent entirely
-	// shuts down and reconnects, it needs to be aware of all clients attempting
-	// to establish connections.
-	c.nodes[id] = node
-
-	var errs *multierror.Error
-	for _, aid := range agents {
-		err := c.clientNodeUpdateLocked(id, aid, node)
-		if err != nil {
-			errs = multierror.Append(errs, err)
-		}
-	}
-	if errs != nil {
-		return errs
-	}
-
-	return nil
+	return enq.Enqueue([]*Node{agentNode})
 }
 
 func (c *core) agentLogger(id uuid.UUID) slog.Logger {
@@ -751,7 +653,7 @@ func (c *core) close() error {
 	for _, socket := range c.agentSockets {
 		socket := socket
 		go func() {
-			_ = socket.Close()
+			_ = socket.CoordinatorClose()
 			wg.Done()
 		}()
 	}
@@ -761,14 +663,15 @@ func (c *core) close() error {
 		for _, socket := range connMap {
 			socket := socket
 			go func() {
-				_ = socket.Close()
+				_ = socket.CoordinatorClose()
 				wg.Done()
 			}()
 		}
 	}
 
-	for _, multiAgent := range c.multiAgents {
-		multiAgent.CoordinatorClose()
+	// Ensure clients that have no subscriptions are properly closed.
+	for _, client := range c.clients {
+		_ = client.CoordinatorClose()
 	}
 
 	c.mutex.Unlock()

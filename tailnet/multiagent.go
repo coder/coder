@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -12,9 +13,9 @@ import (
 
 type MultiAgentConn interface {
 	UpdateSelf(node *Node) error
-	SubscribeAgent(agentID uuid.UUID) (func(), error)
-	UnsubscribeAgent(agentID uuid.UUID)
-	NextUpdate(ctx context.Context) []*Node
+	SubscribeAgent(agentID uuid.UUID) error
+	UnsubscribeAgent(agentID uuid.UUID) error
+	NextUpdate(ctx context.Context) ([]*Node, bool)
 	AgentIsLegacy(agentID uuid.UUID) bool
 	Close() error
 	IsClosed() bool
@@ -22,24 +23,32 @@ type MultiAgentConn interface {
 
 type MultiAgent struct {
 	mu     sync.RWMutex
-	closed chan struct{}
+	closed bool
 
 	ID     uuid.UUID
 	Logger slog.Logger
 
 	AgentIsLegacyFunc func(agentID uuid.UUID) bool
-	OnSubscribe       func(enq Enqueueable, agent uuid.UUID) (close func(), err error)
-	OnNodeUpdate      func(id uuid.UUID, agents []uuid.UUID, node *Node) error
+	OnSubscribe       func(enq Enqueueable, agent uuid.UUID) error
+	OnUnsubscribe     func(enq Enqueueable, agent uuid.UUID) error
+	OnNodeUpdate      func(id uuid.UUID, node *Node) error
+	OnRemove          func(id uuid.UUID)
 
-	updates          chan []*Node
-	subscribedAgents map[uuid.UUID]func()
+	updates    chan []*Node
+	closeOnce  sync.Once
+	start      int64
+	lastWrite  int64
+	overwrites int64
 }
 
 func (m *MultiAgent) Init() *MultiAgent {
-	m.closed = make(chan struct{})
 	m.updates = make(chan []*Node, 128)
-	m.subscribedAgents = map[uuid.UUID]func(){}
+	m.start = time.Now().Unix()
 	return m
+}
+
+func (m *MultiAgent) UniqueID() uuid.UUID {
+	return m.ID
 }
 
 func (m *MultiAgent) AgentIsLegacy(agentID uuid.UUID) bool {
@@ -47,133 +56,75 @@ func (m *MultiAgent) AgentIsLegacy(agentID uuid.UUID) bool {
 }
 
 func (m *MultiAgent) UpdateSelf(node *Node) error {
-	m.mu.Lock()
-	agents := make([]uuid.UUID, 0, len(m.subscribedAgents))
-	for agent := range m.subscribedAgents {
-		agents = append(agents, agent)
-	}
-	m.mu.Unlock()
-
-	return m.OnNodeUpdate(m.ID, agents, node)
+	return m.OnNodeUpdate(m.ID, node)
 }
 
-func (m *MultiAgent) SubscribeAgent(agentID uuid.UUID) (func(), error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if closer, ok := m.subscribedAgents[agentID]; ok {
-		return closer, nil
-	}
-
-	closer, err := m.OnSubscribe(m.enqueuer(agentID), agentID)
-	if err != nil {
-		return nil, err
-	}
-	m.subscribedAgents[agentID] = closer
-	return closer, nil
+func (m *MultiAgent) SubscribeAgent(agentID uuid.UUID) error {
+	return m.OnSubscribe(m, agentID)
 }
 
-func (m *MultiAgent) UnsubscribeAgent(agentID uuid.UUID) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if closer, ok := m.subscribedAgents[agentID]; ok {
-		closer()
-	}
-	delete(m.subscribedAgents, agentID)
+func (m *MultiAgent) UnsubscribeAgent(agentID uuid.UUID) error {
+	return m.OnUnsubscribe(m, agentID)
 }
 
-func (m *MultiAgent) NextUpdate(ctx context.Context) []*Node {
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-
-		case nodes := <-m.updates:
-			return nodes
-		}
-	}
-}
-
-func (m *MultiAgent) enqueuer(agentID uuid.UUID) Enqueueable {
-	return &multiAgentEnqueuer{
-		agentID: agentID,
-		m:       m,
-	}
-}
-
-type multiAgentEnqueuer struct {
-	m *MultiAgent
-
-	agentID    uuid.UUID
-	start      int64
-	lastWrite  int64
-	overwrites int64
-}
-
-func (m *multiAgentEnqueuer) UniqueID() uuid.UUID {
-	return m.m.ID
-}
-
-func (m *multiAgentEnqueuer) Enqueue(nodes []*Node) error {
+func (m *MultiAgent) NextUpdate(ctx context.Context) ([]*Node, bool) {
 	select {
-	case m.m.updates <- nodes:
+	case <-ctx.Done():
+		return nil, false
+
+	case nodes := <-m.updates:
+		return nodes, true
+	}
+}
+
+func (m *MultiAgent) Enqueue(nodes []*Node) error {
+	atomic.StoreInt64(&m.lastWrite, time.Now().Unix())
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if m.closed {
+		return nil
+	}
+
+	select {
+	case m.updates <- nodes:
 		return nil
 	default:
 		return ErrWouldBlock
 	}
 }
 
-func (m *multiAgentEnqueuer) Name() string {
-	return "multiagent-" + m.m.ID.String()
+func (m *MultiAgent) Name() string {
+	return m.ID.String()
 }
 
-func (m *multiAgentEnqueuer) Stats() (start int64, lastWrite int64) {
+func (m *MultiAgent) Stats() (start int64, lastWrite int64) {
 	return m.start, atomic.LoadInt64(&m.lastWrite)
 }
 
-func (m *multiAgentEnqueuer) Overwrites() int64 {
+func (m *MultiAgent) Overwrites() int64 {
 	return m.overwrites
 }
 
-func (m *multiAgentEnqueuer) Close() error {
-	m.m.mu.Lock()
-	defer m.m.mu.Unlock()
-
-	// Delete without running the closer. If the enqueuer itself gets closed, we
-	// can assume that the caller is removing it from the coordinator.
-	delete(m.m.subscribedAgents, m.agentID)
-	return nil
-}
-
 func (m *MultiAgent) IsClosed() bool {
-	select {
-	case <-m.closed:
-		return true
-	default:
-		return false
-	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.closed
 }
 
-func (m *MultiAgent) CoordinatorClose() {
+func (m *MultiAgent) CoordinatorClose() error {
 	m.mu.Lock()
-	if !m.IsClosed() {
-		close(m.closed)
+	if !m.closed {
+		m.closed = true
 		close(m.updates)
 	}
 	m.mu.Unlock()
+	return nil
 }
 
 func (m *MultiAgent) Close() error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.IsClosed() {
-		return nil
-	}
-	close(m.closed)
-	close(m.updates)
-	for _, closer := range m.subscribedAgents {
-		closer()
-	}
+	_ = m.CoordinatorClose()
+	m.closeOnce.Do(func() { m.OnRemove(m.ID) })
 	return nil
 }

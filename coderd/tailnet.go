@@ -34,8 +34,6 @@ func init() {
 	}
 }
 
-// TODO(coadler): ServerTailnet does not currently remove stale peers.
-
 // NewServerTailnet creates a new tailnet intended for use by coderd. It
 // automatically falls back to wsconncache if a legacy agent is encountered.
 func NewServerTailnet(
@@ -102,14 +100,49 @@ func NewServerTailnet(
 	})
 
 	go tn.watchAgentUpdates()
+	go tn.expireOldAgents()
 	return tn, nil
+}
+
+func (s *ServerTailnet) expireOldAgents() {
+	const (
+		tick   = 5 * time.Minute
+		cutoff = 30 * time.Minute
+	)
+
+	ticker := time.NewTicker(tick)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-ticker.C:
+		}
+
+		s.nodesMu.Lock()
+		agentConn := s.getAgentConn()
+		for agentID, node := range s.agentNodes {
+			if time.Since(node.lastConnection) > cutoff {
+				err := agentConn.UnsubscribeAgent(agentID)
+				if err != nil {
+					s.logger.Error(s.ctx, "unsubscribe expired agent", slog.Error(err), slog.F("agent_id", agentID))
+				}
+				delete(s.agentNodes, agentID)
+
+				// TODO(coadler): actually remove from the netmap
+			}
+		}
+		s.nodesMu.Unlock()
+	}
 }
 
 func (s *ServerTailnet) watchAgentUpdates() {
 	for {
-		nodes := s.getAgentConn().NextUpdate(s.ctx)
-		if nodes == nil {
-			if s.getAgentConn().IsClosed() && s.ctx.Err() == nil {
+		conn := s.getAgentConn()
+		nodes, ok := conn.NextUpdate(s.ctx)
+		if !ok {
+			if conn.IsClosed() && s.ctx.Err() == nil {
 				s.reinitCoordinator()
 				continue
 			}
@@ -129,24 +162,22 @@ func (s *ServerTailnet) getAgentConn() tailnet.MultiAgentConn {
 }
 
 func (s *ServerTailnet) reinitCoordinator() {
+	s.nodesMu.Lock()
 	agentConn := (*s.coord.Load()).ServeMultiAgent(uuid.New())
 	s.agentConn.Store(&agentConn)
 
-	s.nodesMu.Lock()
 	// Resubscribe to all of the agents we're tracking.
-	for agentID, agentNode := range s.agentNodes {
-		closer, err := agentConn.SubscribeAgent(agentID)
+	for agentID := range s.agentNodes {
+		err := agentConn.SubscribeAgent(agentID)
 		if err != nil {
 			s.logger.Warn(s.ctx, "resubscribe to agent", slog.Error(err), slog.F("agent_id", agentID))
 		}
-		agentNode.close = closer
 	}
 	s.nodesMu.Unlock()
 }
 
 type tailnetNode struct {
 	lastConnection time.Time
-	close          func()
 }
 
 type ServerTailnet struct {
@@ -210,13 +241,12 @@ func (s *ServerTailnet) ensureAgent(agentID uuid.UUID) error {
 	// If we don't have the node, subscribe.
 	if !ok {
 		s.logger.Debug(s.ctx, "subscribing to agent", slog.F("agent_id", agentID))
-		closer, err := s.getAgentConn().SubscribeAgent(agentID)
+		err := s.getAgentConn().SubscribeAgent(agentID)
 		if err != nil {
 			return xerrors.Errorf("subscribe agent: %w", err)
 		}
 		tnode = &tailnetNode{
 			lastConnection: time.Now(),
-			close:          closer,
 		}
 		s.agentNodes[agentID] = tnode
 	} else {
