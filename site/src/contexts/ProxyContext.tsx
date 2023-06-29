@@ -109,7 +109,11 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     if (regions) {
       const rawContent = regions.getAttribute("content")
       try {
-        return JSON.parse(rawContent as string)
+        const obj = JSON.parse(rawContent as string)
+        if("regions" in obj) {
+          return obj.regions as Region[]
+        }
+        return obj as Region[]
       } catch (ex) {
         // Ignore this and fetch as normal!
       }

@@ -361,10 +361,7 @@ describe("ProxyContextSelection", () => {
           )
         }),
         rest.get("/api/v2/workspaceproxies", async (req, res, ctx) => {
-          return res(
-            ctx.status(200),
-            ctx.json(regions),
-          )
+          return res(ctx.status(200), ctx.json(regions))
         }),
       )
 

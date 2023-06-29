@@ -293,13 +293,16 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
             Proxy settings
           </MenuItem>
         )}
-        <MenuItem sx={{ fontSize: 14 }} onClick={(e) => {
-          // Stop the menu from closing
-          e.stopPropagation();
-          // Refresh the latencies.
-          refreshLatencies()
-        }}>
-            Refresh Latencies
+        <MenuItem
+          sx={{ fontSize: 14 }}
+          onClick={(e) => {
+            // Stop the menu from closing
+            e.stopPropagation()
+            // Refresh the latencies.
+            refreshLatencies()
+          }}
+        >
+          Refresh Latencies
           {/* <LinearProgress sx={{width:"100%"}} variant="indeterminate" data-chromatic="ignore"/> */}
         </MenuItem>
       </Menu>

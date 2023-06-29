@@ -85,7 +85,7 @@ export const MockPrimaryWorkspaceProxy: TypesGen.WorkspaceProxy = {
   status: {
     status: "ok",
     checked_at: new Date().toISOString(),
-  }
+  },
 }
 
 export const MockHealthyWildWorkspaceProxy: TypesGen.WorkspaceProxy = {
@@ -102,7 +102,7 @@ export const MockHealthyWildWorkspaceProxy: TypesGen.WorkspaceProxy = {
   status: {
     status: "ok",
     checked_at: new Date().toISOString(),
-  }
+  },
 }
 
 export const MockUnhealthyWildWorkspaceProxy: TypesGen.WorkspaceProxy = {
@@ -119,15 +119,11 @@ export const MockUnhealthyWildWorkspaceProxy: TypesGen.WorkspaceProxy = {
   status: {
     status: "unhealthy",
     report: {
-      errors: [
-        "This workspace proxy is manually marked as unhealthy."
-      ],
-      warnings: [
-        "This is a manual warning for this workspace proxy."
-      ],
+      errors: ["This workspace proxy is manually marked as unhealthy."],
+      warnings: ["This is a manual warning for this workspace proxy."],
     },
     checked_at: new Date().toISOString(),
-  }
+  },
 }
 
 export const MockWorkspaceProxies: TypesGen.WorkspaceProxy[] = [
@@ -148,7 +144,7 @@ export const MockWorkspaceProxies: TypesGen.WorkspaceProxy[] = [
     status: {
       status: "ok",
       checked_at: new Date().toISOString(),
-    }
+    },
   },
 ]
 

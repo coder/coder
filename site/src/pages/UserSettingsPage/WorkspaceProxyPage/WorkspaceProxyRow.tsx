@@ -48,9 +48,7 @@ export const ProxyRow: FC<{
         </TableCell>
 
         <TableCell sx={{ fontSize: 14 }}>{proxy.path_app_url}</TableCell>
-        <TableCell sx={{ fontSize: 14 }}>
-          {statusBadge}
-        </TableCell>
+        <TableCell sx={{ fontSize: 14 }}>{statusBadge}</TableCell>
         <TableCell
           sx={{
             fontSize: 14,
