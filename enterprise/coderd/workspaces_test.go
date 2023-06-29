@@ -508,6 +508,78 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		require.Equal(t, http.StatusGone, cerr.StatusCode())
 	})
 
+	t.Run("LockedTTTooEarly", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ticker    = make(chan time.Time)
+			statCh    = make(chan autobuild.Stats)
+			lockedTTL = time.Minute
+
+			client = coderdenttest.New(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					AutobuildTicker:          ticker,
+					IncludeProvisionerDaemon: true,
+					AutobuildStats:           statCh,
+					TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
+				},
+			})
+		)
+		user := coderdtest.CreateFirstUser(t, client)
+		_ = coderdenttest.AddFullLicense(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionComplete,
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.LockedTTLMillis = ptr.Ref[int64](lockedTTL.Milliseconds())
+		})
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		build := coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		err := client.UpdateWorkspaceLock(ctx, ws.ID, codersdk.UpdateWorkspaceLock{
+			Lock: true,
+		})
+		require.NoError(t, err)
+
+		ws = coderdtest.MustWorkspace(t, client, ws.ID)
+		require.NotNil(t, ws.LockedAt)
+
+		ticker <- time.Now()
+		stats := <-statCh
+		// Expect no transitions since not enough time has elapsed.
+		require.Len(t, stats.Transitions, 0)
+
+		// Update the lock time to trigger a deletion.
+		lockedTTL = time.Millisecond
+		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			Name:                         template.Name,
+			DisplayName:                  template.DisplayName,
+			Description:                  template.Description,
+			Icon:                         template.Icon,
+			AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
+			LockedTTLMillis:              lockedTTL.Milliseconds(),
+		})
+		require.NoError(t, err)
+
+		// Wait for the workspace to breach the locked threshold.
+		require.Eventually(t,
+			func() bool {
+				return database.Now().Sub(*ws.LockedAt) > lockedTTL
+			},
+			testutil.IntervalMedium, testutil.IntervalFast)
+
+		ticker <- time.Now()
+		stats = <-statCh
+		// Expect no transitions since not enough time has elapsed.
+		require.Len(t, stats.Transitions, 1)
+		require.Equal(t, database.WorkspaceTransitionDelete, stats.Transitions[ws.ID])
+	})
+
 	t.Run("LockedNoAutostart", func(t *testing.T) {
 		t.Parallel()
 
