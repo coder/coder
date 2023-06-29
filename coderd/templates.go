@@ -534,7 +534,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.MaxTTLMillis == time.Duration(template.MaxTTL).Milliseconds() &&
 			req.FailureTTLMillis == time.Duration(template.FailureTTL).Milliseconds() &&
 			req.InactivityTTLMillis == time.Duration(template.InactivityTTL).Milliseconds() &&
-			req.FailureTTLMillis == time.Duration(template.LockedTTL).Milliseconds() {
+			req.LockedTTLMillis == time.Duration(template.LockedTTL).Milliseconds() {
 			return nil
 		}
 

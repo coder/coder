@@ -112,6 +112,7 @@ type LicenseOptions struct {
 	Features    license.Features
 }
 
+// AddFullLicense generates a license with all features enabled.
 func AddFullLicense(t *testing.T, client *codersdk.Client) codersdk.License {
 	return AddLicense(t, client, LicenseOptions{AllFeatures: true})
 }
