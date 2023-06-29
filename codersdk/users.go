@@ -321,7 +321,7 @@ func (c *Client) LoginWithPassword(ctx context.Context, req LoginWithPasswordReq
 // based authentication to oauth based. The response has the oauth state code
 // to use in the oauth flow.
 func (c *Client) ConvertLoginType(ctx context.Context, req ConvertLoginRequest) (OAuthConversionResponse, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/users/convert-login", req)
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/users/me/convert-login", req)
 	if err != nil {
 		return OAuthConversionResponse{}, err
 	}

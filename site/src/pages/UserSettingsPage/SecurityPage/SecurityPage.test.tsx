@@ -44,6 +44,9 @@ beforeEach(() => {
   jest
     .spyOn(API, "getAuthMethods")
     .mockResolvedValue(MockAuthMethodsWithPasswordType)
+  jest.spyOn(API, "getUserLoginType").mockResolvedValue({
+    login_type: "password",
+  })
 })
 
 test("update password successfully", async () => {
@@ -120,7 +123,6 @@ test("update password when submit returns an unknown error", async () => {
 test("change login type to OIDC", async () => {
   const convertToOAUTHSpy = jest.spyOn(API, "convertToOAUTH")
   const user = userEvent.setup()
-  const { user: userData } = await renderPage()
 
   const ssoSection = screen.getByTestId("sso-section")
   const githubButton = within(ssoSection).getByText("GitHub", { exact: false })
@@ -138,7 +140,6 @@ test("change login type to OIDC", async () => {
     expect(convertToOAUTHSpy).toHaveBeenCalledWith({
       password: "password123",
       to_type: "github",
-      email: userData.email,
     })
   })
 })

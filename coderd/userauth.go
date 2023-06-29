@@ -59,8 +59,9 @@ type OAuthConvertStateClaims struct {
 // @Produce json
 // @Tags Authorization
 // @Param request body codersdk.ConvertLoginRequest true "Convert request"
+// @Param user path string true "User ID, name, or me"
 // @Success 201 {object} codersdk.OAuthConversionResponse
-// @Router /users/me/convert-login [post]
+// @Router /users/{user}/convert-login [post]
 func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 	if !api.Options.DeploymentValues.EnableOauthAccountConversion.Value() {
 		httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
@@ -183,6 +184,7 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 
 	http.SetCookie(rw, &http.Cookie{
 		Name:     OAuthConvertCookieValue,
+		Path:     "/",
 		Value:    tokenString,
 		Expires:  claims.ExpiresAt.Time,
 		Secure:   api.SecureAuthCookie,
@@ -1484,6 +1486,7 @@ func isMergeStateString(state string) bool {
 func clearOAuthConvertCookie() *http.Cookie {
 	return &http.Cookie{
 		Name:   OAuthConvertCookieValue,
+		Path:   "/",
 		MaxAge: -1,
 	}
 }

@@ -116,13 +116,13 @@ curl -X POST http://coder-server:8080/api/v2/users/login \
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/api/v2/users/me/convert-login \
+curl -X POST http://coder-server:8080/api/v2/users/{user}/convert-login \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /users/me/convert-login`
+`POST /users/{user}/convert-login`
 
 > Body parameter
 
@@ -135,9 +135,10 @@ curl -X POST http://coder-server:8080/api/v2/users/me/convert-login \
 
 ### Parameters
 
-| Name   | In   | Type                                                                   | Required | Description     |
-| ------ | ---- | ---------------------------------------------------------------------- | -------- | --------------- |
-| `body` | body | [codersdk.ConvertLoginRequest](schemas.md#codersdkconvertloginrequest) | true     | Convert request |
+| Name   | In   | Type                                                                   | Required | Description          |
+| ------ | ---- | ---------------------------------------------------------------------- | -------- | -------------------- |
+| `user` | path | string                                                                 | true     | User ID, name, or me |
+| `body` | body | [codersdk.ConvertLoginRequest](schemas.md#codersdkconvertloginrequest) | true     | Convert request      |
 
 ### Example responses
 

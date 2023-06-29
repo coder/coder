@@ -1,6 +1,5 @@
 import { useState } from "react"
 import { Section } from "../../../components/SettingsLayout/Section"
-import { useMe } from "hooks/useMe"
 import TextField from "@mui/material/TextField"
 import Box from "@mui/material/Box"
 import GitHubIcon from "@mui/icons-material/GitHub"
