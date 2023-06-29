@@ -223,6 +223,17 @@ Disable workspace apps that are not served from subdomains. Path-based apps can 
 
 Disable automatic session expiry bumping due to activity. This forces all sessions to become invalid after the session expiry duration has been reached.
 
+### --enable-terraform-debug-mode
+
+|             |                                                             |
+| ----------- | ----------------------------------------------------------- |
+| Type        | <code>bool</code>                                           |
+| Environment | <code>$CODER_ENABLE_TERRAFORM_DEBUG_MODE</code>             |
+| YAML        | <code>introspection.logging.enableTerraformDebugMode</code> |
+| Default     | <code>false</code>                                          |
+
+Allow administrators to enable Terraform debug output.
+
 ### --swagger-enable
 
 |             |                                    |

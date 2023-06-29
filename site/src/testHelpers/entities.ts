@@ -342,6 +342,8 @@ export const MockRunningProvisionerJob: TypesGen.ProvisionerJob = {
 export const MockPendingProvisionerJob: TypesGen.ProvisionerJob = {
   ...MockProvisionerJob,
   status: "pending",
+  queue_position: 2,
+  queue_size: 4,
 }
 export const MockTemplateVersion: TypesGen.TemplateVersion = {
   id: "test-template-version",
@@ -1612,6 +1614,13 @@ export const MockPermissions: Permissions = {
   viewUpdateCheck: true,
   viewDeploymentStats: true,
   editWorkspaceProxies: true,
+}
+
+export const MockDeploymentConfig: Types.DeploymentConfig = {
+  config: {
+    enable_terraform_debug_mode: true,
+  },
+  options: [],
 }
 
 export const MockAppearance: TypesGen.AppearanceConfig = {

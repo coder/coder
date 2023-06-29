@@ -1873,6 +1873,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "disable_password_auth": true,
     "disable_path_apps": true,
     "disable_session_expiry_refresh": true,
+    "enable_terraform_debug_mode": true,
     "experiments": ["string"],
     "git_auth": {
       "value": [
@@ -2204,6 +2205,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "disable_password_auth": true,
   "disable_path_apps": true,
   "disable_session_expiry_refresh": true,
+  "enable_terraform_debug_mode": true,
   "experiments": ["string"],
   "git_auth": {
     "value": [
@@ -2398,6 +2400,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `disable_password_auth`              | boolean                                                                                    | false    |              |                                                                    |
 | `disable_path_apps`                  | boolean                                                                                    | false    |              |                                                                    |
 | `disable_session_expiry_refresh`     | boolean                                                                                    | false    |              |                                                                    |
+| `enable_terraform_debug_mode`        | boolean                                                                                    | false    |              |                                                                    |
 | `experiments`                        | array of string                                                                            | false    |              |                                                                    |
 | `git_auth`                           | [clibase.Struct-array_codersdk_GitAuthConfig](#clibasestruct-array_codersdk_gitauthconfig) | false    |              |                                                                    |
 | `http_address`                       | string                                                                                     | false    |              | Http address is a string because it may be set to zero to disable. |
@@ -4334,6 +4337,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ---------- | ------ | -------- | ------------ | ----------- |
 | `schedule` | string | false    |              |             |
 
+## codersdk.UpdateWorkspaceLock
+
+```json
+{
+  "lock": true
+}
+```
+
+### Properties
+
+| Name   | Type    | Required | Restrictions | Description |
+| ------ | ------- | -------- | ------------ | ----------- |
+| `lock` | boolean | false    |              |             |
+
 ## codersdk.UpdateWorkspaceRequest
 
 ```json
@@ -4613,6 +4630,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
     "workspace_owner_name": "string"
   },
+  "locked_at": "2019-08-24T14:15:22Z",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "outdated": true,
@@ -4630,26 +4648,27 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                                        | Type                                               | Required | Restrictions | Description                                                                                                                                                                                                                  |
-| ------------------------------------------- | -------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `autostart_schedule`                        | string                                             | false    |              |                                                                                                                                                                                                                              |
-| `created_at`                                | string                                             | false    |              |                                                                                                                                                                                                                              |
-| `deleting_at`                               | string                                             | false    |              | Deleting at indicates the time of the upcoming workspace deletion, if applicable; otherwise it is nil. Workspaces may have impending deletions if Template.InactivityTTL feature is turned on and the workspace is inactive. |
-| `id`                                        | string                                             | false    |              |                                                                                                                                                                                                                              |
-| `last_used_at`                              | string                                             | false    |              |                                                                                                                                                                                                                              |
-| `latest_build`                              | [codersdk.WorkspaceBuild](#codersdkworkspacebuild) | false    |              |                                                                                                                                                                                                                              |
-| `name`                                      | string                                             | false    |              |                                                                                                                                                                                                                              |
-| `organization_id`                           | string                                             | false    |              |                                                                                                                                                                                                                              |
-| `outdated`                                  | boolean                                            | false    |              |                                                                                                                                                                                                                              |
-| `owner_id`                                  | string                                             | false    |              |                                                                                                                                                                                                                              |
-| `owner_name`                                | string                                             | false    |              |                                                                                                                                                                                                                              |
-| `template_allow_user_cancel_workspace_jobs` | boolean                                            | false    |              |                                                                                                                                                                                                                              |
-| `template_display_name`                     | string                                             | false    |              |                                                                                                                                                                                                                              |
-| `template_icon`                             | string                                             | false    |              |                                                                                                                                                                                                                              |
-| `template_id`                               | string                                             | false    |              |                                                                                                                                                                                                                              |
-| `template_name`                             | string                                             | false    |              |                                                                                                                                                                                                                              |
-| `ttl_ms`                                    | integer                                            | false    |              |                                                                                                                                                                                                                              |
-| `updated_at`                                | string                                             | false    |              |                                                                                                                                                                                                                              |
+| Name                                        | Type                                               | Required | Restrictions | Description                                                                                                                                                                                                                                               |
+| ------------------------------------------- | -------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `autostart_schedule`                        | string                                             | false    |              |                                                                                                                                                                                                                                                           |
+| `created_at`                                | string                                             | false    |              |                                                                                                                                                                                                                                                           |
+| `deleting_at`                               | string                                             | false    |              | Deleting at indicates the time of the upcoming workspace deletion, if applicable; otherwise it is nil. Workspaces may have impending deletions if Template.InactivityTTL feature is turned on and the workspace is inactive.                              |
+| `id`                                        | string                                             | false    |              |                                                                                                                                                                                                                                                           |
+| `last_used_at`                              | string                                             | false    |              |                                                                                                                                                                                                                                                           |
+| `latest_build`                              | [codersdk.WorkspaceBuild](#codersdkworkspacebuild) | false    |              |                                                                                                                                                                                                                                                           |
+| `locked_at`                                 | string                                             | false    |              | Locked at being non-nil indicates a workspace that has been locked. A locked workspace is no longer accessible by a user and must be unlocked by an admin. It is subject to deletion if it breaches the duration of the locked_ttl field on its template. |
+| `name`                                      | string                                             | false    |              |                                                                                                                                                                                                                                                           |
+| `organization_id`                           | string                                             | false    |              |                                                                                                                                                                                                                                                           |
+| `outdated`                                  | boolean                                            | false    |              |                                                                                                                                                                                                                                                           |
+| `owner_id`                                  | string                                             | false    |              |                                                                                                                                                                                                                                                           |
+| `owner_name`                                | string                                             | false    |              |                                                                                                                                                                                                                                                           |
+| `template_allow_user_cancel_workspace_jobs` | boolean                                            | false    |              |                                                                                                                                                                                                                                                           |
+| `template_display_name`                     | string                                             | false    |              |                                                                                                                                                                                                                                                           |
+| `template_icon`                             | string                                             | false    |              |                                                                                                                                                                                                                                                           |
+| `template_id`                               | string                                             | false    |              |                                                                                                                                                                                                                                                           |
+| `template_name`                             | string                                             | false    |              |                                                                                                                                                                                                                                                           |
+| `ttl_ms`                                    | integer                                            | false    |              |                                                                                                                                                                                                                                                           |
+| `updated_at`                                | string                                             | false    |              |                                                                                                                                                                                                                                                           |
 
 ## codersdk.WorkspaceAgent
 
@@ -5656,6 +5675,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
         "workspace_owner_name": "string"
       },
+      "locked_at": "2019-08-24T14:15:22Z",
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "outdated": true,
@@ -5702,7 +5722,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "error": null,
+  "access_url": "string",
+  "error": "string",
   "healthy": true,
   "healthz_response": "string",
   "reachable": true,
@@ -5714,7 +5735,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name               | Type    | Required | Restrictions | Description |
 | ------------------ | ------- | -------- | ------------ | ----------- |
-| `error`            | any     | false    |              |             |
+| `access_url`       | string  | false    |              |             |
+| `error`            | string  | false    |              |             |
 | `healthy`          | boolean | false    |              |             |
 | `healthz_response` | string  | false    |              |             |
 | `reachable`        | boolean | false    |              |             |
@@ -5725,9 +5747,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "can_exchange_messages": true,
-  "client_errs": [[null]],
+  "client_errs": [["string"]],
   "client_logs": [["string"]],
-  "error": null,
+  "error": "string",
   "healthy": true,
   "node": {
     "certName": "string",
@@ -5764,7 +5786,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `can_exchange_messages` | boolean                                                  | false    |              |             |
 | `client_errs`           | array of array                                           | false    |              |             |
 | `client_logs`           | array of array                                           | false    |              |             |
-| `error`                 | any                                                      | false    |              |             |
+| `error`                 | string                                                   | false    |              |             |
 | `healthy`               | boolean                                                  | false    |              |             |
 | `node`                  | [tailcfg.DERPNode](#tailcfgderpnode)                     | false    |              |             |
 | `node_info`             | [derp.ServerInfoMessage](#derpserverinfomessage)         | false    |              |             |
@@ -5776,14 +5798,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "error": null,
+  "error": "string",
   "healthy": true,
   "node_reports": [
     {
       "can_exchange_messages": true,
-      "client_errs": [[null]],
+      "client_errs": [["string"]],
       "client_logs": [["string"]],
-      "error": null,
+      "error": "string",
       "healthy": true,
       "node": {
         "certName": "string",
@@ -5842,7 +5864,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name           | Type                                                              | Required | Restrictions | Description |
 | -------------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `error`        | any                                                               | false    |              |             |
+| `error`        | string                                                            | false    |              |             |
 | `healthy`      | boolean                                                           | false    |              |             |
 | `node_reports` | array of [healthcheck.DERPNodeReport](#healthcheckderpnodereport) | false    |              |             |
 | `region`       | [tailcfg.DERPRegion](#tailcfgderpregion)                          | false    |              |             |
@@ -5851,7 +5873,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "error": null,
+  "error": "string",
   "healthy": true,
   "netcheck": {
     "captivePortal": "string",
@@ -5883,18 +5905,18 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "udp": true,
     "upnP": "string"
   },
-  "netcheck_err": null,
+  "netcheck_err": "string",
   "netcheck_logs": ["string"],
   "regions": {
     "property1": {
-      "error": null,
+      "error": "string",
       "healthy": true,
       "node_reports": [
         {
           "can_exchange_messages": true,
-          "client_errs": [[null]],
+          "client_errs": [["string"]],
           "client_logs": [["string"]],
-          "error": null,
+          "error": "string",
           "healthy": true,
           "node": {
             "certName": "string",
@@ -5948,14 +5970,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       }
     },
     "property2": {
-      "error": null,
+      "error": "string",
       "healthy": true,
       "node_reports": [
         {
           "can_exchange_messages": true,
-          "client_errs": [[null]],
+          "client_errs": [["string"]],
           "client_logs": [["string"]],
-          "error": null,
+          "error": "string",
           "healthy": true,
           "node": {
             "certName": "string",
@@ -6016,10 +6038,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name               | Type                                                         | Required | Restrictions | Description |
 | ------------------ | ------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `error`            | any                                                          | false    |              |             |
+| `error`            | string                                                       | false    |              |             |
 | `healthy`          | boolean                                                      | false    |              |             |
 | `netcheck`         | [netcheck.Report](#netcheckreport)                           | false    |              |             |
-| `netcheck_err`     | any                                                          | false    |              |             |
+| `netcheck_err`     | string                                                       | false    |              |             |
 | `netcheck_logs`    | array of string                                              | false    |              |             |
 | `regions`          | object                                                       | false    |              |             |
 | » `[any property]` | [healthcheck.DERPRegionReport](#healthcheckderpregionreport) | false    |              |             |
@@ -6046,7 +6068,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "error": null,
+  "error": "string",
   "healthy": true,
   "latency": 0,
   "reachable": true
@@ -6057,7 +6079,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name        | Type    | Required | Restrictions | Description |
 | ----------- | ------- | -------- | ------------ | ----------- |
-| `error`     | any     | false    |              |             |
+| `error`     | string  | false    |              |             |
 | `healthy`   | boolean | false    |              |             |
 | `latency`   | integer | false    |              |             |
 | `reachable` | boolean | false    |              |             |
@@ -6067,20 +6089,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "access_url": {
-    "error": null,
+    "access_url": "string",
+    "error": "string",
     "healthy": true,
     "healthz_response": "string",
     "reachable": true,
     "status_code": 0
   },
+  "coder_version": "string",
   "database": {
-    "error": null,
+    "error": "string",
     "healthy": true,
     "latency": 0,
     "reachable": true
   },
   "derp": {
-    "error": null,
+    "error": "string",
     "healthy": true,
     "netcheck": {
       "captivePortal": "string",
@@ -6112,18 +6136,18 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "udp": true,
       "upnP": "string"
     },
-    "netcheck_err": null,
+    "netcheck_err": "string",
     "netcheck_logs": ["string"],
     "regions": {
       "property1": {
-        "error": null,
+        "error": "string",
         "healthy": true,
         "node_reports": [
           {
             "can_exchange_messages": true,
-            "client_errs": [[null]],
+            "client_errs": [["string"]],
             "client_logs": [["string"]],
-            "error": null,
+            "error": "string",
             "healthy": true,
             "node": {
               "certName": "string",
@@ -6177,14 +6201,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         }
       },
       "property2": {
-        "error": null,
+        "error": "string",
         "healthy": true,
         "node_reports": [
           {
             "can_exchange_messages": true,
-            "client_errs": [[null]],
+            "client_errs": [["string"]],
             "client_logs": [["string"]],
-            "error": null,
+            "error": "string",
             "healthy": true,
             "node": {
               "certName": "string",
@@ -6243,7 +6267,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "healthy": true,
   "time": "string",
   "websocket": {
-    "error": null,
+    "error": "string",
     "healthy": true,
     "response": {
       "body": "string",
@@ -6255,21 +6279,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name               | Type                                                       | Required | Restrictions | Description                                      |
-| ------------------ | ---------------------------------------------------------- | -------- | ------------ | ------------------------------------------------ |
-| `access_url`       | [healthcheck.AccessURLReport](#healthcheckaccessurlreport) | false    |              |                                                  |
-| `database`         | [healthcheck.DatabaseReport](#healthcheckdatabasereport)   | false    |              |                                                  |
-| `derp`             | [healthcheck.DERPReport](#healthcheckderpreport)           | false    |              |                                                  |
-| `failing_sections` | array of string                                            | false    |              |                                                  |
-| `healthy`          | boolean                                                    | false    |              | Healthy is true if the report returns no errors. |
-| `time`             | string                                                     | false    |              | Time is the time the report was generated at.    |
-| `websocket`        | [healthcheck.WebsocketReport](#healthcheckwebsocketreport) | false    |              |                                                  |
+| Name               | Type                                                       | Required | Restrictions | Description                                                                |
+| ------------------ | ---------------------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------- |
+| `access_url`       | [healthcheck.AccessURLReport](#healthcheckaccessurlreport) | false    |              |                                                                            |
+| `coder_version`    | string                                                     | false    |              | The Coder version of the server that the report was generated on.          |
+| `database`         | [healthcheck.DatabaseReport](#healthcheckdatabasereport)   | false    |              |                                                                            |
+| `derp`             | [healthcheck.DERPReport](#healthcheckderpreport)           | false    |              |                                                                            |
+| `failing_sections` | array of string                                            | false    |              | Failing sections is a list of sections that have failed their healthcheck. |
+| `healthy`          | boolean                                                    | false    |              | Healthy is true if the report returns no errors.                           |
+| `time`             | string                                                     | false    |              | Time is the time the report was generated at.                              |
+| `websocket`        | [healthcheck.WebsocketReport](#healthcheckwebsocketreport) | false    |              |                                                                            |
 
 ## healthcheck.WebsocketReport
 
 ```json
 {
-  "error": null,
+  "error": "string",
   "healthy": true,
   "response": {
     "body": "string",
@@ -6282,7 +6307,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name       | Type                                                           | Required | Restrictions | Description |
 | ---------- | -------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `error`    | any                                                            | false    |              |             |
+| `error`    | string                                                         | false    |              |             |
 | `healthy`  | boolean                                                        | false    |              |             |
 | `response` | [healthcheck.WebsocketResponse](#healthcheckwebsocketresponse) | false    |              |             |
 
