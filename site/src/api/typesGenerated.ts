@@ -374,6 +374,7 @@ export interface DeploymentValues {
   readonly wgtunnel_host?: string
   readonly disable_owner_workspace_exec?: boolean
   readonly proxy_health_status_interval?: number
+  readonly enable_terraform_debug_mode?: boolean
   // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.YAMLConfigPath")
   readonly config?: string
   readonly write_config?: boolean
@@ -998,6 +999,11 @@ export interface UpdateWorkspaceAutostartRequest {
   readonly schedule?: string
 }
 
+// From codersdk/workspaces.go
+export interface UpdateWorkspaceLock {
+  readonly lock: boolean
+}
+
 // From codersdk/workspaceproxy.go
 export interface UpdateWorkspaceProxyResponse {
   readonly proxy: WorkspaceProxy
@@ -1075,6 +1081,7 @@ export interface Workspace {
   readonly ttl_ms?: number
   readonly last_used_at: string
   readonly deleting_at?: string
+  readonly locked_at?: string
 }
 
 // From codersdk/workspaceagents.go

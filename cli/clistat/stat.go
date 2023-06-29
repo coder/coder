@@ -1,14 +1,12 @@
 package clistat
 
 import (
-	"fmt"
 	"math"
 	"runtime"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/dustin/go-humanize"
 	"github.com/elastic/go-sysinfo"
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
@@ -17,15 +15,65 @@ import (
 	sysinfotypes "github.com/elastic/go-sysinfo/types"
 )
 
+// Prefix is a scale multiplier for a result.
+// Used when creating a human-readable representation.
+type Prefix float64
+
+const (
+	PrefixDefault = 1.0
+	PrefixKibi    = 1024.0
+	PrefixMebi    = PrefixKibi * 1024.0
+	PrefixGibi    = PrefixMebi * 1024.0
+	PrefixTebi    = PrefixGibi * 1024.0
+)
+
+var (
+	PrefixHumanKibi = "Ki"
+	PrefixHumanMebi = "Mi"
+	PrefixHumanGibi = "Gi"
+	PrefixHumanTebi = "Ti"
+)
+
+func (s *Prefix) String() string {
+	switch *s {
+	case PrefixKibi:
+		return "Ki"
+	case PrefixMebi:
+		return "Mi"
+	case PrefixGibi:
+		return "Gi"
+	case PrefixTebi:
+		return "Ti"
+	default:
+		return ""
+	}
+}
+
+func ParsePrefix(s string) Prefix {
+	switch s {
+	case PrefixHumanKibi:
+		return PrefixKibi
+	case PrefixHumanMebi:
+		return PrefixMebi
+	case PrefixHumanGibi:
+		return PrefixGibi
+	case PrefixHumanTebi:
+		return PrefixTebi
+	default:
+		return PrefixDefault
+	}
+}
+
 // Result is a generic result type for a statistic.
 // Total is the total amount of the resource available.
 // It is nil if the resource is not a finite quantity.
 // Unit is the unit of the resource.
 // Used is the amount of the resource used.
 type Result struct {
-	Total *float64 `json:"total"`
-	Unit  string   `json:"unit"`
-	Used  float64  `json:"used"`
+	Total  *float64 `json:"total"`
+	Unit   string   `json:"unit"`
+	Used   float64  `json:"used"`
+	Prefix Prefix   `json:"-"`
 }
 
 // String returns a human-readable representation of the result.
@@ -34,38 +82,29 @@ func (r *Result) String() string {
 		return "-"
 	}
 
-	var usedDisplay, totalDisplay string
-	var usedScaled, totalScaled float64
-	var usedPrefix, totalPrefix string
-	usedScaled, usedPrefix = humanize.ComputeSI(r.Used)
-	usedDisplay = humanizeFloat(usedScaled)
-	if r.Total != (*float64)(nil) {
-		totalScaled, totalPrefix = humanize.ComputeSI(*r.Total)
-		totalDisplay = humanizeFloat(totalScaled)
+	scale := 1.0
+	if r.Prefix != 0.0 {
+		scale = float64(r.Prefix)
 	}
 
 	var sb strings.Builder
-	_, _ = sb.WriteString(usedDisplay)
-
-	// If the unit prefixes of the used and total values are different,
-	// display the used value's prefix to avoid confusion.
-	if usedPrefix != totalPrefix || totalDisplay == "" {
-		_, _ = sb.WriteString(" ")
-		_, _ = sb.WriteString(usedPrefix)
-		_, _ = sb.WriteString(r.Unit)
-	}
-
-	if totalDisplay != "" {
+	var usedScaled, totalScaled float64
+	usedScaled = r.Used / scale
+	_, _ = sb.WriteString(humanizeFloat(usedScaled))
+	if r.Total != (*float64)(nil) {
 		_, _ = sb.WriteString("/")
-		_, _ = sb.WriteString(totalDisplay)
-		_, _ = sb.WriteString(" ")
-		_, _ = sb.WriteString(totalPrefix)
-		_, _ = sb.WriteString(r.Unit)
+		totalScaled = *r.Total / scale
+		_, _ = sb.WriteString(humanizeFloat(totalScaled))
 	}
 
-	if r.Total != nil && *r.Total != 0.0 {
+	_, _ = sb.WriteString(" ")
+	_, _ = sb.WriteString(r.Prefix.String())
+	_, _ = sb.WriteString(r.Unit)
+
+	if r.Total != (*float64)(nil) && *r.Total > 0 {
 		_, _ = sb.WriteString(" (")
-		_, _ = sb.WriteString(fmt.Sprintf("%.0f", r.Used/(*r.Total)*100.0))
+		pct := r.Used / *r.Total * 100.0
+		_, _ = sb.WriteString(strconv.FormatFloat(pct, 'f', 0, 64))
 		_, _ = sb.WriteString("%)")
 	}
 
@@ -153,8 +192,9 @@ func New(opts ...Option) (*Statter, error) {
 // Units are in "cores".
 func (s *Statter) HostCPU() (*Result, error) {
 	r := &Result{
-		Unit:  "cores",
-		Total: ptr.To(float64(s.nproc)),
+		Unit:   "cores",
+		Total:  ptr.To(float64(s.nproc)),
+		Prefix: PrefixDefault,
 	}
 	c1, err := s.hi.CPUTime()
 	if err != nil {
@@ -177,9 +217,10 @@ func (s *Statter) HostCPU() (*Result, error) {
 }
 
 // HostMemory returns the memory usage of the host, in gigabytes.
-func (s *Statter) HostMemory() (*Result, error) {
+func (s *Statter) HostMemory(p Prefix) (*Result, error) {
 	r := &Result{
-		Unit: "B",
+		Unit:   "B",
+		Prefix: p,
 	}
 	hm, err := s.hi.Memory()
 	if err != nil {

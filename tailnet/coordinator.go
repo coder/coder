@@ -227,7 +227,7 @@ func (t *TrackedConn) SendUpdates() {
 				return
 			}
 			if bytes.Equal(t.lastData, data) {
-				t.logger.Debug(t.ctx, "skipping duplicate update", slog.F("nodes", nodes))
+				t.logger.Debug(t.ctx, "skipping duplicate update", slog.F("nodes", string(data)))
 				continue
 			}
 
@@ -243,11 +243,12 @@ func (t *TrackedConn) SendUpdates() {
 			_, err = t.conn.Write(data)
 			if err != nil {
 				// often, this is just because the connection is closed/broken, so only log at debug.
-				t.logger.Debug(t.ctx, "could not write nodes to connection", slog.Error(err), slog.F("nodes", nodes))
+				t.logger.Debug(t.ctx, "could not write nodes to connection",
+					slog.Error(err), slog.F("nodes", string(data)))
 				_ = t.Close()
 				return
 			}
-			t.logger.Debug(t.ctx, "wrote nodes", slog.F("nodes", nodes))
+			t.logger.Debug(t.ctx, "wrote nodes", slog.F("nodes", string(data)))
 
 			// nhooyr.io/websocket has a bugged implementation of deadlines on a websocket net.Conn.  What they are
 			// *supposed* to do is set a deadline for any subsequent writes to complete, otherwise the call to Write()

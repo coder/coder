@@ -7,6 +7,10 @@ terraform {
   }
 }
 
+module "this_is_external_module" {
+  source = "./external-module"
+}
+
 data "coder_parameter" "sample" {
   name        = "Sample"
   type        = "string"

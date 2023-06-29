@@ -106,12 +106,12 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			// Spawn a reaper so that we don't accumulate a ton
 			// of zombie processes.
 			if reaper.IsInitProcess() && !noReap && isLinux {
-				logWriter := &lumberjack.Logger{
+				logWriter := &lumberjackWriteCloseFixer{w: &lumberjack.Logger{
 					Filename: filepath.Join(logDir, "coder-agent-init.log"),
 					MaxSize:  5, // MB
 					// Without this, rotated logs will never be deleted.
 					MaxBackups: 1,
-				}
+				}}
 				defer logWriter.Close()
 
 				sinks = append(sinks, sloghuman.Sink(logWriter))
@@ -149,14 +149,12 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			// reaper.
 			go DumpHandler(ctx)
 
-			ljLogger := &lumberjack.Logger{
+			logWriter := &lumberjackWriteCloseFixer{w: &lumberjack.Logger{
 				Filename: filepath.Join(logDir, "coder-agent.log"),
 				MaxSize:  5, // MB
 				// Without this, rotated logs will never be deleted.
 				MaxBackups: 1,
-			}
-			defer ljLogger.Close()
-			logWriter := &closeWriter{w: ljLogger}
+			}}
 			defer logWriter.Close()
 
 			sinks = append(sinks, sloghuman.Sink(logWriter))
@@ -403,16 +401,16 @@ func ServeHandler(ctx context.Context, logger slog.Logger, handler http.Handler,
 	}
 }
 
-// closeWriter is a wrapper around an io.WriteCloser that prevents
-// writes after Close. This is necessary because lumberjack will
-// re-open the file on write.
-type closeWriter struct {
+// lumberjackWriteCloseFixer is a wrapper around an io.WriteCloser that
+// prevents writes after Close. This is necessary because lumberjack
+// re-opens the file on Write.
+type lumberjackWriteCloseFixer struct {
 	w      io.WriteCloser
 	mu     sync.Mutex // Protects following.
 	closed bool
 }
 
-func (c *closeWriter) Close() error {
+func (c *lumberjackWriteCloseFixer) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -420,7 +418,7 @@ func (c *closeWriter) Close() error {
 	return c.w.Close()
 }
 
-func (c *closeWriter) Write(p []byte) (int, error) {
+func (c *lumberjackWriteCloseFixer) Write(p []byte) (int, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

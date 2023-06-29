@@ -453,3 +453,11 @@ WHERE
 			workspace_builds.transition = 'start'::workspace_transition
 		)
 	) AND workspaces.deleted = 'false';
+
+-- name: UpdateWorkspaceLockedAt :exec
+UPDATE
+	workspaces
+SET
+	locked_at = $2
+WHERE
+	id = $1;

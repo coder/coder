@@ -36,7 +36,7 @@ func TestAccessURL(t *testing.T) {
 		assert.True(t, report.Reachable)
 		assert.Equal(t, http.StatusOK, report.StatusCode)
 		assert.Equal(t, "OK", report.HealthzResponse)
-		assert.NoError(t, report.Error)
+		assert.Nil(t, report.Error)
 	})
 
 	t.Run("404", func(t *testing.T) {
@@ -66,7 +66,7 @@ func TestAccessURL(t *testing.T) {
 		assert.True(t, report.Reachable)
 		assert.Equal(t, http.StatusNotFound, report.StatusCode)
 		assert.Equal(t, string(resp), report.HealthzResponse)
-		assert.NoError(t, report.Error)
+		assert.Nil(t, report.Error)
 	})
 
 	t.Run("ClientErr", func(t *testing.T) {
@@ -102,7 +102,8 @@ func TestAccessURL(t *testing.T) {
 		assert.False(t, report.Reachable)
 		assert.Equal(t, 0, report.StatusCode)
 		assert.Equal(t, "", report.HealthzResponse)
-		assert.ErrorIs(t, report.Error, expErr)
+		require.NotNil(t, report.Error)
+		assert.Contains(t, *report.Error, expErr.Error())
 	})
 }
 
