@@ -60,7 +60,7 @@ export interface WorkspaceProps {
   builds?: TypesGen.WorkspaceBuild[]
   templateWarnings?: TypesGen.TemplateVersionWarning[]
   canUpdateWorkspace: boolean
-  canUpdateTemplate: boolean
+  canRetryDebugMode: boolean
   canChangeVersions: boolean
   hideSSHButton?: boolean
   hideVSCodeDesktopButton?: boolean
@@ -92,7 +92,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   resources,
   builds,
   canUpdateWorkspace,
-  canUpdateTemplate,
+  canRetryDebugMode,
   canChangeVersions,
   workspaceErrors,
   hideSSHButton,
@@ -236,7 +236,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               <Alert
                 severity="error"
                 actions={
-                  canUpdateTemplate && (
+                  canRetryDebugMode && (
                     <Button
                       key={0}
                       onClick={handleBuildRetry}

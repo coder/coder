@@ -55,6 +55,7 @@ export interface WorkspaceContext {
   template?: TypesGen.Template
   permissions?: Permissions
   templateVersion?: TypesGen.TemplateVersion
+  deploymentValues?: TypesGen.DeploymentValues
   build?: TypesGen.WorkspaceBuild
   // Builds
   builds?: TypesGen.WorkspaceBuild[]
@@ -100,6 +101,7 @@ export const checks = {
   readWorkspace: "readWorkspace",
   updateWorkspace: "updateWorkspace",
   updateTemplate: "updateTemplate",
+  viewDeploymentValues: "viewDeploymentValues",
 } as const
 
 const permissionsToCheck = (
@@ -129,6 +131,12 @@ const permissionsToCheck = (
         resource_id: template.id,
       },
       action: "update",
+    },
+    [checks.viewDeploymentValues]: {
+      object: {
+        resource_type: "deployment_config",
+      },
+      action: "read",
     },
   } as const)
 
@@ -488,6 +496,7 @@ export const workspaceMachine = createMachine(
         template: (_, event) => event.data.template,
         templateVersion: (_, event) => event.data.templateVersion,
         permissions: (_, event) => event.data.permissions as Permissions,
+        deploymentValues: (_, event) => event.data.deploymentValues,
       }),
       assignError: assign({
         error: (_, event) => event.data,
@@ -740,10 +749,17 @@ async function loadInitialWorkspaceData({
     }),
   ])
 
+  const canViewDeploymentValues = Boolean(
+    (permissions as Permissions)?.viewDeploymentValues,
+  )
+  const deploymentValues = canViewDeploymentValues
+    ? (await API.getDeploymentValues())?.config
+    : undefined
   return {
     workspace,
     template,
     templateVersion,
     permissions,
+    deploymentValues,
   }
 }
