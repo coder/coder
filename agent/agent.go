@@ -510,7 +510,10 @@ func (a *agent) fetchServiceBannerLoop(ctx context.Context) {
 		case <-ticker.C:
 			serviceBanner, err := a.client.GetServiceBanner(ctx)
 			if err != nil {
-				a.logger.Warn(ctx, "failed to fetch service banner")
+				if ctx.Err() != nil {
+					return
+				}
+				a.logger.Error(ctx, "failed to update service banner", slog.Error(err))
 				continue
 			}
 			a.serviceBanner.Store(&serviceBanner)
