@@ -687,8 +687,8 @@ export interface Region {
 }
 
 // From codersdk/workspaceproxy.go
-export interface RegionsResponse {
-  readonly regions: Region[]
+export interface RegionsResponse<R extends RegionTypes> {
+  readonly regions: R[]
 }
 
 // From codersdk/replicas.go
@@ -1651,3 +1651,6 @@ export const WorkspaceTransitions: WorkspaceTransition[] = [
   "start",
   "stop",
 ]
+
+// From codersdk/workspaceproxy.go
+export type RegionTypes = Region | WorkspaceProxy
