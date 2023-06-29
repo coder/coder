@@ -640,6 +640,45 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 func TestWorkspaceBuildDebugMode(t *testing.T) {
 	t.Parallel()
 
+	t.Run("DebugModeDisabled", func(t *testing.T) {
+		t.Parallel()
+
+		// Create user
+		deploymentValues := coderdtest.DeploymentValues(t)
+		deploymentValues.DisableTerraformDebugMode = true
+
+		templateAuthorClient := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			DeploymentValues:         deploymentValues,
+		})
+		templateAuthor := coderdtest.CreateFirstUser(t, templateAuthorClient)
+
+		// Template author: create a template
+		version := coderdtest.CreateTemplateVersion(t, templateAuthorClient, templateAuthor.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, templateAuthorClient, templateAuthor.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, templateAuthorClient, version.ID)
+
+		// Template author: create a workspace
+		workspace := coderdtest.CreateWorkspace(t, templateAuthorClient, templateAuthor.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, templateAuthorClient, workspace.LatestBuild.ID)
+
+		// Template author: try to start a workspace build in debug mode
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := templateAuthorClient.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
+			Transition:        codersdk.WorkspaceTransitionStart,
+			LogLevel:          "debug",
+		})
+
+		// Template author: expect an error as the debug mode is disabled
+		require.NotNil(t, err)
+		var sdkError *codersdk.Error
+		isSdkError := xerrors.As(err, &sdkError)
+		require.True(t, isSdkError)
+		require.Contains(t, sdkError.Message, "Terraform debug mode is disabled in the deployment configuration.")
+	})
 	t.Run("AsRegularUser", func(t *testing.T) {
 		t.Parallel()
 

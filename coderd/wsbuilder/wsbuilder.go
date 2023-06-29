@@ -34,11 +34,13 @@ import (
 // build, job, err := b.Build(...)
 type Builder struct {
 	// settings that control the kind of build you get
-	workspace           database.Workspace
-	trans               database.WorkspaceTransition
-	version             versionTarget
-	state               stateTarget
-	logLevel            string
+	workspace        database.Workspace
+	trans            database.WorkspaceTransition
+	version          versionTarget
+	state            stateTarget
+	logLevel         string
+	deploymentValues *codersdk.DeploymentValues
+
 	richParameterValues []codersdk.WorkspaceBuildParameter
 	initiator           uuid.UUID
 	reason              database.BuildReason
@@ -125,6 +127,12 @@ func (b Builder) Orphan() Builder {
 func (b Builder) LogLevel(l string) Builder {
 	// nolint: revive
 	b.logLevel = l
+	return b
+}
+
+func (b Builder) DeploymentValues(dv *codersdk.DeploymentValues) Builder {
+	// nolint: revive
+	b.deploymentValues = dv
 	return b
 }
 
@@ -635,6 +643,14 @@ func (b *Builder) authorize(authFunc func(action rbac.Action, object rbac.Object
 	if b.state.explicit != nil || b.state.orphan {
 		if !authFunc(rbac.ActionUpdate, template.RBACObject()) {
 			return BuildError{http.StatusForbidden, "Only template managers may provide custom state", xerrors.New("Only template managers may provide custom state")}
+		}
+	}
+
+	if b.logLevel != "" && b.deploymentValues != nil && b.deploymentValues.DisableTerraformDebugMode {
+		return BuildError{
+			http.StatusBadRequest,
+			"Terraform debug mode is disabled in the deployment configuration.",
+			xerrors.New("Terraform debug mode is disabled in the deployment configuration."),
 		}
 	}
 
