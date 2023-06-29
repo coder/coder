@@ -194,10 +194,10 @@ func TestTemplatePush(t *testing.T) {
 
 	t.Run("PushTemplateWithCreate", func(t *testing.T) {
 		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		t.Cleanup(cancel)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
 			Parse:          echo.ParseComplete,
@@ -215,13 +215,19 @@ func TestTemplatePush(t *testing.T) {
 			write string
 		}{
 			{match: "Upload", write: "yes"},
+			{match: "Creating a new template"},
+
 		}
 		for _, m := range matches {
 			pty.ExpectMatch(m.match)
 			if len(m.write) > 0 {
 				pty.WriteLine(m.write)
 			}
-		}
+		// Assert that the template was created.
+		template, err := client.TemplateByName(ctx, user.OrganizationID, "example")
+		require.NoError(t, err)
+		require.NotNil(t, template.ID)
+	}
 	})
 
 	t.Run("UseWorkingDir", func(t *testing.T) {
