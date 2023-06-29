@@ -29,7 +29,6 @@ type LoginTypeConfirmation =
     }
 
 export const useSingleSignOnSection = () => {
-  const me = useMe()
   const location = useLocation()
   const redirectTo = retrieveRedirect(location.search)
   const [loginTypeConfirmation, setLoginTypeConfirmation] =
@@ -57,8 +56,7 @@ export const useSingleSignOnSection = () => {
       throw new Error("No login type selected")
     }
     mutation.mutate({
-      to_login_type: loginTypeConfirmation.selectedType,
-      email: me.email,
+      to_type: loginTypeConfirmation.selectedType,
       password,
     })
   }

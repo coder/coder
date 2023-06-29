@@ -94,9 +94,9 @@ type UserRoles struct {
 }
 
 type ConvertLoginRequest struct {
-	// ToLoginType is the login type to convert to.
-	ToLoginType LoginType `json:"to_login_type" validate:"required"`
-	LoginWithPasswordRequest
+	// ToType is the login type to convert to.
+	ToType   LoginType `json:"to_type" validate:"required"`
+	Password string    `json:"password" validate:"required"`
 }
 
 // LoginWithPasswordRequest enables callers to authenticate with email and password.
@@ -113,7 +113,7 @@ type LoginWithPasswordResponse struct {
 type OAuthConversionResponse struct {
 	StateString string    `json:"state_string"`
 	ExpiresAt   time.Time `json:"expires_at" format:"date-time"`
-	ToLoginType LoginType `json:"to_login_type"`
+	ToType      LoginType `json:"to_type"`
 	UserID      uuid.UUID `json:"user_id" format:"uuid"`
 }
 
@@ -317,10 +317,10 @@ func (c *Client) LoginWithPassword(ctx context.Context, req LoginWithPasswordReq
 	return resp, nil
 }
 
-// ConvertToOAuthLogin will send a request to convert the user from password
+// ConvertLoginType will send a request to convert the user from password
 // based authentication to oauth based. The response has the oauth state code
 // to use in the oauth flow.
-func (c *Client) ConvertToOAuthLogin(ctx context.Context, req ConvertLoginRequest) (OAuthConversionResponse, error) {
+func (c *Client) ConvertLoginType(ctx context.Context, req ConvertLoginRequest) (OAuthConversionResponse, error) {
 	res, err := c.Request(ctx, http.MethodPost, "/api/v2/users/convert-login", req)
 	if err != nil {
 		return OAuthConversionResponse{}, err

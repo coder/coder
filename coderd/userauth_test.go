@@ -815,12 +815,9 @@ func TestUserOIDC(t *testing.T) {
 		require.NoError(t, err)
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-		convertResponse, err := user.ConvertToOAuthLogin(ctx, codersdk.ConvertLoginRequest{
-			ToLoginType: codersdk.LoginTypeOIDC,
-			LoginWithPasswordRequest: codersdk.LoginWithPasswordRequest{
-				Email:    userData.Email,
-				Password: "SomeSecurePassword!",
-			},
+		convertResponse, err := user.ConvertLoginType(ctx, codersdk.ConvertLoginRequest{
+			ToType:   codersdk.LoginTypeOIDC,
+			Password: "SomeSecurePassword!",
 		})
 		require.NoError(t, err)
 

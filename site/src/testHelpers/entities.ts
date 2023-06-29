@@ -1537,7 +1537,7 @@ export const MockAuditOauthConvert: TypesGen.AuditLog = {
       new: "",
       secret: true,
     },
-    to_login_type: {
+    to_type: {
       old: "",
       new: "oidc",
       secret: false,

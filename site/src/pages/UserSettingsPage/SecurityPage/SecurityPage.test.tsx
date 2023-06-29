@@ -137,7 +137,7 @@ test("change login type to OIDC", async () => {
   await waitFor(() => {
     expect(convertToOAUTHSpy).toHaveBeenCalledWith({
       password: "password123",
-      to_login_type: "github",
+      to_type: "github",
       email: userData.email,
     })
   })

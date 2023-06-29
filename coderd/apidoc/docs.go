@@ -2902,45 +2902,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/users/convert-login": {
-            "post": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Authorization"
-                ],
-                "summary": "Convert user from password to oauth authentication",
-                "operationId": "convert-user-from-password-to-oauth-authentication",
-                "parameters": [
-                    {
-                        "description": "Convert request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ConvertLoginRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.OauthConversionResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/users/first": {
             "get": {
                 "security": [
@@ -3057,6 +3018,45 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/me/convert-login": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authorization"
+                ],
+                "summary": "Convert user from password to oauth authentication",
+                "operationId": "convert-user-from-password-to-oauth-authentication",
+                "parameters": [
+                    {
+                        "description": "Convert request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ConvertLoginRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuthConversionResponse"
                         }
                     }
                 }
@@ -6743,20 +6743,15 @@ const docTemplate = `{
         "codersdk.ConvertLoginRequest": {
             "type": "object",
             "required": [
-                "email",
                 "password",
-                "to_login_type"
+                "to_type"
             ],
             "properties": {
-                "email": {
-                    "type": "string",
-                    "format": "email"
-                },
                 "password": {
                     "type": "string"
                 },
-                "to_login_type": {
-                    "description": "ToLoginType is the login type to convert to.",
+                "to_type": {
+                    "description": "ToType is the login type to convert to.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.LoginType"
@@ -7906,6 +7901,25 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OAuthConversionResponse": {
+            "type": "object",
+            "properties": {
+                "expires_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "state_string": {
+                    "type": "string"
+                },
+                "to_type": {
+                    "$ref": "#/definitions/codersdk.LoginType"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "codersdk.OIDCAuthMethod": {
             "type": "object",
             "properties": {
@@ -7973,25 +7987,6 @@ const docTemplate = `{
                 },
                 "username_field": {
                     "type": "string"
-                }
-            }
-        },
-        "codersdk.OauthConversionResponse": {
-            "type": "object",
-            "properties": {
-                "expires_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "state_string": {
-                    "type": "string"
-                },
-                "to_login_type": {
-                    "$ref": "#/definitions/codersdk.LoginType"
-                },
-                "user_id": {
-                    "type": "string",
-                    "format": "uuid"
                 }
             }
         },

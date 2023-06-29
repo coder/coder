@@ -11,9 +11,9 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 )
 
-// AuditOauthConvertState is never stored in the database. It is stored in a cookie
+// AuditOAuthConvertState is never stored in the database. It is stored in a cookie
 // clientside as a JWT. This type is provided for audit logging purposes.
-type AuditOauthConvertState struct {
+type AuditOAuthConvertState struct {
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	// The time at which the state string expires, a merge request times out if the user does not perform it quick enough.
 	ExpiresAt     time.Time `db:"expires_at" json:"expires_at"`

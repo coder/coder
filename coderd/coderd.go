@@ -604,9 +604,7 @@ func New(options *Options) *API {
 		r.Route("/users", func(r chi.Router) {
 			r.Get("/first", api.firstUser)
 			r.Post("/first", api.postFirstUser)
-			r.Route("/authmethods", func(r chi.Router) {
-				r.Get("/", api.userAuthMethods)
-			})
+			r.Get("/authmethods", api.userAuthMethods)
 
 			r.Group(func(r chi.Router) {
 				// We use a tight limit for password login to protect against
@@ -626,14 +624,6 @@ func New(options *Options) *API {
 					r.Use(httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient, oidcAuthURLParams))
 					r.Get("/", api.userOIDC)
 				})
-				// This is an authenticated route. It handles converting a user
-				// from Password based authentication to Oauth
-				r.Route("/convert-login", func(r chi.Router) {
-					r.Use(
-						apiKeyMiddleware,
-					)
-					r.Post("/", api.postConvertLoginType)
-				})
 			})
 			r.Group(func(r chi.Router) {
 				r.Use(
@@ -648,6 +638,7 @@ func New(options *Options) *API {
 				})
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database, false))
+					r.Post("/convert-login", api.postConvertLoginType)
 					r.Delete("/", api.deleteUser)
 					r.Get("/", api.userByName)
 					r.Get("/login-type", api.userLoginType)

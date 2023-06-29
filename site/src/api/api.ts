@@ -109,8 +109,8 @@ export const login = async (
 }
 
 export const convertToOAUTH = async (request: TypesGen.ConvertLoginRequest) => {
-  const response = await axios.post<TypesGen.OauthConversionResponse>(
-    "/api/v2/users/convert-login",
+  const response = await axios.post<TypesGen.OAuthConversionResponse>(
+    "/api/v2/users/me/convert-login",
     request,
   )
   return response.data

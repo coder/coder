@@ -36,7 +36,7 @@ import (
 
 const (
 	userAuthLoggerName      = "userauth"
-	OauthConvertCookieValue = "coder_oauth_convert_jwt"
+	OAuthConvertCookieValue = "coder_oauth_convert_jwt"
 	mergeStateStringPrefix  = "convert-"
 )
 
@@ -60,7 +60,7 @@ type OAuthConvertStateClaims struct {
 // @Tags Authorization
 // @Param request body codersdk.ConvertLoginRequest true "Convert request"
 // @Success 201 {object} codersdk.OAuthConversionResponse
-// @Router /users/convert-login [post]
+// @Router /users/me/convert-login [post]
 func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 	if !api.Options.DeploymentValues.EnableOauthAccountConversion.Value() {
 		httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
@@ -70,16 +70,17 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var (
+		user              = httpmw.UserParam(r)
 		ctx               = r.Context()
 		auditor           = api.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.AuditOauthConvertState](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.AuditOAuthConvertState](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,
 			Action:  database.AuditActionCreate,
 		})
 	)
-	aReq.Old = database.AuditOauthConvertState{}
+	aReq.Old = database.AuditOAuthConvertState{}
 	defer commitAudit()
 
 	var req codersdk.ConvertLoginRequest
@@ -87,24 +88,27 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	switch req.ToLoginType {
+	switch req.ToType {
 	case codersdk.LoginTypeGithub, codersdk.LoginTypeOIDC:
 		// Allowed!
 	case codersdk.LoginTypeNone, codersdk.LoginTypePassword, codersdk.LoginTypeToken:
 		// These login types are not allowed to be converted to at this time.
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Cannot convert to login type %q.", req.ToLoginType),
+			Message: fmt.Sprintf("Cannot convert to login type %q.", req.ToType),
 		})
 		return
 	default:
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Unknown login type %q.", req.ToLoginType),
+			Message: fmt.Sprintf("Unknown login type %q.", req.ToType),
 		})
 		return
 	}
 
 	// This handles the email/pass checking.
-	user, _, ok := api.loginRequest(ctx, rw, req.LoginWithPasswordRequest)
+	user, _, ok := api.loginRequest(ctx, rw, codersdk.LoginWithPasswordRequest{
+		Email:    user.Email,
+		Password: req.Password,
+	})
 	if !ok {
 		return
 	}
@@ -155,7 +159,7 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 		UserID:        user.ID,
 		State:         stateString,
 		FromLoginType: codersdk.LoginType(user.LoginType),
-		ToLoginType:   req.ToLoginType,
+		ToLoginType:   req.ToType,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS512, claims)
@@ -169,7 +173,7 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	aReq.New = database.AuditOauthConvertState{
+	aReq.New = database.AuditOAuthConvertState{
 		CreatedAt:     claims.IssuedAt.Time,
 		ExpiresAt:     claims.ExpiresAt.Time,
 		FromLoginType: database.LoginType(claims.FromLoginType),
@@ -178,7 +182,7 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	http.SetCookie(rw, &http.Cookie{
-		Name:     OauthConvertCookieValue,
+		Name:     OAuthConvertCookieValue,
 		Value:    tokenString,
 		Expires:  claims.ExpiresAt.Time,
 		Secure:   api.SecureAuthCookie,
@@ -188,7 +192,7 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.OAuthConversionResponse{
 		StateString: stateString,
 		ExpiresAt:   claims.ExpiresAt.Time,
-		ToLoginType: claims.ToLoginType,
+		ToType:      claims.ToLoginType,
 		UserID:      claims.UserID,
 	})
 }
@@ -1309,7 +1313,7 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 		}
 	}
 
-	jwtCookie, err := r.Cookie(OauthConvertCookieValue)
+	jwtCookie, err := r.Cookie(OAuthConvertCookieValue)
 	if err != nil {
 		return database.User{}, httpError{
 			code: http.StatusBadRequest,
@@ -1390,7 +1394,8 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 	// Convert the user and default to the normal login flow.
 	// If the login succeeds, this transaction will commit and the user
 	// will be converted.
-	// nolint:gocritic // system query to update user login type
+	// nolint:gocritic // system query to update user login type. The user already
+	// provided their password to authenticate this request.
 	user, err = db.UpdateUserLoginType(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLoginTypeParams{
 		NewLoginType: params.LoginType,
 		UserID:       user.ID,
@@ -1478,7 +1483,7 @@ func isMergeStateString(state string) bool {
 
 func clearOAuthConvertCookie() *http.Cookie {
 	return &http.Cookie{
-		Name:   OauthConvertCookieValue,
+		Name:   OAuthConvertCookieValue,
 		MaxAge: -1,
 	}
 }

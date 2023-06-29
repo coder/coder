@@ -141,8 +141,9 @@ export interface BuildInfoResponse {
 }
 
 // From codersdk/users.go
-export interface ConvertLoginRequest extends LoginWithPasswordRequest {
-  readonly to_login_type: LoginType
+export interface ConvertLoginRequest {
+  readonly to_type: LoginType
+  readonly password: string
 }
 
 // From codersdk/users.go
@@ -525,6 +526,14 @@ export interface OAuth2GithubConfig {
 }
 
 // From codersdk/users.go
+export interface OAuthConversionResponse {
+  readonly state_string: string
+  readonly expires_at: string
+  readonly to_type: LoginType
+  readonly user_id: string
+}
+
+// From codersdk/users.go
 export interface OIDCAuthMethod extends AuthMethod {
   readonly signInText: string
   readonly iconUrl: string
@@ -553,14 +562,6 @@ export interface OIDCConfig {
   readonly group_mapping: any
   readonly sign_in_text: string
   readonly icon_url: string
-}
-
-// From codersdk/users.go
-export interface OauthConversionResponse {
-  readonly state_string: string
-  readonly expires_at: string
-  readonly to_login_type: LoginType
-  readonly user_id: string
 }
 
 // From codersdk/organizations.go

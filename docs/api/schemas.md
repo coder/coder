@@ -1276,19 +1276,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "email": "user@example.com",
   "password": "string",
-  "to_login_type": "password"
+  "to_type": "password"
 }
 ```
 
 ### Properties
 
-| Name            | Type                                     | Required | Restrictions | Description                                    |
-| --------------- | ---------------------------------------- | -------- | ------------ | ---------------------------------------------- |
-| `email`         | string                                   | true     |              |                                                |
-| `password`      | string                                   | true     |              |                                                |
-| `to_login_type` | [codersdk.LoginType](#codersdklogintype) | true     |              | To login type is the login type to convert to. |
+| Name       | Type                                     | Required | Restrictions | Description                              |
+| ---------- | ---------------------------------------- | -------- | ------------ | ---------------------------------------- |
+| `password` | string                                   | true     |              |                                          |
+| `to_type`  | [codersdk.LoginType](#codersdklogintype) | true     |              | To type is the login type to convert to. |
 
 ## codersdk.CreateFirstUserRequest
 
@@ -2953,6 +2951,26 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `client_secret`       | string          | false    |              |             |
 | `enterprise_base_url` | string          | false    |              |             |
 
+## codersdk.OAuthConversionResponse
+
+```json
+{
+  "expires_at": "2019-08-24T14:15:22Z",
+  "state_string": "string",
+  "to_type": "password",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Properties
+
+| Name           | Type                                     | Required | Restrictions | Description |
+| -------------- | ---------------------------------------- | -------- | ------------ | ----------- |
+| `expires_at`   | string                                   | false    |              |             |
+| `state_string` | string                                   | false    |              |             |
+| `to_type`      | [codersdk.LoginType](#codersdklogintype) | false    |              |             |
+| `user_id`      | string                                   | false    |              |             |
+
 ## codersdk.OIDCAuthMethod
 
 ```json
@@ -3024,26 +3042,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `scopes`                | array of string            | false    |              |             |
 | `sign_in_text`          | string                     | false    |              |             |
 | `username_field`        | string                     | false    |              |             |
-
-## codersdk.OauthConversionResponse
-
-```json
-{
-  "expires_at": "2019-08-24T14:15:22Z",
-  "state_string": "string",
-  "to_login_type": "password",
-  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
-}
-```
-
-### Properties
-
-| Name            | Type                                     | Required | Restrictions | Description |
-| --------------- | ---------------------------------------- | -------- | ------------ | ----------- |
-| `expires_at`    | string                                   | false    |              |             |
-| `state_string`  | string                                   | false    |              |             |
-| `to_login_type` | [codersdk.LoginType](#codersdklogintype) | false    |              |             |
-| `user_id`       | string                                   | false    |              |             |
 
 ## codersdk.Organization
 

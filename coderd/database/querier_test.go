@@ -467,8 +467,8 @@ func TestUserChangeLoginType(t *testing.T) {
 		NewLoginType: database.LoginTypeOIDC,
 		UserID:       alice.ID,
 	})
-
 	require.NoError(t, err)
+
 	require.Empty(t, alice.HashedPassword, "hashed password should be empty")
 
 	// First check other users are not affected
@@ -481,6 +481,8 @@ func TestUserChangeLoginType(t *testing.T) {
 		NewLoginType: database.LoginTypePassword,
 		UserID:       bob.ID,
 	})
+	require.NoError(t, err)
+
 	bob, err = db.GetUserByID(ctx, bob.ID)
 	require.NoError(t, err)
 	require.Equal(t, bobExpPass, bob.HashedPassword, "hashed password should not change")
