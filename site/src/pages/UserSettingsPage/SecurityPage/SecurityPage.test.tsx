@@ -12,6 +12,7 @@ import {
   mockApiError,
 } from "testHelpers/entities"
 import userEvent from "@testing-library/user-event"
+import { OAuthConversionResponse } from "api/typesGenerated"
 
 const { t } = i18next
 
@@ -121,8 +122,16 @@ test("update password when submit returns an unknown error", async () => {
 })
 
 test("change login type to OIDC", async () => {
-  const convertToOAUTHSpy = jest.spyOn(API, "convertToOAUTH")
   const user = userEvent.setup()
+  const { user: userData } = await renderPage()
+  const convertToOAUTHSpy = jest
+    .spyOn(API, "convertToOAUTH")
+    .mockResolvedValue({
+      state_string: "some-state-string",
+      expires_at: "2021-01-01T00:00:00Z",
+      to_type: "oidc",
+      user_id: userData.id,
+    } as OAuthConversionResponse)
 
   const ssoSection = screen.getByTestId("sso-section")
   const githubButton = within(ssoSection).getByText("GitHub", { exact: false })
