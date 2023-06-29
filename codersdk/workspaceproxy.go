@@ -102,7 +102,7 @@ func (c *Client) WorkspaceProxies(ctx context.Context) (RegionsResponse[Workspac
 		return RegionsResponse[WorkspaceProxy]{}, ReadBodyAsError(res)
 	}
 
-	var proxies RegionsResponse[WorkspaceProxy]{}
+	var proxies RegionsResponse[WorkspaceProxy]
 	return proxies, json.NewDecoder(res.Body).Decode(&proxies)
 }
 
