@@ -1,13 +1,11 @@
 package gitauth
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
 	"net/url"
 	"regexp"
-	"strings"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
@@ -111,7 +109,11 @@ func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*codersdk.GitAuthDevi
 	if c.CodeURL == "" {
 		return nil, xerrors.New("oauth2: device code URL not set")
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.formatDeviceCodeURL(), nil)
+	codeURL, err := c.formatDeviceCodeURL()
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, codeURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +132,7 @@ func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*codersdk.GitAuthDevi
 		return nil, err
 	}
 	if r.ErrorDescription != "" {
-		return nil, xerrors.Errorf("%s", r.ErrorDescription)
+		return nil, xerrors.New(r.ErrorDescription)
 	}
 	return &r.GitAuthDevice, nil
 }
@@ -148,7 +150,11 @@ func (c *DeviceAuth) ExchangeDeviceCode(ctx context.Context, deviceCode string) 
 	if c.TokenURL == "" {
 		return nil, xerrors.New("oauth2: token URL not set")
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.formatDeviceTokenURL(deviceCode), nil)
+	tokenURL, err := c.formatDeviceTokenURL(deviceCode)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -167,41 +173,32 @@ func (c *DeviceAuth) ExchangeDeviceCode(ctx context.Context, deviceCode string) 
 		return nil, err
 	}
 	if body.Error != "" {
-		return nil, xerrors.Errorf("%s", body.Error)
+		return nil, xerrors.New(body.Error)
 	}
 	return body.Token, nil
 }
 
-func (c *DeviceAuth) formatDeviceTokenURL(deviceCode string) string {
-	var buf bytes.Buffer
-	_, _ = buf.WriteString(c.TokenURL)
-	v := url.Values{
+func (c *DeviceAuth) formatDeviceTokenURL(deviceCode string) (string, error) {
+	tok, err := url.Parse(c.TokenURL)
+	if err != nil {
+		return "", err
+	}
+	tok.RawQuery = url.Values{
 		"client_id":   {c.ClientID},
 		"device_code": {deviceCode},
 		"grant_type":  {"urn:ietf:params:oauth:grant-type:device_code"},
-	}
-	if strings.Contains(c.TokenURL, "?") {
-		_ = buf.WriteByte('&')
-	} else {
-		_ = buf.WriteByte('?')
-	}
-	_, _ = buf.WriteString(v.Encode())
-	return buf.String()
+	}.Encode()
+	return tok.String(), nil
 }
 
-func (c *DeviceAuth) formatDeviceCodeURL() string {
-	var buf bytes.Buffer
-	_, _ = buf.WriteString(c.CodeURL)
-
-	v := url.Values{
+func (c *DeviceAuth) formatDeviceCodeURL() (string, error) {
+	cod, err := url.Parse(c.CodeURL)
+	if err != nil {
+		return "", err
+	}
+	cod.RawQuery = url.Values{
 		"client_id": {c.ClientID},
 		"scope":     c.Scopes,
-	}
-	if strings.Contains(c.CodeURL, "?") {
-		_ = buf.WriteByte('&')
-	} else {
-		_ = buf.WriteByte('?')
-	}
-	_, _ = buf.WriteString(v.Encode())
-	return buf.String()
+	}.Encode()
+	return cod.String(), nil
 }

@@ -29,40 +29,49 @@ func (api *API) gitAuthByID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	res := codersdk.GitAuth{
-		Authenticated: false,
-		Device:        config.DeviceAuth != nil,
-		AppInstallURL: config.AppInstallURL,
-		Type:          config.Type.Pretty(),
+		Authenticated:    false,
+		Device:           config.DeviceAuth != nil,
+		AppInstallURL:    config.AppInstallURL,
+		Type:             config.Type.Pretty(),
+		AppInstallations: []codersdk.GitAuthAppInstallation{},
 	}
 
 	link, err := api.Database.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
 		ProviderID: config.ID,
 		UserID:     apiKey.UserID,
 	})
-	if err == nil {
-		var eg errgroup.Group
-		eg.Go(func() (err error) {
-			res.Authenticated, res.User, err = config.ValidateToken(ctx, link.OAuthAccessToken)
-			return err
-		})
-		eg.Go(func() (err error) {
-			res.AppInstallations, res.AppInstallable, err = config.AppInstallations(ctx, link.OAuthAccessToken)
-			return err
-		})
-		err = eg.Wait()
-		if err != nil {
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to validate token.",
+				Message: "Failed to get git auth link.",
 				Detail:  err.Error(),
 			})
 			return
 		}
-	}
 
+		httpapi.Write(ctx, w, http.StatusOK, res)
+		return
+	}
+	var eg errgroup.Group
+	eg.Go(func() (err error) {
+		res.Authenticated, res.User, err = config.ValidateToken(ctx, link.OAuthAccessToken)
+		return err
+	})
+	eg.Go(func() (err error) {
+		res.AppInstallations, res.AppInstallable, err = config.AppInstallations(ctx, link.OAuthAccessToken)
+		return err
+	})
+	err = eg.Wait()
+	if err != nil {
+		httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to validate token.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 	if res.AppInstallations == nil {
 		res.AppInstallations = []codersdk.GitAuthAppInstallation{}
 	}
-
 	httpapi.Write(ctx, w, http.StatusOK, res)
 }
 
