@@ -1,0 +1,11 @@
+{
+  "title": "Version",
+  "header": {
+    "caption": "Version"
+  },
+  "stats": {
+    "template": "Template",
+    "createdBy": "Created by",
+    "created": "Created"
+  }
+}

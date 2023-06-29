@@ -1,6 +1,6 @@
 {
   "actions": {
-    "viewSourceCode": "View source code",
-    "useTemplate": "Use Template"
+    "viewSourceCode": "Посмотреть исходный код",
+    "useTemplate": "Использовать шаблон"
   }
 }

@@ -1,0 +1,8 @@
+{
+  "stats": {
+    "workspace": "Workspace",
+    "duration": "Duration",
+    "startedAt": "Started at",
+    "action": "Action"
+  }
+}

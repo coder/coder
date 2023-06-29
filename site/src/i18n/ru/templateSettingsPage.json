@@ -32,16 +32,16 @@
   "allowUserCancelWorkspaceJobsNotice": "Depending on your template, canceling builds may leave workspaces in an unhealthy state. This option isn't recommended for most use cases.",
   "allowUsersCancelHelperText": "If checked, users may be able to corrupt their workspace.",
   "generalInfo": {
-    "title": "Общая информация",
-    "description": "Имя используется для идентификации шаблона в URL-адресах и в API."
+    "title": "General info",
+    "description": "The name is used to identify the template in URLs and the API."
   },
   "displayInfo": {
-    "title": "Отображение",
-    "description": "Понятное имя, описание и значок, чтобы помочь разработчикам найти шаблон."
+    "title": "Display info",
+    "description": "A friendly name, description, and icon to help developers identify your template."
   },
   "schedule": {
-    "title": "Расписание",
-    "description": "Установите время после которого рабочее пространство будет выключаться."
+    "title": "Schedule",
+    "description": "Define when workspaces created from this template are stopped."
   },
   "operations": {
     "title": "Operations",
