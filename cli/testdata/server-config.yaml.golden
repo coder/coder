@@ -197,9 +197,9 @@ introspection:
     # Output Stackdriver compatible logs to a given file.
     # (default: <unset>, type: string)
     stackdriverPath: ""
-    # Disable debug mode while processing Terraform templates.
+    # Enable debug mode while processing Terraform templates.
     # (default: false, type: bool)
-    disableTerraformDebugMode: false
+    enableTerraformDebugMode: false
 oauth2:
   github:
     # Client ID for Login with GitHub.
