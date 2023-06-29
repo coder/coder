@@ -72,7 +72,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		// If the user can read the workspace proxy resource, return that.
 		// If not, always default to the regions.
 		actor, ok := dbauthz.ActorFromContext(ctx)
-		if ok && api.Authorizer.Authorize(ctx, actor, rbac.ActionRead, rbac.ResourceWorkspaceProxy) != nil {
+		if ok && api.Authorizer.Authorize(ctx, actor, rbac.ActionRead, rbac.ResourceWorkspaceProxy) == nil {
 			return api.fetchWorkspaceProxies(ctx)
 		}
 		return api.fetchRegions(ctx)
