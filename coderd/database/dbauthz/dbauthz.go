@@ -1041,11 +1041,11 @@ func (q *querier) GetLogoURL(ctx context.Context) (string, error) {
 	return q.db.GetLogoURL(ctx)
 }
 
-func (q *querier) GetOauthSigningKey(ctx context.Context) (string, error) {
+func (q *querier) GetOAuthSigningKey(ctx context.Context) (string, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return "", err
 	}
-	return q.db.GetOauthSigningKey(ctx)
+	return q.db.GetOAuthSigningKey(ctx)
 }
 
 func (q *querier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {
@@ -2608,11 +2608,11 @@ func (q *querier) UpsertLogoURL(ctx context.Context, value string) error {
 	return q.db.UpsertLogoURL(ctx, value)
 }
 
-func (q *querier) UpsertOauthSigningKey(ctx context.Context, value string) error {
+func (q *querier) UpsertOAuthSigningKey(ctx context.Context, value string) error {
 	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err
 	}
-	return q.db.UpsertOauthSigningKey(ctx, value)
+	return q.db.UpsertOAuthSigningKey(ctx, value)
 }
 
 func (q *querier) UpsertServiceBanner(ctx context.Context, value string) error {

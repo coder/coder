@@ -455,10 +455,10 @@ func (m metricsStore) GetLogoURL(ctx context.Context) (string, error) {
 	return url, err
 }
 
-func (m metricsStore) GetOauthSigningKey(ctx context.Context) (string, error) {
+func (m metricsStore) GetOAuthSigningKey(ctx context.Context) (string, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetOauthSigningKey(ctx)
-	m.queryLatencies.WithLabelValues("GetOauthSigningKey").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.GetOAuthSigningKey(ctx)
+	m.queryLatencies.WithLabelValues("GetOAuthSigningKey").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -1608,10 +1608,10 @@ func (m metricsStore) UpsertLogoURL(ctx context.Context, value string) error {
 	return r0
 }
 
-func (m metricsStore) UpsertOauthSigningKey(ctx context.Context, value string) error {
+func (m metricsStore) UpsertOAuthSigningKey(ctx context.Context, value string) error {
 	start := time.Now()
-	r0 := m.s.UpsertOauthSigningKey(ctx, value)
-	m.queryLatencies.WithLabelValues("UpsertOauthSigningKey").Observe(time.Since(start).Seconds())
+	r0 := m.s.UpsertOAuthSigningKey(ctx, value)
+	m.queryLatencies.WithLabelValues("UpsertOAuthSigningKey").Observe(time.Since(start).Seconds())
 	return r0
 }
 

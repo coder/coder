@@ -110,7 +110,7 @@ type LoginWithPasswordResponse struct {
 	SessionToken string `json:"session_token" validate:"required"`
 }
 
-type OauthConversionResponse struct {
+type OAuthConversionResponse struct {
 	StateString string    `json:"state_string"`
 	ExpiresAt   time.Time `json:"expires_at" format:"date-time"`
 	ToLoginType LoginType `json:"to_login_type"`
@@ -320,19 +320,19 @@ func (c *Client) LoginWithPassword(ctx context.Context, req LoginWithPasswordReq
 // ConvertToOAuthLogin will send a request to convert the user from password
 // based authentication to oauth based. The response has the oauth state code
 // to use in the oauth flow.
-func (c *Client) ConvertToOAuthLogin(ctx context.Context, req ConvertLoginRequest) (OauthConversionResponse, error) {
+func (c *Client) ConvertToOAuthLogin(ctx context.Context, req ConvertLoginRequest) (OAuthConversionResponse, error) {
 	res, err := c.Request(ctx, http.MethodPost, "/api/v2/users/convert-login", req)
 	if err != nil {
-		return OauthConversionResponse{}, err
+		return OAuthConversionResponse{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusCreated {
-		return OauthConversionResponse{}, ReadBodyAsError(res)
+		return OAuthConversionResponse{}, ReadBodyAsError(res)
 	}
-	var resp OauthConversionResponse
+	var resp OAuthConversionResponse
 	err = json.NewDecoder(res.Body).Decode(&resp)
 	if err != nil {
-		return OauthConversionResponse{}, err
+		return OAuthConversionResponse{}, err
 	}
 	return resp, nil
 }

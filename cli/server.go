@@ -674,7 +674,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 				// Read the oauth signing key from the database. Like the app security, generate a new one
 				// if it is invalid for any reason.
-				oauthSigningKeyStr, err := tx.GetOauthSigningKey(ctx)
+				oauthSigningKeyStr, err := tx.GetOAuthSigningKey(ctx)
 				if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 					return xerrors.Errorf("get app oauth signing key: %w", err)
 				}
@@ -686,7 +686,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					}
 
 					oauthSigningKeyStr = hex.EncodeToString(b)
-					err = tx.UpsertOauthSigningKey(ctx, oauthSigningKeyStr)
+					err = tx.UpsertOAuthSigningKey(ctx, oauthSigningKeyStr)
 					if err != nil {
 						return xerrors.Errorf("insert freshly generated oauth signing key to database: %w", err)
 					}

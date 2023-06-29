@@ -3218,12 +3218,12 @@ func (q *sqlQuerier) GetLogoURL(ctx context.Context) (string, error) {
 	return value, err
 }
 
-const getOauthSigningKey = `-- name: GetOauthSigningKey :one
+const getOAuthSigningKey = `-- name: GetOAuthSigningKey :one
 SELECT value FROM site_configs WHERE key = 'oauth_signing_key'
 `
 
-func (q *sqlQuerier) GetOauthSigningKey(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getOauthSigningKey)
+func (q *sqlQuerier) GetOAuthSigningKey(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getOAuthSigningKey)
 	var value string
 	err := row.Scan(&value)
 	return value, err
@@ -3311,13 +3311,13 @@ func (q *sqlQuerier) UpsertLogoURL(ctx context.Context, value string) error {
 	return err
 }
 
-const upsertOauthSigningKey = `-- name: UpsertOauthSigningKey :exec
+const upsertOAuthSigningKey = `-- name: UpsertOAuthSigningKey :exec
 INSERT INTO site_configs (key, value) VALUES ('oauth_signing_key', $1)
 ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'oauth_signing_key'
 `
 
-func (q *sqlQuerier) UpsertOauthSigningKey(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, upsertOauthSigningKey, value)
+func (q *sqlQuerier) UpsertOAuthSigningKey(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertOAuthSigningKey, value)
 	return err
 }
 

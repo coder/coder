@@ -1868,7 +1868,7 @@ func (q *fakeQuerier) GetLogoURL(_ context.Context) (string, error) {
 	return q.logoURL, nil
 }
 
-func (q *fakeQuerier) GetOauthSigningKey(_ context.Context) (string, error) {
+func (q *fakeQuerier) GetOAuthSigningKey(_ context.Context) (string, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -5355,7 +5355,7 @@ func (q *fakeQuerier) UpsertLogoURL(_ context.Context, data string) error {
 	return nil
 }
 
-func (q *fakeQuerier) UpsertOauthSigningKey(_ context.Context, value string) error {
+func (q *fakeQuerier) UpsertOAuthSigningKey(_ context.Context, value string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 

@@ -81,7 +81,7 @@ type sqlcQuerier interface {
 	GetLicenseByID(ctx context.Context, id int32) (License, error)
 	GetLicenses(ctx context.Context) ([]License, error)
 	GetLogoURL(ctx context.Context) (string, error)
-	GetOauthSigningKey(ctx context.Context) (string, error)
+	GetOAuthSigningKey(ctx context.Context) (string, error)
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetOrganizationByName(ctx context.Context, name string) (Organization, error)
 	GetOrganizationIDsByMemberIDs(ctx context.Context, ids []uuid.UUID) ([]GetOrganizationIDsByMemberIDsRow, error)
@@ -269,7 +269,7 @@ type sqlcQuerier interface {
 	UpsertDefaultProxy(ctx context.Context, arg UpsertDefaultProxyParams) error
 	UpsertLastUpdateCheck(ctx context.Context, value string) error
 	UpsertLogoURL(ctx context.Context, value string) error
-	UpsertOauthSigningKey(ctx context.Context, value string) error
+	UpsertOAuthSigningKey(ctx context.Context, value string) error
 	UpsertServiceBanner(ctx context.Context, value string) error
 	UpsertTailnetAgent(ctx context.Context, arg UpsertTailnetAgentParams) (TailnetAgent, error)
 	UpsertTailnetClient(ctx context.Context, arg UpsertTailnetClientParams) (TailnetClient, error)

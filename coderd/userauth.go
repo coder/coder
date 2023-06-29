@@ -59,7 +59,7 @@ type OAuthConvertStateClaims struct {
 // @Produce json
 // @Tags Authorization
 // @Param request body codersdk.ConvertLoginRequest true "Convert request"
-// @Success 201 {object} codersdk.OauthConversionResponse
+// @Success 201 {object} codersdk.OAuthConversionResponse
 // @Router /users/convert-login [post]
 func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 	if !api.Options.DeploymentValues.EnableOauthAccountConversion.Value() {
@@ -185,7 +185,7 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
 	})
-	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.OauthConversionResponse{
+	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.OAuthConversionResponse{
 		StateString: stateString,
 		ExpiresAt:   claims.ExpiresAt.Time,
 		ToLoginType: claims.ToLoginType,
