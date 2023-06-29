@@ -8596,7 +8596,7 @@ LEFT JOIN
 INNER JOIN
 	provisioner_jobs ON workspace_builds.job_id = provisioner_jobs.id
 INNER JOIN
-    templates ON workspaces.template_id = templates.id
+	templates ON workspaces.template_id = templates.id
 WHERE
 	workspace_builds.build_number = (
 		SELECT
@@ -8639,15 +8639,15 @@ WHERE
 		-- If the workspace's template has an inactivity_ttl set
 		-- it may be eligible for locking.
 		(
-            templates.inactivity_ttl > 0 AND
-            workspaces.locked_at IS NULL
+			templates.inactivity_ttl > 0 AND
+			workspaces.locked_at IS NULL
 		) OR
 
 		-- If the workspace's template has a locked_ttl set
 		-- and the workspace is already locked
 		(
-            templates.locked_ttl > 0 AND
-            workspaces.locked_at IS NOT NULL
+			templates.locked_ttl > 0 AND
+			workspaces.locked_at IS NOT NULL
 		)
 	) AND workspaces.deleted = 'false'
 `
