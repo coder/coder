@@ -40,7 +40,7 @@ resource "google_container_node_pool" "coder" {
   location   = var.zone
   project    = var.project_id
   cluster    = google_container_cluster.primary.name
-  node_count = var.nodepool_size_coder
+  node_count = var.state == "stopped" ? 0 : var.nodepool_size_coder
   node_config {
     oauth_scopes = [
       "https://www.googleapis.com/auth/logging.write",
@@ -70,7 +70,7 @@ resource "google_container_node_pool" "workspaces" {
   location   = var.zone
   project    = var.project_id
   cluster    = google_container_cluster.primary.name
-  node_count = var.nodepool_size_workspaces
+  node_count = var.state == "stopped" ? 0 : var.nodepool_size_workspaces
   node_config {
     oauth_scopes = [
       "https://www.googleapis.com/auth/logging.write",
@@ -100,7 +100,7 @@ resource "google_container_node_pool" "misc" {
   location   = var.zone
   project    = var.project_id
   cluster    = google_container_cluster.primary.name
-  node_count = var.nodepool_size_misc
+  node_count = var.state == "stopped" ? 0 : var.nodepool_size_misc
   node_config {
     oauth_scopes = [
       "https://www.googleapis.com/auth/logging.write",

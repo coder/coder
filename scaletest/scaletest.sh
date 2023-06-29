@@ -19,9 +19,10 @@ SCALETEST_SKIP_CLEANUP="${SCALETEST_SKIP_CLEANUP:-0}"
 SCALETEST_CREATE_CONCURRENCY="${SCALETEST_CREATE_CONCURRENCY:-10}"
 SCALETEST_TRAFFIC_BYTES_PER_TICK="${SCALETEST_TRAFFIC_BYTES_PER_TICK:-1024}"
 SCALETEST_TRAFFIC_TICK_INTERVAL="${SCALETEST_TRAFFIC_TICK_INTERVAL:-10}"
+SCALETEST_DESTROY="${SCALETEST_DESTROY:-0}"
 
 script_name=$(basename "$0")
-args="$(getopt -o "" -l create-concurrency:,dry-run,help,name:,num-workspaces:,project:,scenario:,skip-cleanup,traffic-bytes-per-tick:,traffic-tick-interval:, -- "$@")"
+args="$(getopt -o "" -l create-concurrency:,destroy,dry-run,help,name:,num-workspaces:,project:,scenario:,skip-cleanup,traffic-bytes-per-tick:,traffic-tick-interval:, -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
@@ -29,12 +30,16 @@ while true; do
 		SCALETEST_CREATE_CONCURRENCY="$2"
 		shift 2
 		;;
+	--destroy)
+		SCALETEST_DESTROY=1
+		shift
+		;;
 	--dry-run)
 		DRY_RUN=1
 		shift
 		;;
 	--help)
-		echo "Usage: $script_name --name <name> --project <project> --num-workspaces <num-workspaces> --scenario <scenario> [--dry-run] [--skip-cleanup] [--create-concurrency=<create-concurrency>]"
+		echo "Usage: $script_name --name <name> --project <project> --num-workspaces <num-workspaces> --scenario <scenario> [--destroy] [--dry-run] [--skip-cleanup] [--create-concurrency=<create-concurrency>]"
 		exit 1
 		;;
 	--name)
@@ -142,7 +147,7 @@ echo "Initializing terraform."
 maybedryrun "$DRY_RUN" terraform init
 
 echo "Setting up infrastructure."
-maybedryrun "$DRY_RUN" terraform apply --var-file="${SCALETEST_SCENARIO_VARS}" --var-file="${SCALETEST_SECRETS}" --auto-approve
+maybedryrun "$DRY_RUN" terraform apply --var-file="${SCALETEST_SCENARIO_VARS}" --var-file="${SCALETEST_SECRETS}" --var state=started --auto-approve
 
 if [[ "${DRY_RUN}" != 1 ]]; then
 	SCALETEST_CODER_URL=$(<"${CONFIG_DIR}/url")
@@ -212,5 +217,10 @@ if [[ "${SCALETEST_SKIP_CLEANUP}" == 1 ]]; then
 	exit 0
 fi
 
-echo "Cleaning up"
-maybedryrun "$DRY_RUN" terraform destroy --var-file="${SCALETEST_SCENARIO_VARS}" --var-file="${SCALETEST_SECRETS}" --auto-approve
+if [[ "${SCALETEST_DESTROY}" == 1 ]]; then
+	echo "Destroying infrastructure"
+	maybedryrun "$DRY_RUN" terraform destroy --var-file="${SCALETEST_SCENARIO_VARS}" --var-file="${SCALETEST_SECRETS}" --auto-approve
+else
+	echo "Scaling down infrastructure"
+	maybedryrun "$DRY_RUN" terraform apply --var-file="${SCALETEST_SCENARIO_VARS}" --var-file="${SCALETEST_SECRETS}" --var state=stopped --auto-approve
+fi
