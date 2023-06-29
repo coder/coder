@@ -27,6 +27,10 @@ type LoginTypeConfirmation =
       selectedType: LoginType
     }
 
+export const redirectToOIDCAuth = (stateString: string, redirectTo: string) => {
+  window.location.href = `/api/v2/users/oidc/callback?oidc_merge_state=${stateString}&redirect=${redirectTo}`
+}
+
 export const useSingleSignOnSection = () => {
   const location = useLocation()
   const redirectTo = retrieveRedirect(location.search)
@@ -35,9 +39,7 @@ export const useSingleSignOnSection = () => {
 
   const mutation = useMutation(convertToOAUTH, {
     onSuccess: (data) => {
-      window.location.href = `/api/v2/users/oidc/callback?oidc_merge_state=${
-        data.state_string
-      }&redirect=${encodeURIComponent(redirectTo)}`
+      redirectToOIDCAuth(data.state_string, encodeURIComponent(redirectTo))
     },
   })
 

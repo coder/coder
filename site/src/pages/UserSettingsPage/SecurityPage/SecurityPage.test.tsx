@@ -12,6 +12,7 @@ import {
   mockApiError,
 } from "testHelpers/entities"
 import userEvent from "@testing-library/user-event"
+import * as SSO from "./SingleSignOnSection"
 import { OAuthConversionResponse } from "api/typesGenerated"
 
 const { t } = i18next
@@ -132,6 +133,10 @@ test("change login type to OIDC", async () => {
       to_type: "oidc",
       user_id: userData.id,
     } as OAuthConversionResponse)
+
+  jest.spyOn(SSO, "redirectToOIDCAuth").mockImplementation(() => {
+    // Does a noop
+  })
 
   const ssoSection = screen.getByTestId("sso-section")
   const githubButton = within(ssoSection).getByText("GitHub", { exact: false })
