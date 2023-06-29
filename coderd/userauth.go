@@ -637,8 +637,8 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	aReq.New = key
 	aReq.UserID = key.UserID
 
-	for i := range cookies {
-		http.SetCookie(rw, cookies[i])
+	for _, cookie := range cookies {
+		http.SetCookie(rw, cookie)
 	}
 
 	redirect := state.Redirect
@@ -1392,8 +1392,8 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 	// will be converted.
 	// nolint:gocritic // system query to update user login type
 	user, err = db.UpdateUserLoginType(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLoginTypeParams{
-		LoginType: params.LoginType,
-		UserID:    user.ID,
+		NewLoginType: params.LoginType,
+		UserID:       user.ID,
 	})
 	if err != nil {
 		return database.User{}, httpError{

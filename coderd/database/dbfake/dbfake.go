@@ -4887,7 +4887,10 @@ func (q *fakeQuerier) UpdateUserLoginType(_ context.Context, arg database.Update
 
 	for i, u := range q.users {
 		if u.ID == arg.UserID {
-			u.LoginType = arg.LoginType
+			u.LoginType = arg.NewLoginType
+			if arg.NewLoginType != database.LoginTypePassword {
+				u.HashedPassword = []byte{}
+			}
 			q.users[i] = u
 			return u, nil
 		}

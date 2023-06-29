@@ -2,7 +2,14 @@
 UPDATE
 	users
 SET
-	login_type = @login_type
+	login_type = @new_login_type,
+	hashed_password = CASE WHEN @new_login_type = 'password' :: login_type THEN
+		users.hashed_password
+	ELSE
+		-- If the login type is not password, then the password should be
+        -- cleared.
+		'':: bytea
+	END
 WHERE
 	id = @user_id RETURNING *;
 

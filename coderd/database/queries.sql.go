@@ -5542,18 +5542,25 @@ const updateUserLoginType = `-- name: UpdateUserLoginType :one
 UPDATE
 	users
 SET
-	login_type = $1
+	login_type = $1,
+	hashed_password = CASE WHEN $1 = 'password' :: login_type THEN
+		users.hashed_password
+	ELSE
+		-- If the login type is not password, then the password should be
+        -- cleared.
+		'':: bytea
+	END
 WHERE
 	id = $2 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at
 `
 
 type UpdateUserLoginTypeParams struct {
-	LoginType LoginType `db:"login_type" json:"login_type"`
-	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	NewLoginType LoginType `db:"new_login_type" json:"new_login_type"`
+	UserID       uuid.UUID `db:"user_id" json:"user_id"`
 }
 
 func (q *sqlQuerier) UpdateUserLoginType(ctx context.Context, arg UpdateUserLoginTypeParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, updateUserLoginType, arg.LoginType, arg.UserID)
+	row := q.db.QueryRowContext(ctx, updateUserLoginType, arg.NewLoginType, arg.UserID)
 	var i User
 	err := row.Scan(
 		&i.ID,
