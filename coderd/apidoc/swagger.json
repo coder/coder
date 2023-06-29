@@ -6583,9 +6583,6 @@
         "disable_session_expiry_refresh": {
           "type": "boolean"
         },
-        "enable_oauth_account_conversion": {
-          "type": "boolean"
-        },
         "enable_terraform_debug_mode": {
           "type": "boolean"
         },
@@ -6752,11 +6749,17 @@
     },
     "codersdk.Experiment": {
       "type": "string",
-      "enum": ["moons", "workspace_actions", "tailnet_pg_coordinator"],
+      "enum": [
+        "moons",
+        "workspace_actions",
+        "tailnet_pg_coordinator",
+        "convert-to-oidc"
+      ],
       "x-enum-varnames": [
         "ExperimentMoons",
         "ExperimentWorkspaceActions",
-        "ExperimentTailnetPGCoordinator"
+        "ExperimentTailnetPGCoordinator",
+        "ExperimentConvertToOIDC"
       ]
     },
     "codersdk.Feature": {

@@ -1891,7 +1891,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "disable_password_auth": true,
     "disable_path_apps": true,
     "disable_session_expiry_refresh": true,
-    "enable_oauth_account_conversion": true,
     "enable_terraform_debug_mode": true,
     "experiments": ["string"],
     "git_auth": {
@@ -2224,7 +2223,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "disable_password_auth": true,
   "disable_path_apps": true,
   "disable_session_expiry_refresh": true,
-  "enable_oauth_account_conversion": true,
   "enable_terraform_debug_mode": true,
   "experiments": ["string"],
   "git_auth": {
@@ -2420,7 +2418,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `disable_password_auth`              | boolean                                                                                    | false    |              |                                                                    |
 | `disable_path_apps`                  | boolean                                                                                    | false    |              |                                                                    |
 | `disable_session_expiry_refresh`     | boolean                                                                                    | false    |              |                                                                    |
-| `enable_oauth_account_conversion`    | boolean                                                                                    | false    |              |                                                                    |
 | `enable_terraform_debug_mode`        | boolean                                                                                    | false    |              |                                                                    |
 | `experiments`                        | array of string                                                                            | false    |              |                                                                    |
 | `git_auth`                           | [clibase.Struct-array_codersdk_GitAuthConfig](#clibasestruct-array_codersdk_gitauthconfig) | false    |              |                                                                    |
@@ -2527,6 +2524,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `moons`                  |
 | `workspace_actions`      |
 | `tailnet_pg_coordinator` |
+| `convert-to-oidc`        |
 
 ## codersdk.Feature
 

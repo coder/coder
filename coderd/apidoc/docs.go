@@ -7373,9 +7373,6 @@ const docTemplate = `{
                 "disable_session_expiry_refresh": {
                     "type": "boolean"
                 },
-                "enable_oauth_account_conversion": {
-                    "type": "boolean"
-                },
                 "enable_terraform_debug_mode": {
                     "type": "boolean"
                 },
@@ -7549,12 +7546,14 @@ const docTemplate = `{
             "enum": [
                 "moons",
                 "workspace_actions",
-                "tailnet_pg_coordinator"
+                "tailnet_pg_coordinator",
+                "convert-to-oidc"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
                 "ExperimentWorkspaceActions",
-                "ExperimentTailnetPGCoordinator"
+                "ExperimentTailnetPGCoordinator",
+                "ExperimentConvertToOIDC"
             ]
         },
         "codersdk.Feature": {
