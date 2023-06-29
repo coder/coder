@@ -51,33 +51,21 @@ func (api *API) regions(rw http.ResponseWriter, r *http.Request) {
 func (api *API) fetchRegions(ctx context.Context) (codersdk.RegionsResponse[codersdk.Region], error) {
 	//nolint:gocritic // this intentionally requests resources that users
 	// cannot usually access in order to give them a full list of available
-	// regions.
+	// regions. Regions are just a data subset of proxies.
 	ctx = dbauthz.AsSystemRestricted(ctx)
-
-	primaryRegion, err := api.AGPL.PrimaryRegion(ctx)
-	if err != nil {
-		return codersdk.RegionsResponse[codersdk.Region]{}, err
-	}
-	regions := []codersdk.Region{primaryRegion}
-
-	proxies, err := api.Database.GetWorkspaceProxies(ctx)
+	proxies, err := api.fetchWorkspaceProxies(ctx)
 	if err != nil {
 		return codersdk.RegionsResponse[codersdk.Region]{}, err
 	}
 
-	// Only add additional regions if the proxy health is enabled.
-	// If it is nil, it is because the moons feature flag is not on.
-	// By default, we still want to return the primary region.
-	if api.ProxyHealth != nil {
-		proxyHealth := api.ProxyHealth.HealthStatus()
-		for _, proxy := range proxies {
-			if proxy.Deleted {
-				continue
-			}
-
-			health := proxyHealth[proxy.ID]
-			regions = append(regions, convertRegion(proxy, health))
+	regions := make([]codersdk.Region, 0, len(proxies.Regions))
+	for i := range proxies.Regions {
+		// Ignore deleted proxies.
+		if proxies.Regions[i].Deleted {
+			continue
 		}
+		// Append the inner region data.
+		regions = append(regions, proxies.Regions[i].Region)
 	}
 
 	return codersdk.RegionsResponse[codersdk.Region]{
@@ -411,25 +399,36 @@ func validateProxyURL(u string) error {
 // @Router /workspaceproxies [get]
 func (api *API) workspaceProxies(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
-	proxies, err := api.Database.GetWorkspaceProxies(ctx)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	proxies, err := api.fetchWorkspaceProxies(r.Context())
+	if err != nil {
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: "You are not authorized to use this endpoint.",
+			})
+		}
 		httpapi.InternalServerError(rw, err)
 		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, proxies)
+}
+
+func (api *API) fetchWorkspaceProxies(ctx context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
+	proxies, err := api.Database.GetWorkspaceProxies(ctx)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		return codersdk.RegionsResponse[codersdk.WorkspaceProxy]{}, err
 	}
 
 	// Add the primary as well
 	primaryProxy, err := api.AGPL.PrimaryWorkspaceProxy(ctx)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		httpapi.InternalServerError(rw, err)
-		return
+		return codersdk.RegionsResponse[codersdk.WorkspaceProxy]{}, err
 	}
 	proxies = append([]database.WorkspaceProxy{primaryProxy}, proxies...)
 
 	statues := api.ProxyHealth.HealthStatus()
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.RegionsResponse[codersdk.WorkspaceProxy]{
+	return codersdk.RegionsResponse[codersdk.WorkspaceProxy]{
 		Regions: convertProxies(proxies, statues),
-	})
+	}, nil
 }
 
 // @Summary Issue signed workspace app token
