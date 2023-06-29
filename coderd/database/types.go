@@ -1,10 +1,9 @@
 package database
 
 import (
+	"database/sql/driver"
 	"encoding/json"
 	"time"
-
-	"database/sql/driver"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
