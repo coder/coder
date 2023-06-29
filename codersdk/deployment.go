@@ -166,6 +166,7 @@ type DeploymentValues struct {
 	WgtunnelHost                    clibase.String                  `json:"wgtunnel_host,omitempty" typescript:",notnull"`
 	DisableOwnerWorkspaceExec       clibase.Bool                    `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
 	ProxyHealthStatusInterval       clibase.Duration                `json:"proxy_health_status_interval,omitempty" typescript:",notnull"`
+	EnableTerraformDebugMode        clibase.Bool                    `json:"enable_terraform_debug_mode,omitempty" typescript:",notnull"`
 
 	Config      clibase.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig clibase.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -1216,10 +1217,20 @@ when required by your organization's security policy.`,
 			YAML:        "stackdriverPath",
 			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
+		{
+			Name:        "Enable Terraform debug mode",
+			Description: "Allow administrators to enable Terraform debug output.",
+			Flag:        "enable-terraform-debug-mode",
+			Env:         "CODER_ENABLE_TERRAFORM_DEBUG_MODE",
+			Default:     "false",
+			Value:       &c.EnableTerraformDebugMode,
+			Group:       &deploymentGroupIntrospectionLogging,
+			YAML:        "enableTerraformDebugMode",
+		},
 		// ☢️ Dangerous settings
 		{
-			Name:        "DANGEROUS: Allow all CORs requests",
-			Description: "For security reasons, CORs requests are blocked except between workspace apps owned by the same user. If external requests are required, setting this to true will set all cors headers as '*'. This should never be used in production.",
+			Name:        "DANGEROUS: Allow all CORS requests",
+			Description: "For security reasons, CORS requests are blocked except between workspace apps owned by the same user. If external requests are required, setting this to true will set all cors headers as '*'. This should never be used in production.",
 			Flag:        "dangerous-allow-cors-requests",
 			Env:         "CODER_DANGEROUS_ALLOW_CORS_REQUESTS",
 			Hidden:      true, // Hidden, should only be used by yarn dev server

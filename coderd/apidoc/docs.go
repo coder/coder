@@ -7374,6 +7374,9 @@ const docTemplate = `{
                 "enable_oauth_account_conversion": {
                     "type": "boolean"
                 },
+                "enable_terraform_debug_mode": {
+                    "type": "boolean"
+                },
                 "experiments": {
                     "type": "array",
                     "items": {

@@ -1626,6 +1626,13 @@ export const MockPermissions: Permissions = {
   viewDeploymentStats: true,
 }
 
+export const MockDeploymentConfig: Types.DeploymentConfig = {
+  config: {
+    enable_terraform_debug_mode: true,
+  },
+  options: [],
+}
+
 export const MockAppearance: TypesGen.AppearanceConfig = {
   logo_url: "",
   service_banner: {
