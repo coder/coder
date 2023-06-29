@@ -216,18 +216,17 @@ func TestTemplatePush(t *testing.T) {
 		}{
 			{match: "Upload", write: "yes"},
 			{match: "Creating a new template"},
-
 		}
 		for _, m := range matches {
 			pty.ExpectMatch(m.match)
 			if len(m.write) > 0 {
 				pty.WriteLine(m.write)
 			}
-		// Assert that the template was created.
-		template, err := client.TemplateByName(ctx, user.OrganizationID, "example")
-		require.NoError(t, err)
-		require.NotNil(t, template.ID)
-	}
+			// Assert that the template was created.
+			template, err := client.TemplateByName(ctx, user.OrganizationID, "example")
+			require.NoError(t, err)
+			require.NotNil(t, template.ID)
+		}
 	})
 
 	t.Run("UseWorkingDir", func(t *testing.T) {

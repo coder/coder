@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"net/http"
 	"path/filepath"
 	"time"
 
@@ -178,6 +179,9 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 
 			template, err := client.TemplateByName(inv.Context(), organization.ID, name)
 			if err != nil {
+				if sdkErr, ok := codersdk.AsError(err); ok && sdkErr.StatusCode() != http.StatusNotFound {
+					return xerrors.Errorf("get template: %w", err)
+				}
 				if !create {
 					_, _ = fmt.Fprintf(inv.Stdout, "Create a new template with `coder templates create %s`.\n", name)
 					_, _ = fmt.Fprintf(inv.Stdout, "Or use `coder templates push %s --create`.\n", name)
@@ -188,7 +192,7 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				failureTTL := 0 * time.Hour
 				inactivityTTL := 0 * time.Hour
 				disableEveryone := false
-				createReq := codersdk.CreateTemplateRequest{Name: name, DefaultTTLMillis: ptr.Ref(defaultTTL.Milliseconds()), FailureTTLMillis: ptr.Ref(failureTTL.Milliseconds()), InactivityTTLMillis: ptr.Ref(inactivityTTL.Milliseconds()), DisableEveryoneGroupAccess: disableEveryone}
+				createReq := codersdk.CreateTemplateRequest{Name: name, VersionID: job.ID, DefaultTTLMillis: ptr.Ref(defaultTTL.Milliseconds()), FailureTTLMillis: ptr.Ref(failureTTL.Milliseconds()), InactivityTTLMillis: ptr.Ref(inactivityTTL.Milliseconds()), DisableEveryoneGroupAccess: disableEveryone}
 				template, err = client.CreateTemplate(inv.Context(), organization.ID, createReq)
 				if err != nil {
 					return err
