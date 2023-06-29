@@ -647,23 +647,23 @@ func TestWorkspaceBuildDebugMode(t *testing.T) {
 		deploymentValues := coderdtest.DeploymentValues(t)
 		deploymentValues.EnableTerraformDebugMode = false
 
-		templateAuthorClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, DeploymentValues: deploymentValues})
-		templateAuthor := coderdtest.CreateFirstUser(t, templateAuthorClient)
+		adminClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, DeploymentValues: deploymentValues})
+		owner := coderdtest.CreateFirstUser(t, adminClient)
 
 		// Template author: create a template
-		version := coderdtest.CreateTemplateVersion(t, templateAuthorClient, templateAuthor.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, templateAuthorClient, templateAuthor.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, templateAuthorClient, version.ID)
+		version := coderdtest.CreateTemplateVersion(t, adminClient, owner.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, adminClient, owner.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, adminClient, version.ID)
 
 		// Template author: create a workspace
-		workspace := coderdtest.CreateWorkspace(t, templateAuthorClient, templateAuthor.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, templateAuthorClient, workspace.LatestBuild.ID)
+		workspace := coderdtest.CreateWorkspace(t, adminClient, owner.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, adminClient, workspace.LatestBuild.ID)
 
 		// Template author: try to start a workspace build in debug mode
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := templateAuthorClient.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		_, err := adminClient.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
 			Transition:        codersdk.WorkspaceTransitionStart,
 			LogLevel:          "debug",
