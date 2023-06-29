@@ -100,6 +100,7 @@ export const checks = {
   readWorkspace: "readWorkspace",
   updateWorkspace: "updateWorkspace",
   updateTemplate: "updateTemplate",
+  viewDeploymentValues: "viewDeploymentValues",
 } as const
 
 const permissionsToCheck = (
@@ -129,6 +130,12 @@ const permissionsToCheck = (
         resource_id: template.id,
       },
       action: "update",
+    },
+    [checks.viewDeploymentValues]: {
+      object: {
+        resource_type: "deployment_config",
+      },
+      action: "read",
     },
   } as const)
 
