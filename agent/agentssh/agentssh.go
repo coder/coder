@@ -347,7 +347,7 @@ func (s *Server) startPTYSession(session ptySession, magicTypeLabel string, cmd 
 	// See https://github.com/coder/coder/issues/3371.
 	session.DisablePTYEmulation()
 
-	if !isQuietLogin(session.RawCommand()) {
+	if isLoginShell(session.RawCommand()) {
 		serviceBanner := s.ServiceBanner.Load()
 		if serviceBanner != nil {
 			err := showServiceBanner(session, serviceBanner)
@@ -356,6 +356,9 @@ func (s *Server) startPTYSession(session ptySession, magicTypeLabel string, cmd 
 				s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "service_banner").Add(1)
 			}
 		}
+	}
+
+	if !isQuietLogin(session.RawCommand()) {
 		manifest := s.Manifest.Load()
 		if manifest != nil {
 			err := showMOTD(session, manifest.MOTDFile)
@@ -753,12 +756,16 @@ func (*Server) Shutdown(_ context.Context) error {
 	return nil
 }
 
+func isLoginShell(rawCommand string) bool {
+	return len(rawCommand) == 0
+}
+
 // isQuietLogin checks if the SSH server should perform a quiet login or not.
 //
 // https://github.com/openssh/openssh-portable/blob/25bd659cc72268f2858c5415740c442ee950049f/session.c#L816
 func isQuietLogin(rawCommand string) bool {
 	// We are always quiet unless this is a login shell.
-	if len(rawCommand) != 0 {
+	if !isLoginShell(rawCommand) {
 		return true
 	}
 

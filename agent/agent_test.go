@@ -457,7 +457,7 @@ func TestAgent_Session_TTY_MOTD_Update(t *testing.T) {
 }
 
 //nolint:paralleltest // This test sets an environment variable.
-func TestAgent_Session_TTY_Hushlogin(t *testing.T) {
+func TestAgent_Session_TTY_QuietLogin(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		// This might be our implementation, or ConPTY itself.
 		// It's difficult to find extensive tests for it, so
@@ -466,45 +466,69 @@ func TestAgent_Session_TTY_Hushlogin(t *testing.T) {
 	}
 
 	wantNotMOTD := "Welcome to your Coder workspace!"
-	wantNotServiceBanner := "Service banner text goes here"
+	wantServiceBanner := "Service banner text goes here"
 
 	tmpdir := t.TempDir()
 	name := filepath.Join(tmpdir, "motd")
 	err := os.WriteFile(name, []byte(wantNotMOTD), 0o600)
 	require.NoError(t, err, "write motd file")
 
-	// Create hushlogin to silence motd.
-	f, err := os.Create(filepath.Join(tmpdir, ".hushlogin"))
-	require.NoError(t, err, "create .hushlogin file")
-	err = f.Close()
-	require.NoError(t, err, "close .hushlogin file")
-
 	// Set HOME so we can ensure ~/.hushlogin is present.
 	t.Setenv("HOME", tmpdir)
 
-	session := setupSSHSession(t, agentsdk.Manifest{
-		MOTDFile: name,
-	}, codersdk.ServiceBannerConfig{
-		Enabled: true,
-		Message: wantNotServiceBanner,
+	// Neither banner nor MOTD should show if not a login shell.
+	t.Run("NotLogin", func(t *testing.T) {
+		wantEcho := "foobar"
+		session := setupSSHSession(t, agentsdk.Manifest{
+			MOTDFile: name,
+		}, codersdk.ServiceBannerConfig{
+			Enabled: true,
+			Message: wantServiceBanner,
+		})
+		err = session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
+		require.NoError(t, err)
+
+		command := "echo " + wantEcho
+		output, err := session.Output(command)
+		require.NoError(t, err)
+
+		require.Contains(t, string(output), wantEcho, "should show echo")
+		require.NotContains(t, string(output), wantNotMOTD, "should not show motd")
+		require.NotContains(t, string(output), wantServiceBanner, "should not show service banner")
+
+		// Create hushlogin to silence motd.
+		f, err := os.Create(filepath.Join(tmpdir, ".hushlogin"))
+		require.NoError(t, err, "create .hushlogin file")
+		err = f.Close()
+		require.NoError(t, err, "close .hushlogin file")
 	})
-	err = session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
-	require.NoError(t, err)
 
-	ptty := ptytest.New(t)
-	var stdout bytes.Buffer
-	session.Stdout = &stdout
-	session.Stderr = ptty.Output()
-	session.Stdin = ptty.Input()
-	err = session.Shell()
-	require.NoError(t, err)
+	// Only the MOTD should be silenced.
+	t.Run("Hushlogin", func(t *testing.T) {
+		session := setupSSHSession(t, agentsdk.Manifest{
+			MOTDFile: name,
+		}, codersdk.ServiceBannerConfig{
+			Enabled: true,
+			Message: wantServiceBanner,
+		})
+		err := session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
+		require.NoError(t, err)
 
-	ptty.WriteLine("exit 0")
-	err = session.Wait()
-	require.NoError(t, err)
+		ptty := ptytest.New(t)
+		var stdout bytes.Buffer
+		session.Stdout = &stdout
+		session.Stderr = ptty.Output()
+		session.Stdin = ptty.Input()
+		err = session.Shell()
+		require.NoError(t, err)
 
-	require.NotContains(t, stdout.String(), wantNotMOTD, "should not show motd")
-	require.NotContains(t, stdout.String(), wantNotServiceBanner, "should not show service banner")
+		ptty.WriteLine("exit 0")
+		err = session.Wait()
+		require.NoError(t, err)
+
+		require.NotContains(t, stdout.String(), wantNotMOTD, "should not show motd")
+		require.Contains(t, stdout.String(), wantServiceBanner, "should show service banner")
+	})
 }
 
 func TestAgent_Session_TTY_FastCommandHasOutput(t *testing.T) {
