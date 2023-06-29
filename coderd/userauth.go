@@ -63,7 +63,7 @@ type OAuthConvertStateClaims struct {
 // @Success 201 {object} codersdk.OAuthConversionResponse
 // @Router /users/{user}/convert-login [post]
 func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
-	if !api.Options.DeploymentValues.EnableOauthAccountConversion.Value() {
+	if !api.Experiments.Enabled(codersdk.ExperimentConvertToOIDC) {
 		httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
 			Message: "Oauth conversion is not allowed, contact an administrator to turn on this feature.",
 		})
@@ -454,7 +454,7 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.AuthMethods{
-		ConvertToOIDCEnabled: api.Options.DeploymentValues.EnableOauthAccountConversion.Value(),
+		ConvertToOIDCEnabled: api.Experiments.Enabled(codersdk.ExperimentConvertToOIDC),
 		Password: codersdk.AuthMethod{
 			Enabled: !api.DeploymentValues.DisablePasswordAuth.Value(),
 		},
@@ -609,16 +609,15 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	params := (&oauthLoginParams{
-		User:                   user,
-		Link:                   link,
-		State:                  state,
-		LinkedID:               githubLinkedID(ghUser),
-		LoginType:              database.LoginTypeGithub,
-		AllowSignups:           api.GithubOAuth2Config.AllowSignups,
-		Email:                  verifiedEmail.GetEmail(),
-		Username:               ghUser.GetLogin(),
-		AvatarURL:              ghUser.GetAvatarURL(),
-		OauthConversionEnabled: api.DeploymentValues.EnableOauthAccountConversion.Value(),
+		User:         user,
+		Link:         link,
+		State:        state,
+		LinkedID:     githubLinkedID(ghUser),
+		LoginType:    database.LoginTypeGithub,
+		AllowSignups: api.GithubOAuth2Config.AllowSignups,
+		Email:        verifiedEmail.GetEmail(),
+		Username:     ghUser.GetLogin(),
+		AvatarURL:    ghUser.GetAvatarURL(),
 	}).SetInitAuditRequest(func(params *audit.RequestParams) (*audit.Request[database.User], func()) {
 		return audit.InitRequest[database.User](rw, params)
 	})
@@ -952,18 +951,17 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	params := (&oauthLoginParams{
-		User:                   user,
-		Link:                   link,
-		State:                  state,
-		LinkedID:               oidcLinkedID(idToken),
-		LoginType:              database.LoginTypeOIDC,
-		AllowSignups:           api.OIDCConfig.AllowSignups,
-		Email:                  email,
-		Username:               username,
-		AvatarURL:              picture,
-		UsingGroups:            usingGroups,
-		Groups:                 groups,
-		OauthConversionEnabled: api.DeploymentValues.EnableOauthAccountConversion.Value(),
+		User:         user,
+		Link:         link,
+		State:        state,
+		LinkedID:     oidcLinkedID(idToken),
+		LoginType:    database.LoginTypeOIDC,
+		AllowSignups: api.OIDCConfig.AllowSignups,
+		Email:        email,
+		Username:     username,
+		AvatarURL:    picture,
+		UsingGroups:  usingGroups,
+		Groups:       groups,
 	}).SetInitAuditRequest(func(params *audit.RequestParams) (*audit.Request[database.User], func()) {
 		return audit.InitRequest[database.User](rw, params)
 	})
@@ -1050,9 +1048,8 @@ type oauthLoginParams struct {
 	AvatarURL    string
 	// Is UsingGroups is true, then the user will be assigned
 	// to the Groups provided.
-	UsingGroups            bool
-	Groups                 []string
-	OauthConversionEnabled bool
+	UsingGroups bool
+	Groups      []string
 
 	commitLock       sync.Mutex
 	initAuditRequest func(params *audit.RequestParams) *audit.Request[database.User]
@@ -1357,7 +1354,7 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 	oauthConvertAudit.Old = user
 
 	// If we do not allow converting to oauth, return an error.
-	if !params.OauthConversionEnabled {
+	if !api.Experiments.Enabled(codersdk.ExperimentConvertToOIDC) {
 		return database.User{}, httpError{
 			code: http.StatusForbidden,
 			msg: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q",
