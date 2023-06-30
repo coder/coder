@@ -104,6 +104,7 @@ export interface AuthMethod {
 
 // From codersdk/users.go
 export interface AuthMethods {
+  readonly convert_to_oidc_enabled: boolean
   readonly password: AuthMethod
   readonly github: AuthMethod
   readonly oidc: OIDCAuthMethod
@@ -137,6 +138,12 @@ export interface BuildInfoResponse {
   readonly version: string
   readonly dashboard_url: string
   readonly workspace_proxy: boolean
+}
+
+// From codersdk/users.go
+export interface ConvertLoginRequest {
+  readonly to_type: LoginType
+  readonly password: string
 }
 
 // From codersdk/users.go
@@ -559,6 +566,14 @@ export interface OAuth2GithubConfig {
   readonly allow_signups: boolean
   readonly allow_everyone: boolean
   readonly enterprise_base_url: string
+}
+
+// From codersdk/users.go
+export interface OAuthConversionResponse {
+  readonly state_string: string
+  readonly expires_at: string
+  readonly to_type: LoginType
+  readonly user_id: string
 }
 
 // From codersdk/users.go
@@ -1083,6 +1098,11 @@ export interface User {
 }
 
 // From codersdk/users.go
+export interface UserLoginType {
+  readonly login_type: LoginType
+}
+
+// From codersdk/users.go
 export interface UserRoles {
   readonly roles: string[]
   readonly organization_roles: Record<string, string[]>
@@ -1399,10 +1419,12 @@ export const Entitlements: Entitlement[] = [
 
 // From codersdk/deployment.go
 export type Experiment =
+  | "convert-to-oidc"
   | "moons"
   | "tailnet_pg_coordinator"
   | "workspace_actions"
 export const Experiments: Experiment[] = [
+  "convert-to-oidc",
   "moons",
   "tailnet_pg_coordinator",
   "workspace_actions",
@@ -1565,6 +1587,7 @@ export const RBACResources: RBACResource[] = [
 // From codersdk/audit.go
 export type ResourceType =
   | "api_key"
+  | "convert_login"
   | "git_ssh_key"
   | "group"
   | "license"
@@ -1575,6 +1598,7 @@ export type ResourceType =
   | "workspace_build"
 export const ResourceTypes: ResourceType[] = [
   "api_key",
+  "convert_login",
   "git_ssh_key",
   "group",
   "license",

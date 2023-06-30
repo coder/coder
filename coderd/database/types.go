@@ -5,10 +5,23 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/rbac"
 )
+
+// AuditOAuthConvertState is never stored in the database. It is stored in a cookie
+// clientside as a JWT. This type is provided for audit logging purposes.
+type AuditOAuthConvertState struct {
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	// The time at which the state string expires, a merge request times out if the user does not perform it quick enough.
+	ExpiresAt     time.Time `db:"expires_at" json:"expires_at"`
+	FromLoginType LoginType `db:"from_login_type" json:"from_login_type"`
+	// The login type the user is converting to. Should be github or oidc.
+	ToLoginType LoginType `db:"to_login_type" json:"to_login_type"`
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+}
 
 type Actions []rbac.Action
 

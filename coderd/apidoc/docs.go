@@ -3252,6 +3252,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/{user}/convert-login": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authorization"
+                ],
+                "summary": "Convert user from password to oauth authentication",
+                "operationId": "convert-user-from-password-to-oauth-authentication",
+                "parameters": [
+                    {
+                        "description": "Convert request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ConvertLoginRequest"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuthConversionResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/users/{user}/gitsshkey": {
             "get": {
                 "security": [
@@ -3581,6 +3627,40 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/users/{user}/login-type": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get user login type",
+                "operationId": "get-user-login-type",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserLoginType"
+                        }
                     }
                 }
             }
@@ -6650,6 +6730,9 @@ const docTemplate = `{
         "codersdk.AuthMethods": {
             "type": "object",
             "properties": {
+                "convert_to_oidc_enabled": {
+                    "type": "boolean"
+                },
                 "github": {
                     "$ref": "#/definitions/codersdk.AuthMethod"
                 },
@@ -6760,6 +6843,26 @@ const docTemplate = `{
                 "BuildReasonAutostart",
                 "BuildReasonAutostop"
             ]
+        },
+        "codersdk.ConvertLoginRequest": {
+            "type": "object",
+            "required": [
+                "password",
+                "to_type"
+            ],
+            "properties": {
+                "password": {
+                    "type": "string"
+                },
+                "to_type": {
+                    "description": "ToType is the login type to convert to.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.LoginType"
+                        }
+                    ]
+                }
+            }
         },
         "codersdk.CreateFirstUserRequest": {
             "type": "object",
@@ -7540,12 +7643,14 @@ const docTemplate = `{
             "enum": [
                 "moons",
                 "workspace_actions",
-                "tailnet_pg_coordinator"
+                "tailnet_pg_coordinator",
+                "convert-to-oidc"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
                 "ExperimentWorkspaceActions",
-                "ExperimentTailnetPGCoordinator"
+                "ExperimentTailnetPGCoordinator",
+                "ExperimentConvertToOIDC"
             ]
         },
         "codersdk.Feature": {
@@ -7996,6 +8101,25 @@ const docTemplate = `{
                 },
                 "enterprise_base_url": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.OAuthConversionResponse": {
+            "type": "object",
+            "properties": {
+                "expires_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "state_string": {
+                    "type": "string"
+                },
+                "to_type": {
+                    "$ref": "#/definitions/codersdk.LoginType"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -8581,7 +8705,8 @@ const docTemplate = `{
                 "git_ssh_key",
                 "api_key",
                 "group",
-                "license"
+                "license",
+                "convert_login"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -8592,7 +8717,8 @@ const docTemplate = `{
                 "ResourceTypeGitSSHKey",
                 "ResourceTypeAPIKey",
                 "ResourceTypeGroup",
-                "ResourceTypeLicense"
+                "ResourceTypeLicense",
+                "ResourceTypeConvertLogin"
             ]
         },
         "codersdk.Response": {
@@ -9374,6 +9500,14 @@ const docTemplate = `{
                 },
                 "username": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.UserLoginType": {
+            "type": "object",
+            "properties": {
+                "login_type": {
+                    "$ref": "#/definitions/codersdk.LoginType"
                 }
             }
         },

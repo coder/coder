@@ -139,7 +139,6 @@ type data struct {
 	workspaceResources        []database.WorkspaceResource
 	workspaces                []database.Workspace
 	workspaceProxies          []database.WorkspaceProxy
-
 	// Locks is a map of lock names. Any keys within the map are currently
 	// locked.
 	locks                   map[int64]struct{}
@@ -149,6 +148,7 @@ type data struct {
 	serviceBanner           []byte
 	logoURL                 string
 	appSecurityKey          string
+	oauthSigningKey         string
 	lastLicenseID           int32
 	defaultProxyDisplayName string
 	defaultProxyIconURL     string
@@ -1866,6 +1866,13 @@ func (q *fakeQuerier) GetLogoURL(_ context.Context) (string, error) {
 	}
 
 	return q.logoURL, nil
+}
+
+func (q *fakeQuerier) GetOAuthSigningKey(_ context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	return q.oauthSigningKey, nil
 }
 
 func (q *fakeQuerier) GetOrganizationByID(_ context.Context, id uuid.UUID) (database.Organization, error) {
@@ -4877,6 +4884,27 @@ func (q *fakeQuerier) UpdateUserLinkedID(_ context.Context, params database.Upda
 	return database.UserLink{}, sql.ErrNoRows
 }
 
+func (q *fakeQuerier) UpdateUserLoginType(_ context.Context, arg database.UpdateUserLoginTypeParams) (database.User, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return database.User{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, u := range q.users {
+		if u.ID == arg.UserID {
+			u.LoginType = arg.NewLoginType
+			if arg.NewLoginType != database.LoginTypePassword {
+				u.HashedPassword = []byte{}
+			}
+			q.users[i] = u
+			return u, nil
+		}
+	}
+	return database.User{}, sql.ErrNoRows
+}
+
 func (q *fakeQuerier) UpdateUserProfile(_ context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.User{}, err
@@ -5331,6 +5359,14 @@ func (q *fakeQuerier) UpsertLogoURL(_ context.Context, data string) error {
 	defer q.mutex.RUnlock()
 
 	q.logoURL = data
+	return nil
+}
+
+func (q *fakeQuerier) UpsertOAuthSigningKey(_ context.Context, value string) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.oauthSigningKey = value
 	return nil
 }
 

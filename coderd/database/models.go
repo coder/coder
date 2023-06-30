@@ -891,6 +891,7 @@ const (
 	ResourceTypeWorkspaceBuild  ResourceType = "workspace_build"
 	ResourceTypeLicense         ResourceType = "license"
 	ResourceTypeWorkspaceProxy  ResourceType = "workspace_proxy"
+	ResourceTypeConvertLogin    ResourceType = "convert_login"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -940,7 +941,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeGroup,
 		ResourceTypeWorkspaceBuild,
 		ResourceTypeLicense,
-		ResourceTypeWorkspaceProxy:
+		ResourceTypeWorkspaceProxy,
+		ResourceTypeConvertLogin:
 		return true
 	}
 	return false
@@ -959,6 +961,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeWorkspaceBuild,
 		ResourceTypeLicense,
 		ResourceTypeWorkspaceProxy,
+		ResourceTypeConvertLogin,
 	}
 }
 

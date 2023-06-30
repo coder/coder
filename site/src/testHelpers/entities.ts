@@ -1023,6 +1023,13 @@ export const MockAuthMethods: TypesGen.AuthMethods = {
   password: { enabled: true },
   github: { enabled: false },
   oidc: { enabled: false, signInText: "", iconUrl: "" },
+  convert_to_oidc_enabled: true,
+}
+
+export const MockAuthMethodsWithPasswordType: TypesGen.AuthMethods = {
+  ...MockAuthMethods,
+  github: { enabled: true },
+  oidc: { enabled: true, signInText: "", iconUrl: "" },
 }
 
 export const MockGitSSHKey: TypesGen.GitSSHKey = {
@@ -1502,6 +1509,42 @@ export const MockAuditLogGitSSH: TypesGen.AuditLog = {
     public_key: {
       old: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINRUPjBSNtOAnL22+r07OSu9t3Lnm8/5OX8bRHECKS9g\n",
       new: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEwoUPJPMekuSzMZyV0rA82TGGNzw/Uj/dhLbwiczTpV\n",
+      secret: false,
+    },
+  },
+}
+
+export const MockAuditOauthConvert: TypesGen.AuditLog = {
+  ...MockAuditLog,
+  resource_type: "convert_login",
+  resource_target: "oidc",
+  action: "create",
+  status_code: 201,
+  description: "{user} created login type conversion to {target}}",
+  diff: {
+    created_at: {
+      old: "0001-01-01T00:00:00Z",
+      new: "2023-06-20T20:44:54.243019Z",
+      secret: false,
+    },
+    expires_at: {
+      old: "0001-01-01T00:00:00Z",
+      new: "2023-06-20T20:49:54.243019Z",
+      secret: false,
+    },
+    state_string: {
+      old: "",
+      new: "",
+      secret: true,
+    },
+    to_type: {
+      old: "",
+      new: "oidc",
+      secret: false,
+    },
+    user_id: {
+      old: "",
+      new: "dc790496-eaec-4f88-a53f-8ce1f61a1fff",
       secret: false,
     },
   },

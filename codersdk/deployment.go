@@ -1759,6 +1759,10 @@ const (
 	// only Coordinator
 	ExperimentTailnetPGCoordinator Experiment = "tailnet_pg_coordinator"
 
+	// ExperimentConvertToOIDC enables users to convert from password to
+	// oidc.
+	ExperimentConvertToOIDC Experiment = "convert-to-oidc"
+
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"
 )

@@ -1113,6 +1113,7 @@
 
 ```json
 {
+  "convert_to_oidc_enabled": true,
   "github": {
     "enabled": true
   },
@@ -1129,11 +1130,12 @@
 
 ### Properties
 
-| Name       | Type                                               | Required | Restrictions | Description |
-| ---------- | -------------------------------------------------- | -------- | ------------ | ----------- |
-| `github`   | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
-| `oidc`     | [codersdk.OIDCAuthMethod](#codersdkoidcauthmethod) | false    |              |             |
-| `password` | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
+| Name                      | Type                                               | Required | Restrictions | Description |
+| ------------------------- | -------------------------------------------------- | -------- | ------------ | ----------- |
+| `convert_to_oidc_enabled` | boolean                                            | false    |              |             |
+| `github`                  | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
+| `oidc`                    | [codersdk.OIDCAuthMethod](#codersdkoidcauthmethod) | false    |              |             |
+| `password`                | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
 
 ## codersdk.AuthorizationCheck
 
@@ -1273,6 +1275,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `initiator` |
 | `autostart` |
 | `autostop`  |
+
+## codersdk.ConvertLoginRequest
+
+```json
+{
+  "password": "string",
+  "to_type": "password"
+}
+```
+
+### Properties
+
+| Name       | Type                                     | Required | Restrictions | Description                              |
+| ---------- | ---------------------------------------- | -------- | ------------ | ---------------------------------------- |
+| `password` | string                                   | true     |              |                                          |
+| `to_type`  | [codersdk.LoginType](#codersdklogintype) | true     |              | To type is the login type to convert to. |
 
 ## codersdk.CreateFirstUserRequest
 
@@ -2518,6 +2536,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `moons`                  |
 | `workspace_actions`      |
 | `tailnet_pg_coordinator` |
+| `convert-to-oidc`        |
 
 ## codersdk.Feature
 
@@ -3056,6 +3075,26 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `client_id`           | string          | false    |              |             |
 | `client_secret`       | string          | false    |              |             |
 | `enterprise_base_url` | string          | false    |              |             |
+
+## codersdk.OAuthConversionResponse
+
+```json
+{
+  "expires_at": "2019-08-24T14:15:22Z",
+  "state_string": "string",
+  "to_type": "password",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Properties
+
+| Name           | Type                                     | Required | Restrictions | Description |
+| -------------- | ---------------------------------------- | -------- | ------------ | ----------- |
+| `expires_at`   | string                                   | false    |              |             |
+| `state_string` | string                                   | false    |              |             |
+| `to_type`      | [codersdk.LoginType](#codersdklogintype) | false    |              |             |
+| `user_id`      | string                                   | false    |              |             |
 
 ## codersdk.OIDCAuthMethod
 
@@ -3638,6 +3677,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `api_key`          |
 | `group`            |
 | `license`          |
+| `convert_login`    |
 
 ## codersdk.Response
 
@@ -4526,6 +4566,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | -------- | ----------- |
 | `status` | `active`    |
 | `status` | `suspended` |
+
+## codersdk.UserLoginType
+
+```json
+{
+  "login_type": "password"
+}
+```
+
+### Properties
+
+| Name         | Type                                     | Required | Restrictions | Description |
+| ------------ | ---------------------------------------- | -------- | ------------ | ----------- |
+| `login_type` | [codersdk.LoginType](#codersdklogintype) | false    |              |             |
 
 ## codersdk.UserStatus
 

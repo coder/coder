@@ -108,6 +108,14 @@ export const login = async (
   return response.data
 }
 
+export const convertToOAUTH = async (request: TypesGen.ConvertLoginRequest) => {
+  const response = await axios.post<TypesGen.OAuthConversionResponse>(
+    "/api/v2/users/me/convert-login",
+    request,
+  )
+  return response.data
+}
+
 export const logout = async (): Promise<void> => {
   await axios.post("/api/v2/users/logout")
 }
@@ -130,6 +138,13 @@ export const getAuthenticatedUser = async (): Promise<
 export const getAuthMethods = async (): Promise<TypesGen.AuthMethods> => {
   const response = await axios.get<TypesGen.AuthMethods>(
     "/api/v2/users/authmethods",
+  )
+  return response.data
+}
+
+export const getUserLoginType = async (): Promise<TypesGen.UserLoginType> => {
+  const response = await axios.get<TypesGen.UserLoginType>(
+    "/api/v2/users/me/login-type",
   )
   return response.data
 }
