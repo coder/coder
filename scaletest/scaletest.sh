@@ -18,7 +18,7 @@ SCALETEST_CODER_LICENSE="${SCALETEST_CODER_LICENSE:-}"
 SCALETEST_SKIP_CLEANUP="${SCALETEST_SKIP_CLEANUP:-0}"
 SCALETEST_CREATE_CONCURRENCY="${SCALETEST_CREATE_CONCURRENCY:-10}"
 SCALETEST_TRAFFIC_BYTES_PER_TICK="${SCALETEST_TRAFFIC_BYTES_PER_TICK:-1024}"
-SCALETEST_TRAFFIC_TICK_INTERVAL="${SCALETEST_TRAFFIC_TICK_INTERVAL:-10}"
+SCALETEST_TRAFFIC_TICK_INTERVAL="${SCALETEST_TRAFFIC_TICK_INTERVAL:-10s}"
 SCALETEST_DESTROY="${SCALETEST_DESTROY:-0}"
 
 script_name=$(basename "$0")
@@ -39,7 +39,7 @@ while true; do
 		shift
 		;;
 	--help)
-		echo "Usage: $script_name --name <name> --project <project> --num-workspaces <num-workspaces> --scenario <scenario> [--destroy] [--dry-run] [--skip-cleanup] [--create-concurrency=<create-concurrency>]"
+		echo "Usage: $script_name --name <name> --project <project> --num-workspaces <num-workspaces> --scenario <scenario> [--create-concurrency <create-concurrency>] [--destroy] [--dry-run] [--skip-cleanup] [--traffic-bytes-per-tick <number>] [--traffic-tick-interval <duration>]"
 		exit 1
 		;;
 	--name)
@@ -156,7 +156,21 @@ else
 fi
 KUBECONFIG="${PROJECT_ROOT}/scaletest/.coderv2/${SCALETEST_NAME}-cluster.kubeconfig"
 echo "Waiting for Coder deployment at ${SCALETEST_CODER_URL} to become ready"
-maybedryrun "$DRY_RUN" kubectl --kubeconfig="${KUBECONFIG}" -n "coder-${SCALETEST_NAME}" rollout status deployment/coder
+max_attempts=10
+for attempt in $(seq 1 $max_attempts); do
+	maybedryrun "$DRY_RUN" curl --silent --fail --output /dev/null "${SCALETEST_CODER_URL}/api/v2/buildinfo"
+	curl_status=$?
+	if [[ $curl_status -eq 0 ]]; then
+		break
+	fi
+	if attempt -eq $max_attempts; then
+		echo
+		echo "Coder deployment failed to become ready in time!"
+		exit 1
+	fi
+	echo "Coder deployment not ready yet (${attempt}/${max_attempts}), sleeping 3 seconds"
+	maybedryrun "$DRY_RUN" sleep 3
+done
 
 echo "Initializing Coder deployment."
 DRY_RUN="$DRY_RUN" "${PROJECT_ROOT}/scaletest/lib/coder_init.sh" "${SCALETEST_CODER_URL}"
