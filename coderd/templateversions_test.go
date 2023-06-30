@@ -1301,7 +1301,7 @@ func TestTemplateVersionParameters_Order(t *testing.T) {
 		firstParameterValue = "aaa"
 		// no order
 
-		secondParameterName  = "second_parameter"
+		secondParameterName  = "Second_parameter"
 		secondParameterType  = "number"
 		secondParameterValue = "2"
 		secondParameterOrder = 3
@@ -1311,12 +1311,12 @@ func TestTemplateVersionParameters_Order(t *testing.T) {
 		thirdParameterValue = "3"
 		thirdParameterOrder = 3
 
-		fourthParameterName  = "fourth_parameter"
+		fourthParameterName  = "Fourth_parameter"
 		fourthParameterType  = "number"
 		fourthParameterValue = "3"
 		fourthParameterOrder = 2
 
-		fifthParameterName  = "fifth_parameter"
+		fifthParameterName  = "Fifth_parameter"
 		fifthParameterType  = "string"
 		fifthParameterValue = "aaa"
 		// no order

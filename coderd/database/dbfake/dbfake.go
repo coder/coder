@@ -2414,7 +2414,7 @@ func (q *fakeQuerier) GetTemplateVersionParameters(_ context.Context, templateVe
 		if parameters[i].DisplayOrder != parameters[j].DisplayOrder {
 			return parameters[i].DisplayOrder < parameters[j].DisplayOrder
 		}
-		return parameters[i].Name < parameters[j].Name
+		return strings.ToLower(parameters[i].Name) < strings.ToLower(parameters[j].Name)
 	})
 	return parameters, nil
 }

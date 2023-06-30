@@ -41,4 +41,4 @@ VALUES
     ) RETURNING *;
 
 -- name: GetTemplateVersionParameters :many
-SELECT * FROM template_version_parameters WHERE template_version_id = $1 ORDER BY display_order ASC, name ASC;
+SELECT * FROM template_version_parameters WHERE template_version_id = $1 ORDER BY display_order ASC, LOWER(name) ASC;
