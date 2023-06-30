@@ -51,6 +51,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 		Short:      "Authenticate with Coder deployment",
 		Middleware: clibase.RequireRangeArgs(0, 1),
 		Handler: func(inv *clibase.Invocation) error {
+			ctx := inv.Context()
 			rawURL := ""
 			if len(inv.Args) == 0 {
 				rawURL = r.clientURL.String()
@@ -89,7 +90,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 				_, _ = fmt.Fprintln(inv.Stderr, cliui.DefaultStyles.Warn.Render(err.Error()))
 			}
 
-			hasInitialUser, err := client.HasFirstUser(inv.Context())
+			hasInitialUser, err := client.HasFirstUser(ctx)
 			if err != nil {
 				return xerrors.Errorf("Failed to check server %q for first user, is the URL correct and is coder accessible from your browser? Error - has initial user: %w", serverURL.String(), err)
 			}
@@ -182,7 +183,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 					trial = v == "yes" || v == "y"
 				}
 
-				_, err = client.CreateFirstUser(inv.Context(), codersdk.CreateFirstUserRequest{
+				_, err = client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
 					Email:    email,
 					Username: username,
 					Password: password,
@@ -191,7 +192,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 				if err != nil {
 					return xerrors.Errorf("create initial user: %w", err)
 				}
-				resp, err := client.LoginWithPassword(inv.Context(), codersdk.LoginWithPasswordRequest{
+				resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 					Email:    email,
 					Password: password,
 				})
@@ -235,7 +236,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 					Secret: true,
 					Validate: func(token string) error {
 						client.SetSessionToken(token)
-						_, err := client.User(inv.Context(), codersdk.Me)
+						_, err := client.User(ctx, codersdk.Me)
 						if err != nil {
 							return xerrors.New("That's not a valid token!")
 						}
@@ -245,11 +246,27 @@ func (r *RootCmd) login() *clibase.Cmd {
 				if err != nil {
 					return xerrors.Errorf("paste token prompt: %w", err)
 				}
+			} else {
+				// If a session token is provided on the cli, use it to generate
+				// a new one. This is because the cli `--token` flag provides
+				// a token for the command being invoked. We should not store
+				// this token, and `/logout` should not delete it.
+				// /login should generate a new token and store that.
+				client.SetSessionToken(sessionToken)
+				// Use CreateAPIKey over CreateToken because this is a session
+				// key that should not show on the `tokens` page. This should
+				// match the same behavior of the `/cli-auth` page for generating
+				// a session token.
+				key, err := client.CreateAPIKey(ctx, "me")
+				if err != nil {
+					return xerrors.Errorf("create api key: %w", err)
+				}
+				sessionToken = key.Key
 			}
 
 			// Login to get user data - verify it is OK before persisting
 			client.SetSessionToken(sessionToken)
-			resp, err := client.User(inv.Context(), codersdk.Me)
+			resp, err := client.User(ctx, codersdk.Me)
 			if err != nil {
 				return xerrors.Errorf("get user: %w", err)
 			}
