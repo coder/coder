@@ -966,13 +966,23 @@ export const getFile = async (fileId: string): Promise<ArrayBuffer> => {
   return response.data
 }
 
-export const getWorkspaceProxies =
-  async (): Promise<TypesGen.RegionsResponse> => {
-    const response = await axios.get<TypesGen.RegionsResponse>(
-      `/api/v2/regions`,
-    )
-    return response.data
-  }
+export const getWorkspaceProxyRegions = async (): Promise<
+  TypesGen.RegionsResponse<TypesGen.Region>
+> => {
+  const response = await axios.get<TypesGen.RegionsResponse<TypesGen.Region>>(
+    `/api/v2/regions`,
+  )
+  return response.data
+}
+
+export const getWorkspaceProxies = async (): Promise<
+  TypesGen.RegionsResponse<TypesGen.WorkspaceProxy>
+> => {
+  const response = await axios.get<
+    TypesGen.RegionsResponse<TypesGen.WorkspaceProxy>
+  >(`/api/v2/workspaceproxies`)
+  return response.data
+}
 
 export const getAppearance = async (): Promise<TypesGen.AppearanceConfig> => {
   try {

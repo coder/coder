@@ -584,7 +584,7 @@ type TypescriptType struct {
 	// Example: 'C = comparable'.
 	GenericTypes map[string]string
 	// GenericValue is the value using the Generic name, rather than the constraint.
-	// This is only usedful if you can use the generic syntax. Things like maps
+	// This is only useful if you can use the generic syntax. Things like maps
 	// don't currently support this, and will use the ValueType instead.
 	// Example:
 	//	Given the Golang
@@ -667,9 +667,14 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		}
 		aboveTypeLine = aboveTypeLine + valueType.AboveTypeLine
 
+		mergeGens := keyType.GenericTypes
+		for k, v := range valueType.GenericTypes {
+			mergeGens[k] = v
+		}
 		return TypescriptType{
 			ValueType:     fmt.Sprintf("Record<%s, %s>", keyType.ValueType, valueType.ValueType),
 			AboveTypeLine: aboveTypeLine,
+			GenericTypes:  mergeGens,
 		}, nil
 	case *types.Slice, *types.Array:
 		// Slice/Arrays are pretty much the same.
@@ -691,7 +696,16 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			if err != nil {
 				return TypescriptType{}, xerrors.Errorf("array: %w", err)
 			}
-			return TypescriptType{ValueType: underlying.ValueType + "[]", AboveTypeLine: underlying.AboveTypeLine}, nil
+			genValue := ""
+			if underlying.GenericValue != "" {
+				genValue = underlying.GenericValue + "[]"
+			}
+			return TypescriptType{
+				ValueType:     underlying.ValueType + "[]",
+				GenericValue:  genValue,
+				AboveTypeLine: underlying.AboveTypeLine,
+				GenericTypes:  underlying.GenericTypes,
+			}, nil
 		}
 	case *types.Named:
 		n := ty

@@ -18,6 +18,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd"
 	agplaudit "github.com/coder/coder/coderd/audit"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
@@ -67,7 +68,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 
 	api.AGPL.Options.SetUserGroups = api.setUserGroups
 	api.AGPL.SiteHandler.AppearanceFetcher = api.fetchAppearanceConfig
-	api.AGPL.SiteHandler.RegionsFetcher = api.fetchRegions
+	api.AGPL.SiteHandler.RegionsFetcher = func(ctx context.Context) (any, error) {
+		// If the user can read the workspace proxy resource, return that.
+		// If not, always default to the regions.
+		actor, ok := dbauthz.ActorFromContext(ctx)
+		if ok && api.Authorizer.Authorize(ctx, actor, rbac.ActionRead, rbac.ResourceWorkspaceProxy) == nil {
+			return api.fetchWorkspaceProxies(ctx)
+		}
+		return api.fetchRegions(ctx)
+	}
 
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
