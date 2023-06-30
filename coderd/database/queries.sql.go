@@ -3218,6 +3218,17 @@ func (q *sqlQuerier) GetLogoURL(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getOAuthSigningKey = `-- name: GetOAuthSigningKey :one
+SELECT value FROM site_configs WHERE key = 'oauth_signing_key'
+`
+
+func (q *sqlQuerier) GetOAuthSigningKey(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getOAuthSigningKey)
+	var value string
+	err := row.Scan(&value)
+	return value, err
+}
+
 const getServiceBanner = `-- name: GetServiceBanner :one
 SELECT value FROM site_configs WHERE key = 'service_banner'
 `
@@ -3297,6 +3308,16 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'logo_url'
 
 func (q *sqlQuerier) UpsertLogoURL(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertLogoURL, value)
+	return err
+}
+
+const upsertOAuthSigningKey = `-- name: UpsertOAuthSigningKey :exec
+INSERT INTO site_configs (key, value) VALUES ('oauth_signing_key', $1)
+ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'oauth_signing_key'
+`
+
+func (q *sqlQuerier) UpsertOAuthSigningKey(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertOAuthSigningKey, value)
 	return err
 }
 
@@ -4153,7 +4174,7 @@ func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateT
 }
 
 const getTemplateVersionParameters = `-- name: GetTemplateVersionParameters :many
-SELECT template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, legacy_variable_name, display_name FROM template_version_parameters WHERE template_version_id = $1
+SELECT template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, legacy_variable_name, display_name, display_order FROM template_version_parameters WHERE template_version_id = $1 ORDER BY display_order ASC, LOWER(name) ASC
 `
 
 func (q *sqlQuerier) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionParameter, error) {
@@ -4182,6 +4203,7 @@ func (q *sqlQuerier) GetTemplateVersionParameters(ctx context.Context, templateV
 			&i.Required,
 			&i.LegacyVariableName,
 			&i.DisplayName,
+			&i.DisplayOrder,
 		); err != nil {
 			return nil, err
 		}
@@ -4214,7 +4236,8 @@ INSERT INTO
         validation_monotonic,
         required,
         legacy_variable_name,
-        display_name
+        display_name,
+        display_order
     )
 VALUES
     (
@@ -4233,8 +4256,9 @@ VALUES
         $13,
         $14,
         $15,
-		$16
-    ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, legacy_variable_name, display_name
+        $16,
+        $17
+    ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, legacy_variable_name, display_name, display_order
 `
 
 type InsertTemplateVersionParameterParams struct {
@@ -4254,6 +4278,7 @@ type InsertTemplateVersionParameterParams struct {
 	Required            bool            `db:"required" json:"required"`
 	LegacyVariableName  string          `db:"legacy_variable_name" json:"legacy_variable_name"`
 	DisplayName         string          `db:"display_name" json:"display_name"`
+	DisplayOrder        int32           `db:"display_order" json:"display_order"`
 }
 
 func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg InsertTemplateVersionParameterParams) (TemplateVersionParameter, error) {
@@ -4274,6 +4299,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		arg.Required,
 		arg.LegacyVariableName,
 		arg.DisplayName,
+		arg.DisplayOrder,
 	)
 	var i TemplateVersionParameter
 	err := row.Scan(
@@ -4293,6 +4319,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		&i.Required,
 		&i.LegacyVariableName,
 		&i.DisplayName,
+		&i.DisplayOrder,
 	)
 	return i, err
 }
@@ -4993,7 +5020,7 @@ SELECT
 FROM
 	users
 WHERE
-    status = 'active'::user_status AND deleted = false
+	status = 'active'::user_status AND deleted = false
 `
 
 func (q *sqlQuerier) GetActiveUserCount(ctx context.Context) (int64, error) {
@@ -5245,9 +5272,9 @@ WHERE
 	-- Filter by rbac_roles
 	AND CASE
 		-- @rbac_role allows filtering by rbac roles. If 'member' is included, show everyone, as
-	    -- everyone is a member.
+		-- everyone is a member.
 		WHEN cardinality($4 :: text[]) > 0 AND 'member' != ANY($4 :: text[]) THEN
-		    rbac_roles && $4 :: text[]
+			rbac_roles && $4 :: text[]
 		ELSE true
 	END
 	-- Filter by last_seen
@@ -5499,6 +5526,47 @@ type UpdateUserLastSeenAtParams struct {
 
 func (q *sqlQuerier) UpdateUserLastSeenAt(ctx context.Context, arg UpdateUserLastSeenAtParams) (User, error) {
 	row := q.db.QueryRowContext(ctx, updateUserLastSeenAt, arg.ID, arg.LastSeenAt, arg.UpdatedAt)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Username,
+		&i.HashedPassword,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.RBACRoles,
+		&i.LoginType,
+		&i.AvatarURL,
+		&i.Deleted,
+		&i.LastSeenAt,
+	)
+	return i, err
+}
+
+const updateUserLoginType = `-- name: UpdateUserLoginType :one
+UPDATE
+	users
+SET
+	login_type = $1,
+	hashed_password = CASE WHEN $1 = 'password' :: login_type THEN
+		users.hashed_password
+	ELSE
+		-- If the login type is not password, then the password should be
+        -- cleared.
+		'':: bytea
+	END
+WHERE
+	id = $2 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at
+`
+
+type UpdateUserLoginTypeParams struct {
+	NewLoginType LoginType `db:"new_login_type" json:"new_login_type"`
+	UserID       uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+func (q *sqlQuerier) UpdateUserLoginType(ctx context.Context, arg UpdateUserLoginTypeParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUserLoginType, arg.NewLoginType, arg.UserID)
 	var i User
 	err := row.Scan(
 		&i.ID,

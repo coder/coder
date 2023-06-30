@@ -82,7 +82,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
     validationSchema,
     onSubmit: () => {
       if (
-        form.values.inactivity_cleanup_enabled &&
+        form.values.locked_cleanup_enabled &&
         workspacesToBeDeletedToday &&
         workspacesToBeDeletedToday.length > 0
       ) {
@@ -100,7 +100,10 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
   const { t } = useTranslation("templateSettingsPage")
   const styles = useStyles()
 
-  const workspacesToBeDeletedToday = useWorkspacesToBeDeleted(form.values)
+  const workspacesToBeDeletedToday = useWorkspacesToBeDeleted(
+    form.values,
+    template.name,
+  )
 
   const [isInactivityDialogOpen, setIsInactivityDialogOpen] =
     useState<boolean>(false)
@@ -305,6 +308,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                     onChange={handleToggleFailureCleanup}
                   />
                 }
+                disabled={isSubmitting}
                 label="Enable Failure Cleanup"
               />
               <TextField
@@ -337,6 +341,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                     onChange={handleToggleInactivityCleanup}
                   />
                 }
+                disabled={isSubmitting}
                 label="Enable Inactivity Cleanup"
               />
               <TextField
@@ -371,6 +376,9 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                     onChange={handleToggleLockedCleanup}
                   />
                 }
+                disabled={
+                  isSubmitting || !form.values.inactivity_cleanup_enabled
+                }
                 label="Enable Locked Cleanup"
               />
               <TextField
@@ -396,7 +404,9 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         submitValues={submitValues}
         isInactivityDialogOpen={isInactivityDialogOpen}
         setIsInactivityDialogOpen={setIsInactivityDialogOpen}
-        workspacesToBeDeletedToday={workspacesToBeDeletedToday?.length ?? 0}
+        numberWorkspacesToBeDeletedToday={
+          workspacesToBeDeletedToday?.length ?? 0
+        }
       />
       <FormFooter
         onCancel={onCancel}

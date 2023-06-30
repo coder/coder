@@ -10,13 +10,24 @@ locals {
 }
 
 # Create a namespace to hold our Prometheus deployment.
-resource "kubernetes_namespace" "prometheus_namespace" {
-  metadata {
-    name = local.prometheus_namespace
+resource "null_resource" "prometheus_namespace" {
+  triggers = {
+    namespace       = local.prometheus_namespace
+    kubeconfig_path = local.cluster_kubeconfig_path
   }
   depends_on = [
     google_container_node_pool.misc
   ]
+  provisioner "local-exec" {
+    when    = create
+    command = <<EOF
+      KUBECONFIG=${self.triggers.kubeconfig_path} kubectl create namespace ${self.triggers.namespace}
+    EOF
+  }
+  provisioner "local-exec" {
+    when    = destroy
+    command = "true"
+  }
 }
 
 # Create a secret to store the remote write key
@@ -25,7 +36,7 @@ resource "kubernetes_secret" "prometheus-credentials" {
   type  = "kubernetes.io/basic-auth"
   metadata {
     name      = "prometheus-credentials"
-    namespace = kubernetes_namespace.prometheus_namespace.metadata.0.name
+    namespace = local.prometheus_namespace
   }
 
   data = {
@@ -39,7 +50,8 @@ resource "helm_release" "prometheus-chart" {
   repository = local.prometheus_helm_repo
   chart      = local.prometheus_helm_chart
   name       = local.prometheus_release_name
-  namespace  = kubernetes_namespace.prometheus_namespace.metadata.0.name
+  namespace  = local.prometheus_namespace
+  depends_on = [null_resource.prometheus_namespace]
   values = [<<EOF
 alertmanager:
   enabled: false
@@ -102,8 +114,9 @@ resource "kubernetes_secret" "prometheus-postgres-password" {
   type = "kubernetes.io/basic-auth"
   metadata {
     name      = "prometheus-postgres"
-    namespace = kubernetes_namespace.prometheus_namespace.metadata.0.name
+    namespace = local.prometheus_namespace
   }
+  depends_on = [null_resource.prometheus_namespace]
   data = {
     username = google_sql_user.prometheus.name
     password = google_sql_user.prometheus.password
@@ -152,7 +165,7 @@ resource "local_file" "coder-monitoring-manifest" {
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
-  namespace: ${kubernetes_namespace.coder_namespace.metadata.0.name}
+  namespace: ${local.prometheus_namespace}
   name: coder-monitoring
 spec:
   selector:
@@ -168,8 +181,7 @@ resource "null_resource" "coder-monitoring-manifest_apply" {
   provisioner "local-exec" {
     working_dir = "${abspath(path.module)}/../.coderv2"
     command     = <<EOF
-KUBECONFIG=${var.name}-cluster.kubeconfig gcloud container clusters get-credentials ${google_container_cluster.primary.name} --project=${var.project_id} --zone=${var.zone} && \
-KUBECONFIG=${var.name}-cluster.kubeconfig kubectl apply -f ${abspath(local_file.coder-monitoring-manifest.filename)}
+KUBECONFIG=${local.cluster_kubeconfig_path} kubectl apply -f ${abspath(local_file.coder-monitoring-manifest.filename)}
     EOF
   }
   depends_on = [helm_release.prometheus-chart]

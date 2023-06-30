@@ -455,6 +455,13 @@ func (m metricsStore) GetLogoURL(ctx context.Context) (string, error) {
 	return url, err
 }
 
+func (m metricsStore) GetOAuthSigningKey(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOAuthSigningKey(ctx)
+	m.queryLatencies.WithLabelValues("GetOAuthSigningKey").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {
 	start := time.Now()
 	organization, err := m.s.GetOrganizationByID(ctx, id)
@@ -1426,6 +1433,13 @@ func (m metricsStore) UpdateUserLinkedID(ctx context.Context, arg database.Updat
 	return link, err
 }
 
+func (m metricsStore) UpdateUserLoginType(ctx context.Context, arg database.UpdateUserLoginTypeParams) (database.User, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserLoginType(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserLoginType").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) UpdateUserProfile(ctx context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
 	start := time.Now()
 	user, err := m.s.UpdateUserProfile(ctx, arg)
@@ -1591,6 +1605,13 @@ func (m metricsStore) UpsertLogoURL(ctx context.Context, value string) error {
 	start := time.Now()
 	r0 := m.s.UpsertLogoURL(ctx, value)
 	m.queryLatencies.WithLabelValues("UpsertLogoURL").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m metricsStore) UpsertOAuthSigningKey(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.UpsertOAuthSigningKey(ctx, value)
+	m.queryLatencies.WithLabelValues("UpsertOAuthSigningKey").Observe(time.Since(start).Seconds())
 	return r0
 }
 

@@ -36,14 +36,15 @@ func NewClient(t testing.TB,
 }
 
 type Client struct {
-	t                  testing.TB
-	agentID            uuid.UUID
-	manifest           agentsdk.Manifest
-	metadata           map[string]agentsdk.PostMetadataRequest
-	statsChan          chan *agentsdk.Stats
-	coordinator        tailnet.Coordinator
-	LastWorkspaceAgent func()
-	PatchWorkspaceLogs func() error
+	t                    testing.TB
+	agentID              uuid.UUID
+	manifest             agentsdk.Manifest
+	metadata             map[string]agentsdk.PostMetadataRequest
+	statsChan            chan *agentsdk.Stats
+	coordinator          tailnet.Coordinator
+	LastWorkspaceAgent   func()
+	PatchWorkspaceLogs   func() error
+	GetServiceBannerFunc func() (codersdk.ServiceBannerConfig, error)
 
 	mu              sync.Mutex // Protects following.
 	lifecycleStates []codersdk.WorkspaceAgentLifecycle
@@ -163,6 +164,22 @@ func (c *Client) PatchStartupLogs(_ context.Context, logs agentsdk.PatchStartupL
 	}
 	c.logs = append(c.logs, logs.Logs...)
 	return nil
+}
+
+func (c *Client) SetServiceBannerFunc(f func() (codersdk.ServiceBannerConfig, error)) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.GetServiceBannerFunc = f
+}
+
+func (c *Client) GetServiceBanner(_ context.Context) (codersdk.ServiceBannerConfig, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.GetServiceBannerFunc != nil {
+		return c.GetServiceBannerFunc()
+	}
+	return codersdk.ServiceBannerConfig{}, nil
 }
 
 type closeFunc func() error

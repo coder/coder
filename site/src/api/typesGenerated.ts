@@ -104,6 +104,7 @@ export interface AuthMethod {
 
 // From codersdk/users.go
 export interface AuthMethods {
+  readonly convert_to_oidc_enabled: boolean
   readonly password: AuthMethod
   readonly github: AuthMethod
   readonly oidc: OIDCAuthMethod
@@ -137,6 +138,12 @@ export interface BuildInfoResponse {
   readonly version: string
   readonly dashboard_url: string
   readonly workspace_proxy: boolean
+}
+
+// From codersdk/users.go
+export interface ConvertLoginRequest {
+  readonly to_type: LoginType
+  readonly password: string
 }
 
 // From codersdk/users.go
@@ -562,6 +569,14 @@ export interface OAuth2GithubConfig {
 }
 
 // From codersdk/users.go
+export interface OAuthConversionResponse {
+  readonly state_string: string
+  readonly expires_at: string
+  readonly to_type: LoginType
+  readonly user_id: string
+}
+
+// From codersdk/users.go
 export interface OIDCAuthMethod extends AuthMethod {
   readonly signInText: string
   readonly iconUrl: string
@@ -732,8 +747,8 @@ export interface Region {
 }
 
 // From codersdk/workspaceproxy.go
-export interface RegionsResponse {
-  readonly regions: Region[]
+export interface RegionsResponse<R extends RegionTypes> {
+  readonly regions: R[]
 }
 
 // From codersdk/replicas.go
@@ -1083,6 +1098,11 @@ export interface User {
 }
 
 // From codersdk/users.go
+export interface UserLoginType {
+  readonly login_type: LoginType
+}
+
+// From codersdk/users.go
 export interface UserRoles {
   readonly roles: string[]
   readonly organization_roles: Record<string, string[]>
@@ -1287,17 +1307,11 @@ export interface WorkspaceOptions {
 }
 
 // From codersdk/workspaceproxy.go
-export interface WorkspaceProxy {
-  readonly id: string
-  readonly name: string
-  readonly display_name: string
-  readonly icon: string
-  readonly url: string
-  readonly wildcard_hostname: string
+export interface WorkspaceProxy extends Region {
+  readonly status?: WorkspaceProxyStatus
   readonly created_at: string
   readonly updated_at: string
   readonly deleted: boolean
-  readonly status?: WorkspaceProxyStatus
 }
 
 // From codersdk/deployment.go
@@ -1399,10 +1413,12 @@ export const Entitlements: Entitlement[] = [
 
 // From codersdk/deployment.go
 export type Experiment =
+  | "convert-to-oidc"
   | "moons"
   | "tailnet_pg_coordinator"
   | "workspace_actions"
 export const Experiments: Experiment[] = [
+  "convert-to-oidc",
   "moons",
   "tailnet_pg_coordinator",
   "workspace_actions",
@@ -1565,6 +1581,7 @@ export const RBACResources: RBACResource[] = [
 // From codersdk/audit.go
 export type ResourceType =
   | "api_key"
+  | "convert_login"
   | "git_ssh_key"
   | "group"
   | "license"
@@ -1575,6 +1592,7 @@ export type ResourceType =
   | "workspace_build"
 export const ResourceTypes: ResourceType[] = [
   "api_key",
+  "convert_login",
   "git_ssh_key",
   "group",
   "license",
@@ -1708,3 +1726,6 @@ export const WorkspaceTransitions: WorkspaceTransition[] = [
   "start",
   "stop",
 ]
+
+// From codersdk/workspaceproxy.go
+export type RegionTypes = Region | WorkspaceProxy

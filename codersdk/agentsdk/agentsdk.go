@@ -594,6 +594,24 @@ func (c *Client) PatchStartupLogs(ctx context.Context, req PatchStartupLogs) err
 	return nil
 }
 
+// GetServiceBanner relays the service banner config.
+func (c *Client) GetServiceBanner(ctx context.Context) (codersdk.ServiceBannerConfig, error) {
+	res, err := c.SDK.Request(ctx, http.MethodGet, "/api/v2/appearance", nil)
+	if err != nil {
+		return codersdk.ServiceBannerConfig{}, err
+	}
+	defer res.Body.Close()
+	// If the route does not exist then Enterprise code is not enabled.
+	if res.StatusCode == http.StatusNotFound {
+		return codersdk.ServiceBannerConfig{}, nil
+	}
+	if res.StatusCode != http.StatusOK {
+		return codersdk.ServiceBannerConfig{}, codersdk.ReadBodyAsError(res)
+	}
+	var cfg codersdk.AppearanceConfig
+	return cfg.ServiceBanner, json.NewDecoder(res.Body).Decode(&cfg)
+}
+
 type GitAuthResponse struct {
 	Username string `json:"username"`
 	Password string `json:"password"`

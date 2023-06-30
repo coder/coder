@@ -891,6 +891,7 @@ const (
 	ResourceTypeWorkspaceBuild  ResourceType = "workspace_build"
 	ResourceTypeLicense         ResourceType = "license"
 	ResourceTypeWorkspaceProxy  ResourceType = "workspace_proxy"
+	ResourceTypeConvertLogin    ResourceType = "convert_login"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -940,7 +941,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeGroup,
 		ResourceTypeWorkspaceBuild,
 		ResourceTypeLicense,
-		ResourceTypeWorkspaceProxy:
+		ResourceTypeWorkspaceProxy,
+		ResourceTypeConvertLogin:
 		return true
 	}
 	return false
@@ -959,6 +961,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeWorkspaceBuild,
 		ResourceTypeLicense,
 		ResourceTypeWorkspaceProxy,
+		ResourceTypeConvertLogin,
 	}
 }
 
@@ -1631,6 +1634,8 @@ type TemplateVersionParameter struct {
 	LegacyVariableName string `db:"legacy_variable_name" json:"legacy_variable_name"`
 	// Display name of the rich parameter
 	DisplayName string `db:"display_name" json:"display_name"`
+	// Specifies the order in which to display parameters in user interfaces.
+	DisplayOrder int32 `db:"display_order" json:"display_order"`
 }
 
 type TemplateVersionVariable struct {

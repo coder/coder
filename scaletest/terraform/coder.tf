@@ -25,13 +25,24 @@ provider "helm" {
   }
 }
 
-resource "kubernetes_namespace" "coder_namespace" {
-  metadata {
-    name = local.coder_namespace
+resource "null_resource" "coder_namespace" {
+  triggers = {
+    namespace       = local.coder_namespace
+    kubeconfig_path = local.cluster_kubeconfig_path
   }
   depends_on = [
     google_container_node_pool.coder
   ]
+  provisioner "local-exec" {
+    when    = create
+    command = <<EOF
+      KUBECONFIG=${self.triggers.kubeconfig_path} kubectl create namespace ${self.triggers.namespace}
+    EOF
+  }
+  provisioner "local-exec" {
+    when    = destroy
+    command = "true"
+  }
 }
 
 resource "random_password" "coder-postgres-password" {
@@ -46,8 +57,9 @@ resource "kubernetes_secret" "coder-db" {
   type = "" # Opaque
   metadata {
     name      = "coder-db-url"
-    namespace = kubernetes_namespace.coder_namespace.metadata.0.name
+    namespace = local.coder_namespace
   }
+  depends_on = [null_resource.coder_namespace]
   data = {
     url = "postgres://${google_sql_user.coder.name}:${urlencode(random_password.coder-postgres-password.result)}@${google_sql_database_instance.db.private_ip_address}/${google_sql_database.coder.name}?sslmode=disable"
   }
@@ -58,9 +70,10 @@ resource "helm_release" "coder-chart" {
   chart      = local.coder_helm_chart
   name       = local.coder_release_name
   version    = var.coder_chart_version
-  namespace  = kubernetes_namespace.coder_namespace.metadata.0.name
+  namespace  = local.coder_namespace
   depends_on = [
     google_container_node_pool.coder,
+    null_resource.coder_namespace
   ]
   values = [<<EOF
 coder:
@@ -130,7 +143,7 @@ coder:
     sessionAffinity: None
     loadBalancerIP: "${local.coder_address}"
   volumeMounts:
-  - mountPath: "/tmp/coder"
+  - mountPath: "/tmp"
     name: cache
     readOnly: false
   volumes:
@@ -176,7 +189,7 @@ resource "local_file" "kubernetes_template" {
       count = data.coder_workspace.me.start_count
       metadata {
         name      = "coder-$${lower(data.coder_workspace.me.owner)}-$${lower(data.coder_workspace.me.name)}"
-        namespace = "${kubernetes_namespace.coder_namespace.metadata.0.name}"
+        namespace = "${local.coder_namespace}"
         labels = {
           "app.kubernetes.io/name"     = "coder-workspace"
           "app.kubernetes.io/instance" = "coder-workspace-$${lower(data.coder_workspace.me.owner)}-$${lower(data.coder_workspace.me.name)}"

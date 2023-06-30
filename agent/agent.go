@@ -78,6 +78,7 @@ type Client interface {
 	PostStartup(ctx context.Context, req agentsdk.PostStartupRequest) error
 	PostMetadata(ctx context.Context, key string, req agentsdk.PostMetadataRequest) error
 	PatchStartupLogs(ctx context.Context, req agentsdk.PatchStartupLogs) error
+	GetServiceBanner(ctx context.Context) (codersdk.ServiceBannerConfig, error)
 }
 
 type Agent interface {
@@ -165,7 +166,9 @@ type agent struct {
 
 	envVars map[string]string
 	// manifest is atomic because values can change after reconnection.
-	manifest      atomic.Pointer[agentsdk.Manifest]
+	manifest atomic.Pointer[agentsdk.Manifest]
+	// serviceBanner is atomic because it can change.
+	serviceBanner atomic.Pointer[codersdk.ServiceBannerConfig]
 	sessionToken  atomic.Pointer[string]
 	sshServer     *agentssh.Server
 	sshMaxTimeout time.Duration
@@ -194,6 +197,7 @@ func (a *agent) init(ctx context.Context) {
 	sshSrv.Env = a.envVars
 	sshSrv.AgentToken = func() string { return *a.sessionToken.Load() }
 	sshSrv.Manifest = &a.manifest
+	sshSrv.ServiceBanner = &a.serviceBanner
 	a.sshServer = sshSrv
 
 	go a.runLoop(ctx)
@@ -206,6 +210,7 @@ func (a *agent) init(ctx context.Context) {
 func (a *agent) runLoop(ctx context.Context) {
 	go a.reportLifecycleLoop(ctx)
 	go a.reportMetadataLoop(ctx)
+	go a.fetchServiceBannerLoop(ctx)
 
 	for retrier := retry.New(100*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
 		a.logger.Info(ctx, "connecting to coderd")
@@ -278,14 +283,15 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 	return result
 }
 
-func adjustIntervalForTests(i int64) time.Duration {
+// adjustIntervalForTests returns a duration of testInterval milliseconds long
+// for tests and interval seconds long otherwise.
+func adjustIntervalForTests(interval time.Duration, testInterval time.Duration) time.Duration {
 	// In tests we want to set shorter intervals because engineers are
 	// impatient.
-	base := time.Second
 	if flag.Lookup("test.v") != nil {
-		base = time.Millisecond * 100
+		return testInterval
 	}
-	return time.Duration(i) * base
+	return interval
 }
 
 type metadataResultAndKey struct {
@@ -309,7 +315,7 @@ func (t *trySingleflight) Do(key string, fn func()) {
 }
 
 func (a *agent) reportMetadataLoop(ctx context.Context) {
-	baseInterval := adjustIntervalForTests(1)
+	baseInterval := adjustIntervalForTests(time.Second, time.Millisecond*100)
 
 	const metadataLimit = 128
 
@@ -386,7 +392,9 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 				}
 				// The last collected value isn't quite stale yet, so we skip it.
 				if collectedAt.Add(
-					adjustIntervalForTests(md.Interval),
+					adjustIntervalForTests(
+						time.Duration(md.Interval)*time.Second,
+						time.Duration(md.Interval)*time.Millisecond*100),
 				).After(time.Now()) {
 					continue
 				}
@@ -494,6 +502,30 @@ func (a *agent) setLifecycle(ctx context.Context, state codersdk.WorkspaceAgentL
 	}
 }
 
+// fetchServiceBannerLoop fetches the service banner on an interval.  It will
+// not be fetched immediately; the expectation is that it is primed elsewhere
+// (and must be done before the session actually starts).
+func (a *agent) fetchServiceBannerLoop(ctx context.Context) {
+	ticker := time.NewTicker(adjustIntervalForTests(2*time.Minute, time.Millisecond*100))
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			serviceBanner, err := a.client.GetServiceBanner(ctx)
+			if err != nil {
+				if ctx.Err() != nil {
+					return
+				}
+				a.logger.Error(ctx, "failed to update service banner", slog.Error(err))
+				continue
+			}
+			a.serviceBanner.Store(&serviceBanner)
+		}
+	}
+}
+
 func (a *agent) run(ctx context.Context) error {
 	// This allows the agent to refresh it's token if necessary.
 	// For instance identity this is required, since the instance
@@ -503,6 +535,12 @@ func (a *agent) run(ctx context.Context) error {
 		return xerrors.Errorf("exchange token: %w", err)
 	}
 	a.sessionToken.Store(&sessionToken)
+
+	serviceBanner, err := a.client.GetServiceBanner(ctx)
+	if err != nil {
+		return xerrors.Errorf("fetch service banner: %w", err)
+	}
+	a.serviceBanner.Store(&serviceBanner)
 
 	manifest, err := a.client.Manifest(ctx)
 	if err != nil {

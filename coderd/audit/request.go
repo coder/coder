@@ -84,6 +84,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return strconv.Itoa(int(typed.ID))
 	case database.WorkspaceProxy:
 		return typed.Name
+	case database.AuditOAuthConvertState:
+		return string(typed.ToLoginType)
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
@@ -111,6 +113,9 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.UUID
 	case database.WorkspaceProxy:
 		return typed.ID
+	case database.AuditOAuthConvertState:
+		// The merge state is for the given user
+		return typed.UserID
 	default:
 		panic(fmt.Sprintf("unknown resource %T", tgt))
 	}
@@ -138,6 +143,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeLicense
 	case database.WorkspaceProxy:
 		return database.ResourceTypeWorkspaceProxy
+	case database.AuditOAuthConvertState:
+		return database.ResourceTypeConvertLogin
 	default:
 		panic(fmt.Sprintf("unknown resource %T", typed))
 	}
