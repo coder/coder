@@ -164,10 +164,16 @@ type WorkspaceAgent struct {
 	ConnectionTimeoutSeconds int32                 `json:"connection_timeout_seconds"`
 	TroubleshootingURL       string                `json:"troubleshooting_url"`
 	// Deprecated: Use StartupScriptBehavior instead.
-	LoginBeforeReady             bool           `json:"login_before_ready"`
-	ShutdownScript               string         `json:"shutdown_script,omitempty"`
-	ShutdownScriptTimeoutSeconds int32          `json:"shutdown_script_timeout_seconds"`
-	Subsystem                    AgentSubsystem `json:"subsystem"`
+	LoginBeforeReady             bool                 `json:"login_before_ready"`
+	ShutdownScript               string               `json:"shutdown_script,omitempty"`
+	ShutdownScriptTimeoutSeconds int32                `json:"shutdown_script_timeout_seconds"`
+	Subsystem                    AgentSubsystem       `json:"subsystem"`
+	Health                       WorkspaceAgentHealth `json:"health"` // Health reports the health of the agent.
+}
+
+type WorkspaceAgentHealth struct {
+	Healthy bool   `json:"healthy"`          // Healthy is true if the agent is healthy.
+	Reason  string `json:"reason,omitempty"` // Reason is a human-readable explanation of the agent's health. It is empty if Healthy is true.
 }
 
 type DERPRegion struct {

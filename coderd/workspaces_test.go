@@ -60,6 +60,7 @@ func TestWorkspace(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, user.UserID, ws.LatestBuild.InitiatorID)
 		require.Equal(t, codersdk.BuildReasonInitiator, ws.LatestBuild.Reason)
+		require.True(t, ws.Health.Healthy)
 	})
 
 	t.Run("Deleted", func(t *testing.T) {

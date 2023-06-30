@@ -1115,6 +1115,16 @@ func convertWorkspace(
 		deletingAt = calculateDeletingAt(workspace, template, workspaceBuild)
 	)
 
+	agentHealth := make(map[uuid.UUID]codersdk.WorkspaceAgentHealth)
+	for _, r := range workspaceBuild.Resources {
+		// For now, we only consider agent healths when the workspace is running.
+		if r.Transition == codersdk.WorkspaceTransitionStart {
+			for _, a := range r.Agents {
+				agentHealth[a.ID] = a.Health
+			}
+		}
+	}
+
 	return codersdk.Workspace{
 		ID:                                   workspace.ID,
 		CreatedAt:                            workspace.CreatedAt,
@@ -1135,6 +1145,7 @@ func convertWorkspace(
 		LastUsedAt:                           workspace.LastUsedAt,
 		DeletingAt:                           deletingAt,
 		LockedAt:                             lockedAt,
+		Health:                               (codersdk.WorkspaceHealth{Agents: agentHealth}).Complete(),
 	}
 }
 

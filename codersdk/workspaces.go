@@ -43,6 +43,30 @@ type Workspace struct {
 	// unlocked by an admin. It is subject to deletion if it breaches
 	// the duration of the locked_ttl field on its template.
 	LockedAt *time.Time `json:"locked_at" format:"date-time"`
+	// Health reports the health of the workspace and its agents.
+	Health WorkspaceHealth `json:"health"`
+}
+
+type WorkspaceHealth struct {
+	Healthy         bool                               `json:"healthy"`          // Healthy is true if the workspace and all of its agents are healthy.
+	FailingSections []string                           `json:"failing_sections"` // FailingSections is a list of sections that have failed their healthcheck.
+	Agents          map[uuid.UUID]WorkspaceAgentHealth `json:"agents"`           // Agents is a map of agent IDs to their health.
+}
+
+// Complete returns a new copy with the Healthy flag and FailingSections
+// set based on the agent healths.
+//
+//nolint:revive
+func (wh WorkspaceHealth) Complete() WorkspaceHealth {
+	wh.Healthy = true
+	wh.FailingSections = []string{}
+	for id, agent := range wh.Agents {
+		if !agent.Healthy {
+			wh.Healthy = false
+			wh.FailingSections = append(wh.FailingSections, "agents."+id.String())
+		}
+	}
+	return wh
 }
 
 type WorkspacesRequest struct {

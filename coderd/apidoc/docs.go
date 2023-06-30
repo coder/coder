@@ -9440,6 +9440,14 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "health": {
+                    "description": "Health reports the health of the workspace and its agents.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceHealth"
+                        }
+                    ]
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -9537,6 +9545,14 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "health": {
+                    "description": "Health reports the health of the agent.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentHealth"
+                        }
+                    ]
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -9628,6 +9644,19 @@ const docTemplate = `{
                 },
                 "disable_direct_connections": {
                     "type": "boolean"
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentHealth": {
+            "type": "object",
+            "properties": {
+                "healthy": {
+                    "description": "Healthy is true if the agent is healthy.",
+                    "type": "boolean"
+                },
+                "reason": {
+                    "description": "Reason is a human-readable explanation of the agent's health. It is empty if Healthy is true.",
+                    "type": "string"
                 }
             }
         },
@@ -9994,6 +10023,29 @@ const docTemplate = `{
                 },
                 "tx_bytes": {
                     "type": "integer"
+                }
+            }
+        },
+        "codersdk.WorkspaceHealth": {
+            "type": "object",
+            "properties": {
+                "agents": {
+                    "description": "Agents is a map of agent IDs to their health.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentHealth"
+                    }
+                },
+                "failing_sections": {
+                    "description": "FailingSections is a list of sections that have failed their healthcheck.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "healthy": {
+                    "description": "Healthy is true if the workspace and all of its agents are healthy.",
+                    "type": "boolean"
                 }
             }
         },
