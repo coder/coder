@@ -34,10 +34,12 @@ type MultiAgent struct {
 	OnNodeUpdate      func(id uuid.UUID, node *Node) error
 	OnRemove          func(id uuid.UUID)
 
-	updates    chan []*Node
-	closeOnce  sync.Once
-	start      int64
-	lastWrite  int64
+	updates   chan []*Node
+	closeOnce sync.Once
+	start     int64
+	lastWrite int64
+	// Client nodes normally generate a unique id for each connection so
+	// overwrites are really not an issue, but is provided for compatibility.
 	overwrites int64
 }
 

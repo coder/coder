@@ -660,7 +660,7 @@ func (c *core) close() error {
 		}()
 	}
 
-	// Ensure clients that have no subscriptions are properly closed.
+	wg.Add(len(c.clients))
 	for _, client := range c.clients {
 		client := client
 		go func() {

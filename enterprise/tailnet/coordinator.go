@@ -102,23 +102,6 @@ func (c *haCoordinator) clientSubscribeToAgent(enq agpl.Enqueueable, agentID uui
 	return nil
 }
 
-// func (c *haCoordinator) multiAgentUpdate(id uuid.UUID, agents []uuid.UUID, node *agpl.Node) error {
-// 	var errs *multierror.Error
-// 	// This isn't the most efficient, but this coordinator is being deprecated
-// 	// soon anyways.
-// 	for _, agent := range agents {
-// 		err := c.handleClientUpdate(id, agent, node)
-// 		if err != nil {
-// 			errs = multierror.Append(errs, err)
-// 		}
-// 	}
-// 	if errs != nil {
-// 		return errs
-// 	}
-
-// 	return nil
-// }
-
 type haCoordinator struct {
 	id        uuid.UUID
 	log       slog.Logger
@@ -135,13 +118,20 @@ type haCoordinator struct {
 	// are subscribed to updates for that agent.
 	agentToConnectionSockets map[uuid.UUID]map[uuid.UUID]agpl.Enqueueable
 
-	clients         map[uuid.UUID]agpl.Enqueueable
+	// clients holds a map of all clients connected to the coordinator. This is
+	// necessary because a client may not be subscribed into any agents.
+	clients map[uuid.UUID]agpl.Enqueueable
+	// clientsToAgents is an index of clients to all of their subscribed agents.
 	clientsToAgents map[uuid.UUID]map[uuid.UUID]struct{}
 
 	// agentNameCache holds a cache of agent names. If one of them disappears,
 	// it's helpful to have a name cached for debugging.
 	agentNameCache *lru.Cache[uuid.UUID, string]
 
+	// legacyAgents holda a mapping of all agents detected as legacy, meaning
+	// they only listen on codersdk.WorkspaceAgentIP. They aren't compatible
+	// with the new ServerTailnet, so they must be connected through
+	// wsconncache.
 	legacyAgents map[uuid.UUID]struct{}
 }
 
@@ -438,20 +428,13 @@ func (c *haCoordinator) Close() error {
 		}()
 	}
 
-	for _, connMap := range c.agentToConnectionSockets {
-		wg.Add(len(connMap))
-		for _, socket := range connMap {
-			socket := socket
-			go func() {
-				_ = socket.CoordinatorClose()
-				wg.Done()
-			}()
-		}
-	}
-
-	// Ensure clients that have no subscriptions are properly closed.
+	wg.Add(len(c.clients))
 	for _, client := range c.clients {
-		_ = client.CoordinatorClose()
+		client := client
+		go func() {
+			_ = client.CoordinatorClose()
+			wg.Done()
+		}()
 	}
 
 	wg.Wait()
