@@ -24,7 +24,6 @@ import Skeleton from "@mui/material/Skeleton"
 import { BUTTON_SM_HEIGHT } from "theme/theme"
 import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency"
 import { usePermissions } from "hooks/usePermissions"
-import { ProxyLatencyReport } from "contexts/useProxyLatency"
 
 export const USERS_LINK = `/users?filter=${encodeURIComponent("status:active")}`
 
