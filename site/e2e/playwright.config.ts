@@ -1,6 +1,6 @@
 import { defineConfig } from "@playwright/test"
 import path from "path"
-import { defaultPort } from "./constants"
+import { defaultPort, gitAuth } from "./constants"
 
 export const port = process.env.CODER_E2E_PORT
   ? Number(process.env.CODER_E2E_PORT)
@@ -10,7 +10,11 @@ const coderMain = path.join(__dirname, "../../enterprise/cmd/coder/main.go")
 
 export const STORAGE_STATE = path.join(__dirname, ".auth.json")
 
-const config = defineConfig({
+const localURL = (port: number, path: string): string => {
+  return `http://localhost:${port}${path}`
+}
+
+export default defineConfig({
   projects: [
     {
       name: "setup",
@@ -39,9 +43,49 @@ const config = defineConfig({
       `--provisioner-daemons 10 ` +
       `--provisioner-daemons-echo ` +
       `--provisioner-daemon-poll-interval 50ms`,
+    env: {
+      ...process.env,
+
+      // This is the test provider for git auth with devices!
+      CODER_GITAUTH_0_ID: gitAuth.deviceProvider,
+      CODER_GITAUTH_0_TYPE: "github",
+      CODER_GITAUTH_0_CLIENT_ID: "client",
+      CODER_GITAUTH_0_DEVICE_FLOW: "true",
+      CODER_GITAUTH_0_APP_INSTALL_URL:
+        "https://github.com/apps/coder/installations/new",
+      CODER_GITAUTH_0_APP_INSTALLATIONS_URL: localURL(
+        gitAuth.devicePort,
+        gitAuth.installationsPath,
+      ),
+      CODER_GITAUTH_0_TOKEN_URL: localURL(
+        gitAuth.devicePort,
+        gitAuth.tokenPath,
+      ),
+      CODER_GITAUTH_0_DEVICE_CODE_URL: localURL(
+        gitAuth.devicePort,
+        gitAuth.codePath,
+      ),
+      CODER_GITAUTH_0_VALIDATE_URL: localURL(
+        gitAuth.devicePort,
+        gitAuth.validatePath,
+      ),
+
+      CODER_GITAUTH_1_ID: gitAuth.webProvider,
+      CODER_GITAUTH_1_TYPE: "github",
+      CODER_GITAUTH_1_CLIENT_ID: "client",
+      CODER_GITAUTH_1_CLIENT_SECRET: "secret",
+      CODER_GITAUTH_1_AUTH_URL: localURL(gitAuth.webPort, gitAuth.authPath),
+      CODER_GITAUTH_1_TOKEN_URL: localURL(gitAuth.webPort, gitAuth.tokenPath),
+      CODER_GITAUTH_1_DEVICE_CODE_URL: localURL(
+        gitAuth.webPort,
+        gitAuth.codePath,
+      ),
+      CODER_GITAUTH_1_VALIDATE_URL: localURL(
+        gitAuth.webPort,
+        gitAuth.validatePath,
+      ),
+    },
     port,
     reuseExistingServer: false,
   },
 })
-
-export default config

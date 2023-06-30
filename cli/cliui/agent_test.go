@@ -1,363 +1,353 @@
 package cliui_test
 
 import (
+	"bufio"
+	"bytes"
 	"context"
+	"io"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/pty/ptytest"
 	"github.com/coder/coder/testutil"
 )
 
 func TestAgent(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-	defer cancel()
-
-	var disconnected atomic.Bool
-	ptty := ptytest.New(t)
-	cmd := &clibase.Cmd{
-		Handler: func(inv *clibase.Invocation) error {
-			err := cliui.Agent(inv.Context(), inv.Stdout, cliui.AgentOptions{
-				WorkspaceName: "example",
-				Fetch: func(_ context.Context) (codersdk.WorkspaceAgent, error) {
-					agent := codersdk.WorkspaceAgent{
-						Status:                codersdk.WorkspaceAgentDisconnected,
-						StartupScriptBehavior: codersdk.WorkspaceAgentStartupScriptBehaviorNonBlocking,
-					}
-					if disconnected.Load() {
-						agent.Status = codersdk.WorkspaceAgentConnected
-					}
-					return agent, nil
-				},
-				FetchInterval: time.Millisecond,
-				WarnInterval:  10 * time.Millisecond,
-			})
-			return err
-		},
+	ptrTime := func(t time.Time) *time.Time {
+		return &t
 	}
 
-	inv := cmd.Invoke()
-	ptty.Attach(inv)
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		err := inv.Run()
-		assert.NoError(t, err)
-	}()
-	ptty.ExpectMatchContext(ctx, "lost connection")
-	disconnected.Store(true)
-	<-done
-}
-
-func TestAgent_TimeoutWithTroubleshootingURL(t *testing.T) {
-	t.Parallel()
-
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-	defer cancel()
-
-	wantURL := "https://coder.com/troubleshoot"
-
-	var connected, timeout atomic.Bool
-	cmd := &clibase.Cmd{
-		Handler: func(inv *clibase.Invocation) error {
-			err := cliui.Agent(inv.Context(), inv.Stdout, cliui.AgentOptions{
-				WorkspaceName: "example",
-				Fetch: func(_ context.Context) (codersdk.WorkspaceAgent, error) {
-					agent := codersdk.WorkspaceAgent{
-						Status:                codersdk.WorkspaceAgentConnecting,
-						TroubleshootingURL:    wantURL,
-						StartupScriptBehavior: codersdk.WorkspaceAgentStartupScriptBehaviorNonBlocking,
-					}
-					switch {
-					case !connected.Load() && timeout.Load():
-						agent.Status = codersdk.WorkspaceAgentTimeout
-					case connected.Load():
-						agent.Status = codersdk.WorkspaceAgentConnected
-					}
-					return agent, nil
-				},
+	for _, tc := range []struct {
+		name    string
+		iter    []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentStartupLog) error
+		logs    chan []codersdk.WorkspaceAgentStartupLog
+		opts    cliui.AgentOptions
+		want    []string
+		wantErr bool
+	}{
+		{
+			name: "Initial connection",
+			opts: cliui.AgentOptions{
 				FetchInterval: time.Millisecond,
-				WarnInterval:  5 * time.Millisecond,
-			})
-			return err
+			},
+			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentStartupLog) error{
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentStartupLog) error {
+					agent.Status = codersdk.WorkspaceAgentConnecting
+					return nil
+				},
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentStartupLog) error {
+					agent.Status = codersdk.WorkspaceAgentConnected
+					agent.FirstConnectedAt = ptrTime(time.Now())
+					close(logs)
+					return nil
+				},
+			},
+			want: []string{
+				"⧗ Waiting for the workspace agent to connect",
+				"✔ Waiting for the workspace agent to connect",
+				"⧗ Running workspace agent startup script (non-blocking)",
+				"Notice: The startup script is still running and your workspace may be incomplete.",
+				"For more information and troubleshooting, see",
+			},
 		},
-	}
-	ptty := ptytest.New(t)
-
-	inv := cmd.Invoke()
-	ptty.Attach(inv)
-	done := make(chan error, 1)
-	go func() {
-		done <- inv.WithContext(ctx).Run()
-	}()
-	ptty.ExpectMatchContext(ctx, "Don't panic, your workspace is booting")
-	timeout.Store(true)
-	ptty.ExpectMatchContext(ctx, wantURL)
-	connected.Store(true)
-	require.NoError(t, <-done)
-}
-
-func TestAgent_StartupTimeout(t *testing.T) {
-	t.Parallel()
-
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-	defer cancel()
-
-	wantURL := "https://coder.com/this-is-a-really-long-troubleshooting-url-that-should-not-wrap"
-
-	var status, state atomic.String
-	setStatus := func(s codersdk.WorkspaceAgentStatus) { status.Store(string(s)) }
-	setState := func(s codersdk.WorkspaceAgentLifecycle) { state.Store(string(s)) }
-
-	cmd := &clibase.Cmd{
-		Handler: func(inv *clibase.Invocation) error {
-			err := cliui.Agent(inv.Context(), inv.Stdout, cliui.AgentOptions{
-				WorkspaceName: "example",
-				Fetch: func(_ context.Context) (codersdk.WorkspaceAgent, error) {
-					agent := codersdk.WorkspaceAgent{
-						Status:                codersdk.WorkspaceAgentConnecting,
-						StartupScriptBehavior: codersdk.WorkspaceAgentStartupScriptBehaviorBlocking,
-						LifecycleState:        codersdk.WorkspaceAgentLifecycleCreated,
-						TroubleshootingURL:    wantURL,
-					}
-
-					if s := status.Load(); s != "" {
-						agent.Status = codersdk.WorkspaceAgentStatus(s)
-					}
-					if s := state.Load(); s != "" {
-						agent.LifecycleState = codersdk.WorkspaceAgentLifecycle(s)
-					}
-					return agent, nil
+		{
+			name: "Initial connection timeout",
+			opts: cliui.AgentOptions{
+				FetchInterval: 1 * time.Millisecond,
+			},
+			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentStartupLog) error{
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentStartupLog) error {
+					agent.Status = codersdk.WorkspaceAgentConnecting
+					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleStarting
+					agent.StartedAt = ptrTime(time.Now())
+					return nil
 				},
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentStartupLog) error {
+					agent.Status = codersdk.WorkspaceAgentTimeout
+					return nil
+				},
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentStartupLog) error {
+					agent.Status = codersdk.WorkspaceAgentConnected
+					agent.FirstConnectedAt = ptrTime(time.Now())
+					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleReady
+					agent.ReadyAt = ptrTime(time.Now())
+					close(logs)
+					return nil
+				},
+			},
+			want: []string{
+				"⧗ Waiting for the workspace agent to connect",
+				"The workspace agent is having trouble connecting, wait for it to connect or restart your workspace.",
+				"For more information and troubleshooting, see",
+				"✔ Waiting for the workspace agent to connect",
+				"⧗ Running workspace agent startup script (non-blocking)",
+				"✔ Running workspace agent startup script (non-blocking)",
+			},
+		},
+		{
+			name: "Disconnected",
+			opts: cliui.AgentOptions{
+				FetchInterval: 1 * time.Millisecond,
+			},
+			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentStartupLog) error{
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentStartupLog) error {
+					agent.Status = codersdk.WorkspaceAgentDisconnected
+					agent.FirstConnectedAt = ptrTime(time.Now().Add(-1 * time.Minute))
+					agent.LastConnectedAt = ptrTime(time.Now().Add(-1 * time.Minute))
+					agent.DisconnectedAt = ptrTime(time.Now())
+					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleReady
+					agent.StartedAt = ptrTime(time.Now().Add(-1 * time.Minute))
+					agent.ReadyAt = ptrTime(time.Now())
+					return nil
+				},
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentStartupLog) error {
+					agent.Status = codersdk.WorkspaceAgentConnected
+					agent.LastConnectedAt = ptrTime(time.Now())
+					return nil
+				},
+				func(_ context.Context, _ *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentStartupLog) error {
+					close(logs)
+					return nil
+				},
+			},
+			want: []string{
+				"⧗ The workspace agent lost connection",
+				"Wait for it to reconnect or restart your workspace.",
+				"For more information and troubleshooting, see",
+				"✔ The workspace agent lost connection",
+			},
+		},
+		{
+			name: "Startup script logs",
+			opts: cliui.AgentOptions{
 				FetchInterval: time.Millisecond,
-				WarnInterval:  time.Millisecond,
 				Wait:          true,
-			})
-			return err
-		},
-	}
-
-	ptty := ptytest.New(t)
-
-	inv := cmd.Invoke()
-	ptty.Attach(inv)
-	done := make(chan error, 1)
-	go func() {
-		done <- inv.WithContext(ctx).Run()
-	}()
-	setStatus(codersdk.WorkspaceAgentConnecting)
-	ptty.ExpectMatchContext(ctx, "Don't panic, your workspace is booting")
-	setStatus(codersdk.WorkspaceAgentConnected)
-	setState(codersdk.WorkspaceAgentLifecycleStarting)
-	ptty.ExpectMatchContext(ctx, "workspace is getting ready")
-	setState(codersdk.WorkspaceAgentLifecycleStartTimeout)
-	ptty.ExpectMatchContext(ctx, "is taking longer")
-	ptty.ExpectMatchContext(ctx, wantURL)
-	setState(codersdk.WorkspaceAgentLifecycleReady)
-	require.NoError(t, <-done)
-}
-
-func TestAgent_StartErrorExit(t *testing.T) {
-	t.Parallel()
-
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-	defer cancel()
-
-	wantURL := "https://coder.com/this-is-a-really-long-troubleshooting-url-that-should-not-wrap"
-
-	var status, state atomic.String
-	setStatus := func(s codersdk.WorkspaceAgentStatus) { status.Store(string(s)) }
-	setState := func(s codersdk.WorkspaceAgentLifecycle) { state.Store(string(s)) }
-	cmd := &clibase.Cmd{
-		Handler: func(inv *clibase.Invocation) error {
-			err := cliui.Agent(inv.Context(), inv.Stdout, cliui.AgentOptions{
-				WorkspaceName: "example",
-				Fetch: func(_ context.Context) (codersdk.WorkspaceAgent, error) {
-					agent := codersdk.WorkspaceAgent{
-						Status:                codersdk.WorkspaceAgentConnecting,
-						StartupScriptBehavior: codersdk.WorkspaceAgentStartupScriptBehaviorBlocking,
-						LifecycleState:        codersdk.WorkspaceAgentLifecycleCreated,
-						TroubleshootingURL:    wantURL,
+			},
+			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentStartupLog) error{
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentStartupLog) error {
+					agent.Status = codersdk.WorkspaceAgentConnected
+					agent.FirstConnectedAt = ptrTime(time.Now())
+					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleStarting
+					agent.StartedAt = ptrTime(time.Now())
+					logs <- []codersdk.WorkspaceAgentStartupLog{
+						{
+							CreatedAt: time.Now(),
+							Output:    "Hello world",
+						},
 					}
-
-					if s := status.Load(); s != "" {
-						agent.Status = codersdk.WorkspaceAgentStatus(s)
-					}
-					if s := state.Load(); s != "" {
-						agent.LifecycleState = codersdk.WorkspaceAgentLifecycle(s)
-					}
-					return agent, nil
+					return nil
 				},
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentStartupLog) error {
+					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleReady
+					agent.ReadyAt = ptrTime(time.Now())
+					logs <- []codersdk.WorkspaceAgentStartupLog{
+						{
+							CreatedAt: time.Now(),
+							Output:    "Bye now",
+						},
+					}
+					close(logs)
+					return nil
+				},
+			},
+			want: []string{
+				"⧗ Running workspace agent startup script",
+				"Hello world",
+				"Bye now",
+				"✔ Running workspace agent startup script",
+			},
+		},
+		{
+			name: "Startup script exited with error",
+			opts: cliui.AgentOptions{
 				FetchInterval: time.Millisecond,
-				WarnInterval:  60 * time.Second,
 				Wait:          true,
-			})
-			return err
-		},
-	}
-
-	ptty := ptytest.New(t)
-
-	inv := cmd.Invoke()
-	ptty.Attach(inv)
-	done := make(chan error, 1)
-	go func() {
-		done <- inv.WithContext(ctx).Run()
-	}()
-	setStatus(codersdk.WorkspaceAgentConnected)
-	setState(codersdk.WorkspaceAgentLifecycleStarting)
-	ptty.ExpectMatchContext(ctx, "to become ready...")
-	setState(codersdk.WorkspaceAgentLifecycleStartError)
-	ptty.ExpectMatchContext(ctx, "ran into a problem")
-	err := <-done
-	require.ErrorIs(t, err, cliui.AgentStartError, "lifecycle start_error should exit with error")
-}
-
-func TestAgent_NoWait(t *testing.T) {
-	t.Parallel()
-
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-	defer cancel()
-
-	wantURL := "https://coder.com/this-is-a-really-long-troubleshooting-url-that-should-not-wrap"
-
-	var status, state atomic.String
-	setStatus := func(s codersdk.WorkspaceAgentStatus) { status.Store(string(s)) }
-	setState := func(s codersdk.WorkspaceAgentLifecycle) { state.Store(string(s)) }
-	cmd := &clibase.Cmd{
-		Handler: func(inv *clibase.Invocation) error {
-			err := cliui.Agent(inv.Context(), inv.Stdout, cliui.AgentOptions{
-				WorkspaceName: "example",
-				Fetch: func(_ context.Context) (codersdk.WorkspaceAgent, error) {
-					agent := codersdk.WorkspaceAgent{
-						Status:                codersdk.WorkspaceAgentConnecting,
-						StartupScriptBehavior: codersdk.WorkspaceAgentStartupScriptBehaviorBlocking,
-						LifecycleState:        codersdk.WorkspaceAgentLifecycleCreated,
-						TroubleshootingURL:    wantURL,
+			},
+			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentStartupLog) error{
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentStartupLog) error {
+					agent.Status = codersdk.WorkspaceAgentConnected
+					agent.FirstConnectedAt = ptrTime(time.Now())
+					agent.StartedAt = ptrTime(time.Now())
+					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleStartError
+					agent.ReadyAt = ptrTime(time.Now())
+					logs <- []codersdk.WorkspaceAgentStartupLog{
+						{
+							CreatedAt: time.Now(),
+							Output:    "Hello world",
+						},
 					}
-
-					if s := status.Load(); s != "" {
-						agent.Status = codersdk.WorkspaceAgentStatus(s)
-					}
-					if s := state.Load(); s != "" {
-						agent.LifecycleState = codersdk.WorkspaceAgentLifecycle(s)
-					}
-					return agent, nil
+					close(logs)
+					return nil
 				},
-				FetchInterval: time.Millisecond,
-				WarnInterval:  time.Second,
-				Wait:          false,
-			})
-			return err
+			},
+			want: []string{
+				"⧗ Running workspace agent startup script",
+				"Hello world",
+				"✘ Running workspace agent startup script",
+				"Warning: The startup script exited with an error and your workspace may be incomplete.",
+				"For more information and troubleshooting, see",
+			},
 		},
-	}
-
-	ptty := ptytest.New(t)
-
-	inv := cmd.Invoke()
-	ptty.Attach(inv)
-	done := make(chan error, 1)
-	go func() {
-		done <- inv.WithContext(ctx).Run()
-	}()
-	setStatus(codersdk.WorkspaceAgentConnecting)
-	ptty.ExpectMatchContext(ctx, "Don't panic, your workspace is booting")
-
-	setStatus(codersdk.WorkspaceAgentConnected)
-	require.NoError(t, <-done, "created - should exit early")
-
-	setState(codersdk.WorkspaceAgentLifecycleStarting)
-	go func() { done <- inv.WithContext(ctx).Run() }()
-	require.NoError(t, <-done, "starting - should exit early")
-
-	setState(codersdk.WorkspaceAgentLifecycleStartTimeout)
-	go func() { done <- inv.WithContext(ctx).Run() }()
-	require.NoError(t, <-done, "start timeout - should exit early")
-
-	setState(codersdk.WorkspaceAgentLifecycleStartError)
-	go func() { done <- inv.WithContext(ctx).Run() }()
-	require.NoError(t, <-done, "start error - should exit early")
-
-	setState(codersdk.WorkspaceAgentLifecycleReady)
-	go func() { done <- inv.WithContext(ctx).Run() }()
-	require.NoError(t, <-done, "ready - should exit early")
-}
-
-func TestAgent_StartupScriptBehaviorNonBlocking(t *testing.T) {
-	t.Parallel()
-
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-	defer cancel()
-
-	wantURL := "https://coder.com/this-is-a-really-long-troubleshooting-url-that-should-not-wrap"
-
-	var status, state atomic.String
-	setStatus := func(s codersdk.WorkspaceAgentStatus) { status.Store(string(s)) }
-	setState := func(s codersdk.WorkspaceAgentLifecycle) { state.Store(string(s)) }
-	cmd := &clibase.Cmd{
-		Handler: func(inv *clibase.Invocation) error {
-			err := cliui.Agent(inv.Context(), inv.Stdout, cliui.AgentOptions{
-				WorkspaceName: "example",
-				Fetch: func(_ context.Context) (codersdk.WorkspaceAgent, error) {
-					agent := codersdk.WorkspaceAgent{
-						Status:                codersdk.WorkspaceAgentConnecting,
-						StartupScriptBehavior: codersdk.WorkspaceAgentStartupScriptBehaviorNonBlocking,
-						LifecycleState:        codersdk.WorkspaceAgentLifecycleCreated,
-						TroubleshootingURL:    wantURL,
-					}
-
-					if s := status.Load(); s != "" {
-						agent.Status = codersdk.WorkspaceAgentStatus(s)
-					}
-					if s := state.Load(); s != "" {
-						agent.LifecycleState = codersdk.WorkspaceAgentLifecycle(s)
-					}
-					return agent, nil
-				},
+		{
+			name: "Error when shutting down",
+			opts: cliui.AgentOptions{
 				FetchInterval: time.Millisecond,
-				WarnInterval:  time.Second,
+			},
+			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentStartupLog) error{
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentStartupLog) error {
+					agent.Status = codersdk.WorkspaceAgentDisconnected
+					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleOff
+					close(logs)
+					return nil
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "Error when shutting down while waiting",
+			opts: cliui.AgentOptions{
+				FetchInterval: time.Millisecond,
 				Wait:          true,
-			})
-			return err
+			},
+			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentStartupLog) error{
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentStartupLog) error {
+					agent.Status = codersdk.WorkspaceAgentConnected
+					agent.FirstConnectedAt = ptrTime(time.Now())
+					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleStarting
+					agent.StartedAt = ptrTime(time.Now())
+					logs <- []codersdk.WorkspaceAgentStartupLog{
+						{
+							CreatedAt: time.Now(),
+							Output:    "Hello world",
+						},
+					}
+					return nil
+				},
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentStartupLog) error {
+					agent.ReadyAt = ptrTime(time.Now())
+					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleShuttingDown
+					close(logs)
+					return nil
+				},
+			},
+			want: []string{
+				"⧗ Running workspace agent startup script",
+				"Hello world",
+				"✔ Running workspace agent startup script",
+			},
+			wantErr: true,
 		},
+		{
+			name: "Error during fetch",
+			opts: cliui.AgentOptions{
+				FetchInterval: time.Millisecond,
+				Wait:          true,
+			},
+			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentStartupLog) error{
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentStartupLog) error {
+					agent.Status = codersdk.WorkspaceAgentConnecting
+					return nil
+				},
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentStartupLog) error {
+					return xerrors.New("bad")
+				},
+			},
+			want: []string{
+				"⧗ Waiting for the workspace agent to connect",
+			},
+			wantErr: true,
+		},
+		{
+			name: "Shows agent troubleshooting URL",
+			opts: cliui.AgentOptions{
+				FetchInterval: time.Millisecond,
+				Wait:          true,
+			},
+			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentStartupLog) error{
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentStartupLog) error {
+					agent.Status = codersdk.WorkspaceAgentTimeout
+					agent.TroubleshootingURL = "https://troubleshoot"
+					return nil
+				},
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentStartupLog) error {
+					return xerrors.New("bad")
+				},
+			},
+			want: []string{
+				"⧗ Waiting for the workspace agent to connect",
+				"The workspace agent is having trouble connecting, wait for it to connect or restart your workspace.",
+				"https://troubleshoot",
+			},
+			wantErr: true,
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			defer cancel()
+
+			var buf bytes.Buffer
+			agent := codersdk.WorkspaceAgent{
+				ID:                    uuid.New(),
+				Status:                codersdk.WorkspaceAgentConnecting,
+				StartupScriptBehavior: codersdk.WorkspaceAgentStartupScriptBehaviorNonBlocking,
+				CreatedAt:             time.Now(),
+				LifecycleState:        codersdk.WorkspaceAgentLifecycleCreated,
+			}
+			logs := make(chan []codersdk.WorkspaceAgentStartupLog, 1)
+
+			cmd := &clibase.Cmd{
+				Handler: func(inv *clibase.Invocation) error {
+					tc.opts.Fetch = func(_ context.Context) (codersdk.WorkspaceAgent, error) {
+						var err error
+						if len(tc.iter) > 0 {
+							err = tc.iter[0](ctx, &agent, logs)
+							tc.iter = tc.iter[1:]
+						}
+						return agent, err
+					}
+					tc.opts.FetchLogs = func(_ context.Context, _ uuid.UUID, _ int64, _ bool) (<-chan []codersdk.WorkspaceAgentStartupLog, io.Closer, error) {
+						return logs, closeFunc(func() error { return nil }), nil
+					}
+					err := cliui.Agent(inv.Context(), &buf, tc.opts)
+					return err
+				},
+			}
+			inv := cmd.Invoke()
+
+			w := clitest.StartWithWaiter(t, inv)
+			if tc.wantErr {
+				w.RequireError()
+			} else {
+				w.RequireSuccess()
+			}
+
+			s := bufio.NewScanner(&buf)
+			for s.Scan() {
+				line := s.Text()
+				t.Log(line)
+				if len(tc.want) == 0 {
+					require.Fail(t, "unexpected line: "+line)
+				}
+				require.Contains(t, line, tc.want[0])
+				tc.want = tc.want[1:]
+			}
+			require.NoError(t, s.Err())
+			if len(tc.want) > 0 {
+				require.Fail(t, "missing lines: "+strings.Join(tc.want, ", "))
+			}
+		})
 	}
-
-	inv := cmd.Invoke()
-
-	ptty := ptytest.New(t)
-	ptty.Attach(inv)
-	done := make(chan error, 1)
-	go func() {
-		done <- inv.WithContext(ctx).Run()
-	}()
-	setStatus(codersdk.WorkspaceAgentConnecting)
-	ptty.ExpectMatchContext(ctx, "Don't panic, your workspace is booting")
-
-	setStatus(codersdk.WorkspaceAgentConnected)
-	require.NoError(t, <-done, "created - should exit early")
-
-	setState(codersdk.WorkspaceAgentLifecycleStarting)
-	go func() { done <- inv.WithContext(ctx).Run() }()
-	require.NoError(t, <-done, "starting - should exit early")
-
-	setState(codersdk.WorkspaceAgentLifecycleStartTimeout)
-	go func() { done <- inv.WithContext(ctx).Run() }()
-	require.NoError(t, <-done, "start timeout - should exit early")
-
-	setState(codersdk.WorkspaceAgentLifecycleStartError)
-	go func() { done <- inv.WithContext(ctx).Run() }()
-	require.NoError(t, <-done, "start error - should exit early")
-
-	setState(codersdk.WorkspaceAgentLifecycleReady)
-	go func() { done <- inv.WithContext(ctx).Run() }()
-	require.NoError(t, <-done, "ready - should exit early")
 }

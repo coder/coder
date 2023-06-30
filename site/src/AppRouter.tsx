@@ -193,7 +193,7 @@ export const AppRouter: FC = () => {
             <Route element={<DashboardLayout />}>
               <Route index element={<IndexPage />} />
 
-              <Route path="gitauth" element={<GitAuthPage />} />
+              <Route path="gitauth/:provider" element={<GitAuthPage />} />
 
               <Route path="workspaces" element={<WorkspacesPage />} />
 
@@ -317,7 +317,7 @@ export const AppRouter: FC = () => {
             {/* Terminal and CLI auth pages don't have the dashboard layout */}
             <Route
               path="/:username/:workspace/terminal"
-              element={<TerminalPage />}
+              element={<TerminalPage renderer="canvas" />}
             />
             <Route path="cli-auth" element={<CliAuthenticationPage />} />
           </Route>
