@@ -2410,6 +2410,12 @@ func (q *fakeQuerier) GetTemplateVersionParameters(_ context.Context, templateVe
 		}
 		parameters = append(parameters, param)
 	}
+	sort.Slice(parameters, func(i, j int) bool {
+		if parameters[i].DisplayOrder != parameters[j].DisplayOrder {
+			return parameters[i].DisplayOrder < parameters[j].DisplayOrder
+		}
+		return strings.ToLower(parameters[i].Name) < strings.ToLower(parameters[j].Name)
+	})
 	return parameters, nil
 }
 
@@ -3934,6 +3940,7 @@ func (q *fakeQuerier) InsertTemplateVersionParameter(_ context.Context, arg data
 		ValidationMax:       arg.ValidationMax,
 		ValidationMonotonic: arg.ValidationMonotonic,
 		Required:            arg.Required,
+		DisplayOrder:        arg.DisplayOrder,
 		LegacyVariableName:  arg.LegacyVariableName,
 	}
 	q.templateVersionParameters = append(q.templateVersionParameters, param)

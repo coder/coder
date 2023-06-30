@@ -1291,3 +1291,93 @@ func TestTemplateVersionPatch(t *testing.T) {
 		require.Error(t, err)
 	})
 }
+
+func TestTemplateVersionParameters_Order(t *testing.T) {
+	t.Parallel()
+
+	const (
+		firstParameterName  = "first_parameter"
+		firstParameterType  = "string"
+		firstParameterValue = "aaa"
+		// no order
+
+		secondParameterName  = "Second_parameter"
+		secondParameterType  = "number"
+		secondParameterValue = "2"
+		secondParameterOrder = 3
+
+		thirdParameterName  = "third_parameter"
+		thirdParameterType  = "number"
+		thirdParameterValue = "3"
+		thirdParameterOrder = 3
+
+		fourthParameterName  = "Fourth_parameter"
+		fourthParameterType  = "number"
+		fourthParameterValue = "3"
+		fourthParameterOrder = 2
+
+		fifthParameterName  = "Fifth_parameter"
+		fifthParameterType  = "string"
+		fifthParameterValue = "aaa"
+		// no order
+	)
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Provision_Response{
+			{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Parameters: []*proto.RichParameter{
+							{
+								Name: firstParameterName,
+								Type: firstParameterType,
+								// No order
+							},
+							{
+								Name:  secondParameterName,
+								Type:  secondParameterType,
+								Order: secondParameterOrder,
+							},
+							{
+								Name:  thirdParameterName,
+								Type:  thirdParameterType,
+								Order: thirdParameterOrder,
+							},
+							{
+								Name:  fourthParameterName,
+								Type:  fourthParameterType,
+								Order: fourthParameterOrder,
+							},
+							{
+								Name: fifthParameterName,
+								Type: fifthParameterType,
+								// No order
+							},
+						},
+					},
+				},
+			},
+		},
+		ProvisionApply: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{},
+			},
+		}},
+	})
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	templateRichParameters, err := client.TemplateVersionRichParameters(ctx, version.ID)
+	require.NoError(t, err)
+	require.Len(t, templateRichParameters, 5)
+	require.Equal(t, fifthParameterName, templateRichParameters[0].Name)
+	require.Equal(t, firstParameterName, templateRichParameters[1].Name)
+	require.Equal(t, fourthParameterName, templateRichParameters[2].Name)
+	require.Equal(t, secondParameterName, templateRichParameters[3].Name)
+	require.Equal(t, thirdParameterName, templateRichParameters[4].Name)
+}
