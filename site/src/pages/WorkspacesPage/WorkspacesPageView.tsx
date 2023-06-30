@@ -33,6 +33,7 @@ export const Language = {
 export interface WorkspacesPageViewProps {
   error: unknown
   workspaces?: Workspace[]
+  workspacesWithDeletions?: Workspace[]
   count?: number
   filterProps: ComponentProps<typeof WorkspacesFilter>
   page: number
@@ -45,6 +46,7 @@ export const WorkspacesPageView: FC<
   React.PropsWithChildren<WorkspacesPageViewProps>
 > = ({
   workspaces,
+  workspacesWithDeletions,
   error,
   limit,
   count,
@@ -55,9 +57,9 @@ export const WorkspacesPageView: FC<
 }) => {
   const { saveLocal, getLocal } = useLocalStorage()
 
-  const workspaceIdsWithImpendingDeletions = workspaces
-    ?.filter((workspace) => workspace.deleting_at)
-    .map((workspace) => workspace.id)
+  const workspaceIdsWithImpendingDeletions = workspacesWithDeletions?.map(
+    (workspace) => workspace.id,
+  )
 
   /**
    * Returns a boolean indicating if there are workspaces that have been
@@ -105,7 +107,9 @@ export const WorkspacesPageView: FC<
         </Maybe>
         {/* <ImpendingDeletionBanner/> determines its own visibility */}
         <ImpendingDeletionBanner
-          workspace={workspaces?.find((workspace) => workspace.deleting_at)}
+          workspace={workspacesWithDeletions?.find(
+            (workspace) => workspace.deleting_at,
+          )}
           shouldRedisplayBanner={isNewWorkspacesImpendingDeletion()}
           onDismiss={() =>
             saveLocal(
