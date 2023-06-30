@@ -41,9 +41,7 @@ resource "null_resource" "coder_namespace" {
   }
   provisioner "local-exec" {
     when    = destroy
-    command = <<EOF
-      KUBECONFIG=${self.triggers.kubeconfig_path} kubectl delete namespace ${self.triggers.namespace} --force
-    EOF
+    command = "true"
   }
 }
 
