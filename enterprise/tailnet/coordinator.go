@@ -38,11 +38,11 @@ func NewCoordinator(logger slog.Logger, ps pubsub.Pubsub) (agpl.Coordinator, err
 		closeFunc:                cancelFunc,
 		close:                    make(chan struct{}),
 		nodes:                    map[uuid.UUID]*agpl.Node{},
-		agentSockets:             map[uuid.UUID]agpl.Enqueueable{},
-		agentToConnectionSockets: map[uuid.UUID]map[uuid.UUID]agpl.Enqueueable{},
+		agentSockets:             map[uuid.UUID]agpl.Queue{},
+		agentToConnectionSockets: map[uuid.UUID]map[uuid.UUID]agpl.Queue{},
 		agentNameCache:           nameCache,
-		clients:                  map[uuid.UUID]agpl.Enqueueable{},
-		clientsToAgents:          map[uuid.UUID]map[uuid.UUID]struct{}{},
+		clients:                  map[uuid.UUID]agpl.Queue{},
+		clientsToAgents:          map[uuid.UUID]map[uuid.UUID]agpl.Queue{},
 		legacyAgents:             map[uuid.UUID]struct{}{},
 	}
 
@@ -62,14 +62,18 @@ func (c *haCoordinator) ServeMultiAgent(id uuid.UUID) agpl.MultiAgentConn {
 		OnNodeUpdate:      c.clientNodeUpdate,
 		OnRemove:          c.clientDisconnected,
 	}).Init()
-	c.mutex.Lock()
-	c.clients[id] = m
-	c.clientsToAgents[id] = map[uuid.UUID]struct{}{}
-	c.mutex.Unlock()
+	c.addClient(id, m)
 	return m
 }
 
-func (c *haCoordinator) clientSubscribeToAgent(enq agpl.Enqueueable, agentID uuid.UUID) error {
+func (c *haCoordinator) addClient(id uuid.UUID, q agpl.Queue) {
+	c.mutex.Lock()
+	c.clients[id] = q
+	c.clientsToAgents[id] = map[uuid.UUID]agpl.Queue{}
+	c.mutex.Unlock()
+}
+
+func (c *haCoordinator) clientSubscribeToAgent(enq agpl.Queue, agentID uuid.UUID) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -113,16 +117,16 @@ type haCoordinator struct {
 	// nodes maps agent and connection IDs their respective node.
 	nodes map[uuid.UUID]*agpl.Node
 	// agentSockets maps agent IDs to their open websocket.
-	agentSockets map[uuid.UUID]agpl.Enqueueable
+	agentSockets map[uuid.UUID]agpl.Queue
 	// agentToConnectionSockets maps agent IDs to connection IDs of conns that
 	// are subscribed to updates for that agent.
-	agentToConnectionSockets map[uuid.UUID]map[uuid.UUID]agpl.Enqueueable
+	agentToConnectionSockets map[uuid.UUID]map[uuid.UUID]agpl.Queue
 
 	// clients holds a map of all clients connected to the coordinator. This is
 	// necessary because a client may not be subscribed into any agents.
-	clients map[uuid.UUID]agpl.Enqueueable
+	clients map[uuid.UUID]agpl.Queue
 	// clientsToAgents is an index of clients to all of their subscribed agents.
-	clientsToAgents map[uuid.UUID]map[uuid.UUID]struct{}
+	clientsToAgents map[uuid.UUID]map[uuid.UUID]agpl.Queue
 
 	// agentNameCache holds a cache of agent names. If one of them disappears,
 	// it's helpful to have a name cached for debugging.
@@ -158,15 +162,18 @@ func (c *haCoordinator) ServeClient(conn net.Conn, id, agentID uuid.UUID) error 
 	defer cancel()
 	logger := c.clientLogger(id, agentID)
 
-	ma := c.ServeMultiAgent(id)
-	defer ma.Close()
+	tc := agpl.NewTrackedConn(ctx, cancel, conn, id, logger, 0)
+	defer tc.Close()
 
-	err := ma.SubscribeAgent(agentID)
+	c.addClient(id, tc)
+	defer c.clientDisconnected(id)
+
+	err := c.clientSubscribeToAgent(tc, agentID)
 	if err != nil {
 		return xerrors.Errorf("subscribe agent: %w", err)
 	}
 
-	go agpl.SendUpdatesToConn(ctx, logger, ma, conn)
+	go tc.SendUpdates()
 
 	decoder := json.NewDecoder(conn)
 	// Indefinitely handle messages from the client websocket.
@@ -181,14 +188,14 @@ func (c *haCoordinator) ServeClient(conn net.Conn, id, agentID uuid.UUID) error 
 	}
 }
 
-func (c *haCoordinator) initOrSetAgentConnectionSocketLocked(agentID uuid.UUID, enq agpl.Enqueueable) {
+func (c *haCoordinator) initOrSetAgentConnectionSocketLocked(agentID uuid.UUID, enq agpl.Queue) {
 	connectionSockets, ok := c.agentToConnectionSockets[agentID]
 	if !ok {
-		connectionSockets = map[uuid.UUID]agpl.Enqueueable{}
+		connectionSockets = map[uuid.UUID]agpl.Queue{}
 		c.agentToConnectionSockets[agentID] = connectionSockets
 	}
 	connectionSockets[enq.UniqueID()] = enq
-	c.clientsToAgents[enq.UniqueID()][agentID] = struct{}{}
+	c.clientsToAgents[enq.UniqueID()][agentID] = c.agentSockets[agentID]
 }
 
 func (c *haCoordinator) clientDisconnected(id uuid.UUID) {
@@ -231,11 +238,20 @@ func (c *haCoordinator) clientNodeUpdate(id uuid.UUID, node *agpl.Node) error {
 	// to establish connections.
 	c.nodes[id] = node
 
-	for agentID := range c.clientsToAgents[id] {
-		// Write the new node from this client to the actively connected agent.
-		err := c.sendNodeToAgentLocked(agentID, node)
-		if err != nil {
-			c.log.Error(context.Background(), "send node to agent", slog.Error(err), slog.F("agent_id", agentID))
+	for agentID, agentSocket := range c.clientsToAgents[id] {
+		if agentSocket == nil {
+			// If we don't own the agent locally, send it over pubsub to a node that
+			// owns the agent.
+			err := c.publishNodesToAgent(agentID, []*agpl.Node{node})
+			if err != nil {
+				c.log.Error(context.Background(), "publish node to agent", slog.Error(err), slog.F("agent_id", agentID))
+			}
+		} else {
+			// Write the new node from this client to the actively connected agent.
+			err := agentSocket.Enqueue([]*agpl.Node{node})
+			if err != nil {
+				c.log.Error(context.Background(), "enqueue node to agent", slog.Error(err), slog.F("agent_id", agentID))
+			}
 		}
 	}
 
@@ -294,6 +310,9 @@ func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) err
 		}
 	}
 	c.agentSockets[id] = tc
+	for clientID := range c.agentToConnectionSockets[id] {
+		c.clientsToAgents[clientID][id] = tc
+	}
 	c.mutex.Unlock()
 	go tc.SendUpdates()
 
@@ -312,6 +331,9 @@ func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) err
 		if idConn, ok := c.agentSockets[id]; ok && idConn.UniqueID() == unique {
 			delete(c.agentSockets, id)
 			delete(c.nodes, id)
+		}
+		for clientID := range c.agentToConnectionSockets[id] {
+			c.clientsToAgents[clientID][id] = nil
 		}
 	}()
 

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 )
@@ -22,15 +23,16 @@ type MultiAgentConn interface {
 }
 
 type MultiAgent struct {
-	mu     sync.RWMutex
+	mu sync.RWMutex
+
 	closed bool
 
 	ID     uuid.UUID
 	Logger slog.Logger
 
 	AgentIsLegacyFunc func(agentID uuid.UUID) bool
-	OnSubscribe       func(enq Enqueueable, agent uuid.UUID) error
-	OnUnsubscribe     func(enq Enqueueable, agent uuid.UUID) error
+	OnSubscribe       func(enq Queue, agent uuid.UUID) error
+	OnUnsubscribe     func(enq Queue, agent uuid.UUID) error
 	OnNodeUpdate      func(id uuid.UUID, node *Node) error
 	OnRemove          func(id uuid.UUID)
 
@@ -57,15 +59,35 @@ func (m *MultiAgent) AgentIsLegacy(agentID uuid.UUID) bool {
 	return m.AgentIsLegacyFunc(agentID)
 }
 
+var ErrMultiAgentClosed = xerrors.New("multiagent is closed")
+
 func (m *MultiAgent) UpdateSelf(node *Node) error {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.closed {
+		return ErrMultiAgentClosed
+	}
+
 	return m.OnNodeUpdate(m.ID, node)
 }
 
 func (m *MultiAgent) SubscribeAgent(agentID uuid.UUID) error {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.closed {
+		return ErrMultiAgentClosed
+	}
+
 	return m.OnSubscribe(m, agentID)
 }
 
 func (m *MultiAgent) UnsubscribeAgent(agentID uuid.UUID) error {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.closed {
+		return ErrMultiAgentClosed
+	}
+
 	return m.OnUnsubscribe(m, agentID)
 }
 
@@ -74,8 +96,8 @@ func (m *MultiAgent) NextUpdate(ctx context.Context) ([]*Node, bool) {
 	case <-ctx.Done():
 		return nil, false
 
-	case nodes := <-m.updates:
-		return nodes, true
+	case nodes, ok := <-m.updates:
+		return nodes, ok
 	}
 }
 
