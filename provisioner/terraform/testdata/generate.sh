@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
-for d in rich-parameters-validation/; do
+for d in */; do
 	pushd "$d"
 	name=$(basename "$(pwd)")
 

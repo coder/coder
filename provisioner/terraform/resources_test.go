@@ -383,6 +383,34 @@ func TestConvertResources(t *testing.T) {
 				DefaultValue: "ok",
 			}},
 		},
+		"rich-parameters-order": {
+			resources: []*proto.Resource{{
+				Name: "dev",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:                         "dev",
+					OperatingSystem:              "windows",
+					ShutdownScriptTimeoutSeconds: 300,
+					StartupScriptTimeoutSeconds:  300,
+					Architecture:                 "arm64",
+					Auth:                         &proto.Agent_Token{},
+					StartupScriptBehavior:        "non-blocking",
+					ConnectionTimeoutSeconds:     120,
+				}},
+			}},
+			parameters: []*proto.RichParameter{{
+				Name:     "Example",
+				Type:     "string",
+				Required: true,
+				Order:    55,
+			}, {
+				Name:         "Sample",
+				Type:         "string",
+				Description:  "blah blah",
+				DefaultValue: "ok",
+				Order:        99,
+			}},
+		},
 		"rich-parameters-validation": {
 			resources: []*proto.Resource{{
 				Name: "dev",
