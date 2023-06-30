@@ -17,7 +17,7 @@ INSERT INTO
         required,
         legacy_variable_name,
         display_name,
-        priority
+        display_order
     )
 VALUES
     (
@@ -41,4 +41,4 @@ VALUES
     ) RETURNING *;
 
 -- name: GetTemplateVersionParameters :many
-SELECT * FROM template_version_parameters WHERE template_version_id = $1 ORDER BY priority DESC, name ASC;
+SELECT * FROM template_version_parameters WHERE template_version_id = $1 ORDER BY display_order ASC, name ASC;

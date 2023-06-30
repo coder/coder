@@ -4153,7 +4153,7 @@ func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateT
 }
 
 const getTemplateVersionParameters = `-- name: GetTemplateVersionParameters :many
-SELECT template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, legacy_variable_name, display_name, priority FROM template_version_parameters WHERE template_version_id = $1 ORDER BY priority DESC, name ASC
+SELECT template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, legacy_variable_name, display_name, display_order FROM template_version_parameters WHERE template_version_id = $1 ORDER BY display_order ASC, name ASC
 `
 
 func (q *sqlQuerier) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionParameter, error) {
@@ -4182,7 +4182,7 @@ func (q *sqlQuerier) GetTemplateVersionParameters(ctx context.Context, templateV
 			&i.Required,
 			&i.LegacyVariableName,
 			&i.DisplayName,
-			&i.Priority,
+			&i.DisplayOrder,
 		); err != nil {
 			return nil, err
 		}
@@ -4216,7 +4216,7 @@ INSERT INTO
         required,
         legacy_variable_name,
         display_name,
-        priority
+        display_order
     )
 VALUES
     (
@@ -4237,7 +4237,7 @@ VALUES
         $15,
         $16,
         $17
-    ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, legacy_variable_name, display_name, priority
+    ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, legacy_variable_name, display_name, display_order
 `
 
 type InsertTemplateVersionParameterParams struct {
@@ -4257,7 +4257,7 @@ type InsertTemplateVersionParameterParams struct {
 	Required            bool            `db:"required" json:"required"`
 	LegacyVariableName  string          `db:"legacy_variable_name" json:"legacy_variable_name"`
 	DisplayName         string          `db:"display_name" json:"display_name"`
-	Priority            int32           `db:"priority" json:"priority"`
+	DisplayOrder        int32           `db:"display_order" json:"display_order"`
 }
 
 func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg InsertTemplateVersionParameterParams) (TemplateVersionParameter, error) {
@@ -4278,7 +4278,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		arg.Required,
 		arg.LegacyVariableName,
 		arg.DisplayName,
-		arg.Priority,
+		arg.DisplayOrder,
 	)
 	var i TemplateVersionParameter
 	err := row.Scan(
@@ -4298,7 +4298,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		&i.Required,
 		&i.LegacyVariableName,
 		&i.DisplayName,
-		&i.Priority,
+		&i.DisplayOrder,
 	)
 	return i, err
 }

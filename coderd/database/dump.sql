@@ -461,7 +461,7 @@ CREATE TABLE template_version_parameters (
     required boolean DEFAULT true NOT NULL,
     legacy_variable_name text DEFAULT ''::text NOT NULL,
     display_name text DEFAULT ''::text NOT NULL,
-    priority integer DEFAULT 0 NOT NULL,
+    display_order integer DEFAULT 0 NOT NULL,
     CONSTRAINT validation_monotonic_order CHECK ((validation_monotonic = ANY (ARRAY['increasing'::text, 'decreasing'::text, ''::text])))
 );
 
@@ -495,7 +495,7 @@ COMMENT ON COLUMN template_version_parameters.legacy_variable_name IS 'Name of t
 
 COMMENT ON COLUMN template_version_parameters.display_name IS 'Display name of the rich parameter';
 
-COMMENT ON COLUMN template_version_parameters.priority IS 'Display priority';
+COMMENT ON COLUMN template_version_parameters.display_order IS 'Display order';
 
 CREATE TABLE template_version_variables (
     template_version_id uuid NOT NULL,

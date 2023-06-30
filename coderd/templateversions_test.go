@@ -1292,29 +1292,29 @@ func TestTemplateVersionPatch(t *testing.T) {
 	})
 }
 
-func TestTemplateVersionParameters_Priority(t *testing.T) {
+func TestTemplateVersionParameters_Order(t *testing.T) {
 	t.Parallel()
 
 	const (
 		firstParameterName  = "first_parameter"
 		firstParameterType  = "string"
 		firstParameterValue = "aaa"
-		// no priority
+		// no order
 
-		secondParameterName     = "second_parameter"
-		secondParameterType     = "number"
-		secondParameterValue    = "2"
-		secondParameterPriority = 14
+		secondParameterName  = "second_parameter"
+		secondParameterType  = "number"
+		secondParameterValue = "2"
+		secondParameterOrder = 3
 
-		thirdParameterName     = "third_parameter"
-		thirdParameterType     = "number"
-		thirdParameterValue    = "3"
-		thirdParameterPriority = 14
+		thirdParameterName  = "third_parameter"
+		thirdParameterType  = "number"
+		thirdParameterValue = "3"
+		thirdParameterOrder = 3
 
-		fourthParameterName     = "fourth_parameter"
-		fourthParameterType     = "number"
-		fourthParameterValue    = "3"
-		fourthParameterPriority = 10
+		fourthParameterName  = "fourth_parameter"
+		fourthParameterType  = "number"
+		fourthParameterValue = "3"
+		fourthParameterOrder = 2
 	)
 
 	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -1329,22 +1329,22 @@ func TestTemplateVersionParameters_Priority(t *testing.T) {
 							{
 								Name: firstParameterName,
 								Type: firstParameterType,
-								// No priority
+								// No order
 							},
 							{
-								Name:     secondParameterName,
-								Type:     secondParameterType,
-								Priority: secondParameterPriority,
+								Name:  secondParameterName,
+								Type:  secondParameterType,
+								Order: secondParameterOrder,
 							},
 							{
-								Name:     thirdParameterName,
-								Type:     thirdParameterType,
-								Priority: thirdParameterPriority,
+								Name:  thirdParameterName,
+								Type:  thirdParameterType,
+								Order: thirdParameterOrder,
 							},
 							{
-								Name:     fourthParameterName,
-								Type:     fourthParameterType,
-								Priority: fourthParameterPriority,
+								Name:  fourthParameterName,
+								Type:  fourthParameterType,
+								Order: fourthParameterOrder,
 							},
 						},
 					},

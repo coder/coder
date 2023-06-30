@@ -1631,8 +1631,8 @@ type TemplateVersionParameter struct {
 	LegacyVariableName string `db:"legacy_variable_name" json:"legacy_variable_name"`
 	// Display name of the rich parameter
 	DisplayName string `db:"display_name" json:"display_name"`
-	// Display priority
-	Priority int32 `db:"priority" json:"priority"`
+	// Display order
+	DisplayOrder int32 `db:"display_order" json:"display_order"`
 }
 
 type TemplateVersionVariable struct {

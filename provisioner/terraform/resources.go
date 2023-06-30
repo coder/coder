@@ -494,7 +494,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string, rawParameterNa
 			DefaultValue:       param.Default,
 			Icon:               param.Icon,
 			Required:           !param.Optional,
-			Priority:           0, // FIXME: param.Priority
+			Order:              int32(param.Order),
 			LegacyVariableName: param.LegacyVariableName,
 		}
 		if len(param.Validation) == 1 {
