@@ -312,7 +312,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 			Value:       clibase.BoolOf(&trial),
 		},
 		{
-			Flag:        "use-token-for-session",
+			Flag:        "use-token-as-session",
 			Description: "By default, the CLI will generate a new session token when logging in. This flag will instead use the provided token as the session token.",
 			Value:       clibase.BoolOf(&useTokenForSession),
 		},
