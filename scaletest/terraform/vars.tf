@@ -1,3 +1,12 @@
+variable "state" {
+  description = "The state of the cluster. Valid values are 'started', and 'stopped'."
+  validation {
+    condition     = contains(["started", "stopped"], var.state)
+    error_message = "value must be one of 'started' or 'stopped'"
+  }
+  default = "started"
+}
+
 variable "project_id" {
   description = "The project in which to provision resources"
 }
