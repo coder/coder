@@ -478,7 +478,7 @@ func TestConvertResources(t *testing.T) {
 					// and that no errors occur!
 					modules = append(modules, tfPlan.PlannedValues.RootModule)
 				}
-				state, err := terraform.ConvertState(modules, string(tfPlanGraph), richParameterResourceNames(expected.parameters))
+				state, err := terraform.ConvertState(modules, string(tfPlanGraph))
 				require.NoError(t, err)
 				sortResources(state.Resources)
 				sort.Strings(state.GitAuthProviders)
@@ -532,7 +532,7 @@ func TestConvertResources(t *testing.T) {
 				tfStateGraph, err := os.ReadFile(filepath.Join(dir, folderName+".tfstate.dot"))
 				require.NoError(t, err)
 
-				state, err := terraform.ConvertState([]*tfjson.StateModule{tfState.Values.RootModule}, string(tfStateGraph), richParameterResourceNames(expected.parameters))
+				state, err := terraform.ConvertState([]*tfjson.StateModule{tfState.Values.RootModule}, string(tfStateGraph))
 				require.NoError(t, err)
 				sortResources(state.Resources)
 				sort.Strings(state.GitAuthProviders)
@@ -591,7 +591,7 @@ func TestAppSlugValidation(t *testing.T) {
 		}
 	}
 
-	state, err := terraform.ConvertState([]*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph), nil)
+	state, err := terraform.ConvertState([]*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph))
 	require.Nil(t, state)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "invalid app slug")
@@ -603,7 +603,7 @@ func TestAppSlugValidation(t *testing.T) {
 		}
 	}
 
-	state, err = terraform.ConvertState([]*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph), nil)
+	state, err = terraform.ConvertState([]*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph))
 	require.Nil(t, state)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "duplicate app slug")
@@ -634,7 +634,7 @@ func TestParameterValidation(t *testing.T) {
 		}
 	}
 
-	state, err := terraform.ConvertState([]*tfjson.StateModule{tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph), names)
+	state, err := terraform.ConvertState([]*tfjson.StateModule{tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph))
 	require.Nil(t, state)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "coder_parameter names must be unique but \"identical\" appears multiple times")
@@ -650,7 +650,7 @@ func TestParameterValidation(t *testing.T) {
 		}
 	}
 
-	state, err = terraform.ConvertState([]*tfjson.StateModule{tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph), names)
+	state, err = terraform.ConvertState([]*tfjson.StateModule{tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph))
 	require.Nil(t, state)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "coder_parameter names must be unique but \"identical-0\" and \"identical-1\" appear multiple times")
@@ -666,7 +666,7 @@ func TestParameterValidation(t *testing.T) {
 		}
 	}
 
-	state, err = terraform.ConvertState([]*tfjson.StateModule{tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph), names)
+	state, err = terraform.ConvertState([]*tfjson.StateModule{tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph))
 	require.Nil(t, state)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "coder_parameter names must be unique but \"identical-0\", \"identical-1\" and \"identical-2\" appear multiple times")
@@ -716,7 +716,7 @@ func TestInstanceTypeAssociation(t *testing.T) {
 	subgraph "root" {
 		"[root] `+tc.ResourceType+`.dev" [label = "`+tc.ResourceType+`.dev", shape = "box"]
 	}
-}`, nil)
+}`)
 			require.NoError(t, err)
 			require.Len(t, state.Resources, 1)
 			require.Equal(t, state.Resources[0].GetInstanceType(), instanceType)
@@ -787,7 +787,7 @@ func TestInstanceIDAssociation(t *testing.T) {
 		"[root] `+tc.ResourceType+`.dev" -> "[root] coder_agent.dev"
 	}
 }
-`, nil)
+`)
 			require.NoError(t, err)
 			require.Len(t, state.Resources, 1)
 			require.Len(t, state.Resources[0].Agents, 1)

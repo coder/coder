@@ -99,7 +99,7 @@ type State struct {
 // ConvertState consumes Terraform state and a GraphViz representation
 // produced by `terraform graph` to produce resources consumable by Coder.
 // nolint:gocyclo
-func ConvertState(modules []*tfjson.StateModule, rawGraph string, rawParameterNames []string) (*State, error) {
+func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error) {
 	parsedGraph, err := gographviz.ParseString(rawGraph)
 	if err != nil {
 		return nil, xerrors.Errorf("parse graph: %w", err)
@@ -479,7 +479,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string, rawParameterNa
 
 	var duplicatedParamNames []string
 	parameters := make([]*proto.RichParameter, 0)
-	for _, resource := range orderedRichParametersResources(tfResourcesRichParameters, rawParameterNames) {
+	for _, resource := range tfResourcesRichParameters {
 		var param provider.Parameter
 		err = mapstructure.Decode(resource.AttributeValues, &param)
 		if err != nil {
