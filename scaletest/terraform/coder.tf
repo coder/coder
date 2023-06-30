@@ -130,7 +130,7 @@ coder:
     sessionAffinity: None
     loadBalancerIP: "${local.coder_address}"
   volumeMounts:
-  - mountPath: "/tmp/coder"
+  - mountPath: "/tmp"
     name: cache
     readOnly: false
   volumes:

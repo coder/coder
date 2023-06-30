@@ -109,3 +109,54 @@ curl -X POST http://coder-server:8080/api/v2/users/login \
 | Status | Meaning                                                      | Description | Schema                                                                             |
 | ------ | ------------------------------------------------------------ | ----------- | ---------------------------------------------------------------------------------- |
 | 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.LoginWithPasswordResponse](schemas.md#codersdkloginwithpasswordresponse) |
+
+## Convert user from password to oauth authentication
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/users/{user}/convert-login \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /users/{user}/convert-login`
+
+> Body parameter
+
+```json
+{
+  "password": "string",
+  "to_type": "password"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                   | Required | Description          |
+| ------ | ---- | ---------------------------------------------------------------------- | -------- | -------------------- |
+| `user` | path | string                                                                 | true     | User ID, name, or me |
+| `body` | body | [codersdk.ConvertLoginRequest](schemas.md#codersdkconvertloginrequest) | true     | Convert request      |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "expires_at": "2019-08-24T14:15:22Z",
+  "state_string": "string",
+  "to_type": "password",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                                                         |
+| ------ | ------------------------------------------------------------ | ----------- | ------------------------------------------------------------------------------ |
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.OAuthConversionResponse](schemas.md#codersdkoauthconversionresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).

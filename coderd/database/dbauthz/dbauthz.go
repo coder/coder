@@ -1041,6 +1041,13 @@ func (q *querier) GetLogoURL(ctx context.Context) (string, error) {
 	return q.db.GetLogoURL(ctx)
 }
 
+func (q *querier) GetOAuthSigningKey(ctx context.Context) (string, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return "", err
+	}
+	return q.db.GetOAuthSigningKey(ctx)
+}
+
 func (q *querier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {
 	return fetch(q.log, q.auth, q.db.GetOrganizationByID)(ctx, id)
 }
@@ -2351,6 +2358,13 @@ func (q *querier) UpdateUserLinkedID(ctx context.Context, arg database.UpdateUse
 	return q.db.UpdateUserLinkedID(ctx, arg)
 }
 
+func (q *querier) UpdateUserLoginType(ctx context.Context, arg database.UpdateUserLoginTypeParams) (database.User, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return database.User{}, err
+	}
+	return q.db.UpdateUserLoginType(ctx, arg)
+}
+
 func (q *querier) UpdateUserProfile(ctx context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
 	u, err := q.db.GetUserByID(ctx, arg.ID)
 	if err != nil {
@@ -2592,6 +2606,13 @@ func (q *querier) UpsertLogoURL(ctx context.Context, value string) error {
 		return err
 	}
 	return q.db.UpsertLogoURL(ctx, value)
+}
+
+func (q *querier) UpsertOAuthSigningKey(ctx context.Context, value string) error {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpsertOAuthSigningKey(ctx, value)
 }
 
 func (q *querier) UpsertServiceBanner(ctx context.Context, value string) error {

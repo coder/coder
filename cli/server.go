@@ -148,6 +148,14 @@ func ReadGitAuthProvidersFromEnv(environ []string) ([]codersdk.GitAuthConfig, er
 			provider.ValidateURL = v.Value
 		case "REGEX":
 			provider.Regex = v.Value
+		case "DEVICE_FLOW":
+			b, err := strconv.ParseBool(v.Value)
+			if err != nil {
+				return nil, xerrors.Errorf("parse bool: %s", v.Value)
+			}
+			provider.DeviceFlow = b
+		case "DEVICE_CODE_URL":
+			provider.DeviceCodeURL = v.Value
 		case "NO_REFRESH":
 			b, err := strconv.ParseBool(v.Value)
 			if err != nil {
@@ -156,6 +164,10 @@ func ReadGitAuthProvidersFromEnv(environ []string) ([]codersdk.GitAuthConfig, er
 			provider.NoRefresh = b
 		case "SCOPES":
 			provider.Scopes = strings.Split(v.Value, " ")
+		case "APP_INSTALL_URL":
+			provider.AppInstallURL = v.Value
+		case "APP_INSTALLATIONS_URL":
+			provider.AppInstallationsURL = v.Value
 		}
 		providers[providerNum] = provider
 	}
@@ -671,6 +683,39 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 
 				options.AppSecurityKey = appSecurityKey
+
+				// Read the oauth signing key from the database. Like the app security, generate a new one
+				// if it is invalid for any reason.
+				oauthSigningKeyStr, err := tx.GetOAuthSigningKey(ctx)
+				if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+					return xerrors.Errorf("get app oauth signing key: %w", err)
+				}
+				if decoded, err := hex.DecodeString(oauthSigningKeyStr); err != nil || len(decoded) != len(options.OAuthSigningKey) {
+					b := make([]byte, len(options.OAuthSigningKey))
+					_, err := rand.Read(b)
+					if err != nil {
+						return xerrors.Errorf("generate fresh oauth signing key: %w", err)
+					}
+
+					oauthSigningKeyStr = hex.EncodeToString(b)
+					err = tx.UpsertOAuthSigningKey(ctx, oauthSigningKeyStr)
+					if err != nil {
+						return xerrors.Errorf("insert freshly generated oauth signing key to database: %w", err)
+					}
+				}
+
+				keyBytes, err := hex.DecodeString(oauthSigningKeyStr)
+				if err != nil {
+					return xerrors.Errorf("decode oauth signing key from database: %w", err)
+				}
+				if len(keyBytes) != len(options.OAuthSigningKey) {
+					return xerrors.Errorf("oauth signing key in database is not the correct length, expect %d got %d", len(options.OAuthSigningKey), len(keyBytes))
+				}
+				copy(options.OAuthSigningKey[:], keyBytes)
+				if options.OAuthSigningKey == [32]byte{} {
+					return xerrors.Errorf("oauth signing key in database is empty")
+				}
+
 				return nil
 			}, nil)
 			if err != nil {
