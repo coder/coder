@@ -2,7 +2,6 @@ package terraform
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/awalterschulze/gographviz"
@@ -718,45 +717,4 @@ func findResourcesInGraph(graph *gographviz.Graph, tfResourcesByLabel map[string
 	}
 
 	return graphResources
-}
-
-func orderedRichParametersResources(tfResourcesRichParameters []*tfjson.StateResource, orderedNames []string) []*tfjson.StateResource {
-	if len(orderedNames) == 0 {
-		return tfResourcesRichParameters
-	}
-
-	var ordered []*tfjson.StateResource
-	for _, name := range orderedNames {
-		for _, resource := range tfResourcesRichParameters {
-			if resource.Name == name {
-				ordered = append(ordered, resource)
-			}
-		}
-	}
-
-	// Edge case: a parameter is present in an external module (Git repository, static files, etc.),
-	// which can't be easily parsed to check the parameter order.
-	// Those parameters will be prepended to the "ordered" list.
-	var external []*tfjson.StateResource
-	for _, resource := range tfResourcesRichParameters {
-		isExternal := true
-		for _, o := range ordered {
-			if resource.Name == o.Name {
-				isExternal = false
-				break
-			}
-		}
-		if isExternal {
-			external = append(external, resource)
-		}
-	}
-
-	if len(external) > 0 {
-		sort.Slice(external, func(i, j int) bool {
-			return external[i].Name < external[j].Name
-		})
-
-		ordered = append(external, ordered...)
-	}
-	return ordered
 }
