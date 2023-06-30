@@ -121,17 +121,12 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
   })
 
   const permissions = usePermissions()
-  let query = async (): Promise<Region[]> => {
-    const resp = await getWorkspaceProxyRegions()
+  const query = async (): Promise<Region[]> => {
+    const endpoint = permissions.editWorkspaceProxies
+      ? getWorkspaceProxies
+      : getWorkspaceProxyRegions
+    const resp = await endpoint()
     return resp.regions
-  }
-
-  if (permissions.editWorkspaceProxies) {
-    // Admins should query the more detailed endpoint.
-    query = async (): Promise<Region[]> => {
-      const resp = await getWorkspaceProxies()
-      return resp.regions
-    }
   }
 
   const {
