@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
+	"github.com/coder/coder/cli/exp"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/telemetry"
@@ -95,7 +96,6 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 		r.list(),
 		r.ping(),
 		r.rename(),
-		r.scaletest(),
 		r.schedules(),
 		r.show(),
 		r.speedtest(),
@@ -111,6 +111,7 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 		r.netcheck(),
 		r.vscodeSSH(),
 		r.workspaceAgent(),
+		exp.Cmd(r.InitClient(new(codersdk.Client))),
 	}
 }
 

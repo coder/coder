@@ -59,6 +59,7 @@ import (
 	"cdr.dev/slog/sloggers/slogstackdriver"
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/cli/clisrv"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/coderd"
@@ -758,7 +759,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			_ = pprof.Handler
 			if cfg.Pprof.Enable {
 				//nolint:revive
-				defer ServeHandler(ctx, logger, nil, cfg.Pprof.Address.String(), "pprof")()
+				defer clisrv.Handler(ctx, logger, nil, cfg.Pprof.Address.String(), "pprof")()
 			}
 			if cfg.Prometheus.Enable {
 				options.PrometheusRegistry.MustRegister(collectors.NewGoCollector())
@@ -799,7 +800,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 
 				//nolint:revive
-				defer ServeHandler(ctx, logger, promhttp.InstrumentMetricHandler(
+				defer clisrv.Handler(ctx, logger, promhttp.InstrumentMetricHandler(
 					options.PrometheusRegistry, promhttp.HandlerFor(options.PrometheusRegistry, promhttp.HandlerOpts{}),
 				), cfg.Prometheus.Address.String(), "prometheus")()
 			}

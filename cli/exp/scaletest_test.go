@@ -1,4 +1,4 @@
-package cli_test
+package exp_test
 
 import (
 	"bytes"
@@ -55,7 +55,7 @@ param3: 1
 		err = f.Close()
 		require.NoError(t, err)
 
-		inv, root := clitest.New(t, "scaletest", "create-workspaces",
+		inv, root := clitest.New(t, "exp", "scaletest", "create-workspaces",
 			"--count", "2",
 			"--template", template.Name,
 			"--parameters-file", paramsFile,
@@ -149,7 +149,7 @@ param3: 1
 		require.Len(t, users.Users, len(seenUsers)+1)
 
 		// Cleanup.
-		inv, root = clitest.New(t, "scaletest", "cleanup",
+		inv, root = clitest.New(t, "exp", "scaletest", "cleanup",
 			"--cleanup-concurrency", "1",
 			"--cleanup-timeout", "30s",
 			"--cleanup-job-timeout", "15s",
@@ -211,7 +211,7 @@ func TestScaleTestWorkspaceTraffic(t *testing.T) {
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
 
-	inv, root := clitest.New(t, "scaletest", "workspace-traffic",
+	inv, root := clitest.New(t, "exp", "scaletest", "workspace-traffic",
 		"--timeout", "1s",
 		"--bytes-per-tick", "1024",
 		"--tick-interval", "100ms",

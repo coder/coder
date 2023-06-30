@@ -1,4 +1,4 @@
-package cli
+package exp
 
 import (
 	"context"
@@ -23,6 +23,7 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 
 	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/cli/clisrv"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/tracing"
@@ -38,7 +39,7 @@ import (
 
 const scaletestTracerName = "coder_scaletest"
 
-func (r *RootCmd) scaletest() *clibase.Cmd {
+func scaletest(mw clibase.MiddlewareFunc) *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:   "scaletest",
 		Short: "Run a scale test against the Coder API",
@@ -46,9 +47,9 @@ func (r *RootCmd) scaletest() *clibase.Cmd {
 			return inv.Command.HelpHandler(inv)
 		},
 		Children: []*clibase.Cmd{
-			r.scaletestCleanup(),
-			r.scaletestCreateWorkspaces(),
-			r.scaletestWorkspaceTraffic(),
+			scaletestCleanup(mw),
+			scaletestCreateWorkspaces(mw),
+			scaletestWorkspaceTraffic(mw),
 		},
 	}
 
@@ -365,17 +366,15 @@ func (r *userCleanupRunner) Run(ctx context.Context, _ string, _ io.Writer) erro
 	return nil
 }
 
-func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
+func scaletestCleanup(mw clibase.MiddlewareFunc) *clibase.Cmd {
 	cleanupStrategy := &scaletestStrategyFlags{cleanup: true}
 	client := new(codersdk.Client)
 
 	cmd := &clibase.Cmd{
-		Use:   "cleanup",
-		Short: "Cleanup scaletest workspaces, then cleanup scaletest users.",
-		Long:  "The strategy flags will apply to each stage of the cleanup process.",
-		Middleware: clibase.Chain(
-			r.InitClient(client),
-		),
+		Use:        "cleanup",
+		Short:      "Cleanup scaletest workspaces, then cleanup scaletest users.",
+		Long:       "The strategy flags will apply to each stage of the cleanup process.",
+		Middleware: mw,
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
 
@@ -385,12 +384,7 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 			}
 
 			client.HTTPClient = &http.Client{
-				Transport: &headerTransport{
-					transport: http.DefaultTransport,
-					header: map[string][]string{
-						codersdk.BypassRatelimitHeader: {"true"},
-					},
-				},
+				Transport: &bypassRateLimitHeaderTransport{http.DefaultTransport},
 			}
 
 			cliui.Infof(inv.Stdout, "Fetching scaletest workspaces...")
@@ -470,7 +464,7 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
+func scaletestCreateWorkspaces(mw clibase.MiddlewareFunc) *clibase.Cmd {
 	var (
 		count    int64
 		template string
@@ -509,7 +503,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 		Use:        "create-workspaces",
 		Short:      "Creates many users, then creates a workspace for each user and waits for them finish building and fully come online. Optionally runs a command inside each workspace, and connects to the workspace over WireGuard.",
 		Long:       `It is recommended that all rate limits are disabled on the server before running this scaletest. This test generates many login events which will be rate limited against the (most likely single) IP.`,
-		Middleware: r.InitClient(client),
+		Middleware: mw,
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
 
@@ -519,12 +513,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 			}
 
 			client.HTTPClient = &http.Client{
-				Transport: &headerTransport{
-					transport: http.DefaultTransport,
-					header: map[string][]string{
-						codersdk.BypassRatelimitHeader: {"true"},
-					},
-				},
+				Transport: &bypassRateLimitHeaderTransport{http.DefaultTransport},
 			}
 
 			if count <= 0 {
@@ -844,7 +833,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
+func scaletestWorkspaceTraffic(mw clibase.MiddlewareFunc) *clibase.Cmd {
 	var (
 		tickInterval               time.Duration
 		bytesPerTick               int64
@@ -859,28 +848,21 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 	)
 
 	cmd := &clibase.Cmd{
-		Use:   "workspace-traffic",
-		Short: "Generate traffic to scaletest workspaces through coderd",
-		Middleware: clibase.Chain(
-			r.InitClient(client),
-		),
+		Use:        "workspace-traffic",
+		Short:      "Generate traffic to scaletest workspaces through coderd",
+		Middleware: mw,
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
 			reg := prometheus.NewRegistry()
 			metrics := workspacetraffic.NewMetrics(reg, "username", "workspace_name", "agent_name")
 
 			logger := slog.Make(sloghuman.Sink(io.Discard))
-			prometheusSrvClose := ServeHandler(ctx, logger, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), scaletestPrometheusAddress, "prometheus")
+			prometheusSrvClose := clisrv.Handler(ctx, logger, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), scaletestPrometheusAddress, "prometheus")
 			defer prometheusSrvClose()
 
 			// Bypass rate limiting
 			client.HTTPClient = &http.Client{
-				Transport: &headerTransport{
-					transport: http.DefaultTransport,
-					header: map[string][]string{
-						codersdk.BypassRatelimitHeader: {"true"},
-					},
-				},
+				Transport: &bypassRateLimitHeaderTransport{http.DefaultTransport},
 			}
 
 			workspaces, err := getScaletestWorkspaces(inv.Context(), client)

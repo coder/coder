@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/agent/reaper"
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/cli/clisrv"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
 )
@@ -177,7 +178,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			// Enable pprof handler
 			// This prevents the pprof import from being accidentally deleted.
 			_ = pprof.Handler
-			pprofSrvClose := ServeHandler(ctx, logger, nil, pprofAddress, "pprof")
+			pprofSrvClose := clisrv.Handler(ctx, logger, nil, pprofAddress, "pprof")
 			defer pprofSrvClose()
 			if port, err := extractPort(pprofAddress); err == nil {
 				ignorePorts[port] = "pprof"
@@ -280,10 +281,10 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				PrometheusRegistry: prometheusRegistry,
 			})
 
-			prometheusSrvClose := ServeHandler(ctx, logger, prometheusMetricsHandler(prometheusRegistry, logger), prometheusAddress, "prometheus")
+			prometheusSrvClose := clisrv.Handler(ctx, logger, prometheusMetricsHandler(prometheusRegistry, logger), prometheusAddress, "prometheus")
 			defer prometheusSrvClose()
 
-			debugSrvClose := ServeHandler(ctx, logger, agnt.HTTPDebug(), debugAddress, "debug")
+			debugSrvClose := clisrv.Handler(ctx, logger, agnt.HTTPDebug(), debugAddress, "debug")
 			defer debugSrvClose()
 
 			<-ctx.Done()
@@ -376,29 +377,6 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 	}
 
 	return cmd
-}
-
-func ServeHandler(ctx context.Context, logger slog.Logger, handler http.Handler, addr, name string) (closeFunc func()) {
-	logger.Debug(ctx, "http server listening", slog.F("addr", addr), slog.F("name", name))
-
-	// ReadHeaderTimeout is purposefully not enabled. It caused some issues with
-	// websockets over the dev tunnel.
-	// See: https://github.com/coder/coder/pull/3730
-	//nolint:gosec
-	srv := &http.Server{
-		Addr:    addr,
-		Handler: handler,
-	}
-	go func() {
-		err := srv.ListenAndServe()
-		if err != nil && !xerrors.Is(err, http.ErrServerClosed) {
-			logger.Error(ctx, "http server listen", slog.F("name", name), slog.Error(err))
-		}
-	}()
-
-	return func() {
-		_ = srv.Close()
-	}
 }
 
 // lumberjackWriteCloseFixer is a wrapper around an io.WriteCloser that
