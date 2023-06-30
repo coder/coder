@@ -93,7 +93,8 @@ export const useProxyLatency = (
         return acc
       }
 
-      // Do not run latency checks more than once per <interval> seconds.
+      // Do not run latency checks if a cached check exists below the latestFetchRequest Date.
+      // This prevents fetching latencies too often.
       // 1. Fetch the latest stored latency for the given proxy.
       // 2. If the latest latency is after the latestFetchRequest, then skip the latency check.
       if (storedLatencies && storedLatencies[proxy.id]) {
