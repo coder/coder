@@ -87,6 +87,12 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		OAuth2Configs:   oauthConfigs,
 		RedirectToLogin: false,
 	})
+	apiKeyMiddlewareOptional := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+		DB:              options.Database,
+		OAuth2Configs:   oauthConfigs,
+		RedirectToLogin: false,
+		Optional:        true,
+	})
 
 	deploymentID, err := options.Database.GetDeploymentID(ctx)
 	if err != nil {
@@ -201,11 +207,23 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			})
 		})
 		r.Route("/appearance", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-			)
-			r.Get("/", api.appearance)
-			r.Put("/", api.putAppearance)
+			r.Group(func(r chi.Router) {
+				r.Use(
+					apiKeyMiddlewareOptional,
+					httpmw.ExtractWorkspaceAgent(httpmw.ExtractWorkspaceAgentConfig{
+						DB:       options.Database,
+						Optional: true,
+					}),
+					httpmw.RequireAPIKeyOrWorkspaceAgent(),
+				)
+				r.Get("/", api.appearance)
+			})
+			r.Group(func(r chi.Router) {
+				r.Use(
+					apiKeyMiddleware,
+				)
+				r.Put("/", api.putAppearance)
+			})
 		})
 	})
 
