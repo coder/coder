@@ -41,10 +41,11 @@ func (r *RootCmd) login() *clibase.Cmd {
 	const firstUserTrialEnv = "CODER_FIRST_USER_TRIAL"
 
 	var (
-		email    string
-		username string
-		password string
-		trial    bool
+		email              string
+		username           string
+		password           string
+		trial              bool
+		useTokenForSession bool
 	)
 	cmd := &clibase.Cmd{
 		Use:        "login <url>",
@@ -246,7 +247,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 				if err != nil {
 					return xerrors.Errorf("paste token prompt: %w", err)
 				}
-			} else {
+			} else if !useTokenForSession {
 				// If a session token is provided on the cli, use it to generate
 				// a new one. This is because the cli `--token` flag provides
 				// a token for the command being invoked. We should not store
@@ -309,6 +310,11 @@ func (r *RootCmd) login() *clibase.Cmd {
 			Env:         firstUserTrialEnv,
 			Description: "Specifies whether a trial license should be provisioned for the Coder deployment or not.",
 			Value:       clibase.BoolOf(&trial),
+		},
+		{
+			Flag:        "use-token-for-session",
+			Description: "By default, the CLI will generate a new session token when logging in. This flag will instead use the provided token as the session token.",
+			Value:       clibase.BoolOf(&useTokenForSession),
 		},
 	}
 	return cmd
