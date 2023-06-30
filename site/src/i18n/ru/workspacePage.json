@@ -1,6 +1,6 @@
 {
   "deleteDialog": {
-    "info": "This workspace was created {{timeAgo}}."
+    "info": "Это рабочее пространство было создано {{timeAgo}}."
   },
   "workspaceScheduleButton": {
     "schedule": "Schedule",
@@ -19,33 +19,33 @@
     "workspaceShutdownWarning": "Your workspace is scheduled to automatically shut down soon."
   },
   "actionButton": {
-    "start": "Start",
-    "stop": "Stop",
-    "restart": "Restart",
-    "delete": "Delete",
-    "cancel": "Cancel",
-    "update": "Update",
-    "updating": "Updating",
-    "starting": "Starting...",
-    "stopping": "Stopping...",
-    "deleting": "Deleting...",
-    "settings": "Settings",
-    "retryDebugMode": "Try in debug mode"
+    "start": "Запустить",
+    "stop": "Остановить",
+    "restart": "Перезапустить",
+    "delete": "Удалить",
+    "cancel": "Отмена",
+    "update": "Обновить",
+    "updating": "Обновление",
+    "starting": "Запуск...",
+    "stopping": "Остановка...",
+    "deleting": "Удаление...",
+    "settings": "Настройки",
+    "retryDebugMode": "Запустить в отладочном режиме"
   },
   "disabledButton": {
-    "canceling": "Canceling",
-    "deleted": "Deleted",
-    "pending": "Pending"
+    "canceling": "Отмена",
+    "deleted": "Удалено",
+    "pending": "Не завершено"
   },
   "agentStatus": {
     "connected": {
-      "ready": "Ready",
-      "starting": "Starting...",
-      "shuttingDown": "Stopping...",
-      "off": "Stopped"
+      "ready": "Готов",
+      "starting": "Запуск...",
+      "shuttingDown": "Остановка...",
+      "off": "Остановлен"
     },
-    "connecting": "Connecting...",
-    "disconnected": "Disconnected",
+    "connecting": "Соединение...",
+    "disconnected": "Разъединено",
     "timeout": "Timeout"
   },
   "buildMessage": {

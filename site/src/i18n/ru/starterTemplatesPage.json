@@ -1,9 +1,9 @@
 {
-  "title": "Starter Templates",
-  "subtitle": "Import a built-in template to start developing in the cloud",
-  "filterCaption": "Filter",
+  "title": "Стартовые Шаблоны",
+  "subtitle": "Импортируйте встроенный шаблон, чтобы начать разработку в облаке",
+  "filterCaption": "Фильтр",
   "tags": {
-    "all": "All templates",
+    "all": "Все шаблоны",
     "digitalocean": "Digital Ocean",
     "aws": "AWS",
     "google": "Google Cloud"

@@ -1,11 +1,11 @@
 {
-  "title": "Version",
+  "title": "Версия",
   "header": {
-    "caption": "Version"
+    "caption": "Версия"
   },
   "stats": {
-    "template": "Template",
-    "createdBy": "Created by",
-    "created": "Created"
+    "template": "Шаблон",
+    "createdBy": "Автор",
+    "created": "Создан"
   }
 }

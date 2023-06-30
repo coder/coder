@@ -1,57 +1,57 @@
 {
-  "title": "Create Template",
+  "title": "Создать Шаблон",
   "form": {
     "generalInfo": {
-      "title": "General",
-      "description": "The name is used to identify the template in URLs and the API."
+      "title": "Общее",
+      "description": "Имя шаблона используется для идентификации в URL-ссылках и API."
     },
     "displayInfo": {
-      "title": "Display",
-      "description": "A friendly name, description, and icon to help developers identify your template."
+      "title": "Внешний вид",
+      "description": "Понятное имя, описание и значок, чтобы помочь разработчику найти шаблон."
     },
     "schedule": {
-      "title": "Schedule",
-      "description": "Define when workspaces created from this template automatically stop."
+      "title": "Расписание",
+      "description": "Установите время когда рабочие пространства, созданные этим шаблоном, будут автоматически останавливаться."
     },
     "operations": {
-      "title": "Operations",
-      "description": "Regulate actions allowed on workspaces created from this template."
+      "title": "Управление",
+      "description": "Регулируйте действия доступные пользователю в рабочем пространстве, созданном из этого шаблона."
     },
     "parameters": {
-      "title": "Template params",
-      "description": "These params are provided by your template's Terraform configuration."
+      "title": "Параметры шаблона",
+      "description": "Следующие параметры шаблона предоставлены конфигурацией Terraform."
     },
     "fields": {
-      "name": "Name",
-      "displayName": "Display name",
-      "description": "Description",
-      "icon": "Icon",
-      "autostop": "Default autostop (hours)",
-      "maxTTL": "Max lifetime (hours)",
-      "allowUsersToCancel": "Allow users to cancel in-progress workspace jobs"
+      "name": "Название",
+      "displayName": "Отображаемое название",
+      "description": "Описание",
+      "icon": "Значок",
+      "autostop": "Автоматическая остановка (в часах)",
+      "maxTTL": "Максимальное время жизни (в часах)",
+      "allowUsersToCancel": "Разрешить пользователю отменять выполняемые джобы"
     },
     "helperText": {
-      "defaultTTLHelperText_zero": "Workspaces will run until stopped manually.",
-      "defaultTTLHelperText_one": "Workspaces will default to stopping after {{count}} hour. If Coder detects workspace connection activity, the autostop timer is bumped up one hour.",
-      "defaultTTLHelperText_other": "Workspaces will default to stopping after {{count}} hours. If Coder detects workspace connection activity, the autostop timer is bumped up one hour.",
-      "maxTTLHelperText_zero": "Workspaces may run indefinitely.",
-      "maxTTLHelperText_one": "Workspaces must stop within 1 hour of starting, regardless of any active connections.",
-      "maxTTLHelperText_other": "Workspaces must stop within {{count}} hours of starting, regardless of any active connections.",
-      "allowUsersToCancel": "If checked, users may be able to corrupt their workspace."
+      "defaultTTLHelperText_zero": "Рабочие пространства будут работать до тех пор, пока не будут остановлены вручную.",
+      "defaultTTLHelperText_one": "Рабочие пространства будут автоматически останавливаться через {{count}}ч. Если Coder засечет сетевую активность, то время жизни пространства увеличиться на 1 час.",
+      "defaultTTLHelperText_other": "Рабочие пространства будут автоматически останавливаться через {{count}}ч. Если Coder засечет сетевую активность, то время жизни пространства увеличиться на 1 час.",
+      "maxTTLHelperText_zero": "Рабочие пространства могут работать бесконечно.",
+      "maxTTLHelperText_one": "Рабочие пространства должны быть остановлены в течение 1 часа после запуска, независимо от любых активных подключений.",
+      "maxTTLHelperText_other": "Рабочие пространства должны быть остановлены в течение {{count}}ч после запуска, независимо от любых активных подключений.",
+      "allowUsersToCancel": "Если этот флажок установлен, пользователи могут повредить свое рабочее пространство."
     },
     "upload": {
-      "removeTitle": "Remove file",
-      "title": "Upload template"
+      "removeTitle": "Удалить файл",
+      "title": "Загрузить шаблон"
     },
     "tooltip": {
-      "allowUsersToCancel": "Depending on your template, canceling builds may leave workspaces in an unhealthy state. This option isn't recommended for most use cases."
+      "allowUsersToCancel": "В зависимости от вашего шаблона, отмена сборки пространства может привести к его неработоспособности. Этот параметр не рекомендуется для большинства вариантов использования."
     },
     "error": {
-      "descriptionMax": "Please enter a description that is less than or equal to 128 characters.",
-      "defaultTTLMax": "Please enter a limit that is less than or equal to 168 hours (7 days).",
-      "defaultTTLMin": "Default time until autostop must not be less than 0.",
-      "maxTTLMax": "Please enter a limit that is less than or equal to 168 hours (7 days).",
-      "maxTTLMin": "Maximum time until autostop must not be less than 0."
+      "descriptionMax": "Пожалуйста, введите описание длиной не более 128 символов.",
+      "defaultTTLMax": "Пожалуйста, введите лимит, который меньше или равен 168 часам (7 дням).",
+      "defaultTTLMin": "Время по умолчанию до автоматической остановки не должно быть меньше 0.",
+      "maxTTLMax": "Пожалуйста, введите лимит, который меньше или равен 168 часам (7 дням).",
+      "maxTTLMin": "Максимальное время до автоматической остановки не должно быть меньше 0."
     }
   }
 }

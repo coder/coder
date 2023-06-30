@@ -1,48 +1,48 @@
 {
   "coder": "Coder",
   "workspaceStatus": {
-    "loading": "Loading",
-    "running": "Running",
-    "starting": "Starting",
-    "stopping": "Stopping",
-    "stopped": "Stopped",
-    "deleting": "Deleting",
-    "deleted": "Deleted",
-    "canceling": "Canceling",
-    "canceled": "Canceled",
-    "failed": "Failed",
-    "pending": "Pending"
+    "loading": "Загрузка",
+    "running": "Запущено",
+    "starting": "Запуск",
+    "stopping": "Останавливается",
+    "stopped": "Остановлено",
+    "deleting": "Удаляется",
+    "deleted": "Удалено",
+    "canceling": "Отменяется",
+    "canceled": "Отменено",
+    "failed": "Провалено",
+    "pending": "Подготовка"
   },
   "deleteDialog": {
-    "title": "Delete {{entity}}",
-    "intro": "Deleting this {{entity}} is irreversible!",
-    "confirm": "Are you sure you want to proceed? Type the name of this {{entity}} below to confirm.",
-    "confirmLabel": "Name of {{entity}} to delete",
-    "incorrectName": "Incorrect {{entity}} name."
+    "title": "Удалить {{entity}}",
+    "intro": "Удаление {{entity}} необратимо!",
+    "confirm": "Вы уверены, что хотите продолжить? Напишите {{entity}} наже чтобы подтвердить.",
+    "confirmLabel": "Название {{entity}} для удаления",
+    "incorrectName": "Некорректное имя {{entity}}."
   },
   "schedule": {
-    "autostartLabel": "Starts at",
-    "autostopLabel": "Stops at"
+    "autostartLabel": "Запуск в",
+    "autostopLabel": "Остановка в"
   },
   "ctas": {
-    "dismissCta": "Dismiss",
-    "expand": "Click here to learn more",
-    "collapse": "Click here to hide",
-    "retry": "Retry"
+    "dismissCta": "Скрыть",
+    "expand": "Нажмите, чтобы узнать больше",
+    "collapse": "Нажмите чтобы скрыть",
+    "retry": "Повторить"
   },
   "warningsAndErrors": {
-    "somethingWentWrong": "Something went wrong."
+    "somethingWentWrong": "Что-то пошло не так."
   },
   "emojiPicker": {
-    "select": "Select emoji"
+    "select": "Выбрать emoji"
   },
   "updateCheck": {
-    "message": "Coder {{version}} is now available. View the <4>release notes</4> and <7>upgrade instructions</7> for more information.",
-    "error": "Coder update check failed."
+    "message": "Coder {{version}} уже доступен. Смотрите <4>release notes</4> и <7>upgrade instructions</7> для получения дополнительной информации.",
+    "error": "Проверка обновления для Coder завершилась неудачей."
   },
-  "licenseFieldTextHelper": "You need an enterprise license to use it.",
-  "learnMore": "Learn more",
+  "licenseFieldTextHelper": "Вам нужна Enterprise лицензия, чтобы изпользовать это.",
+  "learnMore": "Подробнее",
   "forms": {
-    "typeToSearch": "Start typing to search..."
+    "typeToSearch": "Начните вводить текст для поиска..."
   }
 }

@@ -1,10 +1,10 @@
 {
-  "templateLabel": "Template",
-  "nameLabel": "Workspace Name",
-  "ownerLabel": "Owner",
-  "createWorkspace": "Create Workspace",
-  "validationNumberLesserThan": "Value must be greater than {{min}}.",
-  "validationNumberGreaterThan": "Value must be lesser than {{max}}.",
-  "validationNumberNotInRange": "Value must be between {{min}} and {{max}}.",
-  "validationPatternNotMatched": "{{error}} (value does not match the pattern {{pattern}})."
+  "templateLabel": "Шаблон",
+  "nameLabel": "Название Рабочего Пространства",
+  "ownerLabel": "Владелец",
+  "createWorkspace": "Создать Рабочее Пространство",
+  "validationNumberLesserThan": "Значение должно быть больше, чем {{min}}.",
+  "validationNumberGreaterThan": "Значение должно быть меньше, чем {{max}}.",
+  "validationNumberNotInRange": "Значение должно быть между {{min}} и {{max}}.",
+  "validationPatternNotMatched": "{{error}} (значение не соответствует выражению {{pattern}})."
 }

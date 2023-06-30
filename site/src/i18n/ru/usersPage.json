@@ -1,19 +1,19 @@
 {
-  "emptyMessage": "No users found",
-  "emptyPageMessage": "No users found on this page",
-  "suspendMenuItem": "Suspend",
-  "deleteMenuItem": "Delete",
-  "listWorkspacesMenuItem": "View workspaces",
-  "activateMenuItem": "Activate",
-  "resetPasswordMenuItem": "Reset password",
-  "editUserRolesTooltip": "Edit user roles",
-  "fieldSetRolesTooltip": "Available roles",
+  "emptyMessage": "Пользователи не найдены",
+  "emptyPageMessage": "Пользователи на этой странице не найдены",
+  "suspendMenuItem": "Деактивировать",
+  "deleteMenuItem": "Удалить",
+  "listWorkspacesMenuItem": "Рабочие пространства",
+  "activateMenuItem": "Активировать",
+  "resetPasswordMenuItem": "Сбросить пароль",
+  "editUserRolesTooltip": "Изменить роли",
+  "fieldSetRolesTooltip": "Доступные роли",
   "roleDescription": {
-    "owner": "Owner can manage all resources, including users, groups, templates, and workspaces.",
-    "user-admin": "User admin can manage all users and groups.",
-    "template-admin": "Template admin can manage all templates and workspaces.",
-    "auditor": "Auditor can access the audit logs.",
-    "member": "Everybody is a member. This is a shared and default role for all users."
+    "owner": "Владелец может управлять всеми ресурсами, включая пользователей, группы, шаблоны и рабочие пространства.",
+    "user-admin": "Администратор пользователей может управлять всеми пользователями и группами.",
+    "template-admin": "Администратор шаблонов может управлять всеми шаблонами и рабочими пространствами.",
+    "auditor": "Аудитор может получить доступ к журналам аудита.",
+    "member": "Каждый является пользователем. Это общая роль по умолчанию для всех пользователей."
   },
-  "member": "Member"
+  "member": "Пользователь"
 }

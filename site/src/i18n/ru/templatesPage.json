@@ -1,10 +1,10 @@
 {
   "errors": {
-    "getOrganizationError": "Something went wrong fetching organizations.",
-    "getTemplatesError": "Something went wrong fetching templates."
+    "getOrganizationError": "Что-то пошло не так при получении организаций.",
+    "getTemplatesError": "Что-то пошло не так при получении шаблонов."
   },
   "empty": {
-    "message": "Create a Template",
-    "descriptionWithoutPermissions": "Contact your Coder administrator to create a template. You can share the code below."
+    "message": "Создать Шаблон",
+    "descriptionWithoutPermissions": "Свяжитесь с вашим администратором Coder чтобы создать шаблон. Вы можете поделиться кодом ниже."
   }
 }

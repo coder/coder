@@ -1,6 +1,6 @@
 {
-  "title": "Template variables",
+  "title": "Переменные шаблона",
   "sensitiveVariableHelperText": "This variable is sensitive. The previous value will be used if empty.",
-  "validationRequiredVariable": "Variable is required.",
+  "validationRequiredVariable": "Переменная обязательна для заполнения.",
   "unusedVariablesNotice": "This template does not use managed variables."
 }
