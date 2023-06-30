@@ -88,3 +88,22 @@ A number of utility scripts are provided in `lib`, and are used by `scaletest.sh
 - `coder_workspacetraffic.sh`: Runs traffic generation against the loadtest cluster and creates
   a monitoring manifest for the traffic generation pod. This pod will restart automatically
   after the traffic generation has completed.
+
+## Grafana Dashboard
+
+A sample Grafana dashboard is provided in `scaletest_dashboard.json`. This dashboard is intended
+to be imported into an existing Grafana instance. It provides a number of useful metrics:
+
+- **Control Plane Resources**: CPU, memory, and network usage for the Coder deployment, as well as the number of pod restarts.
+- **Database**: Rows inserted/updated/deleted/returned, active connections, and transactions per second. Fine-grained `sqlQuerier` metrics are provided for Coder's database as well, broken down my query method.
+- **HTTP requests**: Number of HTTP requests per second, broken down by status code and path.
+- **Workspace Resources**: CPU, memory, and network usage for all workspaces.
+- **Workspace Agents**: Workspace agent network usage, connection latency, and number of active connections.
+- **Workspace Traffic**: Statistics related to workspace traffic generation.
+- **Internals**: Provisioner job timings, concurrency, workspace builds, and AuthZ duration.
+
+A subset of these metrics may be useful for a production deployment, but some are only useful
+for load testing.
+
+> **Note:** in particular, `sqlQuerier` metrics produce a large number of time series and may cause
+> increased charges in your metrics provider.
