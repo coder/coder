@@ -1315,6 +1315,11 @@ func TestTemplateVersionParameters_Order(t *testing.T) {
 		fourthParameterType  = "number"
 		fourthParameterValue = "3"
 		fourthParameterOrder = 2
+
+		fifthParameterName  = "fifth_parameter"
+		fifthParameterType  = "string"
+		fifthParameterValue = "aaa"
+		// no order
 	)
 
 	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -1346,6 +1351,11 @@ func TestTemplateVersionParameters_Order(t *testing.T) {
 								Type:  fourthParameterType,
 								Order: fourthParameterOrder,
 							},
+							{
+								Name: fifthParameterName,
+								Type: fifthParameterType,
+								// No order
+							},
 						},
 					},
 				},
@@ -1364,9 +1374,10 @@ func TestTemplateVersionParameters_Order(t *testing.T) {
 
 	templateRichParameters, err := client.TemplateVersionRichParameters(ctx, version.ID)
 	require.NoError(t, err)
-	require.Len(t, templateRichParameters, 4)
-	require.Equal(t, secondParameterName, templateRichParameters[0].Name)
-	require.Equal(t, thirdParameterName, templateRichParameters[1].Name)
+	require.Len(t, templateRichParameters, 5)
+	require.Equal(t, fifthParameterName, templateRichParameters[0].Name)
+	require.Equal(t, firstParameterName, templateRichParameters[1].Name)
 	require.Equal(t, fourthParameterName, templateRichParameters[2].Name)
-	require.Equal(t, firstParameterName, templateRichParameters[3].Name)
+	require.Equal(t, secondParameterName, templateRichParameters[3].Name)
+	require.Equal(t, thirdParameterName, templateRichParameters[4].Name)
 }
