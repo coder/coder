@@ -4,6 +4,8 @@ import PerformanceObserver from "@fastly/performance-observer-polyfill"
 import axios from "axios"
 import { generateRandomString } from "utils/random"
 
+const proxyIntervalSeconds = 30 // seconds
+
 export interface ProxyLatencyReport {
   // accurate identifies if the latency was calculated using the
   // PerformanceResourceTiming API. If this is false, then the
@@ -17,6 +19,8 @@ export interface ProxyLatencyReport {
 
 interface ProxyLatencyAction {
   proxyID: string
+  // cached indicates if the latency was loaded from a cache (local storage)
+  cached: boolean
   report: ProxyLatencyReport
 }
 
@@ -59,8 +63,13 @@ export const useProxyLatency = (
 
   // This latestFetchRequest is used to trigger a refetch of the proxy latencies.
   const [latestFetchRequest, setLatestFetchRequest] = useState(
-    new Date().toISOString(),
+    // The initial state is the current time minus the interval. Any proxies that have a latency after this
+    // in the cache are still valid.
+    new Date(new Date().getTime() - proxyIntervalSeconds * 1000).toISOString(),
   )
+
+  // Refetch will always set the latestFetchRequest to the current time, making all the cached latencies
+  // stale and triggering a refetch of all proxies in the list.
   const refetch = () => {
     setLatestFetchRequest(new Date().toISOString())
   }
@@ -71,6 +80,8 @@ export const useProxyLatency = (
       return
     }
 
+    const storedLatencies = loadStoredLatencies()
+
     // proxyMap is a map of the proxy path_app_url to the proxy object.
     // This is for the observer to know which requests are important to
     // record.
@@ -78,6 +89,27 @@ export const useProxyLatency = (
       // Only run the latency check on healthy proxies.
       if (!proxy.healthy) {
         return acc
+      }
+
+      // Do not run latency checks more than once per <interval> seconds.
+      // 1. Fetch the latest stored latency for the given proxy.
+      // 2. If the latest latency is after the latestFetchRequest, then skip the latency check.
+      if (storedLatencies && storedLatencies[proxy.id]) {
+        const fetchRequestDate = new Date(latestFetchRequest)
+        const latest = storedLatencies[proxy.id].reduce((prev, next) =>
+          prev.at > next.at ? prev : next,
+        )
+
+        if (latest && latest.at > fetchRequestDate) {
+          // dispatch the cached latency. This latency already went through the
+          // guard logic below, so we can just dispatch it again directly.
+          dispatchProxyLatencies({
+            proxyID: proxy.id,
+            cached: true,
+            report: latest,
+          })
+          return acc
+        }
       }
 
       // Add a random query param to the url to make sure we don't get a cached response.
@@ -129,6 +161,7 @@ export const useProxyLatency = (
       }
       const update = {
         proxyID: check.id,
+        cached: false,
         report: {
           latencyMS,
           accurate,
@@ -201,7 +234,13 @@ const loadStoredLatencies = (): Record<string, ProxyLatencyReport[]> => {
     return {}
   }
 
-  return JSON.parse(str)
+  return JSON.parse(str, (key, value) => {
+    // By default json loads dates as strings. We want to convert them back to 'Date's.
+    if (key === "at") {
+      return new Date(value)
+    }
+    return value
+  })
 }
 
 const updateStoredLatencies = (action: ProxyLatencyAction): void => {
