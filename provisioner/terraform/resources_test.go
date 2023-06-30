@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
-	"strings"
 	"testing"
 
 	tfjson "github.com/hashicorp/terraform-json"
@@ -843,12 +842,4 @@ func sortResources(resources []*proto.Resource) {
 			return resource.Agents[i].Name < resource.Agents[j].Name
 		})
 	}
-}
-
-func richParameterResourceNames(parameters []*proto.RichParameter) []string {
-	var names []string
-	for _, p := range parameters {
-		names = append(names, strings.ToLower(p.Name))
-	}
-	return names
 }
