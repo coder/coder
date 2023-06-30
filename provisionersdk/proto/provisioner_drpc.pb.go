@@ -88,10 +88,6 @@ func (x *drpcProvisioner_ParseClient) Recv() (*Parse_Response, error) {
 	return m, nil
 }
 
-func (x *drpcProvisioner_ProvisionClient) GetStream() drpc.Stream {
-	return x.Stream
-}
-
 func (x *drpcProvisioner_ParseClient) RecvMsg(m *Parse_Response) error {
 	return x.MsgRecv(m, drpcEncoding_File_provisionersdk_proto_provisioner_proto{})
 }
@@ -113,6 +109,10 @@ type DRPCProvisioner_ProvisionClient interface {
 
 type drpcProvisioner_ProvisionClient struct {
 	drpc.Stream
+}
+
+func (x *drpcProvisioner_ProvisionClient) GetStream() drpc.Stream {
+	return x.Stream
 }
 
 func (x *drpcProvisioner_ProvisionClient) Send(m *Provision_Request) error {
