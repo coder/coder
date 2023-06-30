@@ -1631,7 +1631,7 @@ type TemplateVersionParameter struct {
 	LegacyVariableName string `db:"legacy_variable_name" json:"legacy_variable_name"`
 	// Display name of the rich parameter
 	DisplayName string `db:"display_name" json:"display_name"`
-	// Display order
+	// Specifies the order in which to display parameters in user interfaces.
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
 }
 
