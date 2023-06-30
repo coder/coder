@@ -173,19 +173,21 @@ type core struct {
 	// are subscribed to updates for that agent.
 	agentToConnectionSockets map[uuid.UUID]map[uuid.UUID]Enqueueable
 
-	clients         map[uuid.UUID]Enqueueable
+	// clients holds a map of all clients connected to the coordinator. This is
+	// necessary because a client may not be subscribed into any agents.
+	clients map[uuid.UUID]Enqueueable
+	// clientsToAgents is an index of clients to all of their subscribed agents.
 	clientsToAgents map[uuid.UUID]map[uuid.UUID]struct{}
 
 	// agentNameCache holds a cache of agent names. If one of them disappears,
 	// it's helpful to have a name cached for debugging.
 	agentNameCache *lru.Cache[uuid.UUID, string]
 
+	// legacyAgents holda a mapping of all agents detected as legacy, meaning
+	// they only listen on codersdk.WorkspaceAgentIP. They aren't compatible
+	// with the new ServerTailnet, so they must be connected through
+	// wsconncache.
 	legacyAgents map[uuid.UUID]struct{}
-	// multiAgents holds all of the unique multiAgents listening on this
-	// coordinator. We need to keep track of these separately because we need to
-	// make sure they're closed on coordinator shutdown. If not, they won't be
-	// able to reopen another multiAgent on the new coordinator.
-	// multiAgents map[uuid.UUID]*MultiAgent
 }
 
 type Enqueueable interface {
@@ -658,20 +660,13 @@ func (c *core) close() error {
 		}()
 	}
 
-	for _, connMap := range c.agentToConnectionSockets {
-		wg.Add(len(connMap))
-		for _, socket := range connMap {
-			socket := socket
-			go func() {
-				_ = socket.CoordinatorClose()
-				wg.Done()
-			}()
-		}
-	}
-
 	// Ensure clients that have no subscriptions are properly closed.
 	for _, client := range c.clients {
-		_ = client.CoordinatorClose()
+		client := client
+		go func() {
+			_ = client.CoordinatorClose()
+			wg.Done()
+		}()
 	}
 
 	c.mutex.Unlock()
