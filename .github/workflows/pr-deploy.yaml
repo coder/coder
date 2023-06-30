@@ -59,6 +59,7 @@ jobs:
           CODER_IMAGE_TAG: ghcr.io/coder/coder-preview:pr${{ steps.pr_number.outputs.PR_NUMBER }}
       
       - name: Find Deploy Comment
+        if: github.event_name == 'issue_comment'
         uses: peter-evans/find-comment@v2
         id: fco
         with:
@@ -67,6 +68,7 @@ jobs:
           body-includes: /deploy-pr
 
       - name: React with Rocket
+        if: github.event_name == 'issue_comment'
         id: comment_ido
         uses: peter-evans/create-or-update-comment@v3
         with:
