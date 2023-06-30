@@ -1,8 +1,9 @@
 package exp
 
 import (
-	"github.com/coder/coder/codersdk"
 	"net/http"
+
+	"github.com/coder/coder/codersdk"
 )
 
 // bypassRateLimitHeaderTransport is a http.RoundTripper that adds the HTTP header
