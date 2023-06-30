@@ -495,23 +495,23 @@ func TestAgent_Session_TTY_QuietLogin(t *testing.T) {
 		require.Contains(t, string(output), wantEcho, "should show echo")
 		require.NotContains(t, string(output), wantNotMOTD, "should not show motd")
 		require.NotContains(t, string(output), wantServiceBanner, "should not show service banner")
+	})
 
+	// Only the MOTD should be silenced.
+	t.Run("Hushlogin", func(t *testing.T) {
 		// Create hushlogin to silence motd.
 		f, err := os.Create(filepath.Join(tmpdir, ".hushlogin"))
 		require.NoError(t, err, "create .hushlogin file")
 		err = f.Close()
 		require.NoError(t, err, "close .hushlogin file")
-	})
 
-	// Only the MOTD should be silenced.
-	t.Run("Hushlogin", func(t *testing.T) {
 		session := setupSSHSession(t, agentsdk.Manifest{
 			MOTDFile: name,
 		}, codersdk.ServiceBannerConfig{
 			Enabled: true,
 			Message: wantServiceBanner,
 		})
-		err := session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
+		err = session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
 		require.NoError(t, err)
 
 		ptty := ptytest.New(t)
