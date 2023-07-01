@@ -1,19 +1,16 @@
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
-import { useTranslation } from "react-i18next"
 
 export const InactivityDialog = ({
   submitValues,
   isInactivityDialogOpen,
   setIsInactivityDialogOpen,
-  numberWorkspacesToBeDeletedToday,
+  workspacesToBeDeletedToday,
 }: {
   submitValues: () => void
   isInactivityDialogOpen: boolean
   setIsInactivityDialogOpen: (arg0: boolean) => void
-  numberWorkspacesToBeDeletedToday: number
+  workspacesToBeDeletedToday: number
 }) => {
-  const { t } = useTranslation("templateSettingsPage")
-
   return (
     <ConfirmDialog
       type="delete"
@@ -25,9 +22,9 @@ export const InactivityDialog = ({
       onClose={() => setIsInactivityDialogOpen(false)}
       title="Delete inactive workspaces"
       confirmText="Delete Workspaces"
-      description={t("inactivityDialogDescription", {
-        count: numberWorkspacesToBeDeletedToday,
-      })}
+      description={`There are ${
+        workspacesToBeDeletedToday ? workspacesToBeDeletedToday : ""
+      } workspaces that already match this filter and will be deleted upon form submission. Are you sure you want to proceed?`}
     />
   )
 }

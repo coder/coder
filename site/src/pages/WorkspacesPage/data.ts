@@ -14,8 +14,6 @@ import {
 import { displayError } from "components/GlobalSnackbar/utils"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { add, format } from "date-fns"
-import { IMPENDING_DELETION_DISPLAY_THRESHOLD } from "components/WorkspaceDeletion/utils"
 
 type UseWorkspacesDataParams = {
   page: number
@@ -78,21 +76,6 @@ export const useWorkspaceUpdate = (queryKey: QueryKey) => {
       const message = getErrorMessage(error, t("updateVersionError"))
       displayError(message)
     },
-  })
-}
-
-// Returns workspace that will be deleted within 14 days.
-// This query is used for the ImpendingDeletionBanner
-export const useWorkspacesWithImpendingDeletions = () => {
-  return useQuery({
-    queryKey: ["workspacesWithImpendingDeletions"],
-    queryFn: () =>
-      getWorkspaces({
-        q: `deleting_by:"${format(
-          add(new Date(), { days: IMPENDING_DELETION_DISPLAY_THRESHOLD }),
-          "yyyy-MM-dd",
-        )}"`,
-      }),
   })
 }
 
