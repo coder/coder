@@ -2,7 +2,7 @@ import { Workspace } from "api/typesGenerated"
 
 // This const dictates how far out we alert the user that a workspace
 // has an impending deletion (due to template.InactivityTTL being set)
-export const IMPENDING_DELETION_DISPLAY_THRESHOLD = 14 // 14 days
+const IMPENDING_DELETION_DISPLAY_THRESHOLD = 14 // 14 days
 
 /**
  * Returns a boolean indicating if an impending deletion indicator should be

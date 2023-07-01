@@ -14,6 +14,6 @@ export const OpenDialog: Story = {
     submitValues: () => null,
     isInactivityDialogOpen: true,
     setIsInactivityDialogOpen: () => null,
-    numberWorkspacesToBeDeletedToday: 2,
+    workspacesToBeDeletedToday: 2,
   },
 }

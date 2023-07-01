@@ -1,8 +1,5 @@
 import { Workspace } from "api/typesGenerated"
-import {
-  displayImpendingDeletion,
-  IMPENDING_DELETION_DISPLAY_THRESHOLD,
-} from "./utils"
+import { displayImpendingDeletion } from "./utils"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
 import { Alert } from "components/Alert/Alert"
 import { formatDistanceToNow, differenceInDays, add, format } from "date-fns"
@@ -51,9 +48,7 @@ export const ImpendingDeletionBanner = ({
     new Date(),
   )
 
-  const plusFourteen = add(new Date(), {
-    days: IMPENDING_DELETION_DISPLAY_THRESHOLD,
-  })
+  const plusFourteen = add(new Date(), { days: 14 })
 
   return (
     <Alert
