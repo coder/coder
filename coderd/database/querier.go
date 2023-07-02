@@ -34,6 +34,7 @@ type sqlcQuerier interface {
 	DeleteGroupMemberFromGroup(ctx context.Context, arg DeleteGroupMemberFromGroupParams) error
 	DeleteGroupMembersByOrgAndUser(ctx context.Context, arg DeleteGroupMembersByOrgAndUserParams) error
 	DeleteLicense(ctx context.Context, id int32) (int32, error)
+	DeleteOldProvisionerDaemons(ctx context.Context) error
 	// If an agent hasn't connected in the last 7 days, we purge it's logs.
 	// Logs can take up a lot of space, so it's important we clean up frequently.
 	DeleteOldWorkspaceAgentStartupLogs(ctx context.Context) error

@@ -1938,6 +1938,18 @@ func (q *sqlQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.
 	return items, nil
 }
 
+const deleteOldProvisionerDaemons = `-- name: DeleteOldProvisionerDaemons :exec
+DELETE FROM
+	provisioner_daemons
+WHERE
+	updated_at < NOW() - INTERVAL '7 days'
+`
+
+func (q *sqlQuerier) DeleteOldProvisionerDaemons(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deleteOldProvisionerDaemons)
+	return err
+}
+
 const getProvisionerDaemons = `-- name: GetProvisionerDaemons :many
 SELECT
 	id, created_at, updated_at, name, provisioners, replica_id, tags
@@ -2126,31 +2138,34 @@ func (q *sqlQuerier) InsertProvisionerJobLogs(ctx context.Context, arg InsertPro
 }
 
 const acquireProvisionerJob = `-- name: AcquireProvisionerJob :one
+WITH target_job AS (
+	SELECT
+		id
+	FROM
+		provisioner_jobs AS nested
+	WHERE
+		nested.started_at IS NULL
+		-- Ensure the caller has the correct provisioner.
+		AND nested.provisioner = ANY($3 :: provisioner_type [ ])
+		-- Ensure the caller satisfies all job tags.
+		AND nested.tags <@ $4 :: jsonb
+	ORDER BY
+		nested.created_at
+	FOR UPDATE SKIP LOCKED LIMIT 1
+),
+update_daemons AS (
+	-- Ensure the provisioner daemon is constantly notifying when it was
+	-- last alive to prevent deleation of old daemons.
+	UPDATE provisioner_daemons SET updated_at = $1
+		WHERE provisioner_daemons.id = $2
+)
 UPDATE
-	provisioner_jobs
-SET
-	started_at = $1,
-	updated_at = $1,
-	worker_id = $2
-WHERE
-	id = (
-		SELECT
-			id
-		FROM
-			provisioner_jobs AS nested
-		WHERE
-			nested.started_at IS NULL
-			-- Ensure the caller has the correct provisioner.
-			AND nested.provisioner = ANY($3 :: provisioner_type [ ])
-			-- Ensure the caller satisfies all job tags.
-			AND nested.tags <@ $4 :: jsonb
-		ORDER BY
-			nested.created_at
-		FOR UPDATE
-		SKIP LOCKED
-		LIMIT
-			1
-	) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata
+		provisioner_jobs
+	SET
+		started_at = $1,
+		updated_at = $1,
+		worker_id = $2
+	WHERE id = (SELECT id FROM target_job) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata
 `
 
 type AcquireProvisionerJobParams struct {

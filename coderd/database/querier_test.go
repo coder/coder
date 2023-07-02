@@ -361,15 +361,12 @@ func TestQueuePosition(t *testing.T) {
 			Time:  database.Now(),
 			Valid: true,
 		},
-		Types: database.AllProvisionerTypeValues(),
-		WorkerID: uuid.NullUUID{
-			UUID:  uuid.New(),
-			Valid: true,
-		},
-		Tags: json.RawMessage("{}"),
+		Types:    database.AllProvisionerTypeValues(),
+		WorkerID: uuid.New(),
+		Tags:     json.RawMessage("{}"),
 	})
 	require.NoError(t, err)
-	require.Equal(t, jobs[0].ID, job.ID)
+	require.Equal(t, jobs[0].ID, job.ProvisionerJob.ID)
 
 	queued, err = db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
 	require.NoError(t, err)

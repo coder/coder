@@ -383,14 +383,14 @@ func TestCache_BuildTime(t *testing.T) {
 
 				_, err = db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
 					TemplateVersionID: templateVersion.ID,
-					JobID:             job.ID,
+					JobID:             job.ProvisionerJob.ID,
 					Transition:        tt.args.transition,
 					Reason:            database.BuildReasonInitiator,
 				})
 				require.NoError(t, err)
 
 				err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
-					ID:          job.ID,
+					ID:          job.ProvisionerJob.ID,
 					CompletedAt: sql.NullTime{Time: row.completedAt, Valid: true},
 				})
 				require.NoError(t, err)

@@ -45,6 +45,9 @@ func New(ctx context.Context, logger slog.Logger, db database.Store) io.Closer {
 			eg.Go(func() error {
 				return db.DeleteOldWorkspaceAgentStats(ctx)
 			})
+			eg.Go(func() error {
+				return db.DeleteOldProvisionerDaemons(ctx)
+			})
 			err := eg.Wait()
 			if err != nil {
 				if errors.Is(err, context.Canceled) {

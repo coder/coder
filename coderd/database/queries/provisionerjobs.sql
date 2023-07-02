@@ -5,31 +5,34 @@
 -- multiple provisioners from acquiring the same jobs. See:
 -- https://www.postgresql.org/docs/9.5/sql-select.html#SQL-FOR-UPDATE-SHARE
 -- name: AcquireProvisionerJob :one
+WITH target_job AS (
+	SELECT
+		id
+	FROM
+		provisioner_jobs AS nested
+	WHERE
+		nested.started_at IS NULL
+		-- Ensure the caller has the correct provisioner.
+		AND nested.provisioner = ANY(@types :: provisioner_type [ ])
+		-- Ensure the caller satisfies all job tags.
+		AND nested.tags <@ @tags :: jsonb
+	ORDER BY
+		nested.created_at
+	FOR UPDATE SKIP LOCKED LIMIT 1
+),
+update_daemons AS (
+	-- Ensure the provisioner daemon is constantly notifying when it was
+	-- last alive to prevent deleation of old daemons.
+	UPDATE provisioner_daemons SET updated_at = @started_at
+		WHERE provisioner_daemons.id = @worker_id
+)
 UPDATE
-	provisioner_jobs
-SET
-	started_at = @started_at,
-	updated_at = @started_at,
-	worker_id = @worker_id
-WHERE
-	id = (
-		SELECT
-			id
-		FROM
-			provisioner_jobs AS nested
-		WHERE
-			nested.started_at IS NULL
-			-- Ensure the caller has the correct provisioner.
-			AND nested.provisioner = ANY(@types :: provisioner_type [ ])
-			-- Ensure the caller satisfies all job tags.
-			AND nested.tags <@ @tags :: jsonb
-		ORDER BY
-			nested.created_at
-		FOR UPDATE
-		SKIP LOCKED
-		LIMIT
-			1
-	) RETURNING *;
+		provisioner_jobs
+	SET
+		started_at = @started_at,
+		updated_at = @started_at,
+		worker_id = @worker_id
+	WHERE id = (SELECT id FROM target_job) RETURNING *;
 
 -- name: GetProvisionerJobByID :one
 SELECT

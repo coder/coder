@@ -478,11 +478,8 @@ func TestUpdateJob(t *testing.T) {
 		})
 		require.NoError(t, err)
 		_, err = srv.Database.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
-			WorkerID: uuid.NullUUID{
-				UUID:  uuid.New(),
-				Valid: true,
-			},
-			Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+			WorkerID: uuid.New(),
+			Types:    []database.ProvisionerType{database.ProvisionerTypeEcho},
 		})
 		require.NoError(t, err)
 		_, err = srv.UpdateJob(ctx, &proto.UpdateJobRequest{
@@ -500,11 +497,8 @@ func TestUpdateJob(t *testing.T) {
 		})
 		require.NoError(t, err)
 		_, err = srv.Database.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
-			WorkerID: uuid.NullUUID{
-				UUID:  srv.ID,
-				Valid: true,
-			},
-			Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+			WorkerID: srv.ID,
+			Types:    []database.ProvisionerType{database.ProvisionerTypeEcho},
 		})
 		require.NoError(t, err)
 		return job.ID
@@ -686,11 +680,8 @@ func TestFailJob(t *testing.T) {
 		})
 		require.NoError(t, err)
 		_, err = srv.Database.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
-			WorkerID: uuid.NullUUID{
-				UUID:  uuid.New(),
-				Valid: true,
-			},
-			Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+			WorkerID: uuid.New(),
+			Types:    []database.ProvisionerType{database.ProvisionerTypeEcho},
 		})
 		require.NoError(t, err)
 		_, err = srv.FailJob(ctx, &proto.FailedJob{
@@ -709,11 +700,8 @@ func TestFailJob(t *testing.T) {
 		})
 		require.NoError(t, err)
 		_, err = srv.Database.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
-			WorkerID: uuid.NullUUID{
-				UUID:  srv.ID,
-				Valid: true,
-			},
-			Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+			WorkerID: srv.ID,
+			Types:    []database.ProvisionerType{database.ProvisionerTypeEcho},
 		})
 		require.NoError(t, err)
 		err = srv.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
@@ -760,11 +748,8 @@ func TestFailJob(t *testing.T) {
 		})
 		require.NoError(t, err)
 		_, err = srv.Database.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
-			WorkerID: uuid.NullUUID{
-				UUID:  srv.ID,
-				Valid: true,
-			},
-			Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+			WorkerID: srv.ID,
+			Types:    []database.ProvisionerType{database.ProvisionerTypeEcho},
 		})
 		require.NoError(t, err)
 
@@ -826,11 +811,8 @@ func TestCompleteJob(t *testing.T) {
 		})
 		require.NoError(t, err)
 		_, err = srv.Database.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
-			WorkerID: uuid.NullUUID{
-				UUID:  uuid.New(),
-				Valid: true,
-			},
-			Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+			WorkerID: uuid.New(),
+			Types:    []database.ProvisionerType{database.ProvisionerTypeEcho},
 		})
 		require.NoError(t, err)
 		_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
@@ -856,11 +838,8 @@ func TestCompleteJob(t *testing.T) {
 		})
 		require.NoError(t, err)
 		_, err = srv.Database.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
-			WorkerID: uuid.NullUUID{
-				UUID:  srv.ID,
-				Valid: true,
-			},
-			Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+			WorkerID: srv.ID,
+			Types:    []database.ProvisionerType{database.ProvisionerTypeEcho},
 		})
 		require.NoError(t, err)
 		completeJob := func() {
@@ -1066,11 +1045,8 @@ func TestCompleteJob(t *testing.T) {
 					})),
 				})
 				_, err = srv.Database.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
-					WorkerID: uuid.NullUUID{
-						UUID:  srv.ID,
-						Valid: true,
-					},
-					Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+					WorkerID: srv.ID,
+					Types:    []database.ProvisionerType{database.ProvisionerTypeEcho},
 				})
 				require.NoError(t, err)
 
@@ -1136,11 +1112,8 @@ func TestCompleteJob(t *testing.T) {
 		})
 		require.NoError(t, err)
 		_, err = srv.Database.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
-			WorkerID: uuid.NullUUID{
-				UUID:  srv.ID,
-				Valid: true,
-			},
-			Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+			WorkerID: srv.ID,
+			Types:    []database.ProvisionerType{database.ProvisionerTypeEcho},
 		})
 		require.NoError(t, err)
 

@@ -1169,6 +1169,11 @@ func (q *fakeQuerier) DeleteLicense(_ context.Context, id int32) (int32, error) 
 	return 0, sql.ErrNoRows
 }
 
+func (*fakeQuerier) DeleteOldProvisionerDaemons(_ context.Context) error {
+	// noop
+	return nil
+}
+
 func (*fakeQuerier) DeleteOldWorkspaceAgentStartupLogs(_ context.Context) error {
 	// noop
 	return nil
