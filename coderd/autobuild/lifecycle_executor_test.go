@@ -21,7 +21,6 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
-	"github.com/coder/coder/testutil"
 )
 
 func TestExecutorAutostartOK(t *testing.T) {
@@ -694,12 +693,7 @@ func TestExecutorFailedWorkspace(t *testing.T) {
 		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		build := coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
 		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
-		require.Eventually(t,
-			func() bool {
-				return database.Now().Sub(*build.Job.CompletedAt) > failureTTL
-			},
-			testutil.IntervalMedium, testutil.IntervalFast)
-		ticker <- time.Now()
+		ticker <- (*build.Job.CompletedAt).Add(failureTTL * 2)
 		stats := <-statCh
 		// Expect no transitions since we're using AGPL.
 		require.Len(t, stats.Transitions, 0)
@@ -749,12 +743,7 @@ func TestExecutorInactiveWorkspace(t *testing.T) {
 		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		build := coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
 		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
-		require.Eventually(t,
-			func() bool {
-				return database.Now().Sub(ws.LastUsedAt) > inactiveTTL
-			},
-			testutil.IntervalMedium, testutil.IntervalFast)
-		ticker <- time.Now()
+		ticker <- ws.LastUsedAt.Add(inactiveTTL * 2)
 		stats := <-statCh
 		// Expect no transitions since we're using AGPL.
 		require.Len(t, stats.Transitions, 0)
