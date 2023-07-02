@@ -23,6 +23,7 @@ import Divider from "@mui/material/Divider"
 import Skeleton from "@mui/material/Skeleton"
 import { BUTTON_SM_HEIGHT } from "theme/theme"
 import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency"
+import { usePermissions } from "hooks/usePermissions"
 
 export const USERS_LINK = `/users?filter=${encodeURIComponent("status:active")}`
 
@@ -194,6 +195,7 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
   const latencies = proxyContextValue.proxyLatencies
   const isLoadingLatencies = Object.keys(latencies).length === 0
   const isLoading = proxyContextValue.isLoading || isLoadingLatencies
+  const permissions = usePermissions()
 
   if (isLoading) {
     return (
@@ -280,15 +282,25 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
           </MenuItem>
         ))}
         <Divider sx={{ borderColor: (theme) => theme.palette.divider }} />
+        {Boolean(permissions.editWorkspaceProxies) && (
+          <MenuItem
+            sx={{ fontSize: 14 }}
+            onClick={() => {
+              navigate("settings/deployment/workspace-proxies")
+            }}
+          >
+            Proxy settings
+          </MenuItem>
+        )}
         <MenuItem
           sx={{ fontSize: 14 }}
-          onClick={() => {
-            navigate("/settings/workspace-proxies")
+          onClick={(e) => {
+            // Stop the menu from closing
+            e.stopPropagation()
+            // Refresh the latencies.
+            refreshLatencies()
           }}
         >
-          Proxy settings
-        </MenuItem>
-        <MenuItem sx={{ fontSize: 14 }} onClick={refreshLatencies}>
           Refresh Latencies
         </MenuItem>
       </Menu>

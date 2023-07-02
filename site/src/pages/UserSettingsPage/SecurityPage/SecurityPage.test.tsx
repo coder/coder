@@ -1,116 +1,159 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react"
+import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import * as API from "../../../api/api"
 import * as SecurityForm from "../../../components/SettingsSecurityForm/SettingsSecurityForm"
-import { renderWithAuth } from "../../../testHelpers/renderHelpers"
+import {
+  renderWithAuth,
+  waitForLoaderToBeRemoved,
+} from "../../../testHelpers/renderHelpers"
 import { SecurityPage } from "./SecurityPage"
 import i18next from "i18next"
-import { mockApiError } from "testHelpers/entities"
+import {
+  MockAuthMethodsWithPasswordType,
+  mockApiError,
+} from "testHelpers/entities"
+import userEvent from "@testing-library/user-event"
+import * as SSO from "./SingleSignOnSection"
+import { OAuthConversionResponse } from "api/typesGenerated"
 
 const { t } = i18next
 
-const renderPage = () => {
-  return renderWithAuth(<SecurityPage />)
+const renderPage = async () => {
+  const utils = renderWithAuth(<SecurityPage />)
+  await waitForLoaderToBeRemoved()
+  return utils
 }
 
-const newData = {
+const newSecurityFormValues = {
   old_password: "password1",
   password: "password2",
   confirm_password: "password2",
 }
 
-const fillAndSubmitForm = async () => {
-  await waitFor(() => screen.findByLabelText("Old Password"))
+const fillAndSubmitSecurityForm = () => {
   fireEvent.change(screen.getByLabelText("Old Password"), {
-    target: { value: newData.old_password },
+    target: { value: newSecurityFormValues.old_password },
   })
   fireEvent.change(screen.getByLabelText("New Password"), {
-    target: { value: newData.password },
+    target: { value: newSecurityFormValues.password },
   })
   fireEvent.change(screen.getByLabelText("Confirm Password"), {
-    target: { value: newData.confirm_password },
+    target: { value: newSecurityFormValues.confirm_password },
   })
   fireEvent.click(screen.getByText(SecurityForm.Language.updatePassword))
 }
 
-describe("SecurityPage", () => {
-  describe("when it is a success", () => {
-    it("shows the success message", async () => {
-      jest
-        .spyOn(API, "updateUserPassword")
-        .mockImplementationOnce((_userId, _data) => Promise.resolve(undefined))
-      const { user } = renderPage()
-      await fillAndSubmitForm()
+beforeEach(() => {
+  jest
+    .spyOn(API, "getAuthMethods")
+    .mockResolvedValue(MockAuthMethodsWithPasswordType)
+  jest.spyOn(API, "getUserLoginType").mockResolvedValue({
+    login_type: "password",
+  })
+})
 
-      const expectedMessage = t("securityUpdateSuccessMessage", {
-        ns: "userSettingsPage",
-      })
-      const successMessage = await screen.findByText(expectedMessage)
-      expect(successMessage).toBeDefined()
-      expect(API.updateUserPassword).toBeCalledTimes(1)
-      expect(API.updateUserPassword).toBeCalledWith(user.id, newData)
+test("update password successfully", async () => {
+  jest
+    .spyOn(API, "updateUserPassword")
+    .mockImplementationOnce((_userId, _data) => Promise.resolve(undefined))
+  const { user } = await renderPage()
+  fillAndSubmitSecurityForm()
 
-      await waitFor(() => expect(window.location).toBeAt("/"))
-    })
+  const expectedMessage = t("securityUpdateSuccessMessage", {
+    ns: "userSettingsPage",
+  })
+  const successMessage = await screen.findByText(expectedMessage)
+  expect(successMessage).toBeDefined()
+  expect(API.updateUserPassword).toBeCalledTimes(1)
+  expect(API.updateUserPassword).toBeCalledWith(user.id, newSecurityFormValues)
+
+  await waitFor(() => expect(window.location).toBeAt("/"))
+})
+
+test("update password with incorrect old password", async () => {
+  jest.spyOn(API, "updateUserPassword").mockRejectedValueOnce(
+    mockApiError({
+      message: "Incorrect password.",
+      validations: [{ detail: "Incorrect password.", field: "old_password" }],
+    }),
+  )
+
+  const { user } = await renderPage()
+  fillAndSubmitSecurityForm()
+
+  const errorMessage = await screen.findAllByText("Incorrect password.")
+  expect(errorMessage).toBeDefined()
+  expect(errorMessage).toHaveLength(2)
+  expect(API.updateUserPassword).toBeCalledTimes(1)
+  expect(API.updateUserPassword).toBeCalledWith(user.id, newSecurityFormValues)
+})
+
+test("update password with invalid password", async () => {
+  jest.spyOn(API, "updateUserPassword").mockRejectedValueOnce(
+    mockApiError({
+      message: "Invalid password.",
+      validations: [{ detail: "Invalid password.", field: "password" }],
+    }),
+  )
+
+  const { user } = await renderPage()
+  fillAndSubmitSecurityForm()
+
+  const errorMessage = await screen.findAllByText("Invalid password.")
+  expect(errorMessage).toBeDefined()
+  expect(errorMessage).toHaveLength(2)
+  expect(API.updateUserPassword).toBeCalledTimes(1)
+  expect(API.updateUserPassword).toBeCalledWith(user.id, newSecurityFormValues)
+})
+
+test("update password when submit returns an unknown error", async () => {
+  jest.spyOn(API, "updateUserPassword").mockRejectedValueOnce({
+    data: "unknown error",
   })
 
-  describe("when the old_password is incorrect", () => {
-    it("shows an error", async () => {
-      jest.spyOn(API, "updateUserPassword").mockRejectedValueOnce(
-        mockApiError({
-          message: "Incorrect password.",
-          validations: [
-            { detail: "Incorrect password.", field: "old_password" },
-          ],
-        }),
-      )
+  const { user } = await renderPage()
+  fillAndSubmitSecurityForm()
 
-      const { user } = renderPage()
-      await fillAndSubmitForm()
+  const errorText = t("warningsAndErrors.somethingWentWrong", {
+    ns: "common",
+  })
+  const errorMessage = await screen.findByText(errorText)
+  expect(errorMessage).toBeDefined()
+  expect(API.updateUserPassword).toBeCalledTimes(1)
+  expect(API.updateUserPassword).toBeCalledWith(user.id, newSecurityFormValues)
+})
 
-      const errorMessage = await screen.findAllByText("Incorrect password.")
-      expect(errorMessage).toBeDefined()
-      expect(errorMessage).toHaveLength(2)
-      expect(API.updateUserPassword).toBeCalledTimes(1)
-      expect(API.updateUserPassword).toBeCalledWith(user.id, newData)
-    })
+test("change login type to OIDC", async () => {
+  const user = userEvent.setup()
+  const { user: userData } = await renderPage()
+  const convertToOAUTHSpy = jest
+    .spyOn(API, "convertToOAUTH")
+    .mockResolvedValue({
+      state_string: "some-state-string",
+      expires_at: "2021-01-01T00:00:00Z",
+      to_type: "oidc",
+      user_id: userData.id,
+    } as OAuthConversionResponse)
+
+  jest.spyOn(SSO, "redirectToOIDCAuth").mockImplementation(() => {
+    // Does a noop
   })
 
-  describe("when the password is invalid", () => {
-    it("shows an error", async () => {
-      jest.spyOn(API, "updateUserPassword").mockRejectedValueOnce(
-        mockApiError({
-          message: "Invalid password.",
-          validations: [{ detail: "Invalid password.", field: "password" }],
-        }),
-      )
+  const ssoSection = screen.getByTestId("sso-section")
+  const githubButton = within(ssoSection).getByText("GitHub", { exact: false })
+  await user.click(githubButton)
 
-      const { user } = renderPage()
-      await fillAndSubmitForm()
+  const confirmationDialog = await screen.findByTestId("dialog")
+  const confirmPasswordField = within(confirmationDialog).getByLabelText(
+    "Confirm your password",
+  )
+  await user.type(confirmPasswordField, "password123")
+  const updateButton = within(confirmationDialog).getByText("Update")
+  await user.click(updateButton)
 
-      const errorMessage = await screen.findAllByText("Invalid password.")
-      expect(errorMessage).toBeDefined()
-      expect(errorMessage).toHaveLength(2)
-      expect(API.updateUserPassword).toBeCalledTimes(1)
-      expect(API.updateUserPassword).toBeCalledWith(user.id, newData)
-    })
-  })
-
-  describe("when it is an unknown error", () => {
-    it("shows a generic error message", async () => {
-      jest.spyOn(API, "updateUserPassword").mockRejectedValueOnce({
-        data: "unknown error",
-      })
-
-      const { user } = renderPage()
-      await fillAndSubmitForm()
-
-      const errorText = t("warningsAndErrors.somethingWentWrong", {
-        ns: "common",
-      })
-      const errorMessage = await screen.findByText(errorText)
-      expect(errorMessage).toBeDefined()
-      expect(API.updateUserPassword).toBeCalledTimes(1)
-      expect(API.updateUserPassword).toBeCalledWith(user.id, newData)
+  await waitFor(() => {
+    expect(convertToOAUTHSpy).toHaveBeenCalledWith({
+      password: "password123",
+      to_type: "github",
     })
   })
 })

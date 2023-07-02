@@ -146,7 +146,9 @@ type Handler struct {
 	buildInfoJSON string
 
 	AppearanceFetcher func(ctx context.Context) (codersdk.AppearanceConfig, error)
-	RegionsFetcher    func(ctx context.Context) (codersdk.RegionsResponse, error)
+	// RegionsFetcher will attempt to fetch the more detailed WorkspaceProxy data, but will fall back to the
+	// regions if the user does not have the correct permissions.
+	RegionsFetcher func(ctx context.Context) (any, error)
 
 	Entitlements atomic.Pointer[codersdk.Entitlements]
 	Experiments  atomic.Pointer[codersdk.Experiments]

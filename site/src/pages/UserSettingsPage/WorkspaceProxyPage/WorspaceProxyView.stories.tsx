@@ -30,9 +30,6 @@ PrimarySelected.args = {
   proxies: MockWorkspaceProxies,
   proxyLatencies: MockProxyLatencies,
   preferredProxy: MockPrimaryWorkspaceProxy,
-  onSelect: () => {
-    return Promise.resolve()
-  },
 }
 
 export const Example = Template.bind({})
@@ -42,9 +39,6 @@ Example.args = {
   proxies: MockWorkspaceProxies,
   proxyLatencies: MockProxyLatencies,
   preferredProxy: MockHealthyWildWorkspaceProxy,
-  onSelect: () => {
-    return Promise.resolve()
-  },
 }
 
 export const Loading = Template.bind({})

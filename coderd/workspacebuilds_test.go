@@ -640,11 +640,50 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 func TestWorkspaceBuildDebugMode(t *testing.T) {
 	t.Parallel()
 
+	t.Run("DebugModeDisabled", func(t *testing.T) {
+		t.Parallel()
+
+		// Create user
+		deploymentValues := coderdtest.DeploymentValues(t)
+		deploymentValues.EnableTerraformDebugMode = false
+
+		adminClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, DeploymentValues: deploymentValues})
+		owner := coderdtest.CreateFirstUser(t, adminClient)
+
+		// Template author: create a template
+		version := coderdtest.CreateTemplateVersion(t, adminClient, owner.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, adminClient, owner.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, adminClient, version.ID)
+
+		// Template author: create a workspace
+		workspace := coderdtest.CreateWorkspace(t, adminClient, owner.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, adminClient, workspace.LatestBuild.ID)
+
+		// Template author: try to start a workspace build in debug mode
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := adminClient.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
+			Transition:        codersdk.WorkspaceTransitionStart,
+			LogLevel:          "debug",
+		})
+
+		// Template author: expect an error as the debug mode is disabled
+		require.NotNil(t, err)
+		var sdkError *codersdk.Error
+		isSdkError := xerrors.As(err, &sdkError)
+		require.True(t, isSdkError)
+		require.Contains(t, sdkError.Message, "Terraform debug mode is disabled in the deployment configuration.")
+	})
 	t.Run("AsRegularUser", func(t *testing.T) {
 		t.Parallel()
 
 		// Create users
-		templateAuthorClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		deploymentValues := coderdtest.DeploymentValues(t)
+		deploymentValues.EnableTerraformDebugMode = true
+
+		templateAuthorClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, DeploymentValues: deploymentValues})
 		templateAuthor := coderdtest.CreateFirstUser(t, templateAuthorClient)
 		regularUserClient, _ := coderdtest.CreateAnotherUser(t, templateAuthorClient, templateAuthor.OrganizationID)
 
@@ -672,15 +711,54 @@ func TestWorkspaceBuildDebugMode(t *testing.T) {
 		var sdkError *codersdk.Error
 		isSdkError := xerrors.As(err, &sdkError)
 		require.True(t, isSdkError)
-		require.Contains(t, sdkError.Message, "Workspace builds with a custom log level are restricted to template authors only.")
+		require.Contains(t, sdkError.Message, "Workspace builds with a custom log level are restricted to administrators only.")
 	})
 	t.Run("AsTemplateAuthor", func(t *testing.T) {
 		t.Parallel()
 
 		// Create users
-		adminClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		deploymentValues := coderdtest.DeploymentValues(t)
+		deploymentValues.EnableTerraformDebugMode = true
+
+		adminClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, DeploymentValues: deploymentValues})
 		admin := coderdtest.CreateFirstUser(t, adminClient)
-		templateAdminClient, _ := coderdtest.CreateAnotherUser(t, adminClient, admin.OrganizationID, rbac.RoleTemplateAdmin())
+		templateAuthorClient, _ := coderdtest.CreateAnotherUser(t, adminClient, admin.OrganizationID, rbac.RoleTemplateAdmin())
+
+		// Template author: create a template
+		version := coderdtest.CreateTemplateVersion(t, templateAuthorClient, admin.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, templateAuthorClient, admin.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, templateAuthorClient, version.ID)
+
+		// Template author: create a workspace
+		workspace := coderdtest.CreateWorkspace(t, templateAuthorClient, admin.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, templateAuthorClient, workspace.LatestBuild.ID)
+
+		// Template author: try to start a workspace build in debug mode
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := templateAuthorClient.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
+			Transition:        codersdk.WorkspaceTransitionStart,
+			LogLevel:          "debug",
+		})
+
+		// Template author: expect an error as the debug mode is disabled
+		require.NotNil(t, err)
+		var sdkError *codersdk.Error
+		isSdkError := xerrors.As(err, &sdkError)
+		require.True(t, isSdkError)
+		require.Contains(t, sdkError.Message, "Workspace builds with a custom log level are restricted to administrators only.")
+	})
+	t.Run("AsAdmin", func(t *testing.T) {
+		t.Parallel()
+
+		// Create users
+		deploymentValues := coderdtest.DeploymentValues(t)
+		deploymentValues.EnableTerraformDebugMode = true
+
+		adminClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, DeploymentValues: deploymentValues})
+		admin := coderdtest.CreateFirstUser(t, adminClient)
 
 		// Interact as template admin
 		echoResponses := &echo.Responses{
@@ -713,19 +791,19 @@ func TestWorkspaceBuildDebugMode(t *testing.T) {
 				},
 			}},
 		}
-		version := coderdtest.CreateTemplateVersion(t, templateAdminClient, admin.OrganizationID, echoResponses)
-		template := coderdtest.CreateTemplate(t, templateAdminClient, admin.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, templateAdminClient, version.ID)
+		version := coderdtest.CreateTemplateVersion(t, adminClient, admin.OrganizationID, echoResponses)
+		template := coderdtest.CreateTemplate(t, adminClient, admin.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, adminClient, version.ID)
 
 		// Create workspace
-		workspace := coderdtest.CreateWorkspace(t, templateAdminClient, admin.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, templateAdminClient, workspace.LatestBuild.ID)
+		workspace := coderdtest.CreateWorkspace(t, adminClient, admin.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, adminClient, workspace.LatestBuild.ID)
 
 		// Create workspace build
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		build, err := templateAdminClient.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		build, err := adminClient.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
 			Transition:        codersdk.WorkspaceTransitionStart,
 			ProvisionerState:  []byte(" "),
@@ -733,10 +811,10 @@ func TestWorkspaceBuildDebugMode(t *testing.T) {
 		})
 		require.Nil(t, err)
 
-		build = coderdtest.AwaitWorkspaceBuildJob(t, templateAdminClient, build.ID)
+		build = coderdtest.AwaitWorkspaceBuildJob(t, adminClient, build.ID)
 
 		// Watch for incoming logs
-		logs, closer, err := templateAdminClient.WorkspaceBuildLogsAfter(ctx, build.ID, 0)
+		logs, closer, err := adminClient.WorkspaceBuildLogsAfter(ctx, build.ID, 0)
 		require.NoError(t, err)
 		defer closer.Close()
 

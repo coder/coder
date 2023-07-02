@@ -2,13 +2,15 @@ package gitauth
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
 	"net/url"
 	"regexp"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
+	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -36,6 +38,14 @@ var validateURL = map[codersdk.GitProvider]string{
 	codersdk.GitProviderBitBucket: "https://api.bitbucket.org/2.0/user",
 }
 
+var deviceAuthURL = map[codersdk.GitProvider]string{
+	codersdk.GitProviderGitHub: "https://github.com/login/device/code",
+}
+
+var appInstallationsURL = map[codersdk.GitProvider]string{
+	codersdk.GitProviderGitHub: "https://api.github.com/user/installations",
+}
+
 // scope contains defaults for each Git provider.
 var scope = map[codersdk.GitProvider][]string{
 	codersdk.GitProviderAzureDevops: {"vso.code_write"},
@@ -54,13 +64,9 @@ var regex = map[codersdk.GitProvider]*regexp.Regexp{
 	codersdk.GitProviderGitHub:      regexp.MustCompile(`^(https?://)?github\.com(/.*)?$`),
 }
 
-// newJWTOAuthConfig creates a new OAuth2 config that uses a custom
+// jwtConfig is a new OAuth2 config that uses a custom
 // assertion method that works with Azure Devops. See:
 // https://learn.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/oauth?view=azure-devops
-func newJWTOAuthConfig(config *oauth2.Config) httpmw.OAuth2Config {
-	return &jwtConfig{config}
-}
-
 type jwtConfig struct {
 	*oauth2.Config
 }
@@ -88,4 +94,111 @@ func (c *jwtConfig) Exchange(ctx context.Context, code string, opts ...oauth2.Au
 			oauth2.SetAuthURLParam("code", ""),
 		)...,
 	)
+}
+
+type DeviceAuth struct {
+	ClientID string
+	TokenURL string
+	Scopes   []string
+	CodeURL  string
+}
+
+// AuthorizeDevice begins the device authorization flow.
+// See: https://tools.ietf.org/html/rfc8628#section-3.1
+func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*codersdk.GitAuthDevice, error) {
+	if c.CodeURL == "" {
+		return nil, xerrors.New("oauth2: device code URL not set")
+	}
+	codeURL, err := c.formatDeviceCodeURL()
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, codeURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var r struct {
+		codersdk.GitAuthDevice
+		ErrorDescription string `json:"error_description"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&r)
+	if err != nil {
+		return nil, err
+	}
+	if r.ErrorDescription != "" {
+		return nil, xerrors.New(r.ErrorDescription)
+	}
+	return &r.GitAuthDevice, nil
+}
+
+type ExchangeDeviceCodeResponse struct {
+	*oauth2.Token
+	Error            string `json:"error"`
+	ErrorDescription string `json:"error_description"`
+}
+
+// ExchangeDeviceCode exchanges a device code for an access token.
+// The boolean returned indicates whether the device code is still pending
+// and the caller should try again.
+func (c *DeviceAuth) ExchangeDeviceCode(ctx context.Context, deviceCode string) (*oauth2.Token, error) {
+	if c.TokenURL == "" {
+		return nil, xerrors.New("oauth2: token URL not set")
+	}
+	tokenURL, err := c.formatDeviceTokenURL(deviceCode)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, codersdk.ReadBodyAsError(resp)
+	}
+	var body ExchangeDeviceCodeResponse
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	if err != nil {
+		return nil, err
+	}
+	if body.Error != "" {
+		return nil, xerrors.New(body.Error)
+	}
+	return body.Token, nil
+}
+
+func (c *DeviceAuth) formatDeviceTokenURL(deviceCode string) (string, error) {
+	tok, err := url.Parse(c.TokenURL)
+	if err != nil {
+		return "", err
+	}
+	tok.RawQuery = url.Values{
+		"client_id":   {c.ClientID},
+		"device_code": {deviceCode},
+		"grant_type":  {"urn:ietf:params:oauth:grant-type:device_code"},
+	}.Encode()
+	return tok.String(), nil
+}
+
+func (c *DeviceAuth) formatDeviceCodeURL() (string, error) {
+	cod, err := url.Parse(c.CodeURL)
+	if err != nil {
+		return "", err
+	}
+	cod.RawQuery = url.Values{
+		"client_id": {c.ClientID},
+		"scope":     c.Scopes,
+	}.Encode()
+	return cod.String(), nil
 }

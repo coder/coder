@@ -23,6 +23,7 @@ import {
   MockTemplateVersion3,
   MockUser,
   MockEntitlementsWithScheduling,
+  MockDeploymentConfig,
 } from "testHelpers/entities"
 import * as api from "../../api/api"
 import { Workspace } from "../../api/typesGenerated"
@@ -39,6 +40,9 @@ const { t } = i18next
 const renderWorkspacePage = async () => {
   jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate)
   jest.spyOn(api, "getTemplateVersionRichParameters").mockResolvedValueOnce([])
+  jest
+    .spyOn(api, "getDeploymentValues")
+    .mockResolvedValueOnce(MockDeploymentConfig)
   jest.spyOn(api, "watchStartupLogs").mockImplementation((_, options) => {
     options.onDone()
     return new WebSocket("")

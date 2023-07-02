@@ -89,7 +89,8 @@ jobs:
               - "scripts/Dockerfile.base"
               - "scripts/helm.sh"
             ci:
-              - ".github/**"
+              - ".github/actions/**"
+              - ".github/workflows/ci.yaml"
       - id: debug
         run: |
           echo "${{ toJSON(steps.filter )}}"

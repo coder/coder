@@ -48,47 +48,27 @@ func (api *API) regions(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, regions)
 }
 
-func (api *API) fetchRegions(ctx context.Context) (codersdk.RegionsResponse, error) {
+func (api *API) fetchRegions(ctx context.Context) (codersdk.RegionsResponse[codersdk.Region], error) {
 	//nolint:gocritic // this intentionally requests resources that users
 	// cannot usually access in order to give them a full list of available
-	// regions.
+	// regions. Regions are just a data subset of proxies.
 	ctx = dbauthz.AsSystemRestricted(ctx)
-
-	primaryRegion, err := api.AGPL.PrimaryRegion(ctx)
+	proxies, err := api.fetchWorkspaceProxies(ctx)
 	if err != nil {
-		return codersdk.RegionsResponse{}, err
-	}
-	regions := []codersdk.Region{primaryRegion}
-
-	proxies, err := api.Database.GetWorkspaceProxies(ctx)
-	if err != nil {
-		return codersdk.RegionsResponse{}, err
+		return codersdk.RegionsResponse[codersdk.Region]{}, err
 	}
 
-	// Only add additional regions if the proxy health is enabled.
-	// If it is nil, it is because the moons feature flag is not on.
-	// By default, we still want to return the primary region.
-	if api.ProxyHealth != nil {
-		proxyHealth := api.ProxyHealth.HealthStatus()
-		for _, proxy := range proxies {
-			if proxy.Deleted {
-				continue
-			}
-
-			health := proxyHealth[proxy.ID]
-			regions = append(regions, codersdk.Region{
-				ID:               proxy.ID,
-				Name:             proxy.Name,
-				DisplayName:      proxy.DisplayName,
-				IconURL:          proxy.Icon,
-				Healthy:          health.Status == proxyhealth.Healthy,
-				PathAppURL:       proxy.Url,
-				WildcardHostname: proxy.WildcardHostname,
-			})
+	regions := make([]codersdk.Region, 0, len(proxies.Regions))
+	for i := range proxies.Regions {
+		// Ignore deleted proxies.
+		if proxies.Regions[i].Deleted {
+			continue
 		}
+		// Append the inner region data.
+		regions = append(regions, proxies.Regions[i].Region)
 	}
 
-	return codersdk.RegionsResponse{
+	return codersdk.RegionsResponse[codersdk.Region]{
 		Regions: regions,
 	}, nil
 }
@@ -415,27 +395,41 @@ func validateProxyURL(u string) error {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Success 200 {array} codersdk.WorkspaceProxy
+// @Success 200 {array} codersdk.RegionsResponse[codersdk.WorkspaceProxy]
 // @Router /workspaceproxies [get]
 func (api *API) workspaceProxies(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
-	proxies, err := api.Database.GetWorkspaceProxies(ctx)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	proxies, err := api.fetchWorkspaceProxies(r.Context())
+	if err != nil {
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: "You are not authorized to use this endpoint.",
+			})
+			return
+		}
 		httpapi.InternalServerError(rw, err)
 		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, proxies)
+}
+
+func (api *API) fetchWorkspaceProxies(ctx context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
+	proxies, err := api.Database.GetWorkspaceProxies(ctx)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		return codersdk.RegionsResponse[codersdk.WorkspaceProxy]{}, err
 	}
 
 	// Add the primary as well
 	primaryProxy, err := api.AGPL.PrimaryWorkspaceProxy(ctx)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		httpapi.InternalServerError(rw, err)
-		return
+		return codersdk.RegionsResponse[codersdk.WorkspaceProxy]{}, err
 	}
 	proxies = append([]database.WorkspaceProxy{primaryProxy}, proxies...)
 
 	statues := api.ProxyHealth.HealthStatus()
-	httpapi.Write(ctx, rw, http.StatusOK, convertProxies(proxies, statues))
+	return codersdk.RegionsResponse[codersdk.WorkspaceProxy]{
+		Regions: convertProxies(proxies, statues),
+	}, nil
 }
 
 // @Summary Issue signed workspace app token
@@ -710,6 +704,18 @@ func convertProxies(p []database.WorkspaceProxy, statuses map[uuid.UUID]proxyhea
 	return resp
 }
 
+func convertRegion(proxy database.WorkspaceProxy, status proxyhealth.ProxyStatus) codersdk.Region {
+	return codersdk.Region{
+		ID:               proxy.ID,
+		Name:             proxy.Name,
+		DisplayName:      proxy.DisplayName,
+		IconURL:          proxy.Icon,
+		Healthy:          status.Status == proxyhealth.Healthy,
+		PathAppURL:       proxy.Url,
+		WildcardHostname: proxy.WildcardHostname,
+	}
+}
+
 func convertProxy(p database.WorkspaceProxy, status proxyhealth.ProxyStatus) codersdk.WorkspaceProxy {
 	if p.IsPrimary() {
 		// Primary is always healthy since the primary serves the api that this
@@ -727,15 +733,10 @@ func convertProxy(p database.WorkspaceProxy, status proxyhealth.ProxyStatus) cod
 		status.Status = proxyhealth.Unknown
 	}
 	return codersdk.WorkspaceProxy{
-		ID:               p.ID,
-		Name:             p.Name,
-		DisplayName:      p.DisplayName,
-		Icon:             p.Icon,
-		URL:              p.Url,
-		WildcardHostname: p.WildcardHostname,
-		CreatedAt:        p.CreatedAt,
-		UpdatedAt:        p.UpdatedAt,
-		Deleted:          p.Deleted,
+		Region:    convertRegion(p, status),
+		CreatedAt: p.CreatedAt,
+		UpdatedAt: p.UpdatedAt,
+		Deleted:   p.Deleted,
 		Status: codersdk.WorkspaceProxyStatus{
 			Status:    codersdk.ProxyHealthStatus(status.Status),
 			Report:    status.Report,

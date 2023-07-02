@@ -658,6 +658,103 @@ const docTemplate = `{
                 }
             }
         },
+        "/gitauth/{gitauth}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Git"
+                ],
+                "summary": "Get git auth by ID",
+                "operationId": "get-git-auth-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "string",
+                        "description": "Git Provider ID",
+                        "name": "gitauth",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GitAuth"
+                        }
+                    }
+                }
+            }
+        },
+        "/gitauth/{gitauth}/device": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Git"
+                ],
+                "summary": "Get git auth device by ID.",
+                "operationId": "get-git-auth-device-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "string",
+                        "description": "Git Provider ID",
+                        "name": "gitauth",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GitAuthDevice"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Git"
+                ],
+                "summary": "Post git auth device by ID",
+                "operationId": "post-git-auth-device-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "string",
+                        "description": "Git Provider ID",
+                        "name": "gitauth",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/groups/{group}": {
             "get": {
                 "security": [
@@ -1614,7 +1711,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.RegionsResponse"
+                            "$ref": "#/definitions/codersdk.RegionsResponse-codersdk_Region"
                         }
                     }
                 }
@@ -3155,6 +3252,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/{user}/convert-login": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authorization"
+                ],
+                "summary": "Convert user from password to oauth authentication",
+                "operationId": "convert-user-from-password-to-oauth-authentication",
+                "parameters": [
+                    {
+                        "description": "Convert request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ConvertLoginRequest"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuthConversionResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/users/{user}/gitsshkey": {
             "get": {
                 "security": [
@@ -3484,6 +3627,40 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/users/{user}/login-type": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get user login type",
+                "operationId": "get-user-login-type",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserLoginType"
+                        }
                     }
                 }
             }
@@ -4932,7 +5109,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.WorkspaceProxy"
+                                "$ref": "#/definitions/codersdk.RegionsResponse-codersdk_WorkspaceProxy"
                             }
                         }
                     }
@@ -6553,6 +6730,9 @@ const docTemplate = `{
         "codersdk.AuthMethods": {
             "type": "object",
             "properties": {
+                "convert_to_oidc_enabled": {
+                    "type": "boolean"
+                },
                 "github": {
                     "$ref": "#/definitions/codersdk.AuthMethod"
                 },
@@ -6663,6 +6843,26 @@ const docTemplate = `{
                 "BuildReasonAutostart",
                 "BuildReasonAutostop"
             ]
+        },
+        "codersdk.ConvertLoginRequest": {
+            "type": "object",
+            "required": [
+                "password",
+                "to_type"
+            ],
+            "properties": {
+                "password": {
+                    "type": "string"
+                },
+                "to_type": {
+                    "description": "ToType is the login type to convert to.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.LoginType"
+                        }
+                    ]
+                }
+            }
         },
         "codersdk.CreateFirstUserRequest": {
             "type": "object",
@@ -7270,6 +7470,9 @@ const docTemplate = `{
                 "disable_session_expiry_refresh": {
                     "type": "boolean"
                 },
+                "enable_terraform_debug_mode": {
+                    "type": "boolean"
+                },
                 "experiments": {
                     "type": "array",
                     "items": {
@@ -7440,12 +7643,14 @@ const docTemplate = `{
             "enum": [
                 "moons",
                 "workspace_actions",
-                "tailnet_pg_coordinator"
+                "tailnet_pg_coordinator",
+                "convert-to-oidc"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
                 "ExperimentWorkspaceActions",
-                "ExperimentTailnetPGCoordinator"
+                "ExperimentTailnetPGCoordinator",
+                "ExperimentConvertToOIDC"
             ]
         },
         "codersdk.Feature": {
@@ -7487,14 +7692,77 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.GitAuth": {
+            "type": "object",
+            "properties": {
+                "app_install_url": {
+                    "description": "AppInstallURL is the URL to install the app.",
+                    "type": "string"
+                },
+                "app_installable": {
+                    "description": "AppInstallable is true if the request for app installs was successful.",
+                    "type": "boolean"
+                },
+                "authenticated": {
+                    "type": "boolean"
+                },
+                "device": {
+                    "type": "boolean"
+                },
+                "installations": {
+                    "description": "AppInstallations are the installations that the user has access to.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.GitAuthAppInstallation"
+                    }
+                },
+                "type": {
+                    "type": "string"
+                },
+                "user": {
+                    "description": "User is the user that authenticated with the provider.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.GitAuthUser"
+                        }
+                    ]
+                }
+            }
+        },
+        "codersdk.GitAuthAppInstallation": {
+            "type": "object",
+            "properties": {
+                "account": {
+                    "$ref": "#/definitions/codersdk.GitAuthUser"
+                },
+                "configure_url": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.GitAuthConfig": {
             "type": "object",
             "properties": {
+                "app_install_url": {
+                    "type": "string"
+                },
+                "app_installations_url": {
+                    "type": "string"
+                },
                 "auth_url": {
                     "type": "string"
                 },
                 "client_id": {
                     "type": "string"
+                },
+                "device_code_url": {
+                    "type": "string"
+                },
+                "device_flow": {
+                    "type": "boolean"
                 },
                 "id": {
                     "type": "string"
@@ -7518,6 +7786,43 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "validate_url": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.GitAuthDevice": {
+            "type": "object",
+            "properties": {
+                "device_code": {
+                    "type": "string"
+                },
+                "expires_in": {
+                    "type": "integer"
+                },
+                "interval": {
+                    "type": "integer"
+                },
+                "user_code": {
+                    "type": "string"
+                },
+                "verification_uri": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.GitAuthUser": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "login": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "profile_url": {
                     "type": "string"
                 }
             }
@@ -7796,6 +8101,25 @@ const docTemplate = `{
                 },
                 "enterprise_base_url": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.OAuthConversionResponse": {
+            "type": "object",
+            "properties": {
+                "expires_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "state_string": {
+                    "type": "string"
+                },
+                "to_type": {
+                    "$ref": "#/definitions/codersdk.LoginType"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -8324,13 +8648,24 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.RegionsResponse": {
+        "codersdk.RegionsResponse-codersdk_Region": {
             "type": "object",
             "properties": {
                 "regions": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.Region"
+                    }
+                }
+            }
+        },
+        "codersdk.RegionsResponse-codersdk_WorkspaceProxy": {
+            "type": "object",
+            "properties": {
+                "regions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceProxy"
                     }
                 }
             }
@@ -8381,7 +8716,8 @@ const docTemplate = `{
                 "git_ssh_key",
                 "api_key",
                 "group",
-                "license"
+                "license",
+                "convert_login"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -8392,7 +8728,8 @@ const docTemplate = `{
                 "ResourceTypeGitSSHKey",
                 "ResourceTypeAPIKey",
                 "ResourceTypeGroup",
-                "ResourceTypeLicense"
+                "ResourceTypeLicense",
+                "ResourceTypeConvertLogin"
             ]
         },
         "codersdk.Response": {
@@ -9177,6 +9514,14 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UserLoginType": {
+            "type": "object",
+            "properties": {
+                "login_type": {
+                    "$ref": "#/definitions/codersdk.LoginType"
+                }
+            }
+        },
         "codersdk.UserStatus": {
             "type": "string",
             "enum": [
@@ -9810,7 +10155,10 @@ const docTemplate = `{
                 "display_name": {
                     "type": "string"
                 },
-                "icon": {
+                "healthy": {
+                    "type": "boolean"
+                },
+                "icon_url": {
                     "type": "string"
                 },
                 "id": {
@@ -9818,6 +10166,10 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "name": {
+                    "type": "string"
+                },
+                "path_app_url": {
+                    "description": "PathAppURL is the URL to the base path for path apps. Optional\nunless wildcard_hostname is set.\nE.g. https://us.example.com",
                     "type": "string"
                 },
                 "status": {
@@ -9832,12 +10184,8 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
-                "url": {
-                    "description": "Full url including scheme of the proxy api url: https://us.example.com",
-                    "type": "string"
-                },
                 "wildcard_hostname": {
-                    "description": "WildcardHostname with the wildcard for subdomain based app hosting: *.us.example.com",
+                    "description": "WildcardHostname is the wildcard hostname for subdomain apps.\nE.g. *.us.example.com\nE.g. *--suffix.au.example.com\nOptional. Does not need to be on the same domain as PathAppURL.",
                     "type": "string"
                 }
             }

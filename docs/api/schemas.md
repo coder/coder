@@ -593,8 +593,12 @@
 {
   "value": [
     {
+      "app_install_url": "string",
+      "app_installations_url": "string",
       "auth_url": "string",
       "client_id": "string",
+      "device_code_url": "string",
+      "device_flow": true,
       "id": "string",
       "no_refresh": true,
       "regex": "string",
@@ -1109,6 +1113,7 @@
 
 ```json
 {
+  "convert_to_oidc_enabled": true,
   "github": {
     "enabled": true
   },
@@ -1125,11 +1130,12 @@
 
 ### Properties
 
-| Name       | Type                                               | Required | Restrictions | Description |
-| ---------- | -------------------------------------------------- | -------- | ------------ | ----------- |
-| `github`   | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
-| `oidc`     | [codersdk.OIDCAuthMethod](#codersdkoidcauthmethod) | false    |              |             |
-| `password` | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
+| Name                      | Type                                               | Required | Restrictions | Description |
+| ------------------------- | -------------------------------------------------- | -------- | ------------ | ----------- |
+| `convert_to_oidc_enabled` | boolean                                            | false    |              |             |
+| `github`                  | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
+| `oidc`                    | [codersdk.OIDCAuthMethod](#codersdkoidcauthmethod) | false    |              |             |
+| `password`                | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
 
 ## codersdk.AuthorizationCheck
 
@@ -1269,6 +1275,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `initiator` |
 | `autostart` |
 | `autostop`  |
+
+## codersdk.ConvertLoginRequest
+
+```json
+{
+  "password": "string",
+  "to_type": "password"
+}
+```
+
+### Properties
+
+| Name       | Type                                     | Required | Restrictions | Description                              |
+| ---------- | ---------------------------------------- | -------- | ------------ | ---------------------------------------- |
+| `password` | string                                   | true     |              |                                          |
+| `to_type`  | [codersdk.LoginType](#codersdklogintype) | true     |              | To type is the login type to convert to. |
 
 ## codersdk.CreateFirstUserRequest
 
@@ -1873,12 +1895,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "disable_password_auth": true,
     "disable_path_apps": true,
     "disable_session_expiry_refresh": true,
+    "enable_terraform_debug_mode": true,
     "experiments": ["string"],
     "git_auth": {
       "value": [
         {
+          "app_install_url": "string",
+          "app_installations_url": "string",
           "auth_url": "string",
           "client_id": "string",
+          "device_code_url": "string",
+          "device_flow": true,
           "id": "string",
           "no_refresh": true,
           "regex": "string",
@@ -2204,12 +2231,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "disable_password_auth": true,
   "disable_path_apps": true,
   "disable_session_expiry_refresh": true,
+  "enable_terraform_debug_mode": true,
   "experiments": ["string"],
   "git_auth": {
     "value": [
       {
+        "app_install_url": "string",
+        "app_installations_url": "string",
         "auth_url": "string",
         "client_id": "string",
+        "device_code_url": "string",
+        "device_flow": true,
         "id": "string",
         "no_refresh": true,
         "regex": "string",
@@ -2398,6 +2430,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `disable_password_auth`              | boolean                                                                                    | false    |              |                                                                    |
 | `disable_path_apps`                  | boolean                                                                                    | false    |              |                                                                    |
 | `disable_session_expiry_refresh`     | boolean                                                                                    | false    |              |                                                                    |
+| `enable_terraform_debug_mode`        | boolean                                                                                    | false    |              |                                                                    |
 | `experiments`                        | array of string                                                                            | false    |              |                                                                    |
 | `git_auth`                           | [clibase.Struct-array_codersdk_GitAuthConfig](#clibasestruct-array_codersdk_gitauthconfig) | false    |              |                                                                    |
 | `http_address`                       | string                                                                                     | false    |              | Http address is a string because it may be set to zero to disable. |
@@ -2503,6 +2536,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `moons`                  |
 | `workspace_actions`      |
 | `tailnet_pg_coordinator` |
+| `convert-to-oidc`        |
 
 ## codersdk.Feature
 
@@ -2571,12 +2605,81 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `count` | integer                                 | false    |              |             |
 | `users` | array of [codersdk.User](#codersdkuser) | false    |              |             |
 
+## codersdk.GitAuth
+
+```json
+{
+  "app_install_url": "string",
+  "app_installable": true,
+  "authenticated": true,
+  "device": true,
+  "installations": [
+    {
+      "account": {
+        "avatar_url": "string",
+        "login": "string",
+        "name": "string",
+        "profile_url": "string"
+      },
+      "configure_url": "string",
+      "id": 0
+    }
+  ],
+  "type": "string",
+  "user": {
+    "avatar_url": "string",
+    "login": "string",
+    "name": "string",
+    "profile_url": "string"
+  }
+}
+```
+
+### Properties
+
+| Name              | Type                                                                        | Required | Restrictions | Description                                                             |
+| ----------------- | --------------------------------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------- |
+| `app_install_url` | string                                                                      | false    |              | App install URL is the URL to install the app.                          |
+| `app_installable` | boolean                                                                     | false    |              | App installable is true if the request for app installs was successful. |
+| `authenticated`   | boolean                                                                     | false    |              |                                                                         |
+| `device`          | boolean                                                                     | false    |              |                                                                         |
+| `installations`   | array of [codersdk.GitAuthAppInstallation](#codersdkgitauthappinstallation) | false    |              | Installations are the installations that the user has access to.        |
+| `type`            | string                                                                      | false    |              |                                                                         |
+| `user`            | [codersdk.GitAuthUser](#codersdkgitauthuser)                                | false    |              | User is the user that authenticated with the provider.                  |
+
+## codersdk.GitAuthAppInstallation
+
+```json
+{
+  "account": {
+    "avatar_url": "string",
+    "login": "string",
+    "name": "string",
+    "profile_url": "string"
+  },
+  "configure_url": "string",
+  "id": 0
+}
+```
+
+### Properties
+
+| Name            | Type                                         | Required | Restrictions | Description |
+| --------------- | -------------------------------------------- | -------- | ------------ | ----------- |
+| `account`       | [codersdk.GitAuthUser](#codersdkgitauthuser) | false    |              |             |
+| `configure_url` | string                                       | false    |              |             |
+| `id`            | integer                                      | false    |              |             |
+
 ## codersdk.GitAuthConfig
 
 ```json
 {
+  "app_install_url": "string",
+  "app_installations_url": "string",
   "auth_url": "string",
   "client_id": "string",
+  "device_code_url": "string",
+  "device_flow": true,
   "id": "string",
   "no_refresh": true,
   "regex": "string",
@@ -2589,17 +2692,63 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name           | Type            | Required | Restrictions | Description |
-| -------------- | --------------- | -------- | ------------ | ----------- |
-| `auth_url`     | string          | false    |              |             |
-| `client_id`    | string          | false    |              |             |
-| `id`           | string          | false    |              |             |
-| `no_refresh`   | boolean         | false    |              |             |
-| `regex`        | string          | false    |              |             |
-| `scopes`       | array of string | false    |              |             |
-| `token_url`    | string          | false    |              |             |
-| `type`         | string          | false    |              |             |
-| `validate_url` | string          | false    |              |             |
+| Name                    | Type            | Required | Restrictions | Description |
+| ----------------------- | --------------- | -------- | ------------ | ----------- |
+| `app_install_url`       | string          | false    |              |             |
+| `app_installations_url` | string          | false    |              |             |
+| `auth_url`              | string          | false    |              |             |
+| `client_id`             | string          | false    |              |             |
+| `device_code_url`       | string          | false    |              |             |
+| `device_flow`           | boolean         | false    |              |             |
+| `id`                    | string          | false    |              |             |
+| `no_refresh`            | boolean         | false    |              |             |
+| `regex`                 | string          | false    |              |             |
+| `scopes`                | array of string | false    |              |             |
+| `token_url`             | string          | false    |              |             |
+| `type`                  | string          | false    |              |             |
+| `validate_url`          | string          | false    |              |             |
+
+## codersdk.GitAuthDevice
+
+```json
+{
+  "device_code": "string",
+  "expires_in": 0,
+  "interval": 0,
+  "user_code": "string",
+  "verification_uri": "string"
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description |
+| ------------------ | ------- | -------- | ------------ | ----------- |
+| `device_code`      | string  | false    |              |             |
+| `expires_in`       | integer | false    |              |             |
+| `interval`         | integer | false    |              |             |
+| `user_code`        | string  | false    |              |             |
+| `verification_uri` | string  | false    |              |             |
+
+## codersdk.GitAuthUser
+
+```json
+{
+  "avatar_url": "string",
+  "login": "string",
+  "name": "string",
+  "profile_url": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+| ------------- | ------ | -------- | ------------ | ----------- |
+| `avatar_url`  | string | false    |              |             |
+| `login`       | string | false    |              |             |
+| `name`        | string | false    |              |             |
+| `profile_url` | string | false    |              |             |
 
 ## codersdk.GitProvider
 
@@ -2926,6 +3075,26 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `client_id`           | string          | false    |              |             |
 | `client_secret`       | string          | false    |              |             |
 | `enterprise_base_url` | string          | false    |              |             |
+
+## codersdk.OAuthConversionResponse
+
+```json
+{
+  "expires_at": "2019-08-24T14:15:22Z",
+  "state_string": "string",
+  "to_type": "password",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Properties
+
+| Name           | Type                                     | Required | Restrictions | Description |
+| -------------- | ---------------------------------------- | -------- | ------------ | ----------- |
+| `expires_at`   | string                                   | false    |              |             |
+| `state_string` | string                                   | false    |              |             |
+| `to_type`      | [codersdk.LoginType](#codersdklogintype) | false    |              |             |
+| `user_id`      | string                                   | false    |              |             |
 
 ## codersdk.OIDCAuthMethod
 
@@ -3437,7 +3606,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `path_app_url`      | string  | false    |              | Path app URL is the URL to the base path for path apps. Optional unless wildcard_hostname is set. E.g. https://us.example.com                                                      |
 | `wildcard_hostname` | string  | false    |              | Wildcard hostname is the wildcard hostname for subdomain apps. E.g. _.us.example.com E.g. _--suffix.au.example.com Optional. Does not need to be on the same domain as PathAppURL. |
 
-## codersdk.RegionsResponse
+## codersdk.RegionsResponse-codersdk_Region
 
 ```json
 {
@@ -3460,6 +3629,41 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name      | Type                                        | Required | Restrictions | Description |
 | --------- | ------------------------------------------- | -------- | ------------ | ----------- |
 | `regions` | array of [codersdk.Region](#codersdkregion) | false    |              |             |
+
+## codersdk.RegionsResponse-codersdk_WorkspaceProxy
+
+```json
+{
+  "regions": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "deleted": true,
+      "display_name": "string",
+      "healthy": true,
+      "icon_url": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "path_app_url": "string",
+      "status": {
+        "checked_at": "2019-08-24T14:15:22Z",
+        "report": {
+          "errors": ["string"],
+          "warnings": ["string"]
+        },
+        "status": "ok"
+      },
+      "updated_at": "2019-08-24T14:15:22Z",
+      "wildcard_hostname": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                                        | Required | Restrictions | Description |
+| --------- | ----------------------------------------------------------- | -------- | ------------ | ----------- |
+| `regions` | array of [codersdk.WorkspaceProxy](#codersdkworkspaceproxy) | false    |              |             |
 
 ## codersdk.Replica
 
@@ -3508,6 +3712,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `api_key`          |
 | `group`            |
 | `license`          |
+| `convert_login`    |
 
 ## codersdk.Response
 
@@ -4397,6 +4602,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `status` | `active`    |
 | `status` | `suspended` |
 
+## codersdk.UserLoginType
+
+```json
+{
+  "login_type": "password"
+}
+```
+
+### Properties
+
+| Name         | Type                                     | Required | Restrictions | Description |
+| ------------ | ---------------------------------------- | -------- | ------------ | ----------- |
+| `login_type` | [codersdk.LoginType](#codersdklogintype) | false    |              |             |
+
 ## codersdk.UserStatus
 
 ```json
@@ -5264,9 +5483,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "created_at": "2019-08-24T14:15:22Z",
   "deleted": true,
   "display_name": "string",
-  "icon": "string",
+  "healthy": true,
+  "icon_url": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
+  "path_app_url": "string",
   "status": {
     "checked_at": "2019-08-24T14:15:22Z",
     "report": {
@@ -5276,25 +5497,25 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "status": "ok"
   },
   "updated_at": "2019-08-24T14:15:22Z",
-  "url": "string",
   "wildcard_hostname": "string"
 }
 ```
 
 ### Properties
 
-| Name                | Type                                                           | Required | Restrictions | Description                                                                                                                                                                   |
-| ------------------- | -------------------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `created_at`        | string                                                         | false    |              |                                                                                                                                                                               |
-| `deleted`           | boolean                                                        | false    |              |                                                                                                                                                                               |
-| `display_name`      | string                                                         | false    |              |                                                                                                                                                                               |
-| `icon`              | string                                                         | false    |              |                                                                                                                                                                               |
-| `id`                | string                                                         | false    |              |                                                                                                                                                                               |
-| `name`              | string                                                         | false    |              |                                                                                                                                                                               |
-| `status`            | [codersdk.WorkspaceProxyStatus](#codersdkworkspaceproxystatus) | false    |              | Status is the latest status check of the proxy. This will be empty for deleted proxies. This value can be used to determine if a workspace proxy is healthy and ready to use. |
-| `updated_at`        | string                                                         | false    |              |                                                                                                                                                                               |
-| `url`               | string                                                         | false    |              | Full URL including scheme of the proxy api url: https://us.example.com                                                                                                        |
-| `wildcard_hostname` | string                                                         | false    |              | Wildcard hostname with the wildcard for subdomain based app hosting: \*.us.example.com                                                                                        |
+| Name                | Type                                                           | Required | Restrictions | Description                                                                                                                                                                        |
+| ------------------- | -------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `created_at`        | string                                                         | false    |              |                                                                                                                                                                                    |
+| `deleted`           | boolean                                                        | false    |              |                                                                                                                                                                                    |
+| `display_name`      | string                                                         | false    |              |                                                                                                                                                                                    |
+| `healthy`           | boolean                                                        | false    |              |                                                                                                                                                                                    |
+| `icon_url`          | string                                                         | false    |              |                                                                                                                                                                                    |
+| `id`                | string                                                         | false    |              |                                                                                                                                                                                    |
+| `name`              | string                                                         | false    |              |                                                                                                                                                                                    |
+| `path_app_url`      | string                                                         | false    |              | Path app URL is the URL to the base path for path apps. Optional unless wildcard_hostname is set. E.g. https://us.example.com                                                      |
+| `status`            | [codersdk.WorkspaceProxyStatus](#codersdkworkspaceproxystatus) | false    |              | Status is the latest status check of the proxy. This will be empty for deleted proxies. This value can be used to determine if a workspace proxy is healthy and ready to use.      |
+| `updated_at`        | string                                                         | false    |              |                                                                                                                                                                                    |
+| `wildcard_hostname` | string                                                         | false    |              | Wildcard hostname is the wildcard hostname for subdomain apps. E.g. _.us.example.com E.g. _--suffix.au.example.com Optional. Does not need to be on the same domain as PathAppURL. |
 
 ## codersdk.WorkspaceProxyStatus
 

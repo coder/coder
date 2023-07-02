@@ -280,12 +280,7 @@ func (e *executor) planResources(ctx, killCtx context.Context, planfilePath stri
 	}
 	modules = append(modules, plan.PlannedValues.RootModule)
 
-	rawParameterNames, err := rawRichParameterNames(e.workdir)
-	if err != nil {
-		return nil, xerrors.Errorf("raw rich parameter names: %w", err)
-	}
-
-	state, err := ConvertState(modules, rawGraph, rawParameterNames)
+	state, err := ConvertState(modules, rawGraph)
 	if err != nil {
 		return nil, err
 	}
@@ -410,18 +405,15 @@ func (e *executor) stateResources(ctx, killCtx context.Context) (*State, error) 
 		return nil, xerrors.Errorf("get terraform graph: %w", err)
 	}
 	converted := &State{}
-	if state.Values != nil {
-		rawParameterNames, err := rawRichParameterNames(e.workdir)
-		if err != nil {
-			return nil, xerrors.Errorf("raw rich parameter names: %w", err)
-		}
+	if state.Values == nil {
+		return converted, nil
+	}
 
-		converted, err = ConvertState([]*tfjson.StateModule{
-			state.Values.RootModule,
-		}, rawGraph, rawParameterNames)
-		if err != nil {
-			return nil, err
-		}
+	converted, err = ConvertState([]*tfjson.StateModule{
+		state.Values.RootModule,
+	}, rawGraph)
+	if err != nil {
+		return nil, err
 	}
 	return converted, nil
 }
