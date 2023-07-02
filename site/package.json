@@ -97,7 +97,7 @@
     "xterm-addon-canvas": "0.4.0",
     "xterm-addon-fit": "0.7.0",
     "xterm-addon-web-links": "0.8.0",
-    "yup": "0.32.11"
+    "yup": "1.2.0"
   },
   "devDependencies": {
     "@octokit/types": "10.0.0",
