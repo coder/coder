@@ -47,7 +47,7 @@
     "@testing-library/react-hooks": "8.0.1",
     "@types/color-convert": "2.0.0",
     "@types/react-color": "3.0.6",
-    "@vitejs/plugin-react": "2.1.0",
+    "@vitejs/plugin-react": "4.0.1",
     "@xstate/inspect": "0.6.5",
     "@xstate/react": "3.2.1",
     "ansi-to-html": "0.7.2",
