@@ -194,7 +194,7 @@ func (p *ptyWindows) Close() error {
 	// Note that this may result in a small amount of unprocessed output
 	// being lost, but the alternative is to wrap the reader or to handle
 	// this by all consumers.
-	_, _ = io.Copy(io.Discard, p.outputRead)
+	// _, _ = io.Copy(io.Discard, p.outputRead)
 
 	_ = p.outputRead.Close()
 	_ = p.inputWrite.Close()
