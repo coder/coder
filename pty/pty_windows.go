@@ -151,7 +151,6 @@ func (p *ptyWindows) closeConsoleNoLock() error {
 	// output reads can get to EOF.  In that case, we don't need to close it
 	// again here.
 	if p.console != windows.InvalidHandle {
-		//
 		// Because ClosePseudoConsole has no return value, we could ignore the
 		// error here, but we limit this either S_OK or S_FALSE as a safety-net
 		// in case other values could be returned.
