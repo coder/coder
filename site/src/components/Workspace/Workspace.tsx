@@ -7,7 +7,7 @@ import {
   ActiveTransition,
   WorkspaceBuildProgress,
 } from "components/WorkspaceBuildProgress/WorkspaceBuildProgress"
-import { FC } from "react"
+import { FC, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
@@ -32,6 +32,7 @@ import { useLocalStorage } from "hooks"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import AlertTitle from "@mui/material/AlertTitle"
 import { Maybe } from "components/Conditionals/Maybe"
+import dayjs from "dayjs"
 
 export enum WorkspaceErrors {
   GET_BUILDS_ERROR = "getBuildsError",
@@ -131,6 +132,31 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   if (template !== undefined) {
     transitionStats = ActiveTransition(template, workspace)
   }
+
+  const [showAlertPendingInQueue, setShowAlertPendingInQueue] = useState(false);
+  const now = dayjs()
+  useEffect(() => {
+    if (workspace.latest_build.status === "pending" &&
+      workspace.latest_build.job.queue_size > 0 &&
+      dayjs(workspace.latest_build.created_at).isBefore(now.subtract(5, 'seconds'))) {
+      setShowAlertPendingInQueue(true);
+      return
+    }
+
+    if (workspace.latest_build.status === "pending" &&
+      workspace.latest_build.job.queue_size > 0) {
+        const timer = setTimeout(() => {
+          if (workspace.latest_build.status !== "pending" || workspace.latest_build.job.queue_size === 0) {
+            return
+          }
+          setShowAlertPendingInQueue(true);
+        }, 5000)
+
+        return () => {
+          clearTimeout(timer);
+        }
+    }
+  }, [workspace, now])
   return (
     <>
       <FullWidthPageHeader>
@@ -208,12 +234,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 
           <TemplateVersionWarnings warnings={templateWarnings} />
 
-          <Maybe
-            condition={
-              workspace.latest_build.status === "pending" &&
-              workspace.latest_build.job.queue_size > 0
-            }
-          >
+          <Maybe condition={showAlertPendingInQueue}>
             <Alert severity="info">
               <AlertTitle>Workspace build is pending</AlertTitle>
               <AlertDetail>
