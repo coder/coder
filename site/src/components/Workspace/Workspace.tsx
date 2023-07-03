@@ -133,28 +133,37 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
     transitionStats = ActiveTransition(template, workspace)
   }
 
-  const [showAlertPendingInQueue, setShowAlertPendingInQueue] = useState(false);
+  const [showAlertPendingInQueue, setShowAlertPendingInQueue] = useState(false)
   const now = dayjs()
   useEffect(() => {
-    if (workspace.latest_build.status === "pending" &&
+    if (
+      workspace.latest_build.status === "pending" &&
       workspace.latest_build.job.queue_size > 0 &&
-      dayjs(workspace.latest_build.created_at).isBefore(now.subtract(5, 'seconds'))) {
-      setShowAlertPendingInQueue(true);
+      dayjs(workspace.latest_build.created_at).isBefore(
+        now.subtract(5, "seconds"),
+      )
+    ) {
+      setShowAlertPendingInQueue(true)
       return
     }
 
-    if (workspace.latest_build.status === "pending" &&
-      workspace.latest_build.job.queue_size > 0) {
-        const timer = setTimeout(() => {
-          if (workspace.latest_build.status !== "pending" || workspace.latest_build.job.queue_size === 0) {
-            return
-          }
-          setShowAlertPendingInQueue(true);
-        }, 5000)
-
-        return () => {
-          clearTimeout(timer);
+    if (
+      workspace.latest_build.status === "pending" &&
+      workspace.latest_build.job.queue_size > 0
+    ) {
+      const timer = setTimeout(() => {
+        if (
+          workspace.latest_build.status !== "pending" ||
+          workspace.latest_build.job.queue_size === 0
+        ) {
+          return
         }
+        setShowAlertPendingInQueue(true)
+      }, 5000)
+
+      return () => {
+        clearTimeout(timer)
+      }
     }
   }, [workspace, now])
   return (
