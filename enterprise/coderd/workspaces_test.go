@@ -167,7 +167,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		build := coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
 		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
 		// Make it impossible to trigger the failure TTL.
-		ticker <- (*build.Job.CompletedAt).Add(-failureTTL * 2)
+		ticker <- build.Job.CompletedAt.Add(-failureTTL * 2)
 		stats := <-statCh
 		// Expect no transitions since not enough time has elapsed.
 		require.Len(t, stats.Transitions, 0)

@@ -693,7 +693,7 @@ func TestExecutorFailedWorkspace(t *testing.T) {
 		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		build := coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
 		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
-		ticker <- (*build.Job.CompletedAt).Add(failureTTL * 2)
+		ticker <- build.Job.CompletedAt.Add(failureTTL * 2)
 		stats := <-statCh
 		// Expect no transitions since we're using AGPL.
 		require.Len(t, stats.Transitions, 0)
