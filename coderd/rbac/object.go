@@ -28,6 +28,21 @@ var (
 		Type: "workspace",
 	}
 
+	// ResourceWorkspaceBuild refers to permissions necessary to
+	// insert a workspace build job.
+	// create/delete = ?
+	// read = read workspace builds
+	// update = insert/update workspace builds.
+	ResourceWorkspaceBuild = Object{
+		Type: "workspace_build",
+	}
+
+	// ResourceWorkspaceLocked is returned if a workspace is locked.
+	// It grants restricted permissions on workspace builds.
+	ResourceWorkspaceLocked = Object{
+		Type: "workspace_locked",
+	}
+
 	// ResourceWorkspaceProxy CRUD. Org
 	//	create/delete = make or delete proxies
 	// 	read = read proxy urls

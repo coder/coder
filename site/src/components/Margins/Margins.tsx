@@ -20,7 +20,6 @@ const useStyles = makeStyles(() => ({
     margin: "0 auto",
     maxWidth: ({ maxWidth }: { maxWidth: number }) => maxWidth,
     padding: `0 ${sidePadding}px`,
-    flex: 1,
     width: "100%",
   },
 }))

@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
@@ -124,5 +125,22 @@ func TestOAuth2(t *testing.T) {
 		// we set in the auth URL but this would essentially be testing the oauth2 package.
 		// testOAuth2Provider does this job for us.
 		require.NotEmpty(t, location)
+	})
+	t.Run("PresetConvertState", func(t *testing.T) {
+		t.Parallel()
+		customState := namesgenerator.GetRandomName(1)
+		req := httptest.NewRequest("GET", "/?oidc_merge_state="+customState+"&redirect="+url.QueryEscape("/dashboard"), nil)
+		res := httptest.NewRecorder()
+		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
+		httpmw.ExtractOAuth2(tp, nil, nil)(nil).ServeHTTP(res, req)
+
+		found := false
+		for _, cookie := range res.Result().Cookies() {
+			if cookie.Name == codersdk.OAuth2StateCookie {
+				require.Equal(t, cookie.Value, customState, "expected state")
+				found = true
+			}
+		}
+		require.True(t, found, "expected state cookie")
 	})
 }

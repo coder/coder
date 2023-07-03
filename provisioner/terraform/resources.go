@@ -2,7 +2,6 @@ package terraform
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/awalterschulze/gographviz"
@@ -99,7 +98,7 @@ type State struct {
 // ConvertState consumes Terraform state and a GraphViz representation
 // produced by `terraform graph` to produce resources consumable by Coder.
 // nolint:gocyclo
-func ConvertState(modules []*tfjson.StateModule, rawGraph string, rawParameterNames []string) (*State, error) {
+func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error) {
 	parsedGraph, err := gographviz.ParseString(rawGraph)
 	if err != nil {
 		return nil, xerrors.Errorf("parse graph: %w", err)
@@ -479,7 +478,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string, rawParameterNa
 
 	var duplicatedParamNames []string
 	parameters := make([]*proto.RichParameter, 0)
-	for _, resource := range orderedRichParametersResources(tfResourcesRichParameters, rawParameterNames) {
+	for _, resource := range tfResourcesRichParameters {
 		var param provider.Parameter
 		err = mapstructure.Decode(resource.AttributeValues, &param)
 		if err != nil {
@@ -494,6 +493,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string, rawParameterNa
 			DefaultValue:       param.Default,
 			Icon:               param.Icon,
 			Required:           !param.Optional,
+			Order:              int32(param.Order),
 			LegacyVariableName: param.LegacyVariableName,
 		}
 		if len(param.Validation) == 1 {
@@ -717,45 +717,4 @@ func findResourcesInGraph(graph *gographviz.Graph, tfResourcesByLabel map[string
 	}
 
 	return graphResources
-}
-
-func orderedRichParametersResources(tfResourcesRichParameters []*tfjson.StateResource, orderedNames []string) []*tfjson.StateResource {
-	if len(orderedNames) == 0 {
-		return tfResourcesRichParameters
-	}
-
-	var ordered []*tfjson.StateResource
-	for _, name := range orderedNames {
-		for _, resource := range tfResourcesRichParameters {
-			if resource.Name == name {
-				ordered = append(ordered, resource)
-			}
-		}
-	}
-
-	// Edge case: a parameter is present in an external module (Git repository, static files, etc.),
-	// which can't be easily parsed to check the parameter order.
-	// Those parameters will be prepended to the "ordered" list.
-	var external []*tfjson.StateResource
-	for _, resource := range tfResourcesRichParameters {
-		isExternal := true
-		for _, o := range ordered {
-			if resource.Name == o.Name {
-				isExternal = false
-				break
-			}
-		}
-		if isExternal {
-			external = append(external, resource)
-		}
-	}
-
-	if len(external) > 0 {
-		sort.Slice(external, func(i, j int) bool {
-			return external[i].Name < external[j].Name
-		})
-
-		ordered = append(external, ordered...)
-	}
-	return ordered
 }

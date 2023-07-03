@@ -49,6 +49,11 @@ type tableTest3 struct {
 	Sub         tableTest2 `table:"inner,recursive,default_sort"`
 }
 
+type tableTest4 struct {
+	Inline    tableTest2 `table:"ignored,recursive_inline"`
+	SortField string     `table:"sort_field,default_sort"`
+}
+
 func Test_DisplayTable(t *testing.T) {
 	t.Parallel()
 
@@ -183,6 +188,31 @@ foo   foo1        foo3              2022-08-02T15:49:10Z
 		`
 
 		out, err := cliui.DisplayTable(in, "", []string{"name", "sub_1_name", "sub_3 inner name", "time"})
+		log.Println("rendered table:\n" + out)
+		require.NoError(t, err)
+		compareTables(t, expected, out)
+	})
+
+	t.Run("Inline", func(t *testing.T) {
+		t.Parallel()
+
+		expected := `
+NAME    AGE
+Alice   25
+		`
+
+		inlineIn := []tableTest4{
+			{
+				Inline: tableTest2{
+					Name: stringWrapper{
+						str: "Alice",
+					},
+					Age:         25,
+					NotIncluded: "IgnoreMe",
+				},
+			},
+		}
+		out, err := cliui.DisplayTable(inlineIn, "", []string{"name", "age"})
 		log.Println("rendered table:\n" + out)
 		require.NoError(t, err)
 		compareTables(t, expected, out)

@@ -8,6 +8,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { colors } from "theme/colors"
 import { v4 as uuidv4 } from "uuid"
 import * as XTerm from "xterm"
+import { CanvasAddon } from "xterm-addon-canvas"
 import { FitAddon } from "xterm-addon-fit"
 import { WebLinksAddon } from "xterm-addon-web-links"
 import "xterm/css/xterm.css"
@@ -69,7 +70,11 @@ const useTerminalWarning = ({
   }
 }
 
-const TerminalPage: FC = () => {
+type TerminalPageProps = React.PropsWithChildren<{
+  renderer: "canvas" | "dom"
+}>
+
+const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
   const navigate = useNavigate()
   const styles = useStyles()
   const { proxy } = useProxy()
@@ -194,6 +199,10 @@ const TerminalPage: FC = () => {
         background: colors.gray[16],
       },
     })
+    // DOM is the default renderer.
+    if (renderer === "canvas") {
+      terminal.loadAddon(new CanvasAddon())
+    }
     const fitAddon = new FitAddon()
     setFitAddon(fitAddon)
     terminal.loadAddon(fitAddon)
@@ -230,7 +239,7 @@ const TerminalPage: FC = () => {
       window.removeEventListener("resize", listener)
       terminal.dispose()
     }
-  }, [sendEvent, xtermRef, handleWebLink])
+  }, [renderer, sendEvent, xtermRef, handleWebLink])
 
   // Triggers the initial terminal connection using
   // the reconnection token and workspace name found

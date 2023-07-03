@@ -821,6 +821,21 @@ func (mr *MockStoreMockRecorder) GetLogoURL(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLogoURL", reflect.TypeOf((*MockStore)(nil).GetLogoURL), arg0)
 }
 
+// GetOAuthSigningKey mocks base method.
+func (m *MockStore) GetOAuthSigningKey(arg0 context.Context) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOAuthSigningKey", arg0)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOAuthSigningKey indicates an expected call of GetOAuthSigningKey.
+func (mr *MockStoreMockRecorder) GetOAuthSigningKey(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOAuthSigningKey", reflect.TypeOf((*MockStore)(nil).GetOAuthSigningKey), arg0)
+}
+
 // GetOrganizationByID mocks base method.
 func (m *MockStore) GetOrganizationByID(arg0 context.Context, arg1 uuid.UUID) (database.Organization, error) {
 	m.ctrl.T.Helper()
@@ -2949,6 +2964,21 @@ func (mr *MockStoreMockRecorder) UpdateUserLinkedID(arg0, arg1 interface{}) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserLinkedID", reflect.TypeOf((*MockStore)(nil).UpdateUserLinkedID), arg0, arg1)
 }
 
+// UpdateUserLoginType mocks base method.
+func (m *MockStore) UpdateUserLoginType(arg0 context.Context, arg1 database.UpdateUserLoginTypeParams) (database.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserLoginType", arg0, arg1)
+	ret0, _ := ret[0].(database.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateUserLoginType indicates an expected call of UpdateUserLoginType.
+func (mr *MockStoreMockRecorder) UpdateUserLoginType(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserLoginType", reflect.TypeOf((*MockStore)(nil).UpdateUserLoginType), arg0, arg1)
+}
+
 // UpdateUserProfile mocks base method.
 func (m *MockStore) UpdateUserProfile(arg0 context.Context, arg1 database.UpdateUserProfileParams) (database.User, error) {
 	m.ctrl.T.Helper()
@@ -3165,6 +3195,20 @@ func (mr *MockStoreMockRecorder) UpdateWorkspaceLastUsedAt(arg0, arg1 interface{
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceLastUsedAt", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceLastUsedAt), arg0, arg1)
 }
 
+// UpdateWorkspaceLockedAt mocks base method.
+func (m *MockStore) UpdateWorkspaceLockedAt(arg0 context.Context, arg1 database.UpdateWorkspaceLockedAtParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspaceLockedAt", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateWorkspaceLockedAt indicates an expected call of UpdateWorkspaceLockedAt.
+func (mr *MockStoreMockRecorder) UpdateWorkspaceLockedAt(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceLockedAt", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceLockedAt), arg0, arg1)
+}
+
 // UpdateWorkspaceProxy mocks base method.
 func (m *MockStore) UpdateWorkspaceProxy(arg0 context.Context, arg1 database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	m.ctrl.T.Helper()
@@ -3276,6 +3320,20 @@ func (m *MockStore) UpsertLogoURL(arg0 context.Context, arg1 string) error {
 func (mr *MockStoreMockRecorder) UpsertLogoURL(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertLogoURL", reflect.TypeOf((*MockStore)(nil).UpsertLogoURL), arg0, arg1)
+}
+
+// UpsertOAuthSigningKey mocks base method.
+func (m *MockStore) UpsertOAuthSigningKey(arg0 context.Context, arg1 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertOAuthSigningKey", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertOAuthSigningKey indicates an expected call of UpsertOAuthSigningKey.
+func (mr *MockStoreMockRecorder) UpsertOAuthSigningKey(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertOAuthSigningKey", reflect.TypeOf((*MockStore)(nil).UpsertOAuthSigningKey), arg0, arg1)
 }
 
 // UpsertServiceBanner mocks base method.

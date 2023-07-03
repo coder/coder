@@ -160,23 +160,65 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					return nil
 				}
 
-				builder := wsbuilder.New(ws, nextTransition).
-					SetLastWorkspaceBuildInTx(&latestBuild).
-					SetLastWorkspaceBuildJobInTx(&latestJob).
-					Reason(reason)
+				if nextTransition != "" {
+					builder := wsbuilder.New(ws, nextTransition).
+						SetLastWorkspaceBuildInTx(&latestBuild).
+						SetLastWorkspaceBuildJobInTx(&latestJob).
+						Reason(reason)
 
-				if _, _, err := builder.Build(e.ctx, tx, nil); err != nil {
-					log.Error(e.ctx, "workspace build error",
-						slog.F("transition", nextTransition),
-						slog.Error(err),
+					if _, _, err := builder.Build(e.ctx, tx, nil); err != nil {
+						log.Error(e.ctx, "unable to transition workspace",
+							slog.F("transition", nextTransition),
+							slog.Error(err),
+						)
+						return nil
+					}
+				}
+
+				// Lock the workspace if it has breached the template's
+				// threshold for inactivity.
+				if reason == database.BuildReasonAutolock {
+					err = tx.UpdateWorkspaceLockedAt(e.ctx, database.UpdateWorkspaceLockedAtParams{
+						ID: ws.ID,
+						LockedAt: sql.NullTime{
+							Time:  database.Now(),
+							Valid: true,
+						},
+					})
+					if err != nil {
+						log.Error(e.ctx, "unable to lock workspace",
+							slog.F("transition", nextTransition),
+							slog.Error(err),
+						)
+						return nil
+					}
+
+					log.Info(e.ctx, "locked workspace",
+						slog.F("last_used_at", ws.LastUsedAt),
+						slog.F("inactivity_ttl", templateSchedule.InactivityTTL),
+						slog.F("since_last_used_at", time.Since(ws.LastUsedAt)),
 					)
+				}
+
+				if reason == database.BuildReasonAutodelete {
+					log.Info(e.ctx, "deleted workspace",
+						slog.F("locked_at", ws.LockedAt.Time),
+						slog.F("locked_ttl", templateSchedule.LockedTTL),
+					)
+				}
+
+				if nextTransition == "" {
 					return nil
 				}
+
 				statsMu.Lock()
 				stats.Transitions[ws.ID] = nextTransition
 				statsMu.Unlock()
 
-				log.Info(e.ctx, "scheduling workspace transition", slog.F("transition", nextTransition))
+				log.Info(e.ctx, "scheduling workspace transition",
+					slog.F("transition", nextTransition),
+					slog.F("reason", reason),
+				)
 
 				return nil
 
@@ -199,6 +241,12 @@ func (e *Executor) runOnce(t time.Time) Stats {
 	return stats
 }
 
+// getNextTransition returns the next eligible transition for the workspace
+// as well as the reason for why it is transitioning. It is possible
+// for this function to return a nil error as well as an empty transition.
+// In such cases it means no provisioning should occur but the workspace
+// may be "transitioning" to a new state (such as an inactive, stopped
+// workspace transitioning to the locked state).
 func getNextTransition(
 	ws database.Workspace,
 	latestBuild database.WorkspaceBuild,
@@ -211,12 +259,23 @@ func getNextTransition(
 	error,
 ) {
 	switch {
-	case isEligibleForAutostop(latestBuild, latestJob, currentTick):
+	case isEligibleForAutostop(ws, latestBuild, latestJob, currentTick):
 		return database.WorkspaceTransitionStop, database.BuildReasonAutostop, nil
 	case isEligibleForAutostart(ws, latestBuild, latestJob, templateSchedule, currentTick):
 		return database.WorkspaceTransitionStart, database.BuildReasonAutostart, nil
-	case isEligibleForFailedStop(latestBuild, latestJob, templateSchedule):
+	case isEligibleForFailedStop(latestBuild, latestJob, templateSchedule, currentTick):
 		return database.WorkspaceTransitionStop, database.BuildReasonAutostop, nil
+	case isEligibleForLockedStop(ws, templateSchedule, currentTick):
+		// Only stop started workspaces.
+		if latestBuild.Transition == database.WorkspaceTransitionStart {
+			return database.WorkspaceTransitionStop, database.BuildReasonAutolock, nil
+		}
+		// We shouldn't transition the workspace but we should still
+		// lock it.
+		return "", database.BuildReasonAutolock, nil
+
+	case isEligibleForDelete(ws, templateSchedule, currentTick):
+		return database.WorkspaceTransitionDelete, database.BuildReasonAutodelete, nil
 	default:
 		return "", "", xerrors.Errorf("last transition not valid for autostart or autostop")
 	}
@@ -225,7 +284,12 @@ func getNextTransition(
 // isEligibleForAutostart returns true if the workspace should be autostarted.
 func isEligibleForAutostart(ws database.Workspace, build database.WorkspaceBuild, job database.ProvisionerJob, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) bool {
 	// Don't attempt to autostart failed workspaces.
-	if !job.CompletedAt.Valid || job.Error.String != "" {
+	if db2sdk.ProvisionerJobStatus(job) == codersdk.ProvisionerJobFailed {
+		return false
+	}
+
+	// If the workspace is locked we should not autostart it.
+	if ws.LockedAt.Valid {
 		return false
 	}
 
@@ -253,9 +317,13 @@ func isEligibleForAutostart(ws database.Workspace, build database.WorkspaceBuild
 }
 
 // isEligibleForAutostart returns true if the workspace should be autostopped.
-func isEligibleForAutostop(build database.WorkspaceBuild, job database.ProvisionerJob, currentTick time.Time) bool {
-	// Don't attempt to autostop failed workspaces.
-	if !job.CompletedAt.Valid || job.Error.String != "" {
+func isEligibleForAutostop(ws database.Workspace, build database.WorkspaceBuild, job database.ProvisionerJob, currentTick time.Time) bool {
+	if db2sdk.ProvisionerJobStatus(job) == codersdk.ProvisionerJobFailed {
+		return false
+	}
+
+	// If the workspace is locked we should not autostop it.
+	if ws.LockedAt.Valid {
 		return false
 	}
 
@@ -266,14 +334,35 @@ func isEligibleForAutostop(build database.WorkspaceBuild, job database.Provision
 		!currentTick.Before(build.Deadline)
 }
 
+// isEligibleForLockedStop returns true if the workspace should be locked
+// for breaching the inactivity threshold of the template.
+func isEligibleForLockedStop(ws database.Workspace, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) bool {
+	// Only attempt to lock workspaces not already locked.
+	return !ws.LockedAt.Valid &&
+		// The template must specify an inactivity TTL.
+		templateSchedule.InactivityTTL > 0 &&
+		// The workspace must breach the inactivity TTL.
+		currentTick.Sub(ws.LastUsedAt) > templateSchedule.InactivityTTL
+}
+
+func isEligibleForDelete(ws database.Workspace, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) bool {
+	// Only attempt to delete locked workspaces.
+	return ws.LockedAt.Valid &&
+		// Locked workspaces should only be deleted if a locked_ttl is specified.
+		templateSchedule.LockedTTL > 0 &&
+		// The workspace must breach the locked_ttl.
+		currentTick.Sub(ws.LockedAt.Time) > templateSchedule.LockedTTL
+}
+
 // isEligibleForFailedStop returns true if the workspace is eligible to be stopped
 // due to a failed build.
-func isEligibleForFailedStop(build database.WorkspaceBuild, job database.ProvisionerJob, templateSchedule schedule.TemplateScheduleOptions) bool {
+func isEligibleForFailedStop(build database.WorkspaceBuild, job database.ProvisionerJob, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) bool {
 	// If the template has specified a failure TLL.
 	return templateSchedule.FailureTTL > 0 &&
 		// And the job resulted in failure.
 		db2sdk.ProvisionerJobStatus(job) == codersdk.ProvisionerJobFailed &&
 		build.Transition == database.WorkspaceTransitionStart &&
 		// And sufficient time has elapsed since the job has completed.
-		job.CompletedAt.Valid && database.Now().Sub(job.CompletedAt.Time) > templateSchedule.FailureTTL
+		job.CompletedAt.Valid &&
+		currentTick.Sub(job.CompletedAt.Time) > templateSchedule.FailureTTL
 }

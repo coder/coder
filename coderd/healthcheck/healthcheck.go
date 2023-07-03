@@ -2,15 +2,17 @@ package healthcheck
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 	"sync"
 	"time"
 
-	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
+	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/util/ptr"
 )
 
 const (
@@ -31,13 +33,17 @@ type Report struct {
 	// Time is the time the report was generated at.
 	Time time.Time `json:"time"`
 	// Healthy is true if the report returns no errors.
-	Healthy         bool     `json:"healthy"`
+	Healthy bool `json:"healthy"`
+	// FailingSections is a list of sections that have failed their healthcheck.
 	FailingSections []string `json:"failing_sections"`
 
 	DERP      DERPReport      `json:"derp"`
 	AccessURL AccessURLReport `json:"access_url"`
 	Websocket WebsocketReport `json:"websocket"`
 	Database  DatabaseReport  `json:"database"`
+
+	// The Coder version of the server that the report was generated on.
+	CoderVersion string `json:"coder_version"`
 }
 
 type ReportOptions struct {
@@ -88,7 +94,7 @@ func Run(ctx context.Context, opts *ReportOptions) *Report {
 		defer wg.Done()
 		defer func() {
 			if err := recover(); err != nil {
-				report.DERP.Error = xerrors.Errorf("%v", err)
+				report.DERP.Error = ptr.Ref(fmt.Sprint(err))
 			}
 		}()
 
@@ -102,7 +108,7 @@ func Run(ctx context.Context, opts *ReportOptions) *Report {
 		defer wg.Done()
 		defer func() {
 			if err := recover(); err != nil {
-				report.AccessURL.Error = xerrors.Errorf("%v", err)
+				report.AccessURL.Error = ptr.Ref(fmt.Sprint(err))
 			}
 		}()
 
@@ -117,7 +123,7 @@ func Run(ctx context.Context, opts *ReportOptions) *Report {
 		defer wg.Done()
 		defer func() {
 			if err := recover(); err != nil {
-				report.Websocket.Error = xerrors.Errorf("%v", err)
+				report.Websocket.Error = ptr.Ref(fmt.Sprint(err))
 			}
 		}()
 
@@ -132,7 +138,7 @@ func Run(ctx context.Context, opts *ReportOptions) *Report {
 		defer wg.Done()
 		defer func() {
 			if err := recover(); err != nil {
-				report.Database.Error = xerrors.Errorf("%v", err)
+				report.Database.Error = ptr.Ref(fmt.Sprint(err))
 			}
 		}()
 
@@ -141,7 +147,9 @@ func Run(ctx context.Context, opts *ReportOptions) *Report {
 		})
 	}()
 
+	report.CoderVersion = buildinfo.Version()
 	wg.Wait()
+
 	report.Time = time.Now()
 	if !report.DERP.Healthy {
 		report.FailingSections = append(report.FailingSections, SectionDERP)
@@ -158,4 +166,12 @@ func Run(ctx context.Context, opts *ReportOptions) *Report {
 
 	report.Healthy = len(report.FailingSections) == 0
 	return &report
+}
+
+func convertError(err error) *string {
+	if err != nil {
+		return ptr.Ref(err.Error())
+	}
+
+	return nil
 }

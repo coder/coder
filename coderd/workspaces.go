@@ -454,10 +454,6 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}, nil)
 	var bldErr wsbuilder.BuildError
 	if xerrors.As(err, &bldErr) {
-		if bldErr.Status == http.StatusInternalServerError {
-			api.Logger.Error(ctx, "workspace build error", slog.Error(bldErr.Wrapped))
-		}
-
 		httpapi.Write(ctx, rw, bldErr.Status, codersdk.Response{
 			Message: bldErr.Message,
 			Detail:  bldErr.Error(),
@@ -753,6 +749,61 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	aReq.New = newWorkspace
 
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// @Summary Update workspace lock by id.
+// @ID update-workspace-lock-by-id
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Workspaces
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Param request body codersdk.UpdateWorkspaceLock true "Lock or unlock a workspace"
+// @Success 200 {object} codersdk.Response
+// @Router /workspaces/{workspace}/lock [put]
+func (api *API) putWorkspaceLock(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspace := httpmw.WorkspaceParam(r)
+
+	var req codersdk.UpdateWorkspaceLock
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	code := http.StatusOK
+	resp := codersdk.Response{}
+
+	// If the workspace is already in the desired state do nothing!
+	if workspace.LockedAt.Valid == req.Lock {
+		httpapi.Write(ctx, rw, http.StatusNotModified, codersdk.Response{
+			Message: "Nothing to do!",
+		})
+		return
+	}
+
+	lockedAt := sql.NullTime{
+		Valid: req.Lock,
+	}
+	if req.Lock {
+		lockedAt.Time = database.Now()
+	}
+
+	err := api.Database.UpdateWorkspaceLockedAt(ctx, database.UpdateWorkspaceLockedAtParams{
+		ID:       workspace.ID,
+		LockedAt: lockedAt,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating workspace locked status.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// TODO should we kick off a build to stop the workspace if it's started
+	// from this endpoint? I'm leaning no to keep things simple and kick
+	// the responsibility back to the client.
+	httpapi.Write(ctx, rw, code, resp)
 }
 
 // @Summary Extend workspace deadline by ID
@@ -1054,10 +1105,16 @@ func convertWorkspace(
 		autostartSchedule = &workspace.AutostartSchedule.String
 	}
 
+	var lockedAt *time.Time
+	if workspace.LockedAt.Valid {
+		lockedAt = &workspace.LockedAt.Time
+	}
+
 	var (
 		ttlMillis  = convertWorkspaceTTLMillis(workspace.Ttl)
 		deletingAt = calculateDeletingAt(workspace, template, workspaceBuild)
 	)
+
 	return codersdk.Workspace{
 		ID:                                   workspace.ID,
 		CreatedAt:                            workspace.CreatedAt,
@@ -1077,6 +1134,7 @@ func convertWorkspace(
 		TTLMillis:                            ttlMillis,
 		LastUsedAt:                           workspace.LastUsedAt,
 		DeletingAt:                           deletingAt,
+		LockedAt:                             lockedAt,
 	}
 }
 

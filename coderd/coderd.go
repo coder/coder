@@ -132,6 +132,11 @@ type Options struct {
 	HealthcheckTimeout time.Duration
 	HealthcheckRefresh time.Duration
 
+	// OAuthSigningKey is the crypto key used to sign and encrypt state strings
+	// related to OAuth. This is a symmetric secret key using hmac to sign payloads.
+	// So this secret should **never** be exposed to the client.
+	OAuthSigningKey [32]byte
+
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
 	// Setting a rate limit <0 will disable the rate limiter across the entire
 	// app. Some specific routes have their own configurable rate limits.
@@ -309,9 +314,16 @@ func New(options *Options) *API {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	r := chi.NewRouter()
+
+	// nolint:gocritic // Load deployment ID. This never changes
+	depID, err := options.Database.GetDeploymentID(dbauthz.AsSystemRestricted(ctx))
+	if err != nil {
+		panic(xerrors.Errorf("get deployment ID: %w", err))
+	}
 	api := &API{
-		ctx:    ctx,
-		cancel: cancel,
+		ctx:          ctx,
+		cancel:       cancel,
+		DeploymentID: depID,
 
 		ID:          uuid.New(),
 		Options:     options,
@@ -455,17 +467,23 @@ func New(options *Options) *API {
 		})
 	})
 
+	// Register callback handlers for each OAuth2 provider.
 	r.Route("/gitauth", func(r chi.Router) {
 		for _, gitAuthConfig := range options.GitAuthConfigs {
-			r.Route(fmt.Sprintf("/%s", gitAuthConfig.ID), func(r chi.Router) {
+			// We don't need to register a callback handler for device auth.
+			if gitAuthConfig.DeviceAuth != nil {
+				continue
+			}
+			r.Route(fmt.Sprintf("/%s/callback", gitAuthConfig.ID), func(r chi.Router) {
 				r.Use(
-					httpmw.ExtractOAuth2(gitAuthConfig, options.HTTPClient, nil),
 					apiKeyMiddlewareRedirect,
+					httpmw.ExtractOAuth2(gitAuthConfig, options.HTTPClient, nil),
 				)
-				r.Get("/callback", api.gitAuthCallback(gitAuthConfig))
+				r.Get("/", api.gitAuthCallback(gitAuthConfig))
 			})
 		}
 	})
+
 	r.Route("/api/v2", func(r chi.Router) {
 		api.APIHandler = r
 
@@ -512,6 +530,15 @@ func New(options *Options) *API {
 			)
 			r.Get("/{fileID}", api.fileByID)
 			r.Post("/", api.postFile)
+		})
+		r.Route("/gitauth/{gitauth}", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractGitAuthParam(options.GitAuthConfigs),
+			)
+			r.Get("/", api.gitAuthByID)
+			r.Post("/device", api.postGitAuthDeviceByID)
+			r.Get("/device", api.gitAuthDeviceByID)
 		})
 		r.Route("/organizations", func(r chi.Router) {
 			r.Use(
@@ -593,6 +620,7 @@ func New(options *Options) *API {
 			r.Get("/first", api.firstUser)
 			r.Post("/first", api.postFirstUser)
 			r.Get("/authmethods", api.userAuthMethods)
+
 			r.Group(func(r chi.Router) {
 				// We use a tight limit for password login to protect against
 				// audit-log write DoS, pbkdf2 DoS, and simple brute-force
@@ -625,8 +653,10 @@ func New(options *Options) *API {
 				})
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database, false))
+					r.Post("/convert-login", api.postConvertLoginType)
 					r.Delete("/", api.deleteUser)
 					r.Get("/", api.userByName)
+					r.Get("/login-type", api.userLoginType)
 					r.Put("/profile", api.putUserProfile)
 					r.Route("/status", func(r chi.Router) {
 						r.Put("/suspend", api.putSuspendUserAccount())
@@ -674,7 +704,10 @@ func New(options *Options) *API {
 			r.Post("/google-instance-identity", api.postWorkspaceAuthGoogleInstanceIdentity)
 			r.Get("/connection", api.workspaceAgentConnectionGeneric)
 			r.Route("/me", func(r chi.Router) {
-				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
+				r.Use(httpmw.ExtractWorkspaceAgent(httpmw.ExtractWorkspaceAgentConfig{
+					DB:       options.Database,
+					Optional: false,
+				}))
 				r.Get("/manifest", api.workspaceAgentManifest)
 				// This route is deprecated and will be removed in a future release.
 				// New agents will use /me/manifest instead.
@@ -735,6 +768,7 @@ func New(options *Options) *API {
 				})
 				r.Get("/watch", api.watchWorkspace)
 				r.Put("/extend", api.putExtendWorkspace)
+				r.Put("/lock", api.putWorkspaceLock)
 			})
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {
@@ -841,6 +875,9 @@ type API struct {
 	// interruptible tasks.
 	ctx    context.Context
 	cancel context.CancelFunc
+
+	// DeploymentID is loaded from the database on startup.
+	DeploymentID string
 
 	*Options
 	// ID is a uniquely generated ID on initialization.

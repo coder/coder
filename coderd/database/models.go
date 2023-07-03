@@ -214,9 +214,12 @@ func AllAuditActionValues() []AuditAction {
 type BuildReason string
 
 const (
-	BuildReasonInitiator BuildReason = "initiator"
-	BuildReasonAutostart BuildReason = "autostart"
-	BuildReasonAutostop  BuildReason = "autostop"
+	BuildReasonInitiator  BuildReason = "initiator"
+	BuildReasonAutostart  BuildReason = "autostart"
+	BuildReasonAutostop   BuildReason = "autostop"
+	BuildReasonAutolock   BuildReason = "autolock"
+	BuildReasonFailedstop BuildReason = "failedstop"
+	BuildReasonAutodelete BuildReason = "autodelete"
 )
 
 func (e *BuildReason) Scan(src interface{}) error {
@@ -258,7 +261,10 @@ func (e BuildReason) Valid() bool {
 	switch e {
 	case BuildReasonInitiator,
 		BuildReasonAutostart,
-		BuildReasonAutostop:
+		BuildReasonAutostop,
+		BuildReasonAutolock,
+		BuildReasonFailedstop,
+		BuildReasonAutodelete:
 		return true
 	}
 	return false
@@ -269,6 +275,9 @@ func AllBuildReasonValues() []BuildReason {
 		BuildReasonInitiator,
 		BuildReasonAutostart,
 		BuildReasonAutostop,
+		BuildReasonAutolock,
+		BuildReasonFailedstop,
+		BuildReasonAutodelete,
 	}
 }
 
@@ -891,6 +900,7 @@ const (
 	ResourceTypeWorkspaceBuild  ResourceType = "workspace_build"
 	ResourceTypeLicense         ResourceType = "license"
 	ResourceTypeWorkspaceProxy  ResourceType = "workspace_proxy"
+	ResourceTypeConvertLogin    ResourceType = "convert_login"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -940,7 +950,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeGroup,
 		ResourceTypeWorkspaceBuild,
 		ResourceTypeLicense,
-		ResourceTypeWorkspaceProxy:
+		ResourceTypeWorkspaceProxy,
+		ResourceTypeConvertLogin:
 		return true
 	}
 	return false
@@ -959,6 +970,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeWorkspaceBuild,
 		ResourceTypeLicense,
 		ResourceTypeWorkspaceProxy,
+		ResourceTypeConvertLogin,
 	}
 }
 
@@ -1631,6 +1643,8 @@ type TemplateVersionParameter struct {
 	LegacyVariableName string `db:"legacy_variable_name" json:"legacy_variable_name"`
 	// Display name of the rich parameter
 	DisplayName string `db:"display_name" json:"display_name"`
+	// Specifies the order in which to display parameters in user interfaces.
+	DisplayOrder int32 `db:"display_order" json:"display_order"`
 }
 
 type TemplateVersionVariable struct {
@@ -1687,6 +1701,7 @@ type Workspace struct {
 	AutostartSchedule sql.NullString `db:"autostart_schedule" json:"autostart_schedule"`
 	Ttl               sql.NullInt64  `db:"ttl" json:"ttl"`
 	LastUsedAt        time.Time      `db:"last_used_at" json:"last_used_at"`
+	LockedAt          sql.NullTime   `db:"locked_at" json:"locked_at"`
 }
 
 type WorkspaceAgent struct {

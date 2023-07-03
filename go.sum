@@ -193,8 +193,8 @@ github.com/coder/ssh v0.0.0-20230621095435-9a7e23486f1c h1:TI7TzdFI0UvQmwgyQhtI1
 github.com/coder/ssh v0.0.0-20230621095435-9a7e23486f1c/go.mod h1:aGQbuCLyhRLMzZF067xc84Lh7JDs1FKwCmF1Crl9dxQ=
 github.com/coder/tailscale v0.0.0-20230522123520-74712221d00f h1:F0Xr1d8h8dAHn7tab1HXuzYFkcjmCydnEfdMbkOhlVk=
 github.com/coder/tailscale v0.0.0-20230522123520-74712221d00f/go.mod h1:jpg+77g19FpXL43U1VoIqoSg1K/Vh5CVxycGldQ8KhA=
-github.com/coder/terraform-provider-coder v0.8.2 h1:EPhkdpsNd8fcg6eqpAQr+W1eRrEAMtugoqujoTK4O6o=
-github.com/coder/terraform-provider-coder v0.8.2/go.mod h1:UIfU3bYNeSzJJvHyJ30tEKjD6Z9utloI+HUM/7n94CY=
+github.com/coder/terraform-provider-coder v0.9.0 h1:OJazaeBz6O2h7tDDUyUWgNW71lTPbvbI2raX1CGuBzI=
+github.com/coder/terraform-provider-coder v0.9.0/go.mod h1:UIfU3bYNeSzJJvHyJ30tEKjD6Z9utloI+HUM/7n94CY=
 github.com/coder/wgtunnel v0.1.5 h1:WP3sCj/3iJ34eKvpMQEp1oJHvm24RYh0NHbj1kfUKfs=
 github.com/coder/wgtunnel v0.1.5/go.mod h1:bokoUrHnUFY4lu9KOeSYiIcHTI2MO1KwqumU4DPDyJI=
 github.com/containerd/console v1.0.3 h1:lIr7SlA5PxZyMV30bDW0MGbiOPXwc63yRuCP0ARubLw=
@@ -238,7 +238,6 @@ github.com/docker/go-units v0.4.0/go.mod h1:fgPhTUdO+D/Jk86RDLlptpiXQzgHJF7gydDD
 github.com/docker/go-units v0.5.0 h1:69rxXcBk27SvSaaxTtLh/8llcHD8vYHT7WSdRZ/jvr4=
 github.com/docker/go-units v0.5.0/go.mod h1:fgPhTUdO+D/Jk86RDLlptpiXQzgHJF7gydDDbaIK4Dk=
 github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=
-github.com/dustin/go-humanize v1.0.1/go.mod h1:Mu1zIs6XwVuF/gI1OepvI0qD18qycQx+mFykh5fBlto=
 github.com/elastic/go-sysinfo v1.11.0 h1:QW+6BF1oxBoAprH3w2yephF7xLkrrSXj7gl2xC2BM4w=
 github.com/elastic/go-sysinfo v1.11.0/go.mod h1:6KQb31j0QeWBDF88jIdWSxE8cwoOB9tO4Y4osN7Q70E=
 github.com/elastic/go-windows v1.0.0 h1:qLURgZFkkrYyTTkvYpsZIgf83AUsdIHfvlJaqaZ7aSY=

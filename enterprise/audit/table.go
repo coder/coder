@@ -100,7 +100,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"updated_at":      ActionIgnore, // Changes, but is implicit and not helpful in a diff.
 		"status":          ActionTrack,
 		"rbac_roles":      ActionTrack,
-		"login_type":      ActionIgnore,
+		"login_type":      ActionTrack,
 		"avatar_url":      ActionIgnore,
 		"last_seen_at":    ActionIgnore,
 		"deleted":         ActionTrack,
@@ -117,6 +117,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"autostart_schedule": ActionTrack,
 		"ttl":                ActionTrack,
 		"last_used_at":       ActionIgnore,
+		"locked_at":          ActionTrack,
 	},
 	&database.WorkspaceBuild{}: {
 		"id":                  ActionIgnore,
@@ -155,6 +156,13 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"ip_address":       ActionIgnore,
 		"scope":            ActionIgnore,
 		"token_name":       ActionIgnore,
+	},
+	&database.AuditOAuthConvertState{}: {
+		"created_at":      ActionTrack,
+		"expires_at":      ActionTrack,
+		"from_login_type": ActionTrack,
+		"to_login_type":   ActionTrack,
+		"user_id":         ActionTrack,
 	},
 	// TODO: track an ID here when the below ticket is completed:
 	// https://github.com/coder/coder/pull/6012

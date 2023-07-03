@@ -7,7 +7,7 @@ import { TextEncoder, TextDecoder } from "util"
 import { Blob } from "buffer"
 import jestFetchMock from "jest-fetch-mock"
 import { ProxyLatencyReport } from "contexts/useProxyLatency"
-import { RegionsResponse } from "api/typesGenerated"
+import { Region } from "api/typesGenerated"
 import { useMemo } from "react"
 
 jestFetchMock.enableMocks()
@@ -16,14 +16,14 @@ jestFetchMock.enableMocks()
 // This would fail unit testing, or at least make it very slow with
 // actual network requests. So just globally mock this hook.
 jest.mock("contexts/useProxyLatency", () => ({
-  useProxyLatency: (proxies?: RegionsResponse) => {
+  useProxyLatency: (proxies?: Region[]) => {
     // Must use `useMemo` here to avoid infinite loop.
     // Mocking the hook with a hook.
     const proxyLatencies = useMemo(() => {
       if (!proxies) {
         return {} as Record<string, ProxyLatencyReport>
       }
-      return proxies.regions.reduce((acc, proxy) => {
+      return proxies.reduce((acc, proxy) => {
         acc[proxy.id] = {
           accurate: true,
           // Return a constant latency of 8ms.

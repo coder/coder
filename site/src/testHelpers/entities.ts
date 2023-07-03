@@ -71,7 +71,7 @@ export const MockTokens: TypesGen.APIKeyWithOwner[] = [
   },
 ]
 
-export const MockPrimaryWorkspaceProxy: TypesGen.Region = {
+export const MockPrimaryWorkspaceProxy: TypesGen.WorkspaceProxy = {
   id: "4aa23000-526a-481f-a007-0f20b98b1e12",
   name: "primary",
   display_name: "Default",
@@ -79,9 +79,16 @@ export const MockPrimaryWorkspaceProxy: TypesGen.Region = {
   healthy: true,
   path_app_url: "https://coder.com",
   wildcard_hostname: "*.coder.com",
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+  deleted: false,
+  status: {
+    status: "ok",
+    checked_at: new Date().toISOString(),
+  },
 }
 
-export const MockHealthyWildWorkspaceProxy: TypesGen.Region = {
+export const MockHealthyWildWorkspaceProxy: TypesGen.WorkspaceProxy = {
   id: "5e2c1ab7-479b-41a9-92ce-aa85625de52c",
   name: "haswildcard",
   display_name: "Subdomain Supported",
@@ -89,9 +96,16 @@ export const MockHealthyWildWorkspaceProxy: TypesGen.Region = {
   healthy: true,
   path_app_url: "https://external.com",
   wildcard_hostname: "*.external.com",
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+  deleted: false,
+  status: {
+    status: "ok",
+    checked_at: new Date().toISOString(),
+  },
 }
 
-export const MockUnhealthyWildWorkspaceProxy: TypesGen.Region = {
+export const MockUnhealthyWildWorkspaceProxy: TypesGen.WorkspaceProxy = {
   id: "8444931c-0247-4171-842a-569d9f9cbadb",
   name: "unhealthy",
   display_name: "Unhealthy",
@@ -99,9 +113,20 @@ export const MockUnhealthyWildWorkspaceProxy: TypesGen.Region = {
   healthy: false,
   path_app_url: "https://unhealthy.coder.com",
   wildcard_hostname: "*unhealthy..coder.com",
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+  deleted: false,
+  status: {
+    status: "unhealthy",
+    report: {
+      errors: ["This workspace proxy is manually marked as unhealthy."],
+      warnings: ["This is a manual warning for this workspace proxy."],
+    },
+    checked_at: new Date().toISOString(),
+  },
 }
 
-export const MockWorkspaceProxies: TypesGen.Region[] = [
+export const MockWorkspaceProxies: TypesGen.WorkspaceProxy[] = [
   MockPrimaryWorkspaceProxy,
   MockHealthyWildWorkspaceProxy,
   MockUnhealthyWildWorkspaceProxy,
@@ -113,6 +138,13 @@ export const MockWorkspaceProxies: TypesGen.Region[] = [
     healthy: true,
     path_app_url: "https://cowboy.coder.com",
     wildcard_hostname: "",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    deleted: false,
+    status: {
+      status: "ok",
+      checked_at: new Date().toISOString(),
+    },
   },
 ]
 
@@ -310,6 +342,8 @@ export const MockRunningProvisionerJob: TypesGen.ProvisionerJob = {
 export const MockPendingProvisionerJob: TypesGen.ProvisionerJob = {
   ...MockProvisionerJob,
   status: "pending",
+  queue_position: 2,
+  queue_size: 4,
 }
 export const MockTemplateVersion: TypesGen.TemplateVersion = {
   id: "test-template-version",
@@ -1021,6 +1055,13 @@ export const MockAuthMethods: TypesGen.AuthMethods = {
   password: { enabled: true },
   github: { enabled: false },
   oidc: { enabled: false, signInText: "", iconUrl: "" },
+  convert_to_oidc_enabled: true,
+}
+
+export const MockAuthMethodsWithPasswordType: TypesGen.AuthMethods = {
+  ...MockAuthMethods,
+  github: { enabled: true },
+  oidc: { enabled: true, signInText: "", iconUrl: "" },
 }
 
 export const MockGitSSHKey: TypesGen.GitSSHKey = {
@@ -1505,6 +1546,42 @@ export const MockAuditLogGitSSH: TypesGen.AuditLog = {
   },
 }
 
+export const MockAuditOauthConvert: TypesGen.AuditLog = {
+  ...MockAuditLog,
+  resource_type: "convert_login",
+  resource_target: "oidc",
+  action: "create",
+  status_code: 201,
+  description: "{user} created login type conversion to {target}}",
+  diff: {
+    created_at: {
+      old: "0001-01-01T00:00:00Z",
+      new: "2023-06-20T20:44:54.243019Z",
+      secret: false,
+    },
+    expires_at: {
+      old: "0001-01-01T00:00:00Z",
+      new: "2023-06-20T20:49:54.243019Z",
+      secret: false,
+    },
+    state_string: {
+      old: "",
+      new: "",
+      secret: true,
+    },
+    to_type: {
+      old: "",
+      new: "oidc",
+      secret: false,
+    },
+    user_id: {
+      old: "",
+      new: "dc790496-eaec-4f88-a53f-8ce1f61a1fff",
+      secret: false,
+    },
+  },
+}
+
 export const MockAuditLogSuccessfulLogin: TypesGen.AuditLog = {
   ...MockAuditLog,
   resource_type: "api_key",
@@ -1579,6 +1656,15 @@ export const MockPermissions: Permissions = {
   viewDeploymentValues: true,
   viewUpdateCheck: true,
   viewDeploymentStats: true,
+  viewGitAuthConfig: true,
+  editWorkspaceProxies: true,
+}
+
+export const MockDeploymentConfig: Types.DeploymentConfig = {
+  config: {
+    enable_terraform_debug_mode: true,
+  },
+  options: [],
 }
 
 export const MockAppearance: TypesGen.AppearanceConfig = {
