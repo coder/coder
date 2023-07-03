@@ -65,9 +65,9 @@ func newPty(opt ...Option) (*ptyWindows, error) {
 		0,
 		uintptr(unsafe.Pointer(&pty.console)),
 	)
-	// CreatePseudoConsole returns S_OK (0) on success, as per:
+	// CreatePseudoConsole returns S_OK on success, as per:
 	// https://learn.microsoft.com/en-us/windows/console/createpseudoconsole
-	if int32(ret) != 0 {
+	if windows.Handle(ret) != windows.S_OK {
 		_ = pty.Close()
 		return nil, xerrors.Errorf("create pseudo console (%d): %w", int32(ret), err)
 	}
@@ -137,7 +137,7 @@ func (p *ptyWindows) Resize(height uint16, width uint16) error {
 		Y: int16(height),
 		X: int16(width),
 	})))))
-	if ret != 0 {
+	if windows.Handle(ret) != windows.S_OK {
 		return err
 	}
 	return nil
@@ -151,12 +151,13 @@ func (p *ptyWindows) closeConsoleNoLock() error {
 	// output reads can get to EOF.  In that case, we don't need to close it
 	// again here.
 	if p.console != windows.InvalidHandle {
-		// ClosePseudoConsole has no return value, as per:
+		//
+		// Because ClosePseudoConsole has no return value, we could ignore the
+		// error here, but we limit this either S_OK or S_FALSE as a safety-net
+		// in case other values could be returned.
 		// https://docs.microsoft.com/en-us/windows/console/closepseudoconsole
-		// However, Call will always return a non-nil error, so we need to
-		// check the primary return value anyway.
 		ret, _, err := procClosePseudoConsole.Call(uintptr(p.console))
-		if ret != 0 {
+		if ret := windows.Handle(ret); ret != windows.S_OK && ret != windows.S_FALSE {
 			return xerrors.Errorf("close pseudo console (%d): %w", ret, err)
 		}
 		p.console = windows.InvalidHandle
@@ -194,7 +195,7 @@ func (p *ptyWindows) Close() error {
 	// Note that this may result in a small amount of unprocessed output
 	// being lost, but the alternative is to wrap the reader or to handle
 	// this by all consumers.
-	// _, _ = io.Copy(io.Discard, p.outputRead)
+	_, _ = io.Copy(io.Discard, p.outputRead)
 
 	_ = p.outputRead.Close()
 	_ = p.inputWrite.Close()

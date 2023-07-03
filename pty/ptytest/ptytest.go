@@ -354,7 +354,13 @@ type PTY struct {
 func (p *PTY) Close() error {
 	p.t.Helper()
 	pErr := p.PTY.Close()
-	eErr := p.outExpecter.close("close")
+	if pErr != nil {
+		p.logf("PTY Close PTY: %v", pErr)
+	}
+	eErr := p.outExpecter.close("PTY close")
+	if eErr != nil {
+		p.logf("PTY Close expecter: %v", eErr)
+	}
 	if pErr != nil {
 		return pErr
 	}
@@ -398,7 +404,13 @@ type PTYCmd struct {
 func (p *PTYCmd) Close() error {
 	p.t.Helper()
 	pErr := p.PTYCmd.Close()
-	eErr := p.outExpecter.close("close")
+	if pErr != nil {
+		p.logf("PTYCmd Close PTYCmd: %v", pErr)
+	}
+	eErr := p.outExpecter.close("PTYCmd close")
+	if eErr != nil {
+		p.logf("PTYCmd Close expecter: %v", eErr)
+	}
 	if pErr != nil {
 		return pErr
 	}
