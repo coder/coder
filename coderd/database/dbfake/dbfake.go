@@ -3495,12 +3495,17 @@ func (q *fakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, no
 			return nil, err
 		}
 
-		if build.Transition == database.WorkspaceTransitionStart && !build.Deadline.IsZero() && build.Deadline.Before(now) {
+		if build.Transition == database.WorkspaceTransitionStart &&
+			!build.Deadline.IsZero() &&
+			build.Deadline.Before(now) &&
+			!workspace.LockedAt.Valid {
 			workspaces = append(workspaces, workspace)
 			continue
 		}
 
-		if build.Transition == database.WorkspaceTransitionStop && workspace.AutostartSchedule.Valid {
+		if build.Transition == database.WorkspaceTransitionStop &&
+			workspace.AutostartSchedule.Valid &&
+			!workspace.LockedAt.Valid {
 			workspaces = append(workspaces, workspace)
 			continue
 		}
@@ -3510,6 +3515,19 @@ func (q *fakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, no
 			return nil, xerrors.Errorf("get provisioner job by ID: %w", err)
 		}
 		if db2sdk.ProvisionerJobStatus(job) == codersdk.ProvisionerJobFailed {
+			workspaces = append(workspaces, workspace)
+			continue
+		}
+
+		template, err := q.GetTemplateByID(ctx, workspace.TemplateID)
+		if err != nil {
+			return nil, xerrors.Errorf("get template by ID: %w", err)
+		}
+		if !workspace.LockedAt.Valid && template.InactivityTTL > 0 {
+			workspaces = append(workspaces, workspace)
+			continue
+		}
+		if workspace.LockedAt.Valid && template.LockedTTL > 0 {
 			workspaces = append(workspaces, workspace)
 			continue
 		}
@@ -4702,6 +4720,7 @@ func (q *fakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 		tpl.MaxTTL = arg.MaxTTL
 		tpl.FailureTTL = arg.FailureTTL
 		tpl.InactivityTTL = arg.InactivityTTL
+		tpl.LockedTTL = arg.LockedTTL
 		q.templates[idx] = tpl
 		return tpl.DeepCopy(), nil
 	}
@@ -5245,6 +5264,7 @@ func (q *fakeQuerier) UpdateWorkspaceLockedAt(_ context.Context, arg database.Up
 			continue
 		}
 		workspace.LockedAt = arg.LockedAt
+		workspace.LastUsedAt = database.Now()
 		q.workspaces[index] = workspace
 		return nil
 	}

@@ -6972,7 +6972,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "locked_ttl_ms": {
-                    "description": "LockedTTL allows optionally specifying the max lifetime before Coder\npermanently deletes locked workspaces created from this template.",
+                    "description": "LockedTTLMillis allows optionally specifying the max lifetime before Coder\npermanently deletes locked workspaces created from this template.",
                     "type": "integer"
                 },
                 "max_ttl_ms": {
