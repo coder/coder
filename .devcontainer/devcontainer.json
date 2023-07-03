@@ -2,7 +2,6 @@
   "name": "Development environments on your infrastructure",
   "context": "../dogfood",
   "dockerFile": "../dogfood/Dockerfile",
-  "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
-  }
+  "runArgs": ["--init","--privileged"],
+  "postCreateCommand": "service docker start"
 }
