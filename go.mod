@@ -99,7 +99,7 @@ require (
 	github.com/go-ping/ping v1.1.0
 	github.com/go-playground/validator/v10 v10.14.0
 	github.com/gofrs/flock v0.8.1
-	github.com/gohugoio/hugo v0.114.1
+	github.com/gohugoio/hugo v0.115.0
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/golang-migrate/migrate/v4 v4.16.0
@@ -295,7 +295,7 @@ require (
 	github.com/muesli/ansi v0.0.0-20221106050444-61f0cd9a192a // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/muesli/termenv v0.15.1
-	github.com/niklasfasching/go-org v1.6.6 // indirect
+	github.com/niklasfasching/go-org v1.7.0 // indirect
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
