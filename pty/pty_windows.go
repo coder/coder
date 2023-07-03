@@ -65,10 +65,13 @@ func newPty(opt ...Option) (*ptyWindows, error) {
 		0,
 		uintptr(unsafe.Pointer(&pty.console)),
 	)
-	if int32(ret) < 0 {
+	// CreatePseudoConsole returns S_OK (0) on success, as per:
+	// https://learn.microsoft.com/en-us/windows/console/createpseudoconsole
+	if int32(ret) != 0 {
 		_ = pty.Close()
 		return nil, xerrors.Errorf("create pseudo console (%d): %w", int32(ret), err)
 	}
+
 	return pty, nil
 }
 
@@ -140,33 +143,62 @@ func (p *ptyWindows) Resize(height uint16, width uint16) error {
 	return nil
 }
 
+// closeConsoleNoLock closes the console handle, and sets it to
+// windows.InvalidHandle. It must be called with p.closeMutex held.
+func (p *ptyWindows) closeConsoleNoLock() error {
+	// if we are running a command in the PTY, the corresponding *windowsProcess
+	// may have already closed the PseudoConsole when the command exited, so that
+	// output reads can get to EOF.  In that case, we don't need to close it
+	// again here.
+	if p.console != windows.InvalidHandle {
+		// ClosePseudoConsole has no return value, as per:
+		// https://docs.microsoft.com/en-us/windows/console/closepseudoconsole
+		// However, Call will always return a non-nil error, so we need to
+		// check the primary return value anyway.
+		ret, _, err := procClosePseudoConsole.Call(uintptr(p.console))
+		if ret != 0 {
+			return xerrors.Errorf("close pseudo console (%d): %w", ret, err)
+		}
+		p.console = windows.InvalidHandle
+	}
+
+	return nil
+}
+
 func (p *ptyWindows) Close() error {
 	p.closeMutex.Lock()
 	defer p.closeMutex.Unlock()
 	if p.closed {
 		return nil
 	}
-	p.closed = true
 
-	// if we are running a command in the PTY, the corresponding *windowsProcess
-	// may have already closed the PseudoConsole when the command exited, so that
-	// output reads can get to EOF.  In that case, we don't need to close it
-	// again here.
-	if p.console != windows.InvalidHandle {
-		ret, _, err := procClosePseudoConsole.Call(uintptr(p.console))
-		if ret < 0 {
-			return xerrors.Errorf("close pseudo console: %w", err)
-		}
-		p.console = windows.InvalidHandle
+	err := p.closeConsoleNoLock()
+	if err != nil {
+		return err
 	}
 
-	// We always have these files
-	_ = p.outputRead.Close()
-	_ = p.inputWrite.Close()
-	// These get closed & unset if we Start() a new process.
+	// Only set closed after the console has been successfully closed.
+	p.closed = true
+
+	// Tear down the pipes to unblock readers/writers. Note that outputWrite and
+	// inputRead are unset when we Start() a new process.
+	//
+	// The console is closed so there will be no more writes, we need to do this
+	// here to ensure the discard below is unblocked.
 	if p.outputWrite != nil {
 		_ = p.outputWrite.Close()
 	}
+	// Unless we drain outputRead here, calling Close may wait indefinitely:
+	// https://learn.microsoft.com/en-us/windows/console/closepseudoconsole
+	//
+	// Note that this may result in a small amount of unprocessed output
+	// being lost, but the alternative is to wrap the reader or to handle
+	// this by all consumers.
+	_, _ = io.Copy(io.Discard, p.outputRead)
+
+	_ = p.outputRead.Close()
+	_ = p.inputWrite.Close()
+
 	if p.inputRead != nil {
 		_ = p.inputRead.Close()
 	}
@@ -184,15 +216,13 @@ func (p *windowsProcess) waitInternal() {
 		// c.f. https://devblogs.microsoft.com/commandline/windows-command-line-introducing-the-windows-pseudo-console-conpty/
 		p.pw.closeMutex.Lock()
 		defer p.pw.closeMutex.Unlock()
-		if p.pw.console != windows.InvalidHandle {
-			ret, _, err := procClosePseudoConsole.Call(uintptr(p.pw.console))
-			if ret < 0 && p.cmdErr == nil {
-				// if we already have an error from the command, prefer that error
-				// but if the command succeeded and closing the PseudoConsole fails
-				// then record that error so that we have a chance to see it
-				p.cmdErr = err
-			}
-			p.pw.console = windows.InvalidHandle
+
+		err := p.pw.closeConsoleNoLock()
+		// if we already have an error from the command, prefer that error
+		// but if the command succeeded and closing the PseudoConsole fails
+		// then record that error so that we have a chance to see it
+		if err != nil && p.cmdErr == nil {
+			p.cmdErr = err
 		}
 	}()
 
