@@ -355,11 +355,11 @@ func (p *PTY) Close() error {
 	p.t.Helper()
 	pErr := p.PTY.Close()
 	if pErr != nil {
-		p.logf("PTY Close PTY: %v", pErr)
+		p.logf("PTY: Close failed: %v", pErr)
 	}
 	eErr := p.outExpecter.close("PTY close")
 	if eErr != nil {
-		p.logf("PTY Close expecter: %v", eErr)
+		p.logf("PTY: close expecter failed: %v", eErr)
 	}
 	if pErr != nil {
 		return pErr
@@ -405,11 +405,11 @@ func (p *PTYCmd) Close() error {
 	p.t.Helper()
 	pErr := p.PTYCmd.Close()
 	if pErr != nil {
-		p.logf("PTYCmd Close PTYCmd: %v", pErr)
+		p.logf("PTYCmd: Close failed: %v", pErr)
 	}
 	eErr := p.outExpecter.close("PTYCmd close")
 	if eErr != nil {
-		p.logf("PTYCmd Close expecter: %v", eErr)
+		p.logf("PTYCmd: close expecter failed: %v", eErr)
 	}
 	if pErr != nil {
 		return pErr
