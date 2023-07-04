@@ -140,7 +140,14 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
       workspace.latest_build.status !== "pending" ||
       workspace.latest_build.job.queue_size === 0
     ) {
-      setShowAlertPendingInQueue(false)
+      if (!showAlertPendingInQueue) {
+        return
+      }
+
+      // hideTimer
+      setTimeout(() => {
+        setShowAlertPendingInQueue(false)
+      }, 250)
       return
     }
 
@@ -153,14 +160,15 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
       return
     }
 
-    const timer = setTimeout(() => {
+    const showTimer = setTimeout(() => {
       setShowAlertPendingInQueue(true)
     }, 5000)
 
     return () => {
-      clearTimeout(timer)
+      clearTimeout(showTimer)
+      // hideTimer must time out naturally, otherwise the banner will be hidden immediately
     }
-  }, [workspace, now])
+  }, [workspace, now, showAlertPendingInQueue])
   return (
     <>
       <FullWidthPageHeader>
