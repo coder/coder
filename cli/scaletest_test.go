@@ -20,7 +20,6 @@ import (
 )
 
 func TestScaleTestCreateWorkspaces(t *testing.T) {
-	t.Skipf("This test is flakey. See https://github.com/coder/coder/issues/4942")
 	t.Parallel()
 
 	// This test does a create-workspaces scale test with --no-cleanup, checks
@@ -40,27 +39,11 @@ func TestScaleTestCreateWorkspaces(t *testing.T) {
 
 		// Write a parameters file.
 		tDir := t.TempDir()
-		paramsFile := filepath.Join(tDir, "params.yaml")
 		outputFile := filepath.Join(tDir, "output.json")
-
-		f, err := os.Create(paramsFile)
-		require.NoError(t, err)
-		defer f.Close()
-		_, err = f.WriteString(`---
-param1: foo
-param2: true
-param3: 1
-`)
-		require.NoError(t, err)
-		err = f.Close()
-		require.NoError(t, err)
 
 		inv, root := clitest.New(t, "scaletest", "create-workspaces",
 			"--count", "2",
 			"--template", template.Name,
-			"--parameters-file", paramsFile,
-			"--parameter", "param1=bar",
-			"--parameter", "param4=baz",
 			"--no-cleanup",
 			// This flag is important for tests because agents will never be
 			// started.
@@ -101,7 +84,7 @@ param3: 1
 		defer cancelFunc()
 
 		// Verify the output file.
-		f, err = os.Open(outputFile)
+		f, err := os.Open(outputFile)
 		require.NoError(t, err)
 		defer f.Close()
 		var res harness.Results

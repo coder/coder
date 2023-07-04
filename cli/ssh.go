@@ -119,7 +119,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				}
 
 				// log HTTP requests
-				client.Logger = logger
+				client.SetLogger(logger)
 			}
 
 			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, codersdk.Me, inv.Args[0])
