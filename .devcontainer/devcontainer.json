@@ -1,7 +1,12 @@
 {
   "name": "Development environments on your infrastructure",
-  "context": "../dogfood",
-  "dockerFile": "../dogfood/Dockerfile",
-  "runArgs": ["--init","--privileged"],
-  "postCreateCommand": "service docker start"
+  "image": "codercom/oss-dogfood:latest",
+
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest",
+      "enableNonRootDocker": "true",
+      "moby": "true"
+    }
+  }
 }
