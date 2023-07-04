@@ -20,6 +20,7 @@ import (
 )
 
 func TestScaleTestCreateWorkspaces(t *testing.T) {
+	// TODO(cian): move this test into scaletest/createworkspaces
 	t.Parallel()
 
 	// This test does a create-workspaces scale test with --no-cleanup, checks
