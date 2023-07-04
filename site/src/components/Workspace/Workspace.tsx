@@ -137,8 +137,14 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   const now = dayjs()
   useEffect(() => {
     if (
-      workspace.latest_build.status === "pending" &&
-      workspace.latest_build.job.queue_size > 0 &&
+      workspace.latest_build.status !== "pending" ||
+      workspace.latest_build.job.queue_size === 0
+    ) {
+      setShowAlertPendingInQueue(false)
+      return
+    }
+
+    if (
       dayjs(workspace.latest_build.created_at).isBefore(
         now.subtract(5, "seconds"),
       )
@@ -147,23 +153,12 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
       return
     }
 
-    if (
-      workspace.latest_build.status === "pending" &&
-      workspace.latest_build.job.queue_size > 0
-    ) {
-      const timer = setTimeout(() => {
-        if (
-          workspace.latest_build.status !== "pending" ||
-          workspace.latest_build.job.queue_size === 0
-        ) {
-          return
-        }
-        setShowAlertPendingInQueue(true)
-      }, 5000)
+    const timer = setTimeout(() => {
+      setShowAlertPendingInQueue(true)
+    }, 5000)
 
-      return () => {
-        clearTimeout(timer)
-      }
+    return () => {
+      clearTimeout(timer)
     }
   }, [workspace, now])
   return (
