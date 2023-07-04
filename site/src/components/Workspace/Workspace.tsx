@@ -144,29 +144,24 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
         return
       }
 
-      // hideTimer
-      setTimeout(() => {
+      const hideTimer = setTimeout(() => {
         setShowAlertPendingInQueue(false)
       }, 250)
-      return
+      return () => {
+        clearTimeout(hideTimer)
+      }
     }
 
-    if (
-      dayjs(workspace.latest_build.created_at).isBefore(
-        now.subtract(5, "seconds"),
-      )
-    ) {
-      setShowAlertPendingInQueue(true)
-      return
-    }
-
+    const t = Math.max(
+      0,
+      5000 - dayjs().diff(dayjs(workspace.latest_build.created_at)),
+    )
     const showTimer = setTimeout(() => {
       setShowAlertPendingInQueue(true)
-    }, 5000)
+    }, t)
 
     return () => {
       clearTimeout(showTimer)
-      // hideTimer must time out naturally, otherwise the banner will be hidden immediately
     }
   }, [workspace, now, showAlertPendingInQueue])
   return (
