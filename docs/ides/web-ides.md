@@ -114,7 +114,7 @@ resource "coder_agent" "main" {
     # alternatively install in a container image Dockerfile
     wget -O- https://aka.ms/install-vscode-server/setup.sh | sh
 
-    # start vs code server 
+    # start vs code server
     code-server --accept-server-license-terms serve-local --without-connection-token --quality stable --telemetry-level off >/dev/null 2>&1 &
 
     EOF
@@ -125,7 +125,7 @@ resource "coder_agent" "main" {
 # microsoft vs code server
 resource "coder_app" "msft-code-server" {
   agent_id      = coder_agent.main.id
-  slug          = "msft-code-server"  
+  slug          = "msft-code-server"
   display_name  = "VS Code Server"
   icon          = "/icon/code.svg"
   url           = "http://localhost:8000?folder=/home/coder"
@@ -136,7 +136,7 @@ resource "coder_app" "msft-code-server" {
     url       = "http://localhost:8000/healthz"
     interval  = 5
     threshold = 15
-  }  
+  }
 }
 ```
 
