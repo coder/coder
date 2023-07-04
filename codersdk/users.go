@@ -93,6 +93,12 @@ type UserRoles struct {
 	OrganizationRoles map[uuid.UUID][]string `json:"organization_roles"`
 }
 
+type ConvertLoginRequest struct {
+	// ToType is the login type to convert to.
+	ToType   LoginType `json:"to_type" validate:"required"`
+	Password string    `json:"password" validate:"required"`
+}
+
 // LoginWithPasswordRequest enables callers to authenticate with email and password.
 type LoginWithPasswordRequest struct {
 	Email    string `json:"email" validate:"required,email" format:"email"`
@@ -104,19 +110,31 @@ type LoginWithPasswordResponse struct {
 	SessionToken string `json:"session_token" validate:"required"`
 }
 
+type OAuthConversionResponse struct {
+	StateString string    `json:"state_string"`
+	ExpiresAt   time.Time `json:"expires_at" format:"date-time"`
+	ToType      LoginType `json:"to_type"`
+	UserID      uuid.UUID `json:"user_id" format:"uuid"`
+}
+
 type CreateOrganizationRequest struct {
 	Name string `json:"name" validate:"required,username"`
 }
 
 // AuthMethods contains authentication method information like whether they are enabled or not or custom text, etc.
 type AuthMethods struct {
-	Password AuthMethod     `json:"password"`
-	Github   AuthMethod     `json:"github"`
-	OIDC     OIDCAuthMethod `json:"oidc"`
+	ConvertToOIDCEnabled bool           `json:"convert_to_oidc_enabled"`
+	Password             AuthMethod     `json:"password"`
+	Github               AuthMethod     `json:"github"`
+	OIDC                 OIDCAuthMethod `json:"oidc"`
 }
 
 type AuthMethod struct {
 	Enabled bool `json:"enabled"`
+}
+
+type UserLoginType struct {
+	LoginType LoginType `json:"login_type"`
 }
 
 type OIDCAuthMethod struct {
@@ -295,6 +313,26 @@ func (c *Client) LoginWithPassword(ctx context.Context, req LoginWithPasswordReq
 	err = json.NewDecoder(res.Body).Decode(&resp)
 	if err != nil {
 		return LoginWithPasswordResponse{}, err
+	}
+	return resp, nil
+}
+
+// ConvertLoginType will send a request to convert the user from password
+// based authentication to oauth based. The response has the oauth state code
+// to use in the oauth flow.
+func (c *Client) ConvertLoginType(ctx context.Context, req ConvertLoginRequest) (OAuthConversionResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/users/me/convert-login", req)
+	if err != nil {
+		return OAuthConversionResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return OAuthConversionResponse{}, ReadBodyAsError(res)
+	}
+	var resp OAuthConversionResponse
+	err = json.NewDecoder(res.Body).Decode(&resp)
+	if err != nil {
+		return OAuthConversionResponse{}, err
 	}
 	return resp, nil
 }

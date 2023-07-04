@@ -17,12 +17,6 @@ const Template: Story<SecurityFormProps> = (args: SecurityFormProps) => (
 export const Example = Template.bind({})
 Example.args = {
   isLoading: false,
-  initialValues: {
-    old_password: "",
-    password: "",
-    confirm_password: "",
-  },
-  updateSecurityError: undefined,
   onSubmit: () => {
     return Promise.resolve()
   },
@@ -37,7 +31,7 @@ Loading.args = {
 export const WithError = Template.bind({})
 WithError.args = {
   ...Example.args,
-  updateSecurityError: mockApiError({
+  error: mockApiError({
     message: "Old password is incorrect",
     validations: [
       {
@@ -46,7 +40,4 @@ WithError.args = {
       },
     ],
   }),
-  initialTouched: {
-    old_password: true,
-  },
 }

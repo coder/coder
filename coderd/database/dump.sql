@@ -25,7 +25,10 @@ CREATE TYPE audit_action AS ENUM (
 CREATE TYPE build_reason AS ENUM (
     'initiator',
     'autostart',
-    'autostop'
+    'autostop',
+    'autolock',
+    'failedstop',
+    'autodelete'
 );
 
 CREATE TYPE log_level AS ENUM (
@@ -99,7 +102,8 @@ CREATE TYPE resource_type AS ENUM (
     'group',
     'workspace_build',
     'license',
-    'workspace_proxy'
+    'workspace_proxy',
+    'convert_login'
 );
 
 CREATE TYPE startup_script_behavior AS ENUM (

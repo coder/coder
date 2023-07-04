@@ -206,6 +206,55 @@ func TestTemplates(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, exp, *ws.TTLMillis)
 	})
+
+	t.Run("CleanupTTLs", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		client := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		_ = coderdenttest.AddFullLicense(t, client)
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		require.EqualValues(t, 0, template.InactivityTTLMillis)
+		require.EqualValues(t, 0, template.FailureTTLMillis)
+		require.EqualValues(t, 0, template.LockedTTLMillis)
+
+		var (
+			failureTTL    int64 = 1
+			inactivityTTL int64 = 2
+			lockedTTL     int64 = 3
+		)
+
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			Name:                         template.Name,
+			DisplayName:                  template.DisplayName,
+			Description:                  template.Description,
+			Icon:                         template.Icon,
+			AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
+			InactivityTTLMillis:          inactivityTTL,
+			FailureTTLMillis:             failureTTL,
+			LockedTTLMillis:              lockedTTL,
+		})
+		require.NoError(t, err)
+		require.Equal(t, failureTTL, updated.FailureTTLMillis)
+		require.Equal(t, inactivityTTL, updated.InactivityTTLMillis)
+		require.Equal(t, lockedTTL, updated.LockedTTLMillis)
+
+		// Validate fetching the template returns the same values as updating
+		// the template.
+		template, err = client.Template(ctx, template.ID)
+		require.NoError(t, err)
+		require.Equal(t, failureTTL, updated.FailureTTLMillis)
+		require.Equal(t, inactivityTTL, updated.InactivityTTLMillis)
+		require.Equal(t, lockedTTL, updated.LockedTTLMillis)
+	})
 }
 
 func TestTemplateACL(t *testing.T) {

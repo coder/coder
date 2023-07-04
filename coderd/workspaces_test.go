@@ -2486,11 +2486,12 @@ func TestWorkspaceLock(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		workspace, err = client.Workspace(ctx, workspace.ID)
+		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
 		require.NoError(t, err, "fetch provisioned workspace")
 		require.NotNil(t, workspace.LockedAt)
 		require.WithinRange(t, *workspace.LockedAt, time.Now().Add(-time.Second*10), time.Now())
 
+		lastUsedAt := workspace.LastUsedAt
 		err = client.UpdateWorkspaceLock(ctx, workspace.ID, codersdk.UpdateWorkspaceLock{
 			Lock: false,
 		})
@@ -2499,6 +2500,7 @@ func TestWorkspaceLock(t *testing.T) {
 		workspace, err = client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err, "fetch provisioned workspace")
 		require.Nil(t, workspace.LockedAt)
+		require.True(t, workspace.LastUsedAt.After(lastUsedAt))
 	})
 
 	t.Run("CannotStart", func(t *testing.T) {

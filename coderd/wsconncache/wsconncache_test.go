@@ -257,3 +257,7 @@ func (*client) PostStartup(_ context.Context, _ agentsdk.PostStartupRequest) err
 func (*client) PatchStartupLogs(_ context.Context, _ agentsdk.PatchStartupLogs) error {
 	return nil
 }
+
+func (*client) GetServiceBanner(_ context.Context) (codersdk.ServiceBannerConfig, error) {
+	return codersdk.ServiceBannerConfig{}, nil
+}
