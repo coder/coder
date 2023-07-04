@@ -1660,8 +1660,8 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
         "expanded_directory": "string",
         "first_connected_at": "2019-08-24T14:15:22Z",
         "health": {
-          "healthy": true,
-          "reason": "string"
+          "healthy": false,
+          "reason": "agent has lost connection"
         },
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "instance_id": "string",
@@ -2052,8 +2052,8 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
         "expanded_directory": "string",
         "first_connected_at": "2019-08-24T14:15:22Z",
         "health": {
-          "healthy": true,
-          "reason": "string"
+          "healthy": false,
+          "reason": "agent has lost connection"
         },
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "instance_id": "string",

@@ -55,8 +55,7 @@
     "locked_at": null,
     "health": {
       "healthy": true,
-      "failing_sections": [],
-      "agents": {}
+      "failing_agents": []
     }
   }
 ]

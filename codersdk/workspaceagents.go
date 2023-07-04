@@ -172,8 +172,8 @@ type WorkspaceAgent struct {
 }
 
 type WorkspaceAgentHealth struct {
-	Healthy bool   `json:"healthy"`          // Healthy is true if the agent is healthy.
-	Reason  string `json:"reason,omitempty"` // Reason is a human-readable explanation of the agent's health. It is empty if Healthy is true.
+	Healthy bool   `json:"healthy" example:"false"`                              // Healthy is true if the agent is healthy.
+	Reason  string `json:"reason,omitempty" example:"agent has lost connection"` // Reason is a human-readable explanation of the agent's health. It is empty if Healthy is true.
 }
 
 type DERPRegion struct {

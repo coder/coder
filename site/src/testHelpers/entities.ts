@@ -804,10 +804,7 @@ export const MockWorkspace: TypesGen.Workspace = {
   last_used_at: "2022-05-16T15:29:10.302441433Z",
   health: {
     healthy: true,
-    failing_sections: [],
-    agents: {
-      [MockWorkspaceAgent.id]: MockWorkspaceAgent.health,
-    },
+    failing_agents: [],
   },
 }
 

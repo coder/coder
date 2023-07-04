@@ -43,6 +43,14 @@ type Workspace struct {
 	// unlocked by an admin. It is subject to deletion if it breaches
 	// the duration of the locked_ttl field on its template.
 	LockedAt *time.Time `json:"locked_at" format:"date-time"`
+	// Health shows the health of the workspace and information about
+	// what is causing an unhealthy status.
+	Health WorkspaceHealth `json:"health"`
+}
+
+type WorkspaceHealth struct {
+	Healthy       bool        `json:"healthy" example:"false"`      // Healthy is true if the workspace is healthy.
+	FailingAgents []uuid.UUID `json:"failing_agents" format:"uuid"` // FailingAgents lists the IDs of the agents that are failing, if any.
 }
 
 type WorkspacesRequest struct {

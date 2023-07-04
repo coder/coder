@@ -89,8 +89,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
           "expanded_directory": "string",
           "first_connected_at": "2019-08-24T14:15:22Z",
           "health": {
-            "healthy": true,
-            "reason": "string"
+            "healthy": false,
+            "reason": "agent has lost connection"
           },
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "instance_id": "string",
@@ -251,8 +251,8 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
           "expanded_directory": "string",
           "first_connected_at": "2019-08-24T14:15:22Z",
           "health": {
-            "healthy": true,
-            "reason": "string"
+            "healthy": false,
+            "reason": "agent has lost connection"
           },
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "instance_id": "string",
@@ -552,8 +552,8 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
         "expanded_directory": "string",
         "first_connected_at": "2019-08-24T14:15:22Z",
         "health": {
-          "healthy": true,
-          "reason": "string"
+          "healthy": false,
+          "reason": "agent has lost connection"
         },
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "instance_id": "string",
@@ -810,8 +810,8 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
           "expanded_directory": "string",
           "first_connected_at": "2019-08-24T14:15:22Z",
           "health": {
-            "healthy": true,
-            "reason": "string"
+            "healthy": false,
+            "reason": "agent has lost connection"
           },
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "instance_id": "string",
@@ -977,8 +977,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
             "expanded_directory": "string",
             "first_connected_at": "2019-08-24T14:15:22Z",
             "health": {
-              "healthy": true,
-              "reason": "string"
+              "healthy": false,
+              "reason": "agent has lost connection"
             },
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "instance_id": "string",
@@ -1325,8 +1325,8 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
           "expanded_directory": "string",
           "first_connected_at": "2019-08-24T14:15:22Z",
           "health": {
-            "healthy": true,
-            "reason": "string"
+            "healthy": false,
+            "reason": "agent has lost connection"
           },
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "instance_id": "string",
