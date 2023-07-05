@@ -3,7 +3,11 @@ description: |
   Sets up the node environment for tests, builds, etc.
 inputs:
   skip-yarn-install:
-    description: "Skip yarn install"
+    description: |
+      Skip 'yarn_install.sh' script. Be careful using this as it will not
+      install any dependencies. This is only useful if you do not need all
+      the dependencies installed, and will control the dependencies yourself.
+
     required: false
     default: "false"
 runs:

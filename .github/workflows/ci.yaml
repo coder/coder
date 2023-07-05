@@ -194,7 +194,13 @@ jobs:
 
       - uses: ./.github/actions/setup-node
         with:
+          # For yarn format, we only need the prettier dependency.
+          # Nothing else needs to be installed, so we can skip
+          # the custom yarn_install and handle it manually.
           skip-yarn-install: "true"
+
+      - name: Install prettier
+        run: yarn install --prettier
 
       - uses: buildjet/setup-go@v4
         with:
