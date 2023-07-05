@@ -434,7 +434,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 			targetLabel := attachedResource.Label
 
 			if _, ok := metadataTargetLabels[targetLabel]; ok {
-				return nil, xerrors.Errorf("duplicate metadata resource ID: %s", targetLabel)
+				return nil, xerrors.Errorf("duplicate metadata resource: %s", targetLabel)
 			}
 			metadataTargetLabels[targetLabel] = struct{}{}
 

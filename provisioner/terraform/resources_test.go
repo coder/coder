@@ -655,7 +655,7 @@ func TestMetadataResourceDuplicate(t *testing.T) {
 	state, err := terraform.ConvertState([]*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph))
 	require.Nil(t, state)
 	require.Error(t, err)
-	require.ErrorContains(t, err, "duplicate metadata resource ID: null_resource.about")
+	require.ErrorContains(t, err, "duplicate metadata resource: null_resource.about")
 }
 
 func TestParameterValidation(t *testing.T) {
