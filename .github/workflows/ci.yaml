@@ -208,7 +208,6 @@ jobs:
         # There is no easy way to only install 1 dep from a package.json.
         run: cd site && yarn global add prettier@$(cat ./package.json | jq -r '.devDependencies["prettier"]')
 
-
       - name: Install shfmt
         run: go install mvdan.cc/sh/v3/cmd/shfmt@v3.5.0
 
