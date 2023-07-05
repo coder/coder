@@ -192,7 +192,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 
 func TestAgent_SessionExec(t *testing.T) {
 	t.Parallel()
-	session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{})
+	session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil)
 
 	command := "echo test"
 	if runtime.GOOS == "windows" {
@@ -205,7 +205,7 @@ func TestAgent_SessionExec(t *testing.T) {
 
 func TestAgent_GitSSH(t *testing.T) {
 	t.Parallel()
-	session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{})
+	session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil)
 	command := "sh -c 'echo $GIT_SSH_COMMAND'"
 	if runtime.GOOS == "windows" {
 		command = "cmd.exe /c echo %GIT_SSH_COMMAND%"
@@ -225,7 +225,7 @@ func TestAgent_SessionTTYShell(t *testing.T) {
 		// it seems like it could be either.
 		t.Skip("ConPTY appears to be inconsistent on Windows.")
 	}
-	session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{})
+	session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil)
 	command := "sh"
 	if runtime.GOOS == "windows" {
 		command = "cmd.exe"
@@ -248,7 +248,7 @@ func TestAgent_SessionTTYShell(t *testing.T) {
 
 func TestAgent_SessionTTYExitCode(t *testing.T) {
 	t.Parallel()
-	session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{})
+	session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil)
 	command := "areallynotrealcommand"
 	err := session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
 	require.NoError(t, err)
@@ -268,7 +268,6 @@ func TestAgent_SessionTTYExitCode(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest // This test sets an environment variable.
 func TestAgent_Session_TTY_MOTD(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		// This might be our implementation, or ConPTY itself.
@@ -276,17 +275,15 @@ func TestAgent_Session_TTY_MOTD(t *testing.T) {
 		// it seems like it could be either.
 		t.Skip("ConPTY appears to be inconsistent on Windows.")
 	}
+	t.Parallel()
+
+	u, err := user.Current()
+	require.NoError(t, err, "get current user")
+
+	name := filepath.Join(u.HomeDir, "motd")
 
 	wantMOTD := "Welcome to your Coder workspace!"
 	wantServiceBanner := "Service banner text goes here"
-
-	tmpdir := t.TempDir()
-	name := filepath.Join(tmpdir, "motd")
-	err := os.WriteFile(name, []byte(wantMOTD), 0o600)
-	require.NoError(t, err, "write motd file")
-
-	// Set HOME so we can ensure no ~/.hushlogin is present.
-	t.Setenv("HOME", tmpdir)
 
 	tests := []struct {
 		name       string
@@ -362,13 +359,18 @@ func TestAgent_Session_TTY_MOTD(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			session := setupSSHSession(t, test.manifest, test.banner)
+			t.Parallel()
+			session := setupSSHSession(t, test.manifest, test.banner, func(fs afero.Fs) {
+				err := fs.MkdirAll(filepath.Dir(name), 0o700)
+				require.NoError(t, err)
+				err = afero.WriteFile(fs, name, []byte(wantMOTD), 0o600)
+				require.NoError(t, err)
+			})
 			testSessionOutput(t, session, test.expected, test.unexpected, test.expectedRe)
 		})
 	}
 }
 
-//nolint:paralleltest // This test sets an environment variable.
 func TestAgent_Session_TTY_MOTD_Update(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		// This might be our implementation, or ConPTY itself.
@@ -376,14 +378,10 @@ func TestAgent_Session_TTY_MOTD_Update(t *testing.T) {
 		// it seems like it could be either.
 		t.Skip("ConPTY appears to be inconsistent on Windows.")
 	}
+	t.Parallel()
 
 	// Only the banner updates dynamically; the MOTD file does not.
 	wantServiceBanner := "Service banner text goes here"
-
-	tmpdir := t.TempDir()
-
-	// Set HOME so we can ensure no ~/.hushlogin is present.
-	t.Setenv("HOME", tmpdir)
 
 	tests := []struct {
 		banner     codersdk.ServiceBannerConfig
@@ -424,22 +422,25 @@ func TestAgent_Session_TTY_MOTD_Update(t *testing.T) {
 		},
 	}
 
-	const updateInterval = 100 * time.Millisecond
-
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	//nolint:dogsled // Allow the blank identifiers.
 	conn, client, _, _, _ := setupAgent(t, &client{}, 0)
 	for _, test := range tests {
 		test := test
-		// Set new banner func and wait for the agent to call it to update the
-		// banner.
+
+		ready := make(chan struct{}, 1)
 		client.mu.Lock()
 		client.getServiceBanner = func() (codersdk.ServiceBannerConfig, error) {
+			select {
+			case ready <- struct{}{}:
+			default:
+			}
 			return test.banner, nil
 		}
 		client.mu.Unlock()
-		time.Sleep(updateInterval)
+		<-ready
+		<-ready // Wait for two updates to ensure the value has propagated.
 
 		sshClient, err := conn.SSHClient(ctx)
 		require.NoError(t, err)
@@ -466,50 +467,51 @@ func TestAgent_Session_TTY_QuietLogin(t *testing.T) {
 	}
 
 	wantNotMOTD := "Welcome to your Coder workspace!"
-	wantServiceBanner := "Service banner text goes here"
+	wantMaybeServiceBanner := "Service banner text goes here"
 
-	tmpdir := t.TempDir()
-	name := filepath.Join(tmpdir, "motd")
-	err := os.WriteFile(name, []byte(wantNotMOTD), 0o600)
-	require.NoError(t, err, "write motd file")
+	u, err := user.Current()
+	require.NoError(t, err, "get current user")
 
-	// Set HOME so we can ensure ~/.hushlogin is present.
-	t.Setenv("HOME", tmpdir)
+	name := filepath.Join(u.HomeDir, "motd")
 
 	// Neither banner nor MOTD should show if not a login shell.
 	t.Run("NotLogin", func(t *testing.T) {
-		wantEcho := "foobar"
 		session := setupSSHSession(t, agentsdk.Manifest{
 			MOTDFile: name,
 		}, codersdk.ServiceBannerConfig{
 			Enabled: true,
-			Message: wantServiceBanner,
+			Message: wantMaybeServiceBanner,
+		}, func(fs afero.Fs) {
+			err := afero.WriteFile(fs, name, []byte(wantNotMOTD), 0o600)
+			require.NoError(t, err, "write motd file")
 		})
 		err = session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
 		require.NoError(t, err)
 
+		wantEcho := "foobar"
 		command := "echo " + wantEcho
 		output, err := session.Output(command)
 		require.NoError(t, err)
 
 		require.Contains(t, string(output), wantEcho, "should show echo")
 		require.NotContains(t, string(output), wantNotMOTD, "should not show motd")
-		require.NotContains(t, string(output), wantServiceBanner, "should not show service banner")
+		require.NotContains(t, string(output), wantMaybeServiceBanner, "should not show service banner")
 	})
 
-	// Only the MOTD should be silenced.
+	// Only the MOTD should be silenced when hushlogin is present.
 	t.Run("Hushlogin", func(t *testing.T) {
-		// Create hushlogin to silence motd.
-		f, err := os.Create(filepath.Join(tmpdir, ".hushlogin"))
-		require.NoError(t, err, "create .hushlogin file")
-		err = f.Close()
-		require.NoError(t, err, "close .hushlogin file")
-
 		session := setupSSHSession(t, agentsdk.Manifest{
 			MOTDFile: name,
 		}, codersdk.ServiceBannerConfig{
 			Enabled: true,
-			Message: wantServiceBanner,
+			Message: wantMaybeServiceBanner,
+		}, func(fs afero.Fs) {
+			err := afero.WriteFile(fs, name, []byte(wantNotMOTD), 0o600)
+			require.NoError(t, err, "write motd file")
+
+			// Create hushlogin to silence motd.
+			err = afero.WriteFile(fs, name, []byte{}, 0o600)
+			require.NoError(t, err, "write hushlogin file")
 		})
 		err = session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
 		require.NoError(t, err)
@@ -527,7 +529,7 @@ func TestAgent_Session_TTY_QuietLogin(t *testing.T) {
 		require.NoError(t, err)
 
 		require.NotContains(t, stdout.String(), wantNotMOTD, "should not show motd")
-		require.Contains(t, stdout.String(), wantServiceBanner, "should show service banner")
+		require.Contains(t, stdout.String(), wantMaybeServiceBanner, "should show service banner")
 	})
 }
 
@@ -975,7 +977,7 @@ func TestAgent_EnvironmentVariables(t *testing.T) {
 		EnvironmentVariables: map[string]string{
 			key: value,
 		},
-	}, codersdk.ServiceBannerConfig{})
+	}, codersdk.ServiceBannerConfig{}, nil)
 	command := "sh -c 'echo $" + key + "'"
 	if runtime.GOOS == "windows" {
 		command = "cmd.exe /c echo %" + key + "%"
@@ -992,7 +994,7 @@ func TestAgent_EnvironmentVariableExpansion(t *testing.T) {
 		EnvironmentVariables: map[string]string{
 			key: "$SOMETHINGNOTSET",
 		},
-	}, codersdk.ServiceBannerConfig{})
+	}, codersdk.ServiceBannerConfig{}, nil)
 	command := "sh -c 'echo $" + key + "'"
 	if runtime.GOOS == "windows" {
 		command = "cmd.exe /c echo %" + key + "%"
@@ -1015,7 +1017,7 @@ func TestAgent_CoderEnvVars(t *testing.T) {
 		t.Run(key, func(t *testing.T) {
 			t.Parallel()
 
-			session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{})
+			session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil)
 			command := "sh -c 'echo $" + key + "'"
 			if runtime.GOOS == "windows" {
 				command = "cmd.exe /c echo %" + key + "%"
@@ -1038,7 +1040,7 @@ func TestAgent_SSHConnectionEnvVars(t *testing.T) {
 		t.Run(key, func(t *testing.T) {
 			t.Parallel()
 
-			session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{})
+			session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil)
 			command := "sh -c 'echo $" + key + "'"
 			if runtime.GOOS == "windows" {
 				command = "cmd.exe /c echo %" + key + "%"
@@ -1876,16 +1878,20 @@ func setupSSHSession(
 	t *testing.T,
 	options agentsdk.Manifest,
 	serviceBanner codersdk.ServiceBannerConfig,
+	prepareFS func(fs afero.Fs),
 ) *ssh.Session {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	//nolint:dogsled
-	conn, _, _, _, _ := setupAgent(t, &client{
+	conn, _, _, fs, _ := setupAgent(t, &client{
 		manifest: options,
 		getServiceBanner: func() (codersdk.ServiceBannerConfig, error) {
 			return serviceBanner, nil
 		},
 	}, 0)
+	if prepareFS != nil {
+		prepareFS(fs)
+	}
 	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() {
