@@ -17,3 +17,13 @@ func newCLI(t *testing.T, args ...string) (*clibase.Invocation, config.Root) {
 	require.NoError(t, err)
 	return clitest.NewWithCommand(t, cmd, args...)
 }
+
+func TestEnterpriseHandlersOK(t *testing.T) {
+	t.Parallel()
+
+	var root cli.RootCmd
+	cmd, err := root.Command(root.EnterpriseSubcommands())
+	require.NoError(t, err)
+
+	clitest.HandlersOK(t, cmd)
+}
