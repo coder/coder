@@ -81,8 +81,8 @@ func Test_Runner(t *testing.T) {
 			},
 		})
 
+		version = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 
 		go eventuallyStartFakeAgent(ctx, t, client, authToken)
 
@@ -203,8 +203,8 @@ func Test_Runner(t *testing.T) {
 			},
 		})
 
+		version = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 
 		go eventuallyStartFakeAgent(ctx, t, client, authToken)
 
@@ -304,8 +304,8 @@ func Test_Runner(t *testing.T) {
 			},
 		})
 
+		version = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 
 		runner := createworkspaces.NewRunner(client, createworkspaces.Config{
 			User: createworkspaces.UserConfig{
