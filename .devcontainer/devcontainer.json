@@ -8,5 +8,8 @@
       "enableNonRootDocker": "true",
       "moby": "true"
     }
-  }
+  },
+  // SYS_PTRACE to enable go debugging
+  // without --priviliged the Github Codespace build fails (not required otherwise)
+  "runArgs": ["--cap-add=SYS_PTRACE", "--privileged"]
 }
