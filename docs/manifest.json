@@ -175,6 +175,11 @@
           "description": "Use docker inside containerized templates",
           "path": "./templates/docker-in-workspaces.md",
           "icon_path": "./images/icons/docker.svg"
+        },
+        {
+          "title": "Inheritance",
+          "description": "Reuse code across Coder templates",
+          "path": "./templates/inheritance.md"
         }
       ]
     },
