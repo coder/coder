@@ -269,13 +269,13 @@ func TestAgent_SessionTTYExitCode(t *testing.T) {
 }
 
 func TestAgent_Session_TTY_MOTD(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		// This might be our implementation, or ConPTY itself.
 		// It's difficult to find extensive tests for it, so
 		// it seems like it could be either.
 		t.Skip("ConPTY appears to be inconsistent on Windows.")
 	}
-	t.Parallel()
 
 	u, err := user.Current()
 	require.NoError(t, err, "get current user")
@@ -372,13 +372,13 @@ func TestAgent_Session_TTY_MOTD(t *testing.T) {
 }
 
 func TestAgent_Session_TTY_MOTD_Update(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		// This might be our implementation, or ConPTY itself.
 		// It's difficult to find extensive tests for it, so
 		// it seems like it could be either.
 		t.Skip("ConPTY appears to be inconsistent on Windows.")
 	}
-	t.Parallel()
 
 	// Only the banner updates dynamically; the MOTD file does not.
 	wantServiceBanner := "Service banner text goes here"
