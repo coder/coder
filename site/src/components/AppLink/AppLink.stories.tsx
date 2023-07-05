@@ -29,8 +29,8 @@ const Template: Story<AppLinkProps> = (args) => (
       clearProxy: () => {
         return
       },
-      refetchProxyLatencies: () => {
-        return
+      refetchProxyLatencies: (): Date => {
+        return new Date()
       },
     }}
   >
