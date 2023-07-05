@@ -3,5 +3,5 @@
 package testutil
 
 const (
-	RaceEnabled = true
+	raceEnabled = true
 )
