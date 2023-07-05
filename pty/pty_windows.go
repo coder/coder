@@ -151,12 +151,17 @@ func (p *ptyWindows) closeConsoleNoLock() error {
 	// output reads can get to EOF.  In that case, we don't need to close it
 	// again here.
 	if p.console != windows.InvalidHandle {
-		// Because ClosePseudoConsole has no return value, we could ignore the
-		// error here, but we limit this either S_OK or S_FALSE as a safety-net
-		// in case other values could be returned.
+		// ClosePseudoConsole has no return value and typically the syscall
+		// returns S_FALSE (a success value). We could ignore the return value
+		// and error here but we handle anyway, it just in case.
+		//
+		// Note that ClosePseudoConsole is a blocking system call and may write
+		// a final frame to the output buffer (p.outputWrite), so there must be
+		// a consumer (p.outputRead) to ensure we don't block here indefinitely.
+		//
 		// https://docs.microsoft.com/en-us/windows/console/closepseudoconsole
 		ret, _, err := procClosePseudoConsole.Call(uintptr(p.console))
-		if ret := windows.Handle(ret); ret != windows.S_OK && ret != windows.S_FALSE {
+		if winerrorFailed(ret) {
 			return xerrors.Errorf("close pseudo console (%d): %w", ret, err)
 		}
 		p.console = windows.InvalidHandle
@@ -172,6 +177,9 @@ func (p *ptyWindows) Close() error {
 		return nil
 	}
 
+	// Close the pseudo console, this will also terminate the process attached
+	// to this pty. If it was created via Start(), this also unblocks close of
+	// the readers below.
 	err := p.closeConsoleNoLock()
 	if err != nil {
 		return err
@@ -180,25 +188,14 @@ func (p *ptyWindows) Close() error {
 	// Only set closed after the console has been successfully closed.
 	p.closed = true
 
-	// Tear down the pipes to unblock readers/writers. Note that outputWrite and
-	// inputRead are unset when we Start() a new process.
-	//
-	// The console is closed so there will be no more writes, we need to do this
-	// here to ensure the discard below is unblocked.
+	// Close the pipes ensuring that the writer is closed before the respective
+	// reader, otherwise closing the reader may block indefinitely. Note that
+	// outputWrite and inputRead are unset when we Start() a new process.
 	if p.outputWrite != nil {
 		_ = p.outputWrite.Close()
 	}
-	// Unless we drain outputRead here, calling Close may wait indefinitely:
-	// https://learn.microsoft.com/en-us/windows/console/closepseudoconsole
-	//
-	// Note that this may result in a small amount of unprocessed output
-	// being lost, but the alternative is to wrap the reader or to handle
-	// this by all consumers.
-	_, _ = io.Copy(io.Discard, p.outputRead)
-
 	_ = p.outputRead.Close()
 	_ = p.inputWrite.Close()
-
 	if p.inputRead != nil {
 		_ = p.inputRead.Close()
 	}
@@ -254,4 +251,12 @@ func (p *windowsProcess) killOnContext(ctx context.Context) {
 	case <-ctx.Done():
 		p.Kill()
 	}
+}
+
+// winerrorFailed returns true if the syscall failed, this function
+// assumes the return value is a 32-bit integer, like HRESULT.
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/winerror/nf-winerror-failed
+func winerrorFailed(r1 uintptr) bool {
+	return int32(r1) < 0
 }
