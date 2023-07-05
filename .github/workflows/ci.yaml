@@ -201,6 +201,7 @@ jobs:
 
       - name: Install prettier
         run: cd site && yarn install --prettier
+        key: yarn
 
       - uses: buildjet/setup-go@v4
         with:
