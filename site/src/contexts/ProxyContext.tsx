@@ -53,7 +53,7 @@ export interface ProxyContextValue {
   proxyLatencies: Record<string, ProxyLatencyReport>
   // refetchProxyLatencies will trigger refreshing of the proxy latencies. By default the latencies
   // are loaded once.
-  refetchProxyLatencies: () => void
+  refetchProxyLatencies: () => Date
   // setProxy is a function that sets the user's selected proxy. This function should
   // only be called if the user is manually selecting a proxy. This value is stored in local
   // storage and will persist across reloads and tabs.
