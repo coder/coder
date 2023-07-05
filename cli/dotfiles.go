@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -145,6 +146,23 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 				_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Error.Render("Failed to update repo, continuing..."))
 			}
 
+			if dotfilesExists && gitbranch != "" {
+				// If the repo exists and the git-branch is specified, we need to check out the branch. We do this after
+				// git pull to make sure the branch was pulled down locally. If we do this before the pull, we could be
+				// trying to checkout a branch that does not yet exist locally and get a git error.
+				_, _ = fmt.Fprintf(inv.Stdout, "Dotfiles git branch %q specified\n", gitbranch)
+				err := ensureCorrectGitBranch(inv, ensureCorrectGitBranchParams{
+					repoDir:       dotfilesDir,
+					gitSSHCommand: gitsshCmd,
+					gitBranch:     gitbranch,
+				})
+				if err != nil {
+					// Do not block on this error, just log it and continue
+					_, _ = fmt.Fprintln(inv.Stdout,
+						cliui.DefaultStyles.Error.Render(fmt.Sprintf("Failed to use branch %q (%s), continuing...", err.Error(), gitbranch)))
+				}
+			}
+
 			// save git repo url so we can detect changes next time
 			err = cfg.DotfilesURL().Write(gitRepo)
 			if err != nil {
@@ -254,12 +272,55 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 		{
 			Flag:          "branch",
 			FlagShorthand: "b",
-			Description:   "Specifies which branch to clone. If empty, will use the default branch of the repo.",
-			Value:         clibase.StringOf(&gitbranch),
+			Description: "Specifies which branch to clone. " +
+				"If empty, will default to cloning the default branch or using the existing branch in the cloned repo on disk.",
+			Value: clibase.StringOf(&gitbranch),
 		},
 		cliui.SkipPromptOption(),
 	}
 	return cmd
+}
+
+type ensureCorrectGitBranchParams struct {
+	repoDir       string
+	gitSSHCommand string
+	gitBranch     string
+}
+
+func ensureCorrectGitBranch(baseInv *clibase.Invocation, params ensureCorrectGitBranchParams) error {
+	dotfileCmd := func(cmd string, args ...string) *exec.Cmd {
+		c := exec.CommandContext(baseInv.Context(), cmd, args...)
+		c.Dir = params.repoDir
+		c.Env = append(baseInv.Environ.ToOS(), fmt.Sprintf(`GIT_SSH_COMMAND=%s -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no`, params.gitSSHCommand))
+		var out bytes.Buffer
+		c.Stdout = &out
+		c.Stderr = baseInv.Stderr
+		return c
+	}
+	c := dotfileCmd("git", "branch", "--show-current")
+	// Save the output
+	var out bytes.Buffer
+	c.Stdout = &out
+	err := c.Run()
+	if err != nil {
+		return xerrors.Errorf("getting current git branch: %w", err)
+	}
+
+	if strings.TrimSpace(out.String()) != params.gitBranch {
+		// Checkout and pull the branch
+		c := dotfileCmd("git", "checkout", params.gitBranch)
+		err := c.Run()
+		if err != nil {
+			return xerrors.Errorf("checkout git branch %q: %w", params.gitBranch, err)
+		}
+
+		c = dotfileCmd("git", "pull", "--ff-only")
+		err = c.Run()
+		if err != nil {
+			return xerrors.Errorf("pull git branch %q: %w", params.gitBranch, err)
+		}
+	}
+	return nil
 }
 
 // dirExists checks if the path exists and is a directory.
