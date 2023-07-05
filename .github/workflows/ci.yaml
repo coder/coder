@@ -192,16 +192,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - uses: ./.github/actions/setup-node
+      - uses: buildjet/setup-node@v3
         with:
-          # For yarn format, we only need the prettier dependency.
-          # Nothing else needs to be installed, so we can skip
-          # the custom yarn_install and handle it manually.
-          skip-yarn-install: "true"
+          node-version: 16.16.0
 
       - name: Install prettier
         run: cd site && yarn install --prettier
-        key: yarn
 
       - uses: buildjet/setup-go@v4
         with:
