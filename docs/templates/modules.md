@@ -74,16 +74,16 @@ Then, modify Coder's Helm values to mount the secret.
 ```yaml
 coder:
   volumes:
-  - name: git-secrets
-    secret:
-      secretName: git-secrets
+    - name: git-secrets
+      secret:
+        secretName: git-secrets
   volumeMounts:
-  - name: git-secrets
-    mountPath: "/home/coder/.gitconfig"
-    subPath: .gitconfig
-    readOnly: true
-  - name: git-secrets
-    mountPath: "/home/coder/.git-credentials"
-    subPath: .git-credentials
-    readOnly: true
+    - name: git-secrets
+      mountPath: "/home/coder/.gitconfig"
+      subPath: .gitconfig
+      readOnly: true
+    - name: git-secrets
+      mountPath: "/home/coder/.git-credentials"
+      subPath: .git-credentials
+      readOnly: true
 ```

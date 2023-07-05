@@ -177,9 +177,9 @@
           "icon_path": "./images/icons/docker.svg"
         },
         {
-          "title": "Inheritance",
+          "title": "Terraform Modules",
           "description": "Reuse code across Coder templates",
-          "path": "./templates/inheritance.md"
+          "path": "./templates/modules.md"
         }
       ]
     },
