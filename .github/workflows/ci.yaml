@@ -195,7 +195,7 @@ jobs:
       - uses: ./.github/actions/setup-node
         with:
           # Only install prettier dep for this job
-          yarn-install-flags: "--prettier"
+#          yarn-install-flags: "--prettier"
 
 
       - uses: buildjet/setup-go@v4
