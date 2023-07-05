@@ -429,7 +429,7 @@ func TestAgent_Session_TTY_MOTD_Update(t *testing.T) {
 	for _, test := range tests {
 		test := test
 
-		ready := make(chan struct{}, 1)
+		ready := make(chan struct{}, 2)
 		client.mu.Lock()
 		client.getServiceBanner = func() (codersdk.ServiceBannerConfig, error) {
 			select {
