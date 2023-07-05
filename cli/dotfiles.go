@@ -18,6 +18,8 @@ import (
 
 func (r *RootCmd) dotfiles() *clibase.Cmd {
 	var symlinkDir string
+	var gitbranch string
+
 	cmd := &clibase.Cmd{
 		Use:        "dotfiles <git_repo_url>",
 		Middleware: clibase.RequireNArgs(1),
@@ -102,6 +104,9 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 				}
 				gitCmdDir = cfgDir
 				subcommands = []string{"clone", inv.Args[0], dotfilesRepoDir}
+				if gitbranch != "" {
+					subcommands = append(subcommands, "--branch", gitbranch)
+				}
 				promptText = fmt.Sprintf("Cloning %s into directory %s.\n\n  Continue?", gitRepo, dotfilesDir)
 			}
 
@@ -245,6 +250,12 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 			Env:         "CODER_SYMLINK_DIR",
 			Description: "Specifies the directory for the dotfiles symlink destinations. If empty, will use $HOME.",
 			Value:       clibase.StringOf(&symlinkDir),
+		},
+		{
+			Flag:          "branch",
+			FlagShorthand: "b",
+			Description:   "Specifies which branch to clone. If empty, will use the default branch of the repo.",
+			Value:         clibase.StringOf(&gitbranch),
 		},
 		cliui.SkipPromptOption(),
 	}
