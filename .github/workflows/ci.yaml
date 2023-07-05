@@ -183,7 +183,7 @@ jobs:
         run: "make --output-sync -j -B gen"
 
       - name: Check for unstaged files
-        run: ./scripts/cgiheck_unstaged.sh
+        run: ./scripts/check_unstaged.sh
 
   fmt:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
@@ -203,10 +203,7 @@ jobs:
           go-version: 1.20.5
 
       - name: Install prettier
-        run: cd site && yarn --cache-folder=/tmp/yarn_pretty_cache install --prettier
-        with:
-          key: prettier
-          path: /tmp/yarn_pretty_cache
+        run: cd site && yarn install --prettier
 
 
       - name: Install shfmt
