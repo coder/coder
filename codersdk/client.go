@@ -93,8 +93,12 @@ func New(serverURL *url.URL) *Client {
 // Client is an HTTP caller for methods to the Coder API.
 // @typescript-ignore Client
 type Client struct {
-	mu           sync.RWMutex // Protects following.
+	// mu protects the fields sessionToken, logger, and logBodies. These
+	// need to be safe for concurrent access.
+	mu           sync.RWMutex
 	sessionToken string
+	logger       slog.Logger
+	logBodies    bool
 
 	HTTPClient *http.Client
 	URL        *url.URL
@@ -102,13 +106,6 @@ type Client struct {
 	// SessionTokenHeader is an optional custom header to use for setting tokens. By
 	// default 'Coder-Session-Token' is used.
 	SessionTokenHeader string
-
-	// logger is optionally provided to log requests.
-	// Method, URL, and response code will be logged by default.
-	logger slog.Logger
-
-	// logBodies can be enabled to print request and response bodies to the logger.
-	logBodies bool
 
 	// PlainLogger may be set to log HTTP traffic in a human-readable form.
 	// It uses the LogBodies option.
