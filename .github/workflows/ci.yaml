@@ -203,10 +203,14 @@ jobs:
           go-version: 1.20.5
 
       - name: Install prettier
+        # We only need prettier for fmt, so do not install all dependencies.
+        # There is no way to install a single package with yarn, so we have to
+        # make a new package.json with only prettier listed as a dependency.
+        # Then running `yarn` will only install prettier.
         run: |
           cd site
           mv package.json package.json.bak
-          echo '{"dependencies": {"prettier": '"$(cat package.json.bak | jq '.devDependencies.prettier')"'}}' > package.json
+          jq '{dependencies: {prettier: .devDependencies.prettier}}' < package.json.bak > package.json
           yarn --frozen-lockfile
           mv package.json.bak package.json
 
