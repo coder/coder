@@ -2,6 +2,10 @@ name: "Setup Node"
 description: |
   Sets up the node environment for tests, builds, etc.
 inputs:
+  skip-yarn-install:
+    description: "Skip yarn install"
+    required: false
+    default: "false"
   yarn-install-flags:
     description: "Flags to pass to yarn install"
     required: false
@@ -15,6 +19,8 @@ runs:
         # See https://github.com/actions/setup-node#caching-global-packages-data
         cache: "yarn"
         cache-dependency-path: "site/yarn.lock"
+#        key: buildjet-node-${{ inputs.yarn-install-flags  }}
     - name: Install node_modules
       shell: bash
       run: ./scripts/yarn_install.sh ${{ inputs.yarn-install-flags }}
+      if: ${{ inputs.skip-yarn-install != 'true' }}

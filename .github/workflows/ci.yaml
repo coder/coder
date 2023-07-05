@@ -194,6 +194,7 @@ jobs:
 
       - uses: ./.github/actions/setup-node
         with:
+          skip-yarn-install: "true"
           # Only install prettier dep for this job
           yarn-install-flags: "--prettier"
 
