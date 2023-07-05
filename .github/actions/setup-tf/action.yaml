@@ -1,4 +1,4 @@
-name: "Setup Go"
+name: "Setup Terraform"
 description: |
   Sets up Terraform for tests, builds, etc.
 runs:
