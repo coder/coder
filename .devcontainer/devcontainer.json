@@ -3,11 +3,8 @@
   "image": "codercom/oss-dogfood:latest",
 
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {
-      "version": "latest",
-      "enableNonRootDocker": "true",
-      "moby": "true"
-    }
+    // See all possible options here https://github.com/devcontainers/features/tree/main/src/docker-in-docker
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
   },
   // SYS_PTRACE to enable go debugging
   // without --priviliged the Github Codespace build fails (not required otherwise)
