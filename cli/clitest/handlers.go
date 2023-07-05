@@ -10,7 +10,7 @@ import (
 // Without a handler, the command has no default behavior. Even for
 // non-root commands (like 'groups' or 'users'), a handler is required.
 // These handlers are likely just the 'help' handler, but this must be
-// explictly set.
+// explicitly set.
 func HandlersOK(t *testing.T, cmd *clibase.Cmd) {
 	cmd.Walk(func(cmd *clibase.Cmd) {
 		if cmd.Handler == nil {
