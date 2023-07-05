@@ -4,10 +4,28 @@ import Box from "@mui/material/Box"
 import Tooltip from "@mui/material/Tooltip"
 import { FC } from "react"
 import { getLatencyColor } from "utils/latency"
+import CircularProgress from "@mui/material/CircularProgress"
 
-export const ProxyStatusLatency: FC<{ latency?: number }> = ({ latency }) => {
+export const ProxyStatusLatency: FC<{
+  latency?: number
+  isLoading?: boolean
+}> = ({ latency, isLoading }) => {
   const theme = useTheme()
   const color = getLatencyColor(theme, latency)
+
+  if (isLoading) {
+    return (
+      <Tooltip title="Loading latency...">
+        <CircularProgress
+          size="14px"
+          sx={{
+            // Always use the no latency color for loading.
+            color: getLatencyColor(theme, undefined),
+          }}
+        />
+      </Tooltip>
+    )
+  }
 
   if (!latency) {
     return (
