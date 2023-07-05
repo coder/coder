@@ -1,6 +1,11 @@
 name: "Setup Node"
 description: |
   Sets up the node environment for tests, builds, etc.
+inputs:
+  yarn-install-flags:
+    description: "Flags to pass to yarn install"
+    required: false
+    default: ""
 runs:
   using: "composite"
   steps:
@@ -12,4 +17,4 @@ runs:
         cache-dependency-path: "site/yarn.lock"
     - name: Install node_modules
       shell: bash
-      run: ./scripts/yarn_install.sh
+      run: ./scripts/yarn_install.sh ${{ inputs.yarn-install-flags }}
