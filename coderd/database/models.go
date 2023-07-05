@@ -214,9 +214,12 @@ func AllAuditActionValues() []AuditAction {
 type BuildReason string
 
 const (
-	BuildReasonInitiator BuildReason = "initiator"
-	BuildReasonAutostart BuildReason = "autostart"
-	BuildReasonAutostop  BuildReason = "autostop"
+	BuildReasonInitiator  BuildReason = "initiator"
+	BuildReasonAutostart  BuildReason = "autostart"
+	BuildReasonAutostop   BuildReason = "autostop"
+	BuildReasonAutolock   BuildReason = "autolock"
+	BuildReasonFailedstop BuildReason = "failedstop"
+	BuildReasonAutodelete BuildReason = "autodelete"
 )
 
 func (e *BuildReason) Scan(src interface{}) error {
@@ -258,7 +261,10 @@ func (e BuildReason) Valid() bool {
 	switch e {
 	case BuildReasonInitiator,
 		BuildReasonAutostart,
-		BuildReasonAutostop:
+		BuildReasonAutostop,
+		BuildReasonAutolock,
+		BuildReasonFailedstop,
+		BuildReasonAutodelete:
 		return true
 	}
 	return false
@@ -269,6 +275,9 @@ func AllBuildReasonValues() []BuildReason {
 		BuildReasonInitiator,
 		BuildReasonAutostart,
 		BuildReasonAutostop,
+		BuildReasonAutolock,
+		BuildReasonFailedstop,
+		BuildReasonAutodelete,
 	}
 }
 

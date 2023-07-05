@@ -88,6 +88,7 @@ resource "coder_app" "code-server" {
   display_name = "code-server"
   url          = "http://localhost:13337/?folder=/home/coder"
   icon         = "/icon/code.svg"
+  subdomain    = true
 
   healthcheck {
     url       = "http://localhost:13337/healthz"
@@ -98,11 +99,46 @@ resource "coder_app" "code-server" {
 }
 ```
 
-## JetBrains Projector
+## Microsoft VS Code Server
 
-[JetBrains Projector](https://jetbrains.github.io/projector-client/mkdocs/latest/) is a JetBrains Incubator project which renders JetBrains IDEs in the web browser. JetBrains has [suspended the project](https://lp.jetbrains.com/projector/) so Coder no longer provides example templates or support.
+Microsoft has a VS Code in a browser IDE as well called [VS Code Server](https://code.visualstudio.com/docs/remote/vscode-server) which can be added to a Coder template.
 
-Use [JetBrains Gateway](./gateway.md) to remotely connect to a Coder workspace.
+```hcl
+resource "coder_agent" "main" {
+    arch           = "amd64"
+    os             = "linux"
+    startup_script = <<EOF
+    #!/bin/sh
+
+    # install vs code server
+    # alternatively install in a container image Dockerfile
+    wget -O- https://aka.ms/install-vscode-server/setup.sh | sh
+
+    # start vs code server
+    code-server --accept-server-license-terms serve-local --without-connection-token --quality stable --telemetry-level off >/dev/null 2>&1 &
+
+    EOF
+}
+```
+
+```hcl
+# microsoft vs code server
+resource "coder_app" "msft-code-server" {
+  agent_id      = coder_agent.main.id
+  slug          = "msft-code-server"
+  display_name  = "VS Code Server"
+  icon          = "/icon/code.svg"
+  url           = "http://localhost:8000?folder=/home/coder"
+  subdomain     = true
+  share         = "owner"
+
+  healthcheck {
+    url       = "http://localhost:8000/healthz"
+    interval  = 5
+    threshold = 15
+  }
+}
+```
 
 ## JupyterLab
 

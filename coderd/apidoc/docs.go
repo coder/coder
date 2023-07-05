@@ -1711,7 +1711,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.RegionsResponse"
+                            "$ref": "#/definitions/codersdk.RegionsResponse-codersdk_Region"
                         }
                     }
                 }
@@ -5109,7 +5109,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.WorkspaceProxy"
+                                "$ref": "#/definitions/codersdk.RegionsResponse-codersdk_WorkspaceProxy"
                             }
                         }
                     }
@@ -6972,7 +6972,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "locked_ttl_ms": {
-                    "description": "LockedTTL allows optionally specifying the max lifetime before Coder\npermanently deletes locked workspaces created from this template.",
+                    "description": "LockedTTLMillis allows optionally specifying the max lifetime before Coder\npermanently deletes locked workspaces created from this template.",
                     "type": "integer"
                 },
                 "max_ttl_ms": {
@@ -8648,13 +8648,24 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.RegionsResponse": {
+        "codersdk.RegionsResponse-codersdk_Region": {
             "type": "object",
             "properties": {
                 "regions": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.Region"
+                    }
+                }
+            }
+        },
+        "codersdk.RegionsResponse-codersdk_WorkspaceProxy": {
+            "type": "object",
+            "properties": {
+                "regions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceProxy"
                     }
                 }
             }
@@ -10144,7 +10155,10 @@ const docTemplate = `{
                 "display_name": {
                     "type": "string"
                 },
-                "icon": {
+                "healthy": {
+                    "type": "boolean"
+                },
+                "icon_url": {
                     "type": "string"
                 },
                 "id": {
@@ -10152,6 +10166,10 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "name": {
+                    "type": "string"
+                },
+                "path_app_url": {
+                    "description": "PathAppURL is the URL to the base path for path apps. Optional\nunless wildcard_hostname is set.\nE.g. https://us.example.com",
                     "type": "string"
                 },
                 "status": {
@@ -10166,12 +10184,8 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
-                "url": {
-                    "description": "Full url including scheme of the proxy api url: https://us.example.com",
-                    "type": "string"
-                },
                 "wildcard_hostname": {
-                    "description": "WildcardHostname with the wildcard for subdomain based app hosting: *.us.example.com",
+                    "description": "WildcardHostname is the wildcard hostname for subdomain apps.\nE.g. *.us.example.com\nE.g. *--suffix.au.example.com\nOptional. Does not need to be on the same domain as PathAppURL.",
                     "type": "string"
                 }
             }

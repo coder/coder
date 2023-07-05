@@ -58,6 +58,23 @@ jobs:
           CODER_BASE_IMAGE_TAG: ghcr.io/coder/coder-preview-base:pr${{ steps.pr_number.outputs.PR_NUMBER }}
           CODER_IMAGE_TAG: ghcr.io/coder/coder-preview:pr${{ steps.pr_number.outputs.PR_NUMBER }}
 
+      - name: Find Deploy Comment
+        if: github.event_name == 'issue_comment'
+        uses: peter-evans/find-comment@v2
+        id: fco
+        with:
+          issue-number: ${{ steps.pr_number.outputs.PR_NUMBER }}
+          comment-author: "github-actions[bot]"
+          body-includes: /deploy-pr
+
+      - name: React with Rocket
+        if: github.event_name == 'issue_comment'
+        id: comment_ido
+        uses: peter-evans/create-or-update-comment@v3
+        with:
+          comment-id: ${{ steps.fco.outputs.comment-id }}
+          reactions: rocket
+
       - name: Find Comment
         uses: peter-evans/find-comment@v2
         id: fc
