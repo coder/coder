@@ -19,6 +19,8 @@ func newCLI(t *testing.T, args ...string) (*clibase.Invocation, config.Root) {
 }
 
 func TestEnterpriseHandlersOK(t *testing.T) {
+	t.Parallel()
+
 	var root cli.RootCmd
 	cmd, err := root.Command(root.EnterpriseSubcommands())
 	require.NoError(t, err)

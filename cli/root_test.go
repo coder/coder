@@ -183,6 +183,8 @@ func TestDERPHeaders(t *testing.T) {
 }
 
 func TestHandlersOK(t *testing.T) {
+	t.Parallel()
+
 	var root cli.RootCmd
 	cmd, err := root.Command(root.Core())
 	require.NoError(t, err)
