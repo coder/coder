@@ -193,10 +193,9 @@ jobs:
         uses: actions/checkout@v3
 
       - uses: ./.github/actions/setup-node
-#        with:
+        with:
           # Only install prettier dep for this job
-#          yarn-install-flags: "--prettier"
-
+          yarn-install-flags: "--prettier"
 
       - uses: buildjet/setup-go@v4
         with:
