@@ -85,12 +85,8 @@ func Test_Runner(t *testing.T) {
 		version = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		agentCh := goEventuallyStartFakeAgent(ctx, t, client, authToken)
-		t.Cleanup(func() {
-			if closer, ok := <-agentCh; ok {
-				_ = closer.Close()
-			}
-		})
+		closer := goEventuallyStartFakeAgent(ctx, t, client, authToken)
+		t.Cleanup(closer)
 
 		const (
 			username = "scaletest-user"
@@ -212,12 +208,8 @@ func Test_Runner(t *testing.T) {
 		version = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		agentCh := goEventuallyStartFakeAgent(ctx, t, client, authToken)
-		t.Cleanup(func() {
-			if closer, ok := <-agentCh; ok {
-				_ = closer.Close()
-			}
-		})
+		closer := goEventuallyStartFakeAgent(ctx, t, client, authToken)
+		t.Cleanup(closer)
 
 		const (
 			username = "scaletest-user"
@@ -344,8 +336,8 @@ func Test_Runner(t *testing.T) {
 // Since the runner creates the workspace on it's own, we have to keep
 // listing workspaces until we find it, then wait for the build to
 // finish, then start the agents. It is the caller's responsibility to
-// close the returned io.Closer.
-func goEventuallyStartFakeAgent(ctx context.Context, t *testing.T, client *codersdk.Client, agentToken string) chan io.Closer {
+// call the returned function to stop the agents.
+func goEventuallyStartFakeAgent(ctx context.Context, t *testing.T, client *codersdk.Client, agentToken string) func() {
 	t.Helper()
 	ch := make(chan io.Closer, 1) // Don't block.
 	go func() {
@@ -378,5 +370,10 @@ func goEventuallyStartFakeAgent(ctx context.Context, t *testing.T, client *coder
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 		ch <- agentCloser
 	}()
-	return ch
+	closeFunc := func() {
+		if closer, ok := <-ch; ok {
+			_ = closer.Close()
+		}
+	}
+	return closeFunc
 }
