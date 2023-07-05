@@ -200,7 +200,7 @@ jobs:
           skip-yarn-install: "true"
 
       - name: Install prettier
-        run: yarn install --prettier
+        run: cd site && yarn install --prettier
 
       - uses: buildjet/setup-go@v4
         with:
