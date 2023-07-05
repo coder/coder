@@ -25,7 +25,9 @@ import (
 
 func Test_Runner(t *testing.T) {
 	t.Parallel()
-	t.Skip("Flake seen here: https://github.com/coder/coder/actions/runs/3436164958/jobs/5729513320")
+	if testutil.RaceEnabled {
+		t.Skip("Race detector enabled, skipping time-sensitive test.")
+	}
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
