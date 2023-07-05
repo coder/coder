@@ -27,10 +27,10 @@ import (
 )
 
 func Test_Runner(t *testing.T) {
+	t.Parallel()
 	if testutil.RaceEnabled {
 		t.Skip("Race detector enabled, skipping time-sensitive test.")
 	}
-	t.Parallel()
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
@@ -84,7 +84,7 @@ func Test_Runner(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 
-		go eventuallyStartFakeAgent(t, ctx, client, authToken)
+		go eventuallyStartFakeAgent(ctx, t, client, authToken)
 
 		const (
 			username = "scaletest-user"
@@ -206,7 +206,7 @@ func Test_Runner(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 
-		go eventuallyStartFakeAgent(t, ctx, client, authToken)
+		go eventuallyStartFakeAgent(ctx, t, client, authToken)
 
 		const (
 			username = "scaletest-user"
@@ -333,7 +333,7 @@ func Test_Runner(t *testing.T) {
 // Since the runner creates the workspace on it's own, we have to keep
 // listing workspaces until we find it, then wait for the build to
 // finish, then start the agents.
-func eventuallyStartFakeAgent(t *testing.T, ctx context.Context, client *codersdk.Client, agentToken string) {
+func eventuallyStartFakeAgent(ctx context.Context, t *testing.T, client *codersdk.Client, agentToken string) {
 	t.Helper()
 	var workspace codersdk.Workspace
 	for {
