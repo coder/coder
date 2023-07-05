@@ -203,7 +203,10 @@ jobs:
           go-version: 1.20.5
 
       - name: Install prettier
-        run: cd site && yarn install --prettier
+        # Install the same version of prettier that we have in our package.json
+        # We install it globally because we do not want to install all node_modules.
+        # There is no easy way to only install 1 dep from a package.json.
+        run: cd site && yarn global add prettier@$(cat ./package.json | jq -r '.devDependencies["prettier"]')
 
 
       - name: Install shfmt
