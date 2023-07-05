@@ -25,7 +25,7 @@ import (
 
 func Test_Runner(t *testing.T) {
 	t.Parallel()
-	if testutil.RaceEnabled {
+	if testutil.RaceEnabled() {
 		t.Skip("Race detector enabled, skipping time-sensitive test.")
 	}
 
