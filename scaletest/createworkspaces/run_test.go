@@ -3,6 +3,7 @@ package createworkspaces_test
 import (
 	"bytes"
 	"context"
+	"io"
 	"testing"
 	"time"
 
@@ -84,7 +85,12 @@ func Test_Runner(t *testing.T) {
 		version = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		go eventuallyStartFakeAgent(ctx, t, client, authToken)
+		agentCh := goEventuallyStartFakeAgent(ctx, t, client, authToken)
+		t.Cleanup(func() {
+			if closer, ok := <-agentCh; ok {
+				_ = closer.Close()
+			}
+		})
 
 		const (
 			username = "scaletest-user"
@@ -206,7 +212,12 @@ func Test_Runner(t *testing.T) {
 		version = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		go eventuallyStartFakeAgent(ctx, t, client, authToken)
+		agentCh := goEventuallyStartFakeAgent(ctx, t, client, authToken)
+		t.Cleanup(func() {
+			if closer, ok := <-agentCh; ok {
+				_ = closer.Close()
+			}
+		})
 
 		const (
 			username = "scaletest-user"
@@ -332,37 +343,40 @@ func Test_Runner(t *testing.T) {
 
 // Since the runner creates the workspace on it's own, we have to keep
 // listing workspaces until we find it, then wait for the build to
-// finish, then start the agents.
-func eventuallyStartFakeAgent(ctx context.Context, t *testing.T, client *codersdk.Client, agentToken string) {
+// finish, then start the agents. It is the caller's responsibility to
+// close the returned io.Closer.
+func goEventuallyStartFakeAgent(ctx context.Context, t *testing.T, client *codersdk.Client, agentToken string) chan io.Closer {
 	t.Helper()
-	var workspace codersdk.Workspace
-	for {
-		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
-		if !assert.NoError(t, err) {
-			return
+	ch := make(chan io.Closer, 1) // Don't block.
+	go func() {
+		defer close(ch)
+		var workspace codersdk.Workspace
+		for {
+			res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+			if !assert.NoError(t, err) {
+				return
+			}
+			workspaces := res.Workspaces
+
+			if len(workspaces) == 1 {
+				workspace = workspaces[0]
+				break
+			}
+
+			time.Sleep(100 * time.Millisecond)
 		}
-		workspaces := res.Workspaces
 
-		if len(workspaces) == 1 {
-			workspace = workspaces[0]
-			break
-		}
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		time.Sleep(100 * time.Millisecond)
-	}
-
-	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(agentToken)
-	agentCloser := agent.New(agent.Options{
-		Client: agentClient,
-		Logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).
-			Named("agent").Leveled(slog.LevelWarn),
-	})
-	t.Cleanup(func() {
-		_ = agentCloser.Close()
-	})
-
-	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(agentToken)
+		agentCloser := agent.New(agent.Options{
+			Client: agentClient,
+			Logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).
+				Named("agent").Leveled(slog.LevelWarn),
+		})
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+		ch <- agentCloser
+	}()
+	return ch
 }
