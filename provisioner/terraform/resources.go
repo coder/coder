@@ -385,7 +385,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 	resourceIcon := map[string]string{}
 	resourceCost := map[string]int32{}
 
-	metadataTargetLabels := map[string]struct{}{}
+	metadataTargetLabels := map[string]bool{}
 	for _, resources := range tfResourcesByLabel {
 		for _, resource := range resources {
 			if resource.Type != "coder_metadata" {
@@ -433,10 +433,10 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 			}
 			targetLabel := attachedResource.Label
 
-			if _, ok := metadataTargetLabels[targetLabel]; ok {
+			if metadataTargetLabels[targetLabel] {
 				return nil, xerrors.Errorf("duplicate metadata resource: %s", targetLabel)
 			}
-			metadataTargetLabels[targetLabel] = struct{}{}
+			metadataTargetLabels[targetLabel] = true
 
 			resourceHidden[targetLabel] = attrs.Hide
 			resourceIcon[targetLabel] = attrs.Icon

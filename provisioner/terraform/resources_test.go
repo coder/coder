@@ -639,11 +639,8 @@ func TestAppSlugValidation(t *testing.T) {
 func TestMetadataResourceDuplicate(t *testing.T) {
 	t.Parallel()
 
-	// nolint:dogsled
-	_, filename, _, _ := runtime.Caller(0)
-
 	// Load the multiple-apps state file and edit it.
-	dir := filepath.Join(filepath.Dir(filename), "testdata", "resource-metadata-duplicate")
+	dir := filepath.Join("testdata", "resource-metadata-duplicate")
 	tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "resource-metadata-duplicate.tfplan.json"))
 	require.NoError(t, err)
 	var tfPlan tfjson.Plan
