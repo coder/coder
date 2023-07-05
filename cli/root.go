@@ -95,7 +95,6 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 		r.list(),
 		r.ping(),
 		r.rename(),
-		r.scaletest(),
 		r.schedules(),
 		r.show(),
 		r.speedtest(),
@@ -111,6 +110,7 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 		r.netcheck(),
 		r.vscodeSSH(),
 		r.workspaceAgent(),
+		r.expCmd(),
 	}
 }
 

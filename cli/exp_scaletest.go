@@ -38,7 +38,7 @@ import (
 
 const scaletestTracerName = "coder_scaletest"
 
-func (r *RootCmd) scaletest() *clibase.Cmd {
+func (r *RootCmd) scaletestCmd() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:   "scaletest",
 		Short: "Run a scale test against the Coder API",

@@ -26,7 +26,6 @@ Coder v0.0.0-devel — A tool for provisioning self-hosted development environme
     reset-password    Directly connect to the database to reset a user's
                       password
     restart           Restart a workspace
-    scaletest         Run a scale test against the Coder API
     schedule          Schedule automated start and stop times for workspaces
     server            Start a Coder server
     show              Display details of a workspace's resources and agents
