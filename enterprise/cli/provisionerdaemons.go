@@ -27,6 +27,9 @@ func (r *RootCmd) provisionerDaemons() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:   "provisionerd",
 		Short: "Manage provisioner daemons",
+		Handler: func(inv *clibase.Invocation) error {
+			return inv.Command.HelpHandler(inv)
+		},
 		Children: []*clibase.Cmd{
 			r.provisionerDaemonStart(),
 		},

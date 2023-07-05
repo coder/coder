@@ -260,6 +260,11 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 	// Add a wrapper to every command to enable debugging options.
 	cmd.Walk(func(cmd *clibase.Cmd) {
 		h := cmd.Handler
+		if h == nil {
+			// We should never have a nil handler, but if we do, do not
+			// wrap it. Wrapping it just hides a nil pointer dereference.
+			return
+		}
 		cmd.Handler = func(i *clibase.Invocation) error {
 			if !debugOptions {
 				return h(i)
