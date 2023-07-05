@@ -357,7 +357,8 @@ func eventuallyStartFakeAgent(ctx context.Context, t *testing.T, client *codersd
 	agentClient.SetSessionToken(agentToken)
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,
-		Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelWarn),
+		Logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).
+			Named("agent").Leveled(slog.LevelWarn),
 	})
 	t.Cleanup(func() {
 		_ = agentCloser.Close()
