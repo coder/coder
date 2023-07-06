@@ -120,6 +120,7 @@ func (r *RootCmd) patchProxy() *clibase.Cmd {
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
 			if proxyIcon == "" && displayName == "" && proxyName == "" {
+				_ = inv.Command.HelpHandler(inv)
 				return xerrors.Errorf("specify at least one field to update")
 			}
 
