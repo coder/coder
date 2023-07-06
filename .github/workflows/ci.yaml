@@ -192,9 +192,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - uses: buildjet/setup-node@v3
-        with:
-          node-version: 16.16.0
+      - uses: ./.github/actions/setup-node
 
       - uses: buildjet/setup-go@v4
         with:
