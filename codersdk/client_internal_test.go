@@ -114,8 +114,8 @@ func Test_Client(t *testing.T) {
 	client.SetSessionToken(token)
 
 	logBuf := bytes.NewBuffer(nil)
-	client.Logger = slog.Make(sloghuman.Sink(logBuf)).Leveled(slog.LevelDebug)
-	client.LogBodies = true
+	client.SetLogger(slog.Make(sloghuman.Sink(logBuf)).Leveled(slog.LevelDebug))
+	client.SetLogBodies(true)
 
 	// Setup tracing.
 	res := resource.NewWithAttributes(

@@ -543,7 +543,7 @@ func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
 
 			if r.debugHTTP {
 				client.PlainLogger = os.Stderr
-				client.LogBodies = true
+				client.SetLogBodies(true)
 			}
 			client.DisableDirectConnections = r.disableDirect
 

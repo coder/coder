@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/google/uuid"
+
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
@@ -17,7 +19,6 @@ import (
 	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/testutil"
-	"github.com/google/uuid"
 )
 
 func TestServiceBanners(t *testing.T) {

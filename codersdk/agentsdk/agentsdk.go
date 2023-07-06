@@ -194,7 +194,7 @@ func (c *Client) Listen(ctx context.Context) (net.Conn, error) {
 		ticker := time.NewTicker(tick)
 		defer ticker.Stop()
 		defer func() {
-			c.SDK.Logger.Debug(ctx, "coordinate pinger exited")
+			c.SDK.Logger().Debug(ctx, "coordinate pinger exited")
 		}()
 		for {
 			select {
@@ -205,18 +205,18 @@ func (c *Client) Listen(ctx context.Context) (net.Conn, error) {
 
 				err := conn.Ping(ctx)
 				if err != nil {
-					c.SDK.Logger.Error(ctx, "workspace agent coordinate ping", slog.Error(err))
+					c.SDK.Logger().Error(ctx, "workspace agent coordinate ping", slog.Error(err))
 
 					err := conn.Close(websocket.StatusGoingAway, "Ping failed")
 					if err != nil {
-						c.SDK.Logger.Error(ctx, "close workspace agent coordinate websocket", slog.Error(err))
+						c.SDK.Logger().Error(ctx, "close workspace agent coordinate websocket", slog.Error(err))
 					}
 
 					cancel()
 					return
 				}
 
-				c.SDK.Logger.Debug(ctx, "got coordinate pong", slog.F("took", time.Since(start)))
+				c.SDK.Logger().Debug(ctx, "got coordinate pong", slog.F("took", time.Since(start)))
 				cancel()
 			}
 		}
