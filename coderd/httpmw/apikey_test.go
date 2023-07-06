@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -594,5 +595,40 @@ func TestAPIKey(t *testing.T) {
 		require.Equal(t, sentAPIKey.LastUsed, gotAPIKey.LastUsed)
 		require.Equal(t, sentAPIKey.ExpiresAt, gotAPIKey.ExpiresAt)
 		require.Equal(t, sentAPIKey.LoginType, gotAPIKey.LoginType)
+	})
+
+	t.Run("MissongConfig", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db       = dbfake.New()
+			user     = dbgen.User(t, db, database.User{})
+			_, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:    user.ID,
+				LastUsed:  database.Now(),
+				ExpiresAt: database.Now().AddDate(0, 0, 1),
+				LoginType: database.LoginTypeOIDC,
+			})
+			_ = dbgen.UserLink(t, db, database.UserLink{
+				UserID:            user.ID,
+				LoginType:         database.LoginTypeOIDC,
+				OAuthRefreshToken: "random",
+				// expired
+				OAuthExpiry: time.Now().Add(time.Hour * -1),
+			})
+
+			r  = httptest.NewRequest("GET", "/", nil)
+			rw = httptest.NewRecorder()
+		)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusInternalServerError, res.StatusCode)
+		out, _ := io.ReadAll(res.Body)
+		require.Contains(t, string(out), "Unable to refresh")
 	})
 }
