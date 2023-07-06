@@ -138,9 +138,8 @@ const ProxyMessagesList: FC<{
       }
     >
       {messages.map((error, index) => (
-        <ListItem key={"warning" + index}>
+        <ListItem key={"message" + index}>
           <CodeExample code={error} />
-          {/* <CodeBlock lines={[error]} /> */}
         </ListItem>
       ))}
     </List>
