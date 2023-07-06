@@ -3932,6 +3932,7 @@ func (q *fakeQuerier) InsertTemplateVersion(_ context.Context, arg database.Inse
 		CreatedAt:      arg.CreatedAt,
 		UpdatedAt:      arg.UpdatedAt,
 		Name:           arg.Name,
+		Message:        arg.Message,
 		Readme:         arg.Readme,
 		JobID:          arg.JobID,
 		CreatedBy:      arg.CreatedBy,

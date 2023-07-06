@@ -33,7 +33,10 @@ func TestTemplateVersion(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		authz := coderdtest.AssertRBAC(t, api, client).Reset()
 
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil, func(req *codersdk.CreateTemplateVersionRequest) {
+			req.Name = "bananas"
+			req.Message = "first try"
+		})
 		authz.AssertChecked(t, rbac.ActionCreate, rbac.ResourceTemplate.InOrg(user.OrganizationID))
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -43,6 +46,9 @@ func TestTemplateVersion(t *testing.T) {
 		tv, err := client.TemplateVersion(ctx, version.ID)
 		authz.AssertChecked(t, rbac.ActionRead, tv)
 		require.NoError(t, err)
+
+		assert.Equal(t, "bananas", tv.Name)
+		assert.Equal(t, "first try", tv.Message)
 	})
 
 	t.Run("MemberCanRead", func(t *testing.T) {
