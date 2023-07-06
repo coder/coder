@@ -43,7 +43,7 @@ type OrganizationMember struct {
 // CreateTemplateVersionRequest enables callers to create a new Template Version.
 type CreateTemplateVersionRequest struct {
 	Name    string `json:"name,omitempty" validate:"omitempty,template_version_name"`
-	Message string `json:"message,omitempty" validate:"lt=1048577"` // Database limit: 1048576.
+	Message string `json:"message,omitempty" validate:"lt=1048577"`
 	// TemplateID optionally associates a version with a template.
 	TemplateID      uuid.UUID                `json:"template_id,omitempty" format:"uuid"`
 	StorageMethod   ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required" enums:"file"`

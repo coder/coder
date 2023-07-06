@@ -133,7 +133,7 @@ func TestTemplatePush(t *testing.T) {
 			{wantMessage: strings.Repeat("a", 73), wantMatch: "Template message is longer than 72 characters"},
 			{wantMessage: "This is my title\n\nAnd this is my body.", wantMatch: "Template message contains newlines"},
 		} {
-			inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example", "--message", tt.wantMessage, "--yes")
+			inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--message", tt.wantMessage, "--yes")
 			clitest.SetupConfig(t, client, root)
 			pty := ptytest.New(t).Attach(inv)
 
