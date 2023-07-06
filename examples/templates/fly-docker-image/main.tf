@@ -19,7 +19,6 @@ provider "fly" {
 }
 
 provider "coder" {
-  feature_use_managed_variables = true
 }
 
 resource "fly_app" "workspace" {
