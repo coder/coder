@@ -906,16 +906,18 @@ func TestCompleteJob(t *testing.T) {
 
 		now := time.Now()
 
-		// Wednesday the 5th of July 2023 at midnight.
-		wednesdayMidnightUTC := time.Date(2023, 7, 5, 0, 0, 0, 0, time.UTC)
+		// Wednesday the 8th of February 2023 at midnight. This date was
+		// specifically chosen as it doesn't fall on a applicable week for both
+		// fortnightly and triweekly restart requirements.
+		wednesdayMidnightUTC := time.Date(2023, 2, 8, 0, 0, 0, 0, time.UTC)
 
 		sydneyQuietHours := "CRON_TZ=Australia/Sydney 0 0 * * *"
 		sydneyLoc, err := time.LoadLocation("Australia/Sydney")
 		require.NoError(t, err)
-		// 10pm on Friday the 7th of July 2023 in Sydney.
-		fridayEveningSydney := time.Date(2023, 7, 7, 22, 0, 0, 0, sydneyLoc)
-		// 12am on Saturday the 8th of July 2023 in Sydney.
-		saturdayMidnightSydney := time.Date(2023, 7, 8, 0, 0, 0, 0, sydneyLoc)
+		// 10pm on Friday the 10th of February 2023 in Sydney.
+		fridayEveningSydney := time.Date(2023, 2, 10, 22, 0, 0, 0, sydneyLoc)
+		// 12am on Saturday the 11th of February2023 in Sydney.
+		saturdayMidnightSydney := time.Date(2023, 2, 11, 0, 0, 0, 0, sydneyLoc)
 
 		t.Log("now", now)
 		t.Log("wednesdayMidnightUTC", wednesdayMidnightUTC)
@@ -1026,7 +1028,7 @@ func TestCompleteJob(t *testing.T) {
 				userQuietHoursSchedule: sydneyQuietHours,
 				templateRestartRequirement: schedule.TemplateRestartRequirement{
 					DaysOfWeek: 0b00100000, // Saturday
-					Weeks:      0,          // weekly
+					Weeks:      1,          // 1 also means weekly
 				},
 				workspaceTTL: 0,
 				transition:   database.WorkspaceTransitionStart,
@@ -1049,6 +1051,68 @@ func TestCompleteJob(t *testing.T) {
 				transition:   database.WorkspaceTransitionStart,
 				// expectedDeadline is copied from expectedMaxDeadline.
 				expectedMaxDeadline: saturdayMidnightSydney.In(time.UTC),
+			},
+			{
+				name:                   "TemplateRestartRequirementFortnightly/Skip",
+				now:                    wednesdayMidnightUTC,
+				templateAllowAutostop:  true,
+				templateDefaultTTL:     0,
+				userQuietHoursSchedule: sydneyQuietHours,
+				templateRestartRequirement: schedule.TemplateRestartRequirement{
+					DaysOfWeek: 0b00100000, // Saturday
+					Weeks:      2,          // every 2 weeks
+				},
+				workspaceTTL: 0,
+				transition:   database.WorkspaceTransitionStart,
+				// expectedDeadline is copied from expectedMaxDeadline.
+				expectedMaxDeadline: saturdayMidnightSydney.AddDate(0, 0, 7).In(time.UTC),
+			},
+			{
+				name:                   "TemplateRestartRequirementFortnightly/NoSkip",
+				now:                    wednesdayMidnightUTC.AddDate(0, 0, 7),
+				templateAllowAutostop:  true,
+				templateDefaultTTL:     0,
+				userQuietHoursSchedule: sydneyQuietHours,
+				templateRestartRequirement: schedule.TemplateRestartRequirement{
+					DaysOfWeek: 0b00100000, // Saturday
+					Weeks:      2,          // every 2 weeks
+				},
+				workspaceTTL: 0,
+				transition:   database.WorkspaceTransitionStart,
+				// expectedDeadline is copied from expectedMaxDeadline.
+				expectedMaxDeadline: saturdayMidnightSydney.AddDate(0, 0, 7).In(time.UTC),
+			},
+			{
+				name:                   "TemplateRestartRequirementTriweekly/Skip",
+				now:                    wednesdayMidnightUTC,
+				templateAllowAutostop:  true,
+				templateDefaultTTL:     0,
+				userQuietHoursSchedule: sydneyQuietHours,
+				templateRestartRequirement: schedule.TemplateRestartRequirement{
+					DaysOfWeek: 0b00100000, // Saturday
+					Weeks:      3,          // every 3 weeks
+				},
+				workspaceTTL: 0,
+				transition:   database.WorkspaceTransitionStart,
+				// expectedDeadline is copied from expectedMaxDeadline.
+				// The next triweekly restart requirement happens next week
+				// according to the epoch.
+				expectedMaxDeadline: saturdayMidnightSydney.AddDate(0, 0, 7).In(time.UTC),
+			},
+			{
+				name:                   "TemplateRestartRequirementTriweekly/NoSkip",
+				now:                    wednesdayMidnightUTC.AddDate(0, 0, 7),
+				templateAllowAutostop:  true,
+				templateDefaultTTL:     0,
+				userQuietHoursSchedule: sydneyQuietHours,
+				templateRestartRequirement: schedule.TemplateRestartRequirement{
+					DaysOfWeek: 0b00100000, // Saturday
+					Weeks:      3,          // every 3 weeks
+				},
+				workspaceTTL: 0,
+				transition:   database.WorkspaceTransitionStart,
+				// expectedDeadline is copied from expectedMaxDeadline.
+				expectedMaxDeadline: saturdayMidnightSydney.AddDate(0, 0, 7).In(time.UTC),
 			},
 			{
 				name: "TemplateRestartRequirementOverridesWorkspaceTTL",
@@ -1086,11 +1150,6 @@ func TestCompleteJob(t *testing.T) {
 
 		for _, c := range cases {
 			c := c
-
-			if c.name != "TemplateRestartRequirement1HourSkip" {
-				// TODO: REMOVE
-				continue
-			}
 
 			t.Run(c.name, func(t *testing.T) {
 				t.Parallel()

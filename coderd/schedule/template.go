@@ -40,8 +40,8 @@ type TemplateRestartRequirement struct {
 	//
 	// First bit is Monday, ..., seventh bit is Sunday, eighth bit is unused.
 	DaysOfWeek uint8
-	// Weeks is the amount of weeks between restarts. If zero, the workspace is
-	// restarted weekly in accordance with DaysOfWeek. If 1, the workspace is
+	// Weeks is the amount of weeks between restarts. If 0 or 1, the workspace
+	// is restarted weekly in accordance with DaysOfWeek. If 2, the workspace is
 	// restarted every other week. And so forth.
 	//
 	// The limit for this value is 16, which is roughly 4 months.

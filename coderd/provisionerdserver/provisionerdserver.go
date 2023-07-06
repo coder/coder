@@ -43,6 +43,19 @@ import (
 	sdkproto "github.com/coder/coder/provisionersdk/proto"
 )
 
+const (
+	// restartRequirementLeeway is the duration of time before a restart
+	// requirement where we skip the requirement and fall back to the next
+	// scheduled restart. This avoids workspaces being restarted too soon.
+	restartRequirementLeeway = 1 * time.Hour
+
+	// restartRequirementBuffer is the duration of time we subtract from the
+	// time when calculating the next scheduled restart time. This avoids issues
+	// where autostart happens on the hour and the scheduled quiet hours are
+	// also on the hour.
+	restartRequirementBuffer = -15 * time.Minute
+)
+
 var (
 	lastAcquire      time.Time
 	lastAcquireMutex sync.RWMutex
@@ -961,39 +974,48 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				if userQuietHoursSchedule.Schedule != nil {
 					loc := userQuietHoursSchedule.Schedule.Location()
 					now := server.timeNow().In(loc)
-					startOfDay := truncateMidnight(now)
+					// Add the leeway here so we avoid checking today's quiet
+					// hours if the workspace was started <1h before midnight.
+					startOfStopDay := truncateMidnight(now.Add(restartRequirementLeeway))
 
 					// If the template schedule wants to only restart on n-th
-					// weeks then change the startOfDay to be the start of the
-					// next n-th week if this week is not an n-th week.
-					/*
-						TODO: get working and add tests
-						if templateSchedule.RestartRequirement.Weeks != 0 {
-							epoch := schedule.TemplateRestartRequirementEpoch(loc)
-							if startOfDay.Before(epoch) {
-								return xerrors.Errorf("coder server system clock is incorrect, cannot calculate template restart requirement")
-							}
-							since := startOfDay.Sub(epoch)
-							weeksSince := int64(since.Hours() / (24 * 7))
-							if weeksSince%templateSchedule.RestartRequirement.Weeks != 0 {
-								startOfDay = epoch.Add(time.Duration(weeksSince/templateSchedule.RestartRequirement.Weeks+1) * 24 * 7 * time.Hour)
-								startOfDay = truncateMidnight(startOfDay)
-							}
+					// weeks then change the startOfDay to be the Monday of the
+					// next applicable week.
+					if templateSchedule.RestartRequirement.Weeks > 1 {
+						epoch := schedule.TemplateRestartRequirementEpoch(loc)
+						if startOfStopDay.Before(epoch) {
+							return xerrors.New("coder server system clock is incorrect, cannot calculate template restart requirement")
 						}
-					*/
+						since := startOfStopDay.Sub(epoch)
+						weeksSinceEpoch := int64(since.Hours() / (24 * 7))
+						requiredWeeks := templateSchedule.RestartRequirement.Weeks
+						weeksRemainder := weeksSinceEpoch % requiredWeeks
+						if weeksRemainder != 0 {
+							// Add (requiredWeeks - weeksSince) * 7 days to the
+							// current startOfStopDay, then truncate to Monday
+							// midnight.
+							//
+							// This sets startOfStopDay to Monday at midnight of
+							// the next applicable week.
+							y, mo, d := startOfStopDay.Date()
+							d += int(requiredWeeks-weeksRemainder) * 7
+							startOfStopDay = time.Date(y, mo, d, 0, 0, 0, 0, loc)
+							startOfStopDay = truncateMondayMidnight(startOfStopDay)
+						}
+					}
 
-					// Determine if we should skip today because the schedule is
-					// too near or has already passed.
+					// Determine if we should skip the first day because the
+					// schedule is too near or has already passed.
 					//
 					// Allow an hour of leeway (i.e. any workspaces started
 					// within an hour of the scheduled stop time will always
 					// bounce to the next stop window).
-					todaySchedule := userQuietHoursSchedule.Schedule.Next(startOfDay)
-					if todaySchedule.Before(now.Add(time.Hour)) {
+					checkSchedule := userQuietHoursSchedule.Schedule.Next(startOfStopDay.Add(restartRequirementBuffer))
+					if checkSchedule.Before(now.Add(restartRequirementLeeway)) {
 						// Set the first stop day we try to tomorrow because
 						// today's schedule is too close to now or has already
 						// passed.
-						startOfDay = nextDayMidnight(startOfDay)
+						startOfStopDay = nextDayMidnight(startOfStopDay)
 					}
 
 					// Iterate from 0 to 7, check if the current startOfDay is
@@ -1005,17 +1027,17 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 							// We've wrapped, so somehow we couldn't find a day
 							// in the restart requirement. This shouldn't happen
 							// because the restart requirement has a day set.
-							return xerrors.Errorf("could not find suitable day for template restart requirement in the next 7 days")
+							return xerrors.New("could not find suitable day for template restart requirement in the next 7 days")
 						}
-						if requirementDays[startOfDay.Weekday()] {
+						if requirementDays[startOfStopDay.Weekday()] {
 							break
 						}
-						startOfDay = nextDayMidnight(startOfDay)
+						startOfStopDay = nextDayMidnight(startOfStopDay)
 					}
 
 					// If the startOfDay is within an hour of now, then we add
 					// an hour.
-					checkTime := startOfDay
+					checkTime := startOfStopDay
 					if checkTime.Before(now.Add(time.Hour)) {
 						checkTime = now.Add(time.Hour)
 					} else {
@@ -1023,13 +1045,13 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 						// minutes to give a little leeway. This prevents
 						// skipped stop events because autostart perfectly lines
 						// up with autostop.
-						checkTime = checkTime.Add(-15 * time.Minute)
+						checkTime = checkTime.Add(restartRequirementBuffer)
 					}
 
 					// Get the next occurrence of the restart schedule.
 					maxDeadline = userQuietHoursSchedule.Schedule.Next(checkTime)
 					if maxDeadline.IsZero() {
-						return xerrors.Errorf("could not find next occurrence of template restart requirement in user quiet hours schedule")
+						return xerrors.New("could not find next occurrence of template restart requirement in user quiet hours schedule")
 					}
 				}
 
@@ -1682,5 +1704,17 @@ func nextDayMidnight(t time.Time) time.Time {
 	yy, mm, dd := t.Date()
 	// time.Date will correctly normalize the date if it's past the end of the
 	// month. E.g. October 32nd will be November 1st.
-	return time.Date(yy, mm, dd+1, 0, 0, 0, 0, t.Location())
+	dd += 1
+	return time.Date(yy, mm, dd, 0, 0, 0, 0, t.Location())
+}
+
+// truncateMondayMidnight truncates a time to the previous Monday at midnight in
+// the time object's timezone.
+func truncateMondayMidnight(t time.Time) time.Time {
+	// time.Date will correctly normalize the date if it's past the end of the
+	// month. E.g. October 32nd will be November 1st.
+	yy, mm, dd := t.Date()
+	dd -= int(t.Weekday() - 1)
+	t = time.Date(yy, mm, dd, 0, 0, 0, 0, t.Location())
+	return truncateMidnight(t)
 }
