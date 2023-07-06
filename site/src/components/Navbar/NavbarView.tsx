@@ -283,7 +283,7 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
             e.stopPropagation()
           }}
         >
-          Select the closest region to you to improve workspace connections.
+          To improve workspace connections, select the closest region.
         </MenuItem>
         <Divider sx={{ borderColor: (theme) => theme.palette.divider }} />
         {proxyContextValue.proxies?.map((proxy) => (
