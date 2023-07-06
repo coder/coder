@@ -6259,6 +6259,9 @@
           "type": "string",
           "format": "uuid"
         },
+        "message": {
+          "type": "string"
+        },
         "name": {
           "type": "string"
         },
@@ -8224,6 +8227,9 @@
         },
         "job": {
           "$ref": "#/definitions/codersdk.ProvisionerJob"
+        },
+        "message": {
+          "type": "string"
         },
         "name": {
           "type": "string"
