@@ -2,7 +2,9 @@ package audit
 
 import (
 	"fmt"
+	"os"
 	"reflect"
+	"runtime"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
@@ -235,7 +237,8 @@ func entry(v any, f map[string]Action) (string, map[string]Action) {
 			continue
 		}
 		if _, ok := fcpy[jsonTag]; !ok {
-			panic(fmt.Sprintf("audit table entry missing action for field %q in type %q", d.FieldType.Name, name))
+			_, _ = fmt.Fprintf(os.Stderr, "ERROR: Audit table entry missing action for field %q in type %q\nPlease update the auditable resource types in: %s\n", d.FieldType.Name, name, self())
+			os.Exit(1)
 		}
 		delete(fcpy, jsonTag)
 	}
@@ -251,4 +254,9 @@ func entry(v any, f map[string]Action) (string, map[string]Action) {
 
 func (t Action) String() string {
 	return string(t)
+}
+
+func self() string {
+	_, file, _, _ := runtime.Caller(1)
+	return file
 }
