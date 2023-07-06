@@ -189,13 +189,32 @@ func (r *RootCmd) deleteProxy() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		Use:   "delete <name|id>",
 		Short: "Delete a workspace proxy",
+		Options: clibase.OptionSet{
+			cliui.SkipPromptOption(),
+		},
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
-			err := client.DeleteWorkspaceProxyByName(ctx, inv.Args[0])
+
+			wsproxy, err := client.WorkspaceProxyByName(ctx, inv.Args[0])
+			if err != nil {
+				return xerrors.Errorf("fetch workspace proxy %q: %w", inv.Args[0], err)
+			}
+
+			// Confirm deletion of the template.
+			_, err = cliui.Prompt(inv, cliui.PromptOptions{
+				Text:      fmt.Sprintf("Delete this workspace proxy: %s?", cliui.DefaultStyles.Code.Render(wsproxy.DisplayName)),
+				IsConfirm: true,
+				Default:   cliui.ConfirmNo,
+			})
+			if err != nil {
+				return err
+			}
+
+			err = client.DeleteWorkspaceProxyByName(ctx, inv.Args[0])
 			if err != nil {
 				return xerrors.Errorf("delete workspace proxy %q: %w", inv.Args[0], err)
 			}
