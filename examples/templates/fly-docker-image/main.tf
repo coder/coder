@@ -2,7 +2,7 @@ terraform {
   required_providers {
     fly = {
       source  = "fly-apps/fly"
-      version = "~>0.0.21"
+      version = "~>0.0.23"
     }
     coder = {
       source  = "coder/coder"
