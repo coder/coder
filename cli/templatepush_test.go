@@ -123,30 +123,36 @@ func TestTemplatePush(t *testing.T) {
 			ProvisionApply: echo.ProvisionComplete,
 		})
 
-		wantMessage := strings.Repeat("a", 73)
-
-		inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example", "--message", wantMessage, "--yes")
-		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		inv = inv.WithContext(ctx)
-		w := clitest.StartWithWaiter(t, inv)
+		for i, tt := range []struct {
+			wantMessage string
+			wantMatch   string
+		}{
+			{wantMessage: strings.Repeat("a", 73), wantMatch: "Template message is longer than 72 characters"},
+			{wantMessage: "This is my title\n\nAnd this is my body.", wantMatch: "Template message contains newlines"},
+		} {
+			inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example", "--message", tt.wantMessage, "--yes")
+			clitest.SetupConfig(t, client, root)
+			pty := ptytest.New(t).Attach(inv)
 
-		pty.ExpectMatchContext(ctx, "Template message is longer than 72 characters")
+			inv = inv.WithContext(ctx)
+			w := clitest.StartWithWaiter(t, inv)
 
-		w.RequireSuccess()
+			pty.ExpectMatchContext(ctx, tt.wantMatch)
 
-		// Assert that the template version changed.
-		templateVersions, err := client.TemplateVersionsByTemplate(ctx, codersdk.TemplateVersionsByTemplateRequest{
-			TemplateID: template.ID,
-		})
-		require.NoError(t, err)
-		assert.Len(t, templateVersions, 2)
-		assert.NotEqual(t, template.ActiveVersionID, templateVersions[1].ID)
-		require.Equal(t, wantMessage, templateVersions[1].Message)
+			w.RequireSuccess()
+
+			// Assert that the template version changed.
+			templateVersions, err := client.TemplateVersionsByTemplate(ctx, codersdk.TemplateVersionsByTemplateRequest{
+				TemplateID: template.ID,
+			})
+			require.NoError(t, err)
+			assert.Len(t, templateVersions, 2+i)
+			assert.NotEqual(t, template.ActiveVersionID, templateVersions[1+i].ID)
+			require.Equal(t, tt.wantMessage, templateVersions[1+i].Message)
+		}
 	})
 
 	t.Run("NoLockfile", func(t *testing.T) {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/briandowns/spinner"
@@ -117,8 +118,12 @@ func (pf *templateUploadFlags) checkForLockfile(inv *clibase.Invocation) error {
 }
 
 func (pf *templateUploadFlags) templateMessage(inv *clibase.Invocation) string {
-	if len(pf.message) > 72 {
+	title := strings.SplitN(pf.message, "\n", 2)[0]
+	if len(title) > 72 {
 		cliui.Warn(inv.Stdout, "Template message is longer than 72 characters, it will be displayed as truncated.")
+	}
+	if title != pf.message {
+		cliui.Warn(inv.Stdout, "Template message contains newlines, only the first line will be displayed.")
 	}
 	if pf.message != "" {
 		return pf.message
