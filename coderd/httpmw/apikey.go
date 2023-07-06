@@ -237,6 +237,13 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		}
 		// Check if the OAuth token is expired
 		if link.OAuthExpiry.Before(now) && !link.OAuthExpiry.IsZero() && link.OAuthRefreshToken != "" {
+			if cfg.OAuth2Configs == nil {
+				return write(http.StatusInternalServerError, codersdk.Response{
+					Message: internalErrorMessage,
+					Detail: fmt.Sprintf("Unable to refresh OAuth token for login type %q. "+
+						"No OAuth2Configs provided. Contact an administrator to configure this login type.", key.LoginType),
+				})
+			}
 			var oauthConfig OAuth2Config
 			switch key.LoginType {
 			case database.LoginTypeGithub:
