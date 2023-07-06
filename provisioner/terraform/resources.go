@@ -385,6 +385,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 	resourceIcon := map[string]string{}
 	resourceCost := map[string]int32{}
 
+	metadataTargetLabels := map[string]bool{}
 	for _, resources := range tfResourcesByLabel {
 		for _, resource := range resources {
 			if resource.Type != "coder_metadata" {
@@ -396,7 +397,6 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 			if err != nil {
 				return nil, xerrors.Errorf("decode metadata attributes: %w", err)
 			}
-
 			resourceLabel := convertAddressToLabel(resource.Address)
 
 			var attachedNode *gographviz.Node
@@ -432,6 +432,11 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 				continue
 			}
 			targetLabel := attachedResource.Label
+
+			if metadataTargetLabels[targetLabel] {
+				return nil, xerrors.Errorf("duplicate metadata resource: %s", targetLabel)
+			}
+			metadataTargetLabels[targetLabel] = true
 
 			resourceHidden[targetLabel] = attrs.Hide
 			resourceIcon[targetLabel] = attrs.Icon

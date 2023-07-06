@@ -361,7 +361,7 @@ func (s *Server) startPTYSession(session ptySession, magicTypeLabel string, cmd 
 	if !isQuietLogin(session.RawCommand()) {
 		manifest := s.Manifest.Load()
 		if manifest != nil {
-			err := showMOTD(session, manifest.MOTDFile)
+			err := showMOTD(s.fs, session, manifest.MOTDFile)
 			if err != nil {
 				s.logger.Error(ctx, "agent failed to show MOTD", slog.Error(err))
 				s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "motd").Add(1)
@@ -796,12 +796,12 @@ func showServiceBanner(session io.Writer, banner *codersdk.ServiceBannerConfig) 
 // the given filename to dest, if the file exists.
 //
 // https://github.com/openssh/openssh-portable/blob/25bd659cc72268f2858c5415740c442ee950049f/session.c#L784
-func showMOTD(dest io.Writer, filename string) error {
+func showMOTD(fs afero.Fs, dest io.Writer, filename string) error {
 	if filename == "" {
 		return nil
 	}
 
-	f, err := os.Open(filename)
+	f, err := fs.Open(filename)
 	if err != nil {
 		if xerrors.Is(err, os.ErrNotExist) {
 			// This is not an error, there simply isn't a MOTD to show.
