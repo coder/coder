@@ -17,7 +17,7 @@ import { makeStyles } from "@mui/styles"
 import { combineClasses } from "utils/combineClasses"
 import ListItem from "@mui/material/ListItem"
 import List from "@mui/material/List"
-import { ListSubheader } from "@mui/material"
+import ListSubheader from "@mui/material/ListSubheader"
 import { Maybe } from "components/Conditionals/Maybe"
 import { CodeExample } from "components/CodeExample/CodeExample"
 
