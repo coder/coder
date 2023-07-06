@@ -125,7 +125,7 @@ func Test_ProxyCRUD(t *testing.T) {
 
 		inv, conf := newCLI(
 			t,
-			"wsproxy", "delete", expectedName,
+			"wsproxy", "delete", "-y", expectedName,
 		)
 
 		pty := ptytest.New(t)
