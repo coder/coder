@@ -352,6 +352,7 @@ export const MockTemplateVersion: TypesGen.TemplateVersion = {
   template_id: "test-template",
   job: MockProvisionerJob,
   name: "test-version",
+  message: "first version",
   readme: `---
 name:Template test
 ---
@@ -369,6 +370,7 @@ export const MockTemplateVersion2: TypesGen.TemplateVersion = {
   template_id: "test-template",
   job: MockProvisionerJob,
   name: "test-version-2",
+  message: "first version",
   readme: `---
 name:Template test 2
 ---
@@ -386,6 +388,7 @@ export const MockTemplateVersion3: TypesGen.TemplateVersion = {
   template_id: "test-template",
   job: MockProvisionerJob,
   name: "test-version-3",
+  message: "first version",
   readme: "README",
   created_by: MockUser,
   warnings: ["UNSUPPORTED_WORKSPACES"],
