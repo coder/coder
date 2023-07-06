@@ -68,8 +68,8 @@ const TemplateFC = (
         clearProxy: () => {
           return
         },
-        refetchProxyLatencies: () => {
-          return
+        refetchProxyLatencies: (): Date => {
+          return new Date()
         },
       }}
     >

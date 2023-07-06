@@ -30,10 +30,10 @@ type DERPReport struct {
 	Regions map[int]*DERPRegionReport `json:"regions"`
 
 	Netcheck     *netcheck.Report `json:"netcheck"`
-	NetcheckErr  error            `json:"netcheck_err"`
+	NetcheckErr  *string          `json:"netcheck_err"`
 	NetcheckLogs []string         `json:"netcheck_logs"`
 
-	Error error `json:"error"`
+	Error *string `json:"error"`
 }
 
 type DERPRegionReport struct {
@@ -42,7 +42,7 @@ type DERPRegionReport struct {
 
 	Region      *tailcfg.DERPRegion `json:"region"`
 	NodeReports []*DERPNodeReport   `json:"node_reports"`
-	Error       error               `json:"error"`
+	Error       *string             `json:"error"`
 }
 type DERPNodeReport struct {
 	mu            sync.Mutex
@@ -56,8 +56,8 @@ type DERPNodeReport struct {
 	RoundTripPing       time.Duration          `json:"round_trip_ping"`
 	UsesWebsocket       bool                   `json:"uses_websocket"`
 	ClientLogs          [][]string             `json:"client_logs"`
-	ClientErrs          [][]error              `json:"client_errs"`
-	Error               error                  `json:"error"`
+	ClientErrs          [][]string             `json:"client_errs"`
+	Error               *string                `json:"error"`
 
 	STUN DERPStunReport `json:"stun"`
 }
@@ -91,7 +91,7 @@ func (r *DERPReport) Run(ctx context.Context, opts *DERPReportOptions) {
 			defer wg.Done()
 			defer func() {
 				if err := recover(); err != nil {
-					regionReport.Error = xerrors.Errorf("%v", err)
+					regionReport.Error = ptr.Ref(fmt.Sprint(err))
 				}
 			}()
 
@@ -115,7 +115,9 @@ func (r *DERPReport) Run(ctx context.Context, opts *DERPReportOptions) {
 		PortMapper: portmapper.NewClient(tslogger.WithPrefix(ncLogf, "portmap: "), nil),
 		Logf:       tslogger.WithPrefix(ncLogf, "netcheck: "),
 	}
-	r.Netcheck, r.NetcheckErr = nc.GetReport(ctx, opts.DERPMap)
+	ncReport, netcheckErr := nc.GetReport(ctx, opts.DERPMap)
+	r.Netcheck = ncReport
+	r.NetcheckErr = convertError(netcheckErr)
 
 	wg.Wait()
 }
@@ -140,7 +142,7 @@ func (r *DERPRegionReport) Run(ctx context.Context) {
 			defer wg.Done()
 			defer func() {
 				if err := recover(); err != nil {
-					nodeReport.Error = xerrors.Errorf("%v", err)
+					nodeReport.Error = ptr.Ref(fmt.Sprint(err))
 				}
 			}()
 
@@ -179,7 +181,7 @@ func (r *DERPNodeReport) Run(ctx context.Context) {
 	defer cancel()
 
 	r.ClientLogs = [][]string{}
-	r.ClientErrs = [][]error{}
+	r.ClientErrs = [][]string{}
 
 	wg := &sync.WaitGroup{}
 
@@ -376,7 +378,7 @@ func (r *DERPNodeReport) stunAddr(ctx context.Context) (string, int, error) {
 
 func (r *DERPNodeReport) writeClientErr(clientID int, err error) {
 	r.mu.Lock()
-	r.ClientErrs[clientID] = append(r.ClientErrs[clientID], err)
+	r.ClientErrs[clientID] = append(r.ClientErrs[clientID], err.Error())
 	r.mu.Unlock()
 }
 
@@ -385,7 +387,7 @@ func (r *DERPNodeReport) derpClient(ctx context.Context, derpURL *url.URL) (*der
 	id := r.clientCounter
 	r.clientCounter++
 	r.ClientLogs = append(r.ClientLogs, []string{})
-	r.ClientErrs = append(r.ClientErrs, []error{})
+	r.ClientErrs = append(r.ClientErrs, []string{})
 	r.mu.Unlock()
 
 	client, err := derphttp.NewClient(key.NewNode(), derpURL.String(), func(format string, args ...any) {

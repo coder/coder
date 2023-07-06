@@ -2,13 +2,18 @@ data "google_compute_default_service_account" "default" {
   project = var.project_id
 }
 
+locals {
+  cluster_kubeconfig_path = "${abspath(path.module)}/../.coderv2/${var.name}-cluster.kubeconfig"
+}
+
 resource "google_container_cluster" "primary" {
-  name            = var.name
-  location        = var.zone
-  project         = var.project_id
-  network         = google_compute_network.vpc.name
-  subnetwork      = google_compute_subnetwork.subnet.name
-  networking_mode = "VPC_NATIVE"
+  name                      = var.name
+  location                  = var.zone
+  project                   = var.project_id
+  network                   = google_compute_network.vpc.name
+  subnetwork                = google_compute_subnetwork.subnet.name
+  networking_mode           = "VPC_NATIVE"
+  default_max_pods_per_node = 256
   ip_allocation_policy { # Required with networking_mode=VPC_NATIVE
 
   }
@@ -39,7 +44,7 @@ resource "google_container_node_pool" "coder" {
   location   = var.zone
   project    = var.project_id
   cluster    = google_container_cluster.primary.name
-  node_count = var.nodepool_size_coder
+  node_count = var.state == "stopped" ? 0 : var.nodepool_size_coder
   node_config {
     oauth_scopes = [
       "https://www.googleapis.com/auth/logging.write",
@@ -69,7 +74,7 @@ resource "google_container_node_pool" "workspaces" {
   location   = var.zone
   project    = var.project_id
   cluster    = google_container_cluster.primary.name
-  node_count = var.nodepool_size_workspaces
+  node_count = var.state == "stopped" ? 0 : var.nodepool_size_workspaces
   node_config {
     oauth_scopes = [
       "https://www.googleapis.com/auth/logging.write",
@@ -99,7 +104,7 @@ resource "google_container_node_pool" "misc" {
   location   = var.zone
   project    = var.project_id
   cluster    = google_container_cluster.primary.name
-  node_count = var.nodepool_size_misc
+  node_count = var.state == "stopped" ? 0 : var.nodepool_size_misc
   node_config {
     oauth_scopes = [
       "https://www.googleapis.com/auth/logging.write",
@@ -121,5 +126,27 @@ resource "google_container_node_pool" "misc" {
     metadata = {
       disable-legacy-endpoints = "true"
     }
+  }
+}
+
+resource "null_resource" "cluster_kubeconfig" {
+  depends_on = [google_container_cluster.primary]
+  triggers = {
+    path       = local.cluster_kubeconfig_path
+    name       = google_container_cluster.primary.name
+    project_id = var.project_id
+    zone       = var.zone
+  }
+  provisioner "local-exec" {
+    command = <<EOF
+      KUBECONFIG=${self.triggers.path} gcloud container clusters get-credentials ${self.triggers.name} --project=${self.triggers.project_id} --zone=${self.triggers.zone}
+    EOF
+  }
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = <<EOF
+      rm -f ${self.triggers.path}
+    EOF
   }
 }

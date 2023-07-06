@@ -662,7 +662,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.FailureTTLMillis = ptr.Ref(0 * time.Hour.Milliseconds())
 				ctr.InactivityTTLMillis = ptr.Ref(0 * time.Hour.Milliseconds())
-				ctr.LockedTTL = ptr.Ref(0 * time.Hour.Milliseconds())
+				ctr.LockedTTLMillis = ptr.Ref(0 * time.Hour.Milliseconds())
 			})
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -697,7 +697,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.FailureTTLMillis = ptr.Ref(0 * time.Hour.Milliseconds())
 				ctr.InactivityTTLMillis = ptr.Ref(0 * time.Hour.Milliseconds())
-				ctr.LockedTTL = ptr.Ref(0 * time.Hour.Milliseconds())
+				ctr.LockedTTLMillis = ptr.Ref(0 * time.Hour.Milliseconds())
 			})
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)

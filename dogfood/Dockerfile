@@ -128,6 +128,7 @@ RUN apt-get update --quiet && apt-get install --yes \
 	openjdk-11-jdk-headless \
 	openssh-server \
 	openssl \
+	libssl-dev \
 	pkg-config \
 	python3 \
 	python3-pip \
@@ -159,7 +160,8 @@ RUN apt-get update --quiet && apt-get install --yes \
 	terraform \
 	fish \
 	unzip \
-	zstd && \
+	zstd \
+	gettext-base && \
 	# Delete package cache to avoid consuming space in layer
 	apt-get clean && \
 	# Configure FIPS-compliant policies

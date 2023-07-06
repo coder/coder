@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
 	"strings"
 	"testing"
 
@@ -19,7 +20,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/sloggers/slogtest"
-
+	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
@@ -786,6 +787,44 @@ func TestUserOIDC(t *testing.T) {
 		})
 	}
 
+	t.Run("OIDCConvert", func(t *testing.T) {
+		t.Parallel()
+		auditor := audit.NewMock()
+		conf := coderdtest.NewOIDCConfig(t, "")
+
+		config := conf.OIDCConfig(t, nil)
+		config.AllowSignups = true
+
+		cfg := coderdtest.DeploymentValues(t)
+		cfg.Experiments = clibase.StringArray{string(codersdk.ExperimentConvertToOIDC)}
+		client := coderdtest.New(t, &coderdtest.Options{
+			Auditor:          auditor,
+			OIDCConfig:       config,
+			DeploymentValues: cfg,
+		})
+		owner := coderdtest.CreateFirstUser(t, client)
+
+		user, userData := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		code := conf.EncodeClaims(t, jwt.MapClaims{
+			"email": userData.Email,
+		})
+
+		var err error
+		user.HTTPClient.Jar, err = cookiejar.New(nil)
+		require.NoError(t, err)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		convertResponse, err := user.ConvertLoginType(ctx, codersdk.ConvertLoginRequest{
+			ToType:   codersdk.LoginTypeOIDC,
+			Password: "SomeSecurePassword!",
+		})
+		require.NoError(t, err)
+
+		resp := oidcCallbackWithState(t, user, code, convertResponse.StateString)
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+	})
+
 	t.Run("AlternateUsername", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
@@ -1008,17 +1047,22 @@ func oauth2Callback(t *testing.T, client *codersdk.Client) *http.Response {
 }
 
 func oidcCallback(t *testing.T, client *codersdk.Client, code string) *http.Response {
+	return oidcCallbackWithState(t, client, code, "somestate")
+}
+
+func oidcCallbackWithState(t *testing.T, client *codersdk.Client, code, state string) *http.Response {
 	t.Helper()
+
 	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
-	oauthURL, err := client.URL.Parse(fmt.Sprintf("/api/v2/users/oidc/callback?code=%s&state=somestate", code))
+	oauthURL, err := client.URL.Parse(fmt.Sprintf("/api/v2/users/oidc/callback?code=%s&state=%s", code, state))
 	require.NoError(t, err)
 	req, err := http.NewRequestWithContext(context.Background(), "GET", oauthURL.String(), nil)
 	require.NoError(t, err)
 	req.AddCookie(&http.Cookie{
 		Name:  codersdk.OAuth2StateCookie,
-		Value: "somestate",
+		Value: state,
 	})
 	res, err := client.HTTPClient.Do(req)
 	require.NoError(t, err)

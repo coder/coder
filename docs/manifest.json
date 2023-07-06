@@ -156,8 +156,7 @@
           "title": "Agent Metadata",
           "description": "Learn how to expose live agent information to users",
           "path": "./templates/agent-metadata.md",
-          "icon_path": "./images/icons/table-rows.svg",
-          "state": "alpha"
+          "icon_path": "./images/icons/table-rows.svg"
         },
         {
           "title": "Parameters",
@@ -176,6 +175,11 @@
           "description": "Use docker inside containerized templates",
           "path": "./templates/docker-in-workspaces.md",
           "icon_path": "./images/icons/docker.svg"
+        },
+        {
+          "title": "Terraform Modules",
+          "description": "Reuse code across Coder templates",
+          "path": "./templates/modules.md"
         }
       ]
     },
@@ -450,6 +454,10 @@
         {
           "title": "Files",
           "path": "./api/files.md"
+        },
+        {
+          "title": "Git",
+          "path": "./api/git.md"
         },
         {
           "title": "Insights",

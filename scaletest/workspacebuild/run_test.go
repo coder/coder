@@ -25,7 +25,9 @@ import (
 
 func Test_Runner(t *testing.T) {
 	t.Parallel()
-	t.Skip("Flake seen here: https://github.com/coder/coder/actions/runs/3436164958/jobs/5729513320")
+	if testutil.RaceEnabled() {
+		t.Skip("Race detector enabled, skipping time-sensitive test.")
+	}
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
@@ -135,7 +137,7 @@ func Test_Runner(t *testing.T) {
 				agentClient.SetSessionToken(authToken)
 				agentCloser := agent.New(agent.Options{
 					Client: agentClient,
-					Logger: slogtest.Make(t, nil).
+					Logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).
 						Named(fmt.Sprintf("agent%d", i)).
 						Leveled(slog.LevelWarn),
 				})
@@ -188,8 +190,10 @@ func Test_Runner(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
+			Logger:                   &logger,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 

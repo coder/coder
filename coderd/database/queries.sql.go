@@ -3218,6 +3218,17 @@ func (q *sqlQuerier) GetLogoURL(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getOAuthSigningKey = `-- name: GetOAuthSigningKey :one
+SELECT value FROM site_configs WHERE key = 'oauth_signing_key'
+`
+
+func (q *sqlQuerier) GetOAuthSigningKey(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getOAuthSigningKey)
+	var value string
+	err := row.Scan(&value)
+	return value, err
+}
+
 const getServiceBanner = `-- name: GetServiceBanner :one
 SELECT value FROM site_configs WHERE key = 'service_banner'
 `
@@ -3297,6 +3308,16 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'logo_url'
 
 func (q *sqlQuerier) UpsertLogoURL(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertLogoURL, value)
+	return err
+}
+
+const upsertOAuthSigningKey = `-- name: UpsertOAuthSigningKey :exec
+INSERT INTO site_configs (key, value) VALUES ('oauth_signing_key', $1)
+ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'oauth_signing_key'
+`
+
+func (q *sqlQuerier) UpsertOAuthSigningKey(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertOAuthSigningKey, value)
 	return err
 }
 
@@ -4153,7 +4174,7 @@ func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateT
 }
 
 const getTemplateVersionParameters = `-- name: GetTemplateVersionParameters :many
-SELECT template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, legacy_variable_name, display_name FROM template_version_parameters WHERE template_version_id = $1
+SELECT template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, legacy_variable_name, display_name, display_order FROM template_version_parameters WHERE template_version_id = $1 ORDER BY display_order ASC, LOWER(name) ASC
 `
 
 func (q *sqlQuerier) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionParameter, error) {
@@ -4182,6 +4203,7 @@ func (q *sqlQuerier) GetTemplateVersionParameters(ctx context.Context, templateV
 			&i.Required,
 			&i.LegacyVariableName,
 			&i.DisplayName,
+			&i.DisplayOrder,
 		); err != nil {
 			return nil, err
 		}
@@ -4214,7 +4236,8 @@ INSERT INTO
         validation_monotonic,
         required,
         legacy_variable_name,
-        display_name
+        display_name,
+        display_order
     )
 VALUES
     (
@@ -4233,8 +4256,9 @@ VALUES
         $13,
         $14,
         $15,
-		$16
-    ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, legacy_variable_name, display_name
+        $16,
+        $17
+    ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, legacy_variable_name, display_name, display_order
 `
 
 type InsertTemplateVersionParameterParams struct {
@@ -4254,6 +4278,7 @@ type InsertTemplateVersionParameterParams struct {
 	Required            bool            `db:"required" json:"required"`
 	LegacyVariableName  string          `db:"legacy_variable_name" json:"legacy_variable_name"`
 	DisplayName         string          `db:"display_name" json:"display_name"`
+	DisplayOrder        int32           `db:"display_order" json:"display_order"`
 }
 
 func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg InsertTemplateVersionParameterParams) (TemplateVersionParameter, error) {
@@ -4274,6 +4299,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		arg.Required,
 		arg.LegacyVariableName,
 		arg.DisplayName,
+		arg.DisplayOrder,
 	)
 	var i TemplateVersionParameter
 	err := row.Scan(
@@ -4293,6 +4319,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		&i.Required,
 		&i.LegacyVariableName,
 		&i.DisplayName,
+		&i.DisplayOrder,
 	)
 	return i, err
 }
@@ -4993,7 +5020,7 @@ SELECT
 FROM
 	users
 WHERE
-    status = 'active'::user_status AND deleted = false
+	status = 'active'::user_status AND deleted = false
 `
 
 func (q *sqlQuerier) GetActiveUserCount(ctx context.Context) (int64, error) {
@@ -5245,9 +5272,9 @@ WHERE
 	-- Filter by rbac_roles
 	AND CASE
 		-- @rbac_role allows filtering by rbac roles. If 'member' is included, show everyone, as
-	    -- everyone is a member.
+		-- everyone is a member.
 		WHEN cardinality($4 :: text[]) > 0 AND 'member' != ANY($4 :: text[]) THEN
-		    rbac_roles && $4 :: text[]
+			rbac_roles && $4 :: text[]
 		ELSE true
 	END
 	-- Filter by last_seen
@@ -5499,6 +5526,47 @@ type UpdateUserLastSeenAtParams struct {
 
 func (q *sqlQuerier) UpdateUserLastSeenAt(ctx context.Context, arg UpdateUserLastSeenAtParams) (User, error) {
 	row := q.db.QueryRowContext(ctx, updateUserLastSeenAt, arg.ID, arg.LastSeenAt, arg.UpdatedAt)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Username,
+		&i.HashedPassword,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.RBACRoles,
+		&i.LoginType,
+		&i.AvatarURL,
+		&i.Deleted,
+		&i.LastSeenAt,
+	)
+	return i, err
+}
+
+const updateUserLoginType = `-- name: UpdateUserLoginType :one
+UPDATE
+	users
+SET
+	login_type = $1,
+	hashed_password = CASE WHEN $1 = 'password' :: login_type THEN
+		users.hashed_password
+	ELSE
+		-- If the login type is not password, then the password should be
+        -- cleared.
+		'':: bytea
+	END
+WHERE
+	id = $2 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at
+`
+
+type UpdateUserLoginTypeParams struct {
+	NewLoginType LoginType `db:"new_login_type" json:"new_login_type"`
+	UserID       uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+func (q *sqlQuerier) UpdateUserLoginType(ctx context.Context, arg UpdateUserLoginTypeParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUserLoginType, arg.NewLoginType, arg.UserID)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -8147,7 +8215,7 @@ func (q *sqlQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploy
 
 const getWorkspaceByAgentID = `-- name: GetWorkspaceByAgentID :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, locked_at
 FROM
 	workspaces
 WHERE
@@ -8190,13 +8258,14 @@ func (q *sqlQuerier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUI
 		&i.AutostartSchedule,
 		&i.Ttl,
 		&i.LastUsedAt,
+		&i.LockedAt,
 	)
 	return i, err
 }
 
 const getWorkspaceByID = `-- name: GetWorkspaceByID :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, locked_at
 FROM
 	workspaces
 WHERE
@@ -8220,13 +8289,14 @@ func (q *sqlQuerier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Worksp
 		&i.AutostartSchedule,
 		&i.Ttl,
 		&i.LastUsedAt,
+		&i.LockedAt,
 	)
 	return i, err
 }
 
 const getWorkspaceByOwnerIDAndName = `-- name: GetWorkspaceByOwnerIDAndName :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, locked_at
 FROM
 	workspaces
 WHERE
@@ -8257,13 +8327,14 @@ func (q *sqlQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWo
 		&i.AutostartSchedule,
 		&i.Ttl,
 		&i.LastUsedAt,
+		&i.LockedAt,
 	)
 	return i, err
 }
 
 const getWorkspaceByWorkspaceAppID = `-- name: GetWorkspaceByWorkspaceAppID :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, locked_at
 FROM
 	workspaces
 WHERE
@@ -8313,13 +8384,14 @@ func (q *sqlQuerier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspace
 		&i.AutostartSchedule,
 		&i.Ttl,
 		&i.LastUsedAt,
+		&i.LockedAt,
 	)
 	return i, err
 }
 
 const getWorkspaces = `-- name: GetWorkspaces :many
 SELECT
-	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, COUNT(*) OVER () as count
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.locked_at, COUNT(*) OVER () as count
 FROM
     workspaces
 JOIN
@@ -8529,6 +8601,7 @@ type GetWorkspacesRow struct {
 	AutostartSchedule sql.NullString `db:"autostart_schedule" json:"autostart_schedule"`
 	Ttl               sql.NullInt64  `db:"ttl" json:"ttl"`
 	LastUsedAt        time.Time      `db:"last_used_at" json:"last_used_at"`
+	LockedAt          sql.NullTime   `db:"locked_at" json:"locked_at"`
 	Count             int64          `db:"count" json:"count"`
 }
 
@@ -8565,6 +8638,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 			&i.AutostartSchedule,
 			&i.Ttl,
 			&i.LastUsedAt,
+			&i.LockedAt,
 			&i.Count,
 		); err != nil {
 			return nil, err
@@ -8582,13 +8656,15 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 
 const getWorkspacesEligibleForTransition = `-- name: GetWorkspacesEligibleForTransition :many
 SELECT
-	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.locked_at
 FROM
 	workspaces
 LEFT JOIN
 	workspace_builds ON workspace_builds.workspace_id = workspaces.id
 INNER JOIN
 	provisioner_jobs ON workspace_builds.job_id = provisioner_jobs.id
+INNER JOIN
+	templates ON workspaces.template_id = templates.id
 WHERE
 	workspace_builds.build_number = (
 		SELECT
@@ -8626,6 +8702,20 @@ WHERE
 			provisioner_jobs.error IS NOT NULL AND
 			provisioner_jobs.error != '' AND
 			workspace_builds.transition = 'start'::workspace_transition
+		) OR
+
+		-- If the workspace's template has an inactivity_ttl set
+		-- it may be eligible for locking.
+		(
+			templates.inactivity_ttl > 0 AND
+			workspaces.locked_at IS NULL
+		) OR
+
+		-- If the workspace's template has a locked_ttl set
+		-- and the workspace is already locked
+		(
+			templates.locked_ttl > 0 AND
+			workspaces.locked_at IS NOT NULL
 		)
 	) AND workspaces.deleted = 'false'
 `
@@ -8651,6 +8741,7 @@ func (q *sqlQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now
 			&i.AutostartSchedule,
 			&i.Ttl,
 			&i.LastUsedAt,
+			&i.LockedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -8680,7 +8771,7 @@ INSERT INTO
 		last_used_at
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, locked_at
 `
 
 type InsertWorkspaceParams struct {
@@ -8722,6 +8813,7 @@ func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspacePar
 		&i.AutostartSchedule,
 		&i.Ttl,
 		&i.LastUsedAt,
+		&i.LockedAt,
 	)
 	return i, err
 }
@@ -8734,7 +8826,7 @@ SET
 WHERE
 	id = $1
 	AND deleted = false
-RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at
+RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, locked_at
 `
 
 type UpdateWorkspaceParams struct {
@@ -8757,6 +8849,7 @@ func (q *sqlQuerier) UpdateWorkspace(ctx context.Context, arg UpdateWorkspacePar
 		&i.AutostartSchedule,
 		&i.Ttl,
 		&i.LastUsedAt,
+		&i.LockedAt,
 	)
 	return i, err
 }
@@ -8815,6 +8908,26 @@ type UpdateWorkspaceLastUsedAtParams struct {
 
 func (q *sqlQuerier) UpdateWorkspaceLastUsedAt(ctx context.Context, arg UpdateWorkspaceLastUsedAtParams) error {
 	_, err := q.db.ExecContext(ctx, updateWorkspaceLastUsedAt, arg.ID, arg.LastUsedAt)
+	return err
+}
+
+const updateWorkspaceLockedAt = `-- name: UpdateWorkspaceLockedAt :exec
+UPDATE
+	workspaces
+SET
+	locked_at = $2,
+	last_used_at = now() at time zone 'utc'
+WHERE
+	id = $1
+`
+
+type UpdateWorkspaceLockedAtParams struct {
+	ID       uuid.UUID    `db:"id" json:"id"`
+	LockedAt sql.NullTime `db:"locked_at" json:"locked_at"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceLockedAt(ctx context.Context, arg UpdateWorkspaceLockedAtParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceLockedAt, arg.ID, arg.LockedAt)
 	return err
 }
 

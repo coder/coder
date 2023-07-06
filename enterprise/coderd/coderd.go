@@ -18,6 +18,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd"
 	agplaudit "github.com/coder/coder/coderd/audit"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
@@ -67,7 +68,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 
 	api.AGPL.Options.SetUserGroups = api.setUserGroups
 	api.AGPL.SiteHandler.AppearanceFetcher = api.fetchAppearanceConfig
-	api.AGPL.SiteHandler.RegionsFetcher = api.fetchRegions
+	api.AGPL.SiteHandler.RegionsFetcher = func(ctx context.Context) (any, error) {
+		// If the user can read the workspace proxy resource, return that.
+		// If not, always default to the regions.
+		actor, ok := dbauthz.ActorFromContext(ctx)
+		if ok && api.Authorizer.Authorize(ctx, actor, rbac.ActionRead, rbac.ResourceWorkspaceProxy) == nil {
+			return api.fetchWorkspaceProxies(ctx)
+		}
+		return api.fetchRegions(ctx)
+	}
 
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
@@ -77,6 +86,12 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		DB:              options.Database,
 		OAuth2Configs:   oauthConfigs,
 		RedirectToLogin: false,
+	})
+	apiKeyMiddlewareOptional := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+		DB:              options.Database,
+		OAuth2Configs:   oauthConfigs,
+		RedirectToLogin: false,
+		Optional:        true,
 	})
 
 	deploymentID, err := options.Database.GetDeploymentID(ctx)
@@ -192,11 +207,23 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			})
 		})
 		r.Route("/appearance", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-			)
-			r.Get("/", api.appearance)
-			r.Put("/", api.putAppearance)
+			r.Group(func(r chi.Router) {
+				r.Use(
+					apiKeyMiddlewareOptional,
+					httpmw.ExtractWorkspaceAgent(httpmw.ExtractWorkspaceAgentConfig{
+						DB:       options.Database,
+						Optional: true,
+					}),
+					httpmw.RequireAPIKeyOrWorkspaceAgent(),
+				)
+				r.Get("/", api.appearance)
+			})
+			r.Group(func(r chi.Router) {
+				r.Use(
+					apiKeyMiddleware,
+				)
+				r.Put("/", api.putAppearance)
+			})
 		})
 	})
 
@@ -313,8 +340,9 @@ type API struct {
 	// ProxyHealth checks the reachability of all workspace proxies.
 	ProxyHealth *proxyhealth.ProxyHealth
 
-	entitlementsMu sync.RWMutex
-	entitlements   codersdk.Entitlements
+	entitlementsUpdateMu sync.Mutex
+	entitlementsMu       sync.RWMutex
+	entitlements         codersdk.Entitlements
 }
 
 func (api *API) Close() error {
@@ -329,8 +357,8 @@ func (api *API) Close() error {
 }
 
 func (api *API) updateEntitlements(ctx context.Context) error {
-	api.entitlementsMu.Lock()
-	defer api.entitlementsMu.Unlock()
+	api.entitlementsUpdateMu.Lock()
+	defer api.entitlementsUpdateMu.Unlock()
 
 	entitlements, err := license.Entitlements(
 		ctx, api.Database,
@@ -416,7 +444,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		if enabled {
 			var haCoordinator agpltailnet.Coordinator
 			if api.AGPL.Experiments.Enabled(codersdk.ExperimentTailnetPGCoordinator) {
-				haCoordinator, err = tailnet.NewPGCoord(ctx, api.Logger, api.Pubsub, api.Database)
+				haCoordinator, err = tailnet.NewPGCoord(api.ctx, api.Logger, api.Pubsub, api.Database)
 			} else {
 				haCoordinator, err = tailnet.NewCoordinator(api.Logger, api.Pubsub)
 			}
@@ -457,6 +485,8 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		}
 	}
 
+	api.entitlementsMu.Lock()
+	defer api.entitlementsMu.Unlock()
 	api.entitlements = entitlements
 	api.AGPL.SiteHandler.Entitlements.Store(&entitlements)
 

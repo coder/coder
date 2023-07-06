@@ -36,6 +36,14 @@ func insertProxy(t *testing.T, db database.Store, url string) database.Workspace
 	return proxy
 }
 
+// Test the nil guard for experiment off cases.
+func TestProxyHealth_Nil(t *testing.T) {
+	t.Parallel()
+	var ph *proxyhealth.ProxyHealth
+
+	require.NotNil(t, ph.HealthStatus())
+}
+
 func TestProxyHealth_Unregistered(t *testing.T) {
 	t.Parallel()
 	db := dbfake.New()

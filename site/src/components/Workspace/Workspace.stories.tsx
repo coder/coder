@@ -42,8 +42,8 @@ const meta: Meta<typeof Workspace> = {
             setProxy: () => {
               return
             },
-            refetchProxyLatencies: () => {
-              return
+            refetchProxyLatencies: (): Date => {
+              return new Date()
             },
           }}
         >
@@ -98,6 +98,13 @@ export const WithoutUpdateAccess: Story = {
   },
 }
 
+export const PendingInQueue: Story = {
+  args: {
+    ...Running.args,
+    workspace: Mocks.MockPendingWorkspace,
+  },
+}
+
 export const Starting: Story = {
   args: {
     ...Running.args,
@@ -146,6 +153,25 @@ export const FailedWithLogs: Story = {
       },
     },
     failedBuildLogs: makeFailedBuildLogs(),
+  },
+}
+
+export const FailedWithRetry: Story = {
+  args: {
+    ...Running.args,
+    workspace: {
+      ...Mocks.MockFailedWorkspace,
+      latest_build: {
+        ...Mocks.MockFailedWorkspace.latest_build,
+        job: {
+          ...Mocks.MockFailedWorkspace.latest_build.job,
+          error:
+            "recv workspace provision: plan terraform: terraform plan: exit status 1",
+        },
+      },
+    },
+    failedBuildLogs: makeFailedBuildLogs(),
+    canRetryDebugMode: true,
   },
 }
 

@@ -7,7 +7,7 @@ import {
   ActiveTransition,
   WorkspaceBuildProgress,
 } from "components/WorkspaceBuildProgress/WorkspaceBuildProgress"
-import { FC } from "react"
+import { FC, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
 import * as TypesGen from "../../api/typesGenerated"
@@ -31,6 +31,8 @@ import { ImpendingDeletionBanner } from "components/WorkspaceDeletion"
 import { useLocalStorage } from "hooks"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import AlertTitle from "@mui/material/AlertTitle"
+import { Maybe } from "components/Conditionals/Maybe"
+import dayjs from "dayjs"
 
 export enum WorkspaceErrors {
   GET_BUILDS_ERROR = "getBuildsError",
@@ -59,7 +61,7 @@ export interface WorkspaceProps {
   builds?: TypesGen.WorkspaceBuild[]
   templateWarnings?: TypesGen.TemplateVersionWarning[]
   canUpdateWorkspace: boolean
-  canUpdateTemplate: boolean
+  canRetryDebugMode: boolean
   canChangeVersions: boolean
   hideSSHButton?: boolean
   hideVSCodeDesktopButton?: boolean
@@ -91,7 +93,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   resources,
   builds,
   canUpdateWorkspace,
-  canUpdateTemplate,
+  canRetryDebugMode,
   canChangeVersions,
   workspaceErrors,
   hideSSHButton,
@@ -130,6 +132,38 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   if (template !== undefined) {
     transitionStats = ActiveTransition(template, workspace)
   }
+
+  const [showAlertPendingInQueue, setShowAlertPendingInQueue] = useState(false)
+  const now = dayjs()
+  useEffect(() => {
+    if (
+      workspace.latest_build.status !== "pending" ||
+      workspace.latest_build.job.queue_size === 0
+    ) {
+      if (!showAlertPendingInQueue) {
+        return
+      }
+
+      const hideTimer = setTimeout(() => {
+        setShowAlertPendingInQueue(false)
+      }, 250)
+      return () => {
+        clearTimeout(hideTimer)
+      }
+    }
+
+    const t = Math.max(
+      0,
+      5000 - dayjs().diff(dayjs(workspace.latest_build.created_at)),
+    )
+    const showTimer = setTimeout(() => {
+      setShowAlertPendingInQueue(true)
+    }, t)
+
+    return () => {
+      clearTimeout(showTimer)
+    }
+  }, [workspace, now, showAlertPendingInQueue])
   return (
     <>
       <FullWidthPageHeader>
@@ -207,12 +241,30 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 
           <TemplateVersionWarnings warnings={templateWarnings} />
 
+          <Maybe condition={showAlertPendingInQueue}>
+            <Alert severity="info">
+              <AlertTitle>Workspace build is pending</AlertTitle>
+              <AlertDetail>
+                <div className={styles.alertPendingInQueue}>
+                  This workspace build job is waiting for a provisioner to
+                  become available. If you have been waiting for an extended
+                  period of time, please contact your administrator for
+                  assistance.
+                </div>
+                <div>
+                  Position in queue:{" "}
+                  <strong>{workspace.latest_build.job.queue_position}</strong>
+                </div>
+              </AlertDetail>
+            </Alert>
+          </Maybe>
+
           {failedBuildLogs && (
             <Stack>
               <Alert
                 severity="error"
                 actions={
-                  canUpdateTemplate && (
+                  canRetryDebugMode && (
                     <Button
                       key={0}
                       onClick={handleBuildRetry}
@@ -318,6 +370,10 @@ export const useStyles = makeStyles((theme) => {
 
     fullWidth: {
       width: "100%",
+    },
+
+    alertPendingInQueue: {
+      marginBottom: 12,
     },
   }
 })

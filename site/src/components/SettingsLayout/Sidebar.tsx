@@ -9,8 +9,6 @@ import { NavLink } from "react-router-dom"
 import { combineClasses } from "utils/combineClasses"
 import AccountIcon from "@mui/icons-material/Person"
 import SecurityIcon from "@mui/icons-material/LockOutlined"
-import PublicIcon from "@mui/icons-material/Public"
-import { useDashboard } from "components/Dashboard/DashboardProvider"
 
 const SidebarNavItem: FC<
   PropsWithChildren<{ href: string; icon: ReactNode }>
@@ -43,7 +41,6 @@ const SidebarNavItemIcon: React.FC<{ icon: ElementType }> = ({
 
 export const Sidebar: React.FC<{ user: User }> = ({ user }) => {
   const styles = useStyles()
-  const dashboard = useDashboard()
 
   return (
     <nav className={styles.sidebar}>
@@ -79,14 +76,6 @@ export const Sidebar: React.FC<{ user: User }> = ({ user }) => {
       >
         Tokens
       </SidebarNavItem>
-      {dashboard.experiments.includes("moons") && (
-        <SidebarNavItem
-          href="workspace-proxies"
-          icon={<SidebarNavItemIcon icon={PublicIcon} />}
-        >
-          Workspace Proxy
-        </SidebarNavItem>
-      )}
     </nav>
   )
 }

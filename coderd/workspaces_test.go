@@ -2375,3 +2375,81 @@ func TestWorkspaceWithOptionalRichParameters(t *testing.T) {
 	}
 	require.ElementsMatch(t, expectedBuildParameters, workspaceBuildParameters)
 }
+
+func TestWorkspaceLock(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		var (
+			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user      = coderdtest.CreateFirstUser(t, client)
+			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			template  = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+			_         = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := client.UpdateWorkspaceLock(ctx, workspace.ID, codersdk.UpdateWorkspaceLock{
+			Lock: true,
+		})
+		require.NoError(t, err)
+
+		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+		require.NoError(t, err, "fetch provisioned workspace")
+		require.NotNil(t, workspace.LockedAt)
+		require.WithinRange(t, *workspace.LockedAt, time.Now().Add(-time.Second*10), time.Now())
+
+		lastUsedAt := workspace.LastUsedAt
+		err = client.UpdateWorkspaceLock(ctx, workspace.ID, codersdk.UpdateWorkspaceLock{
+			Lock: false,
+		})
+		require.NoError(t, err)
+
+		workspace, err = client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err, "fetch provisioned workspace")
+		require.Nil(t, workspace.LockedAt)
+		require.True(t, workspace.LastUsedAt.After(lastUsedAt))
+	})
+
+	t.Run("CannotStart", func(t *testing.T) {
+		t.Parallel()
+		var (
+			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user      = coderdtest.CreateFirstUser(t, client)
+			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			template  = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+			_         = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := client.UpdateWorkspaceLock(ctx, workspace.ID, codersdk.UpdateWorkspaceLock{
+			Lock: true,
+		})
+		require.NoError(t, err)
+
+		// Should be able to stop a workspace while it is locked.
+		coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+
+		// Should not be able to start a workspace while it is locked.
+		_, err = client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Transition:        codersdk.WorkspaceTransition(database.WorkspaceTransitionStart),
+		})
+		require.Error(t, err)
+
+		err = client.UpdateWorkspaceLock(ctx, workspace.ID, codersdk.UpdateWorkspaceLock{
+			Lock: false,
+		})
+		require.NoError(t, err)
+		coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStop, database.WorkspaceTransitionStart)
+	})
+}

@@ -158,9 +158,9 @@ func (e *outExpecter) ExpectMatchContext(ctx context.Context, str string) string
 	e.t.Helper()
 
 	var buffer bytes.Buffer
-	err := e.doMatchWithDeadline(ctx, "ExpectMatchContext", func() error {
+	err := e.doMatchWithDeadline(ctx, "ExpectMatchContext", func(rd *bufio.Reader) error {
 		for {
-			r, _, err := e.runeReader.ReadRune()
+			r, _, err := rd.ReadRune()
 			if err != nil {
 				return err
 			}
@@ -186,9 +186,9 @@ func (e *outExpecter) ExpectNoMatchBefore(ctx context.Context, match, before str
 	e.t.Helper()
 
 	var buffer bytes.Buffer
-	err := e.doMatchWithDeadline(ctx, "ExpectNoMatchBefore", func() error {
+	err := e.doMatchWithDeadline(ctx, "ExpectNoMatchBefore", func(rd *bufio.Reader) error {
 		for {
-			r, _, err := e.runeReader.ReadRune()
+			r, _, err := rd.ReadRune()
 			if err != nil {
 				return err
 			}
@@ -218,9 +218,9 @@ func (e *outExpecter) Peek(ctx context.Context, n int) []byte {
 	e.t.Helper()
 
 	var out []byte
-	err := e.doMatchWithDeadline(ctx, "Peek", func() error {
+	err := e.doMatchWithDeadline(ctx, "Peek", func(rd *bufio.Reader) error {
 		var err error
-		out, err = e.runeReader.Peek(n)
+		out, err = rd.Peek(n)
 		return err
 	})
 	if err != nil {
@@ -235,9 +235,9 @@ func (e *outExpecter) ReadRune(ctx context.Context) rune {
 	e.t.Helper()
 
 	var r rune
-	err := e.doMatchWithDeadline(ctx, "ReadRune", func() error {
+	err := e.doMatchWithDeadline(ctx, "ReadRune", func(rd *bufio.Reader) error {
 		var err error
-		r, _, err = e.runeReader.ReadRune()
+		r, _, err = rd.ReadRune()
 		return err
 	})
 	if err != nil {
@@ -252,9 +252,9 @@ func (e *outExpecter) ReadLine(ctx context.Context) string {
 	e.t.Helper()
 
 	var buffer bytes.Buffer
-	err := e.doMatchWithDeadline(ctx, "ReadLine", func() error {
+	err := e.doMatchWithDeadline(ctx, "ReadLine", func(rd *bufio.Reader) error {
 		for {
-			r, _, err := e.runeReader.ReadRune()
+			r, _, err := rd.ReadRune()
 			if err != nil {
 				return err
 			}
@@ -267,14 +267,14 @@ func (e *outExpecter) ReadLine(ctx context.Context) string {
 
 				// Unicode code points can be up to 4 bytes, but the
 				// ones we're looking for are only 1 byte.
-				b, _ := e.runeReader.Peek(1)
+				b, _ := rd.Peek(1)
 				if len(b) == 0 {
 					return nil
 				}
 
 				r, _ = utf8.DecodeRune(b)
 				if r == '\n' {
-					_, _, err = e.runeReader.ReadRune()
+					_, _, err = rd.ReadRune()
 					if err != nil {
 						return err
 					}
@@ -297,7 +297,7 @@ func (e *outExpecter) ReadLine(ctx context.Context) string {
 	return buffer.String()
 }
 
-func (e *outExpecter) doMatchWithDeadline(ctx context.Context, name string, fn func() error) error {
+func (e *outExpecter) doMatchWithDeadline(ctx context.Context, name string, fn func(*bufio.Reader) error) error {
 	e.t.Helper()
 
 	// A timeout is mandatory, caller can decide by passing a context
@@ -314,14 +314,15 @@ func (e *outExpecter) doMatchWithDeadline(ctx context.Context, name string, fn f
 	match := make(chan error, 1)
 	go func() {
 		defer close(match)
-		match <- fn()
+		match <- fn(e.runeReader)
 	}()
 	select {
 	case err := <-match:
 		return err
 	case <-ctx.Done():
-		// Ensure goroutine is cleaned up before test exit.
-		_ = e.close("match deadline exceeded")
+		// Ensure goroutine is cleaned up before test exit, do not call
+		// (*outExpecter).close here to let the caller decide.
+		_ = e.out.Close()
 		<-match
 
 		return xerrors.Errorf("match deadline exceeded: %w", ctx.Err())
@@ -354,7 +355,13 @@ type PTY struct {
 func (p *PTY) Close() error {
 	p.t.Helper()
 	pErr := p.PTY.Close()
-	eErr := p.outExpecter.close("close")
+	if pErr != nil {
+		p.logf("PTY: Close failed: %v", pErr)
+	}
+	eErr := p.outExpecter.close("PTY close")
+	if eErr != nil {
+		p.logf("PTY: close expecter failed: %v", eErr)
+	}
 	if pErr != nil {
 		return pErr
 	}
@@ -398,7 +405,13 @@ type PTYCmd struct {
 func (p *PTYCmd) Close() error {
 	p.t.Helper()
 	pErr := p.PTYCmd.Close()
-	eErr := p.outExpecter.close("close")
+	if pErr != nil {
+		p.logf("PTYCmd: Close failed: %v", pErr)
+	}
+	eErr := p.outExpecter.close("PTYCmd close")
+	if eErr != nil {
+		p.logf("PTYCmd: close expecter failed: %v", eErr)
+	}
 	if pErr != nil {
 		return pErr
 	}

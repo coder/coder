@@ -61,6 +61,7 @@ export const WorkspaceReadyPage = ({
     workspace,
     template,
     templateVersion,
+    deploymentValues,
     builds,
     getBuildsError,
     buildError,
@@ -75,6 +76,9 @@ export const WorkspaceReadyPage = ({
   const deadline = getDeadline(workspace)
   const canUpdateWorkspace = Boolean(permissions?.updateWorkspace)
   const canUpdateTemplate = Boolean(permissions?.updateTemplate)
+  const canRetryDebugMode =
+    Boolean(permissions?.viewDeploymentValues) &&
+    Boolean(deploymentValues?.enable_terraform_debug_mode)
   const { t } = useTranslation("workspacePage")
   const favicon = getFaviconByStatus(workspace.latest_build)
   const navigate = useNavigate()
@@ -166,7 +170,7 @@ export const WorkspaceReadyPage = ({
         resources={workspace.latest_build.resources}
         builds={builds}
         canUpdateWorkspace={canUpdateWorkspace}
-        canUpdateTemplate={canUpdateTemplate}
+        canRetryDebugMode={canRetryDebugMode}
         canChangeVersions={canUpdateTemplate}
         hideSSHButton={featureVisibility["browser_only"]}
         hideVSCodeDesktopButton={featureVisibility["browser_only"]}

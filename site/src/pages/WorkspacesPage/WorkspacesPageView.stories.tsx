@@ -15,6 +15,7 @@ import {
   MockExperiments,
   mockApiError,
   MockUser,
+  MockPendingProvisionerJob,
 } from "testHelpers/entities"
 import { WorkspacesPageView } from "./WorkspacesPageView"
 import { DashboardProviderContext } from "components/Dashboard/DashboardProvider"
@@ -33,6 +34,10 @@ const createWorkspace = (
     latest_build: {
       ...MockWorkspace.latest_build,
       status,
+      job:
+        status === "pending"
+          ? MockPendingProvisionerJob
+          : MockWorkspace.latest_build.job,
     },
     last_used_at: lastUsedAt,
   }

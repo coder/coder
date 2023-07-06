@@ -119,7 +119,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				}
 
 				// log HTTP requests
-				client.Logger = logger
+				client.SetLogger(logger)
 			}
 
 			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, codersdk.Me, inv.Args[0])
@@ -176,23 +176,16 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			// OpenSSH passes stderr directly to the calling TTY.
 			// This is required in "stdio" mode so a connecting indicator can be displayed.
 			err = cliui.Agent(ctx, inv.Stderr, cliui.AgentOptions{
-				WorkspaceName: workspace.Name,
 				Fetch: func(ctx context.Context) (codersdk.WorkspaceAgent, error) {
 					return client.WorkspaceAgent(ctx, workspaceAgent.ID)
 				},
-				Wait: wait,
+				FetchLogs: client.WorkspaceAgentStartupLogsAfter,
+				Wait:      wait,
 			})
 			if err != nil {
 				if xerrors.Is(err, context.Canceled) {
 					return cliui.Canceled
 				}
-				if !xerrors.Is(err, cliui.AgentStartError) {
-					return xerrors.Errorf("await agent: %w", err)
-				}
-
-				// We don't want to fail on a startup script error because it's
-				// natural that the user will want to fix the script and try again.
-				// We don't print the error because cliui.Agent does that for us.
 			}
 
 			if r.disableDirect {
