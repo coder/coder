@@ -7,7 +7,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/terraform-config-inspect/tfconfig"
 	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/xerrors"
@@ -15,15 +14,6 @@ import (
 	"github.com/coder/coder/coderd/tracing"
 	"github.com/coder/coder/provisionersdk/proto"
 )
-
-var terraformWithFeaturesSchema = &hcl.BodySchema{
-	Blocks: []hcl.BlockHeaderSchema{
-		{
-			Type:       "provider",
-			LabelNames: []string{"type"},
-		},
-	},
-}
 
 // Parse extracts Terraform variables from source-code.
 func (s *server) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_ParseStream) error {
@@ -48,7 +38,7 @@ func (s *server) Parse(request *proto.Parse_Request, stream proto.DRPCProvisione
 	var templateVariables []*proto.TemplateVariable
 
 	for _, v := range variables {
-		mv, err := convertTerraformVariableToManagedVariable(v)
+		mv, err := convertTerraformVariable(v)
 		if err != nil {
 			return xerrors.Errorf("can't convert the Terraform variable to a managed one: %w", err)
 		}
@@ -63,8 +53,8 @@ func (s *server) Parse(request *proto.Parse_Request, stream proto.DRPCProvisione
 	})
 }
 
-// Converts a Terraform variable to a managed variable.
-func convertTerraformVariableToManagedVariable(variable *tfconfig.Variable) (*proto.TemplateVariable, error) {
+// Converts a Terraform variable to a template-wide variable, processed by Coder.
+func convertTerraformVariable(variable *tfconfig.Variable) (*proto.TemplateVariable, error) {
 	var defaultData string
 	if variable.Default != nil {
 		var valid bool
