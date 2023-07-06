@@ -292,8 +292,7 @@ func ensureCorrectGitBranch(baseInv *clibase.Invocation, params ensureCorrectGit
 		c := exec.CommandContext(baseInv.Context(), cmd, args...)
 		c.Dir = params.repoDir
 		c.Env = append(baseInv.Environ.ToOS(), fmt.Sprintf(`GIT_SSH_COMMAND=%s -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no`, params.gitSSHCommand))
-		var out bytes.Buffer
-		c.Stdout = &out
+		c.Stdout = baseInv.Stdout
 		c.Stderr = baseInv.Stderr
 		return c
 	}
