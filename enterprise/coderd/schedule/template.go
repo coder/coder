@@ -28,13 +28,25 @@ func (*EnterpriseTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.C
 		return agpl.TemplateScheduleOptions{}, err
 	}
 
+	// These extra checks have to be done before the conversion.
+	if tpl.RestartRequirementDaysOfWeek < 0 {
+		return agpl.TemplateScheduleOptions{}, xerrors.New("invalid restart requirement days, negative")
+	}
+	if tpl.RestartRequirementDaysOfWeek > 0b11111111 {
+		return agpl.TemplateScheduleOptions{}, xerrors.New("invalid restart requirement days, too large")
+	}
+	err = agpl.VerifyTemplateRestartRequirement(uint8(tpl.RestartRequirementDaysOfWeek), tpl.RestartRequirementWeeks)
+	if err != nil {
+		return agpl.TemplateScheduleOptions{}, err
+	}
+
 	return agpl.TemplateScheduleOptions{
 		UserAutostartEnabled: tpl.AllowUserAutostart,
 		UserAutostopEnabled:  tpl.AllowUserAutostop,
 		DefaultTTL:           time.Duration(tpl.DefaultTTL),
-		// TODO: fix storage to use new restart requirement
 		RestartRequirement: agpl.TemplateRestartRequirement{
-			DaysOfWeek: 0b01111111,
+			DaysOfWeek: uint8(tpl.RestartRequirementDaysOfWeek),
+			Weeks:      tpl.RestartRequirementWeeks,
 		},
 		FailureTTL:    time.Duration(tpl.FailureTTL),
 		InactivityTTL: time.Duration(tpl.InactivityTTL),
@@ -45,8 +57,8 @@ func (*EnterpriseTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.C
 // SetTemplateScheduleOptions implements agpl.TemplateScheduleStore.
 func (*EnterpriseTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, tpl database.Template, opts agpl.TemplateScheduleOptions) (database.Template, error) {
 	if int64(opts.DefaultTTL) == tpl.DefaultTTL &&
-		// TODO: fix storage to use new restart requirement
-		int64(opts.RestartRequirement.DaysOfWeek) == tpl.MaxTTL &&
+		int16(opts.RestartRequirement.DaysOfWeek) == tpl.RestartRequirementDaysOfWeek &&
+		opts.RestartRequirement.Weeks == tpl.RestartRequirementWeeks &&
 		int64(opts.FailureTTL) == tpl.FailureTTL &&
 		int64(opts.InactivityTTL) == tpl.InactivityTTL &&
 		int64(opts.LockedTTL) == tpl.LockedTTL &&
@@ -56,17 +68,22 @@ func (*EnterpriseTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.C
 		return tpl, nil
 	}
 
+	err := agpl.VerifyTemplateRestartRequirement(uint8(opts.RestartRequirement.DaysOfWeek), opts.RestartRequirement.Weeks)
+	if err != nil {
+		return database.Template{}, err
+	}
+
 	template, err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
-		ID:                 tpl.ID,
-		UpdatedAt:          database.Now(),
-		AllowUserAutostart: opts.UserAutostartEnabled,
-		AllowUserAutostop:  opts.UserAutostopEnabled,
-		DefaultTTL:         int64(opts.DefaultTTL),
-		// TODO: fix storage to use new restart requirement
-		MaxTTL:        0,
-		FailureTTL:    int64(opts.FailureTTL),
-		InactivityTTL: int64(opts.InactivityTTL),
-		LockedTTL:     int64(opts.LockedTTL),
+		ID:                           tpl.ID,
+		UpdatedAt:                    database.Now(),
+		AllowUserAutostart:           opts.UserAutostartEnabled,
+		AllowUserAutostop:            opts.UserAutostopEnabled,
+		DefaultTTL:                   int64(opts.DefaultTTL),
+		RestartRequirementDaysOfWeek: int16(opts.RestartRequirement.DaysOfWeek),
+		RestartRequirementWeeks:      opts.RestartRequirement.Weeks,
+		FailureTTL:                   int64(opts.FailureTTL),
+		InactivityTTL:                int64(opts.InactivityTTL),
+		LockedTTL:                    int64(opts.LockedTTL),
 	})
 	if err != nil {
 		return database.Template{}, xerrors.Errorf("update template schedule: %w", err)

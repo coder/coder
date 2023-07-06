@@ -3652,7 +3652,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/users/{user}/quiet-hours-schedule": {
+        "/users/{user}/quiet-hours": {
             "get": {
                 "security": [
                     {
@@ -8629,6 +8629,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "created_by_id": {
+                    "description": "MaxTTLMillis is an enterprise feature. It's value is only used if your\nlicense is entitled to use the advanced template scheduling feature.\nTODO: fix and comment",
                     "type": "string",
                     "format": "uuid"
                 },
@@ -8659,10 +8660,6 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "locked_ttl_ms": {
-                    "type": "integer"
-                },
-                "max_ttl_ms": {
-                    "description": "MaxTTLMillis is an enterprise feature. It's value is only used if your\nlicense is entitled to use the advanced template scheduling feature.",
                     "type": "integer"
                 },
                 "name": {

@@ -139,8 +139,6 @@ func (r *RootCmd) create() *clibase.Cmd {
 			var ttlMillis *int64
 			if stopAfter > 0 {
 				ttlMillis = ptr.Ref(stopAfter.Milliseconds())
-			} else if template.MaxTTLMillis > 0 {
-				ttlMillis = &template.MaxTTLMillis
 			}
 
 			workspace, err := client.CreateWorkspace(inv.Context(), organization.ID, codersdk.Me, codersdk.CreateWorkspaceRequest{

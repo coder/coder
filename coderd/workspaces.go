@@ -381,7 +381,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	dbTTL, err := validWorkspaceTTLMillis(createWorkspace.TTLMillis, templateSchedule.DefaultTTL, templateSchedule.MaxTTL)
+	dbTTL, err := validWorkspaceTTLMillis(createWorkspace.TTLMillis, templateSchedule.DefaultTTL)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid Workspace Time to Shutdown.",
@@ -719,7 +719,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		// don't override 0 ttl with template default here because it indicates
 		// disabled autostop
 		var validityErr error
-		dbTTL, validityErr = validWorkspaceTTLMillis(req.TTLMillis, 0, templateSchedule.MaxTTL)
+		dbTTL, validityErr = validWorkspaceTTLMillis(req.TTLMillis, 0)
 		if validityErr != nil {
 			return codersdk.ValidationError{Field: "ttl_ms", Detail: validityErr.Error()}
 		}
@@ -1102,20 +1102,9 @@ func calculateDeletingAt(workspace database.Workspace, template database.Templat
 	return ptr.Ref(workspace.LastUsedAt.Add(time.Duration(template.InactivityTTL) * time.Nanosecond))
 }
 
-func validWorkspaceTTLMillis(millis *int64, templateDefault, templateMax time.Duration) (sql.NullInt64, error) {
-	if templateDefault == 0 && templateMax != 0 || (templateMax > 0 && templateDefault > templateMax) {
-		templateDefault = templateMax
-	}
-
+func validWorkspaceTTLMillis(millis *int64, templateDefault time.Duration) (sql.NullInt64, error) {
 	if ptr.NilOrZero(millis) {
 		if templateDefault == 0 {
-			if templateMax > 0 {
-				return sql.NullInt64{
-					Int64: int64(templateMax),
-					Valid: true,
-				}, nil
-			}
-
 			return sql.NullInt64{}, nil
 		}
 
@@ -1133,10 +1122,6 @@ func validWorkspaceTTLMillis(millis *int64, templateDefault, templateMax time.Du
 
 	if truncated > ttlMax {
 		return sql.NullInt64{}, errTTLMax
-	}
-
-	if templateMax > 0 && truncated > templateMax {
-		return sql.NullInt64{}, xerrors.Errorf("time until shutdown must be less than or equal to the template's maximum TTL %q", templateMax.String())
 	}
 
 	return sql.NullInt64{

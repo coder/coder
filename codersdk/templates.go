@@ -30,7 +30,7 @@ type Template struct {
 	DefaultTTLMillis int64                  `json:"default_ttl_ms"`
 	// MaxTTLMillis is an enterprise feature. It's value is only used if your
 	// license is entitled to use the advanced template scheduling feature.
-	MaxTTLMillis  int64     `json:"max_ttl_ms"`
+	// TODO: fix and comment
 	CreatedByID   uuid.UUID `json:"created_by_id" format:"uuid"`
 	CreatedByName string    `json:"created_by_name"`
 

@@ -309,7 +309,6 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			// Some of these values are enterprise-only, but the
 			// TemplateScheduleStore will handle avoiding setting them if
 			// unlicensed.
-			MaxTTL:        maxTTL,
 			FailureTTL:    failureTTL,
 			InactivityTTL: inactivityTTL,
 		})
@@ -522,7 +521,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.AllowUserAutostop == template.AllowUserAutostop &&
 			req.AllowUserCancelWorkspaceJobs == template.AllowUserCancelWorkspaceJobs &&
 			req.DefaultTTLMillis == time.Duration(template.DefaultTTL).Milliseconds() &&
-			req.MaxTTLMillis == time.Duration(template.MaxTTL).Milliseconds() &&
 			req.FailureTTLMillis == time.Duration(template.FailureTTL).Milliseconds() &&
 			req.InactivityTTLMillis == time.Duration(template.InactivityTTL).Milliseconds() &&
 			req.FailureTTLMillis == time.Duration(template.LockedTTL).Milliseconds() {
@@ -550,13 +548,11 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		defaultTTL := time.Duration(req.DefaultTTLMillis) * time.Millisecond
-		maxTTL := time.Duration(req.MaxTTLMillis) * time.Millisecond
 		failureTTL := time.Duration(req.FailureTTLMillis) * time.Millisecond
 		inactivityTTL := time.Duration(req.InactivityTTLMillis) * time.Millisecond
 		lockedTTL := time.Duration(req.LockedTTLMillis) * time.Millisecond
 
 		if defaultTTL != time.Duration(template.DefaultTTL) ||
-			maxTTL != time.Duration(template.MaxTTL) ||
 			failureTTL != time.Duration(template.FailureTTL) ||
 			inactivityTTL != time.Duration(template.InactivityTTL) ||
 			lockedTTL != time.Duration(template.LockedTTL) ||
@@ -569,7 +565,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 				UserAutostartEnabled: req.AllowUserAutostart,
 				UserAutostopEnabled:  req.AllowUserAutostop,
 				DefaultTTL:           defaultTTL,
-				MaxTTL:               maxTTL,
 				FailureTTL:           failureTTL,
 				InactivityTTL:        inactivityTTL,
 				LockedTTL:            lockedTTL,
@@ -718,7 +713,6 @@ func (api *API) convertTemplate(
 		Description:                  template.Description,
 		Icon:                         template.Icon,
 		DefaultTTLMillis:             time.Duration(template.DefaultTTL).Milliseconds(),
-		MaxTTLMillis:                 time.Duration(template.MaxTTL).Milliseconds(),
 		CreatedByID:                  template.CreatedBy,
 		CreatedByName:                createdByName,
 		AllowUserAutostart:           template.AllowUserAutostart,

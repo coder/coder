@@ -1574,8 +1574,7 @@ type Template struct {
 	// Display name is a custom, human-friendly template name that user can set.
 	DisplayName string `db:"display_name" json:"display_name"`
 	// Allow users to cancel in-progress workspace jobs.
-	AllowUserCancelWorkspaceJobs bool  `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
-	MaxTTL                       int64 `db:"max_ttl" json:"max_ttl"`
+	AllowUserCancelWorkspaceJobs bool `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
 	// Allow users to specify an autostart schedule for workspaces (enterprise).
 	AllowUserAutostart bool `db:"allow_user_autostart" json:"allow_user_autostart"`
 	// Allow users to specify custom autostop values for workspaces (enterprise).
@@ -1583,6 +1582,10 @@ type Template struct {
 	FailureTTL        int64 `db:"failure_ttl" json:"failure_ttl"`
 	InactivityTTL     int64 `db:"inactivity_ttl" json:"inactivity_ttl"`
 	LockedTTL         int64 `db:"locked_ttl" json:"locked_ttl"`
+	// A bitmap of days of week to restart the workspace on, starting with Monday as the 0th bit, and Sunday as the 6th bit. Always little-endian. The 7th bit is unused.
+	RestartRequirementDaysOfWeek int16 `db:"restart_requirement_days_of_week" json:"restart_requirement_days_of_week"`
+	// The number of weeks between restarts. 0 weeks means "every week", 1 week means "every other week", etc. Weeks are counted from January 2, 2023, which is the first Monday of 2023. This is to ensure workspaces are started consistently for all customers on the same n-week cycles.
+	RestartRequirementWeeks int64 `db:"restart_requirement_weeks" json:"restart_requirement_weeks"`
 }
 
 type TemplateVersion struct {

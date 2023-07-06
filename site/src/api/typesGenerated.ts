@@ -804,7 +804,6 @@ export interface Template {
   readonly description: string
   readonly icon: string
   readonly default_ttl_ms: number
-  readonly max_ttl_ms: number
   readonly created_by_id: string
   readonly created_by_name: string
   readonly allow_user_autostart: boolean

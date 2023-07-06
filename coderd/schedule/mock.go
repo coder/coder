@@ -30,3 +30,26 @@ func (m MockTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Contex
 
 	return NewAGPLTemplateScheduleStore().SetTemplateScheduleOptions(ctx, db, template, options)
 }
+
+type MockUserQuietHoursScheduleStore struct {
+	GetFn func(ctx context.Context, db database.Store, userID uuid.UUID) (UserQuietHoursScheduleOptions, error)
+	SetFn func(ctx context.Context, db database.Store, userID uuid.UUID, schedule string) (UserQuietHoursScheduleOptions, error)
+}
+
+var _ UserQuietHoursScheduleStore = MockUserQuietHoursScheduleStore{}
+
+func (m MockUserQuietHoursScheduleStore) GetUserQuietHoursScheduleOptions(ctx context.Context, db database.Store, userID uuid.UUID) (UserQuietHoursScheduleOptions, error) {
+	if m.GetFn != nil {
+		return m.GetFn(ctx, db, userID)
+	}
+
+	return NewAGPLUserQuietHoursScheduleStore().GetUserQuietHoursScheduleOptions(ctx, db, userID)
+}
+
+func (m MockUserQuietHoursScheduleStore) SetUserQuietHoursScheduleOptions(ctx context.Context, db database.Store, userID uuid.UUID, schedule string) (UserQuietHoursScheduleOptions, error) {
+	if m.SetFn != nil {
+		return m.SetFn(ctx, db, userID, schedule)
+	}
+
+	return NewAGPLUserQuietHoursScheduleStore().SetUserQuietHoursScheduleOptions(ctx, db, userID, schedule)
+}

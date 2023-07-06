@@ -67,6 +67,17 @@ type Server struct {
 
 	AcquireJobDebounce time.Duration
 	OIDCConfig         httpmw.OAuth2Config
+
+	TimeNowFn func() time.Time
+}
+
+// timeNow should be used when trying to get the current time for math
+// calculations regarding workspace start and stop time.
+func (server *Server) timeNow() time.Time {
+	if server.TimeNowFn != nil {
+		return database.Time(server.TimeNowFn())
+	}
+	return database.Now()
 }
 
 // AcquireJob queries the database to lock a job.
@@ -101,7 +112,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 		// The provisioner daemon assumes no jobs are available if
 		// an empty struct is returned.
 		lastAcquireMutex.Lock()
-		lastAcquire = time.Now()
+		lastAcquire = database.Now()
 		lastAcquireMutex.Unlock()
 		return &proto.AcquiredJob{}, nil
 	}
@@ -893,7 +904,9 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 
 		err = server.Database.InTx(func(db database.Store) error {
 			var (
-				now = database.Now()
+				// It's important we use server.timeNow() here because we want
+				// to be able to customize the current time from within tests.
+				now = server.timeNow()
 				// deadline is the time when the workspace will be stopped. The
 				// value can be bumped by user activity or manually by the user
 				// via the UI.
@@ -912,6 +925,9 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				return getWorkspaceError
 			}
 			if workspace.Ttl.Valid {
+				// When the workspace is made it copies the template's TTL, and
+				// the user can unset it to disable it (unless the template
+				// has UserAutoStopEnabled set to false, see below).
 				deadline = now.Add(time.Duration(workspace.Ttl.Int64))
 			}
 
@@ -944,26 +960,45 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				// workspace.
 				if userQuietHoursSchedule.Schedule != nil {
 					loc := userQuietHoursSchedule.Schedule.Location()
-					now := time.Now().In(loc)
-					startOfDay := now.Truncate(24 * time.Hour)
+					now := server.timeNow().In(loc)
+					startOfDay := truncateMidnight(now)
 
-					// First, determine if we can restart today or if the
-					// schedule is too near/already passed.
+					// If the template schedule wants to only restart on n-th
+					// weeks then change the startOfDay to be the start of the
+					// next n-th week if this week is not an n-th week.
+					/*
+						TODO: get working and add tests
+						if templateSchedule.RestartRequirement.Weeks != 0 {
+							epoch := schedule.TemplateRestartRequirementEpoch(loc)
+							if startOfDay.Before(epoch) {
+								return xerrors.Errorf("coder server system clock is incorrect, cannot calculate template restart requirement")
+							}
+							since := startOfDay.Sub(epoch)
+							weeksSince := int64(since.Hours() / (24 * 7))
+							if weeksSince%templateSchedule.RestartRequirement.Weeks != 0 {
+								startOfDay = epoch.Add(time.Duration(weeksSince/templateSchedule.RestartRequirement.Weeks+1) * 24 * 7 * time.Hour)
+								startOfDay = truncateMidnight(startOfDay)
+							}
+						}
+					*/
+
+					// Determine if we should skip today because the schedule is
+					// too near or has already passed.
 					//
 					// Allow an hour of leeway (i.e. any workspaces started
 					// within an hour of the scheduled stop time will always
 					// bounce to the next stop window).
 					todaySchedule := userQuietHoursSchedule.Schedule.Next(startOfDay)
-					if todaySchedule.Before(now.Add(-time.Hour)) {
+					if todaySchedule.Before(now.Add(time.Hour)) {
 						// Set the first stop day we try to tomorrow because
 						// today's schedule is too close to now or has already
 						// passed.
-						startOfDay = startOfDay.Add(24 * time.Hour)
+						startOfDay = nextDayMidnight(startOfDay)
 					}
 
-					// Get the current day of week and iterate through the days
-					// of week until we wrap or find a day present in the
-					// restart requirement.
+					// Iterate from 0 to 7, check if the current startOfDay is
+					// in the restart requirement. If it isn't then add a day
+					// and try again.
 					requirementDays := templateSchedule.RestartRequirement.DaysMap()
 					for i := 0; i < len(schedule.DaysOfWeek)+1; i++ {
 						if i == len(schedule.DaysOfWeek) {
@@ -975,12 +1010,27 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 						if requirementDays[startOfDay.Weekday()] {
 							break
 						}
-						startOfDay = startOfDay.Add(24 * time.Hour)
+						startOfDay = nextDayMidnight(startOfDay)
 					}
 
-					// Get the next occurrence of the restart schedule after
-					// the start of today.
-					maxDeadline = userQuietHoursSchedule.Schedule.Next(startOfDay)
+					// If the startOfDay is within an hour of now, then we add
+					// an hour.
+					checkTime := startOfDay
+					if checkTime.Before(now.Add(time.Hour)) {
+						checkTime = now.Add(time.Hour)
+					} else {
+						// If it's not within an hour of now, subtract 15
+						// minutes to give a little leeway. This prevents
+						// skipped stop events because autostart perfectly lines
+						// up with autostop.
+						checkTime = checkTime.Add(-15 * time.Minute)
+					}
+
+					// Get the next occurrence of the restart schedule.
+					maxDeadline = userQuietHoursSchedule.Schedule.Next(checkTime)
+					if maxDeadline.IsZero() {
+						return xerrors.Errorf("could not find next occurrence of template restart requirement in user quiet hours schedule")
+					}
 				}
 
 				// If the workspace doesn't have a deadline or the max deadline
@@ -989,6 +1039,12 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				if deadline.IsZero() || maxDeadline.Before(deadline) {
 					deadline = maxDeadline
 				}
+			}
+
+			if (!deadline.IsZero() && deadline.Before(now)) || (!maxDeadline.IsZero() && maxDeadline.Before(now)) {
+				// Something went wrong with the deadline calculation, so we
+				// should bail.
+				return xerrors.Errorf("deadline calculation error, computed deadline or max deadline is in the past for workspace build: deadline=%q maxDeadline=%q now=%q", deadline, maxDeadline, now)
 			}
 
 			err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
@@ -1609,4 +1665,22 @@ func redactTemplateVariable(templateVariable *sdkproto.TemplateVariable) *sdkpro
 		maybeRedacted.DefaultValue = "*redacted*"
 	}
 	return maybeRedacted
+}
+
+// truncateMidnight truncates a time to midnight in the time object's timezone.
+// t.Truncate(24 * time.Hour) truncates based on the internal time and doesn't
+// factor daylight savings properly.
+//
+// See: https://github.com/golang/go/issues/10894
+func truncateMidnight(t time.Time) time.Time {
+	yy, mm, dd := t.Date()
+	return time.Date(yy, mm, dd, 0, 0, 0, 0, t.Location())
+}
+
+// nextDayMidnight returns the next midnight in the time object's timezone.
+func nextDayMidnight(t time.Time) time.Time {
+	yy, mm, dd := t.Date()
+	// time.Date will correctly normalize the date if it's past the end of the
+	// month. E.g. October 32nd will be November 1st.
+	return time.Date(yy, mm, dd+1, 0, 0, 0, 0, t.Location())
 }

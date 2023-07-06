@@ -652,7 +652,7 @@ Origin addresses to respect "proxy-trusted-headers". e.g. 192.168.1.0/24.
 
 |             |                                                              |
 | ----------- | ------------------------------------------------------------ |
-| Type        | <code>string</code>                                          |
+| Type        | <code>duration</code>                                        |
 | Environment | <code>$CODER_QUIET_HOURS_WINDOW_DURATION</code>              |
 | YAML        | <code>userQuietHoursSchedule.quietHoursWindowDuration</code> |
 | Default     | <code>4h0m0s</code>                                          |

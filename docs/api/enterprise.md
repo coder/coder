@@ -1128,12 +1128,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/users/{user}/quiet-hours-schedule \
+curl -X GET http://coder-server:8080/api/v2/users/{user}/quiet-hours \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/quiet-hours-schedule`
+`GET /users/{user}/quiet-hours`
 
 ### Parameters
 
@@ -1186,13 +1186,13 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X PUT http://coder-server:8080/api/v2/users/{user}/quiet-hours-schedule \
+curl -X PUT http://coder-server:8080/api/v2/users/{user}/quiet-hours \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /users/{user}/quiet-hours-schedule`
+`PUT /users/{user}/quiet-hours`
 
 > Body parameter
 

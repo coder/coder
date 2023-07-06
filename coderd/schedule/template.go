@@ -5,18 +5,32 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 )
 
+const MaxTemplateRestartRequirementWeeks = 16
+
+func TemplateRestartRequirementEpoch(loc *time.Location) time.Time {
+	// The "first week" starts on January 2nd, 2023, which is the first Monday
+	// of 2023. All other weeks are counted using modulo arithmetic from that
+	// date.
+	return time.Date(2023, time.January, 2, 0, 0, 0, 0, loc)
+}
+
+// DaysOfWeek intentionally starts on Monday as opposed to Sunday so the weekend
+// days are contiguous in the bitmap. This matters greatly when doing restarts
+// every second week or more to avoid workspaces restarting "at the start" of
+// the week rather than "at the end" of the week.
 var DaysOfWeek = []time.Weekday{
-	time.Sunday,
 	time.Monday,
 	time.Tuesday,
 	time.Wednesday,
 	time.Thursday,
 	time.Friday,
 	time.Saturday,
+	time.Sunday,
 }
 
 type TemplateRestartRequirement struct {
@@ -24,9 +38,18 @@ type TemplateRestartRequirement struct {
 	// restarted. If fully zero, the workspace is not required to be restarted
 	// ever.
 	//
-	// First bit is Sunday, second bit is Monday, ..., seventh bit is Saturday,
-	// eighth bit is unused.
+	// First bit is Monday, ..., seventh bit is Sunday, eighth bit is unused.
 	DaysOfWeek uint8
+	// Weeks is the amount of weeks between restarts. If zero, the workspace is
+	// restarted weekly in accordance with DaysOfWeek. If 1, the workspace is
+	// restarted every other week. And so forth.
+	//
+	// The limit for this value is 16, which is roughly 4 months.
+	//
+	// The "first week" starts on January 2nd, 2023, which is the first Monday
+	// of 2023. All other weeks are counted using modulo arithmetic from that
+	// date.
+	Weeks int64
 }
 
 // Days returns the days of the week that the workspace must be restarted.
@@ -48,6 +71,24 @@ func (r TemplateRestartRequirement) DaysMap() map[time.Weekday]bool {
 		days[day] = r.DaysOfWeek&(1<<uint(i)) != 0
 	}
 	return days
+}
+
+// VerifyTemplateRestartRequirement returns an error if the restart requirement
+// is invalid.
+func VerifyTemplateRestartRequirement(days uint8, weeks int64) error {
+	if days&0b10000000 != 0 {
+		return xerrors.New("invalid restart requirement days, last bit is set")
+	}
+	if days > 0b11111111 {
+		return xerrors.New("invalid restart requirement days, too large")
+	}
+	if weeks < 0 {
+		return xerrors.New("invalid restart requirement weeks, negative")
+	}
+	if weeks > 16 {
+		return xerrors.New("invalid restart requirement weeks, too large")
+	}
+	return nil
 }
 
 type TemplateScheduleOptions struct {
@@ -99,6 +140,7 @@ func (*agplTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context
 		// FailureTTL, InactivityTTL, and LockedTTL are enterprise features.
 		RestartRequirement: TemplateRestartRequirement{
 			DaysOfWeek: 0,
+			Weeks:      0,
 		},
 		FailureTTL:    0,
 		InactivityTTL: 0,
@@ -112,18 +154,18 @@ func (*agplTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context
 		return tpl, nil
 	}
 
-	// TODO: fix storage to use new restart requirement
 	return db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 		ID:         tpl.ID,
 		UpdatedAt:  database.Now(),
 		DefaultTTL: int64(opts.DefaultTTL),
 		// Don't allow changing these settings, but keep the value in the DB (to
 		// avoid clearing settings if the license has an issue).
-		AllowUserAutostart: tpl.AllowUserAutostart,
-		AllowUserAutostop:  tpl.AllowUserAutostop,
-		MaxTTL:             tpl.MaxTTL,
-		FailureTTL:         tpl.FailureTTL,
-		InactivityTTL:      tpl.InactivityTTL,
-		LockedTTL:          tpl.LockedTTL,
+		RestartRequirementDaysOfWeek: tpl.RestartRequirementDaysOfWeek,
+		RestartRequirementWeeks:      tpl.RestartRequirementWeeks,
+		AllowUserAutostart:           tpl.AllowUserAutostart,
+		AllowUserAutostop:            tpl.AllowUserAutostop,
+		FailureTTL:                   tpl.FailureTTL,
+		InactivityTTL:                tpl.InactivityTTL,
+		LockedTTL:                    tpl.LockedTTL,
 	})
 }

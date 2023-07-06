@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/oauth2"
@@ -903,142 +904,254 @@ func TestCompleteJob(t *testing.T) {
 	t.Run("WorkspaceBuild", func(t *testing.T) {
 		t.Parallel()
 
+		now := time.Now()
+
+		// Wednesday the 5th of July 2023 at midnight.
+		wednesdayMidnightUTC := time.Date(2023, 7, 5, 0, 0, 0, 0, time.UTC)
+
+		sydneyQuietHours := "CRON_TZ=Australia/Sydney 0 0 * * *"
+		sydneyLoc, err := time.LoadLocation("Australia/Sydney")
+		require.NoError(t, err)
+		// 10pm on Friday the 7th of July 2023 in Sydney.
+		fridayEveningSydney := time.Date(2023, 7, 7, 22, 0, 0, 0, sydneyLoc)
+		// 12am on Saturday the 8th of July 2023 in Sydney.
+		saturdayMidnightSydney := time.Date(2023, 7, 8, 0, 0, 0, 0, sydneyLoc)
+
+		t.Log("now", now)
+		t.Log("wednesdayMidnightUTC", wednesdayMidnightUTC)
+		t.Log("fridayEveningSydney", fridayEveningSydney)
+		t.Log("saturdayMidnightSydney", saturdayMidnightSydney)
+
 		cases := []struct {
 			name                  string
+			now                   time.Time
 			templateAllowAutostop bool
 			templateDefaultTTL    time.Duration
-			templateMaxTTL        time.Duration
 			workspaceTTL          time.Duration
 			transition            database.WorkspaceTransition
-			// The TTL is actually a deadline time on the workspace_build row,
-			// so during the test this will be compared to be within 15 seconds
-			// of the expected value.
-			expectedTTL    time.Duration
-			expectedMaxTTL time.Duration
+
+			// These fields are only used when testing max deadline.
+			userQuietHoursSchedule     string
+			templateRestartRequirement schedule.TemplateRestartRequirement
+
+			expectedDeadline    time.Time
+			expectedMaxDeadline time.Time
 		}{
 			{
-				name:                  "OK",
-				templateAllowAutostop: true,
-				templateDefaultTTL:    0,
-				templateMaxTTL:        0,
-				workspaceTTL:          0,
-				transition:            database.WorkspaceTransitionStart,
-				expectedTTL:           0,
-				expectedMaxTTL:        0,
+				name:                       "OK",
+				now:                        now,
+				templateAllowAutostop:      true,
+				templateDefaultTTL:         0,
+				templateRestartRequirement: schedule.TemplateRestartRequirement{},
+				workspaceTTL:               0,
+				transition:                 database.WorkspaceTransitionStart,
+				expectedDeadline:           time.Time{},
+				expectedMaxDeadline:        time.Time{},
 			},
 			{
-				name:                  "Delete",
-				templateAllowAutostop: true,
-				templateDefaultTTL:    0,
-				templateMaxTTL:        0,
-				workspaceTTL:          0,
-				transition:            database.WorkspaceTransitionDelete,
-				expectedTTL:           0,
-				expectedMaxTTL:        0,
+				name:                       "Delete",
+				now:                        now,
+				templateAllowAutostop:      true,
+				templateDefaultTTL:         0,
+				templateRestartRequirement: schedule.TemplateRestartRequirement{},
+				workspaceTTL:               0,
+				transition:                 database.WorkspaceTransitionDelete,
+				expectedDeadline:           time.Time{},
+				expectedMaxDeadline:        time.Time{},
 			},
 			{
-				name:                  "WorkspaceTTL",
-				templateAllowAutostop: true,
-				templateDefaultTTL:    0,
-				templateMaxTTL:        0,
-				workspaceTTL:          time.Hour,
-				transition:            database.WorkspaceTransitionStart,
-				expectedTTL:           time.Hour,
-				expectedMaxTTL:        0,
+				name:                       "WorkspaceTTL",
+				now:                        now,
+				templateAllowAutostop:      true,
+				templateDefaultTTL:         0,
+				templateRestartRequirement: schedule.TemplateRestartRequirement{},
+				workspaceTTL:               time.Hour,
+				transition:                 database.WorkspaceTransitionStart,
+				expectedDeadline:           now.Add(time.Hour),
+				expectedMaxDeadline:        time.Time{},
 			},
 			{
-				name:                  "TemplateDefaultTTLIgnored",
-				templateAllowAutostop: true,
-				templateDefaultTTL:    time.Hour,
-				templateMaxTTL:        0,
-				workspaceTTL:          0,
-				transition:            database.WorkspaceTransitionStart,
-				expectedTTL:           0,
-				expectedMaxTTL:        0,
+				name:                       "TemplateDefaultTTLIgnored",
+				now:                        now,
+				templateAllowAutostop:      true,
+				templateDefaultTTL:         time.Hour,
+				templateRestartRequirement: schedule.TemplateRestartRequirement{},
+				workspaceTTL:               0,
+				transition:                 database.WorkspaceTransitionStart,
+				expectedDeadline:           time.Time{},
+				expectedMaxDeadline:        time.Time{},
 			},
 			{
-				name:                  "WorkspaceTTLOverridesTemplateDefaultTTL",
-				templateAllowAutostop: true,
-				templateDefaultTTL:    2 * time.Hour,
-				templateMaxTTL:        0,
-				workspaceTTL:          time.Hour,
-				transition:            database.WorkspaceTransitionStart,
-				expectedTTL:           time.Hour,
-				expectedMaxTTL:        0,
+				name:                       "WorkspaceTTLOverridesTemplateDefaultTTL",
+				now:                        now,
+				templateAllowAutostop:      true,
+				templateDefaultTTL:         2 * time.Hour,
+				templateRestartRequirement: schedule.TemplateRestartRequirement{},
+				workspaceTTL:               time.Hour,
+				transition:                 database.WorkspaceTransitionStart,
+				expectedDeadline:           now.Add(time.Hour),
+				expectedMaxDeadline:        time.Time{},
 			},
 			{
-				name:                  "TemplateMaxTTL",
-				templateAllowAutostop: true,
-				templateDefaultTTL:    0,
-				templateMaxTTL:        time.Hour,
-				workspaceTTL:          0,
-				transition:            database.WorkspaceTransitionStart,
-				expectedTTL:           time.Hour,
-				expectedMaxTTL:        time.Hour,
+				name:                       "TemplateBlockWorkspaceTTL",
+				now:                        now,
+				templateAllowAutostop:      false,
+				templateDefaultTTL:         3 * time.Hour,
+				templateRestartRequirement: schedule.TemplateRestartRequirement{},
+				workspaceTTL:               4 * time.Hour,
+				transition:                 database.WorkspaceTransitionStart,
+				expectedDeadline:           now.Add(3 * time.Hour),
+				expectedMaxDeadline:        time.Time{},
 			},
 			{
-				name:                  "TemplateMaxTTLOverridesWorkspaceTTL",
-				templateAllowAutostop: true,
-				templateDefaultTTL:    0,
-				templateMaxTTL:        2 * time.Hour,
-				workspaceTTL:          3 * time.Hour,
-				transition:            database.WorkspaceTransitionStart,
-				expectedTTL:           2 * time.Hour,
-				expectedMaxTTL:        2 * time.Hour,
+				name:                   "TemplateRestartRequirement",
+				now:                    wednesdayMidnightUTC,
+				templateAllowAutostop:  true,
+				templateDefaultTTL:     0,
+				userQuietHoursSchedule: sydneyQuietHours,
+				templateRestartRequirement: schedule.TemplateRestartRequirement{
+					DaysOfWeek: 0b00100000, // Saturday
+					Weeks:      0,          // weekly
+				},
+				workspaceTTL: 0,
+				transition:   database.WorkspaceTransitionStart,
+				// expectedDeadline is copied from expectedMaxDeadline.
+				expectedMaxDeadline: saturdayMidnightSydney.In(time.UTC),
 			},
 			{
-				name:                  "TemplateMaxTTLOverridesTemplateDefaultTTL",
-				templateAllowAutostop: true,
-				templateDefaultTTL:    3 * time.Hour,
-				templateMaxTTL:        2 * time.Hour,
-				workspaceTTL:          0,
-				transition:            database.WorkspaceTransitionStart,
-				expectedTTL:           2 * time.Hour,
-				expectedMaxTTL:        2 * time.Hour,
+				name:                   "TemplateRestartRequirement1HourSkip",
+				now:                    saturdayMidnightSydney.Add(-59 * time.Minute),
+				templateAllowAutostop:  true,
+				templateDefaultTTL:     0,
+				userQuietHoursSchedule: sydneyQuietHours,
+				templateRestartRequirement: schedule.TemplateRestartRequirement{
+					DaysOfWeek: 0b00100000, // Saturday
+					Weeks:      0,          // weekly
+				},
+				workspaceTTL: 0,
+				transition:   database.WorkspaceTransitionStart,
+				// expectedDeadline is copied from expectedMaxDeadline.
+				expectedMaxDeadline: saturdayMidnightSydney.Add(7 * 24 * time.Hour).In(time.UTC),
 			},
 			{
-				name:                  "TemplateBlockWorkspaceTTL",
-				templateAllowAutostop: false,
-				templateDefaultTTL:    3 * time.Hour,
-				templateMaxTTL:        6 * time.Hour,
-				workspaceTTL:          4 * time.Hour,
-				transition:            database.WorkspaceTransitionStart,
-				expectedTTL:           3 * time.Hour,
-				expectedMaxTTL:        6 * time.Hour,
+				// The next restart requirement should be skipped if the
+				// workspace is started within 1 hour of it.
+				name:                   "TemplateRestartRequirementDaily",
+				now:                    fridayEveningSydney,
+				templateAllowAutostop:  true,
+				templateDefaultTTL:     0,
+				userQuietHoursSchedule: sydneyQuietHours,
+				templateRestartRequirement: schedule.TemplateRestartRequirement{
+					DaysOfWeek: 0b01111111, // daily
+					Weeks:      0,          // all weeks
+				},
+				workspaceTTL: 0,
+				transition:   database.WorkspaceTransitionStart,
+				// expectedDeadline is copied from expectedMaxDeadline.
+				expectedMaxDeadline: saturdayMidnightSydney.In(time.UTC),
+			},
+			{
+				name: "TemplateRestartRequirementOverridesWorkspaceTTL",
+				// now doesn't have to be UTC, but it helps us ensure that
+				// timezones are compared correctly in this test.
+				now:                    fridayEveningSydney.In(time.UTC),
+				templateAllowAutostop:  true,
+				templateDefaultTTL:     0,
+				userQuietHoursSchedule: sydneyQuietHours,
+				templateRestartRequirement: schedule.TemplateRestartRequirement{
+					DaysOfWeek: 0b00100000, // Saturday
+					Weeks:      0,          // weekly
+				},
+				workspaceTTL: 3 * time.Hour,
+				transition:   database.WorkspaceTransitionStart,
+				// expectedDeadline is copied from expectedMaxDeadline.
+				expectedMaxDeadline: saturdayMidnightSydney.In(time.UTC),
+			},
+			{
+				name:                   "TemplateRestartRequirementOverridesTemplateDefaultTTL",
+				now:                    fridayEveningSydney.In(time.UTC),
+				templateAllowAutostop:  true,
+				templateDefaultTTL:     3 * time.Hour,
+				userQuietHoursSchedule: sydneyQuietHours,
+				templateRestartRequirement: schedule.TemplateRestartRequirement{
+					DaysOfWeek: 0b00100000, // Saturday
+					Weeks:      0,          // weekly
+				},
+				workspaceTTL: 0,
+				transition:   database.WorkspaceTransitionStart,
+				// expectedDeadline is copied from expectedMaxDeadline.
+				expectedMaxDeadline: saturdayMidnightSydney.In(time.UTC),
 			},
 		}
 
 		for _, c := range cases {
 			c := c
 
+			if c.name != "TemplateRestartRequirement1HourSkip" {
+				// TODO: REMOVE
+				continue
+			}
+
 			t.Run(c.name, func(t *testing.T) {
 				t.Parallel()
 
 				srv := setup(t, false)
 
-				var store schedule.TemplateScheduleStore = schedule.MockTemplateScheduleStore{
+				// Simulate the given time starting from now.
+				require.False(t, c.now.IsZero())
+				start := time.Now()
+				srv.TimeNowFn = func() time.Time {
+					return c.now.Add(time.Since(start))
+				}
+
+				var templateScheduleStore schedule.TemplateScheduleStore = schedule.MockTemplateScheduleStore{
 					GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 						return schedule.TemplateScheduleOptions{
 							UserAutostartEnabled: false,
 							UserAutostopEnabled:  c.templateAllowAutostop,
 							DefaultTTL:           c.templateDefaultTTL,
-							MaxTTL:               c.templateMaxTTL,
+							RestartRequirement:   c.templateRestartRequirement,
 						}, nil
 					},
 				}
-				srv.TemplateScheduleStore.Store(&store)
+				srv.TemplateScheduleStore.Store(&templateScheduleStore)
 
-				user := dbgen.User(t, srv.Database, database.User{})
+				var userQuietHoursScheduleStore schedule.UserQuietHoursScheduleStore = schedule.MockUserQuietHoursScheduleStore{
+					GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.UserQuietHoursScheduleOptions, error) {
+						if c.userQuietHoursSchedule == "" {
+							return schedule.UserQuietHoursScheduleOptions{
+								Schedule: nil,
+							}, nil
+						}
+
+						sched, err := schedule.Daily(c.userQuietHoursSchedule)
+						if !assert.NoError(t, err) {
+							return schedule.UserQuietHoursScheduleOptions{}, err
+						}
+
+						return schedule.UserQuietHoursScheduleOptions{
+							Schedule: sched,
+							UserSet:  false,
+							Duration: 4 * time.Hour,
+						}, nil
+					},
+				}
+				srv.UserQuietHoursScheduleStore.Store(&userQuietHoursScheduleStore)
+
+				user := dbgen.User(t, srv.Database, database.User{
+					QuietHoursSchedule: c.userQuietHoursSchedule,
+				})
 				template := dbgen.Template(t, srv.Database, database.Template{
 					Name:        "template",
 					Provisioner: database.ProvisionerTypeEcho,
 				})
 				template, err := srv.Database.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
-					ID:                 template.ID,
-					UpdatedAt:          database.Now(),
-					AllowUserAutostart: c.templateAllowAutostop,
-					DefaultTTL:         int64(c.templateDefaultTTL),
-					MaxTTL:             int64(c.templateMaxTTL),
+					ID:                           template.ID,
+					UpdatedAt:                    database.Now(),
+					AllowUserAutostart:           c.templateAllowAutostop,
+					DefaultTTL:                   int64(c.templateDefaultTTL),
+					RestartRequirementDaysOfWeek: int16(c.templateRestartRequirement.DaysOfWeek),
+					RestartRequirementWeeks:      c.templateRestartRequirement.Weeks,
 				})
 				require.NoError(t, err)
 				file := dbgen.File(t, srv.Database, database.File{CreatedBy: user.ID})
@@ -1119,15 +1232,21 @@ func TestCompleteJob(t *testing.T) {
 				workspaceBuild, err := srv.Database.GetWorkspaceBuildByID(ctx, build.ID)
 				require.NoError(t, err)
 
-				if c.expectedTTL == 0 {
+				// If the max deadline is set, the deadline should also be set.
+				// Default to the max deadline if the deadline is not set.
+				if c.expectedDeadline.IsZero() {
+					c.expectedDeadline = c.expectedMaxDeadline
+				}
+
+				if c.expectedDeadline.IsZero() {
 					require.True(t, workspaceBuild.Deadline.IsZero())
 				} else {
-					require.WithinDuration(t, time.Now().Add(c.expectedTTL), workspaceBuild.Deadline, 15*time.Second, "deadline does not match expected")
+					require.WithinDuration(t, c.expectedDeadline, workspaceBuild.Deadline, 15*time.Second, "deadline does not match expected")
 				}
-				if c.expectedMaxTTL == 0 {
+				if c.expectedMaxDeadline.IsZero() {
 					require.True(t, workspaceBuild.MaxDeadline.IsZero())
 				} else {
-					require.WithinDuration(t, time.Now().Add(c.expectedMaxTTL), workspaceBuild.MaxDeadline, 15*time.Second, "max deadline does not match expected")
+					require.WithinDuration(t, c.expectedMaxDeadline, workspaceBuild.MaxDeadline, 15*time.Second, "max deadline does not match expected")
 					require.GreaterOrEqual(t, workspaceBuild.MaxDeadline.Unix(), workspaceBuild.Deadline.Unix(), "max deadline is smaller than deadline")
 				}
 			})

@@ -551,12 +551,13 @@ CREATE TABLE templates (
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     display_name character varying(64) DEFAULT ''::character varying NOT NULL,
     allow_user_cancel_workspace_jobs boolean DEFAULT true NOT NULL,
-    max_ttl bigint DEFAULT '0'::bigint NOT NULL,
     allow_user_autostart boolean DEFAULT true NOT NULL,
     allow_user_autostop boolean DEFAULT true NOT NULL,
     failure_ttl bigint DEFAULT 0 NOT NULL,
     inactivity_ttl bigint DEFAULT 0 NOT NULL,
-    locked_ttl bigint DEFAULT 0 NOT NULL
+    locked_ttl bigint DEFAULT 0 NOT NULL,
+    restart_requirement_days_of_week smallint DEFAULT 0 NOT NULL,
+    restart_requirement_weeks bigint DEFAULT 0 NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -568,6 +569,10 @@ COMMENT ON COLUMN templates.allow_user_cancel_workspace_jobs IS 'Allow users to 
 COMMENT ON COLUMN templates.allow_user_autostart IS 'Allow users to specify an autostart schedule for workspaces (enterprise).';
 
 COMMENT ON COLUMN templates.allow_user_autostop IS 'Allow users to specify custom autostop values for workspaces (enterprise).';
+
+COMMENT ON COLUMN templates.restart_requirement_days_of_week IS 'A bitmap of days of week to restart the workspace on, starting with Monday as the 0th bit, and Sunday as the 6th bit. Always little-endian. The 7th bit is unused.';
+
+COMMENT ON COLUMN templates.restart_requirement_weeks IS 'The number of weeks between restarts. 0 weeks means "every week", 1 week means "every other week", etc. Weeks are counted from January 2, 2023, which is the first Monday of 2023. This is to ensure workspaces are started consistently for all customers on the same n-week cycles.';
 
 CREATE TABLE user_links (
     user_id uuid NOT NULL,

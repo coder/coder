@@ -52,7 +52,6 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "inactivity_ttl_ms": 0,
     "locked_ttl_ms": 0,
-    "max_ttl_ms": 0,
     "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "provisioner": "terraform",
@@ -84,7 +83,7 @@ Status Code **200**
 | `»»» p50`                            | integer                                                                      | false    |              |                                                                                                                                                                                 |
 | `»»» p95`                            | integer                                                                      | false    |              |                                                                                                                                                                                 |
 | `» created_at`                       | string(date-time)                                                            | false    |              |                                                                                                                                                                                 |
-| `» created_by_id`                    | string(uuid)                                                                 | false    |              |                                                                                                                                                                                 |
+| `» created_by_id`                    | string(uuid)                                                                 | false    |              | Created by ID is an enterprise feature. It's value is only used if your license is entitled to use the advanced template scheduling feature. TODO: fix and comment              |
 | `» created_by_name`                  | string                                                                       | false    |              |                                                                                                                                                                                 |
 | `» default_ttl_ms`                   | integer                                                                      | false    |              |                                                                                                                                                                                 |
 | `» description`                      | string                                                                       | false    |              |                                                                                                                                                                                 |
@@ -94,7 +93,6 @@ Status Code **200**
 | `» id`                               | string(uuid)                                                                 | false    |              |                                                                                                                                                                                 |
 | `» inactivity_ttl_ms`                | integer                                                                      | false    |              |                                                                                                                                                                                 |
 | `» locked_ttl_ms`                    | integer                                                                      | false    |              |                                                                                                                                                                                 |
-| `» max_ttl_ms`                       | integer                                                                      | false    |              | Max ttl ms is an enterprise feature. It's value is only used if your license is entitled to use the advanced template scheduling feature.                                       |
 | `» name`                             | string                                                                       | false    |              |                                                                                                                                                                                 |
 | `» organization_id`                  | string(uuid)                                                                 | false    |              |                                                                                                                                                                                 |
 | `» provisioner`                      | string                                                                       | false    |              |                                                                                                                                                                                 |
@@ -182,7 +180,6 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "inactivity_ttl_ms": 0,
   "locked_ttl_ms": 0,
-  "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",
@@ -310,7 +307,6 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "inactivity_ttl_ms": 0,
   "locked_ttl_ms": 0,
-  "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",
@@ -640,7 +636,6 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "inactivity_ttl_ms": 0,
   "locked_ttl_ms": 0,
-  "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",
@@ -751,7 +746,6 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "inactivity_ttl_ms": 0,
   "locked_ttl_ms": 0,
-  "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",
