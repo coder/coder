@@ -1,4 +1,4 @@
-import { Region, Workspace, WorkspaceProxy } from "api/typesGenerated"
+import { Region, WorkspaceProxy } from "api/typesGenerated"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import { Avatar } from "components/Avatar/Avatar"
 import TableCell from "@mui/material/TableCell"
@@ -17,9 +17,8 @@ import { makeStyles } from "@mui/styles"
 import { combineClasses } from "utils/combineClasses"
 import ListItem from "@mui/material/ListItem"
 import List from "@mui/material/List"
-import { Box, ListSubheader } from "@mui/material"
+import { ListSubheader } from "@mui/material"
 import { Maybe } from "components/Conditionals/Maybe"
-import { CodeBlock } from "components/CodeBlock/CodeBlock"
 import { CodeExample } from "components/CodeExample/CodeExample"
 
 export const ProxyRow: FC<{
