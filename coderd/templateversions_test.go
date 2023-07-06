@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -49,6 +50,26 @@ func TestTemplateVersion(t *testing.T) {
 
 		assert.Equal(t, "bananas", tv.Name)
 		assert.Equal(t, "first try", tv.Message)
+	})
+
+	t.Run("Message limit exceeded", func(t *testing.T) {
+		t.Parallel()
+		client, _, _ := coderdtest.NewWithAPI(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		file, err := client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader([]byte{}))
+		require.NoError(t, err)
+		_, err = client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
+			Name:          "bananas",
+			Message:       strings.Repeat("a", 1048577),
+			StorageMethod: codersdk.ProvisionerStorageMethodFile,
+			FileID:        file.ID,
+			Provisioner:   codersdk.ProvisionerTypeEcho,
+		})
+		require.Error(t, err, "message too long, create should fail")
 	})
 
 	t.Run("MemberCanRead", func(t *testing.T) {

@@ -537,7 +537,7 @@ CREATE TABLE template_versions (
     job_id uuid NOT NULL,
     created_by uuid NOT NULL,
     git_auth_providers text[],
-    message text DEFAULT ''::text NOT NULL
+    message character varying(1048576) DEFAULT ''::character varying NOT NULL
 );
 
 COMMENT ON COLUMN template_versions.git_auth_providers IS 'IDs of Git auth providers for a specific template version';
