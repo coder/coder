@@ -41,13 +41,15 @@ export const useSingleSignOnSection = () => {
 
   const mutation = useMutation(convertToOAUTH, {
     onSuccess: (data) => {
+      const loginTypeMsg =
+        data.to_type === "github" ? "Github" : "OpenID Connect"
       redirectToOIDCAuth(
         data.to_type,
         data.state_string,
         // The redirect on success should be back to the login page with a nice message.
         // The user should be logged out if this worked.
         encodeURIComponent(
-          `/login?info=Login type has been changed to ${data.to_type}. Log in again using the new method.`,
+          `/login?info=Login type has been changed to ${loginTypeMsg}. Log in again using the new method.`,
         ),
       )
     },
