@@ -1747,6 +1747,7 @@ type Workspace struct {
 	Ttl               sql.NullInt64  `db:"ttl" json:"ttl"`
 	LastUsedAt        time.Time      `db:"last_used_at" json:"last_used_at"`
 	LockedAt          sql.NullTime   `db:"locked_at" json:"locked_at"`
+	DeletingAt        sql.NullTime   `db:"deleting_at" json:"deleting_at"`
 }
 
 type WorkspaceAgent struct {
