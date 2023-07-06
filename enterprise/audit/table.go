@@ -238,6 +238,7 @@ func entry(v any, f map[string]Action) (string, map[string]Action) {
 		}
 		if _, ok := fcpy[jsonTag]; !ok {
 			_, _ = fmt.Fprintf(os.Stderr, "ERROR: Audit table entry missing action for field %q in type %q\nPlease update the auditable resource types in: %s\n", d.FieldType.Name, name, self())
+			//nolint:revive
 			os.Exit(1)
 		}
 		delete(fcpy, jsonTag)
@@ -257,6 +258,7 @@ func (t Action) String() string {
 }
 
 func self() string {
+	//nolint:dogsled
 	_, file, _, _ := runtime.Caller(1)
 	return file
 }
