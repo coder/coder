@@ -51,6 +51,7 @@ func (r *RootCmd) regenerateProxyToken() *clibase.Cmd {
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
+			formatter.primaryAccessURL = client.URL.String()
 			// This is cheeky, but you can also use a uuid string in
 			// 'DeleteWorkspaceProxyByName' and it will work.
 			proxy, err := client.WorkspaceProxyByName(ctx, inv.Args[0])
@@ -226,6 +227,7 @@ func (r *RootCmd) createProxy() *clibase.Cmd {
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
+			formatter.primaryAccessURL = client.URL.String()
 			var err error
 			if proxyName == "" && !noPrompts {
 				proxyName, err = cliui.Prompt(inv, cliui.PromptOptions{
@@ -368,8 +370,9 @@ func (r *RootCmd) listProxies() *clibase.Cmd {
 
 // updateProxyResponseFormatter is used for both create and regenerate proxy commands.
 type updateProxyResponseFormatter struct {
-	onlyToken bool
-	formatter *cliui.OutputFormatter
+	onlyToken        bool
+	formatter        *cliui.OutputFormatter
+	primaryAccessURL string
 }
 
 func (f *updateProxyResponseFormatter) Format(ctx context.Context, data codersdk.UpdateWorkspaceProxyResponse) (string, error) {
@@ -393,31 +396,37 @@ func (f *updateProxyResponseFormatter) AttachOptions(opts *clibase.OptionSet) {
 func newUpdateProxyResponseFormatter() *updateProxyResponseFormatter {
 	up := &updateProxyResponseFormatter{
 		onlyToken: false,
-		formatter: cliui.NewOutputFormatter(
-			// Text formatter should be human readable.
-			cliui.ChangeFormatterData(cliui.TextFormat(), func(data any) (any, error) {
+	}
+	up.formatter = cliui.NewOutputFormatter(
+		// Text formatter should be human readable.
+		cliui.ChangeFormatterData(cliui.TextFormat(), func(data any) (any, error) {
+			response, ok := data.(codersdk.UpdateWorkspaceProxyResponse)
+			if !ok {
+				return nil, xerrors.Errorf("unexpected type %T", data)
+			}
+
+			return fmt.Sprintf("Workspace Proxy %[1]q updated successfully.\n"+
+				cliui.DefaultStyles.Placeholder.Render("—————————————————————————————————————————————————")+"\n"+
+				"Save this authentication token, it will not be shown again.\n"+
+				"Token: %[2]s\n"+
+				"\n"+
+				"Start the proxy by running:\n"+
+				cliui.DefaultStyles.Code.Render("CODER_PROXY_SESSION_TOKEN=%[2]s coder wsproxy server --primary-access-url %[3]s --http-address=0.0.0.0:3001")+
+				// This is required to turn off the code style. Otherwise it appears in the code block until the end of the line.
+				cliui.DefaultStyles.Placeholder.Render(""),
+				response.Proxy.Name, response.ProxyToken, up.primaryAccessURL), nil
+		}),
+		cliui.JSONFormat(),
+		// Table formatter expects a slice, make a slice of one.
+		cliui.ChangeFormatterData(cliui.TableFormat([]codersdk.UpdateWorkspaceProxyResponse{}, []string{"proxy name", "proxy url", "proxy token"}),
+			func(data any) (any, error) {
 				response, ok := data.(codersdk.UpdateWorkspaceProxyResponse)
 				if !ok {
 					return nil, xerrors.Errorf("unexpected type %T", data)
 				}
-
-				return fmt.Sprintf("Workspace Proxy %q updated successfully.\n"+
-					cliui.DefaultStyles.Placeholder.Render("—————————————————————————————————————————————————")+"\n"+
-					"Save this authentication token, it will not be shown again.\n"+
-					"Token: %s\n", response.Proxy.Name, response.ProxyToken), nil
+				return []codersdk.UpdateWorkspaceProxyResponse{response}, nil
 			}),
-			cliui.JSONFormat(),
-			// Table formatter expects a slice, make a slice of one.
-			cliui.ChangeFormatterData(cliui.TableFormat([]codersdk.UpdateWorkspaceProxyResponse{}, []string{"proxy name", "proxy url", "proxy token"}),
-				func(data any) (any, error) {
-					response, ok := data.(codersdk.UpdateWorkspaceProxyResponse)
-					if !ok {
-						return nil, xerrors.Errorf("unexpected type %T", data)
-					}
-					return []codersdk.UpdateWorkspaceProxyResponse{response}, nil
-				}),
-		),
-	}
+	)
 
 	return up
 }
