@@ -27,19 +27,29 @@ type LoginTypeConfirmation =
       selectedType: LoginType
     }
 
-export const redirectToOIDCAuth = (stateString: string, redirectTo: string) => {
-  window.location.href = `/api/v2/users/oidc/callback?oidc_merge_state=${stateString}&redirect=${redirectTo}`
+export const redirectToOIDCAuth = (
+  toType: string,
+  stateString: string,
+  redirectTo: string,
+) => {
+  window.location.href = `/api/v2/users/${toType}/callback?oidc_merge_state=${stateString}&redirect=${redirectTo}`
 }
 
 export const useSingleSignOnSection = () => {
-  const location = useLocation()
-  const redirectTo = retrieveRedirect(location.search)
   const [loginTypeConfirmation, setLoginTypeConfirmation] =
     useState<LoginTypeConfirmation>({ open: false, selectedType: undefined })
 
   const mutation = useMutation(convertToOAUTH, {
     onSuccess: (data) => {
-      redirectToOIDCAuth(data.state_string, encodeURIComponent(redirectTo))
+      redirectToOIDCAuth(
+        data.to_type,
+        data.state_string,
+        // The redirect on success should be back to the login page with a nice message.
+        // The user should be logged out if this worked.
+        encodeURIComponent(
+          `/login?info=Login type has been changed to ${data.to_type}. Log in again using the new method.`,
+        ),
+      )
     },
   })
 

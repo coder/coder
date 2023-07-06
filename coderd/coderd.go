@@ -631,12 +631,18 @@ func New(options *Options) *API {
 				r.Post("/login", api.postLogin)
 				r.Route("/oauth2", func(r chi.Router) {
 					r.Route("/github", func(r chi.Router) {
-						r.Use(httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient, nil))
+						r.Use(
+							httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient, nil),
+							apiKeyMiddlewareOptional,
+						)
 						r.Get("/callback", api.userOAuth2Github)
 					})
 				})
 				r.Route("/oidc/callback", func(r chi.Router) {
-					r.Use(httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient, oidcAuthURLParams))
+					r.Use(
+						httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient, oidcAuthURLParams),
+						apiKeyMiddlewareOptional,
+					)
 					r.Get("/", api.userOIDC)
 				})
 			})
