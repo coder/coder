@@ -269,6 +269,23 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
         onClose={closeMenu}
         sx={{ "& .MuiMenu-paper": { py: 1 } }}
       >
+        <MenuItem
+          sx={[
+            { fontSize: 14 },
+            { "&:hover": { backgroundColor: "transparent" } },
+            { wordWrap: "break-word" },
+            { inlineSize: "200px" },
+            { whiteSpace: "normal" },
+            { textAlign: "center" },
+          ]}
+          onClick={(e) => {
+            // Stop the menu from closing
+            e.stopPropagation()
+          }}
+        >
+          Select the closest region to you to improve workspace connections.
+        </MenuItem>
+        <Divider sx={{ borderColor: (theme) => theme.palette.divider }} />
         {proxyContextValue.proxies?.map((proxy) => (
           <MenuItem
             onClick={() => {
