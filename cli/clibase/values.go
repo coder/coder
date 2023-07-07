@@ -24,8 +24,17 @@ type Validator[T pflag.Value] struct {
 	validate func(T) error
 }
 
-func Validate[T pflag.Value](opt T, validate func(value T) error) *Validator[T] {
-	return &Validator[T]{Value: opt, validate: validate}
+func Validate[T pflag.Value](opt T, validate ...func(value T) error) *Validator[T] {
+	return &Validator[T]{Value: opt, validate: func(value T) error {
+		// Run all validate functions
+		for _, v := range validate {
+			err := v(value)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}}
 }
 
 func (i *Validator[T]) String() string {

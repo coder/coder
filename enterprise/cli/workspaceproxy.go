@@ -236,7 +236,7 @@ func (r *RootCmd) createProxy() *clibase.Cmd {
 		formatter   = newUpdateProxyResponseFormatter()
 	)
 	validateIcon := func(s *clibase.String) error {
-		if !(strings.HasPrefix(s.Value(), "/emojis/") || strings.HasPrefix(s, "http")) {
+		if !(strings.HasPrefix(s.Value(), "/emojis/") || strings.HasPrefix(s.Value(), "http")) {
 			return xerrors.New("icon must be a relative path to an emoji or a publicly hosted image URL")
 		}
 		return nil
