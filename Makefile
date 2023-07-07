@@ -622,14 +622,14 @@ site/.eslintignore site/.prettierignore: .prettierignore Makefile
 		echo "$${ignore}$${rule}" >> "$@"
 	done < "$<"
 
-test: test-clean
-	gotestsum --format standard-quiet -- -v -short ./...
+test:
+	gotestsum --format standard-quiet -- -v -short -count=1 ./...
 .PHONY: test
 
 # When updating -timeout for this test, keep in sync with
 # test-go-postgres (.github/workflows/coder.yaml).
 # Do add coverage flags so that test caching works.
-test-postgres: test-clean test-postgres-docker
+test-postgres: test-postgres-docker
 	# The postgres test is prone to failure, so we limit parallelism for
 	# more consistent execution.
 	DB=ci DB_FROM=$(shell go run scripts/migrate-ci/main.go) gotestsum \
@@ -637,7 +637,8 @@ test-postgres: test-clean test-postgres-docker
 		--jsonfile="gotests.json" \
 		--packages="./..." -- \
 		-timeout=20m \
-		-failfast
+		-failfast \
+		-count=1
 .PHONY: test-postgres
 
 test-postgres-docker:
@@ -669,10 +670,13 @@ test-postgres-docker:
 .PHONY: test-postgres-docker
 
 # Make sure to keep this in sync with test-go-race from .github/workflows/ci.yaml.
-test-race: test-clean
-	gotestsum --junitfile="gotests.xml" -- -race ./...
+test-race:
+	gotestsum --junitfile="gotests.xml" -- -race -count=1 ./...
 .PHONY: test-race
 
+# Note: we used to add this to the test target, but it's not necessary and we can
+# achieve the desired result by specifying -count=1 in the go test invocation
+# instead. Keeping it here for convenience.
 test-clean:
 	go clean -testcache
 .PHONY: test-clean
