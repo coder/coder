@@ -27,8 +27,8 @@ updates:
     groups:
       github-actions:
         patterns:
-          - "*" 
-    
+          - "*"
+
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
@@ -65,7 +65,7 @@ updates:
     groups:
       docker:
         patterns:
-          - "*" 
+          - "*"
   - package-ecosystem: "npm"
     directory: "/site/"
     schedule:
@@ -90,8 +90,8 @@ updates:
     groups:
       site:
         patterns:
-          - "*" 
-    
+          - "*"
+
   - package-ecosystem: "terraform"
     directory: "/examples/templates"
     schedule:
@@ -107,8 +107,8 @@ updates:
     groups:
       terraform:
         patterns:
-          - "*" 
-          
+          - "*"
+
   # Update dogfood.
   - package-ecosystem: "docker"
     directory: "/dogfood/"
@@ -119,9 +119,9 @@ updates:
     commit-message:
       prefix: "chore"
     groups:
-          docker:
-            patterns:
-              - "*" 
+      docker:
+        patterns:
+          - "*"
 
   - package-ecosystem: "terraform"
     directory: "/dogfood/"
@@ -135,5 +135,4 @@ updates:
     groups:
       terraform:
         patterns:
-          - "*" 
-    
+          - "*"
