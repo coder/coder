@@ -85,7 +85,7 @@ func VerifyTemplateRestartRequirement(days uint8, weeks int64) error {
 	if weeks < 0 {
 		return xerrors.New("invalid restart requirement weeks, negative")
 	}
-	if weeks > 16 {
+	if weeks > MaxTemplateRestartRequirementWeeks {
 		return xerrors.New("invalid restart requirement weeks, too large")
 	}
 	return nil

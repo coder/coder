@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -28,11 +29,11 @@ type Template struct {
 	Description      string                 `json:"description"`
 	Icon             string                 `json:"icon"`
 	DefaultTTLMillis int64                  `json:"default_ttl_ms"`
-	// MaxTTLMillis is an enterprise feature. It's value is only used if your
-	// license is entitled to use the advanced template scheduling feature.
-	// TODO: fix and comment
-	CreatedByID   uuid.UUID `json:"created_by_id" format:"uuid"`
-	CreatedByName string    `json:"created_by_name"`
+	// RestartRequirement is an enterprise feature. Its value is only used if
+	// your license is entitled to use the advanced template scheduling feature.
+	RestartRequirement TemplateRestartRequirement `json:"restart_requirement"`
+	CreatedByID        uuid.UUID                  `json:"created_by_id" format:"uuid"`
+	CreatedByName      string                     `json:"created_by_name"`
 
 	// AllowUserAutostart and AllowUserAutostop are enterprise-only. Their
 	// values are only used if your license is entitled to use the advanced
@@ -47,6 +48,78 @@ type Template struct {
 	FailureTTLMillis    int64 `json:"failure_ttl_ms"`
 	InactivityTTLMillis int64 `json:"inactivity_ttl_ms"`
 	LockedTTLMillis     int64 `json:"locked_ttl_ms"`
+}
+
+// WeekdaysToBitmap converts a list of weekdays to a bitmap in accordance with
+// the schedule package's rules. The 0th bit is Monday, ..., the 6th bit is
+// Sunday. The 7th bit is unused.
+func WeekdaysToBitmap(days []string) (uint8, error) {
+	var bitmap uint8
+	for _, day := range days {
+		switch strings.ToLower(day) {
+		case "monday":
+			bitmap |= 1 << 0
+		case "tuesday":
+			bitmap |= 1 << 1
+		case "wednesday":
+			bitmap |= 1 << 2
+		case "thursday":
+			bitmap |= 1 << 3
+		case "friday":
+			bitmap |= 1 << 4
+		case "saturday":
+			bitmap |= 1 << 5
+		case "sunday":
+			bitmap |= 1 << 6
+		default:
+			return 0, xerrors.Errorf("invalid weekday %q", day)
+		}
+	}
+	return bitmap, nil
+}
+
+// BitmapToWeekdays converts a bitmap to a list of weekdays in accordance with
+// the schedule package's rules (see above).
+func BitmapToWeekdays(bitmap uint8) []string {
+	var days []string
+	for i := 0; i < 7; i++ {
+		if bitmap&(1<<i) != 0 {
+			switch i {
+			case 0:
+				days = append(days, "monday")
+			case 1:
+				days = append(days, "tuesday")
+			case 2:
+				days = append(days, "wednesday")
+			case 3:
+				days = append(days, "thursday")
+			case 4:
+				days = append(days, "friday")
+			case 5:
+				days = append(days, "saturday")
+			case 6:
+				days = append(days, "sunday")
+			}
+		}
+	}
+	return days
+}
+
+type TemplateRestartRequirement struct {
+	// DaysOfWeek is a list of days of the week on which restarts are required.
+	// Restarts happen within the user's quiet hours (in their configured
+	// timezone). If no days are specified, restarts are not required. Weekdays
+	// cannot be specified twice.
+	//
+	// Restarts will only happen on weekdays in this list on weeks which line up
+	// with Weeks.
+	DaysOfWeek []string `json:"days_of_week" enums:"monday,tuesday,wednesday,thursday,friday,saturday,sunday"`
+	// Weeks is the number of weeks between required restarts. Weeks are synced
+	// across all workspaces (and Coder deployments) using modulo math on a
+	// hardcoded epoch week of January 2nd, 2023 (the first Monday of 2023).
+	// Values of 0 or 1 indicate weekly restarts. Values of 2 indicate
+	// fortnightly restarts, etc.
+	Weeks int64 `json:"weeks"`
 }
 
 type TransitionStats struct {
@@ -95,16 +168,16 @@ type UpdateTemplateMeta struct {
 	Description      string `json:"description,omitempty"`
 	Icon             string `json:"icon,omitempty"`
 	DefaultTTLMillis int64  `json:"default_ttl_ms,omitempty"`
-	// MaxTTLMillis can only be set if your license includes the advanced
+	// RestartRequirement can only be set if your license includes the advanced
 	// template scheduling feature. If you attempt to set this value while
 	// unlicensed, it will be ignored.
-	MaxTTLMillis                 int64 `json:"max_ttl_ms,omitempty"`
-	AllowUserAutostart           bool  `json:"allow_user_autostart,omitempty"`
-	AllowUserAutostop            bool  `json:"allow_user_autostop,omitempty"`
-	AllowUserCancelWorkspaceJobs bool  `json:"allow_user_cancel_workspace_jobs,omitempty"`
-	FailureTTLMillis             int64 `json:"failure_ttl_ms,omitempty"`
-	InactivityTTLMillis          int64 `json:"inactivity_ttl_ms,omitempty"`
-	LockedTTLMillis              int64 `json:"locked_ttl_ms,omitempty"`
+	RestartRequirement           *TemplateRestartRequirement `json:"restart_requirement,omitempty"`
+	AllowUserAutostart           bool                        `json:"allow_user_autostart,omitempty"`
+	AllowUserAutostop            bool                        `json:"allow_user_autostop,omitempty"`
+	AllowUserCancelWorkspaceJobs bool                        `json:"allow_user_cancel_workspace_jobs,omitempty"`
+	FailureTTLMillis             int64                       `json:"failure_ttl_ms,omitempty"`
+	InactivityTTLMillis          int64                       `json:"inactivity_ttl_ms,omitempty"`
+	LockedTTLMillis              int64                       `json:"locked_ttl_ms,omitempty"`
 }
 
 type TemplateExample struct {

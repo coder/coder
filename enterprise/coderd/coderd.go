@@ -362,8 +362,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureMultipleGitAuth:            len(api.GitAuthConfigs) > 1,
 			codersdk.FeatureTemplateRBAC:               api.RBAC,
 			codersdk.FeatureExternalProvisionerDaemons: true,
-			codersdk.FeatureAdvancedTemplateScheduling: true,
-			codersdk.FeatureUserQuietHoursSchedule:     api.DefaultQuietHoursSchedule != "",
+			codersdk.FeatureAdvancedTemplateScheduling: api.DefaultQuietHoursSchedule != "",
 			codersdk.FeatureWorkspaceProxy:             true,
 		})
 	if err != nil {
@@ -423,25 +422,21 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 	if changed, enabled := featureChanged(codersdk.FeatureAdvancedTemplateScheduling); changed {
 		if enabled {
-			store := schedule.NewEnterpriseTemplateScheduleStore()
-			api.AGPL.TemplateScheduleStore.Store(&store)
-		} else {
-			store := agplschedule.NewAGPLTemplateScheduleStore()
-			api.AGPL.TemplateScheduleStore.Store(&store)
-		}
-	}
+			templateStore := schedule.NewEnterpriseTemplateScheduleStore()
+			api.AGPL.TemplateScheduleStore.Store(&templateStore)
 
-	if changed, enabled := featureChanged(codersdk.FeatureUserQuietHoursSchedule); changed {
-		if enabled && api.DefaultQuietHoursSchedule != "" {
-			store, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(api.DefaultQuietHoursSchedule, api.QuietHoursWindowDuration)
+			quietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(api.DefaultQuietHoursSchedule, api.QuietHoursWindowDuration)
 			if err != nil {
 				api.Logger.Error(ctx, "unable to set up enterprise user quiet hours schedule store, quiet hours schedules will not be applied", slog.Error(err))
 			} else {
-				api.AGPL.UserQuietHoursScheduleStore.Store(&store)
+				api.AGPL.UserQuietHoursScheduleStore.Store(&quietHoursStore)
 			}
 		} else {
-			store := agplschedule.NewAGPLUserQuietHoursScheduleStore()
-			api.AGPL.UserQuietHoursScheduleStore.Store(&store)
+			templateStore := agplschedule.NewAGPLTemplateScheduleStore()
+			api.AGPL.TemplateScheduleStore.Store(&templateStore)
+
+			quietHoursStore := agplschedule.NewAGPLUserQuietHoursScheduleStore()
+			api.AGPL.UserQuietHoursScheduleStore.Store(&quietHoursStore)
 		}
 	}
 

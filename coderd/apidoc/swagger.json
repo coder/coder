@@ -6071,13 +6071,17 @@
           "description": "LockedTTL allows optionally specifying the max lifetime before Coder\npermanently deletes locked workspaces created from this template.",
           "type": "integer"
         },
-        "max_ttl_ms": {
-          "description": "MaxTTLMillis allows optionally specifying the max lifetime for\nworkspaces created from this template.",
-          "type": "integer"
-        },
         "name": {
           "description": "Name is the name of the template.",
           "type": "string"
+        },
+        "restart_requirement": {
+          "description": "RestartRequirement allows optionally specifying the restart requirement\nfor workspaces created from this template. This is an enterprise feature.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/codersdk.TemplateRestartRequirement"
+            }
+          ]
         },
         "template_version_id": {
           "description": "VersionID is an in-progress or completed job to use as an initial version\nof the template.\n\nThis is required on creation to enable a user-flow of validating a\ntemplate works. There is no reason the data-model cannot support empty\ntemplates, but it doesn't make sense for users.",
@@ -7772,7 +7776,6 @@
           "format": "date-time"
         },
         "created_by_id": {
-          "description": "MaxTTLMillis is an enterprise feature. It's value is only used if your\nlicense is entitled to use the advanced template scheduling feature.\nTODO: fix and comment",
           "type": "string",
           "format": "uuid"
         },
@@ -7816,6 +7819,14 @@
           "type": "string",
           "enum": ["terraform"]
         },
+        "restart_requirement": {
+          "description": "RestartRequirement is an enterprise feature. Its value is only used if\nyour license is entitled to use the advanced template scheduling feature.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/codersdk.TemplateRestartRequirement"
+            }
+          ]
+        },
         "updated_at": {
           "type": "string",
           "format": "date-time"
@@ -7855,6 +7866,31 @@
         },
         "url": {
           "type": "string"
+        }
+      }
+    },
+    "codersdk.TemplateRestartRequirement": {
+      "type": "object",
+      "properties": {
+        "days_of_week": {
+          "description": "DaysOfWeek is a list of days of the week on which restarts are required.\nRestarts happen within the user's quiet hours (in their configured\ntimezone). If no days are specified, restarts are not required. Weekdays\ncannot be specified twice.\n\nRestarts will only happen on weekdays in this list on weeks which line up\nwith Weeks.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "monday",
+              "tuesday",
+              "wednesday",
+              "thursday",
+              "friday",
+              "saturday",
+              "sunday"
+            ]
+          }
+        },
+        "weeks": {
+          "description": "Weeks is the number of weeks between required restarts. Weeks are synced\nacross all workspaces (and Coder deployments) using modulo math on a\nhardcoded epoch week of January 2nd, 2023 (the first Monday of 2023).\nValues of 0 or 1 indicate weekly restarts. Values of 2 indicate\nfortnightly restarts, etc.",
+          "type": "integer"
         }
       }
     },

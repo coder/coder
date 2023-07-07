@@ -477,7 +477,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 				Description:                  template.Description,
 				Icon:                         template.Icon,
 				DefaultTTLMillis:             0,
-				MaxTTLMillis:                 0,
+				RestartRequirement:           &template.RestartRequirement,
 				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 				FailureTTLMillis:             failureTTL.Milliseconds(),
 				InactivityTTLMillis:          inactivityTTL.Milliseconds(),
@@ -512,7 +512,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 				Description:                  template.Description,
 				Icon:                         template.Icon,
 				DefaultTTLMillis:             template.DefaultTTLMillis,
-				MaxTTLMillis:                 template.MaxTTLMillis,
+				RestartRequirement:           &template.RestartRequirement,
 				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 				FailureTTLMillis:             failureTTL.Milliseconds(),
 				InactivityTTLMillis:          inactivityTTL.Milliseconds(),
@@ -571,7 +571,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 				Description:                  template.Description,
 				Icon:                         template.Icon,
 				DefaultTTLMillis:             template.DefaultTTLMillis,
-				MaxTTLMillis:                 template.MaxTTLMillis,
+				RestartRequirement:           &template.RestartRequirement,
 				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 				AllowUserAutostart:           allowAutostart.Load(),
 				AllowUserAutostop:            allowAutostop.Load(),
@@ -603,7 +603,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 				Icon:        template.Icon,
 				// Increase the default TTL to avoid error "not modified".
 				DefaultTTLMillis:             template.DefaultTTLMillis + 1,
-				MaxTTLMillis:                 template.MaxTTLMillis,
+				RestartRequirement:           &template.RestartRequirement,
 				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 				AllowUserAutostart:           false,
 				AllowUserAutostop:            false,
@@ -702,14 +702,15 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, updated.Icon, "")
 	})
 
-	t.Run("MaxTTLEnterpriseOnly", func(t *testing.T) {
+	t.Run("RestartRequirementEnterpriseOnly", func(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		require.EqualValues(t, 0, template.MaxTTLMillis)
+		require.Empty(t, template.RestartRequirement.DaysOfWeek)
+		require.Zero(t, template.RestartRequirement.Weeks)
 		req := codersdk.UpdateTemplateMeta{
 			Name:                         template.Name,
 			DisplayName:                  template.DisplayName,
@@ -717,7 +718,10 @@ func TestPatchTemplateMeta(t *testing.T) {
 			Icon:                         template.Icon,
 			AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 			DefaultTTLMillis:             time.Hour.Milliseconds(),
-			MaxTTLMillis:                 (2 * time.Hour).Milliseconds(),
+			RestartRequirement: &codersdk.TemplateRestartRequirement{
+				DaysOfWeek: []string{"monday"},
+				Weeks:      2,
+			},
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -725,11 +729,13 @@ func TestPatchTemplateMeta(t *testing.T) {
 
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.NoError(t, err)
-		require.EqualValues(t, 0, updated.MaxTTLMillis)
+		require.Empty(t, updated.RestartRequirement.DaysOfWeek)
+		require.Zero(t, updated.RestartRequirement.Weeks)
 
 		template, err = client.Template(ctx, template.ID)
 		require.NoError(t, err)
-		require.EqualValues(t, 0, template.MaxTTLMillis)
+		require.Empty(t, template.RestartRequirement.DaysOfWeek)
+		require.Zero(t, template.RestartRequirement.Weeks)
 	})
 }
 

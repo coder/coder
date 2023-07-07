@@ -45,7 +45,6 @@ const (
 	FeatureExternalProvisionerDaemons FeatureName = "external_provisioner_daemons"
 	FeatureAppearance                 FeatureName = "appearance"
 	FeatureAdvancedTemplateScheduling FeatureName = "advanced_template_scheduling"
-	FeatureUserQuietHoursSchedule     FeatureName = "user_quiet_hours"
 	FeatureWorkspaceProxy             FeatureName = "workspace_proxy"
 )
 
@@ -61,7 +60,6 @@ var FeatureNames = []FeatureName{
 	FeatureExternalProvisionerDaemons,
 	FeatureAppearance,
 	FeatureAdvancedTemplateScheduling,
-	FeatureUserQuietHoursSchedule,
 	FeatureWorkspaceProxy,
 }
 

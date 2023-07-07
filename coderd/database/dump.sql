@@ -570,9 +570,9 @@ COMMENT ON COLUMN templates.allow_user_autostart IS 'Allow users to specify an a
 
 COMMENT ON COLUMN templates.allow_user_autostop IS 'Allow users to specify custom autostop values for workspaces (enterprise).';
 
-COMMENT ON COLUMN templates.restart_requirement_days_of_week IS 'A bitmap of days of week to restart the workspace on, starting with Monday as the 0th bit, and Sunday as the 6th bit. Always little-endian. The 7th bit is unused.';
+COMMENT ON COLUMN templates.restart_requirement_days_of_week IS 'A bitmap of days of week to restart the workspace on, starting with Monday as the 0th bit, and Sunday as the 6th bit. The 7th bit is unused.';
 
-COMMENT ON COLUMN templates.restart_requirement_weeks IS 'The number of weeks between restarts. 0 weeks means "every week", 1 week means "every other week", etc. Weeks are counted from January 2, 2023, which is the first Monday of 2023. This is to ensure workspaces are started consistently for all customers on the same n-week cycles.';
+COMMENT ON COLUMN templates.restart_requirement_weeks IS 'The number of weeks between restarts. 0 or 1 weeks means "every week", 2 week means "every second week", etc. Weeks are counted from January 2, 2023, which is the first Monday of 2023. This is to ensure workspaces are started consistently for all customers on the same n-week cycles.';
 
 CREATE TABLE user_links (
     user_id uuid NOT NULL,

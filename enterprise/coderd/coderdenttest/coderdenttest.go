@@ -42,12 +42,13 @@ func init() {
 
 type Options struct {
 	*coderdtest.Options
-	AuditLogging               bool
-	BrowserOnly                bool
-	EntitlementsUpdateInterval time.Duration
-	SCIMAPIKey                 []byte
-	UserWorkspaceQuota         int
-	ProxyHealthInterval        time.Duration
+	AuditLogging                bool
+	BrowserOnly                 bool
+	EntitlementsUpdateInterval  time.Duration
+	SCIMAPIKey                  []byte
+	UserWorkspaceQuota          int
+	ProxyHealthInterval         time.Duration
+	NoDefaultQuietHoursSchedule bool
 }
 
 // New constructs a codersdk client connected to an in-memory Enterprise API instance.
@@ -66,6 +67,10 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		options.Options = &coderdtest.Options{}
 	}
 	setHandler, cancelFunc, serverURL, oop := coderdtest.NewOptions(t, options.Options)
+	if !options.NoDefaultQuietHoursSchedule && oop.DeploymentValues.UserQuietHoursSchedule.DefaultSchedule.Value() == "" {
+		err := oop.DeploymentValues.UserQuietHoursSchedule.DefaultSchedule.Set("0 0 * * *")
+		require.NoError(t, err)
+	}
 	coderAPI, err := coderd.New(context.Background(), &coderd.Options{
 		RBAC:                       true,
 		AuditLogging:               options.AuditLogging,

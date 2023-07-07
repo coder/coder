@@ -95,8 +95,8 @@ func (s *enterpriseUserQuietHoursScheduleStore) SetUserQuietHoursScheduleOptions
 		return agpl.UserQuietHoursScheduleOptions{}, xerrors.Errorf("update user quiet hours schedule: %w", err)
 	}
 
-	// TODO: update max_ttl for all active builds for this user to clamp to the
-	// new schedule.
+	// TODO(@dean): update max_deadline for all active builds for this user to clamp to
+	// the new schedule.
 
 	return opts, nil
 }

@@ -242,7 +242,7 @@ func TestTemplateEdit(t *testing.T) {
 		assert.Equal(t, "", updated.Icon)
 		assert.Equal(t, "", updated.DisplayName)
 	})
-	t.Run("MaxTTL", func(t *testing.T) {
+	t.Run("RestartRequirement", func(t *testing.T) {
 		t.Parallel()
 		t.Run("BlockedAGPL", func(t *testing.T) {
 			t.Parallel()
@@ -252,33 +252,70 @@ func TestTemplateEdit(t *testing.T) {
 			_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.DefaultTTLMillis = nil
-				ctr.MaxTTLMillis = nil
+				ctr.RestartRequirement = nil
 			})
 
-			// Test the cli command.
-			cmdArgs := []string{
-				"templates",
-				"edit",
-				template.Name,
-				"--max-ttl", "1h",
+			cases := []struct {
+				name  string
+				flags []string
+				ok    bool
+			}{
+				{
+					name: "Weekdays",
+					flags: []string{
+						"--restart-requirement-weekdays", "monday",
+					},
+				},
+				{
+					name: "WeekdaysNoneAllowed",
+					flags: []string{
+						"--restart-requirement-weekdays", "none",
+					},
+					ok: true,
+				},
+				{
+					name: "Weeks",
+					flags: []string{
+						"--restart-requirement-weeks", "1",
+					},
+				},
 			}
-			inv, root := clitest.New(t, cmdArgs...)
-			clitest.SetupConfig(t, client, root)
 
-			ctx := testutil.Context(t, testutil.WaitLong)
-			err := inv.WithContext(ctx).Run()
-			require.Error(t, err)
-			require.ErrorContains(t, err, "appears to be an AGPL deployment")
+			for _, c := range cases {
+				c := c
+				t.Run(c.name, func(t *testing.T) {
+					t.Parallel()
 
-			// Assert that the template metadata did not change.
-			updated, err := client.Template(context.Background(), template.ID)
-			require.NoError(t, err)
-			assert.Equal(t, template.Name, updated.Name)
-			assert.Equal(t, template.Description, updated.Description)
-			assert.Equal(t, template.Icon, updated.Icon)
-			assert.Equal(t, template.DisplayName, updated.DisplayName)
-			assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
-			assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
+					cmdArgs := []string{
+						"templates",
+						"edit",
+						template.Name,
+					}
+					cmdArgs = append(cmdArgs, c.flags...)
+					inv, root := clitest.New(t, cmdArgs...)
+					clitest.SetupConfig(t, client, root)
+
+					ctx := testutil.Context(t, testutil.WaitLong)
+					err := inv.WithContext(ctx).Run()
+					if c.ok {
+						require.NoError(t, err)
+					} else {
+						require.Error(t, err)
+						require.ErrorContains(t, err, "appears to be an AGPL deployment")
+					}
+
+					// Assert that the template metadata did not change.
+					updated, err := client.Template(context.Background(), template.ID)
+					require.NoError(t, err)
+					assert.Equal(t, template.Name, updated.Name)
+					assert.Equal(t, template.Description, updated.Description)
+					assert.Equal(t, template.Icon, updated.Icon)
+					assert.Equal(t, template.DisplayName, updated.DisplayName)
+					assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
+					assert.Equal(t, template.RestartRequirement.DaysOfWeek, updated.RestartRequirement.DaysOfWeek)
+					assert.Equal(t, template.RestartRequirement.Weeks, updated.RestartRequirement.Weeks)
+				})
+			}
 		})
 
 		t.Run("BlockedNotEntitled", func(t *testing.T) {
@@ -289,7 +326,7 @@ func TestTemplateEdit(t *testing.T) {
 			_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.DefaultTTLMillis = nil
-				ctr.MaxTTLMillis = nil
+				ctr.RestartRequirement = nil
 			})
 
 			// Make a proxy server that will return a valid entitlements
@@ -319,7 +356,7 @@ func TestTemplateEdit(t *testing.T) {
 				// Otherwise, proxy the request to the real API server.
 				httputil.NewSingleHostReverseProxy(client.URL).ServeHTTP(w, r)
 			}))
-			defer proxy.Close()
+			t.Cleanup(proxy.Close)
 
 			// Create a new client that uses the proxy server.
 			proxyURL, err := url.Parse(proxy.URL)
@@ -327,30 +364,67 @@ func TestTemplateEdit(t *testing.T) {
 			proxyClient := codersdk.New(proxyURL)
 			proxyClient.SetSessionToken(client.SessionToken())
 
-			// Test the cli command.
-			cmdArgs := []string{
-				"templates",
-				"edit",
-				template.Name,
-				"--max-ttl", "1h",
+			cases := []struct {
+				name  string
+				flags []string
+				ok    bool
+			}{
+				{
+					name: "Weekdays",
+					flags: []string{
+						"--restart-requirement-weekdays", "monday",
+					},
+				},
+				{
+					name: "WeekdaysNoneAllowed",
+					flags: []string{
+						"--restart-requirement-weekdays", "none",
+					},
+					ok: true,
+				},
+				{
+					name: "Weeks",
+					flags: []string{
+						"--restart-requirement-weeks", "1",
+					},
+				},
 			}
-			inv, root := clitest.New(t, cmdArgs...)
-			clitest.SetupConfig(t, proxyClient, root)
 
-			ctx := testutil.Context(t, testutil.WaitLong)
-			err = inv.WithContext(ctx).Run()
-			require.Error(t, err)
-			require.ErrorContains(t, err, "license is not entitled")
+			for _, c := range cases {
+				c := c
+				t.Run(c.name, func(t *testing.T) {
+					t.Parallel()
 
-			// Assert that the template metadata did not change.
-			updated, err := client.Template(context.Background(), template.ID)
-			require.NoError(t, err)
-			assert.Equal(t, template.Name, updated.Name)
-			assert.Equal(t, template.Description, updated.Description)
-			assert.Equal(t, template.Icon, updated.Icon)
-			assert.Equal(t, template.DisplayName, updated.DisplayName)
-			assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
-			assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
+					cmdArgs := []string{
+						"templates",
+						"edit",
+						template.Name,
+					}
+					cmdArgs = append(cmdArgs, c.flags...)
+					inv, root := clitest.New(t, cmdArgs...)
+					clitest.SetupConfig(t, proxyClient, root)
+
+					ctx := testutil.Context(t, testutil.WaitLong)
+					err = inv.WithContext(ctx).Run()
+					if c.ok {
+						require.NoError(t, err)
+					} else {
+						require.Error(t, err)
+						require.ErrorContains(t, err, "license is not entitled")
+					}
+
+					// Assert that the template metadata did not change.
+					updated, err := client.Template(context.Background(), template.ID)
+					require.NoError(t, err)
+					assert.Equal(t, template.Name, updated.Name)
+					assert.Equal(t, template.Description, updated.Description)
+					assert.Equal(t, template.Icon, updated.Icon)
+					assert.Equal(t, template.DisplayName, updated.DisplayName)
+					assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
+					assert.Equal(t, template.RestartRequirement.DaysOfWeek, updated.RestartRequirement.DaysOfWeek)
+					assert.Equal(t, template.RestartRequirement.Weeks, updated.RestartRequirement.Weeks)
+				})
+			}
 		})
 		t.Run("Entitled", func(t *testing.T) {
 			t.Parallel()
@@ -360,7 +434,7 @@ func TestTemplateEdit(t *testing.T) {
 			_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.DefaultTTLMillis = nil
-				ctr.MaxTTLMillis = nil
+				ctr.RestartRequirement = nil
 			})
 
 			// Make a proxy server that will return a valid entitlements
@@ -396,7 +470,8 @@ func TestTemplateEdit(t *testing.T) {
 					var req codersdk.UpdateTemplateMeta
 					err = json.Unmarshal(body, &req)
 					require.NoError(t, err)
-					assert.Equal(t, time.Hour.Milliseconds(), req.MaxTTLMillis)
+					assert.Equal(t, req.RestartRequirement.DaysOfWeek, []string{"monday", "tuesday"})
+					assert.EqualValues(t, req.RestartRequirement.Weeks, 3)
 
 					r.Body = io.NopCloser(bytes.NewReader(body))
 					atomic.AddInt64(&updateTemplateCalled, 1)
@@ -419,7 +494,8 @@ func TestTemplateEdit(t *testing.T) {
 				"templates",
 				"edit",
 				template.Name,
-				"--max-ttl", "1h",
+				"--restart-requirement-weekdays", "monday,tuesday",
+				"--restart-requirement-weeks", "3",
 			}
 			inv, root := clitest.New(t, cmdArgs...)
 			clitest.SetupConfig(t, proxyClient, root)
@@ -439,7 +515,8 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.Icon, updated.Icon)
 			assert.Equal(t, template.DisplayName, updated.DisplayName)
 			assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
-			assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
+			assert.Equal(t, template.RestartRequirement.DaysOfWeek, updated.RestartRequirement.DaysOfWeek)
+			assert.Equal(t, template.RestartRequirement.Weeks, updated.RestartRequirement.Weeks)
 		})
 	})
 	t.Run("AllowUserScheduling", func(t *testing.T) {
@@ -452,7 +529,7 @@ func TestTemplateEdit(t *testing.T) {
 			_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.DefaultTTLMillis = nil
-				ctr.MaxTTLMillis = nil
+				ctr.RestartRequirement = nil
 				ctr.FailureTTLMillis = nil
 				ctr.InactivityTTLMillis = nil
 			})
@@ -495,7 +572,8 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.Icon, updated.Icon)
 			assert.Equal(t, template.DisplayName, updated.DisplayName)
 			assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
-			assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
+			assert.Equal(t, template.RestartRequirement.DaysOfWeek, updated.RestartRequirement.DaysOfWeek)
+			assert.Equal(t, template.RestartRequirement.Weeks, updated.RestartRequirement.Weeks)
 			assert.Equal(t, template.AllowUserAutostart, updated.AllowUserAutostart)
 			assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
 			assert.Equal(t, template.FailureTTLMillis, updated.FailureTTLMillis)
@@ -583,7 +661,8 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.Icon, updated.Icon)
 			assert.Equal(t, template.DisplayName, updated.DisplayName)
 			assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
-			assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
+			assert.Equal(t, template.RestartRequirement.DaysOfWeek, updated.RestartRequirement.DaysOfWeek)
+			assert.Equal(t, template.RestartRequirement.Weeks, updated.RestartRequirement.Weeks)
 			assert.Equal(t, template.AllowUserAutostart, updated.AllowUserAutostart)
 			assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
 			assert.Equal(t, template.FailureTTLMillis, updated.FailureTTLMillis)
@@ -675,7 +754,8 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.Icon, updated.Icon)
 			assert.Equal(t, template.DisplayName, updated.DisplayName)
 			assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
-			assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
+			assert.Equal(t, template.RestartRequirement.DaysOfWeek, updated.RestartRequirement.DaysOfWeek)
+			assert.Equal(t, template.RestartRequirement.Weeks, updated.RestartRequirement.Weeks)
 			assert.Equal(t, template.AllowUserAutostart, updated.AllowUserAutostart)
 			assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
 			assert.Equal(t, template.FailureTTLMillis, updated.FailureTTLMillis)

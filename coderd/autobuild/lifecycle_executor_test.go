@@ -624,7 +624,7 @@ func TestExecutorAutostartTemplateDisabled(t *testing.T) {
 						UserAutostartEnabled: false,
 						UserAutostopEnabled:  true,
 						DefaultTTL:           0,
-						MaxTTL:               0,
+						RestartRequirement:   schedule.TemplateRestartRequirement{},
 					}, nil
 				},
 			},

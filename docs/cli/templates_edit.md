@@ -89,14 +89,6 @@ Edit the template icon path.
 
 Specify an inactivity TTL for workspaces created from this template. This licensed feature's default is 0h (off).
 
-### --max-ttl
-
-|      |                       |
-| ---- | --------------------- |
-| Type | <code>duration</code> |
-
-Edit the template maximum time before shutdown - workspaces created from this template must shutdown within the given duration after starting. This is an enterprise-only feature.
-
 ### --name
 
 |      |                     |
@@ -104,6 +96,22 @@ Edit the template maximum time before shutdown - workspaces created from this te
 | Type | <code>string</code> |
 
 Edit the template name.
+
+### --restart-requirement-weekdays
+
+|      |                           |
+| ---- | ------------------------- |
+| Type | <code>string-array</code> |
+
+Edit the template restart requirement weekdays - workspaces created from this template must be restarted on the given weekdays. To unset this value for the template (and disable the restart requirement for the template), pass 'none'.
+
+### --restart-requirement-weeks
+
+|      |                  |
+| ---- | ---------------- |
+| Type | <code>int</code> |
+
+Edit the template restart requirement weeks - workspaces created from this template must be restarted on an n-weekly basis.
 
 ### -y, --yes
 

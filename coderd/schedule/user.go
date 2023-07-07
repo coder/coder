@@ -21,8 +21,8 @@ type UserQuietHoursScheduleOptions struct {
 	Schedule *Schedule
 	UserSet  bool
 	// Duration is the duration of the quiet hours window starting when the cron
-	// triggers. Workspaces can be stopped for maintenance or due to max_ttl
-	// during this window.
+	// triggers. Workspaces can be stopped for maintenance or due to template
+	// restart requirements during this window.
 	Duration time.Duration
 }
 
