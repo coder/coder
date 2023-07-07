@@ -24,7 +24,11 @@ updates:
         update-types:
           - version-update:semver-minor
           - version-update:semver-patch
-
+    groups:
+      github-actions:
+        patterns:
+          - "*" 
+    
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
@@ -39,6 +43,10 @@ updates:
       - dependency-name: "*"
         update-types:
           - version-update:semver-patch
+    groups:
+      go:
+        patterns:
+          - "*"
 
   # Update our Dockerfile.
   - package-ecosystem: "docker"
@@ -54,7 +62,10 @@ updates:
       # We need to coordinate terraform updates with the version hardcoded in
       # our Go code.
       - dependency-name: "terraform"
-
+    groups:
+      docker:
+        patterns:
+          - "*" 
   - package-ecosystem: "npm"
     directory: "/site/"
     schedule:
@@ -76,7 +87,11 @@ updates:
       - dependency-name: "@types/node"
         update-types:
           - version-update:semver-major
-
+    groups:
+      site:
+        patterns:
+          - "*" 
+    
   - package-ecosystem: "terraform"
     directory: "/examples/templates"
     schedule:
@@ -89,7 +104,11 @@ updates:
     ignore:
       # We likely want to update this ourselves.
       - dependency-name: "coder/coder"
-
+    groups:
+      terraform:
+        patterns:
+          - "*" 
+          
   # Update dogfood.
   - package-ecosystem: "docker"
     directory: "/dogfood/"
@@ -99,7 +118,10 @@ updates:
       timezone: "America/Chicago"
     commit-message:
       prefix: "chore"
-    labels: []
+    groups:
+          docker:
+            patterns:
+              - "*" 
 
   - package-ecosystem: "terraform"
     directory: "/dogfood/"
@@ -110,5 +132,8 @@ updates:
     commit-message:
       prefix: "chore"
     labels: []
-    ignore:
-      - dependency-name: "coder/coder"
+    groups:
+      terraform:
+        patterns:
+          - "*" 
+    
