@@ -138,7 +138,9 @@ linters-settings:
       - name: blank-imports
       - name: bool-literal-in-expr
       - name: call-to-gc
-      - name: confusing-naming
+      # This inconsistently marks struct methods as confusing if they have
+      # the same name... which for interfaces they do.
+#      - name: confusing-naming
       - name: confusing-results
       - name: constant-logical-expr
       - name: context-as-argument

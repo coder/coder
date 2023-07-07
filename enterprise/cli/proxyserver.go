@@ -78,7 +78,7 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 			Env:         "CODER_PRIMARY_ACCESS_URL",
 			YAML:        "primaryAccessURL",
 			Required:    true,
-			Value: clibase.Validate(&primaryAccessURL).After(func(value *clibase.URL) error {
+			Value: clibase.Validate(&primaryAccessURL, func(value *clibase.URL) error {
 				if !(value.Scheme == "http" || value.Scheme == "https") {
 					return xerrors.Errorf("'--primary-access-url' value must be http or https: url=%s", primaryAccessURL.String())
 				}
