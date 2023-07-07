@@ -6274,6 +6274,10 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "required": {
+                    "description": "Required means this value must be set by some means. It requires\n` + "`" + `ValueSource != ValueSourceNone` + "`" + `\nIf ` + "`" + `Default` + "`" + ` is set, then ` + "`" + `Required` + "`" + ` is ignored.",
+                    "type": "boolean"
+                },
                 "use_instead": {
                     "description": "UseInstead is a list of options that should be used instead of this one.\nThe field is used to generate a deprecation warning.",
                     "type": "array",
