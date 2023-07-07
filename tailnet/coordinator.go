@@ -195,7 +195,8 @@ type Queue interface {
 	Name() string
 	Stats() (start, lastWrite int64)
 	Overwrites() int64
-	// CoordinatorClose
+	// CoordinatorClose is used by the coordinator when closing a Queue. It
+	// should skip removing itself from the coordinator.
 	CoordinatorClose() error
 	Close() error
 }
