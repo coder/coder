@@ -27,7 +27,7 @@ message RichParameterOption {
 
 // RichParameter represents a variable that is exposed.
 message RichParameter {
-	reserved 14;
+    reserved 14;
 
     string name = 1;
     string description = 2;
