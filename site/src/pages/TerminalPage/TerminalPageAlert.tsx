@@ -94,10 +94,19 @@ export default ({
   alertType: TerminalPageAlertType
   onDismiss: () => void
 }) => {
+  const severity = mapAlertTypeToText[alertType].severity
   return (
     <Alert
-      severity={mapAlertTypeToText[alertType].severity}
-      sx={{ borderRadius: 0 }}
+      severity={severity}
+      sx={{
+        borderRadius: 0,
+        borderWidth: 0,
+        borderBottomWidth: 1,
+        borderBottomColor: (theme) => theme.palette.divider,
+        backgroundColor: (theme) => theme.palette.background.paperLight,
+        borderLeft: (theme) => `3px solid ${theme.palette[severity].light}`,
+        marginBottom: 1,
+      }}
       onDismiss={onDismiss}
       dismissible
       actions={[
