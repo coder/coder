@@ -131,7 +131,7 @@ updates:
     commit-message:
       prefix: "chore"
     labels: []
-    groups:
-      dogfood-terraform:
-        patterns:
-          - "*"
+    ignore:
+      # We likely want to update this ourselves.
+      - dependency-name: "coder/coder"
+      
