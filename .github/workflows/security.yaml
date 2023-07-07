@@ -122,7 +122,7 @@ jobs:
 
       - name: Run Prisma Cloud image scan
         uses: PaloAltoNetworks/prisma-cloud-scan@v1
-        if: ${{ 0 == 1 }}
+        if: false
         with:
           pcc_console_url: ${{ secrets.PRISMA_CLOUD_URL }}
           pcc_user: ${{ secrets.PRISMA_CLOUD_ACCESS_KEY }}
