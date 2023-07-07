@@ -311,6 +311,18 @@ func (inv *Invocation) run(state *runState) error {
 		return xerrors.Errorf("setting defaults: %w", err)
 	}
 
+	// All options should be set. Check all required options have sources,
+	// meaning they were set by the user in some way (env, flag, etc).
+	var missing []string
+	for _, opt := range inv.Command.Options {
+		if opt.Required && opt.ValueSource == ValueSourceNone {
+			missing = append(missing, opt.Flag)
+		}
+	}
+	if len(missing) > 0 {
+		return xerrors.Errorf("Missing values for the required flags: %s", strings.Join(missing, ", "))
+	}
+
 	// Run child command if found (next child only)
 	// We must do subcommand detection after flag parsing so we don't mistake flag
 	// values for subcommand names.

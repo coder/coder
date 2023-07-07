@@ -20,10 +20,10 @@ import (
 // of the value after or before it has been set.
 type Validator[T pflag.Value] struct {
 	Value T
-	// ValidateBefore is called before the value is set.
-	ValidateBefore func(input string) error
-	// ValidateAfter is called after the value is set.
-	ValidateAfter func(T) error
+	// validateBefore is called before the value is set.
+	validateBefore func(input string) error
+	// validateAfter is called after the value is set.
+	validateAfter func(T) error
 }
 
 func Validate[T pflag.Value](opt T) *Validator[T] {
@@ -31,12 +31,12 @@ func Validate[T pflag.Value](opt T) *Validator[T] {
 }
 
 func (i *Validator[T]) Before(fn func(input string) error) *Validator[T] {
-	i.ValidateBefore = fn
+	i.validateBefore = fn
 	return i
 }
 
 func (i *Validator[T]) After(fn func(value T) error) *Validator[T] {
-	i.ValidateAfter = fn
+	i.validateAfter = fn
 	return i
 }
 
@@ -45,8 +45,8 @@ func (i *Validator[T]) String() string {
 }
 
 func (i *Validator[T]) Set(input string) error {
-	if i.ValidateBefore != nil {
-		err := i.ValidateBefore(input)
+	if i.validateBefore != nil {
+		err := i.validateBefore(input)
 		if err != nil {
 			return err
 		}
@@ -56,8 +56,8 @@ func (i *Validator[T]) Set(input string) error {
 	if err != nil {
 		return err
 	}
-	if i.ValidateAfter != nil {
-		err = i.ValidateAfter(i.Value)
+	if i.validateAfter != nil {
+		err = i.validateAfter(i.Value)
 		if err != nil {
 			return err
 		}
