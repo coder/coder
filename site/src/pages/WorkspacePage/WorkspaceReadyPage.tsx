@@ -42,6 +42,10 @@ import * as TypesGen from "api/typesGenerated"
 import Box from "@mui/material/Box"
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
 import { Loader } from "components/Loader/Loader"
+import CloseOutlined from "@mui/icons-material/CloseOutlined"
+import IconButton from "@mui/material/IconButton"
+import Tooltip from "@mui/material/Tooltip"
+import { useLocalPreferences } from "contexts/LocalPreferencesContext"
 
 interface WorkspaceReadyPageProps {
   workspaceState: StateFrom<typeof workspaceMachine>
@@ -95,6 +99,11 @@ export const WorkspaceReadyPage = ({
   const user = useMe()
   const { isWarningIgnored, ignoreWarning } = useIgnoreWarnings(user.id)
   const buildLogs = useBuildLogs(workspace)
+  const localPreferences = useLocalPreferences()
+  const shouldDisplayBuildLogs =
+    workspace.latest_build.job.error ||
+    localPreferences.getPreference("buildLogsVisibility") === "visible"
+  const canHideBuildLogs = workspace.latest_build.job.error === undefined
 
   const {
     mutate: restartWorkspace,
@@ -186,7 +195,23 @@ export const WorkspaceReadyPage = ({
         template={template}
         quota_budget={quotaState.context.quota?.budget}
         templateWarnings={templateVersion?.warnings}
-        buildLogs={<BuildLogs logs={buildLogs} />}
+        buildLogs={
+          shouldDisplayBuildLogs ? (
+            <BuildLogs
+              logs={buildLogs}
+              onHide={
+                canHideBuildLogs
+                  ? () => {
+                      localPreferences.setPreference(
+                        "buildLogsVisibility",
+                        "hide",
+                      )
+                    }
+                  : undefined
+              }
+            />
+          ) : null
+        }
       />
       <DeleteDialog
         entity="workspace"
@@ -337,8 +362,10 @@ const WarningDialog: FC<
 
 const BuildLogs = ({
   logs,
+  onHide,
 }: {
   logs: TypesGen.ProvisionerJobLog[] | undefined
+  onHide?: () => void
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -360,12 +387,33 @@ const BuildLogs = ({
         sx={(theme) => ({
           background: theme.palette.background.paper,
           borderBottom: `1px solid ${theme.palette.divider}`,
-          padding: theme.spacing(1, 3),
+          padding: theme.spacing(1, 1, 1, 3),
           fontSize: 13,
           fontWeight: 600,
+          display: "flex",
+          alignItems: "center",
+          borderRadius: "8px 8px 0 0",
         })}
       >
         Build logs
+        {onHide && (
+          <Box sx={{ marginLeft: "auto" }}>
+            <Tooltip title="Hide build logs" placement="top">
+              <IconButton
+                onClick={onHide}
+                size="small"
+                sx={(theme) => ({
+                  color: theme.palette.text.secondary,
+                  "&:hover": {
+                    color: theme.palette.text.primary,
+                  },
+                })}
+              >
+                <CloseOutlined sx={{ height: 16, width: 16 }} />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        )}
       </Box>
       <Box
         ref={scrollRef}
