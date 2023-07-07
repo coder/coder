@@ -520,7 +520,6 @@ const useStyles = makeStyles((theme) => ({
     overflow: "hidden",
     backgroundColor: theme.palette.background.paper,
     flex: 1,
-    fontSize: 14,
     // These styles attempt to mimic the VS Code scrollbar.
     "& .xterm": {
       padding: 4,
