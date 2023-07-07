@@ -87,11 +87,18 @@ const mapAlertTypeToText: MapAlertTypeToComponent = {
   },
 }
 
-export default ({ alertType }: { alertType: TerminalPageAlertType }) => {
+export default ({
+  alertType,
+  onDismiss,
+}: {
+  alertType: TerminalPageAlertType
+  onDismiss: () => void
+}) => {
   return (
     <Alert
       severity={mapAlertTypeToText[alertType].severity}
       sx={{ borderRadius: 0 }}
+      onDismiss={onDismiss}
       dismissible
       actions={[
         <Button
