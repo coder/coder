@@ -668,6 +668,11 @@ test-postgres-docker:
 	done
 .PHONY: test-postgres-docker
 
+# Make sure to keep this in sync with test-go-race from .github/workflows/ci.yaml.
+test-race:
+	gotestsum --junitfile="gotests.xml" -- -race ./...
+.PHONY: test-race
+
 test-clean:
 	go clean -testcache
 .PHONY: test-clean
