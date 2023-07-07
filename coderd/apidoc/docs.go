@@ -6975,7 +6975,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "locked_ttl_ms": {
-                    "description": "LockedTTL allows optionally specifying the max lifetime before Coder\npermanently deletes locked workspaces created from this template.",
+                    "description": "LockedTTLMillis allows optionally specifying the max lifetime before Coder\npermanently deletes locked workspaces created from this template.",
                     "type": "integer"
                 },
                 "max_ttl_ms": {
@@ -9181,9 +9181,6 @@ const docTemplate = `{
                 "icon": {
                     "type": "string"
                 },
-                "legacy_variable_name": {
-                    "type": "string"
-                },
                 "mutable": {
                     "type": "boolean"
                 },
@@ -9380,15 +9377,25 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "group_perms": {
+                    "description": "GroupPerms should be a mapping of group id to role.",
                     "type": "object",
                     "additionalProperties": {
                         "$ref": "#/definitions/codersdk.TemplateRole"
+                    },
+                    "example": {
+                        "8bd26b20-f3e8-48be-a903-46bb920cf671": "use",
+                        "\u003cuser_id\u003e\u003e": "admin"
                     }
                 },
                 "user_perms": {
+                    "description": "UserPerms should be a mapping of user id to role. The user id must be the\nuuid of the user, not a username or email address.",
                     "type": "object",
                     "additionalProperties": {
                         "$ref": "#/definitions/codersdk.TemplateRole"
+                    },
+                    "example": {
+                        "4df59e74-c027-470b-ab4d-cbba8963a5e9": "use",
+                        "\u003cgroup_id\u003e": "admin"
                     }
                 }
             }

@@ -4174,7 +4174,7 @@ func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateT
 }
 
 const getTemplateVersionParameters = `-- name: GetTemplateVersionParameters :many
-SELECT template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, legacy_variable_name, display_name, display_order FROM template_version_parameters WHERE template_version_id = $1 ORDER BY display_order ASC, LOWER(name) ASC
+SELECT template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, display_name, display_order FROM template_version_parameters WHERE template_version_id = $1 ORDER BY display_order ASC, LOWER(name) ASC
 `
 
 func (q *sqlQuerier) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionParameter, error) {
@@ -4201,7 +4201,6 @@ func (q *sqlQuerier) GetTemplateVersionParameters(ctx context.Context, templateV
 			&i.ValidationError,
 			&i.ValidationMonotonic,
 			&i.Required,
-			&i.LegacyVariableName,
 			&i.DisplayName,
 			&i.DisplayOrder,
 		); err != nil {
@@ -4235,7 +4234,6 @@ INSERT INTO
         validation_error,
         validation_monotonic,
         required,
-        legacy_variable_name,
         display_name,
         display_order
     )
@@ -4256,9 +4254,8 @@ VALUES
         $13,
         $14,
         $15,
-        $16,
-        $17
-    ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, legacy_variable_name, display_name, display_order
+        $16
+    ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, display_name, display_order
 `
 
 type InsertTemplateVersionParameterParams struct {
@@ -4276,7 +4273,6 @@ type InsertTemplateVersionParameterParams struct {
 	ValidationError     string          `db:"validation_error" json:"validation_error"`
 	ValidationMonotonic string          `db:"validation_monotonic" json:"validation_monotonic"`
 	Required            bool            `db:"required" json:"required"`
-	LegacyVariableName  string          `db:"legacy_variable_name" json:"legacy_variable_name"`
 	DisplayName         string          `db:"display_name" json:"display_name"`
 	DisplayOrder        int32           `db:"display_order" json:"display_order"`
 }
@@ -4297,7 +4293,6 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		arg.ValidationError,
 		arg.ValidationMonotonic,
 		arg.Required,
-		arg.LegacyVariableName,
 		arg.DisplayName,
 		arg.DisplayOrder,
 	)
@@ -4317,7 +4312,6 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		&i.ValidationError,
 		&i.ValidationMonotonic,
 		&i.Required,
-		&i.LegacyVariableName,
 		&i.DisplayName,
 		&i.DisplayOrder,
 	)
@@ -8663,6 +8657,8 @@ LEFT JOIN
 	workspace_builds ON workspace_builds.workspace_id = workspaces.id
 INNER JOIN
 	provisioner_jobs ON workspace_builds.job_id = provisioner_jobs.id
+INNER JOIN
+	templates ON workspaces.template_id = templates.id
 WHERE
 	workspace_builds.build_number = (
 		SELECT
@@ -8700,6 +8696,20 @@ WHERE
 			provisioner_jobs.error IS NOT NULL AND
 			provisioner_jobs.error != '' AND
 			workspace_builds.transition = 'start'::workspace_transition
+		) OR
+
+		-- If the workspace's template has an inactivity_ttl set
+		-- it may be eligible for locking.
+		(
+			templates.inactivity_ttl > 0 AND
+			workspaces.locked_at IS NULL
+		) OR
+
+		-- If the workspace's template has a locked_ttl set
+		-- and the workspace is already locked
+		(
+			templates.locked_ttl > 0 AND
+			workspaces.locked_at IS NOT NULL
 		)
 	) AND workspaces.deleted = 'false'
 `
@@ -8899,7 +8909,8 @@ const updateWorkspaceLockedAt = `-- name: UpdateWorkspaceLockedAt :exec
 UPDATE
 	workspaces
 SET
-	locked_at = $2
+	locked_at = $2,
+	last_used_at = now() at time zone 'utc'
 WHERE
 	id = $1
 `

@@ -42,7 +42,6 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>rename</code>](./cli/rename.md)                 | Rename a workspace                                                     |
 | [<code>reset-password</code>](./cli/reset-password.md) | Directly connect to the database to reset a user's password            |
 | [<code>restart</code>](./cli/restart.md)               | Restart a workspace                                                    |
-| [<code>scaletest</code>](./cli/scaletest.md)           | Run a scale test against the Coder API                                 |
 | [<code>schedule</code>](./cli/schedule.md)             | Schedule automated start and stop times for workspaces                 |
 | [<code>server</code>](./cli/server.md)                 | Start a Coder server                                                   |
 | [<code>show</code>](./cli/show.md)                     | Display details of a workspace's resources and agents                  |

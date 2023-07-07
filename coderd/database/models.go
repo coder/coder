@@ -214,9 +214,12 @@ func AllAuditActionValues() []AuditAction {
 type BuildReason string
 
 const (
-	BuildReasonInitiator BuildReason = "initiator"
-	BuildReasonAutostart BuildReason = "autostart"
-	BuildReasonAutostop  BuildReason = "autostop"
+	BuildReasonInitiator  BuildReason = "initiator"
+	BuildReasonAutostart  BuildReason = "autostart"
+	BuildReasonAutostop   BuildReason = "autostop"
+	BuildReasonAutolock   BuildReason = "autolock"
+	BuildReasonFailedstop BuildReason = "failedstop"
+	BuildReasonAutodelete BuildReason = "autodelete"
 )
 
 func (e *BuildReason) Scan(src interface{}) error {
@@ -258,7 +261,10 @@ func (e BuildReason) Valid() bool {
 	switch e {
 	case BuildReasonInitiator,
 		BuildReasonAutostart,
-		BuildReasonAutostop:
+		BuildReasonAutostop,
+		BuildReasonAutolock,
+		BuildReasonFailedstop,
+		BuildReasonAutodelete:
 		return true
 	}
 	return false
@@ -269,6 +275,9 @@ func AllBuildReasonValues() []BuildReason {
 		BuildReasonInitiator,
 		BuildReasonAutostart,
 		BuildReasonAutostop,
+		BuildReasonAutolock,
+		BuildReasonFailedstop,
+		BuildReasonAutodelete,
 	}
 }
 
@@ -1630,8 +1639,6 @@ type TemplateVersionParameter struct {
 	ValidationMonotonic string `db:"validation_monotonic" json:"validation_monotonic"`
 	// Is parameter required?
 	Required bool `db:"required" json:"required"`
-	// Name of the legacy variable for migration purposes
-	LegacyVariableName string `db:"legacy_variable_name" json:"legacy_variable_name"`
 	// Display name of the rich parameter
 	DisplayName string `db:"display_name" json:"display_name"`
 	// Specifies the order in which to display parameters in user interfaces.

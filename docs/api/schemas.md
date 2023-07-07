@@ -4203,7 +4203,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "description_plaintext": "string",
   "display_name": "string",
   "icon": "string",
-  "legacy_variable_name": "string",
   "mutable": true,
   "name": "string",
   "options": [
@@ -4233,7 +4232,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `description_plaintext` | string                                                                                      | false    |              |             |
 | `display_name`          | string                                                                                      | false    |              |             |
 | `icon`                  | string                                                                                      | false    |              |             |
-| `legacy_variable_name`  | string                                                                                      | false    |              |             |
 | `mutable`               | boolean                                                                                     | false    |              |             |
 | `name`                  | string                                                                                      | false    |              |             |
 | `options`               | array of [codersdk.TemplateVersionParameterOption](#codersdktemplateversionparameteroption) | false    |              |             |
@@ -4443,24 +4441,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "group_perms": {
-    "property1": "admin",
-    "property2": "admin"
+    "8bd26b20-f3e8-48be-a903-46bb920cf671": "use",
+    "<user_id>>": "admin"
   },
   "user_perms": {
-    "property1": "admin",
-    "property2": "admin"
+    "4df59e74-c027-470b-ab4d-cbba8963a5e9": "use",
+    "<group_id>": "admin"
   }
 }
 ```
 
 ### Properties
 
-| Name               | Type                                           | Required | Restrictions | Description |
-| ------------------ | ---------------------------------------------- | -------- | ------------ | ----------- |
-| `group_perms`      | object                                         | false    |              |             |
-| » `[any property]` | [codersdk.TemplateRole](#codersdktemplaterole) | false    |              |             |
-| `user_perms`       | object                                         | false    |              |             |
-| » `[any property]` | [codersdk.TemplateRole](#codersdktemplaterole) | false    |              |             |
+| Name               | Type                                           | Required | Restrictions | Description                                                                                                                   |
+| ------------------ | ---------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `group_perms`      | object                                         | false    |              | Group perms should be a mapping of group ID to role.                                                                          |
+| » `[any property]` | [codersdk.TemplateRole](#codersdktemplaterole) | false    |              |                                                                                                                               |
+| `user_perms`       | object                                         | false    |              | User perms should be a mapping of user ID to role. The user ID must be the uuid of the user, not a username or email address. |
+| » `[any property]` | [codersdk.TemplateRole](#codersdktemplaterole) | false    |              |                                                                                                                               |
 
 ## codersdk.UpdateUserPasswordRequest
 

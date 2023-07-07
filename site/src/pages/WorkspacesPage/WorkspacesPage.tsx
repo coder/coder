@@ -2,11 +2,7 @@ import { usePagination } from "hooks/usePagination"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "utils/page"
-import {
-  useWorkspacesData,
-  useWorkspaceUpdate,
-  useWorkspacesWithImpendingDeletions,
-} from "./data"
+import { useWorkspacesData, useWorkspaceUpdate } from "./data"
 import { WorkspacesPageView } from "./WorkspacesPageView"
 import { useOrganizationId, usePermissions } from "hooks"
 import { useTemplateFilterMenu, useStatusFilterMenu } from "./filter/menus"
@@ -33,9 +29,6 @@ const WorkspacesPage: FC = () => {
     query: filter.query,
   })
   const updateWorkspace = useWorkspaceUpdate(queryKey)
-  const { data: workspacesWithImpendingDeletions } =
-    useWorkspacesWithImpendingDeletions()
-
   const permissions = usePermissions()
   const canFilterByUser = permissions.viewDeploymentValues
   const userMenu = useUserFilterMenu({
@@ -64,7 +57,6 @@ const WorkspacesPage: FC = () => {
 
       <WorkspacesPageView
         workspaces={data?.workspaces}
-        workspacesWithDeletions={workspacesWithImpendingDeletions?.workspaces}
         error={error}
         count={data?.count}
         page={pagination.page}
