@@ -24,6 +24,11 @@ import Skeleton from "@mui/material/Skeleton"
 import { BUTTON_SM_HEIGHT } from "theme/theme"
 import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency"
 import { usePermissions } from "hooks/usePermissions"
+import {
+  HelpTooltip,
+  HelpTooltipText,
+  HelpTooltipTitle,
+} from "components/Tooltips/HelpTooltip"
 
 export const USERS_LINK = `/users?filter=${encodeURIComponent("status:active")}`
 
@@ -283,7 +288,16 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
             e.stopPropagation()
           }}
         >
-          To improve workspace connections, select the closest region.
+          <div>
+            Reduce workspace latency by selecting the region nearest you.
+            <HelpTooltip>
+              <HelpTooltipTitle>Workspace Proxy Selection</HelpTooltipTitle>
+              <HelpTooltipText>
+                Only applies to web connections. Local ssh connections will
+                automatically select the nearest region based on latency.
+              </HelpTooltipText>
+            </HelpTooltip>
+          </div>
         </MenuItem>
         <Divider sx={{ borderColor: (theme) => theme.palette.divider }} />
         {proxyContextValue.proxies?.map((proxy) => (
