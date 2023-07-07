@@ -67,7 +67,7 @@ updates:
       docker:
         patterns:
           - "*"
-          
+
   - package-ecosystem: "npm"
     directory: "/site/"
     schedule:
@@ -134,4 +134,3 @@ updates:
     ignore:
       # We likely want to update this ourselves.
       - dependency-name: "coder/coder"
-      
