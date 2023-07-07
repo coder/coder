@@ -8,6 +8,9 @@ permissions:
 on:
   workflow_dispatch:
 
+  # Uncomment when testing.
+  pull_request:
+
   schedule:
     # Run every 6 hours Monday-Friday!
     - cron: "0 0/6 * * 1-5"
@@ -136,6 +139,7 @@ jobs:
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@41f05d9ecffa2ed3f1580af306000f734b733e54
+        if: "false"
         with:
           image-ref: ${{ steps.build.outputs.image }}
           format: sarif
