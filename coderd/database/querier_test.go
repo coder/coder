@@ -400,7 +400,7 @@ func TestUserLastSeenFilter(t *testing.T) {
 		require.NoError(t, err)
 		db := database.New(sqlDB)
 		ctx := context.Background()
-		now := time.Now()
+		now := database.Now()
 
 		yesterday := dbgen.User(t, db, database.User{
 			LastSeenAt: now.Add(time.Hour * -25),
