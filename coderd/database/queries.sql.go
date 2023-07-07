@@ -4257,7 +4257,7 @@ VALUES
         $14,
         $15,
         $16,
-		$17
+        $17
     ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, display_name, display_order, ephemeral
 `
 
