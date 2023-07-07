@@ -16,6 +16,59 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Validator is a wrapper around a pflag.Value that allows for validation
+// of the value after or before it has been set.
+type Validator[T pflag.Value] struct {
+	Value T
+	// ValidateBefore is called before the value is set.
+	ValidateBefore func(input string) error
+	// ValidateAfter is called after the value is set.
+	ValidateAfter func(T) error
+}
+
+func Validate[T pflag.Value](opt T) *Validator[T] {
+	return &Validator[T]{Value: opt}
+}
+
+func (i *Validator[T]) Before(fn func(input string) error) *Validator[T] {
+	i.ValidateBefore = fn
+	return i
+}
+
+func (i *Validator[T]) After(fn func(value T) error) *Validator[T] {
+	i.ValidateAfter = fn
+	return i
+}
+
+func (i *Validator[T]) String() string {
+	return i.Value.String()
+}
+
+func (i *Validator[T]) Set(input string) error {
+	if i.ValidateBefore != nil {
+		err := i.ValidateBefore(input)
+		if err != nil {
+			return err
+		}
+	}
+
+	err := i.Value.Set(input)
+	if err != nil {
+		return err
+	}
+	if i.ValidateAfter != nil {
+		err = i.ValidateAfter(i.Value)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (i *Validator[T]) Type() string {
+	return i.Value.Type()
+}
+
 // NoOptDefValuer describes behavior when no
 // option is passed into the flag.
 //
