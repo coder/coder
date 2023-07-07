@@ -56,6 +56,9 @@ func (s *enterpriseUserQuietHoursScheduleStore) parseSchedule(rawSchedule string
 		return agpl.UserQuietHoursScheduleOptions{}, xerrors.Errorf("parse daily schedule %q: %w", rawSchedule, err)
 	}
 	if strings.HasPrefix(sched.Time(), "cron(") {
+		// Times starting with "cron(" mean it isn't a single time and probably
+		// a range or a list of times as a cron expression. We only support
+		// single times for user quiet hours schedules.
 		// This shouldn't get hit during Gets, only Sets.
 		return agpl.UserQuietHoursScheduleOptions{}, xerrors.Errorf("daily schedule %q has more than one time: %v", rawSchedule, sched.Time())
 	}

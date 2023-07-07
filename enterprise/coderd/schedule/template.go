@@ -68,7 +68,7 @@ func (*EnterpriseTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.C
 		return tpl, nil
 	}
 
-	err := agpl.VerifyTemplateRestartRequirement(uint8(opts.RestartRequirement.DaysOfWeek), opts.RestartRequirement.Weeks)
+	err := agpl.VerifyTemplateRestartRequirement(opts.RestartRequirement.DaysOfWeek, opts.RestartRequirement.Weeks)
 	if err != nil {
 		return database.Template{}, err
 	}

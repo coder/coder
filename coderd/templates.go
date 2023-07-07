@@ -768,5 +768,9 @@ func (api *API) convertTemplate(
 		FailureTTLMillis:             time.Duration(template.FailureTTL).Milliseconds(),
 		InactivityTTLMillis:          time.Duration(template.InactivityTTL).Milliseconds(),
 		LockedTTLMillis:              time.Duration(template.LockedTTL).Milliseconds(),
+		RestartRequirement: codersdk.TemplateRestartRequirement{
+			DaysOfWeek: codersdk.BitmapToWeekdays(uint8(template.RestartRequirementDaysOfWeek)),
+			Weeks:      template.RestartRequirementWeeks,
+		},
 	}
 }

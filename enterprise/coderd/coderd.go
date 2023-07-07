@@ -427,7 +427,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 			quietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(api.DefaultQuietHoursSchedule, api.QuietHoursWindowDuration)
 			if err != nil {
-				api.Logger.Error(ctx, "unable to set up enterprise user quiet hours schedule store, quiet hours schedules will not be applied", slog.Error(err))
+				api.Logger.Error(ctx, "unable to set up enterprise user quiet hours schedule store, template restart requirements will not be applied to workspace builds", slog.Error(err))
 			} else {
 				api.AGPL.UserQuietHoursScheduleStore.Store(&quietHoursStore)
 			}

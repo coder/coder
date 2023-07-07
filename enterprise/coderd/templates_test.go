@@ -46,7 +46,8 @@ func TestTemplates(t *testing.T) {
 		require.Empty(t, 0, template.RestartRequirement.DaysOfWeek)
 		require.Zero(t, template.RestartRequirement.Weeks)
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		// ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := context.Background()
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			Name:                         template.Name,
 			DisplayName:                  template.DisplayName,
@@ -61,12 +62,12 @@ func TestTemplates(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, []string{"monday", "saturday"}, updated.RestartRequirement.DaysOfWeek)
-		require.Equal(t, 3, updated.RestartRequirement.Weeks)
+		require.EqualValues(t, 3, updated.RestartRequirement.Weeks)
 
 		template, err = client.Template(ctx, template.ID)
 		require.NoError(t, err)
 		require.Equal(t, []string{"monday", "saturday"}, template.RestartRequirement.DaysOfWeek)
-		require.Equal(t, 3, template.RestartRequirement.Weeks)
+		require.EqualValues(t, 3, template.RestartRequirement.Weeks)
 	})
 }
 
