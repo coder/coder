@@ -3966,8 +3966,11 @@ func (q *fakeQuerier) InsertTemplateVersionParameter(_ context.Context, arg data
 		ValidationMonotonic: arg.ValidationMonotonic,
 		Required:            arg.Required,
 		DisplayOrder:        arg.DisplayOrder,
+<<<<<<< HEAD
 		LegacyVariableName:  arg.LegacyVariableName,
 		Ephemeral:           arg.Ephemeral,
+=======
+>>>>>>> main
 	}
 	q.templateVersionParameters = append(q.templateVersionParameters, param)
 	return param, nil

@@ -9178,9 +9178,6 @@ const docTemplate = `{
                 "icon": {
                     "type": "string"
                 },
-                "legacy_variable_name": {
-                    "type": "string"
-                },
                 "mutable": {
                     "type": "boolean"
                 },

@@ -1639,8 +1639,6 @@ type TemplateVersionParameter struct {
 	ValidationMonotonic string `db:"validation_monotonic" json:"validation_monotonic"`
 	// Is parameter required?
 	Required bool `db:"required" json:"required"`
-	// Name of the legacy variable for migration purposes
-	LegacyVariableName string `db:"legacy_variable_name" json:"legacy_variable_name"`
 	// Display name of the rich parameter
 	DisplayName string `db:"display_name" json:"display_name"`
 	// Specifies the order in which to display parameters in user interfaces.
