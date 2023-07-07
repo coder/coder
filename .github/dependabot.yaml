@@ -24,6 +24,10 @@ updates:
         update-types:
           - version-update:semver-minor
           - version-update:semver-patch
+    groups:
+      github-actions:
+        patterns:
+          - "*"
 
   - package-ecosystem: "gomod"
     directory: "/"
@@ -40,7 +44,7 @@ updates:
         update-types:
           - version-update:semver-patch
     groups:
-      otel:
+      go-otel:
         patterns:
           - "go.nhat.io/otelsql"
           - "go.opentelemetry.io/otel*"
@@ -63,6 +67,7 @@ updates:
       docker:
         patterns:
           - "*"
+          
   - package-ecosystem: "npm"
     directory: "/site/"
     schedule:
@@ -84,10 +89,6 @@ updates:
       - dependency-name: "@types/node"
         update-types:
           - version-update:semver-major
-    groups:
-      site:
-        patterns:
-          - "*"
 
   - package-ecosystem: "terraform"
     directory: "/examples/templates"
@@ -102,7 +103,7 @@ updates:
       # We likely want to update this ourselves.
       - dependency-name: "coder/coder"
     groups:
-      terraform:
+      examples-terraform:
         patterns:
           - "*"
 
@@ -116,7 +117,7 @@ updates:
     commit-message:
       prefix: "chore"
     groups:
-      docker:
+      dogfood-docker:
         patterns:
           - "*"
 
@@ -130,6 +131,6 @@ updates:
       prefix: "chore"
     labels: []
     groups:
-      terraform:
+      dogfood-terraform:
         patterns:
           - "*"
