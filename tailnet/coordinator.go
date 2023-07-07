@@ -195,6 +195,7 @@ type Queue interface {
 	Name() string
 	Stats() (start, lastWrite int64)
 	Overwrites() int64
+	// CoordinatorClose
 	CoordinatorClose() error
 	Close() error
 }
