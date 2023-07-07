@@ -4200,6 +4200,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "description": "string",
   "description_plaintext": "string",
   "display_name": "string",
+  "ephemeral": true,
   "icon": "string",
   "mutable": true,
   "name": "string",
@@ -4229,6 +4230,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `description`           | string                                                                                      | false    |              |             |
 | `description_plaintext` | string                                                                                      | false    |              |             |
 | `display_name`          | string                                                                                      | false    |              |             |
+| `ephemeral`             | boolean                                                                                     | false    |              |             |
 | `icon`                  | string                                                                                      | false    |              |             |
 | `mutable`               | boolean                                                                                     | false    |              |             |
 | `name`                  | string                                                                                      | false    |              |             |

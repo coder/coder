@@ -2239,6 +2239,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
     "description": "string",
     "description_plaintext": "string",
     "display_name": "string",
+    "ephemeral": true,
     "icon": "string",
     "mutable": true,
     "name": "string",
@@ -2278,6 +2279,7 @@ Status Code **200**
 | `» description`           | string                                                                           | false    |              |             |
 | `» description_plaintext` | string                                                                           | false    |              |             |
 | `» display_name`          | string                                                                           | false    |              |             |
+| `» ephemeral`             | boolean                                                                          | false    |              |             |
 | `» icon`                  | string                                                                           | false    |              |             |
 | `» mutable`               | boolean                                                                          | false    |              |             |
 | `» name`                  | string                                                                           | false    |              |             |

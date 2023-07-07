@@ -9175,6 +9175,9 @@ const docTemplate = `{
                 "display_name": {
                     "type": "string"
                 },
+                "ephemeral": {
+                    "type": "boolean"
+                },
                 "icon": {
                     "type": "string"
                 },
