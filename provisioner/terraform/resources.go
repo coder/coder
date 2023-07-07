@@ -490,16 +490,15 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 			return nil, xerrors.Errorf("decode map values for coder_parameter.%s: %w", resource.Name, err)
 		}
 		protoParam := &proto.RichParameter{
-			Name:               param.Name,
-			DisplayName:        param.DisplayName,
-			Description:        param.Description,
-			Type:               param.Type,
-			Mutable:            param.Mutable,
-			DefaultValue:       param.Default,
-			Icon:               param.Icon,
-			Required:           !param.Optional,
-			Order:              int32(param.Order),
-			LegacyVariableName: param.LegacyVariableName,
+			Name:         param.Name,
+			DisplayName:  param.DisplayName,
+			Description:  param.Description,
+			Type:         param.Type,
+			Mutable:      param.Mutable,
+			DefaultValue: param.Default,
+			Icon:         param.Icon,
+			Required:     !param.Optional,
+			Order:        int32(param.Order),
 		}
 		if len(param.Validation) == 1 {
 			protoParam.ValidationRegex = param.Validation[0].Regex
