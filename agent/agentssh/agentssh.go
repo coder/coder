@@ -358,7 +358,7 @@ func (s *Server) startPTYSession(session ptySession, magicTypeLabel string, cmd 
 		}
 	}
 
-	if !isQuietLogin(session.RawCommand()) {
+	if !isQuietLogin(s.fs, session.RawCommand()) {
 		manifest := s.Manifest.Load()
 		if manifest != nil {
 			err := showMOTD(s.fs, session, manifest.MOTDFile)
@@ -763,7 +763,7 @@ func isLoginShell(rawCommand string) bool {
 // isQuietLogin checks if the SSH server should perform a quiet login or not.
 //
 // https://github.com/openssh/openssh-portable/blob/25bd659cc72268f2858c5415740c442ee950049f/session.c#L816
-func isQuietLogin(rawCommand string) bool {
+func isQuietLogin(fs afero.Fs, rawCommand string) bool {
 	// We are always quiet unless this is a login shell.
 	if !isLoginShell(rawCommand) {
 		return true
@@ -776,7 +776,7 @@ func isQuietLogin(rawCommand string) bool {
 		return false
 	}
 
-	_, err = os.Stat(filepath.Join(homedir, ".hushlogin"))
+	_, err = fs.Stat(filepath.Join(homedir, ".hushlogin"))
 	return err == nil
 }
 
