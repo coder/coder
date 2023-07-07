@@ -4201,7 +4201,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "description_plaintext": "string",
   "display_name": "string",
   "icon": "string",
-  "legacy_variable_name": "string",
   "mutable": true,
   "name": "string",
   "options": [
@@ -4231,7 +4230,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `description_plaintext` | string                                                                                      | false    |              |             |
 | `display_name`          | string                                                                                      | false    |              |             |
 | `icon`                  | string                                                                                      | false    |              |             |
-| `legacy_variable_name`  | string                                                                                      | false    |              |             |
 | `mutable`               | boolean                                                                                     | false    |              |             |
 | `name`                  | string                                                                                      | false    |              |             |
 | `options`               | array of [codersdk.TemplateVersionParameterOption](#codersdktemplateversionparameteroption) | false    |              |             |
