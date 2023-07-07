@@ -674,6 +674,9 @@ test-race:
 	gotestsum --junitfile="gotests.xml" -- -race -count=1 ./...
 .PHONY: test-race
 
+# Note: we used to add this to the test target, but it's not necessary and we can
+# achieve the desired result by specifying -count=1 in the go test invocation
+# instead. Keeping it here for convenience.
 test-clean:
 	go clean -testcache
 .PHONY: test-clean
