@@ -24,10 +24,6 @@ updates:
         update-types:
           - version-update:semver-minor
           - version-update:semver-patch
-    groups:
-      github-actions:
-        patterns:
-          - "*"
 
   - package-ecosystem: "gomod"
     directory: "/"
@@ -44,9 +40,10 @@ updates:
         update-types:
           - version-update:semver-patch
     groups:
-      go:
+      otel:
         patterns:
-          - "*"
+          - "go.nhat.io/otelsql"
+          - "go.opentelemetry.io/otel*"
 
   # Update our Dockerfile.
   - package-ecosystem: "docker"
