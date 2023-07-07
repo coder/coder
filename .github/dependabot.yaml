@@ -116,6 +116,7 @@ updates:
       timezone: "America/Chicago"
     commit-message:
       prefix: "chore"
+    labels: []
     groups:
       dogfood-docker:
         patterns:
