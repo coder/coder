@@ -191,6 +191,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
   proxyContextValue,
 }) => {
+  const styles = useStyles()
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(false)
   const [refetchDate, setRefetchDate] = useState<Date>()
@@ -290,7 +291,9 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
         >
           <div>
             Reduce workspace latency by selecting the region nearest you.
-            <HelpTooltip>
+            {/* This was always on a newline below the text. This puts it on the same line.
+                It still doesn't look great, but it is marginally better.  */}
+            <HelpTooltip buttonClassName={styles.displayInitial}>
               <HelpTooltipTitle>Workspace Proxy Selection</HelpTooltipTitle>
               <HelpTooltipText>
                 Only applies to web connections. Local ssh connections will
@@ -366,6 +369,9 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
 }
 
 const useStyles = makeStyles((theme) => ({
+  displayInitial: {
+    display: "initial",
+  },
   root: {
     height: navHeight,
     background: theme.palette.background.paper,
