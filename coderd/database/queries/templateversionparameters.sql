@@ -17,7 +17,8 @@ INSERT INTO
         required,
         legacy_variable_name,
         display_name,
-        display_order
+        display_order,
+		ephemeral
     )
 VALUES
     (
@@ -37,7 +38,8 @@ VALUES
         $14,
         $15,
         $16,
-        $17
+        $17,
+		$18
     ) RETURNING *;
 
 -- name: GetTemplateVersionParameters :many

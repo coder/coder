@@ -3967,6 +3967,7 @@ func (q *fakeQuerier) InsertTemplateVersionParameter(_ context.Context, arg data
 		Required:            arg.Required,
 		DisplayOrder:        arg.DisplayOrder,
 		LegacyVariableName:  arg.LegacyVariableName,
+		Ephemeral:           arg.Ephemeral,
 	}
 	q.templateVersionParameters = append(q.templateVersionParameters, param)
 	return param, nil
