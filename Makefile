@@ -637,7 +637,7 @@ test-postgres: test-postgres-docker
 		--jsonfile="gotests.json" \
 		--packages="./..." -- \
 		-timeout=20m \
-		-failfast
+		-failfast \
 		-count=1
 .PHONY: test-postgres
 
