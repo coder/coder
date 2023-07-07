@@ -1140,17 +1140,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		}
 
 		if user.ID != uuid.Nil && user.LoginType != params.LoginType {
-			addedMsg := ""
-			if user.LoginType == database.LoginTypePassword {
-				addedMsg = " You can convert your account to use this login type by visiting your account settings."
-			}
-			return httpError{
-				code:             http.StatusForbidden,
-				renderStaticPage: true,
-				msg:              "Incorrect login type",
-				detail: fmt.Sprintf("Attempting to use login type %q, but the user has the login type %q.%s",
-					params.LoginType, user.LoginType, addedMsg),
-			}
+			return wrongLoginTypeHTTPError(user.LoginType, params.LoginType)
 		}
 
 		// This can happen if a user is a built-in user but is signing in
@@ -1373,17 +1363,7 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 
 	// If we do not allow converting to oauth, return an error.
 	if !api.Experiments.Enabled(codersdk.ExperimentConvertToOIDC) {
-		addedMsg := ""
-		if user.LoginType == database.LoginTypePassword {
-			addedMsg = " You can convert your account to use this login type by visiting your account settings."
-		}
-		return database.User{}, httpError{
-			code:             http.StatusForbidden,
-			renderStaticPage: true,
-			msg:              "Incorrect login type",
-			detail: fmt.Sprintf("Attempting to use login type %q, but the user has the login type %q.%s",
-				params.LoginType, user.LoginType, addedMsg),
-		}
+		return database.User{}, wrongLoginTypeHTTPError(user.LoginType, params.LoginType)
 	}
 
 	if claims.RegisteredClaims.Issuer != api.DeploymentID {
@@ -1507,5 +1487,19 @@ func clearOAuthConvertCookie() *http.Cookie {
 		Name:   OAuthConvertCookieValue,
 		Path:   "/",
 		MaxAge: -1,
+	}
+}
+
+func wrongLoginTypeHTTPError(user database.LoginType, params database.LoginType) httpError {
+	addedMsg := ""
+	if user == database.LoginTypePassword {
+		addedMsg = " You can convert your account to use this login type by visiting your account settings."
+	}
+	return httpError{
+		code:             http.StatusForbidden,
+		renderStaticPage: true,
+		msg:              "Incorrect login type",
+		detail: fmt.Sprintf("Attempting to use login type %q, but the user has the login type %q.%s",
+			params, user, addedMsg),
 	}
 }
