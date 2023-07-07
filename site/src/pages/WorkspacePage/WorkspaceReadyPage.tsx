@@ -1,9 +1,8 @@
-import { useActor } from "@xstate/react"
-import { ProvisionerJobLog } from "api/typesGenerated"
+import { useActor, useMachine } from "@xstate/react"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
 import dayjs from "dayjs"
 import { useFeatureVisibility } from "hooks/useFeatureVisibility"
-import { FC, useEffect, useState } from "react"
+import { FC, useEffect, useRef, useState } from "react"
 import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
@@ -38,18 +37,21 @@ import {
 import { useMe } from "hooks/useMe"
 import Checkbox from "@mui/material/Checkbox"
 import FormControlLabel from "@mui/material/FormControlLabel"
+import { workspaceBuildMachine } from "xServices/workspaceBuild/workspaceBuildXService"
+import * as TypesGen from "api/typesGenerated"
+import Box from "@mui/material/Box"
+import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
+import { Loader } from "components/Loader/Loader"
 
 interface WorkspaceReadyPageProps {
   workspaceState: StateFrom<typeof workspaceMachine>
   quotaState: StateFrom<typeof quotaMachine>
   workspaceSend: (event: WorkspaceEvent) => void
-  failedBuildLogs: ProvisionerJobLog[] | undefined
 }
 
 export const WorkspaceReadyPage = ({
   workspaceState,
   quotaState,
-  failedBuildLogs,
   workspaceSend,
 }: WorkspaceReadyPageProps): JSX.Element => {
   const [_, bannerSend] = useActor(
@@ -92,6 +94,7 @@ export const WorkspaceReadyPage = ({
   const [isConfirmingRestart, setIsConfirmingRestart] = useState(false)
   const user = useMe()
   const { isWarningIgnored, ignoreWarning } = useIgnoreWarnings(user.id)
+  const buildLogs = useBuildLogs(workspace)
 
   const {
     mutate: restartWorkspace,
@@ -121,7 +124,6 @@ export const WorkspaceReadyPage = ({
       </Helmet>
 
       <Workspace
-        failedBuildLogs={failedBuildLogs}
         scheduleProps={{
           onDeadlineMinus: (hours: number) => {
             bannerSend({
@@ -184,6 +186,7 @@ export const WorkspaceReadyPage = ({
         template={template}
         quota_budget={quotaState.context.quota?.budget}
         templateWarnings={templateVersion?.warnings}
+        buildLogs={<BuildLogs logs={buildLogs} />}
       />
       <DeleteDialog
         entity="workspace"
@@ -330,4 +333,82 @@ const WarningDialog: FC<
       }
     />
   )
+}
+
+const BuildLogs = ({
+  logs,
+}: {
+  logs: TypesGen.ProvisionerJobLog[] | undefined
+}) => {
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const scrollEl = scrollRef.current
+    if (scrollEl) {
+      scrollEl.scrollTop = scrollEl.scrollHeight
+    }
+  }, [logs])
+
+  return (
+    <Box
+      sx={(theme) => ({
+        borderRadius: 1,
+        border: `1px solid ${theme.palette.divider}`,
+      })}
+    >
+      <Box
+        sx={(theme) => ({
+          background: theme.palette.background.paper,
+          borderBottom: `1px solid ${theme.palette.divider}`,
+          padding: theme.spacing(1, 3),
+          fontSize: 13,
+          fontWeight: 600,
+        })}
+      >
+        Build logs
+      </Box>
+      <Box
+        ref={scrollRef}
+        sx={() => ({
+          height: "400px",
+          overflowY: "auto",
+        })}
+      >
+        {logs ? (
+          <WorkspaceBuildLogs logs={logs} sx={{ border: 0, borderRadius: 0 }} />
+        ) : (
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "100%",
+              height: "100%",
+            }}
+          >
+            <Loader />
+          </Box>
+        )}
+      </Box>
+    </Box>
+  )
+}
+
+const useBuildLogs = (workspace: TypesGen.Workspace) => {
+  const buildNumber = workspace.latest_build.build_number.toString()
+  const [buildState, buildSend] = useMachine(workspaceBuildMachine, {
+    context: {
+      buildNumber,
+      username: workspace.owner_name,
+      workspaceName: workspace.name,
+      timeCursor: new Date(),
+    },
+  })
+  const { logs } = buildState.context
+
+  useEffect(() => {
+    buildSend({ type: "RESET", buildNumber, timeCursor: new Date() })
+  }, [buildNumber, buildSend])
+
+  return logs
 }

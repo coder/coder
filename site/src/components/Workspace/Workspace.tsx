@@ -2,7 +2,6 @@ import Button from "@mui/material/Button"
 import { makeStyles } from "@mui/styles"
 import { Avatar } from "components/Avatar/Avatar"
 import { AgentRow } from "components/Resources/AgentRow"
-import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
 import {
   ActiveTransition,
   WorkspaceBuildProgress,
@@ -70,8 +69,8 @@ export interface WorkspaceProps {
   sshPrefix?: string
   template?: TypesGen.Template
   quota_budget?: number
-  failedBuildLogs: TypesGen.ProvisionerJobLog[] | undefined
   handleBuildRetry: () => void
+  buildLogs?: React.ReactNode
 }
 
 /**
@@ -102,9 +101,9 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   sshPrefix,
   template,
   quota_budget,
-  failedBuildLogs,
   handleBuildRetry,
   templateWarnings,
+  buildLogs,
 }) => {
   const styles = useStyles()
   const navigate = useNavigate()
@@ -259,28 +258,25 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             </Alert>
           </Maybe>
 
-          {failedBuildLogs && (
-            <Stack>
-              <Alert
-                severity="error"
-                actions={
-                  canRetryDebugMode && (
-                    <Button
-                      key={0}
-                      onClick={handleBuildRetry}
-                      variant="text"
-                      size="small"
-                    >
-                      {t("actionButton.retryDebugMode")}
-                    </Button>
-                  )
-                }
-              >
-                <AlertTitle>Workspace build failed</AlertTitle>
-                <AlertDetail>{workspace.latest_build.job.error}</AlertDetail>
-              </Alert>
-              <WorkspaceBuildLogs logs={failedBuildLogs} />
-            </Stack>
+          {workspace.latest_build.job.error && (
+            <Alert
+              severity="error"
+              actions={
+                canRetryDebugMode && (
+                  <Button
+                    key={0}
+                    onClick={handleBuildRetry}
+                    variant="text"
+                    size="small"
+                  >
+                    {t("actionButton.retryDebugMode")}
+                  </Button>
+                )
+              }
+            >
+              <AlertTitle>Workspace build failed</AlertTitle>
+              <AlertDetail>{workspace.latest_build.job.error}</AlertDetail>
+            </Alert>
           )}
 
           {transitionStats !== undefined && (
@@ -289,6 +285,8 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               transitionStats={transitionStats}
             />
           )}
+
+          {buildLogs}
 
           {typeof resources !== "undefined" && resources.length > 0 && (
             <Resources

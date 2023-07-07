@@ -152,7 +152,6 @@ export const FailedWithLogs: Story = {
         },
       },
     },
-    failedBuildLogs: makeFailedBuildLogs(),
   },
 }
 
@@ -170,7 +169,6 @@ export const FailedWithRetry: Story = {
         },
       },
     },
-    failedBuildLogs: makeFailedBuildLogs(),
     canRetryDebugMode: true,
   },
 }
