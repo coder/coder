@@ -125,7 +125,7 @@
     "@types/react-virtualized-auto-sizer": "1.0.1",
     "@types/react-window": "1.8.5",
     "@types/ua-parser-js": "0.7.36",
-    "@types/uuid": "8.3.4",
+    "@types/uuid": "9.0.2",
     "@typescript-eslint/eslint-plugin": "5.50.0",
     "@typescript-eslint/parser": "5.59.8",
     "@xstate/cli": "0.3.0",
