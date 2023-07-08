@@ -385,6 +385,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 	resourceIcon := map[string]string{}
 	resourceCost := map[string]int32{}
 
+	metadataTargetLabels := map[string]bool{}
 	for _, resources := range tfResourcesByLabel {
 		for _, resource := range resources {
 			if resource.Type != "coder_metadata" {
@@ -396,7 +397,6 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 			if err != nil {
 				return nil, xerrors.Errorf("decode metadata attributes: %w", err)
 			}
-
 			resourceLabel := convertAddressToLabel(resource.Address)
 
 			var attachedNode *gographviz.Node
@@ -432,6 +432,11 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 				continue
 			}
 			targetLabel := attachedResource.Label
+
+			if metadataTargetLabels[targetLabel] {
+				return nil, xerrors.Errorf("duplicate metadata resource: %s", targetLabel)
+			}
+			metadataTargetLabels[targetLabel] = true
 
 			resourceHidden[targetLabel] = attrs.Hide
 			resourceIcon[targetLabel] = attrs.Icon
@@ -485,16 +490,15 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 			return nil, xerrors.Errorf("decode map values for coder_parameter.%s: %w", resource.Name, err)
 		}
 		protoParam := &proto.RichParameter{
-			Name:               param.Name,
-			DisplayName:        param.DisplayName,
-			Description:        param.Description,
-			Type:               param.Type,
-			Mutable:            param.Mutable,
-			DefaultValue:       param.Default,
-			Icon:               param.Icon,
-			Required:           !param.Optional,
-			Order:              int32(param.Order),
-			LegacyVariableName: param.LegacyVariableName,
+			Name:         param.Name,
+			DisplayName:  param.DisplayName,
+			Description:  param.Description,
+			Type:         param.Type,
+			Mutable:      param.Mutable,
+			DefaultValue: param.Default,
+			Icon:         param.Icon,
+			Required:     !param.Optional,
+			Order:        int32(param.Order),
 		}
 		if len(param.Validation) == 1 {
 			protoParam.ValidationRegex = param.Validation[0].Regex

@@ -7,6 +7,11 @@ Personalize your workspace by applying a canonical dotfiles repository
      [40m [0m[91;40m$ coder dotfiles --yes git@github.com:example/dotfiles.git[0m[40m [0m
 
 [1mOptions[0m
+  -b, --branch string
+          Specifies which branch to clone. If empty, will default to cloning the
+          default branch or using the existing branch in the cloned repo on
+          disk.
+
       --symlink-dir string, $CODER_SYMLINK_DIR
           Specifies the directory for the dotfiles symlink destinations. If
           empty, will use $HOME.

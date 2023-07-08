@@ -636,6 +636,25 @@ func TestAppSlugValidation(t *testing.T) {
 	require.ErrorContains(t, err, "duplicate app slug")
 }
 
+func TestMetadataResourceDuplicate(t *testing.T) {
+	t.Parallel()
+
+	// Load the multiple-apps state file and edit it.
+	dir := filepath.Join("testdata", "resource-metadata-duplicate")
+	tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "resource-metadata-duplicate.tfplan.json"))
+	require.NoError(t, err)
+	var tfPlan tfjson.Plan
+	err = json.Unmarshal(tfPlanRaw, &tfPlan)
+	require.NoError(t, err)
+	tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "resource-metadata-duplicate.tfplan.dot"))
+	require.NoError(t, err)
+
+	state, err := terraform.ConvertState([]*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph))
+	require.Nil(t, state)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "duplicate metadata resource: null_resource.about")
+}
+
 func TestParameterValidation(t *testing.T) {
 	t.Parallel()
 

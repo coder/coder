@@ -24,6 +24,11 @@ import Skeleton from "@mui/material/Skeleton"
 import { BUTTON_SM_HEIGHT } from "theme/theme"
 import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency"
 import { usePermissions } from "hooks/usePermissions"
+import {
+  HelpTooltip,
+  HelpTooltipText,
+  HelpTooltipTitle,
+} from "components/Tooltips/HelpTooltip"
 
 export const USERS_LINK = `/users?filter=${encodeURIComponent("status:active")}`
 
@@ -186,6 +191,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
   proxyContextValue,
 }) => {
+  const styles = useStyles()
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(false)
   const [refetchDate, setRefetchDate] = useState<Date>()
@@ -269,6 +275,34 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
         onClose={closeMenu}
         sx={{ "& .MuiMenu-paper": { py: 1 } }}
       >
+        <MenuItem
+          sx={[
+            { fontSize: 14 },
+            { "&:hover": { backgroundColor: "transparent" } },
+            { wordWrap: "break-word" },
+            { inlineSize: "200px" },
+            { whiteSpace: "normal" },
+            { textAlign: "center" },
+          ]}
+          onClick={(e) => {
+            // Stop the menu from closing
+            e.stopPropagation()
+          }}
+        >
+          <div>
+            Reduce workspace latency by selecting the region nearest you.
+            {/* This was always on a newline below the text. This puts it on the same line.
+                It still doesn't look great, but it is marginally better.  */}
+            <HelpTooltip buttonClassName={styles.displayInitial}>
+              <HelpTooltipTitle>Workspace Proxy Selection</HelpTooltipTitle>
+              <HelpTooltipText>
+                Only applies to web connections. Local ssh connections will
+                automatically select the nearest region based on latency.
+              </HelpTooltipText>
+            </HelpTooltip>
+          </div>
+        </MenuItem>
+        <Divider sx={{ borderColor: (theme) => theme.palette.divider }} />
         {proxyContextValue.proxies?.map((proxy) => (
           <MenuItem
             onClick={() => {
@@ -335,6 +369,9 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
 }
 
 const useStyles = makeStyles((theme) => ({
+  displayInitial: {
+    display: "initial",
+  },
   root: {
     height: navHeight,
     background: theme.palette.background.paper,
