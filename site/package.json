@@ -66,7 +66,7 @@
     "eventsourcemock": "2.0.0",
     "formik": "2.4.1",
     "front-matter": "4.0.2",
-    "i18next": "22.5.0",
+    "i18next": "23.2.8",
     "jest-environment-jsdom": "29.5.0",
     "jest-location-mock": "1.0.9",
     "just-debounce-it": "3.1.1",
