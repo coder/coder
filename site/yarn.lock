@@ -11028,10 +11028,10 @@ ts-proto-descriptors@1.9.0:
     long "^4.0.0"
     protobufjs "^6.8.8"
 
-ts-proto@1.150.0:
-  version "1.150.0"
-  resolved "https://registry.yarnpkg.com/ts-proto/-/ts-proto-1.150.0.tgz#41b9a737caa5bc242274eda01749e4ecfc1a4fa2"
-  integrity sha512-EYnKWkNkWRmnK2nG5D9J1zN959YD/gff+e8/nqpOw7kdrfsnCe1dr/+EYxiRhPnq/umVpBLwI/KaSDg9G+9KPA==
+ts-proto@1.151.1:
+  version "1.151.1"
+  resolved "https://registry.yarnpkg.com/ts-proto/-/ts-proto-1.151.1.tgz#3f32c6e248ab5b86b3793b67f8be6c5e9b73d676"
+  integrity sha512-T7PteegdeArA6D7G2fcpM5PsD5+SLlz3647dJfZ1WzV6IoP88Q+9bVvhRxdRVuFAUUGm2RtzdPOJJBjKR3QrFg==
   dependencies:
     "@types/object-hash" "^3.0.2"
     case-anything "^2.1.10"
