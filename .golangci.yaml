@@ -115,7 +115,8 @@ linters-settings:
     local-prefixes: coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder
 
   gocyclo:
-    min-complexity: 50
+    # goal: 30
+    min-complexity: 47
 
   importas:
     no-unaliased: true
