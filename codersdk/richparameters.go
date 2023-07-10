@@ -1,8 +1,6 @@
 package codersdk
 
 import (
-	"log"
-
 	"golang.org/x/xerrors"
 
 	"github.com/coder/terraform-provider-coder/provider"
@@ -152,7 +150,6 @@ func (r *ParameterResolver) ValidateResolve(p TemplateVersionParameter, v *Works
 	resolvedValue := v
 	// Second, previous value if not ephemeral
 	if resolvedValue == nil && !p.Ephemeral {
-		log.Println("not ephemeral", p.Name)
 		resolvedValue = prevV
 	}
 	// Last, default value
