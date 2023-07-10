@@ -195,6 +195,7 @@ issues:
         # We use assertions rather than explicitly checking errors in tests
         - errcheck
         - forcetypeassert
+        - exhaustruct # This is unhelpful in tests.
 
   fix: true
   max-issues-per-linter: 0
@@ -219,6 +220,7 @@ linters:
     - errcheck
     - errname
     - errorlint
+    - exhaustruct
     - exportloopref
     - forcetypeassert
     - gocritic
