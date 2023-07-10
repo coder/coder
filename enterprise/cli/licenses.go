@@ -136,6 +136,11 @@ func validJWT(s string) error {
 }
 
 func (r *RootCmd) licensesList() *clibase.Cmd {
+	formatter := cliui.NewOutputFormatter(
+		cliui.TableFormat([]codersdk.License{}, []string{"UUID", "Claims", "Uploaded At"}),
+		cliui.JSONFormat(),
+	)
+
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Use:     "list",
@@ -163,11 +168,16 @@ func (r *RootCmd) licensesList() *clibase.Cmd {
 				licenses[i].Claims = newClaims
 			}
 
-			enc := json.NewEncoder(inv.Stdout)
-			enc.SetIndent("", "  ")
-			return enc.Encode(licenses)
+			out, err := formatter.Format(inv.Context(), licenses)
+			if err != nil {
+				return err
+			}
+
+			_, err = fmt.Fprintln(inv.Stdout, out)
+			return err
 		},
 	}
+	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
 
