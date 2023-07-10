@@ -45,7 +45,7 @@ export const LocalPreferencesProvider = ({
     if (preferencesStr) {
       try {
         const values = JSON.parse(preferencesStr)
-        setState({ ready: true, values })
+        setState({ ready: true, ...values })
         return
       } catch (error) {
         console.warn(
