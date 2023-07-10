@@ -299,18 +299,19 @@ func New(options *Options) *API {
 		},
 	)
 
-	staticHandler := site.New(&site.Options{
-		BinFS:     binFS,
-		BinHashes: binHashes,
-		Database:  options.Database,
-		SiteFS:    site.FS(),
-	})
-	staticHandler.Experiments.Store(&experiments)
-
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
 		OIDC:   options.OIDCConfig,
 	}
+
+	staticHandler := site.New(&site.Options{
+		BinFS:         binFS,
+		BinHashes:     binHashes,
+		Database:      options.Database,
+		SiteFS:        site.FS(),
+		OAuth2Configs: oauthConfigs,
+	})
+	staticHandler.Experiments.Store(&experiments)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	r := chi.NewRouter()

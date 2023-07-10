@@ -61,10 +61,11 @@ func init() {
 }
 
 type Options struct {
-	BinFS     http.FileSystem
-	BinHashes map[string]string
-	Database  database.Store
-	SiteFS    fs.FS
+	BinFS         http.FileSystem
+	BinHashes     map[string]string
+	Database      database.Store
+	SiteFS        fs.FS
+	OAuth2Configs *httpmw.OAuth2Configs
 }
 
 func New(opts *Options) *Handler {
@@ -290,8 +291,9 @@ func (h *Handler) renderHTMLWithState(rw http.ResponseWriter, r *http.Request, f
 	// Cookies are sent when requesting HTML, so we can get the user
 	// and pre-populate the state for the frontend to reduce requests.
 	apiKey, actor, _ := httpmw.ExtractAPIKey(rw, r, httpmw.ExtractAPIKeyConfig{
-		Optional: true,
-		DB:       h.opts.Database,
+		Optional:      true,
+		DB:            h.opts.Database,
+		OAuth2Configs: h.opts.OAuth2Configs,
 	})
 	if apiKey != nil && actor != nil {
 		ctx := dbauthz.As(r.Context(), actor.Actor)
