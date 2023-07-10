@@ -2376,6 +2376,134 @@ func TestWorkspaceWithOptionalRichParameters(t *testing.T) {
 	require.ElementsMatch(t, expectedBuildParameters, workspaceBuildParameters)
 }
 
+func TestWorkspaceWithEphemeralRichParameters(t *testing.T) {
+	t.Parallel()
+
+	const (
+		firstParameterName         = "first_parameter"
+		firstParameterType         = "string"
+		firstParameterDescription  = "This is first parameter"
+		firstParameterMutable      = true
+		firstParameterDefaultValue = "1"
+
+		firstParameterValue = "i_am_first_parameter"
+
+		secondParameterName         = "second_parameter"
+		secondParameterType         = "string"
+		secondParameterDescription  = "This is second parameter"
+		secondParameterDefaultValue = ""
+		secondParameterMutable      = true
+		secondParameterEphemeral    = true
+
+		secondParameterValue = "i_am_ephemeral"
+	)
+
+	// Create template version with ephemeral parameter
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Provision_Response{
+			{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Parameters: []*proto.RichParameter{
+							{
+								Name:         firstParameterName,
+								Type:         firstParameterType,
+								Description:  firstParameterDescription,
+								DefaultValue: firstParameterDefaultValue,
+								Mutable:      firstParameterMutable,
+							},
+							{
+								Name:         secondParameterName,
+								Type:         secondParameterType,
+								Description:  secondParameterDescription,
+								DefaultValue: secondParameterDefaultValue,
+								Mutable:      secondParameterMutable,
+								Ephemeral:    secondParameterEphemeral,
+							},
+						},
+					},
+				},
+			},
+		},
+		ProvisionApply: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{},
+			},
+		}},
+	})
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+	// Create workspace with default values
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	workspaceBuild := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	require.Equal(t, codersdk.WorkspaceStatusRunning, workspaceBuild.Status)
+
+	// Verify workspace build parameters (default values)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	workspaceBuildParameters, err := client.WorkspaceBuildParameters(ctx, workspaceBuild.ID)
+	require.NoError(t, err)
+
+	expectedBuildParameters := []codersdk.WorkspaceBuildParameter{
+		{Name: firstParameterName, Value: firstParameterDefaultValue},
+		{Name: secondParameterName, Value: secondParameterDefaultValue},
+	}
+	require.ElementsMatch(t, expectedBuildParameters, workspaceBuildParameters)
+
+	// Trigger workspace build job with ephemeral parameter
+	workspaceBuild, err = client.CreateWorkspaceBuild(ctx, workspaceBuild.WorkspaceID, codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionStart,
+		RichParameterValues: []codersdk.WorkspaceBuildParameter{
+			{
+				Name:  secondParameterName,
+				Value: secondParameterValue,
+			},
+		},
+	})
+	require.NoError(t, err)
+	workspaceBuild = coderdtest.AwaitWorkspaceBuildJob(t, client, workspaceBuild.ID)
+	require.Equal(t, codersdk.WorkspaceStatusRunning, workspaceBuild.Status)
+
+	// Verify workspace build parameters (including ephemeral)
+	workspaceBuildParameters, err = client.WorkspaceBuildParameters(ctx, workspaceBuild.ID)
+	require.NoError(t, err)
+
+	expectedBuildParameters = []codersdk.WorkspaceBuildParameter{
+		{Name: firstParameterName, Value: firstParameterDefaultValue},
+		{Name: secondParameterName, Value: secondParameterValue},
+	}
+	require.ElementsMatch(t, expectedBuildParameters, workspaceBuildParameters)
+
+	// Trigger workspace build one more time without the ephemeral parameter
+	workspaceBuild, err = client.CreateWorkspaceBuild(ctx, workspaceBuild.WorkspaceID, codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionStart,
+		RichParameterValues: []codersdk.WorkspaceBuildParameter{
+			{
+				Name:  firstParameterName,
+				Value: firstParameterValue,
+			},
+		},
+	})
+	require.NoError(t, err)
+	workspaceBuild = coderdtest.AwaitWorkspaceBuildJob(t, client, workspaceBuild.ID)
+	require.Equal(t, codersdk.WorkspaceStatusRunning, workspaceBuild.Status)
+
+	// Verify workspace build parameters (ephemeral should be back to default)
+	workspaceBuildParameters, err = client.WorkspaceBuildParameters(ctx, workspaceBuild.ID)
+	require.NoError(t, err)
+
+	expectedBuildParameters = []codersdk.WorkspaceBuildParameter{
+		{Name: firstParameterName, Value: firstParameterValue},
+		{Name: secondParameterName, Value: secondParameterDefaultValue},
+	}
+	require.ElementsMatch(t, expectedBuildParameters, workspaceBuildParameters)
+}
+
 func TestWorkspaceLock(t *testing.T) {
 	t.Parallel()
 
