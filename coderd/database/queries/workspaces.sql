@@ -189,13 +189,13 @@ WHERE
 	-- Filter by owner_id
 	AND CASE
 		WHEN @owner_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			owner_id = @owner_id
+			workspaces.owner_id = @owner_id
 		ELSE true
 	END
 	-- Filter by owner_name
 	AND CASE
 		WHEN @owner_username :: text != '' THEN
-			owner_id = (SELECT id FROM users WHERE lower(username) = lower(@owner_username) AND deleted = false)
+			workspaces.owner_id = (SELECT id FROM users WHERE lower(username) = lower(@owner_username) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_name
@@ -203,19 +203,19 @@ WHERE
 	-- Use the organization filter to restrict to 1 org if needed.
 	AND CASE
 		WHEN @template_name :: text != '' THEN
-			template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower(@template_name) AND deleted = false)
+			workspaces.template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower(@template_name) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_ids
 	AND CASE
 		WHEN array_length(@template_ids :: uuid[], 1) > 0 THEN
-			template_id = ANY(@template_ids)
+			workspaces.template_id = ANY(@template_ids)
 		ELSE true
 	END
 	-- Filter by name, matching on substring
 	AND CASE
 		WHEN @name :: text != '' THEN
-			name ILIKE '%' || @name || '%'
+			workspaces.name ILIKE '%' || @name || '%'
 		ELSE true
 	END
 	-- Filter by agent status
@@ -263,7 +263,7 @@ ORDER BY
 		latest_build.error IS NULL AND
 		latest_build.transition = 'start'::workspace_transition) DESC,
 	LOWER(users.username) ASC,
-	LOWER(name) ASC
+	LOWER(workspaces.name) ASC
 LIMIT
 	CASE
 		WHEN @limit_ :: integer > 0 THEN
