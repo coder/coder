@@ -20,7 +20,7 @@ import {
   WorkspaceErrors,
 } from "../../components/Workspace/Workspace"
 import { pageTitle } from "../../utils/page"
-import { getFaviconByStatus } from "../../utils/workspace"
+import { getFaviconByStatus, hasJobError } from "../../utils/workspace"
 import {
   WorkspaceEvent,
   workspaceMachine,
@@ -101,11 +101,14 @@ export const WorkspaceReadyPage = ({
   const buildLogs = useBuildLogs(workspace)
   const localPreferences = useLocalPreferences()
   const dashboard = useDashboard()
+  const canChangeBuildLogsVisibility = !hasJobError(workspace)
+  const isWorkspaceBuildLogsUIActive = dashboard.experiments.includes(
+    "workspace_build_logs_ui",
+  )
   const shouldDisplayBuildLogs =
-    workspace.latest_build.job.error ||
+    hasJobError(workspace) ||
     (localPreferences.getPreference("buildLogsVisibility") === "visible" &&
-      dashboard.experiments.includes("workspace_build_logs_ui"))
-  const canHideBuildLogs = workspace.latest_build.job.error === undefined
+      isWorkspaceBuildLogsUIActive)
 
   const {
     mutate: restartWorkspace,
@@ -197,22 +200,19 @@ export const WorkspaceReadyPage = ({
         template={template}
         quota_budget={quotaState.context.quota?.budget}
         templateWarnings={templateVersion?.warnings}
+        canChangeBuildLogsVisibility={canChangeBuildLogsVisibility}
+        isWorkspaceBuildLogsUIActive={isWorkspaceBuildLogsUIActive}
         buildLogs={
-          shouldDisplayBuildLogs ? (
+          shouldDisplayBuildLogs && (
             <BuildLogs
               logs={buildLogs}
-              onHide={
-                canHideBuildLogs
-                  ? () => {
-                      localPreferences.setPreference(
-                        "buildLogsVisibility",
-                        "hide",
-                      )
-                    }
-                  : undefined
-              }
+              onHide={() => {
+                if (canChangeBuildLogsVisibility) {
+                  localPreferences.setPreference("buildLogsVisibility", "hide")
+                }
+              }}
             />
-          ) : null
+          )
         }
       />
       <DeleteDialog

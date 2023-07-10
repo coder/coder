@@ -42,6 +42,8 @@ export interface WorkspaceActionsProps {
   isRestarting: boolean
   children?: ReactNode
   canChangeVersions: boolean
+  canChangeBuildLogsVisibility: boolean
+  isWorkspaceBuildLogsUIActive: boolean
 }
 
 export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
@@ -58,6 +60,8 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   isUpdating,
   isRestarting,
   canChangeVersions,
+  canChangeBuildLogsVisibility,
+  isWorkspaceBuildLogsUIActive,
 }) => {
   const styles = useStyles()
   const {
@@ -147,26 +151,38 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
             <DeleteOutlined />
             Delete
           </MenuItem>
-          <Divider sx={{ borderColor: (theme) => theme.palette.divider }} />
 
-          {isBuildLogsVisible ? (
-            <MenuItem
-              onClick={onMenuItemClick(() => {
-                localPreferences.setPreference("buildLogsVisibility", "hide")
-              })}
-            >
-              <VisibilityOffOutlined />
-              Hide build logs
-            </MenuItem>
-          ) : (
-            <MenuItem
-              onClick={onMenuItemClick(() => {
-                localPreferences.setPreference("buildLogsVisibility", "visible")
-              })}
-            >
-              <VisibilityOutlined />
-              Show build logs
-            </MenuItem>
+          {isWorkspaceBuildLogsUIActive && (
+            <>
+              <Divider sx={{ borderColor: (theme) => theme.palette.divider }} />
+              {isBuildLogsVisible ? (
+                <MenuItem
+                  disabled={!canChangeBuildLogsVisibility}
+                  onClick={onMenuItemClick(() => {
+                    localPreferences.setPreference(
+                      "buildLogsVisibility",
+                      "hide",
+                    )
+                  })}
+                >
+                  <VisibilityOffOutlined />
+                  Hide build logs
+                </MenuItem>
+              ) : (
+                <MenuItem
+                  disabled={!canChangeBuildLogsVisibility}
+                  onClick={onMenuItemClick(() => {
+                    localPreferences.setPreference(
+                      "buildLogsVisibility",
+                      "visible",
+                    )
+                  })}
+                >
+                  <VisibilityOutlined />
+                  Show build logs
+                </MenuItem>
+              )}
+            </>
           )}
         </Menu>
       </div>

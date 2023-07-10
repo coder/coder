@@ -30,7 +30,7 @@ const LocalPreferencesContext = createContext<
   LocalPreferenceContextValues | undefined
 >(undefined)
 
-export const LocalPreferenceProvider = ({
+export const LocalPreferencesProvider = ({
   children,
 }: {
   children: ReactNode

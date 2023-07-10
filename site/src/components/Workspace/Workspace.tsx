@@ -71,6 +71,8 @@ export interface WorkspaceProps {
   quota_budget?: number
   handleBuildRetry: () => void
   buildLogs?: React.ReactNode
+  canChangeBuildLogsVisibility: boolean
+  isWorkspaceBuildLogsUIActive: boolean
 }
 
 /**
@@ -104,6 +106,8 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   handleBuildRetry,
   templateWarnings,
   buildLogs,
+  canChangeBuildLogsVisibility,
+  isWorkspaceBuildLogsUIActive,
 }) => {
   const styles = useStyles()
   const navigate = useNavigate()
@@ -207,6 +211,8 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             canChangeVersions={canChangeVersions}
             isUpdating={isUpdating}
             isRestarting={isRestarting}
+            canChangeBuildLogsVisibility={canChangeBuildLogsVisibility}
+            isWorkspaceBuildLogsUIActive={isWorkspaceBuildLogsUIActive}
           />
         </PageHeaderActions>
       </FullWidthPageHeader>
