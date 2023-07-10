@@ -5396,55 +5396,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Filter by owner username",
-                        "name": "owner",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, deleting_by.",
+                        "name": "q",
                         "in": "query"
                     },
                     {
-                        "type": "string",
-                        "description": "Filter by template name",
-                        "name": "template",
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
                         "in": "query"
                     },
                     {
-                        "type": "string",
-                        "description": "Filter with partial-match by workspace name",
-                        "name": "name",
-                        "in": "query"
-                    },
-                    {
-                        "enum": [
-                            "pending",
-                            "running",
-                            "stopping",
-                            "stopped",
-                            "failed",
-                            "canceling",
-                            "canceled",
-                            "deleted",
-                            "deleting"
-                        ],
-                        "type": "string",
-                        "description": "Filter by workspace status",
-                        "name": "status",
-                        "in": "query"
-                    },
-                    {
-                        "enum": [
-                            "connected",
-                            "connecting",
-                            "disconnected",
-                            "timeout"
-                        ],
-                        "type": "string",
-                        "description": "Filter by agent status",
-                        "name": "has_agent",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Filter workspaces scheduled to be deleted by this time",
-                        "name": "deleting_by",
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
                         "in": "query"
                     }
                 ],
