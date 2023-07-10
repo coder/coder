@@ -84,7 +84,7 @@ export const Sidebar: React.FC = () => {
           href="workspace-proxies"
           icon={<SidebarNavItemIcon icon={HubOutlinedIcon} />}
         >
-          Workspace Proxy
+          Workspace Proxies
         </SidebarNavItem>
       )}
       <SidebarNavItem

@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/coderd/userpassword"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/site"
 )
 
 const (
@@ -625,10 +626,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	defer params.CommitAuditLogs()
 	var httpErr httpError
 	if xerrors.As(err, &httpErr) {
-		httpapi.Write(ctx, rw, httpErr.code, codersdk.Response{
-			Message: httpErr.msg,
-			Detail:  httpErr.detail,
-		})
+		httpErr.Write(rw, r)
 		return
 	}
 	if err != nil {
@@ -969,10 +967,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	defer params.CommitAuditLogs()
 	var httpErr httpError
 	if xerrors.As(err, &httpErr) {
-		httpapi.Write(ctx, rw, httpErr.code, codersdk.Response{
-			Message: httpErr.msg,
-			Detail:  httpErr.detail,
-		})
+		httpErr.Write(rw, r)
 		return
 	}
 	if err != nil {
@@ -1076,9 +1071,28 @@ func (p *oauthLoginParams) CommitAuditLogs() {
 }
 
 type httpError struct {
-	code   int
-	msg    string
-	detail string
+	code             int
+	msg              string
+	detail           string
+	renderStaticPage bool
+}
+
+func (e httpError) Write(rw http.ResponseWriter, r *http.Request) {
+	if e.renderStaticPage {
+		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+			Status:       e.code,
+			HideStatus:   true,
+			Title:        e.msg,
+			Description:  e.detail,
+			RetryEnabled: false,
+			DashboardURL: "/login",
+		})
+		return
+	}
+	httpapi.Write(r.Context(), rw, e.code, codersdk.Response{
+		Message: e.msg,
+		Detail:  e.detail,
+	})
 }
 
 func (e httpError) Error() string {
@@ -1126,13 +1140,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		}
 
 		if user.ID != uuid.Nil && user.LoginType != params.LoginType {
-			return httpError{
-				code: http.StatusForbidden,
-				msg: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q",
-					params.LoginType,
-					user.LoginType,
-				),
-			}
+			return wrongLoginTypeHTTPError(user.LoginType, params.LoginType)
 		}
 
 		// This can happen if a user is a built-in user but is signing in
@@ -1355,13 +1363,7 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 
 	// If we do not allow converting to oauth, return an error.
 	if !api.Experiments.Enabled(codersdk.ExperimentConvertToOIDC) {
-		return database.User{}, httpError{
-			code: http.StatusForbidden,
-			msg: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q",
-				params.LoginType,
-				user.LoginType,
-			),
-		}
+		return database.User{}, wrongLoginTypeHTTPError(user.LoginType, params.LoginType)
 	}
 
 	if claims.RegisteredClaims.Issuer != api.DeploymentID {
@@ -1485,5 +1487,19 @@ func clearOAuthConvertCookie() *http.Cookie {
 		Name:   OAuthConvertCookieValue,
 		Path:   "/",
 		MaxAge: -1,
+	}
+}
+
+func wrongLoginTypeHTTPError(user database.LoginType, params database.LoginType) httpError {
+	addedMsg := ""
+	if user == database.LoginTypePassword {
+		addedMsg = " You can convert your account to use this login type by visiting your account settings."
+	}
+	return httpError{
+		code:             http.StatusForbidden,
+		renderStaticPage: true,
+		msg:              "Incorrect login type",
+		detail: fmt.Sprintf("Attempting to use login type %q, but the user has the login type %q.%s",
+			params, user, addedMsg),
 	}
 }
