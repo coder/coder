@@ -128,7 +128,7 @@
     "@types/uuid": "9.0.2",
     "@typescript-eslint/eslint-plugin": "5.50.0",
     "@typescript-eslint/parser": "5.59.8",
-    "@xstate/cli": "0.3.0",
+    "@xstate/cli": "0.5.2",
     "chromatic": "6.19.9",
     "eslint": "8.44.0",
     "eslint-config-prettier": "8.8.0",
