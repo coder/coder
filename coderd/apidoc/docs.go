@@ -9595,6 +9595,14 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "health": {
+                    "description": "Health shows the health of the workspace and information about\nwhat is causing an unhealthy status.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceHealth"
+                        }
+                    ]
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -9692,6 +9700,14 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "health": {
+                    "description": "Health reports the health of the agent.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentHealth"
+                        }
+                    ]
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -9783,6 +9799,21 @@ const docTemplate = `{
                 },
                 "disable_direct_connections": {
                     "type": "boolean"
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentHealth": {
+            "type": "object",
+            "properties": {
+                "healthy": {
+                    "description": "Healthy is true if the agent is healthy.",
+                    "type": "boolean",
+                    "example": false
+                },
+                "reason": {
+                    "description": "Reason is a human-readable explanation of the agent's health. It is empty if Healthy is true.",
+                    "type": "string",
+                    "example": "agent has lost connection"
                 }
             }
         },
@@ -10149,6 +10180,24 @@ const docTemplate = `{
                 },
                 "tx_bytes": {
                     "type": "integer"
+                }
+            }
+        },
+        "codersdk.WorkspaceHealth": {
+            "type": "object",
+            "properties": {
+                "failing_agents": {
+                    "description": "FailingAgents lists the IDs of the agents that are failing, if any.",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "healthy": {
+                    "description": "Healthy is true if the workspace is healthy.",
+                    "type": "boolean",
+                    "example": false
                 }
             }
         },
