@@ -1643,6 +1643,8 @@ type TemplateVersionParameter struct {
 	DisplayName string `db:"display_name" json:"display_name"`
 	// Specifies the order in which to display parameters in user interfaces.
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
+	// The value of an ephemeral parameter will not be preserved between consecutive workspace builds.
+	Ephemeral bool `db:"ephemeral" json:"ephemeral"`
 }
 
 type TemplateVersionVariable struct {

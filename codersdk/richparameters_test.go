@@ -304,3 +304,89 @@ func TestRichParameterValidation(t *testing.T) {
 		}
 	})
 }
+
+func TestParameterResolver_ValidateResolve_Ephemeral_OverridePrevious(t *testing.T) {
+	t.Parallel()
+	uut := codersdk.ParameterResolver{
+		Rich: []codersdk.WorkspaceBuildParameter{{Name: "n", Value: "5"}},
+	}
+	p := codersdk.TemplateVersionParameter{
+		Name:      "n",
+		Type:      "number",
+		Mutable:   true,
+		Required:  true,
+		Ephemeral: true,
+	}
+	v, err := uut.ValidateResolve(p, &codersdk.WorkspaceBuildParameter{
+		Name:  "n",
+		Value: "6",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "6", v)
+}
+
+func TestParameterResolver_ValidateResolve_Ephemeral_FirstTime(t *testing.T) {
+	t.Parallel()
+	uut := codersdk.ParameterResolver{}
+	p := codersdk.TemplateVersionParameter{
+		Name:      "n",
+		Type:      "number",
+		Mutable:   true,
+		Required:  true,
+		Ephemeral: true,
+	}
+	v, err := uut.ValidateResolve(p, &codersdk.WorkspaceBuildParameter{
+		Name:  "n",
+		Value: "6",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "6", v)
+}
+
+func TestParameterResolver_ValidateResolve_Ephemeral_UseDefault(t *testing.T) {
+	t.Parallel()
+	uut := codersdk.ParameterResolver{}
+	p := codersdk.TemplateVersionParameter{
+		Name:         "n",
+		Type:         "number",
+		Mutable:      true,
+		DefaultValue: "5",
+		Ephemeral:    true,
+	}
+	v, err := uut.ValidateResolve(p, nil)
+	require.NoError(t, err)
+	require.Equal(t, "5", v)
+}
+
+func TestParameterResolver_ValidateResolve_Ephemeral_UseEmptyDefault(t *testing.T) {
+	t.Parallel()
+	uut := codersdk.ParameterResolver{}
+	p := codersdk.TemplateVersionParameter{
+		Name:         "n",
+		Type:         "number",
+		Mutable:      true,
+		DefaultValue: "",
+		Ephemeral:    true,
+	}
+	v, err := uut.ValidateResolve(p, nil)
+	require.NoError(t, err)
+	require.Equal(t, "", v)
+}
+
+func TestParameterResolver_ValidateResolve_Ephemeral_RequiredButMissing(t *testing.T) {
+	t.Parallel()
+	uut := codersdk.ParameterResolver{}
+	p := codersdk.TemplateVersionParameter{
+		Name:      "n",
+		Type:      "number",
+		Mutable:   true,
+		Required:  true,
+		Ephemeral: true,
+	}
+	// It is more theoretical than practical case. Schema allows to configure a parameter,
+	// which always requires from initiator to provide the value, but it is not persisted between
+	// consecutive workspace builds.
+	v, err := uut.ValidateResolve(p, nil)
+	require.Error(t, err) // Parameter is required, but not provided.
+	require.Equal(t, "", v)
+}

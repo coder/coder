@@ -46,6 +46,7 @@ message RichParameter {
     // legacy_variable_name was removed (= 14)
     string display_name = 15;
     int32 order = 16;
+    bool ephemeral = 17;
 }
 
 // RichParameterValue holds the key/value mapping of a parameter.
