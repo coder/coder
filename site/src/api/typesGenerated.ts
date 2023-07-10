@@ -1416,11 +1416,13 @@ export type Experiment =
   | "moons"
   | "tailnet_pg_coordinator"
   | "workspace_actions"
+  | "workspace_build_logs_ui"
 export const Experiments: Experiment[] = [
   "convert-to-oidc",
   "moons",
   "tailnet_pg_coordinator",
   "workspace_actions",
+  "workspace_build_logs_ui",
 ]
 
 // From codersdk/deployment.go
