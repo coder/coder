@@ -13,6 +13,7 @@ import { OutdatedHelpTooltip } from "components/Tooltips/OutdatedHelpTooltip"
 import { Avatar } from "components/Avatar/Avatar"
 import { Stack } from "components/Stack/Stack"
 import { useClickableTableRow } from "hooks/useClickableTableRow"
+import { WorkspaceHealthBadge } from "components/WorkspaceHealthBadge/WorkspaceHealthBadge"
 
 export const WorkspacesRow: FC<{
   workspace: Workspace
@@ -63,6 +64,10 @@ export const WorkspacesRow: FC<{
 
       <TableCell>
         <WorkspaceStatusBadge workspace={workspace} />
+      </TableCell>
+
+      <TableCell>
+        <WorkspaceHealthBadge workspace={workspace} />
       </TableCell>
 
       <TableCell>

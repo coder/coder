@@ -13,6 +13,7 @@ const Language = {
   template: "Template",
   lastUsed: "Last Used",
   status: "Status",
+  health: "Health",
 }
 
 export interface WorkspacesTableProps {
@@ -37,6 +38,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
             <TableCell width="25%">{Language.template}</TableCell>
             <TableCell width="20%">{Language.lastUsed}</TableCell>
             <TableCell width="15%">{Language.status}</TableCell>
+            <TableCell width="15%">{Language.health}</TableCell>
             <TableCell width="1%" />
           </TableRow>
         </TableHead>
