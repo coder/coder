@@ -48,6 +48,9 @@ updates:
         patterns:
           - "go.nhat.io/otelsql"
           - "go.opentelemetry.io/otel*"
+      golang-x:
+        patterns:
+          - "golang.org/x/*"
 
   # Update our Dockerfile.
   - package-ecosystem: "docker"
