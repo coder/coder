@@ -16,6 +16,14 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// NoOptDefValuer describes behavior when no
+// option is passed into the flag.
+//
+// This is useful for boolean or otherwise binary flags.
+type NoOptDefValuer interface {
+	NoOptDefValue() string
+}
+
 // Validator is a wrapper around a pflag.Value that allows for validation
 // of the value after or before it has been set.
 type Validator[T pflag.Value] struct {
@@ -57,14 +65,6 @@ func (i *Validator[T]) Set(input string) error {
 
 func (i *Validator[T]) Type() string {
 	return i.Value.Type()
-}
-
-// NoOptDefValuer describes behavior when no
-// option is passed into the flag.
-//
-// This is useful for boolean or otherwise binary flags.
-type NoOptDefValuer interface {
-	NoOptDefValue() string
 }
 
 // values.go contains a standard set of value types that can be used as
@@ -372,10 +372,12 @@ type Struct[T any] struct {
 	Value T
 }
 
+//nolint:revive
 func (s *Struct[T]) Set(v string) error {
 	return yaml.Unmarshal([]byte(v), &s.Value)
 }
 
+//nolint:revive
 func (s *Struct[T]) String() string {
 	byt, err := yaml.Marshal(s.Value)
 	if err != nil {
@@ -404,6 +406,7 @@ func (s *Struct[T]) UnmarshalYAML(n *yaml.Node) error {
 	return n.Decode(&s.Value)
 }
 
+//nolint:revive
 func (s *Struct[T]) Type() string {
 	return fmt.Sprintf("struct[%T]", s.Value)
 }
