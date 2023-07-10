@@ -50,7 +50,7 @@ updates:
           - "go.opentelemetry.io/otel*"
         golang-x:
           patterns:
-          - "golang.org/x/*"
+            - "golang.org/x/*"
 
   # Update our Dockerfile.
   - package-ecosystem: "docker"
