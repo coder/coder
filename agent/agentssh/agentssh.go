@@ -358,10 +358,10 @@ func (s *Server) startPTYSession(session ptySession, magicTypeLabel string, cmd 
 		}
 	}
 
-	if !isQuietLogin(session.RawCommand()) {
+	if !isQuietLogin(s.fs, session.RawCommand()) {
 		manifest := s.Manifest.Load()
 		if manifest != nil {
-			err := showMOTD(session, manifest.MOTDFile)
+			err := showMOTD(s.fs, session, manifest.MOTDFile)
 			if err != nil {
 				s.logger.Error(ctx, "agent failed to show MOTD", slog.Error(err))
 				s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "motd").Add(1)
@@ -763,7 +763,7 @@ func isLoginShell(rawCommand string) bool {
 // isQuietLogin checks if the SSH server should perform a quiet login or not.
 //
 // https://github.com/openssh/openssh-portable/blob/25bd659cc72268f2858c5415740c442ee950049f/session.c#L816
-func isQuietLogin(rawCommand string) bool {
+func isQuietLogin(fs afero.Fs, rawCommand string) bool {
 	// We are always quiet unless this is a login shell.
 	if !isLoginShell(rawCommand) {
 		return true
@@ -776,7 +776,7 @@ func isQuietLogin(rawCommand string) bool {
 		return false
 	}
 
-	_, err = os.Stat(filepath.Join(homedir, ".hushlogin"))
+	_, err = fs.Stat(filepath.Join(homedir, ".hushlogin"))
 	return err == nil
 }
 
@@ -796,12 +796,12 @@ func showServiceBanner(session io.Writer, banner *codersdk.ServiceBannerConfig) 
 // the given filename to dest, if the file exists.
 //
 // https://github.com/openssh/openssh-portable/blob/25bd659cc72268f2858c5415740c442ee950049f/session.c#L784
-func showMOTD(dest io.Writer, filename string) error {
+func showMOTD(fs afero.Fs, dest io.Writer, filename string) error {
 	if filename == "" {
 		return nil
 	}
 
-	f, err := os.Open(filename)
+	f, err := fs.Open(filename)
 	if err != nil {
 		if xerrors.Is(err, os.ErrNotExist) {
 			// This is not an error, there simply isn't a MOTD to show.

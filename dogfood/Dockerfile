@@ -128,6 +128,7 @@ RUN apt-get update --quiet && apt-get install --yes \
 	openjdk-11-jdk-headless \
 	openssh-server \
 	openssl \
+	libssl-dev \
 	pkg-config \
 	python3 \
 	python3-pip \
@@ -155,6 +156,7 @@ RUN apt-get update --quiet && apt-get install --yes \
 	containerd.io \
 	docker-ce \
 	docker-ce-cli \
+	docker-compose-plugin \
 	packer \
 	terraform \
 	fish \

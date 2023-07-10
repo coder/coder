@@ -181,3 +181,13 @@ func TestDERPHeaders(t *testing.T) {
 
 	require.Greater(t, atomic.LoadInt64(&derpCalled), int64(0), "expected /derp to be called at least once")
 }
+
+func TestHandlersOK(t *testing.T) {
+	t.Parallel()
+
+	var root cli.RootCmd
+	cmd, err := root.Command(root.Core())
+	require.NoError(t, err)
+
+	clitest.HandlersOK(t, cmd)
+}

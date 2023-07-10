@@ -33,8 +33,8 @@ Example.args = {
         clearProxy: () => {
           return
         },
-        refetchProxyLatencies: () => {
-          return
+        refetchProxyLatencies: (): Date => {
+          return new Date()
         },
       }}
     >
@@ -106,8 +106,8 @@ BunchOfMetadata.args = {
         clearProxy: () => {
           return
         },
-        refetchProxyLatencies: () => {
-          return
+        refetchProxyLatencies: (): Date => {
+          return new Date()
         },
       }}
     >

@@ -20,6 +20,14 @@ coder dotfiles [flags] <git_repo_url>
 
 ## Options
 
+### -b, --branch
+
+|      |                     |
+| ---- | ------------------- |
+| Type | <code>string</code> |
+
+Specifies which branch to clone. If empty, will default to cloning the default branch or using the existing branch in the cloned repo on disk.
+
 ### --symlink-dir
 
 |             |                                 |

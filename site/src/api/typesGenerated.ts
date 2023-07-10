@@ -946,7 +946,6 @@ export interface TemplateVersionParameter {
   readonly validation_max?: number
   readonly validation_monotonic?: ValidationMonotonicOrder
   readonly required: boolean
-  readonly legacy_variable_name?: string
 }
 
 // From codersdk/templateversions.go

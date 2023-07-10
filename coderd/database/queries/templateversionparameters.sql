@@ -15,7 +15,6 @@ INSERT INTO
         validation_error,
         validation_monotonic,
         required,
-        legacy_variable_name,
         display_name,
         display_order
     )
@@ -36,8 +35,7 @@ VALUES
         $13,
         $14,
         $15,
-        $16,
-        $17
+        $16
     ) RETURNING *;
 
 -- name: GetTemplateVersionParameters :many

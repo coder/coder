@@ -1080,12 +1080,12 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template}/acl \
 ```json
 {
   "group_perms": {
-    "property1": "admin",
-    "property2": "admin"
+    "8bd26b20-f3e8-48be-a903-46bb920cf671": "use",
+    "<user_id>>": "admin"
   },
   "user_perms": {
-    "property1": "admin",
-    "property2": "admin"
+    "4df59e74-c027-470b-ab4d-cbba8963a5e9": "use",
+    "<group_id>": "admin"
   }
 }
 ```

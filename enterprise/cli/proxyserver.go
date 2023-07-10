@@ -95,7 +95,7 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			if !(primaryAccessURL.Scheme == "http" || primaryAccessURL.Scheme == "https") {
-				return xerrors.Errorf("primary access URL must be http or https: url=%s", primaryAccessURL.String())
+				return xerrors.Errorf("'--primary-access-url' value must be http or https: url=%s", primaryAccessURL.String())
 			}
 
 			var closers closers
@@ -174,20 +174,6 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 			}
 			defer httpClient.CloseIdleConnections()
 			closers.Add(httpClient.CloseIdleConnections)
-
-			// Warn the user if the access URL appears to be a loopback address.
-			isLocal, err := cli.IsLocalURL(ctx, cfg.AccessURL.Value())
-			if isLocal || err != nil {
-				reason := "could not be resolved"
-				if isLocal {
-					reason = "isn't externally reachable"
-				}
-				cliui.Warnf(
-					inv.Stderr,
-					"The access URL %s %s, this may cause unexpected problems when creating workspaces. Generate a unique *.try.coder.app URL by not specifying an access URL.\n",
-					cliui.DefaultStyles.Field.Render(cfg.AccessURL.String()), reason,
-				)
-			}
 
 			// A newline is added before for visibility in terminal output.
 			cliui.Infof(inv.Stdout, "\nView the Web UI: %s", cfg.AccessURL.String())

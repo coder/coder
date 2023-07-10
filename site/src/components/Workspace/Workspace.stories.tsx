@@ -42,8 +42,8 @@ const meta: Meta<typeof Workspace> = {
             setProxy: () => {
               return
             },
-            refetchProxyLatencies: () => {
-              return
+            refetchProxyLatencies: (): Date => {
+              return new Date()
             },
           }}
         >

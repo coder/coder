@@ -248,12 +248,14 @@ data "coder_parameter" "cpu" {
 
 As a template improvement, the template author can consider making some of the new `coder_parameter` resources `mutable`.
 
-## Managed Terraform variables
+## Terraform template-wide variables
+
+> ⚠️ Flag `feature_use_managed_variables` is available until v0.25.0 (Jul 2023) release. After this release, template-wide Terraform variables will be enabled by default.
 
 As parameters are intended to be used only for workspace customization purposes, Terraform variables can be freely managed by the template author to build templates. Workspace users are not able to modify
 template variables.
 
-The template author can enable managed Terraform variables mode by specifying the following flag:
+The template author can enable Terraform template-wide variables mode by specifying the following flag:
 
 ```hcl
 provider "coder" {
