@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -503,10 +504,13 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 		if err != nil {
 			return nil, nil, BuildError{http.StatusInternalServerError, "failed to convert template version parameter", err}
 		}
+		log.Println("templateVersionParameter", tvp.Name)
+		log.Println("findNewBuildParameterValue", b.findNewBuildParameterValue(templateVersionParameter.Name))
 		value, err := resolver.ValidateResolve(
 			tvp,
 			b.findNewBuildParameterValue(templateVersionParameter.Name),
 		)
+		log.Println("value", value)
 		if err != nil {
 			// At this point, we've queried all the data we need from the database,
 			// so the only errors are problems with the request (missing data, failed
