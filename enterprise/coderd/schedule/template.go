@@ -28,7 +28,8 @@ func (*EnterpriseTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.C
 		return agpl.TemplateScheduleOptions{}, err
 	}
 
-	// These extra checks have to be done before the conversion.
+	// These extra checks have to be done before the conversion because we lose
+	// precision and signs when converting to the agpl types from the database.
 	if tpl.RestartRequirementDaysOfWeek < 0 {
 		return agpl.TemplateScheduleOptions{}, xerrors.New("invalid restart requirement days, negative")
 	}
