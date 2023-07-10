@@ -24,11 +24,6 @@ import Skeleton from "@mui/material/Skeleton"
 import { BUTTON_SM_HEIGHT } from "theme/theme"
 import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency"
 import { usePermissions } from "hooks/usePermissions"
-import {
-  HelpTooltip,
-  HelpTooltipText,
-  HelpTooltipTitle,
-} from "components/Tooltips/HelpTooltip"
 import Typography from "@mui/material/Typography"
 
 export const USERS_LINK = `/users?filter=${encodeURIComponent("status:active")}`
