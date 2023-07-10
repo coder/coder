@@ -2527,17 +2527,14 @@ func TestWorkspaceWithEphemeralRichParameters(t *testing.T) {
 		firstParameterDescription  = "This is first parameter"
 		firstParameterMutable      = true
 		firstParameterDefaultValue = "1"
+		firstParameterValue        = "i_am_first_parameter"
 
-		firstParameterValue = "i_am_first_parameter"
-
-		secondParameterName         = "second_parameter"
-		secondParameterType         = "string"
-		secondParameterDescription  = "This is second parameter"
-		secondParameterDefaultValue = ""
-		secondParameterMutable      = true
-		secondParameterEphemeral    = true
-
-		secondParameterValue = "i_am_ephemeral"
+		ephemeralParameterName         = "second_parameter"
+		ephemeralParameterType         = "string"
+		ephemeralParameterDescription  = "This is second parameter"
+		ephemeralParameterDefaultValue = ""
+		ephemeralParameterMutable      = true
+		ephemeralParameterValue        = "i_am_ephemeral"
 	)
 
 	// Create template version with ephemeral parameter
@@ -2558,12 +2555,12 @@ func TestWorkspaceWithEphemeralRichParameters(t *testing.T) {
 								Mutable:      firstParameterMutable,
 							},
 							{
-								Name:         secondParameterName,
-								Type:         secondParameterType,
-								Description:  secondParameterDescription,
-								DefaultValue: secondParameterDefaultValue,
-								Mutable:      secondParameterMutable,
-								Ephemeral:    secondParameterEphemeral,
+								Name:         ephemeralParameterName,
+								Type:         ephemeralParameterType,
+								Description:  ephemeralParameterDescription,
+								DefaultValue: ephemeralParameterDefaultValue,
+								Mutable:      ephemeralParameterMutable,
+								Ephemeral:    true,
 							},
 						},
 					},
@@ -2593,7 +2590,7 @@ func TestWorkspaceWithEphemeralRichParameters(t *testing.T) {
 
 	expectedBuildParameters := []codersdk.WorkspaceBuildParameter{
 		{Name: firstParameterName, Value: firstParameterDefaultValue},
-		{Name: secondParameterName, Value: secondParameterDefaultValue},
+		{Name: ephemeralParameterName, Value: ephemeralParameterDefaultValue},
 	}
 	require.ElementsMatch(t, expectedBuildParameters, workspaceBuildParameters)
 
@@ -2602,8 +2599,8 @@ func TestWorkspaceWithEphemeralRichParameters(t *testing.T) {
 		Transition: codersdk.WorkspaceTransitionStart,
 		RichParameterValues: []codersdk.WorkspaceBuildParameter{
 			{
-				Name:  secondParameterName,
-				Value: secondParameterValue,
+				Name:  ephemeralParameterName,
+				Value: ephemeralParameterValue,
 			},
 		},
 	})
@@ -2617,7 +2614,7 @@ func TestWorkspaceWithEphemeralRichParameters(t *testing.T) {
 
 	expectedBuildParameters = []codersdk.WorkspaceBuildParameter{
 		{Name: firstParameterName, Value: firstParameterDefaultValue},
-		{Name: secondParameterName, Value: secondParameterValue},
+		{Name: ephemeralParameterName, Value: ephemeralParameterValue},
 	}
 	require.ElementsMatch(t, expectedBuildParameters, workspaceBuildParameters)
 
@@ -2641,7 +2638,7 @@ func TestWorkspaceWithEphemeralRichParameters(t *testing.T) {
 
 	expectedBuildParameters = []codersdk.WorkspaceBuildParameter{
 		{Name: firstParameterName, Value: firstParameterValue},
-		{Name: secondParameterName, Value: secondParameterDefaultValue},
+		{Name: ephemeralParameterName, Value: ephemeralParameterDefaultValue},
 	}
 	require.ElementsMatch(t, expectedBuildParameters, workspaceBuildParameters)
 }
