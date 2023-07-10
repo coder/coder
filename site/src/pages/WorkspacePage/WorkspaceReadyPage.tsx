@@ -100,9 +100,11 @@ export const WorkspaceReadyPage = ({
   const { isWarningIgnored, ignoreWarning } = useIgnoreWarnings(user.id)
   const buildLogs = useBuildLogs(workspace)
   const localPreferences = useLocalPreferences()
+  const dashboard = useDashboard()
   const shouldDisplayBuildLogs =
     workspace.latest_build.job.error ||
-    localPreferences.getPreference("buildLogsVisibility") === "visible"
+    (localPreferences.getPreference("buildLogsVisibility") === "visible" &&
+      dashboard.experiments.includes("workspace_build_logs_ui"))
   const canHideBuildLogs = workspace.latest_build.job.error === undefined
 
   const {
