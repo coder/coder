@@ -97,10 +97,11 @@ const useStyles = makeStyles<
 >((theme) => ({
   root: {
     minHeight: 156,
-    padding: theme.spacing(2, 0),
+    padding: theme.spacing(1, 0),
     borderRadius: theme.shape.borderRadius,
     overflowX: "auto",
     background: theme.palette.background.default,
+    borderBottom: `1px solid ${theme.palette.divider}`,
   },
   scrollWrapper: {
     minWidth: "fit-content",
