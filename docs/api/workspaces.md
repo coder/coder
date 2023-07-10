@@ -409,32 +409,11 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
 
 ### Parameters
 
-| Name          | In    | Type   | Required | Description                                            |
-| ------------- | ----- | ------ | -------- | ------------------------------------------------------ |
-| `owner`       | query | string | false    | Filter by owner username                               |
-| `template`    | query | string | false    | Filter by template name                                |
-| `name`        | query | string | false    | Filter with partial-match by workspace name            |
-| `status`      | query | string | false    | Filter by workspace status                             |
-| `has_agent`   | query | string | false    | Filter by agent status                                 |
-| `deleting_by` | query | string | false    | Filter workspaces scheduled to be deleted by this time |
-
-#### Enumerated Values
-
-| Parameter   | Value          |
-| ----------- | -------------- |
-| `status`    | `pending`      |
-| `status`    | `running`      |
-| `status`    | `stopping`     |
-| `status`    | `stopped`      |
-| `status`    | `failed`       |
-| `status`    | `canceling`    |
-| `status`    | `canceled`     |
-| `status`    | `deleted`      |
-| `status`    | `deleting`     |
-| `has_agent` | `connected`    |
-| `has_agent` | `connecting`   |
-| `has_agent` | `disconnected` |
-| `has_agent` | `timeout`      |
+| Name     | In    | Type    | Required | Description                                                                                                        |
+| -------- | ----- | ------- | -------- | ------------------------------------------------------------------------------------------------------------------ |
+| `q`      | query | string  | false    | Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, deleting_by. |
+| `limit`  | query | integer | false    | Page limit                                                                                                         |
+| `offset` | query | integer | false    | Page offset                                                                                                        |
 
 ### Example responses
 
