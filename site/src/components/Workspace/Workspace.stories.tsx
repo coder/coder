@@ -153,6 +153,7 @@ export const FailedWithLogs: Story = {
         },
       },
     },
+    buildLogs: <WorkspaceBuildLogsSection logs={makeFailedBuildLogs()} />,
   },
 }
 
@@ -218,7 +219,6 @@ export const GetBuildsError: Story = {
         message: "There is a problem fetching builds.",
       }),
     },
-    buildLogs: <WorkspaceBuildLogsSection logs={makeFailedBuildLogs()} />,
   },
 }
 
