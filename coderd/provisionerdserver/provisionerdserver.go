@@ -789,6 +789,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			server.Logger.Info(ctx, "inserting template import job parameter",
 				slog.F("job_id", job.ID.String()),
 				slog.F("parameter_name", richParameter.Name),
+				slog.F("type", richParameter.Type),
 				slog.F("ephemeral", richParameter.Ephemeral),
 			)
 			options, err := json.Marshal(richParameter.Options)

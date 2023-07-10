@@ -54,10 +54,10 @@ data "coder_parameter" "number_example_max_zero" {
 }
 
 data "coder_parameter" "number_example" {
-  name    = "number_example"
-  type    = "number"
-  default = 4
-  mutable = true
+  name      = "number_example"
+  type      = "number"
+  default   = 4
+  mutable   = true
   ephemeral = true
 }
 
