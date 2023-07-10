@@ -1145,6 +1145,7 @@ export interface Workspace {
   readonly last_used_at: string
   readonly deleting_at?: string
   readonly locked_at?: string
+  readonly health: WorkspaceHealth
 }
 
 // From codersdk/workspaceagents.go
@@ -1181,6 +1182,13 @@ export interface WorkspaceAgent {
   readonly shutdown_script?: string
   readonly shutdown_script_timeout_seconds: number
   readonly subsystem: AgentSubsystem
+  readonly health: WorkspaceAgentHealth
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentHealth {
+  readonly healthy: boolean
+  readonly reason?: string
 }
 
 // From codersdk/workspaceagentconn.go
@@ -1298,6 +1306,12 @@ export interface WorkspaceDeploymentStats {
 // From codersdk/workspaces.go
 export interface WorkspaceFilter {
   readonly q?: string
+}
+
+// From codersdk/workspaces.go
+export interface WorkspaceHealth {
+  readonly healthy: boolean
+  readonly failing_agents: string[]
 }
 
 // From codersdk/workspaces.go

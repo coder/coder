@@ -164,6 +164,148 @@ func TestWorkspace(t *testing.T) {
 		assert.Equal(t, templateDisplayName, ws.TemplateDisplayName)
 		assert.Equal(t, templateAllowUserCancelWorkspaceJobs, ws.TemplateAllowUserCancelWorkspaceJobs)
 	})
+
+	t.Run("Health", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("Healthy", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+				Parse: echo.ParseComplete,
+				ProvisionApply: []*proto.Provision_Response{{
+					Type: &proto.Provision_Response_Complete{
+						Complete: &proto.Provision_Complete{
+							Resources: []*proto.Resource{{
+								Name: "some",
+								Type: "example",
+								Agents: []*proto.Agent{{
+									Id:   uuid.NewString(),
+									Auth: &proto.Agent_Token{},
+								}},
+							}},
+						},
+					},
+				}},
+			})
+			coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+			coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			workspace, err := client.Workspace(ctx, workspace.ID)
+			require.NoError(t, err)
+
+			agent := workspace.LatestBuild.Resources[0].Agents[0]
+
+			assert.True(t, workspace.Health.Healthy)
+			assert.Equal(t, []uuid.UUID{}, workspace.Health.FailingAgents)
+			assert.True(t, agent.Health.Healthy)
+			assert.Empty(t, agent.Health.Reason)
+		})
+
+		t.Run("Unhealthy", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+				Parse: echo.ParseComplete,
+				ProvisionApply: []*proto.Provision_Response{{
+					Type: &proto.Provision_Response_Complete{
+						Complete: &proto.Provision_Complete{
+							Resources: []*proto.Resource{{
+								Name: "some",
+								Type: "example",
+								Agents: []*proto.Agent{{
+									Id:                       uuid.NewString(),
+									Auth:                     &proto.Agent_Token{},
+									ConnectionTimeoutSeconds: 1,
+								}},
+							}},
+						},
+					},
+				}},
+			})
+			coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+			coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			var err error
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+				workspace, err = client.Workspace(ctx, workspace.ID)
+				return assert.NoError(t, err) && !workspace.Health.Healthy
+			}, testutil.IntervalMedium)
+
+			agent := workspace.LatestBuild.Resources[0].Agents[0]
+
+			assert.False(t, workspace.Health.Healthy)
+			assert.Equal(t, []uuid.UUID{agent.ID}, workspace.Health.FailingAgents)
+			assert.False(t, agent.Health.Healthy)
+			assert.NotEmpty(t, agent.Health.Reason)
+		})
+
+		t.Run("Mixed health", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+				Parse: echo.ParseComplete,
+				ProvisionApply: []*proto.Provision_Response{{
+					Type: &proto.Provision_Response_Complete{
+						Complete: &proto.Provision_Complete{
+							Resources: []*proto.Resource{{
+								Name: "some",
+								Type: "example",
+								Agents: []*proto.Agent{{
+									Id:   uuid.NewString(),
+									Name: "a1",
+									Auth: &proto.Agent_Token{},
+								}, {
+									Id:                       uuid.NewString(),
+									Name:                     "a2",
+									Auth:                     &proto.Agent_Token{},
+									ConnectionTimeoutSeconds: 1,
+								}},
+							}},
+						},
+					},
+				}},
+			})
+			coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+			coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			var err error
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+				workspace, err = client.Workspace(ctx, workspace.ID)
+				return assert.NoError(t, err) && !workspace.Health.Healthy
+			}, testutil.IntervalMedium)
+
+			assert.False(t, workspace.Health.Healthy)
+			assert.Len(t, workspace.Health.FailingAgents, 1)
+
+			agent1 := workspace.LatestBuild.Resources[0].Agents[0]
+			agent2 := workspace.LatestBuild.Resources[0].Agents[1]
+
+			assert.Equal(t, []uuid.UUID{agent2.ID}, workspace.Health.FailingAgents)
+			assert.True(t, agent1.Health.Healthy)
+			assert.Empty(t, agent1.Health.Reason)
+			assert.False(t, agent2.Health.Healthy)
+			assert.NotEmpty(t, agent2.Health.Reason)
+		})
+	})
 }
 
 func TestAdminViewAllWorkspaces(t *testing.T) {
