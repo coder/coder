@@ -3,7 +3,7 @@ import { AvatarData } from "components/AvatarData/AvatarData"
 import { Avatar } from "components/Avatar/Avatar"
 import TableCell from "@mui/material/TableCell"
 import TableRow from "@mui/material/TableRow"
-import { FC, useState } from "react"
+import { FC, ReactNode, useState } from "react"
 import {
   HealthyBadge,
   NotHealthyBadge,
@@ -13,19 +13,14 @@ import {
 import { ProxyLatencyReport } from "contexts/useProxyLatency"
 import { getLatencyColor } from "utils/latency"
 import Collapse from "@mui/material/Collapse"
-import { makeStyles } from "@mui/styles"
-import { combineClasses } from "utils/combineClasses"
-import ListItem from "@mui/material/ListItem"
-import List from "@mui/material/List"
-import ListSubheader from "@mui/material/ListSubheader"
 import { Maybe } from "components/Conditionals/Maybe"
-import { CodeExample } from "components/CodeExample/CodeExample"
+import { useClickableTableRow } from "hooks"
+import Box from "@mui/material/Box"
 
 export const ProxyRow: FC<{
   latency?: ProxyLatencyReport
   proxy: Region
 }> = ({ proxy, latency }) => {
-  const styles = useStyles()
   // If we have a more specific proxy status, use that.
   // All users can see healthy/unhealthy, some can see more.
   let statusBadge = <ProxyStatus proxy={proxy} />
@@ -47,16 +42,13 @@ export const ProxyRow: FC<{
       setIsMsgsOpen((v) => !v)
     }
   }
+  const clickableProps = useClickableTableRow(toggle)
+  const rowProps = shouldShowMessages ? clickableProps : undefined
+
   return (
     <>
-      <TableRow
-        className={combineClasses({
-          [styles.clickable]: shouldShowMessages,
-        })}
-        key={proxy.name}
-        data-testid={`${proxy.name}`}
-      >
-        <TableCell onClick={toggle}>
+      <TableRow key={proxy.name} data-testid={proxy.name} {...rowProps}>
+        <TableCell>
           <AvatarData
             title={
               proxy.display_name && proxy.display_name.length > 0
@@ -94,7 +86,10 @@ export const ProxyRow: FC<{
       </TableRow>
       <Maybe condition={shouldShowMessages}>
         <TableRow>
-          <TableCell colSpan={4} sx={{ padding: "0px !important" }}>
+          <TableCell
+            colSpan={4}
+            sx={{ padding: "0px !important", borderBottom: 0 }}
+          >
             <Collapse in={isMsgsOpen}>
               <ProxyMessagesRow proxy={proxy as WorkspaceProxy} />
             </Collapse>
@@ -111,11 +106,25 @@ const ProxyMessagesRow: FC<{
   return (
     <>
       <ProxyMessagesList
-        title="Errors"
+        title={
+          <Box
+            component="span"
+            sx={{ color: (theme) => theme.palette.error.light }}
+          >
+            Errors
+          </Box>
+        }
         messages={proxy.status?.report?.errors}
       />
       <ProxyMessagesList
-        title="Warnings"
+        title={
+          <Box
+            component="span"
+            sx={{ color: (theme) => theme.palette.warning.light }}
+          >
+            Warnings
+          </Box>
+        }
         messages={proxy.status?.report?.warnings}
       />
     </>
@@ -123,26 +132,45 @@ const ProxyMessagesRow: FC<{
 }
 
 const ProxyMessagesList: FC<{
-  title: string
+  title: ReactNode
   messages?: string[]
 }> = ({ title, messages }) => {
   if (!messages) {
     return <></>
   }
+
   return (
-    <List
-      subheader={
-        <ListSubheader component="div" id="nested-list-subheader">
-          {title}
-        </ListSubheader>
-      }
+    <Box
+      sx={{
+        borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
+        backgroundColor: (theme) => theme.palette.background.default,
+        p: (theme) => theme.spacing(2, 3),
+      }}
     >
+      <Box
+        id="nested-list-subheader"
+        sx={{
+          mb: 0.5,
+          fontSize: 13,
+          fontWeight: 600,
+        }}
+      >
+        {title}
+      </Box>
       {messages.map((error, index) => (
-        <ListItem key={"message" + index}>
-          <CodeExample code={error} />
-        </ListItem>
+        <Box
+          component="pre"
+          key={"message" + index}
+          sx={{
+            margin: (theme) => theme.spacing(0, 0, 1),
+            fontSize: 14,
+            whiteSpace: "pre-wrap",
+          }}
+        >
+          {error}
+        </Box>
       ))}
-    </List>
+    </Box>
   )
 }
 
@@ -180,13 +208,3 @@ const ProxyStatus: FC<{
 
   return icon
 }
-
-const useStyles = makeStyles((theme) => ({
-  clickable: {
-    cursor: "pointer",
-
-    "&:hover": {
-      backgroundColor: theme.palette.action.hover,
-    },
-  },
-}))
