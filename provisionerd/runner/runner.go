@@ -232,6 +232,10 @@ func (r *Runner) Run() {
 		err := r.sender.CompleteJob(ctx, r.completedJob)
 		if err != nil {
 			r.logger.Error(ctx, "sending CompletedJob failed", slog.Error(err))
+			err = r.sender.FailJob(ctx, r.failedJobf("internal provisionerserver error"))
+			if err != nil {
+				r.logger.Error(ctx, "sending FailJob failed (while CompletedJob)", slog.Error(err))
+			}
 		} else {
 			r.logger.Debug(ctx, "sent CompletedJob")
 		}

@@ -1,13 +1,17 @@
 import { useMachine } from "@xstate/react"
 import { useMe } from "hooks/useMe"
-import { FC } from "react"
+import { ComponentProps, FC } from "react"
 import { userSecuritySettingsMachine } from "xServices/userSecuritySettings/userSecuritySettingsXService"
 import { Section } from "../../../components/SettingsLayout/Section"
 import { SecurityForm } from "../../../components/SettingsSecurityForm/SettingsSecurityForm"
-
-export const Language = {
-  title: "Security",
-}
+import { useQuery } from "@tanstack/react-query"
+import { getAuthMethods, getUserLoginType } from "api/api"
+import {
+  SingleSignOnSection,
+  useSingleSignOnSection,
+} from "./SingleSignOnSection"
+import { Loader } from "components/Loader/Loader"
+import { Stack } from "components/Stack/Stack"
 
 export const SecurityPage: FC = () => {
   const me = useMe()
@@ -20,21 +24,68 @@ export const SecurityPage: FC = () => {
     },
   )
   const { error } = securityState.context
+  const { data: authMethods } = useQuery({
+    queryKey: ["authMethods"],
+    queryFn: getAuthMethods,
+  })
+  const { data: userLoginType } = useQuery({
+    queryKey: ["loginType"],
+    queryFn: getUserLoginType,
+  })
+  const singleSignOnSection = useSingleSignOnSection()
+
+  if (!authMethods || !userLoginType) {
+    return <Loader />
+  }
 
   return (
-    <Section title={Language.title} description="Update your account password">
-      <SecurityForm
-        updateSecurityError={error}
-        isLoading={securityState.matches("updatingSecurity")}
-        initialValues={{ old_password: "", password: "", confirm_password: "" }}
-        onSubmit={(data) => {
-          securitySend({
-            type: "UPDATE_SECURITY",
-            data,
-          })
-        }}
-      />
-    </Section>
+    <SecurityPageView
+      security={{
+        form: {
+          disabled: userLoginType.login_type !== "password",
+          error,
+          isLoading: securityState.matches("updatingSecurity"),
+          onSubmit: (data) => {
+            securitySend({
+              type: "UPDATE_SECURITY",
+              data,
+            })
+          },
+        },
+      }}
+      oidc={
+        authMethods.convert_to_oidc_enabled
+          ? {
+              section: {
+                authMethods,
+                userLoginType,
+                ...singleSignOnSection,
+              },
+            }
+          : undefined
+      }
+    />
+  )
+}
+
+export const SecurityPageView = ({
+  security,
+  oidc,
+}: {
+  security: {
+    form: ComponentProps<typeof SecurityForm>
+  }
+  oidc?: {
+    section: ComponentProps<typeof SingleSignOnSection>
+  }
+}) => {
+  return (
+    <Stack spacing={6}>
+      <Section title="Security" description="Update your account password">
+        <SecurityForm {...security.form} />
+      </Section>
+      {oidc && <SingleSignOnSection {...oidc.section} />}
+    </Stack>
   )
 }
 

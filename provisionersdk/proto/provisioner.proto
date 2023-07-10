@@ -27,6 +27,9 @@ message RichParameterOption {
 
 // RichParameter represents a variable that is exposed.
 message RichParameter {
+    reserved 14;
+    reserved "legacy_variable_name";
+
     string name = 1;
     string description = 2;
     string type = 3;
@@ -40,8 +43,9 @@ message RichParameter {
     optional int32 validation_max = 11;
     string validation_monotonic = 12;
     bool required = 13;
-    string legacy_variable_name = 14;
+    // legacy_variable_name was removed (= 14)
     string display_name = 15;
+    int32 order = 16;
 }
 
 // RichParameterValue holds the key/value mapping of a parameter.

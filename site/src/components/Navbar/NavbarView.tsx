@@ -23,6 +23,12 @@ import Divider from "@mui/material/Divider"
 import Skeleton from "@mui/material/Skeleton"
 import { BUTTON_SM_HEIGHT } from "theme/theme"
 import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency"
+import { usePermissions } from "hooks/usePermissions"
+import {
+  HelpTooltip,
+  HelpTooltipText,
+  HelpTooltipTitle,
+} from "components/Tooltips/HelpTooltip"
 
 export const USERS_LINK = `/users?filter=${encodeURIComponent("status:active")}`
 
@@ -185,8 +191,10 @@ export const NavbarView: FC<NavbarViewProps> = ({
 const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
   proxyContextValue,
 }) => {
+  const styles = useStyles()
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(false)
+  const [refetchDate, setRefetchDate] = useState<Date>()
   const selectedProxy = proxyContextValue.proxy.proxy
   const refreshLatencies = proxyContextValue.refetchProxyLatencies
   const closeMenu = () => setIsOpen(false)
@@ -194,6 +202,27 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
   const latencies = proxyContextValue.proxyLatencies
   const isLoadingLatencies = Object.keys(latencies).length === 0
   const isLoading = proxyContextValue.isLoading || isLoadingLatencies
+  const permissions = usePermissions()
+  const proxyLatencyLoading = (proxy: TypesGen.Region): boolean => {
+    if (!refetchDate) {
+      // Only show loading if the user manually requested a refetch
+      return false
+    }
+
+    const latency = latencies?.[proxy.id]
+    // Only show a loading spinner if:
+    //  - A latency exists. This means the latency was fetched at some point, so the
+    //    loader *should* be resolved.
+    //  - The proxy is healthy. If it is not, the loader might never resolve.
+    //  - The latency reported is older than the refetch date. This means the latency
+    //    is stale and we should show a loading spinner until the new latency is
+    //    fetched.
+    if (proxy.healthy && latency && latency.at < refetchDate) {
+      return true
+    }
+
+    return false
+  }
 
   if (isLoading) {
     return (
@@ -232,6 +261,7 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
             {selectedProxy.display_name}
             <ProxyStatusLatency
               latency={latencies?.[selectedProxy.id]?.latencyMS}
+              isLoading={proxyLatencyLoading(selectedProxy)}
             />
           </Box>
         ) : (
@@ -245,6 +275,34 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
         onClose={closeMenu}
         sx={{ "& .MuiMenu-paper": { py: 1 } }}
       >
+        <MenuItem
+          sx={[
+            { fontSize: 14 },
+            { "&:hover": { backgroundColor: "transparent" } },
+            { wordWrap: "break-word" },
+            { inlineSize: "200px" },
+            { whiteSpace: "normal" },
+            { textAlign: "center" },
+          ]}
+          onClick={(e) => {
+            // Stop the menu from closing
+            e.stopPropagation()
+          }}
+        >
+          <div>
+            Reduce workspace latency by selecting the region nearest you.
+            {/* This was always on a newline below the text. This puts it on the same line.
+                It still doesn't look great, but it is marginally better.  */}
+            <HelpTooltip buttonClassName={styles.displayInitial}>
+              <HelpTooltipTitle>Workspace Proxy Selection</HelpTooltipTitle>
+              <HelpTooltipText>
+                Only applies to web connections. Local ssh connections will
+                automatically select the nearest region based on latency.
+              </HelpTooltipText>
+            </HelpTooltip>
+          </div>
+        </MenuItem>
+        <Divider sx={{ borderColor: (theme) => theme.palette.divider }} />
         {proxyContextValue.proxies?.map((proxy) => (
           <MenuItem
             onClick={() => {
@@ -275,20 +333,34 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
                 />
               </Box>
               {proxy.display_name}
-              <ProxyStatusLatency latency={latencies?.[proxy.id]?.latencyMS} />
+              <ProxyStatusLatency
+                latency={latencies?.[proxy.id]?.latencyMS}
+                isLoading={proxyLatencyLoading(proxy)}
+              />
             </Box>
           </MenuItem>
         ))}
         <Divider sx={{ borderColor: (theme) => theme.palette.divider }} />
+        {Boolean(permissions.editWorkspaceProxies) && (
+          <MenuItem
+            sx={{ fontSize: 14 }}
+            onClick={() => {
+              navigate("settings/deployment/workspace-proxies")
+            }}
+          >
+            Proxy settings
+          </MenuItem>
+        )}
         <MenuItem
           sx={{ fontSize: 14 }}
-          onClick={() => {
-            navigate("/settings/workspace-proxies")
+          onClick={(e) => {
+            // Stop the menu from closing
+            e.stopPropagation()
+            // Refresh the latencies.
+            const refetchDate = refreshLatencies()
+            setRefetchDate(refetchDate)
           }}
         >
-          Proxy settings
-        </MenuItem>
-        <MenuItem sx={{ fontSize: 14 }} onClick={refreshLatencies}>
           Refresh Latencies
         </MenuItem>
       </Menu>
@@ -297,6 +369,9 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
 }
 
 const useStyles = makeStyles((theme) => ({
+  displayInitial: {
+    display: "initial",
+  },
   root: {
     height: navHeight,
     background: theme.palette.background.paper,

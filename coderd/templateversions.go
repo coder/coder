@@ -320,14 +320,6 @@ func (api *API) templateVersionGitAuth(rw http.ResponseWriter, r *http.Request) 
 			})
 			return
 		}
-		query := redirectURL.Query()
-		// The frontend uses a BroadcastChannel to notify listening pages for
-		// Git auth updates if the "notify" query parameter is set.
-		//
-		// It's important we do this in the backend, because the same endpoint
-		// is used for CLI authentication.
-		query.Add("redirect", "/gitauth?notify")
-		redirectURL.RawQuery = query.Encode()
 
 		provider := codersdk.TemplateVersionGitAuth{
 			ID:              config.ID,
@@ -1492,7 +1484,6 @@ func convertTemplateVersionParameter(param database.TemplateVersionParameter) (c
 		ValidationError:      param.ValidationError,
 		ValidationMonotonic:  codersdk.ValidationMonotonicOrder(param.ValidationMonotonic),
 		Required:             param.Required,
-		LegacyVariableName:   param.LegacyVariableName,
 	}, nil
 }
 

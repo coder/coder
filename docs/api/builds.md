@@ -88,6 +88,10 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
           },
           "expanded_directory": "string",
           "first_connected_at": "2019-08-24T14:15:22Z",
+          "health": {
+            "healthy": false,
+            "reason": "agent has lost connection"
+          },
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "instance_id": "string",
           "last_connected_at": "2019-08-24T14:15:22Z",
@@ -246,6 +250,10 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
           },
           "expanded_directory": "string",
           "first_connected_at": "2019-08-24T14:15:22Z",
+          "health": {
+            "healthy": false,
+            "reason": "agent has lost connection"
+          },
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "instance_id": "string",
           "last_connected_at": "2019-08-24T14:15:22Z",
@@ -543,6 +551,10 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
         },
         "expanded_directory": "string",
         "first_connected_at": "2019-08-24T14:15:22Z",
+        "health": {
+          "healthy": false,
+          "reason": "agent has lost connection"
+        },
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "instance_id": "string",
         "last_connected_at": "2019-08-24T14:15:22Z",
@@ -635,6 +647,9 @@ Status Code **200**
 | `»»» [any property]`                 | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» expanded_directory`              | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» first_connected_at`              | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»» health`                          | [codersdk.WorkspaceAgentHealth](schemas.md#codersdkworkspaceagenthealth)                               | false    |              | Health reports the health of the agent.                                                                                                                                                                                                        |
+| `»»» healthy`                        | boolean                                                                                                | false    |              | Healthy is true if the agent is healthy.                                                                                                                                                                                                       |
+| `»»» reason`                         | string                                                                                                 | false    |              | Reason is a human-readable explanation of the agent's health. It is empty if Healthy is true.                                                                                                                                                  |
 | `»» id`                              | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» instance_id`                     | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» last_connected_at`               | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
@@ -794,6 +809,10 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
           },
           "expanded_directory": "string",
           "first_connected_at": "2019-08-24T14:15:22Z",
+          "health": {
+            "healthy": false,
+            "reason": "agent has lost connection"
+          },
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "instance_id": "string",
           "last_connected_at": "2019-08-24T14:15:22Z",
@@ -957,6 +976,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
             },
             "expanded_directory": "string",
             "first_connected_at": "2019-08-24T14:15:22Z",
+            "health": {
+              "healthy": false,
+              "reason": "agent has lost connection"
+            },
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "instance_id": "string",
             "last_connected_at": "2019-08-24T14:15:22Z",
@@ -1085,6 +1108,9 @@ Status Code **200**
 | `»»»» [any property]`                 | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» expanded_directory`              | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» first_connected_at`              | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»»» health`                          | [codersdk.WorkspaceAgentHealth](schemas.md#codersdkworkspaceagenthealth)                               | false    |              | Health reports the health of the agent.                                                                                                                                                                                                        |
+| `»»»» healthy`                        | boolean                                                                                                | false    |              | Healthy is true if the agent is healthy.                                                                                                                                                                                                       |
+| `»»»» reason`                         | string                                                                                                 | false    |              | Reason is a human-readable explanation of the agent's health. It is empty if Healthy is true.                                                                                                                                                  |
 | `»»» id`                              | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» instance_id`                     | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» last_connected_at`               | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
@@ -1298,6 +1324,10 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
           },
           "expanded_directory": "string",
           "first_connected_at": "2019-08-24T14:15:22Z",
+          "health": {
+            "healthy": false,
+            "reason": "agent has lost connection"
+          },
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "instance_id": "string",
           "last_connected_at": "2019-08-24T14:15:22Z",

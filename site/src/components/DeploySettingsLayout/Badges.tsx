@@ -40,6 +40,24 @@ export const NotHealthyBadge: FC = () => {
   )
 }
 
+export const NotRegisteredBadge: FC = () => {
+  const styles = useStyles()
+  return (
+    <span className={combineClasses([styles.badge, styles.warnBadge])}>
+      Not Registered
+    </span>
+  )
+}
+
+export const NotReachableBadge: FC = () => {
+  const styles = useStyles()
+  return (
+    <span className={combineClasses([styles.badge, styles.errorBadge])}>
+      Not Reachable
+    </span>
+  )
+}
+
 export const DisabledBadge: FC = () => {
   const styles = useStyles()
   return (
@@ -88,6 +106,7 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     alignItems: "center",
     width: "fit-content",
+    whiteSpace: "nowrap",
   },
 
   enterpriseBadge: {
@@ -113,6 +132,11 @@ const useStyles = makeStyles((theme) => ({
   errorBadge: {
     border: `1px solid ${theme.palette.error.light}`,
     backgroundColor: theme.palette.error.dark,
+  },
+
+  warnBadge: {
+    border: `1px solid ${theme.palette.warning.light}`,
+    backgroundColor: theme.palette.warning.dark,
   },
 
   disabledBadge: {

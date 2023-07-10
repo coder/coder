@@ -306,7 +306,7 @@ Steps to troubleshoot.
 2. Check if another claim appears to be the correct claim with a different name. A common name is `memberOf` instead of `groups`. If this is present, update `CODER_OIDC_GROUP_FIELD=memberOf`.
 3. Make sure the number of groups being sent is under the limit of the IDP. Some IDPs will return an error, while others will just omit the `groups` claim. A common solution is to create a filter on the identity provider that returns less than the limit for your IDP.
    - [Azure AD limit is 200, and omits groups if exceeded.](https://learn.microsoft.com/en-us/azure/active-directory/hybrid/connect/how-to-connect-fed-group-claims#options-for-applications-to-consume-group-information)
-   - [Okta limit is 100, and returns an error if exceeded.](hhttps://developer.okta.com/docs/reference/api/oidc/#scope-dependent-claims-not-always-returned)
+   - [Okta limit is 100, and returns an error if exceeded.](https://developer.okta.com/docs/reference/api/oidc/#scope-dependent-claims-not-always-returned)
 
 ## Provider-Specific Guides
 

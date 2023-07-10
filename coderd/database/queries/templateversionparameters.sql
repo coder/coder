@@ -15,8 +15,8 @@ INSERT INTO
         validation_error,
         validation_monotonic,
         required,
-        legacy_variable_name,
-        display_name
+        display_name,
+        display_order
     )
 VALUES
     (
@@ -35,8 +35,8 @@ VALUES
         $13,
         $14,
         $15,
-		$16
+        $16
     ) RETURNING *;
 
 -- name: GetTemplateVersionParameters :many
-SELECT * FROM template_version_parameters WHERE template_version_id = $1;
+SELECT * FROM template_version_parameters WHERE template_version_id = $1 ORDER BY display_order ASC, LOWER(name) ASC;

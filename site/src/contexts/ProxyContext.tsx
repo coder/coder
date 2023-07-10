@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
-import { getWorkspaceProxies } from "api/api"
-import { Region } from "api/typesGenerated"
+import { getWorkspaceProxies, getWorkspaceProxyRegions } from "api/api"
+import { Region, WorkspaceProxy } from "api/typesGenerated"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
 import {
   createContext,
@@ -12,6 +12,7 @@ import {
   useState,
 } from "react"
 import { ProxyLatencyReport, useProxyLatency } from "./useProxyLatency"
+import { usePermissions } from "hooks/usePermissions"
 
 export interface ProxyContextValue {
   // proxy is **always** the workspace proxy that should be used.
@@ -36,7 +37,12 @@ export interface ProxyContextValue {
 
   // proxies is the list of proxies returned by coderd. This is fetched async.
   // isFetched, isLoading, and error are used to track the state of the async call.
-  proxies?: Region[]
+  //
+  // Region[] is returned if the user is a non-admin.
+  // WorkspaceProxy[] is returned if the user is an admin. WorkspaceProxy extends Region with
+  //  more information about the proxy and the status. More information includes the error message if
+  //  the proxy is unhealthy.
+  proxies?: Region[] | WorkspaceProxy[]
   // isFetched is true when the 'proxies' api call is complete.
   isFetched: boolean
   isLoading: boolean
@@ -47,7 +53,7 @@ export interface ProxyContextValue {
   proxyLatencies: Record<string, ProxyLatencyReport>
   // refetchProxyLatencies will trigger refreshing of the proxy latencies. By default the latencies
   // are loaded once.
-  refetchProxyLatencies: () => void
+  refetchProxyLatencies: () => Date
   // setProxy is a function that sets the user's selected proxy. This function should
   // only be called if the user is manually selecting a proxy. This value is stored in local
   // storage and will persist across reloads and tabs.
@@ -103,12 +109,26 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     if (regions) {
       const rawContent = regions.getAttribute("content")
       try {
-        return JSON.parse(rawContent as string)
+        const obj = JSON.parse(rawContent as string)
+        if ("regions" in obj) {
+          return obj.regions as Region[]
+        }
+        return obj as Region[]
       } catch (ex) {
         // Ignore this and fetch as normal!
       }
     }
   })
+
+  const permissions = usePermissions()
+  const query = async (): Promise<Region[]> => {
+    const endpoint = permissions.editWorkspaceProxies
+      ? getWorkspaceProxies
+      : getWorkspaceProxyRegions
+    const resp = await endpoint()
+    return resp.regions
+  }
+
   const {
     data: proxiesResp,
     error: proxiesError,
@@ -116,7 +136,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     isFetched: proxiesFetched,
   } = useQuery({
     queryKey,
-    queryFn: getWorkspaceProxies,
+    queryFn: query,
     staleTime: initialData ? Infinity : undefined,
     initialData,
   })
@@ -133,7 +153,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     setUserSavedProxy(loadUserSelectedProxy())
     setProxy(
       getPreferredProxy(
-        proxiesResp?.regions ?? [],
+        proxiesResp ?? [],
         loadUserSelectedProxy(),
         proxyLatencies,
         // Do not auto select based on latencies, as inconsistent latencies can cause this
@@ -161,9 +181,9 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
           : {
               // If the experiment is disabled, then call 'getPreferredProxy' with the regions from
               // the api call. The default behavior is to use the `primary` proxy.
-              ...getPreferredProxy(proxiesResp?.regions || []),
+              ...getPreferredProxy(proxiesResp || []),
             },
-        proxies: proxiesResp?.regions,
+        proxies: proxiesResp,
         isLoading: proxiesLoading,
         isFetched: proxiesFetched,
         error: proxiesError,

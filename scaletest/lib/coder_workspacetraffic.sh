@@ -80,7 +80,7 @@ spec:
   - command:
     - sh
     - -c
-    - "curl -fsSL $CODER_URL/bin/coder-linux-amd64 -o /tmp/coder && chmod +x /tmp/coder && /tmp/coder --verbose --url=$CODER_URL --token=$CODER_TOKEN scaletest workspace-traffic --concurrency=0 --bytes-per-tick=${SCALETEST_TRAFFIC_BYTES_PER_TICK} --tick-interval=${SCALETEST_TRAFFIC_TICK_INTERVAL} --scaletest-prometheus-wait=60s"
+    - "curl -fsSL $CODER_URL/bin/coder-linux-amd64 -o /tmp/coder && chmod +x /tmp/coder && /tmp/coder --verbose --url=$CODER_URL --token=$CODER_TOKEN exp scaletest workspace-traffic --concurrency=0 --bytes-per-tick=${SCALETEST_TRAFFIC_BYTES_PER_TICK} --tick-interval=${SCALETEST_TRAFFIC_TICK_INTERVAL} --scaletest-prometheus-wait=60s"
     env:
     - name: CODER_URL
       value: $CODER_URL

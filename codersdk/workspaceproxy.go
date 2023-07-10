@@ -46,22 +46,17 @@ type ProxyHealthReport struct {
 }
 
 type WorkspaceProxy struct {
-	ID          uuid.UUID `json:"id" format:"uuid" table:"id"`
-	Name        string    `json:"name" table:"name,default_sort"`
-	DisplayName string    `json:"display_name" table:"display_name"`
-	Icon        string    `json:"icon" table:"icon"`
-	// Full url including scheme of the proxy api url: https://us.example.com
-	URL string `json:"url" table:"url"`
-	// WildcardHostname with the wildcard for subdomain based app hosting: *.us.example.com
-	WildcardHostname string    `json:"wildcard_hostname" table:"wildcard_hostname"`
-	CreatedAt        time.Time `json:"created_at" format:"date-time" table:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at" format:"date-time" table:"updated_at"`
-	Deleted          bool      `json:"deleted" table:"deleted"`
+	// Extends Region with extra information
+	Region `table:"region,recursive_inline"`
 
 	// Status is the latest status check of the proxy. This will be empty for deleted
 	// proxies. This value can be used to determine if a workspace proxy is healthy
 	// and ready to use.
 	Status WorkspaceProxyStatus `json:"status,omitempty" table:"proxy,recursive"`
+
+	CreatedAt time.Time `json:"created_at" format:"date-time" table:"created_at,default_sort"`
+	UpdatedAt time.Time `json:"updated_at" format:"date-time" table:"updated_at"`
+	Deleted   bool      `json:"deleted" table:"deleted"`
 }
 
 type CreateWorkspaceProxyRequest struct {
@@ -93,21 +88,21 @@ func (c *Client) CreateWorkspaceProxy(ctx context.Context, req CreateWorkspacePr
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-func (c *Client) WorkspaceProxies(ctx context.Context) ([]WorkspaceProxy, error) {
+func (c *Client) WorkspaceProxies(ctx context.Context) (RegionsResponse[WorkspaceProxy], error) {
 	res, err := c.Request(ctx, http.MethodGet,
 		"/api/v2/workspaceproxies",
 		nil,
 	)
 	if err != nil {
-		return nil, xerrors.Errorf("make request: %w", err)
+		return RegionsResponse[WorkspaceProxy]{}, xerrors.Errorf("make request: %w", err)
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
+		return RegionsResponse[WorkspaceProxy]{}, ReadBodyAsError(res)
 	}
 
-	var proxies []WorkspaceProxy
+	var proxies RegionsResponse[WorkspaceProxy]
 	return proxies, json.NewDecoder(res.Body).Decode(&proxies)
 }
 
@@ -179,27 +174,31 @@ func (c *Client) WorkspaceProxyByID(ctx context.Context, id uuid.UUID) (Workspac
 	return c.WorkspaceProxyByName(ctx, id.String())
 }
 
-type RegionsResponse struct {
-	Regions []Region `json:"regions"`
+type RegionTypes interface {
+	Region | WorkspaceProxy
+}
+
+type RegionsResponse[R RegionTypes] struct {
+	Regions []R `json:"regions"`
 }
 
 type Region struct {
-	ID          uuid.UUID `json:"id" format:"uuid"`
-	Name        string    `json:"name"`
-	DisplayName string    `json:"display_name"`
-	IconURL     string    `json:"icon_url"`
-	Healthy     bool      `json:"healthy"`
+	ID          uuid.UUID `json:"id" format:"uuid" table:"id"`
+	Name        string    `json:"name" table:"name,default_sort"`
+	DisplayName string    `json:"display_name" table:"display_name"`
+	IconURL     string    `json:"icon_url" table:"icon_url"`
+	Healthy     bool      `json:"healthy" table:"healthy"`
 
 	// PathAppURL is the URL to the base path for path apps. Optional
 	// unless wildcard_hostname is set.
 	// E.g. https://us.example.com
-	PathAppURL string `json:"path_app_url"`
+	PathAppURL string `json:"path_app_url" table:"url"`
 
 	// WildcardHostname is the wildcard hostname for subdomain apps.
 	// E.g. *.us.example.com
 	// E.g. *--suffix.au.example.com
 	// Optional. Does not need to be on the same domain as PathAppURL.
-	WildcardHostname string `json:"wildcard_hostname"`
+	WildcardHostname string `json:"wildcard_hostname" table:"wildcard_hostname"`
 }
 
 func (c *Client) Regions(ctx context.Context) ([]Region, error) {
@@ -216,6 +215,6 @@ func (c *Client) Regions(ctx context.Context) ([]Region, error) {
 		return nil, ReadBodyAsError(res)
 	}
 
-	var regions RegionsResponse
+	var regions RegionsResponse[Region]
 	return regions.Regions, json.NewDecoder(res.Body).Decode(&regions)
 }
