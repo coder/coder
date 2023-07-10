@@ -251,28 +251,16 @@ func TestCalculateAutoStop(t *testing.T) {
 		},
 		{
 			name: "TimeBeforeEpoch",
-			// The epoch is 2023-01-02 in each timezone.
-			now:                    time.Date(2023, 1, 1, 23, 59, 59, 0, sydneyLoc),
+			// The epoch is 2023-01-02 in each timezone. We set the time to
+			// 1 second before 11pm the previous day, as this is the latest time
+			// we allow due to our 1h leeway logic.
+			now:                    time.Date(2023, 1, 1, 22, 59, 59, 0, sydneyLoc),
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     0,
 			userQuietHoursSchedule: sydneyQuietHours,
 			templateRestartRequirement: schedule.TemplateRestartRequirement{
 				DaysOfWeek: 0b00100000, // Saturday
-				Weeks:      0,          // weekly
-			},
-			workspaceTTL: 0,
-			errContains:  "coder server system clock is incorrect",
-		},
-		{
-			name: "BadRestartRequirement/NoDaysOfWeek",
-			// The epoch is 2023-01-02 in each timezone.
-			now:                    time.Date(2023, 1, 1, 23, 59, 59, 0, sydneyLoc),
-			templateAllowAutostop:  true,
-			templateDefaultTTL:     0,
-			userQuietHoursSchedule: sydneyQuietHours,
-			templateRestartRequirement: schedule.TemplateRestartRequirement{
-				DaysOfWeek: 0b10000000, // using un
-				Weeks:      0,          // weekly
+				Weeks:      2,          // every fortnight
 			},
 			workspaceTTL: 0,
 			errContains:  "coder server system clock is incorrect",
@@ -355,6 +343,11 @@ func TestCalculateAutoStop(t *testing.T) {
 				Now:                         c.now,
 				Workspace:                   workspace,
 			})
+			if c.errContains != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, c.errContains)
+				return
+			}
 			require.NoError(t, err)
 
 			// If the max deadline is set, the deadline should also be set.

@@ -356,6 +356,36 @@ func (c *Client) User(ctx context.Context, userIdent string) (User, error) {
 	return user, json.NewDecoder(res.Body).Decode(&user)
 }
 
+// UserQuietHoursSchedule returns the quiet hours settings for the user. This
+// endpoint only exists in enterprise editions.
+func (c *Client) UserQuietHoursSchedule(ctx context.Context, userIdent string) (UserQuietHoursScheduleResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/quiet-hours", userIdent), nil)
+	if err != nil {
+		return UserQuietHoursScheduleResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserQuietHoursScheduleResponse{}, ReadBodyAsError(res)
+	}
+	var resp UserQuietHoursScheduleResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateUserQuietHoursSchedule updates the quiet hours settings for the user.
+// This endpoint only exists in enterprise editions.
+func (c *Client) UpdateUserQuietHoursSchedule(ctx context.Context, userIdent string, req UpdateUserQuietHoursScheduleRequest) (UserQuietHoursScheduleResponse, error) {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/quiet-hours", userIdent), req)
+	if err != nil {
+		return UserQuietHoursScheduleResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserQuietHoursScheduleResponse{}, ReadBodyAsError(res)
+	}
+	var resp UserQuietHoursScheduleResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
 // Users returns all users according to the request parameters. If no parameters are set,
 // the default behavior is to return all users in a single page.
 func (c *Client) Users(ctx context.Context, req UsersRequest) (GetUsersResponse, error) {

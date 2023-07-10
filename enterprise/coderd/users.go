@@ -25,11 +25,8 @@ func (api *API) userQuietHoursSchedule(rw http.ResponseWriter, r *http.Request) 
 		user = httpmw.UserParam(r)
 	)
 
-	// TODO: Double query here cuz of the user param
 	opts, err := (*api.UserQuietHoursScheduleStore.Load()).GetUserQuietHoursScheduleOptions(ctx, api.Database, user.ID)
 	if err != nil {
-		// TODO: some of these errors are related to bad syntax, would be nice
-		// to 400
 		httpapi.InternalServerError(rw, err)
 		return
 	}
@@ -44,7 +41,7 @@ func (api *API) userQuietHoursSchedule(rw http.ResponseWriter, r *http.Request) 
 		Time:        opts.Schedule.Time(),
 		Timezone:    opts.Schedule.Location().String(),
 		Duration:    opts.Duration,
-		Next:        opts.Schedule.Next(time.Now()),
+		Next:        opts.Schedule.Next(time.Now().In(opts.Schedule.Location())),
 	})
 }
 
@@ -79,8 +76,8 @@ func (api *API) putUserQuietHoursSchedule(rw http.ResponseWriter, r *http.Reques
 
 	opts, err := (*api.UserQuietHoursScheduleStore.Load()).SetUserQuietHoursScheduleOptions(ctx, api.Database, user.ID, params.Schedule)
 	if err != nil {
-		// TODO: some of these errors are related to bad syntax, would be nice
-		// to 400
+		// TODO(@dean): some of these errors are related to bad syntax, so it
+		// would be nice to 400 instead
 		httpapi.InternalServerError(rw, err)
 		return
 	}
@@ -91,6 +88,6 @@ func (api *API) putUserQuietHoursSchedule(rw http.ResponseWriter, r *http.Reques
 		Time:        opts.Schedule.Time(),
 		Timezone:    opts.Schedule.Location().String(),
 		Duration:    opts.Duration,
-		Next:        opts.Schedule.Next(time.Now()),
+		Next:        opts.Schedule.Next(time.Now().In(opts.Schedule.Location())),
 	})
 }

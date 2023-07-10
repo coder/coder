@@ -1398,7 +1398,6 @@ export type FeatureName =
   | "scim"
   | "template_rbac"
   | "user_limit"
-  | "user_quiet_hours"
   | "workspace_proxy"
 export const FeatureNames: FeatureName[] = [
   "advanced_template_scheduling",
@@ -1411,7 +1410,6 @@ export const FeatureNames: FeatureName[] = [
   "scim",
   "template_rbac",
   "user_limit",
-  "user_quiet_hours",
   "workspace_proxy",
 ]
 
