@@ -44,6 +44,12 @@ updates:
         update-types:
           - version-update:semver-patch
     groups:
+      go-hashicorp:
+        patterns:
+          - "github.com/hashicorp/*"
+      go-coder:
+        patterns:
+          - "github.com/coder/*"
       go-otel:
         patterns:
           - "go.nhat.io/otelsql"
