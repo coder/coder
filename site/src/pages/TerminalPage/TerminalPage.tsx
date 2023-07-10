@@ -30,18 +30,11 @@ export const Language = {
   websocketErrorMessagePrefix: "WebSocket failed: ",
 }
 
-const useTerminalWarning = ({
-  agent,
-  fitAddon,
-}: {
-  agent?: WorkspaceAgent
-  fitAddon: FitAddon | null
-}) => {
+const useTerminalWarning = ({ agent }: { agent?: WorkspaceAgent }) => {
   const lifecycleState = agent?.lifecycle_state
   const [startupWarning, setStartupWarning] = useState<
     TerminalPageAlertType | undefined
   >(undefined)
-  const shouldDisplayWarning = startupWarning !== undefined
 
   useEffect(() => {
     if (lifecycleState === "start_error") {
@@ -57,13 +50,6 @@ const useTerminalWarning = ({
       })
     }
   }, [lifecycleState])
-
-  // Resize the terminal when the warning toggles
-  useEffect(() => {
-    if (fitAddon) {
-      fitAddon.fit()
-    }
-  }, [shouldDisplayWarning, fitAddon])
 
   return {
     startupWarning,
@@ -132,7 +118,6 @@ const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
     : undefined
   const { startupWarning } = useTerminalWarning({
     agent: workspaceAgent,
-    fitAddon,
   })
 
   // handleWebLink handles opening of URLs in the terminal!
@@ -352,7 +337,14 @@ const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
         )}
       </div>
       <Box display="flex" flexDirection="column" height="100vh">
-        {startupWarning && <TerminalPageAlert alertType={startupWarning} />}
+        {startupWarning && (
+          <TerminalPageAlert
+            alertType={startupWarning}
+            onDismiss={() => {
+              fitAddon?.fit()
+            }}
+          />
+        )}
         <div
           className={styles.terminal}
           ref={xtermRef}

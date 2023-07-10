@@ -463,9 +463,9 @@ CREATE TABLE template_version_parameters (
     validation_error text DEFAULT ''::text NOT NULL,
     validation_monotonic text DEFAULT ''::text NOT NULL,
     required boolean DEFAULT true NOT NULL,
-    legacy_variable_name text DEFAULT ''::text NOT NULL,
     display_name text DEFAULT ''::text NOT NULL,
     display_order integer DEFAULT 0 NOT NULL,
+    ephemeral boolean DEFAULT false NOT NULL,
     CONSTRAINT validation_monotonic_order CHECK ((validation_monotonic = ANY (ARRAY['increasing'::text, 'decreasing'::text, ''::text])))
 );
 
@@ -495,11 +495,11 @@ COMMENT ON COLUMN template_version_parameters.validation_monotonic IS 'Validatio
 
 COMMENT ON COLUMN template_version_parameters.required IS 'Is parameter required?';
 
-COMMENT ON COLUMN template_version_parameters.legacy_variable_name IS 'Name of the legacy variable for migration purposes';
-
 COMMENT ON COLUMN template_version_parameters.display_name IS 'Display name of the rich parameter';
 
 COMMENT ON COLUMN template_version_parameters.display_order IS 'Specifies the order in which to display parameters in user interfaces.';
+
+COMMENT ON COLUMN template_version_parameters.ephemeral IS 'The value of an ephemeral parameter will not be preserved between consecutive workspace builds.';
 
 CREATE TABLE template_version_variables (
     template_version_id uuid NOT NULL,

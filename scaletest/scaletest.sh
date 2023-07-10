@@ -181,7 +181,7 @@ if [[ -n "${SCALETEST_CODER_LICENSE}" ]]; then
 fi
 
 echo "Creating ${SCALETEST_NUM_WORKSPACES} workspaces."
-DRY_RUN="$DRY_RUN" "${PROJECT_ROOT}/scaletest/lib/coder_shim.sh" scaletest create-workspaces \
+DRY_RUN="$DRY_RUN" "${PROJECT_ROOT}/scaletest/lib/coder_shim.sh" exp scaletest create-workspaces \
 	--count "${SCALETEST_NUM_WORKSPACES}" \
 	--template=kubernetes \
 	--concurrency "${SCALETEST_CREATE_CONCURRENCY}" \

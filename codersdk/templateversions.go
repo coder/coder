@@ -64,7 +64,7 @@ type TemplateVersionParameter struct {
 	ValidationMax        *int32                           `json:"validation_max,omitempty"`
 	ValidationMonotonic  ValidationMonotonicOrder         `json:"validation_monotonic,omitempty" enums:"increasing,decreasing"`
 	Required             bool                             `json:"required"`
-	LegacyVariableName   string                           `json:"legacy_variable_name,omitempty"`
+	Ephemeral            bool                             `json:"ephemeral"`
 }
 
 // TemplateVersionParameterOption represents a selectable option for a template parameter.

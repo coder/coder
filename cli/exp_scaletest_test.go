@@ -29,7 +29,7 @@ func TestScaleTestCreateWorkspaces(t *testing.T) {
 	tDir := t.TempDir()
 	outputFile := filepath.Join(tDir, "output.json")
 
-	inv, root := clitest.New(t, "scaletest", "create-workspaces",
+	inv, root := clitest.New(t, "exp", "scaletest", "create-workspaces",
 		"--count", "2",
 		"--template", "doesnotexist",
 		"--no-cleanup",
@@ -63,7 +63,7 @@ func TestScaleTestWorkspaceTraffic(t *testing.T) {
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
 
-	inv, root := clitest.New(t, "scaletest", "workspace-traffic",
+	inv, root := clitest.New(t, "exp", "scaletest", "workspace-traffic",
 		"--timeout", "1s",
 		"--bytes-per-tick", "1024",
 		"--tick-interval", "100ms",

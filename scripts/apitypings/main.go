@@ -615,6 +615,8 @@ type TypescriptType struct {
 // Eg:
 //
 //	[]byte returns "string"
+//
+//nolint:gocyclo
 func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 	switch ty := ty.(type) {
 	case *types.Basic:

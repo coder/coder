@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/coderd/userpassword"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/site"
 )
 
 const (
@@ -625,10 +626,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	defer params.CommitAuditLogs()
 	var httpErr httpError
 	if xerrors.As(err, &httpErr) {
-		httpapi.Write(ctx, rw, httpErr.code, codersdk.Response{
-			Message: httpErr.msg,
-			Detail:  httpErr.detail,
-		})
+		httpErr.Write(rw, r)
 		return
 	}
 	if err != nil {
@@ -969,10 +967,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	defer params.CommitAuditLogs()
 	var httpErr httpError
 	if xerrors.As(err, &httpErr) {
-		httpapi.Write(ctx, rw, httpErr.code, codersdk.Response{
-			Message: httpErr.msg,
-			Detail:  httpErr.detail,
-		})
+		httpErr.Write(rw, r)
 		return
 	}
 	if err != nil {
@@ -1076,9 +1071,28 @@ func (p *oauthLoginParams) CommitAuditLogs() {
 }
 
 type httpError struct {
-	code   int
-	msg    string
-	detail string
+	code             int
+	msg              string
+	detail           string
+	renderStaticPage bool
+}
+
+func (e httpError) Write(rw http.ResponseWriter, r *http.Request) {
+	if e.renderStaticPage {
+		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+			Status:       e.code,
+			HideStatus:   true,
+			Title:        e.msg,
+			Description:  e.detail,
+			RetryEnabled: false,
+			DashboardURL: "/login",
+		})
+		return
+	}
+	httpapi.Write(r.Context(), rw, e.code, codersdk.Response{
+		Message: e.msg,
+		Detail:  e.detail,
+	})
 }
 
 func (e httpError) Error() string {
@@ -1096,6 +1110,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		cookies []*http.Cookie
 	)
 
+	var isConvertLoginType bool
 	err := api.Database.InTx(func(tx database.Store) error {
 		var (
 			link database.UserLink
@@ -1116,6 +1131,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				return err
 			}
 			params.User = user
+			isConvertLoginType = true
 		}
 
 		if user.ID == uuid.Nil && !params.AllowSignups {
@@ -1126,13 +1142,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		}
 
 		if user.ID != uuid.Nil && user.LoginType != params.LoginType {
-			return httpError{
-				code: http.StatusForbidden,
-				msg: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q",
-					params.LoginType,
-					user.LoginType,
-				),
-			}
+			return wrongLoginTypeHTTPError(user.LoginType, params.LoginType)
 		}
 
 		// This can happen if a user is a built-in user but is signing in
@@ -1284,18 +1294,44 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		return nil, database.APIKey{}, xerrors.Errorf("in tx: %w", err)
 	}
 
-	//nolint:gocritic
-	cookie, key, err := api.createAPIKey(dbauthz.AsSystemRestricted(ctx), apikey.CreateParams{
-		UserID:           user.ID,
-		LoginType:        params.LoginType,
-		DeploymentValues: api.DeploymentValues,
-		RemoteAddr:       r.RemoteAddr,
-	})
-	if err != nil {
-		return nil, database.APIKey{}, xerrors.Errorf("create API key: %w", err)
+	var key database.APIKey
+	if oldKey, ok := httpmw.APIKeyOptional(r); ok && isConvertLoginType {
+		// If this is a convert login type, and it succeeds, then delete the old
+		// session. Force the user to log back in.
+		err := api.Database.DeleteAPIKeyByID(r.Context(), oldKey.ID)
+		if err != nil {
+			// Do not block this login if we fail to delete the old API key.
+			// Just delete the cookie and continue.
+			api.Logger.Warn(r.Context(), "failed to delete old API key in convert to oidc",
+				slog.Error(err),
+				slog.F("old_api_key_id", oldKey.ID),
+				slog.F("user_id", user.ID),
+			)
+		}
+		cookies = append(cookies, &http.Cookie{
+			Name:     codersdk.SessionTokenCookie,
+			Path:     "/",
+			MaxAge:   -1,
+			Secure:   api.SecureAuthCookie,
+			HttpOnly: true,
+		})
+		key = oldKey
+	} else {
+		//nolint:gocritic
+		cookie, newKey, err := api.createAPIKey(dbauthz.AsSystemRestricted(ctx), apikey.CreateParams{
+			UserID:           user.ID,
+			LoginType:        params.LoginType,
+			DeploymentValues: api.DeploymentValues,
+			RemoteAddr:       r.RemoteAddr,
+		})
+		if err != nil {
+			return nil, database.APIKey{}, xerrors.Errorf("create API key: %w", err)
+		}
+		cookies = append(cookies, cookie)
+		key = *newKey
 	}
 
-	return append(cookies, cookie), *key, nil
+	return cookies, key, nil
 }
 
 // convertUserToOauth will convert a user from password base loginType to
@@ -1355,13 +1391,7 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 
 	// If we do not allow converting to oauth, return an error.
 	if !api.Experiments.Enabled(codersdk.ExperimentConvertToOIDC) {
-		return database.User{}, httpError{
-			code: http.StatusForbidden,
-			msg: fmt.Sprintf("Incorrect login type, attempting to use %q but user is of login type %q",
-				params.LoginType,
-				user.LoginType,
-			),
-		}
+		return database.User{}, wrongLoginTypeHTTPError(user.LoginType, params.LoginType)
 	}
 
 	if claims.RegisteredClaims.Issuer != api.DeploymentID {
@@ -1485,5 +1515,19 @@ func clearOAuthConvertCookie() *http.Cookie {
 		Name:   OAuthConvertCookieValue,
 		Path:   "/",
 		MaxAge: -1,
+	}
+}
+
+func wrongLoginTypeHTTPError(user database.LoginType, params database.LoginType) httpError {
+	addedMsg := ""
+	if user == database.LoginTypePassword {
+		addedMsg = " You can convert your account to use this login type by visiting your account settings."
+	}
+	return httpError{
+		code:             http.StatusForbidden,
+		renderStaticPage: true,
+		msg:              "Incorrect login type",
+		detail: fmt.Sprintf("Attempting to use login type %q, but the user has the login type %q.%s",
+			params, user, addedMsg),
 	}
 }

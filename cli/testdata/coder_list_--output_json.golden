@@ -52,6 +52,10 @@
     "ttl_ms": 28800000,
     "last_used_at": "[timestamp]",
     "deleting_at": null,
-    "locked_at": null
+    "locked_at": null,
+    "health": {
+      "healthy": true,
+      "failing_agents": []
+    }
   }
 ]

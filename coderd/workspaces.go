@@ -1110,6 +1110,15 @@ func convertWorkspace(
 		lockedAt = &workspace.LockedAt.Time
 	}
 
+	failingAgents := []uuid.UUID{}
+	for _, resource := range workspaceBuild.Resources {
+		for _, agent := range resource.Agents {
+			if !agent.Health.Healthy {
+				failingAgents = append(failingAgents, agent.ID)
+			}
+		}
+	}
+
 	var (
 		ttlMillis  = convertWorkspaceTTLMillis(workspace.Ttl)
 		deletingAt = calculateDeletingAt(workspace, template, workspaceBuild)
@@ -1135,6 +1144,10 @@ func convertWorkspace(
 		LastUsedAt:                           workspace.LastUsedAt,
 		DeletingAt:                           deletingAt,
 		LockedAt:                             lockedAt,
+		Health: codersdk.WorkspaceHealth{
+			Healthy:       len(failingAgents) == 0,
+			FailingAgents: failingAgents,
+		},
 	}
 }
 

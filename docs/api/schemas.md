@@ -4204,8 +4204,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "description": "string",
   "description_plaintext": "string",
   "display_name": "string",
+  "ephemeral": true,
   "icon": "string",
-  "legacy_variable_name": "string",
   "mutable": true,
   "name": "string",
   "options": [
@@ -4234,8 +4234,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `description`           | string                                                                                      | false    |              |             |
 | `description_plaintext` | string                                                                                      | false    |              |             |
 | `display_name`          | string                                                                                      | false    |              |             |
+| `ephemeral`             | boolean                                                                                     | false    |              |             |
 | `icon`                  | string                                                                                      | false    |              |             |
-| `legacy_variable_name`  | string                                                                                      | false    |              |             |
 | `mutable`               | boolean                                                                                     | false    |              |             |
 | `name`                  | string                                                                                      | false    |              |             |
 | `options`               | array of [codersdk.TemplateVersionParameterOption](#codersdktemplateversionparameteroption) | false    |              |             |
@@ -4689,6 +4689,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
+  "health": {
+    "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+    "healthy": false
+  },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_used_at": "2019-08-24T14:15:22Z",
   "latest_build": {
@@ -4753,6 +4757,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             },
             "expanded_directory": "string",
             "first_connected_at": "2019-08-24T14:15:22Z",
+            "health": {
+              "healthy": false,
+              "reason": "agent has lost connection"
+            },
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "instance_id": "string",
             "last_connected_at": "2019-08-24T14:15:22Z",
@@ -4833,27 +4841,28 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                                        | Type                                               | Required | Restrictions | Description                                                                                                                                                                                                                                               |
-| ------------------------------------------- | -------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `autostart_schedule`                        | string                                             | false    |              |                                                                                                                                                                                                                                                           |
-| `created_at`                                | string                                             | false    |              |                                                                                                                                                                                                                                                           |
-| `deleting_at`                               | string                                             | false    |              | Deleting at indicates the time of the upcoming workspace deletion, if applicable; otherwise it is nil. Workspaces may have impending deletions if Template.InactivityTTL feature is turned on and the workspace is inactive.                              |
-| `id`                                        | string                                             | false    |              |                                                                                                                                                                                                                                                           |
-| `last_used_at`                              | string                                             | false    |              |                                                                                                                                                                                                                                                           |
-| `latest_build`                              | [codersdk.WorkspaceBuild](#codersdkworkspacebuild) | false    |              |                                                                                                                                                                                                                                                           |
-| `locked_at`                                 | string                                             | false    |              | Locked at being non-nil indicates a workspace that has been locked. A locked workspace is no longer accessible by a user and must be unlocked by an admin. It is subject to deletion if it breaches the duration of the locked_ttl field on its template. |
-| `name`                                      | string                                             | false    |              |                                                                                                                                                                                                                                                           |
-| `organization_id`                           | string                                             | false    |              |                                                                                                                                                                                                                                                           |
-| `outdated`                                  | boolean                                            | false    |              |                                                                                                                                                                                                                                                           |
-| `owner_id`                                  | string                                             | false    |              |                                                                                                                                                                                                                                                           |
-| `owner_name`                                | string                                             | false    |              |                                                                                                                                                                                                                                                           |
-| `template_allow_user_cancel_workspace_jobs` | boolean                                            | false    |              |                                                                                                                                                                                                                                                           |
-| `template_display_name`                     | string                                             | false    |              |                                                                                                                                                                                                                                                           |
-| `template_icon`                             | string                                             | false    |              |                                                                                                                                                                                                                                                           |
-| `template_id`                               | string                                             | false    |              |                                                                                                                                                                                                                                                           |
-| `template_name`                             | string                                             | false    |              |                                                                                                                                                                                                                                                           |
-| `ttl_ms`                                    | integer                                            | false    |              |                                                                                                                                                                                                                                                           |
-| `updated_at`                                | string                                             | false    |              |                                                                                                                                                                                                                                                           |
+| Name                                        | Type                                                 | Required | Restrictions | Description                                                                                                                                                                                                                                               |
+| ------------------------------------------- | ---------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `autostart_schedule`                        | string                                               | false    |              |                                                                                                                                                                                                                                                           |
+| `created_at`                                | string                                               | false    |              |                                                                                                                                                                                                                                                           |
+| `deleting_at`                               | string                                               | false    |              | Deleting at indicates the time of the upcoming workspace deletion, if applicable; otherwise it is nil. Workspaces may have impending deletions if Template.InactivityTTL feature is turned on and the workspace is inactive.                              |
+| `health`                                    | [codersdk.WorkspaceHealth](#codersdkworkspacehealth) | false    |              | Health shows the health of the workspace and information about what is causing an unhealthy status.                                                                                                                                                       |
+| `id`                                        | string                                               | false    |              |                                                                                                                                                                                                                                                           |
+| `last_used_at`                              | string                                               | false    |              |                                                                                                                                                                                                                                                           |
+| `latest_build`                              | [codersdk.WorkspaceBuild](#codersdkworkspacebuild)   | false    |              |                                                                                                                                                                                                                                                           |
+| `locked_at`                                 | string                                               | false    |              | Locked at being non-nil indicates a workspace that has been locked. A locked workspace is no longer accessible by a user and must be unlocked by an admin. It is subject to deletion if it breaches the duration of the locked_ttl field on its template. |
+| `name`                                      | string                                               | false    |              |                                                                                                                                                                                                                                                           |
+| `organization_id`                           | string                                               | false    |              |                                                                                                                                                                                                                                                           |
+| `outdated`                                  | boolean                                              | false    |              |                                                                                                                                                                                                                                                           |
+| `owner_id`                                  | string                                               | false    |              |                                                                                                                                                                                                                                                           |
+| `owner_name`                                | string                                               | false    |              |                                                                                                                                                                                                                                                           |
+| `template_allow_user_cancel_workspace_jobs` | boolean                                              | false    |              |                                                                                                                                                                                                                                                           |
+| `template_display_name`                     | string                                               | false    |              |                                                                                                                                                                                                                                                           |
+| `template_icon`                             | string                                               | false    |              |                                                                                                                                                                                                                                                           |
+| `template_id`                               | string                                               | false    |              |                                                                                                                                                                                                                                                           |
+| `template_name`                             | string                                               | false    |              |                                                                                                                                                                                                                                                           |
+| `ttl_ms`                                    | integer                                              | false    |              |                                                                                                                                                                                                                                                           |
+| `updated_at`                                | string                                               | false    |              |                                                                                                                                                                                                                                                           |
 
 ## codersdk.WorkspaceAgent
 
@@ -4889,6 +4898,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "expanded_directory": "string",
   "first_connected_at": "2019-08-24T14:15:22Z",
+  "health": {
+    "healthy": false,
+    "reason": "agent has lost connection"
+  },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "instance_id": "string",
   "last_connected_at": "2019-08-24T14:15:22Z",
@@ -4938,6 +4951,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | » `[any property]`                | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `expanded_directory`              | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `first_connected_at`              | string                                                                                       | false    |              |                                                                                                                                                                                                            |
+| `health`                          | [codersdk.WorkspaceAgentHealth](#codersdkworkspaceagenthealth)                               | false    |              | Health reports the health of the agent.                                                                                                                                                                    |
 | `id`                              | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `instance_id`                     | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `last_connected_at`               | string                                                                                       | false    |              |                                                                                                                                                                                                            |
@@ -5028,6 +5042,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ---------------------------- | ---------------------------------- | -------- | ------------ | ----------- |
 | `derp_map`                   | [tailcfg.DERPMap](#tailcfgderpmap) | false    |              |             |
 | `disable_direct_connections` | boolean                            | false    |              |             |
+
+## codersdk.WorkspaceAgentHealth
+
+```json
+{
+  "healthy": false,
+  "reason": "agent has lost connection"
+}
+```
+
+### Properties
+
+| Name      | Type    | Required | Restrictions | Description                                                                                   |
+| --------- | ------- | -------- | ------------ | --------------------------------------------------------------------------------------------- |
+| `healthy` | boolean | false    |              | Healthy is true if the agent is healthy.                                                      |
+| `reason`  | string  | false    |              | Reason is a human-readable explanation of the agent's health. It is empty if Healthy is true. |
 
 ## codersdk.WorkspaceAgentLifecycle
 
@@ -5307,6 +5337,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           },
           "expanded_directory": "string",
           "first_connected_at": "2019-08-24T14:15:22Z",
+          "health": {
+            "healthy": false,
+            "reason": "agent has lost connection"
+          },
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "instance_id": "string",
           "last_connected_at": "2019-08-24T14:15:22Z",
@@ -5480,6 +5514,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `stopped`               | integer                                                                        | false    |              |             |
 | `tx_bytes`              | integer                                                                        | false    |              |             |
 
+## codersdk.WorkspaceHealth
+
+```json
+{
+  "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+  "healthy": false
+}
+```
+
+### Properties
+
+| Name             | Type            | Required | Restrictions | Description                                                          |
+| ---------------- | --------------- | -------- | ------------ | -------------------------------------------------------------------- |
+| `failing_agents` | array of string | false    |              | Failing agents lists the IDs of the agents that are failing, if any. |
+| `healthy`        | boolean         | false    |              | Healthy is true if the workspace is healthy.                         |
+
 ## codersdk.WorkspaceProxy
 
 ```json
@@ -5594,6 +5644,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       },
       "expanded_directory": "string",
       "first_connected_at": "2019-08-24T14:15:22Z",
+      "health": {
+        "healthy": false,
+        "reason": "agent has lost connection"
+      },
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "instance_id": "string",
       "last_connected_at": "2019-08-24T14:15:22Z",
@@ -5738,6 +5792,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "autostart_schedule": "string",
       "created_at": "2019-08-24T14:15:22Z",
       "deleting_at": "2019-08-24T14:15:22Z",
+      "health": {
+        "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+        "healthy": false
+      },
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_used_at": "2019-08-24T14:15:22Z",
       "latest_build": {
@@ -5798,6 +5856,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
                 },
                 "expanded_directory": "string",
                 "first_connected_at": "2019-08-24T14:15:22Z",
+                "health": {
+                  "healthy": false,
+                  "reason": "agent has lost connection"
+                },
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "instance_id": "string",
                 "last_connected_at": "2019-08-24T14:15:22Z",
