@@ -75,7 +75,11 @@ WHERE
 
 -- name: GetWorkspaces :many
 SELECT
-	workspaces.*, latest_build.template_version_id as template_version_id, COUNT(*) OVER () as count
+	workspaces.*,
+	templates.name AS template_name,
+	latest_build.template_version_id,
+	latest_build.template_version_name,
+	COUNT(*) OVER () as count
 FROM
     workspaces
 JOIN
@@ -86,6 +90,7 @@ LEFT JOIN LATERAL (
 	SELECT
 		workspace_builds.transition,
 		workspace_builds.template_version_id,
+		template_versions.name AS template_version_name,
 		provisioner_jobs.id AS provisioner_job_id,
 		provisioner_jobs.started_at,
 		provisioner_jobs.updated_at,
@@ -98,6 +103,10 @@ LEFT JOIN LATERAL (
 		provisioner_jobs
 	ON
 		provisioner_jobs.id = workspace_builds.job_id
+	LEFT JOIN
+		template_versions
+	ON
+		template_versions.id = workspace_builds.template_version_id
 	WHERE
 		workspace_builds.workspace_id = workspaces.id
 	ORDER BY
@@ -105,6 +114,10 @@ LEFT JOIN LATERAL (
 	LIMIT
 		1
 ) latest_build ON TRUE
+LEFT JOIN
+	templates
+ON
+	templates.id = workspaces.template_id
 WHERE
 	-- Optionally include deleted workspaces
 	workspaces.deleted = @deleted
