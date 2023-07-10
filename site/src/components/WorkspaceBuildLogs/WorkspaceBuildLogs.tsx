@@ -56,11 +56,9 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
     <Box
       {...boxProps}
       sx={{
-        ...(theme) => ({
-          border: `1px solid ${theme.palette.divider}`,
-          borderRadius: theme.shape.borderRadius,
-          fontFamily: MONOSPACE_FONT_FAMILY,
-        }),
+        border: (theme) => `1px solid ${theme.palette.divider}`,
+        borderRadius: 1,
+        fontFamily: MONOSPACE_FONT_FAMILY,
         ...boxProps.sx,
       }}
     >
@@ -109,6 +107,10 @@ const useStyles = makeStyles((theme) => ({
     "&:last-child": {
       borderBottom: 0,
       borderRadius: "0 0 8px 8px",
+    },
+
+    "&:first-child": {
+      borderRadius: "8px 8px 0 0",
     },
   },
 
