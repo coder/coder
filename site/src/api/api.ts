@@ -4,6 +4,7 @@ import * as Types from "./types"
 import { DeploymentConfig } from "./types"
 import * as TypesGen from "./typesGenerated"
 import { delay } from "utils/delay"
+import userAgentParser from "ua-parser-js"
 
 // Adds 304 for the default axios validateStatus function
 // https://github.com/axios/axios#handling-errors Check status here
@@ -107,6 +108,14 @@ export const login = async (
   return response.data
 }
 
+export const convertToOAUTH = async (request: TypesGen.ConvertLoginRequest) => {
+  const response = await axios.post<TypesGen.OAuthConversionResponse>(
+    "/api/v2/users/me/convert-login",
+    request,
+  )
+  return response.data
+}
+
 export const logout = async (): Promise<void> => {
   await axios.post("/api/v2/users/logout")
 }
@@ -129,6 +138,13 @@ export const getAuthenticatedUser = async (): Promise<
 export const getAuthMethods = async (): Promise<TypesGen.AuthMethods> => {
   const response = await axios.get<TypesGen.AuthMethods>(
     "/api/v2/users/authmethods",
+  )
+  return response.data
+}
+
+export const getUserLoginType = async (): Promise<TypesGen.UserLoginType> => {
+  const response = await axios.get<TypesGen.UserLoginType>(
+    "/api/v2/users/me/login-type",
   )
   return response.data
 }
@@ -798,6 +814,28 @@ export const getExperiments = async (): Promise<TypesGen.Experiment[]> => {
   }
 }
 
+export const getGitAuthProvider = async (
+  provider: string,
+): Promise<TypesGen.GitAuth> => {
+  const resp = await axios.get(`/api/v2/gitauth/${provider}`)
+  return resp.data
+}
+
+export const getGitAuthDevice = async (
+  provider: string,
+): Promise<TypesGen.GitAuthDevice> => {
+  const resp = await axios.get(`/api/v2/gitauth/${provider}/device`)
+  return resp.data
+}
+
+export const exchangeGitAuthDevice = async (
+  provider: string,
+  req: TypesGen.GitAuthDeviceExchange,
+): Promise<void> => {
+  const resp = await axios.post(`/api/v2/gitauth/${provider}/device`, req)
+  return resp.data
+}
+
 export const getAuditLogs = async (
   options: TypesGen.AuditLogsRequest,
 ): Promise<TypesGen.AuditLogResponse> => {
@@ -928,13 +966,23 @@ export const getFile = async (fileId: string): Promise<ArrayBuffer> => {
   return response.data
 }
 
-export const getWorkspaceProxies =
-  async (): Promise<TypesGen.RegionsResponse> => {
-    const response = await axios.get<TypesGen.RegionsResponse>(
-      `/api/v2/regions`,
-    )
-    return response.data
-  }
+export const getWorkspaceProxyRegions = async (): Promise<
+  TypesGen.RegionsResponse<TypesGen.Region>
+> => {
+  const response = await axios.get<TypesGen.RegionsResponse<TypesGen.Region>>(
+    `/api/v2/regions`,
+  )
+  return response.data
+}
+
+export const getWorkspaceProxies = async (): Promise<
+  TypesGen.RegionsResponse<TypesGen.WorkspaceProxy>
+> => {
+  const response = await axios.get<
+    TypesGen.RegionsResponse<TypesGen.WorkspaceProxy>
+  >(`/api/v2/workspaceproxies`)
+  return response.data
+}
 
 export const getAppearance = async (): Promise<TypesGen.AppearanceConfig> => {
   try {
@@ -1005,7 +1053,7 @@ export const getWorkspaceBuildParameters = async (
   return response.data
 }
 type Claims = {
-  license_expires?: number
+  license_expires: number
   account_type?: string
   account_id?: string
   trial: boolean
@@ -1127,17 +1175,11 @@ const getMissingParameters = (
   const requiredParameters: TypesGen.TemplateVersionParameter[] = []
 
   templateParameters.forEach((p) => {
-    // Legacy parameters should not be required. Backend can just migrate them.
-    const isLegacy = p.legacy_variable_name !== undefined
     // It is mutable and required. Mutable values can be changed after so we
     // don't need to ask them if they are not required.
     const isMutableAndRequired = p.mutable && p.required
     // Is immutable, so we can check if it is its first time on the build
     const isImmutable = !p.mutable
-
-    if (isLegacy) {
-      return
-    }
 
     if (isMutableAndRequired || isImmutable) {
       requiredParameters.push(p)
@@ -1231,9 +1273,19 @@ export const watchStartupLogs = (
   agentId: string,
   { after, onMessage, onDone, onError }: WatchStartupLogsOptions,
 ) => {
+  // WebSocket compression in Safari (confirmed in 16.5) is broken when
+  // the server sends large messages. The following error is seen:
+  //
+  //   WebSocket connection to 'wss://.../startup-logs?follow&after=0' failed: The operation couldn’t be completed. Protocol error
+  //
+  const noCompression =
+    userAgentParser(navigator.userAgent).browser.name === "Safari"
+      ? "&no_compression"
+      : ""
+
   const proto = location.protocol === "https:" ? "wss:" : "ws:"
   const socket = new WebSocket(
-    `${proto}//${location.host}/api/v2/workspaceagents/${agentId}/startup-logs?follow&after=${after}`,
+    `${proto}//${location.host}/api/v2/workspaceagents/${agentId}/startup-logs?follow&after=${after}${noCompression}`,
   )
   socket.binaryType = "blob"
   socket.addEventListener("message", (event) => {

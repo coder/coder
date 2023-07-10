@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/testutil"
 )
 
 func TestTemplatePush(t *testing.T) {
@@ -67,6 +68,86 @@ func TestTemplatePush(t *testing.T) {
 		assert.Len(t, templateVersions, 2)
 		assert.NotEqual(t, template.ActiveVersionID, templateVersions[1].ID)
 		require.Equal(t, "example", templateVersions[1].Name)
+	})
+
+	t.Run("NoLockfile", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		// Test the cli command.
+		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ProvisionComplete,
+		})
+		require.NoError(t, os.Remove(filepath.Join(source, ".terraform.lock.hcl")))
+
+		inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example")
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t).Attach(inv)
+
+		execDone := make(chan error)
+		go func() {
+			execDone <- inv.Run()
+		}()
+
+		matches := []struct {
+			match string
+			write string
+		}{
+			{match: "No .terraform.lock.hcl file found"},
+			{match: "Upload", write: "no"},
+		}
+		for _, m := range matches {
+			pty.ExpectMatch(m.match)
+			if m.write != "" {
+				pty.WriteLine(m.write)
+			}
+		}
+
+		// cmd should error once we say no.
+		require.Error(t, <-execDone)
+	})
+
+	t.Run("NoLockfileIgnored", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		// Test the cli command.
+		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ProvisionComplete,
+		})
+		require.NoError(t, os.Remove(filepath.Join(source, ".terraform.lock.hcl")))
+
+		inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example", "--ignore-lockfile")
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t).Attach(inv)
+
+		execDone := make(chan error)
+		go func() {
+			execDone <- inv.Run()
+		}()
+
+		{
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+			defer cancel()
+
+			pty.ExpectNoMatchBefore(ctx, "No .terraform.lock.hcl file found", "Upload")
+			pty.WriteLine("no")
+		}
+
+		// cmd should error once we say no.
+		require.Error(t, <-execDone)
 	})
 
 	t.Run("PushInactiveTemplateVersion", func(t *testing.T) {

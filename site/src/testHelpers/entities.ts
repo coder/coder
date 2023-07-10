@@ -71,7 +71,7 @@ export const MockTokens: TypesGen.APIKeyWithOwner[] = [
   },
 ]
 
-export const MockPrimaryWorkspaceProxy: TypesGen.Region = {
+export const MockPrimaryWorkspaceProxy: TypesGen.WorkspaceProxy = {
   id: "4aa23000-526a-481f-a007-0f20b98b1e12",
   name: "primary",
   display_name: "Default",
@@ -79,9 +79,16 @@ export const MockPrimaryWorkspaceProxy: TypesGen.Region = {
   healthy: true,
   path_app_url: "https://coder.com",
   wildcard_hostname: "*.coder.com",
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+  deleted: false,
+  status: {
+    status: "ok",
+    checked_at: new Date().toISOString(),
+  },
 }
 
-export const MockHealthyWildWorkspaceProxy: TypesGen.Region = {
+export const MockHealthyWildWorkspaceProxy: TypesGen.WorkspaceProxy = {
   id: "5e2c1ab7-479b-41a9-92ce-aa85625de52c",
   name: "haswildcard",
   display_name: "Subdomain Supported",
@@ -89,9 +96,16 @@ export const MockHealthyWildWorkspaceProxy: TypesGen.Region = {
   healthy: true,
   path_app_url: "https://external.com",
   wildcard_hostname: "*.external.com",
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+  deleted: false,
+  status: {
+    status: "ok",
+    checked_at: new Date().toISOString(),
+  },
 }
 
-export const MockUnhealthyWildWorkspaceProxy: TypesGen.Region = {
+export const MockUnhealthyWildWorkspaceProxy: TypesGen.WorkspaceProxy = {
   id: "8444931c-0247-4171-842a-569d9f9cbadb",
   name: "unhealthy",
   display_name: "Unhealthy",
@@ -99,9 +113,20 @@ export const MockUnhealthyWildWorkspaceProxy: TypesGen.Region = {
   healthy: false,
   path_app_url: "https://unhealthy.coder.com",
   wildcard_hostname: "*unhealthy..coder.com",
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+  deleted: false,
+  status: {
+    status: "unhealthy",
+    report: {
+      errors: ["This workspace proxy is manually marked as unhealthy."],
+      warnings: ["This is a manual warning for this workspace proxy."],
+    },
+    checked_at: new Date().toISOString(),
+  },
 }
 
-export const MockWorkspaceProxies: TypesGen.Region[] = [
+export const MockWorkspaceProxies: TypesGen.WorkspaceProxy[] = [
   MockPrimaryWorkspaceProxy,
   MockHealthyWildWorkspaceProxy,
   MockUnhealthyWildWorkspaceProxy,
@@ -113,6 +138,13 @@ export const MockWorkspaceProxies: TypesGen.Region[] = [
     healthy: true,
     path_app_url: "https://cowboy.coder.com",
     wildcard_hostname: "",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    deleted: false,
+    status: {
+      status: "ok",
+      checked_at: new Date().toISOString(),
+    },
   },
 ]
 
@@ -286,6 +318,8 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
   file_id: MockOrganization.id,
   completed_at: "2022-05-17T17:39:01.382927298Z",
   tags: {},
+  queue_position: 0,
+  queue_size: 0,
 }
 
 export const MockFailedProvisionerJob: TypesGen.ProvisionerJob = {
@@ -308,6 +342,8 @@ export const MockRunningProvisionerJob: TypesGen.ProvisionerJob = {
 export const MockPendingProvisionerJob: TypesGen.ProvisionerJob = {
   ...MockProvisionerJob,
   status: "pending",
+  queue_position: 2,
+  queue_size: 4,
 }
 export const MockTemplateVersion: TypesGen.TemplateVersion = {
   id: "test-template-version",
@@ -388,6 +424,7 @@ export const MockTemplate: TypesGen.Template = {
   allow_user_cancel_workspace_jobs: true,
   failure_ttl_ms: 0,
   inactivity_ttl_ms: 0,
+  locked_ttl_ms: 0,
   allow_user_autostart: false,
   allow_user_autostop: false,
 }
@@ -505,6 +542,9 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   startup_script_timeout_seconds: 120,
   shutdown_script_timeout_seconds: 120,
   subsystem: "envbox",
+  health: {
+    healthy: true,
+  },
 }
 
 export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
@@ -515,6 +555,10 @@ export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
   version: "",
   latency: {},
   lifecycle_state: "ready",
+  health: {
+    healthy: false,
+    reason: "agent is not connected",
+  },
 }
 
 export const MockWorkspaceAgentOutdated: TypesGen.WorkspaceAgent = {
@@ -559,6 +603,10 @@ export const MockWorkspaceAgentTimeout: TypesGen.WorkspaceAgent = {
   version: "",
   latency: {},
   lifecycle_state: "created",
+  health: {
+    healthy: false,
+    reason: "agent is taking too long to connect",
+  },
 }
 
 export const MockWorkspaceAgentStarting: TypesGen.WorkspaceAgent = {
@@ -587,6 +635,10 @@ export const MockWorkspaceAgentStartError: TypesGen.WorkspaceAgent = {
   id: "test-workspace-agent-start-error",
   name: "a-workspace-agent-errored-while-running-startup-script",
   lifecycle_state: "start_error",
+  health: {
+    healthy: false,
+    reason: "agent startup script failed",
+  },
 }
 
 export const MockWorkspaceAgentShuttingDown: TypesGen.WorkspaceAgent = {
@@ -594,6 +646,10 @@ export const MockWorkspaceAgentShuttingDown: TypesGen.WorkspaceAgent = {
   id: "test-workspace-agent-shutting-down",
   name: "a-shutting-down-workspace-agent",
   lifecycle_state: "shutting_down",
+  health: {
+    healthy: false,
+    reason: "agent is shutting down",
+  },
 }
 
 export const MockWorkspaceAgentShutdownTimeout: TypesGen.WorkspaceAgent = {
@@ -601,6 +657,10 @@ export const MockWorkspaceAgentShutdownTimeout: TypesGen.WorkspaceAgent = {
   id: "test-workspace-agent-shutdown-timeout",
   name: "a-workspace-agent-timed-out-while-running-shutdownup-script",
   lifecycle_state: "shutdown_timeout",
+  health: {
+    healthy: false,
+    reason: "agent is shutting down",
+  },
 }
 
 export const MockWorkspaceAgentShutdownError: TypesGen.WorkspaceAgent = {
@@ -608,6 +668,10 @@ export const MockWorkspaceAgentShutdownError: TypesGen.WorkspaceAgent = {
   id: "test-workspace-agent-shutdown-error",
   name: "a-workspace-agent-errored-while-running-shutdownup-script",
   lifecycle_state: "shutdown_error",
+  health: {
+    healthy: false,
+    reason: "agent is shutting down",
+  },
 }
 
 export const MockWorkspaceAgentOff: TypesGen.WorkspaceAgent = {
@@ -615,6 +679,10 @@ export const MockWorkspaceAgentOff: TypesGen.WorkspaceAgent = {
   id: "test-workspace-agent-off",
   name: "a-workspace-agent-is-shut-down",
   lifecycle_state: "off",
+  health: {
+    healthy: false,
+    reason: "agent is shutting down",
+  },
 }
 
 export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
@@ -766,6 +834,10 @@ export const MockWorkspace: TypesGen.Workspace = {
   ttl_ms: 2 * 60 * 60 * 1000,
   latest_build: MockWorkspaceBuild,
   last_used_at: "2022-05-16T15:29:10.302441433Z",
+  health: {
+    healthy: true,
+    failing_agents: [],
+  },
 }
 
 export const MockStoppedWorkspace: TypesGen.Workspace = {
@@ -883,6 +955,7 @@ export const MockTemplateVersionParameter1: TypesGen.TemplateVersionParameter =
     icon: "/icon/folder.svg",
     options: [],
     required: true,
+    ephemeral: false,
   }
 
 export const MockTemplateVersionParameter2: TypesGen.TemplateVersionParameter =
@@ -899,6 +972,7 @@ export const MockTemplateVersionParameter2: TypesGen.TemplateVersionParameter =
     validation_max: 3,
     validation_monotonic: "increasing",
     required: true,
+    ephemeral: false,
   }
 
 export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
@@ -914,6 +988,7 @@ export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
     validation_error: "No way!",
     validation_regex: "^[a-z]{3}$",
     required: true,
+    ephemeral: false,
   }
 
 export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
@@ -927,6 +1002,7 @@ export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
     icon: "/icon/database.svg",
     options: [],
     required: true,
+    ephemeral: false,
   }
 
 export const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter =
@@ -943,6 +1019,7 @@ export const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter =
     validation_max: 10,
     validation_monotonic: "decreasing",
     required: true,
+    ephemeral: false,
   }
 
 export const MockTemplateVersionVariable1: TypesGen.TemplateVersionVariable = {
@@ -1018,6 +1095,13 @@ export const MockAuthMethods: TypesGen.AuthMethods = {
   password: { enabled: true },
   github: { enabled: false },
   oidc: { enabled: false, signInText: "", iconUrl: "" },
+  convert_to_oidc_enabled: true,
+}
+
+export const MockAuthMethodsWithPasswordType: TypesGen.AuthMethods = {
+  ...MockAuthMethods,
+  github: { enabled: true },
+  oidc: { enabled: true, signInText: "", iconUrl: "" },
 }
 
 export const MockGitSSHKey: TypesGen.GitSSHKey = {
@@ -1402,7 +1486,6 @@ export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
 export const MockExperiments: TypesGen.Experiment[] = [
   "workspace_actions",
   "moons",
-  "workspace_filter",
 ]
 
 export const MockAuditLog: TypesGen.AuditLog = {
@@ -1503,6 +1586,42 @@ export const MockAuditLogGitSSH: TypesGen.AuditLog = {
   },
 }
 
+export const MockAuditOauthConvert: TypesGen.AuditLog = {
+  ...MockAuditLog,
+  resource_type: "convert_login",
+  resource_target: "oidc",
+  action: "create",
+  status_code: 201,
+  description: "{user} created login type conversion to {target}}",
+  diff: {
+    created_at: {
+      old: "0001-01-01T00:00:00Z",
+      new: "2023-06-20T20:44:54.243019Z",
+      secret: false,
+    },
+    expires_at: {
+      old: "0001-01-01T00:00:00Z",
+      new: "2023-06-20T20:49:54.243019Z",
+      secret: false,
+    },
+    state_string: {
+      old: "",
+      new: "",
+      secret: true,
+    },
+    to_type: {
+      old: "",
+      new: "oidc",
+      secret: false,
+    },
+    user_id: {
+      old: "",
+      new: "dc790496-eaec-4f88-a53f-8ce1f61a1fff",
+      secret: false,
+    },
+  },
+}
+
 export const MockAuditLogSuccessfulLogin: TypesGen.AuditLog = {
   ...MockAuditLog,
   resource_type: "api_key",
@@ -1577,6 +1696,15 @@ export const MockPermissions: Permissions = {
   viewDeploymentValues: true,
   viewUpdateCheck: true,
   viewDeploymentStats: true,
+  viewGitAuthConfig: true,
+  editWorkspaceProxies: true,
+}
+
+export const MockDeploymentConfig: Types.DeploymentConfig = {
+  config: {
+    enable_terraform_debug_mode: true,
+  },
+  options: [],
 }
 
 export const MockAppearance: TypesGen.AppearanceConfig = {

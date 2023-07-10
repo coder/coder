@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/binary"
@@ -14,6 +13,7 @@ import (
 	"net/http"
 	"net/netip"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
 	"sort"
@@ -77,6 +77,7 @@ type Client interface {
 	PostStartup(ctx context.Context, req agentsdk.PostStartupRequest) error
 	PostMetadata(ctx context.Context, key string, req agentsdk.PostMetadataRequest) error
 	PatchStartupLogs(ctx context.Context, req agentsdk.PatchStartupLogs) error
+	GetServiceBanner(ctx context.Context) (codersdk.ServiceBannerConfig, error)
 }
 
 type Agent interface {
@@ -126,6 +127,7 @@ func New(options Options) Agent {
 		tempDir:                options.TempDir,
 		lifecycleUpdate:        make(chan struct{}, 1),
 		lifecycleReported:      make(chan codersdk.WorkspaceAgentLifecycle, 1),
+		lifecycleStates:        []agentsdk.PostLifecycleRequest{{State: codersdk.WorkspaceAgentLifecycleCreated}},
 		ignorePorts:            options.IgnorePorts,
 		connStatsChan:          make(chan *agentsdk.Stats, 1),
 		sshMaxTimeout:          options.SSHMaxTimeout,
@@ -162,7 +164,9 @@ type agent struct {
 
 	envVars map[string]string
 	// manifest is atomic because values can change after reconnection.
-	manifest      atomic.Pointer[agentsdk.Manifest]
+	manifest atomic.Pointer[agentsdk.Manifest]
+	// serviceBanner is atomic because it can change.
+	serviceBanner atomic.Pointer[codersdk.ServiceBannerConfig]
 	sessionToken  atomic.Pointer[string]
 	sshServer     *agentssh.Server
 	sshMaxTimeout time.Duration
@@ -170,7 +174,7 @@ type agent struct {
 	lifecycleUpdate   chan struct{}
 	lifecycleReported chan codersdk.WorkspaceAgentLifecycle
 	lifecycleMu       sync.RWMutex // Protects following.
-	lifecycleState    codersdk.WorkspaceAgentLifecycle
+	lifecycleStates   []agentsdk.PostLifecycleRequest
 
 	network       *tailnet.Conn
 	connStatsChan chan *agentsdk.Stats
@@ -190,6 +194,7 @@ func (a *agent) init(ctx context.Context) {
 	sshSrv.Env = a.envVars
 	sshSrv.AgentToken = func() string { return *a.sessionToken.Load() }
 	sshSrv.Manifest = &a.manifest
+	sshSrv.ServiceBanner = &a.serviceBanner
 	a.sshServer = sshSrv
 
 	go a.runLoop(ctx)
@@ -202,6 +207,7 @@ func (a *agent) init(ctx context.Context) {
 func (a *agent) runLoop(ctx context.Context) {
 	go a.reportLifecycleLoop(ctx)
 	go a.reportMetadataLoop(ctx)
+	go a.fetchServiceBannerLoop(ctx)
 
 	for retrier := retry.New(100*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
 		a.logger.Info(ctx, "connecting to coderd")
@@ -274,14 +280,15 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 	return result
 }
 
-func adjustIntervalForTests(i int64) time.Duration {
+// adjustIntervalForTests returns a duration of testInterval milliseconds long
+// for tests and interval seconds long otherwise.
+func adjustIntervalForTests(interval time.Duration, testInterval time.Duration) time.Duration {
 	// In tests we want to set shorter intervals because engineers are
 	// impatient.
-	base := time.Second
 	if flag.Lookup("test.v") != nil {
-		base = time.Millisecond * 100
+		return testInterval
 	}
-	return time.Duration(i) * base
+	return interval
 }
 
 type metadataResultAndKey struct {
@@ -305,7 +312,7 @@ func (t *trySingleflight) Do(key string, fn func()) {
 }
 
 func (a *agent) reportMetadataLoop(ctx context.Context) {
-	baseInterval := adjustIntervalForTests(1)
+	baseInterval := adjustIntervalForTests(time.Second, time.Millisecond*100)
 
 	const metadataLimit = 128
 
@@ -330,7 +337,7 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 			lastCollectedAts[mr.key] = mr.result.CollectedAt
 			err := a.client.PostMetadata(ctx, mr.key, *mr.result)
 			if err != nil {
-				a.logger.Error(ctx, "report metadata", slog.Error(err))
+				a.logger.Error(ctx, "agent failed to report metadata", slog.Error(err))
 			}
 		case <-baseTicker.C:
 		}
@@ -382,7 +389,9 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 				}
 				// The last collected value isn't quite stale yet, so we skip it.
 				if collectedAt.Add(
-					adjustIntervalForTests(md.Interval),
+					adjustIntervalForTests(
+						time.Duration(md.Interval)*time.Second,
+						time.Duration(md.Interval)*time.Millisecond*100),
 				).After(time.Now()) {
 					continue
 				}
@@ -414,11 +423,10 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 	}
 }
 
-// reportLifecycleLoop reports the current lifecycle state once.
-// Only the latest state is reported, intermediate states may be
-// lost if the agent can't communicate with the API.
+// reportLifecycleLoop reports the current lifecycle state once. All state
+// changes are reported in order.
 func (a *agent) reportLifecycleLoop(ctx context.Context) {
-	var lastReported codersdk.WorkspaceAgentLifecycle
+	lastReportedIndex := 0 // Start off with the created state without reporting it.
 	for {
 		select {
 		case <-a.lifecycleUpdate:
@@ -428,24 +436,32 @@ func (a *agent) reportLifecycleLoop(ctx context.Context) {
 
 		for r := retry.New(time.Second, 15*time.Second); r.Wait(ctx); {
 			a.lifecycleMu.RLock()
-			state := a.lifecycleState
+			lastIndex := len(a.lifecycleStates) - 1
+			report := a.lifecycleStates[lastReportedIndex]
+			if len(a.lifecycleStates) > lastReportedIndex+1 {
+				report = a.lifecycleStates[lastReportedIndex+1]
+			}
 			a.lifecycleMu.RUnlock()
 
-			if state == lastReported {
+			if lastIndex == lastReportedIndex {
 				break
 			}
 
-			a.logger.Debug(ctx, "reporting lifecycle state", slog.F("state", state))
+			a.logger.Debug(ctx, "reporting lifecycle state", slog.F("payload", report))
 
-			err := a.client.PostLifecycle(ctx, agentsdk.PostLifecycleRequest{
-				State: state,
-			})
+			err := a.client.PostLifecycle(ctx, report)
 			if err == nil {
-				lastReported = state
+				lastReportedIndex++
 				select {
-				case a.lifecycleReported <- state:
+				case a.lifecycleReported <- report.State:
 				case <-a.lifecycleReported:
-					a.lifecycleReported <- state
+					a.lifecycleReported <- report.State
+				}
+				if lastReportedIndex < lastIndex {
+					// Keep reporting until we've sent all messages, we can't
+					// rely on the channel triggering us before the backlog is
+					// consumed.
+					continue
 				}
 				break
 			}
@@ -453,7 +469,7 @@ func (a *agent) reportLifecycleLoop(ctx context.Context) {
 				return
 			}
 			// If we fail to report the state we probably shouldn't exit, log only.
-			a.logger.Error(ctx, "post state", slog.Error(err))
+			a.logger.Error(ctx, "agent failed to report the lifecycle state", slog.Error(err))
 		}
 	}
 }
@@ -461,20 +477,49 @@ func (a *agent) reportLifecycleLoop(ctx context.Context) {
 // setLifecycle sets the lifecycle state and notifies the lifecycle loop.
 // The state is only updated if it's a valid state transition.
 func (a *agent) setLifecycle(ctx context.Context, state codersdk.WorkspaceAgentLifecycle) {
+	report := agentsdk.PostLifecycleRequest{
+		State:     state,
+		ChangedAt: database.Now(),
+	}
+
 	a.lifecycleMu.Lock()
-	lastState := a.lifecycleState
-	if slices.Index(codersdk.WorkspaceAgentLifecycleOrder, lastState) > slices.Index(codersdk.WorkspaceAgentLifecycleOrder, state) {
-		a.logger.Warn(ctx, "attempted to set lifecycle state to a previous state", slog.F("last", lastState), slog.F("state", state))
+	lastReport := a.lifecycleStates[len(a.lifecycleStates)-1]
+	if slices.Index(codersdk.WorkspaceAgentLifecycleOrder, lastReport.State) >= slices.Index(codersdk.WorkspaceAgentLifecycleOrder, report.State) {
+		a.logger.Warn(ctx, "attempted to set lifecycle state to a previous state", slog.F("last", lastReport), slog.F("current", report))
 		a.lifecycleMu.Unlock()
 		return
 	}
-	a.lifecycleState = state
-	a.logger.Debug(ctx, "set lifecycle state", slog.F("state", state), slog.F("last", lastState))
+	a.lifecycleStates = append(a.lifecycleStates, report)
+	a.logger.Debug(ctx, "set lifecycle state", slog.F("current", report), slog.F("last", lastReport))
 	a.lifecycleMu.Unlock()
 
 	select {
 	case a.lifecycleUpdate <- struct{}{}:
 	default:
+	}
+}
+
+// fetchServiceBannerLoop fetches the service banner on an interval.  It will
+// not be fetched immediately; the expectation is that it is primed elsewhere
+// (and must be done before the session actually starts).
+func (a *agent) fetchServiceBannerLoop(ctx context.Context) {
+	ticker := time.NewTicker(adjustIntervalForTests(2*time.Minute, time.Millisecond*5))
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			serviceBanner, err := a.client.GetServiceBanner(ctx)
+			if err != nil {
+				if ctx.Err() != nil {
+					return
+				}
+				a.logger.Error(ctx, "failed to update service banner", slog.Error(err))
+				continue
+			}
+			a.serviceBanner.Store(&serviceBanner)
+		}
 	}
 }
 
@@ -487,6 +532,12 @@ func (a *agent) run(ctx context.Context) error {
 		return xerrors.Errorf("exchange token: %w", err)
 	}
 	a.sessionToken.Store(&sessionToken)
+
+	serviceBanner, err := a.client.GetServiceBanner(ctx)
+	if err != nil {
+		return xerrors.Errorf("fetch service banner: %w", err)
+	}
+	a.serviceBanner.Store(&serviceBanner)
 
 	manifest, err := a.client.Manifest(ctx)
 	if err != nil {
@@ -534,7 +585,6 @@ func (a *agent) run(ctx context.Context) error {
 
 		lifecycleState := codersdk.WorkspaceAgentLifecycleReady
 		scriptDone := make(chan error, 1)
-		scriptStart := time.Now()
 		err = a.trackConnGoroutine(func() {
 			defer close(scriptDone)
 			scriptDone <- a.runStartupScript(ctx, manifest.StartupScript)
@@ -556,22 +606,15 @@ func (a *agent) run(ctx context.Context) error {
 			select {
 			case err = <-scriptDone:
 			case <-timeout:
-				a.logger.Warn(ctx, "startup script timed out")
+				a.logger.Warn(ctx, "script timed out", slog.F("lifecycle", "startup"), slog.F("timeout", manifest.ShutdownScriptTimeout))
 				a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleStartTimeout)
 				err = <-scriptDone // The script can still complete after a timeout.
 			}
-			if errors.Is(err, context.Canceled) {
-				return
-			}
-			// Only log if there was a startup script.
-			if manifest.StartupScript != "" {
-				execTime := time.Since(scriptStart)
-				if err != nil {
-					a.logger.Warn(ctx, "startup script failed", slog.F("execution_time", execTime), slog.Error(err))
-					lifecycleState = codersdk.WorkspaceAgentLifecycleStartError
-				} else {
-					a.logger.Info(ctx, "startup script completed", slog.F("execution_time", execTime))
+			if err != nil {
+				if errors.Is(err, context.Canceled) {
+					return
 				}
+				lifecycleState = codersdk.WorkspaceAgentLifecycleStartError
 			}
 			a.setLifecycle(ctx, lifecycleState)
 		}()
@@ -587,7 +630,7 @@ func (a *agent) run(ctx context.Context) error {
 	network := a.network
 	a.closeMutex.Unlock()
 	if network == nil {
-		network, err = a.createTailnet(ctx, manifest.DERPMap)
+		network, err = a.createTailnet(ctx, manifest.DERPMap, manifest.DisableDirectConnections)
 		if err != nil {
 			return xerrors.Errorf("create tailnet: %w", err)
 		}
@@ -605,8 +648,9 @@ func (a *agent) run(ctx context.Context) error {
 
 		a.startReportingConnectionStats(ctx)
 	} else {
-		// Update the DERP map!
+		// Update the DERP map and allow/disallow direct connections.
 		network.SetDERPMap(manifest.DERPMap)
+		network.SetBlockEndpoints(manifest.DisableDirectConnections)
 	}
 
 	a.logger.Debug(ctx, "running tailnet connection coordinator")
@@ -631,12 +675,13 @@ func (a *agent) trackConnGoroutine(fn func()) error {
 	return nil
 }
 
-func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap) (_ *tailnet.Conn, err error) {
+func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap, disableDirectConnections bool) (_ *tailnet.Conn, err error) {
 	network, err := tailnet.NewConn(&tailnet.Options{
-		Addresses:  []netip.Prefix{netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128)},
-		DERPMap:    derpMap,
-		Logger:     a.logger.Named("tailnet"),
-		ListenPort: a.tailnetListenPort,
+		Addresses:      []netip.Prefix{netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128)},
+		DERPMap:        derpMap,
+		Logger:         a.logger.Named("tailnet"),
+		ListenPort:     a.tailnetListenPort,
+		BlockEndpoints: disableDirectConnections,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)
@@ -830,45 +875,73 @@ func (a *agent) runShutdownScript(ctx context.Context, script string) error {
 	return a.runScript(ctx, "shutdown", script)
 }
 
-func (a *agent) runScript(ctx context.Context, lifecycle, script string) error {
+func (a *agent) runScript(ctx context.Context, lifecycle, script string) (err error) {
 	if script == "" {
 		return nil
 	}
 
-	a.logger.Info(ctx, "running script", slog.F("lifecycle", lifecycle), slog.F("script", script))
+	logger := a.logger.With(slog.F("lifecycle", lifecycle))
+
+	logger.Info(ctx, fmt.Sprintf("running %s script", lifecycle), slog.F("script", script))
 	fileWriter, err := a.filesystem.OpenFile(filepath.Join(a.logDir, fmt.Sprintf("coder-%s-script.log", lifecycle)), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return xerrors.Errorf("open %s script log file: %w", lifecycle, err)
 	}
 	defer func() {
-		_ = fileWriter.Close()
-	}()
-
-	var writer io.Writer = fileWriter
-	if lifecycle == "startup" {
-		// Create pipes for startup logs reader and writer
-		logsReader, logsWriter := io.Pipe()
-		defer func() {
-			_ = logsReader.Close()
-		}()
-		writer = io.MultiWriter(fileWriter, logsWriter)
-		flushedLogs, err := a.trackScriptLogs(ctx, logsReader)
+		err := fileWriter.Close()
 		if err != nil {
-			return xerrors.Errorf("track script logs: %w", err)
+			logger.Warn(ctx, fmt.Sprintf("close %s script log file", lifecycle), slog.Error(err))
 		}
-		defer func() {
-			_ = logsWriter.Close()
-			<-flushedLogs
-		}()
-	}
+	}()
 
 	cmdPty, err := a.sshServer.CreateCommand(ctx, script, nil)
 	if err != nil {
-		return xerrors.Errorf("create command: %w", err)
+		return xerrors.Errorf("%s script: create command: %w", lifecycle, err)
 	}
 	cmd := cmdPty.AsExec()
-	cmd.Stdout = writer
-	cmd.Stderr = writer
+
+	var stdout, stderr io.Writer = fileWriter, fileWriter
+	if lifecycle == "startup" {
+		send, flushAndClose := agentsdk.StartupLogsSender(a.client.PatchStartupLogs, logger)
+		// If ctx is canceled here (or in a writer below), we may be
+		// discarding logs, but that's okay because we're shutting down
+		// anyway. We could consider creating a new context here if we
+		// want better control over flush during shutdown.
+		defer func() {
+			if err := flushAndClose(ctx); err != nil {
+				logger.Warn(ctx, "flush startup logs failed", slog.Error(err))
+			}
+		}()
+
+		infoW := agentsdk.StartupLogsWriter(ctx, send, codersdk.LogLevelInfo)
+		defer infoW.Close()
+		errW := agentsdk.StartupLogsWriter(ctx, send, codersdk.LogLevelError)
+		defer errW.Close()
+
+		stdout = io.MultiWriter(fileWriter, infoW)
+		stderr = io.MultiWriter(fileWriter, errW)
+	}
+
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
+
+	start := time.Now()
+	defer func() {
+		end := time.Now()
+		execTime := end.Sub(start)
+		exitCode := 0
+		if err != nil {
+			exitCode = 255 // Unknown status.
+			var exitError *exec.ExitError
+			if xerrors.As(err, &exitError) {
+				exitCode = exitError.ExitCode()
+			}
+			logger.Warn(ctx, fmt.Sprintf("%s script failed", lifecycle), slog.F("execution_time", execTime), slog.F("exit_code", exitCode), slog.Error(err))
+		} else {
+			logger.Info(ctx, fmt.Sprintf("%s script completed", lifecycle), slog.F("execution_time", execTime), slog.F("exit_code", exitCode))
+		}
+	}()
+
 	err = cmd.Run()
 	if err != nil {
 		// cmd.Run does not return a context canceled error, it returns "signal: killed".
@@ -876,124 +949,9 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) error {
 			return ctx.Err()
 		}
 
-		return xerrors.Errorf("run: %w", err)
+		return xerrors.Errorf("%s script: run: %w", lifecycle, err)
 	}
 	return nil
-}
-
-func (a *agent) trackScriptLogs(ctx context.Context, reader io.Reader) (chan struct{}, error) {
-	// Initialize variables for log management
-	queuedLogs := make([]agentsdk.StartupLog, 0)
-	var flushLogsTimer *time.Timer
-	var logMutex sync.Mutex
-	logsFlushed := sync.NewCond(&sync.Mutex{})
-	var logsSending bool
-	defer func() {
-		logMutex.Lock()
-		if flushLogsTimer != nil {
-			flushLogsTimer.Stop()
-		}
-		logMutex.Unlock()
-	}()
-
-	// sendLogs function uploads the queued logs to the server
-	sendLogs := func() {
-		// Lock logMutex and check if logs are already being sent
-		logMutex.Lock()
-		if logsSending {
-			logMutex.Unlock()
-			return
-		}
-		if flushLogsTimer != nil {
-			flushLogsTimer.Stop()
-		}
-		if len(queuedLogs) == 0 {
-			logMutex.Unlock()
-			return
-		}
-		// Move the current queued logs to logsToSend and clear the queue
-		logsToSend := queuedLogs
-		logsSending = true
-		queuedLogs = make([]agentsdk.StartupLog, 0)
-		logMutex.Unlock()
-
-		// Retry uploading logs until successful or a specific error occurs
-		for r := retry.New(time.Second, 5*time.Second); r.Wait(ctx); {
-			err := a.client.PatchStartupLogs(ctx, agentsdk.PatchStartupLogs{
-				Logs: logsToSend,
-			})
-			if err == nil {
-				break
-			}
-			var sdkErr *codersdk.Error
-			if errors.As(err, &sdkErr) {
-				if sdkErr.StatusCode() == http.StatusRequestEntityTooLarge {
-					a.logger.Warn(ctx, "startup logs too large, dropping logs")
-					break
-				}
-			}
-			a.logger.Error(ctx, "upload startup logs", slog.Error(err), slog.F("to_send", logsToSend))
-		}
-		// Reset logsSending flag
-		logMutex.Lock()
-		logsSending = false
-		flushLogsTimer.Reset(100 * time.Millisecond)
-		logMutex.Unlock()
-		logsFlushed.Broadcast()
-	}
-	// queueLog function appends a log to the queue and triggers sendLogs if necessary
-	queueLog := func(log agentsdk.StartupLog) {
-		logMutex.Lock()
-		defer logMutex.Unlock()
-
-		// Append log to the queue
-		queuedLogs = append(queuedLogs, log)
-
-		// If there are more than 100 logs, send them immediately
-		if len(queuedLogs) > 100 {
-			// Don't early return after this, because we still want
-			// to reset the timer just in case logs come in while
-			// we're sending.
-			go sendLogs()
-		}
-		// Reset or set the flushLogsTimer to trigger sendLogs after 100 milliseconds
-		if flushLogsTimer != nil {
-			flushLogsTimer.Reset(100 * time.Millisecond)
-			return
-		}
-		flushLogsTimer = time.AfterFunc(100*time.Millisecond, sendLogs)
-	}
-
-	// It's important that we either flush or drop all logs before returning
-	// because the startup state is reported after flush.
-	//
-	// It'd be weird for the startup state to be ready, but logs are still
-	// coming in.
-	logsFinished := make(chan struct{})
-	err := a.trackConnGoroutine(func() {
-		scanner := bufio.NewScanner(reader)
-		for scanner.Scan() {
-			queueLog(agentsdk.StartupLog{
-				CreatedAt: database.Now(),
-				Output:    scanner.Text(),
-			})
-		}
-		defer close(logsFinished)
-		logsFlushed.L.Lock()
-		for {
-			logMutex.Lock()
-			if len(queuedLogs) == 0 {
-				logMutex.Unlock()
-				break
-			}
-			logMutex.Unlock()
-			logsFlushed.Wait()
-		}
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("track conn goroutine: %w", err)
-	}
-	return logsFinished, nil
 }
 
 func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, msg codersdk.WorkspaceAgentReconnectingPTYInit, conn net.Conn) (retErr error) {
@@ -1004,7 +962,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 	defer a.connCountReconnectingPTY.Add(-1)
 
 	connectionID := uuid.NewString()
-	logger = logger.With(slog.F("id", msg.ID), slog.F("connection_id", connectionID))
+	logger = logger.With(slog.F("message_id", msg.ID), slog.F("connection_id", connectionID))
 	logger.Debug(ctx, "starting handler")
 
 	defer func() {
@@ -1016,24 +974,40 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 			// If the agent is closed, we don't want to
 			// log this as an error since it's expected.
 			if closed {
-				logger.Debug(ctx, "session error after agent close", slog.Error(err))
+				logger.Debug(ctx, "reconnecting PTY failed with session error (agent closed)", slog.Error(err))
 			} else {
-				logger.Error(ctx, "session error", slog.Error(err))
+				logger.Error(ctx, "reconnecting PTY failed with session error", slog.Error(err))
 			}
 		}
 		logger.Debug(ctx, "session closed")
 	}()
 
 	var rpty *reconnectingPTY
-	rawRPTY, ok := a.reconnectingPTYs.Load(msg.ID)
+	sendConnected := make(chan *reconnectingPTY, 1)
+	// On store, reserve this ID to prevent multiple concurrent new connections.
+	waitReady, ok := a.reconnectingPTYs.LoadOrStore(msg.ID, sendConnected)
 	if ok {
+		close(sendConnected) // Unused.
 		logger.Debug(ctx, "connecting to existing session")
-		rpty, ok = rawRPTY.(*reconnectingPTY)
+		c, ok := waitReady.(chan *reconnectingPTY)
 		if !ok {
-			return xerrors.Errorf("found invalid type in reconnecting pty map: %T", rawRPTY)
+			return xerrors.Errorf("found invalid type in reconnecting pty map: %T", waitReady)
 		}
+		rpty, ok = <-c
+		if !ok || rpty == nil {
+			return xerrors.Errorf("reconnecting pty closed before connection")
+		}
+		c <- rpty // Put it back for the next reconnect.
 	} else {
 		logger.Debug(ctx, "creating new session")
+
+		connected := false
+		defer func() {
+			if !connected && retErr != nil {
+				a.reconnectingPTYs.Delete(msg.ID)
+				close(sendConnected)
+			}
+		}()
 
 		// Empty command will default to the users shell!
 		cmd, err := a.sshServer.CreateCommand(ctx, msg.Command, nil)
@@ -1055,7 +1029,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 			return xerrors.Errorf("start command: %w", err)
 		}
 
-		ctx, cancelFunc := context.WithCancel(ctx)
+		ctx, cancel := context.WithCancel(ctx)
 		rpty = &reconnectingPTY{
 			activeConns: map[string]net.Conn{
 				// We have to put the connection in the map instantly otherwise
@@ -1064,10 +1038,9 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 			},
 			ptty: ptty,
 			// Timeouts created with an after func can be reset!
-			timeout:        time.AfterFunc(a.reconnectingPTYTimeout, cancelFunc),
+			timeout:        time.AfterFunc(a.reconnectingPTYTimeout, cancel),
 			circularBuffer: circularBuffer,
 		}
-		a.reconnectingPTYs.Store(msg.ID, rpty)
 		// We don't need to separately monitor for the process exiting.
 		// When it exits, our ptty.OutputReader() will return EOF after
 		// reading all process output.
@@ -1079,9 +1052,9 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 					// When the PTY is closed, this is triggered.
 					// Error is typically a benign EOF, so only log for debugging.
 					if errors.Is(err, io.EOF) {
-						logger.Debug(ctx, "unable to read pty output, command exited?", slog.Error(err))
+						logger.Debug(ctx, "unable to read pty output, command might have exited", slog.Error(err))
 					} else {
-						logger.Warn(ctx, "unable to read pty output, command exited?", slog.Error(err))
+						logger.Warn(ctx, "unable to read pty output, command might have exited", slog.Error(err))
 						a.metrics.reconnectingPTYErrors.WithLabelValues("output_reader").Add(1)
 					}
 					break
@@ -1115,14 +1088,18 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 			rpty.Close()
 			a.reconnectingPTYs.Delete(msg.ID)
 		}); err != nil {
+			_ = process.Kill()
+			_ = ptty.Close()
 			return xerrors.Errorf("start routine: %w", err)
 		}
+		connected = true
+		sendConnected <- rpty
 	}
 	// Resize the PTY to initial height + width.
 	err := rpty.ptty.Resize(msg.Height, msg.Width)
 	if err != nil {
 		// We can continue after this, it's not fatal!
-		logger.Error(ctx, "resize", slog.Error(err))
+		logger.Error(ctx, "reconnecting PTY initial resize failed, but will continue", slog.Error(err))
 		a.metrics.reconnectingPTYErrors.WithLabelValues("resize").Add(1)
 	}
 	// Write any previously stored data for the TTY.
@@ -1181,12 +1158,12 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 			return nil
 		}
 		if err != nil {
-			logger.Warn(ctx, "read conn", slog.Error(err))
+			logger.Warn(ctx, "reconnecting PTY failed with read error", slog.Error(err))
 			return nil
 		}
 		_, err = rpty.ptty.InputWriter().Write([]byte(req.Data))
 		if err != nil {
-			logger.Warn(ctx, "write to pty", slog.Error(err))
+			logger.Warn(ctx, "reconnecting PTY failed with write error", slog.Error(err))
 			a.metrics.reconnectingPTYErrors.WithLabelValues("input_writer").Add(1)
 			return nil
 		}
@@ -1197,7 +1174,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 		err = rpty.ptty.Resize(req.Height, req.Width)
 		if err != nil {
 			// We can continue after this, it's not fatal!
-			logger.Error(ctx, "resize", slog.Error(err))
+			logger.Error(ctx, "reconnecting PTY resize failed, but will continue", slog.Error(err))
 			a.metrics.reconnectingPTYErrors.WithLabelValues("resize").Add(1)
 		}
 	}
@@ -1294,7 +1271,7 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 		)
 	})
 	if err != nil {
-		a.logger.Error(ctx, "report stats", slog.Error(err))
+		a.logger.Error(ctx, "agent failed to report stats", slog.Error(err))
 	} else {
 		if err = a.trackConnGoroutine(func() {
 			// This is OK because the agent never re-creates the tailnet
@@ -1360,7 +1337,6 @@ func (a *agent) Close() error {
 	lifecycleState := codersdk.WorkspaceAgentLifecycleOff
 	if manifest := a.manifest.Load(); manifest != nil && manifest.ShutdownScript != "" {
 		scriptDone := make(chan error, 1)
-		scriptStart := time.Now()
 		go func() {
 			defer close(scriptDone)
 			scriptDone <- a.runShutdownScript(ctx, manifest.ShutdownScript)
@@ -1379,16 +1355,12 @@ func (a *agent) Close() error {
 		select {
 		case err = <-scriptDone:
 		case <-timeout:
-			a.logger.Warn(ctx, "shutdown script timed out")
+			a.logger.Warn(ctx, "script timed out", slog.F("lifecycle", "shutdown"), slog.F("timeout", manifest.ShutdownScriptTimeout))
 			a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleShutdownTimeout)
 			err = <-scriptDone // The script can still complete after a timeout.
 		}
-		execTime := time.Since(scriptStart)
 		if err != nil {
-			a.logger.Warn(ctx, "shutdown script failed", slog.F("execution_time", execTime), slog.Error(err))
 			lifecycleState = codersdk.WorkspaceAgentLifecycleShutdownError
-		} else {
-			a.logger.Info(ctx, "shutdown script completed", slog.F("execution_time", execTime))
 		}
 	}
 

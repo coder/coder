@@ -111,6 +111,7 @@ RichParameters.args = {
           icon: "/emojis/1f1e6-1f1fa.png",
         },
       ],
+      ephemeral: false,
     },
   ],
   createWorkspaceErrors: {},

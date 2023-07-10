@@ -50,11 +50,11 @@ func ValidateWorkspaceBuildParameter(richParameter TemplateVersionParameter, bui
 		switch richParameter.ValidationMonotonic {
 		case MonotonicOrderIncreasing:
 			if lastBuildParameter.Value > buildParameter.Value {
-				return xerrors.Errorf("parameter value must be equal or greater than previous value: %s", lastBuildParameter.Value)
+				return xerrors.Errorf("Parameter value must be equal or greater than previous value: %s", lastBuildParameter.Value)
 			}
 		case MonotonicOrderDecreasing:
 			if lastBuildParameter.Value < buildParameter.Value {
-				return xerrors.Errorf("parameter value must be equal or lower than previous value: %s", lastBuildParameter.Value)
+				return xerrors.Errorf("Parameter value must be equal or lower than previous value: %s", lastBuildParameter.Value)
 			}
 		}
 	}
@@ -69,7 +69,7 @@ func ValidateWorkspaceBuildParameter(richParameter TemplateVersionParameter, bui
 		}
 
 		if !matched {
-			return xerrors.Errorf("parameter value must match one of options: %s", parameterValuesAsArray(richParameter.Options))
+			return xerrors.Errorf("Parameter value must match one of options: %s", parameterValuesAsArray(richParameter.Options))
 		}
 		return nil
 	}
@@ -148,8 +148,8 @@ func (r *ParameterResolver) ValidateResolve(p TemplateVersionParameter, v *Works
 	}
 	// First, the provided value
 	resolvedValue := v
-	// Second, previous value
-	if resolvedValue == nil {
+	// Second, previous value if not ephemeral
+	if resolvedValue == nil && !p.Ephemeral {
 		resolvedValue = prevV
 	}
 	// Last, default value

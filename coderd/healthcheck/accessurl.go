@@ -8,29 +8,33 @@ import (
 	"time"
 
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/coderd/util/ptr"
 )
 
 type AccessURLReport struct {
-	Healthy         bool   `json:"healthy"`
-	Reachable       bool   `json:"reachable"`
-	StatusCode      int    `json:"status_code"`
-	HealthzResponse string `json:"healthz_response"`
-	Error           error  `json:"error"`
+	AccessURL       string  `json:"access_url"`
+	Healthy         bool    `json:"healthy"`
+	Reachable       bool    `json:"reachable"`
+	StatusCode      int     `json:"status_code"`
+	HealthzResponse string  `json:"healthz_response"`
+	Error           *string `json:"error"`
 }
 
-type AccessURLOptions struct {
+type AccessURLReportOptions struct {
 	AccessURL *url.URL
 	Client    *http.Client
 }
 
-func (r *AccessURLReport) Run(ctx context.Context, opts *AccessURLOptions) {
+func (r *AccessURLReport) Run(ctx context.Context, opts *AccessURLReportOptions) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	if opts.AccessURL == nil {
-		r.Error = xerrors.New("access URL is nil")
+		r.Error = ptr.Ref("access URL is nil")
 		return
 	}
+	r.AccessURL = opts.AccessURL.String()
 
 	if opts.Client == nil {
 		opts.Client = http.DefaultClient
@@ -38,26 +42,26 @@ func (r *AccessURLReport) Run(ctx context.Context, opts *AccessURLOptions) {
 
 	accessURL, err := opts.AccessURL.Parse("/healthz")
 	if err != nil {
-		r.Error = xerrors.Errorf("parse healthz endpoint: %w", err)
+		r.Error = convertError(xerrors.Errorf("parse healthz endpoint: %w", err))
 		return
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "GET", accessURL.String(), nil)
 	if err != nil {
-		r.Error = xerrors.Errorf("create healthz request: %w", err)
+		r.Error = convertError(xerrors.Errorf("create healthz request: %w", err))
 		return
 	}
 
 	res, err := opts.Client.Do(req)
 	if err != nil {
-		r.Error = xerrors.Errorf("get healthz endpoint: %w", err)
+		r.Error = convertError(xerrors.Errorf("get healthz endpoint: %w", err))
 		return
 	}
 	defer res.Body.Close()
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
-		r.Error = xerrors.Errorf("read healthz response: %w", err)
+		r.Error = convertError(xerrors.Errorf("read healthz response: %w", err))
 		return
 	}
 

@@ -36,19 +36,16 @@ import (
 	"tailscale.com/types/key"
 	"tailscale.com/util/singleflight"
 
-	"cdr.dev/slog"
-
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/codersdk/agentsdk"
-
 	// Used for swagger docs.
 	_ "github.com/coder/coder/coderd/apidoc"
+
+	"cdr.dev/slog"
+	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/awsidentity"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/database/dbmetrics"
-	"github.com/coder/coder/coderd/database/dbtype"
+	"github.com/coder/coder/coderd/database/pubsub"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/healthcheck"
@@ -65,6 +62,7 @@ import (
 	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/coderd/wsconncache"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/provisionerd/proto"
 	"github.com/coder/coder/provisionersdk"
 	"github.com/coder/coder/site"
@@ -96,7 +94,7 @@ type Options struct {
 	AppHostnameRegex *regexp.Regexp
 	Logger           slog.Logger
 	Database         database.Store
-	Pubsub           database.Pubsub
+	Pubsub           pubsub.Pubsub
 
 	// CacheDir is used for caching files served by the API.
 	CacheDir string
@@ -133,6 +131,11 @@ type Options struct {
 	HealthcheckFunc    func(ctx context.Context, apiKey string) *healthcheck.Report
 	HealthcheckTimeout time.Duration
 	HealthcheckRefresh time.Duration
+
+	// OAuthSigningKey is the crypto key used to sign and encrypt state strings
+	// related to OAuth. This is a symmetric secret key using hmac to sign payloads.
+	// So this secret should **never** be exposed to the client.
+	OAuthSigningKey [32]byte
 
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
 	// Setting a rate limit <0 will disable the rate limiter across the entire
@@ -191,10 +194,6 @@ func New(options *Options) *API {
 	if options.Authorizer == nil {
 		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
 	}
-	// The below are no-ops if already wrapped.
-	if options.PrometheusRegistry != nil {
-		options.Database = dbmetrics.New(options.Database, options.PrometheusRegistry)
-	}
 	options.Database = dbauthz.New(
 		options.Database,
 		options.Authorizer,
@@ -251,9 +250,9 @@ func New(options *Options) *API {
 		options.TracerProvider = trace.NewNoopTracerProvider()
 	}
 	if options.SetUserGroups == nil {
-		options.SetUserGroups = func(ctx context.Context, _ database.Store, id uuid.UUID, groups []string) error {
+		options.SetUserGroups = func(ctx context.Context, _ database.Store, userID uuid.UUID, groups []string) error {
 			options.Logger.Warn(ctx, "attempted to assign OIDC groups without enterprise license",
-				slog.F("id", id), slog.F("groups", groups),
+				slog.F("user_id", userID), slog.F("groups", groups),
 			)
 			return nil
 		}
@@ -268,6 +267,7 @@ func New(options *Options) *API {
 	if options.HealthcheckFunc == nil {
 		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *healthcheck.Report {
 			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
+				DB:        options.Database,
 				AccessURL: options.AccessURL,
 				DERPMap:   options.DERPMap.Clone(),
 				APIKey:    apiKey,
@@ -299,27 +299,37 @@ func New(options *Options) *API {
 		},
 	)
 
-	staticHandler := site.Handler(site.FS(), binFS, binHashes)
-	// Static file handler must be wrapped with HSTS handler if the
-	// StrictTransportSecurityAge is set. We only need to set this header on
-	// static files since it only affects browsers.
-	staticHandler = httpmw.HSTS(staticHandler, options.StrictTransportSecurityCfg)
-
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
 		OIDC:   options.OIDCConfig,
 	}
 
+	staticHandler := site.New(&site.Options{
+		BinFS:         binFS,
+		BinHashes:     binHashes,
+		Database:      options.Database,
+		SiteFS:        site.FS(),
+		OAuth2Configs: oauthConfigs,
+	})
+	staticHandler.Experiments.Store(&experiments)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	r := chi.NewRouter()
+
+	// nolint:gocritic // Load deployment ID. This never changes
+	depID, err := options.Database.GetDeploymentID(dbauthz.AsSystemRestricted(ctx))
+	if err != nil {
+		panic(xerrors.Errorf("get deployment ID: %w", err))
+	}
 	api := &API{
-		ctx:    ctx,
-		cancel: cancel,
+		ctx:          ctx,
+		cancel:       cancel,
+		DeploymentID: depID,
 
 		ID:          uuid.New(),
 		Options:     options,
 		RootHandler: r,
-		siteHandler: staticHandler,
+		SiteHandler: staticHandler,
 		HTTPAuth: &HTTPAuthorizer{
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
@@ -458,17 +468,23 @@ func New(options *Options) *API {
 		})
 	})
 
+	// Register callback handlers for each OAuth2 provider.
 	r.Route("/gitauth", func(r chi.Router) {
 		for _, gitAuthConfig := range options.GitAuthConfigs {
-			r.Route(fmt.Sprintf("/%s", gitAuthConfig.ID), func(r chi.Router) {
+			// We don't need to register a callback handler for device auth.
+			if gitAuthConfig.DeviceAuth != nil {
+				continue
+			}
+			r.Route(fmt.Sprintf("/%s/callback", gitAuthConfig.ID), func(r chi.Router) {
 				r.Use(
-					httpmw.ExtractOAuth2(gitAuthConfig, options.HTTPClient, nil),
 					apiKeyMiddlewareRedirect,
+					httpmw.ExtractOAuth2(gitAuthConfig, options.HTTPClient, nil),
 				)
-				r.Get("/callback", api.gitAuthCallback(gitAuthConfig))
+				r.Get("/", api.gitAuthCallback(gitAuthConfig))
 			})
 		}
 	})
+
 	r.Route("/api/v2", func(r chi.Router) {
 		api.APIHandler = r
 
@@ -515,6 +531,15 @@ func New(options *Options) *API {
 			)
 			r.Get("/{fileID}", api.fileByID)
 			r.Post("/", api.postFile)
+		})
+		r.Route("/gitauth/{gitauth}", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractGitAuthParam(options.GitAuthConfigs),
+			)
+			r.Get("/", api.gitAuthByID)
+			r.Post("/device", api.postGitAuthDeviceByID)
+			r.Get("/device", api.gitAuthDeviceByID)
 		})
 		r.Route("/organizations", func(r chi.Router) {
 			r.Use(
@@ -596,6 +621,7 @@ func New(options *Options) *API {
 			r.Get("/first", api.firstUser)
 			r.Post("/first", api.postFirstUser)
 			r.Get("/authmethods", api.userAuthMethods)
+
 			r.Group(func(r chi.Router) {
 				// We use a tight limit for password login to protect against
 				// audit-log write DoS, pbkdf2 DoS, and simple brute-force
@@ -606,12 +632,18 @@ func New(options *Options) *API {
 				r.Post("/login", api.postLogin)
 				r.Route("/oauth2", func(r chi.Router) {
 					r.Route("/github", func(r chi.Router) {
-						r.Use(httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient, nil))
+						r.Use(
+							httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient, nil),
+							apiKeyMiddlewareOptional,
+						)
 						r.Get("/callback", api.userOAuth2Github)
 					})
 				})
 				r.Route("/oidc/callback", func(r chi.Router) {
-					r.Use(httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient, oidcAuthURLParams))
+					r.Use(
+						httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient, oidcAuthURLParams),
+						apiKeyMiddlewareOptional,
+					)
 					r.Get("/", api.userOIDC)
 				})
 			})
@@ -628,8 +660,10 @@ func New(options *Options) *API {
 				})
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database, false))
+					r.Post("/convert-login", api.postConvertLoginType)
 					r.Delete("/", api.deleteUser)
 					r.Get("/", api.userByName)
+					r.Get("/login-type", api.userLoginType)
 					r.Put("/profile", api.putUserProfile)
 					r.Route("/status", func(r chi.Router) {
 						r.Put("/suspend", api.putSuspendUserAccount())
@@ -675,8 +709,12 @@ func New(options *Options) *API {
 			r.Post("/azure-instance-identity", api.postWorkspaceAuthAzureInstanceIdentity)
 			r.Post("/aws-instance-identity", api.postWorkspaceAuthAWSInstanceIdentity)
 			r.Post("/google-instance-identity", api.postWorkspaceAuthGoogleInstanceIdentity)
+			r.Get("/connection", api.workspaceAgentConnectionGeneric)
 			r.Route("/me", func(r chi.Router) {
-				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
+				r.Use(httpmw.ExtractWorkspaceAgent(httpmw.ExtractWorkspaceAgentConfig{
+					DB:       options.Database,
+					Optional: false,
+				}))
 				r.Get("/manifest", api.workspaceAgentManifest)
 				// This route is deprecated and will be removed in a future release.
 				// New agents will use /me/manifest instead.
@@ -737,6 +775,7 @@ func New(options *Options) *API {
 				})
 				r.Get("/watch", api.watchWorkspace)
 				r.Put("/extend", api.putExtendWorkspace)
+				r.Put("/lock", api.putWorkspaceLock)
 			})
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {
@@ -819,7 +858,11 @@ func New(options *Options) *API {
 		// By default we do not add extra websocket connections to the CSP
 		return []string{}
 	})
-	r.NotFound(cspMW(compressHandler(http.HandlerFunc(api.siteHandler.ServeHTTP))).ServeHTTP)
+
+	// Static file handler must be wrapped with HSTS handler if the
+	// StrictTransportSecurityAge is set. We only need to set this header on
+	// static files since it only affects browsers.
+	r.NotFound(cspMW(compressHandler(httpmw.HSTS(api.SiteHandler, options.StrictTransportSecurityCfg))).ServeHTTP)
 
 	// This must be before all middleware to improve the response time.
 	// So make a new router, and mount the old one as the root.
@@ -839,6 +882,9 @@ type API struct {
 	// interruptible tasks.
 	ctx    context.Context
 	cancel context.CancelFunc
+
+	// DeploymentID is loaded from the database on startup.
+	DeploymentID string
 
 	*Options
 	// ID is a uniquely generated ID on initialization.
@@ -864,7 +910,8 @@ type API struct {
 	// RootHandler serves "/"
 	RootHandler chi.Router
 
-	siteHandler http.Handler
+	// SiteHandler serves static files for the dashboard.
+	SiteHandler *site.Handler
 
 	WebsocketWaitMutex sync.Mutex
 	WebsocketWaitGroup sync.WaitGroup
@@ -948,7 +995,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 		CreatedAt:    database.Now(),
 		Name:         name,
 		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho, database.ProvisionerTypeTerraform},
-		Tags: dbtype.StringMap{
+		Tags: database.StringMap{
 			provisionerdserver.TagScope: provisionerdserver.ScopeOrganization,
 		},
 	})

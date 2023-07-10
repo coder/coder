@@ -42,13 +42,13 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>rename</code>](./cli/rename.md)                 | Rename a workspace                                                     |
 | [<code>reset-password</code>](./cli/reset-password.md) | Directly connect to the database to reset a user's password            |
 | [<code>restart</code>](./cli/restart.md)               | Restart a workspace                                                    |
-| [<code>scaletest</code>](./cli/scaletest.md)           | Run a scale test against the Coder API                                 |
 | [<code>schedule</code>](./cli/schedule.md)             | Schedule automated start and stop times for workspaces                 |
 | [<code>server</code>](./cli/server.md)                 | Start a Coder server                                                   |
 | [<code>show</code>](./cli/show.md)                     | Display details of a workspace's resources and agents                  |
 | [<code>speedtest</code>](./cli/speedtest.md)           | Run upload and download tests from your machine to a workspace         |
 | [<code>ssh</code>](./cli/ssh.md)                       | Start a shell into a workspace                                         |
 | [<code>start</code>](./cli/start.md)                   | Start a workspace                                                      |
+| [<code>stat</code>](./cli/stat.md)                     | Show resource usage for the current workspace.                         |
 | [<code>state</code>](./cli/state.md)                   | Manually manage Terraform state to fix broken workspaces               |
 | [<code>stop</code>](./cli/stop.md)                     | Stop a workspace                                                       |
 | [<code>templates</code>](./cli/templates.md)           | Manage templates                                                       |
@@ -66,6 +66,15 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | Type | <code>bool</code> |
 
 Print all options, how they're set, then exit.
+
+### --disable-direct-connections
+
+|             |                                                |
+| ----------- | ---------------------------------------------- |
+| Type        | <code>bool</code>                              |
+| Environment | <code>$CODER_DISABLE_DIRECT_CONNECTIONS</code> |
+
+Disable direct (P2P) connections to workspaces.
 
 ### --global-config
 

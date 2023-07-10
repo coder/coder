@@ -30,6 +30,7 @@ storybook-static/
 test-results/*
 e2e/test-results/*
 e2e/states/*.json
+e2e/.auth.json
 playwright-report/*
 .swc
 dist/
@@ -74,3 +75,6 @@ stats/
 
 # Testdata shouldn't be formatted.
 ../scripts/apitypings/testdata/**/*.ts
+
+# Generated files shouldn't be formatted.
+e2e/provisionerGenerated.ts

@@ -77,7 +77,7 @@ export const useValidationSchemaForRichParameters = (
                       path: ctx.path,
                       message: t("validationNumberLesserThan", {
                         min: templateParameter.validation_min,
-                      }),
+                      }).toString(),
                     })
                   }
                 } else if (
@@ -89,7 +89,7 @@ export const useValidationSchemaForRichParameters = (
                       path: ctx.path,
                       message: t("validationNumberGreaterThan", {
                         max: templateParameter.validation_max,
-                      }),
+                      }).toString(),
                     })
                   }
                 } else if (
@@ -105,7 +105,7 @@ export const useValidationSchemaForRichParameters = (
                       message: t("validationNumberNotInRange", {
                         min: templateParameter.validation_min,
                         max: templateParameter.validation_max,
-                      }),
+                      }).toString(),
                     })
                   }
                 }
@@ -125,7 +125,7 @@ export const useValidationSchemaForRichParameters = (
                             path: ctx.path,
                             message: t("validationNumberNotIncreasing", {
                               last: lastBuildParameter.value,
-                            }),
+                            }).toString(),
                           })
                         }
                         break
@@ -135,7 +135,7 @@ export const useValidationSchemaForRichParameters = (
                             path: ctx.path,
                             message: t("validationNumberNotDecreasing", {
                               last: lastBuildParameter.value,
-                            }),
+                            }).toString(),
                           })
                         }
                         break
@@ -159,7 +159,7 @@ export const useValidationSchemaForRichParameters = (
                       message: t("validationPatternNotMatched", {
                         error: templateParameter.validation_error,
                         pattern: templateParameter.validation_regex,
-                      }),
+                      }).toString(),
                     })
                   }
                 }

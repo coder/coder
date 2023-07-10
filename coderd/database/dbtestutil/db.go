@@ -11,14 +11,20 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/database/postgres"
+	"github.com/coder/coder/coderd/database/pubsub"
 )
 
-func NewDB(t testing.TB) (database.Store, database.Pubsub) {
+// WillUsePostgres returns true if a call to NewDB() will return a real, postgres-backed Store and Pubsub.
+func WillUsePostgres() bool {
+	return os.Getenv("DB") != ""
+}
+
+func NewDB(t testing.TB) (database.Store, pubsub.Pubsub) {
 	t.Helper()
 
 	db := dbfake.New()
-	pubsub := database.NewPubsubInMemory()
-	if os.Getenv("DB") != "" {
+	ps := pubsub.NewInMemory()
+	if WillUsePostgres() {
 		connectionURL := os.Getenv("CODER_PG_CONNECTION_URL")
 		if connectionURL == "" {
 			var (
@@ -36,12 +42,12 @@ func NewDB(t testing.TB) (database.Store, database.Pubsub) {
 		})
 		db = database.New(sqlDB)
 
-		pubsub, err = database.NewPubsub(context.Background(), sqlDB, connectionURL)
+		ps, err = pubsub.New(context.Background(), sqlDB, connectionURL)
 		require.NoError(t, err)
 		t.Cleanup(func() {
-			_ = pubsub.Close()
+			_ = ps.Close()
 		})
 	}
 
-	return db, pubsub
+	return db, ps
 }

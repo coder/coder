@@ -44,8 +44,8 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	templateVersion := httpmw.TemplateVersionParam(r)
 
-	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
-	if err != nil {
+	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, []uuid.UUID{templateVersion.JobID})
+	if err != nil || len(jobs) == 0 {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job.",
 			Detail:  err.Error(),
@@ -62,7 +62,7 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	schemas, err := api.Database.GetParameterSchemasByJobID(ctx, job.ID)
+	schemas, err := api.Database.GetParameterSchemasByJobID(ctx, jobs[0].ProvisionerJob.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
@@ -79,7 +79,7 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 		warnings = append(warnings, codersdk.TemplateVersionWarningUnsupportedWorkspaces)
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), user, warnings))
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(jobs[0]), user, warnings))
 }
 
 // @Summary Patch template version by ID
@@ -155,8 +155,8 @@ func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
-	if err != nil {
+	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, []uuid.UUID{templateVersion.JobID})
+	if err != nil || len(jobs) == 0 {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job.",
 			Detail:  err.Error(),
@@ -173,7 +173,7 @@ func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(updatedTemplateVersion, convertProvisionerJob(job), user, nil))
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(updatedTemplateVersion, convertProvisionerJob(jobs[0]), user, nil))
 }
 
 // @Summary Cancel template version by ID
@@ -320,14 +320,6 @@ func (api *API) templateVersionGitAuth(rw http.ResponseWriter, r *http.Request) 
 			})
 			return
 		}
-		query := redirectURL.Query()
-		// The frontend uses a BroadcastChannel to notify listening pages for
-		// Git auth updates if the "notify" query parameter is set.
-		//
-		// It's important we do this in the backend, because the same endpoint
-		// is used for CLI authentication.
-		query.Add("redirect", "/gitauth?notify")
-		redirectURL.RawQuery = query.Encode()
 
 		provider := codersdk.TemplateVersionGitAuth{
 			ID:              config.ID,
@@ -517,7 +509,10 @@ func (api *API) postTemplateVersionDryRun(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusCreated, convertProvisionerJob(provisionerJob))
+	httpapi.Write(ctx, rw, http.StatusCreated, convertProvisionerJob(database.GetProvisionerJobsByIDsWithQueuePositionRow{
+		ProvisionerJob: provisionerJob,
+		QueuePosition:  0,
+	}))
 }
 
 // @Summary Get template version dry-run by job ID
@@ -554,7 +549,7 @@ func (api *API) templateVersionDryRunResources(rw http.ResponseWriter, r *http.R
 		return
 	}
 
-	api.provisionerJobResources(rw, r, job)
+	api.provisionerJobResources(rw, r, job.ProvisionerJob)
 }
 
 // @Summary Get template version dry-run logs by job ID
@@ -575,7 +570,7 @@ func (api *API) templateVersionDryRunLogs(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	api.provisionerJobLogs(rw, r, job)
+	api.provisionerJobLogs(rw, r, job.ProvisionerJob)
 }
 
 // @Summary Cancel template version dry-run by job ID
@@ -596,18 +591,18 @@ func (api *API) patchTemplateVersionDryRunCancel(rw http.ResponseWriter, r *http
 		return
 	}
 	if !api.Authorize(r, rbac.ActionUpdate,
-		rbac.ResourceWorkspace.InOrg(templateVersion.OrganizationID).WithOwner(job.InitiatorID.String())) {
+		rbac.ResourceWorkspace.InOrg(templateVersion.OrganizationID).WithOwner(job.ProvisionerJob.InitiatorID.String())) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
 
-	if job.CompletedAt.Valid {
+	if job.ProvisionerJob.CompletedAt.Valid {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Job has already completed.",
 		})
 		return
 	}
-	if job.CanceledAt.Valid {
+	if job.ProvisionerJob.CanceledAt.Valid {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Job has already been marked as canceled.",
 		})
@@ -615,7 +610,7 @@ func (api *API) patchTemplateVersionDryRunCancel(rw http.ResponseWriter, r *http
 	}
 
 	err := api.Database.UpdateProvisionerJobWithCancelByID(ctx, database.UpdateProvisionerJobWithCancelByIDParams{
-		ID: job.ID,
+		ID: job.ProvisionerJob.ID,
 		CanceledAt: sql.NullTime{
 			Time:  database.Now(),
 			Valid: true,
@@ -623,7 +618,7 @@ func (api *API) patchTemplateVersionDryRunCancel(rw http.ResponseWriter, r *http
 		CompletedAt: sql.NullTime{
 			Time: database.Now(),
 			// If the job is running, don't mark it completed!
-			Valid: !job.WorkerID.Valid,
+			Valid: !job.ProvisionerJob.WorkerID.Valid,
 		},
 	})
 	if err != nil {
@@ -639,7 +634,7 @@ func (api *API) patchTemplateVersionDryRunCancel(rw http.ResponseWriter, r *http
 	})
 }
 
-func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Request) (database.ProvisionerJob, bool) {
+func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Request) (database.GetProvisionerJobsByIDsWithQueuePositionRow, bool) {
 	var (
 		ctx             = r.Context()
 		templateVersion = httpmw.TemplateVersionParam(r)
@@ -652,48 +647,49 @@ func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Re
 			Message: fmt.Sprintf("Job ID %q must be a valid UUID.", jobID),
 			Detail:  err.Error(),
 		})
-		return database.ProvisionerJob{}, false
+		return database.GetProvisionerJobsByIDsWithQueuePositionRow{}, false
 	}
 
-	job, err := api.Database.GetProvisionerJobByID(ctx, jobUUID)
+	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, []uuid.UUID{jobUUID})
 	if httpapi.Is404Error(err) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: fmt.Sprintf("Provisioner job %q not found.", jobUUID),
 		})
-		return database.ProvisionerJob{}, false
+		return database.GetProvisionerJobsByIDsWithQueuePositionRow{}, false
 	}
-	if err != nil {
+	if err != nil || len(jobs) == 0 {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job.",
 			Detail:  err.Error(),
 		})
-		return database.ProvisionerJob{}, false
+		return database.GetProvisionerJobsByIDsWithQueuePositionRow{}, false
 	}
-	if job.Type != database.ProvisionerJobTypeTemplateVersionDryRun {
+	job := jobs[0]
+	if job.ProvisionerJob.Type != database.ProvisionerJobTypeTemplateVersionDryRun {
 		httpapi.Forbidden(rw)
-		return database.ProvisionerJob{}, false
+		return database.GetProvisionerJobsByIDsWithQueuePositionRow{}, false
 	}
 
 	// Do a workspace resource check since it's basically a workspace dry-run.
 	if !api.Authorize(r, rbac.ActionRead,
-		rbac.ResourceWorkspace.InOrg(templateVersion.OrganizationID).WithOwner(job.InitiatorID.String())) {
+		rbac.ResourceWorkspace.InOrg(templateVersion.OrganizationID).WithOwner(job.ProvisionerJob.InitiatorID.String())) {
 		httpapi.Forbidden(rw)
-		return database.ProvisionerJob{}, false
+		return database.GetProvisionerJobsByIDsWithQueuePositionRow{}, false
 	}
 
 	// Verify that the template version is the one used in the request.
 	var input provisionerdserver.TemplateVersionDryRunJob
-	err = json.Unmarshal(job.Input, &input)
+	err = json.Unmarshal(job.ProvisionerJob.Input, &input)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error unmarshalling job metadata.",
 			Detail:  err.Error(),
 		})
-		return database.ProvisionerJob{}, false
+		return database.GetProvisionerJobsByIDsWithQueuePositionRow{}, false
 	}
 	if input.TemplateVersionID != templateVersion.ID {
 		httpapi.Forbidden(rw)
-		return database.ProvisionerJob{}, false
+		return database.GetProvisionerJobsByIDsWithQueuePositionRow{}, false
 	}
 
 	return job, true
@@ -762,7 +758,7 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 		for _, version := range versions {
 			jobIDs = append(jobIDs, version.JobID)
 		}
-		jobs, err := store.GetProvisionerJobsByIDs(ctx, jobIDs)
+		jobs, err := store.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching provisioner job.",
@@ -770,9 +766,9 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 			})
 			return err
 		}
-		jobByID := map[string]database.ProvisionerJob{}
+		jobByID := map[string]database.GetProvisionerJobsByIDsWithQueuePositionRow{}
 		for _, job := range jobs {
-			jobByID[job.ID.String()] = job
+			jobByID[job.ProvisionerJob.ID.String()] = job
 		}
 
 		for _, version := range versions {
@@ -837,8 +833,8 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
-	if err != nil {
+	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, []uuid.UUID{templateVersion.JobID})
+	if err != nil || len(jobs) == 0 {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job.",
 			Detail:  err.Error(),
@@ -855,7 +851,7 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), user, nil))
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(jobs[0]), user, nil))
 }
 
 // @Summary Get template version by organization, template, and name
@@ -911,8 +907,8 @@ func (api *API) templateVersionByOrganizationTemplateAndName(rw http.ResponseWri
 		})
 		return
 	}
-	job, err := api.Database.GetProvisionerJobByID(ctx, templateVersion.JobID)
-	if err != nil {
+	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, []uuid.UUID{templateVersion.JobID})
+	if err != nil || len(jobs) == 0 {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job.",
 			Detail:  err.Error(),
@@ -929,7 +925,7 @@ func (api *API) templateVersionByOrganizationTemplateAndName(rw http.ResponseWri
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(job), user, nil))
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(jobs[0]), user, nil))
 }
 
 // @Summary Get previous template version by organization, template, and name
@@ -1006,8 +1002,8 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 		return
 	}
 
-	job, err := api.Database.GetProvisionerJobByID(ctx, previousTemplateVersion.JobID)
-	if err != nil {
+	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, []uuid.UUID{previousTemplateVersion.JobID})
+	if err != nil || len(jobs) == 0 {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job.",
 			Detail:  err.Error(),
@@ -1024,7 +1020,7 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(previousTemplateVersion, convertProvisionerJob(job), user, nil))
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(previousTemplateVersion, convertProvisionerJob(jobs[0]), user, nil))
 }
 
 // @Summary Update active template version by template ID
@@ -1336,7 +1332,10 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusCreated, convertTemplateVersion(templateVersion, convertProvisionerJob(provisionerJob), user, nil))
+	httpapi.Write(ctx, rw, http.StatusCreated, convertTemplateVersion(templateVersion, convertProvisionerJob(database.GetProvisionerJobsByIDsWithQueuePositionRow{
+		ProvisionerJob: provisionerJob,
+		QueuePosition:  0,
+	}), user, nil))
 }
 
 // templateVersionResources returns the workspace agent resources associated
@@ -1485,7 +1484,7 @@ func convertTemplateVersionParameter(param database.TemplateVersionParameter) (c
 		ValidationError:      param.ValidationError,
 		ValidationMonotonic:  codersdk.ValidationMonotonicOrder(param.ValidationMonotonic),
 		Required:             param.Required,
-		LegacyVariableName:   param.LegacyVariableName,
+		Ephemeral:            param.Ephemeral,
 	}, nil
 }
 

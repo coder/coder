@@ -29,6 +29,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/agent/usershell"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/pty"
 )
@@ -63,9 +64,10 @@ type Server struct {
 	srv          *ssh.Server
 	x11SocketDir string
 
-	Env        map[string]string
-	AgentToken func() string
-	Manifest   *atomic.Pointer[agentsdk.Manifest]
+	Env           map[string]string
+	AgentToken    func() string
+	Manifest      *atomic.Pointer[agentsdk.Manifest]
+	ServiceBanner *atomic.Pointer[codersdk.ServiceBannerConfig]
 
 	connCountVSCode     atomic.Int64
 	connCountJetBrains  atomic.Int64
@@ -105,23 +107,32 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		metrics: metrics,
 	}
 
-	s.srv = &ssh.Server{
+	srv := &ssh.Server{
 		ChannelHandlers: map[string]ssh.ChannelHandler{
 			"direct-tcpip":                   ssh.DirectTCPIPHandler,
 			"direct-streamlocal@openssh.com": directStreamLocalHandler,
 			"session":                        ssh.DefaultSessionHandler,
 		},
-		ConnectionFailedCallback: func(_ net.Conn, err error) {
-			s.logger.Warn(ctx, "ssh connection failed", slog.Error(err))
+		ConnectionFailedCallback: func(conn net.Conn, err error) {
+			s.logger.Warn(ctx, "ssh connection failed",
+				slog.F("remote_addr", conn.RemoteAddr()),
+				slog.F("local_addr", conn.LocalAddr()),
+				slog.Error(err))
 			metrics.failedConnectionsTotal.Add(1)
+		},
+		ConnectionCompleteCallback: func(conn *gossh.ServerConn, err error) {
+			s.logger.Info(ctx, "ssh connection complete",
+				slog.F("remote_addr", conn.RemoteAddr()),
+				slog.F("local_addr", conn.LocalAddr()),
+				slog.Error(err))
 		},
 		Handler:     s.sessionHandler,
 		HostSigners: []ssh.Signer{randomSigner},
 		LocalPortForwardingCallback: func(ctx ssh.Context, destinationHost string, destinationPort uint32) bool {
 			// Allow local port forwarding all!
 			s.logger.Debug(ctx, "local port forward",
-				slog.F("destination-host", destinationHost),
-				slog.F("destination-port", destinationPort))
+				slog.F("destination_host", destinationHost),
+				slog.F("destination_port", destinationPort))
 			return true
 		},
 		PtyCallback: func(ctx ssh.Context, pty ssh.Pty) bool {
@@ -130,8 +141,8 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		ReversePortForwardingCallback: func(ctx ssh.Context, bindHost string, bindPort uint32) bool {
 			// Allow reverse port forwarding all!
 			s.logger.Debug(ctx, "local port forward",
-				slog.F("bind-host", bindHost),
-				slog.F("bind-port", bindPort))
+				slog.F("bind_host", bindHost),
+				slog.F("bind_port", bindPort))
 			return true
 		},
 		RequestHandlers: map[string]ssh.RequestHandler{
@@ -149,9 +160,19 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		SubsystemHandlers: map[string]ssh.SubsystemHandler{
 			"sftp": s.sessionHandler,
 		},
-		MaxTimeout: maxTimeout,
 	}
 
+	// The MaxTimeout functionality has been substituted with the introduction of the KeepAlive feature.
+	// In cases where very short timeouts are set, the SSH server will automatically switch to the connection timeout for both read and write operations.
+	if maxTimeout >= 3*time.Second {
+		srv.ClientAliveCountMax = 3
+		srv.ClientAliveInterval = maxTimeout / time.Duration(srv.ClientAliveCountMax)
+		srv.MaxTimeout = 0
+	} else {
+		srv.MaxTimeout = maxTimeout
+	}
+
+	s.srv = srv
 	return s, nil
 }
 
@@ -170,14 +191,16 @@ func (s *Server) ConnStats() ConnStats {
 }
 
 func (s *Server) sessionHandler(session ssh.Session) {
+	logger := s.logger.With(slog.F("remote_addr", session.RemoteAddr()), slog.F("local_addr", session.LocalAddr()))
+	logger.Info(session.Context(), "handling ssh session")
+	ctx := session.Context()
 	if !s.trackSession(session, true) {
 		// See (*Server).Close() for why we call Close instead of Exit.
 		_ = session.Close()
+		logger.Info(ctx, "unable to accept new session, server is closing")
 		return
 	}
 	defer s.trackSession(session, false)
-
-	ctx := session.Context()
 
 	extraEnv := make([]string, 0)
 	x11, hasX11 := session.X11()
@@ -185,6 +208,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		handled := s.x11Handler(session.Context(), x11)
 		if !handled {
 			_ = session.Exit(1)
+			logger.Error(ctx, "x11 handler failed")
 			return
 		}
 		extraEnv = append(extraEnv, fmt.Sprintf("DISPLAY=:%d.0", x11.ScreenNumber))
@@ -196,7 +220,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		s.sftpHandler(session)
 		return
 	default:
-		s.logger.Debug(ctx, "unsupported subsystem", slog.F("subsystem", ss))
+		logger.Warn(ctx, "unsupported subsystem", slog.F("subsystem", ss))
 		_ = session.Exit(1)
 		return
 	}
@@ -204,17 +228,18 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	err := s.sessionStart(session, extraEnv)
 	var exitError *exec.ExitError
 	if xerrors.As(err, &exitError) {
-		s.logger.Warn(ctx, "ssh session returned", slog.Error(exitError))
+		logger.Info(ctx, "ssh session returned", slog.Error(exitError))
 		_ = session.Exit(exitError.ExitCode())
 		return
 	}
 	if err != nil {
-		s.logger.Warn(ctx, "ssh session failed", slog.Error(err))
+		logger.Warn(ctx, "ssh session failed", slog.Error(err))
 		// This exit code is designed to be unlikely to be confused for a legit exit code
 		// from the process.
 		_ = session.Exit(MagicSessionErrorCode)
 		return
 	}
+	logger.Info(ctx, "normal ssh session exit")
 	_ = session.Exit(0)
 }
 
@@ -322,12 +347,23 @@ func (s *Server) startPTYSession(session ptySession, magicTypeLabel string, cmd 
 	// See https://github.com/coder/coder/issues/3371.
 	session.DisablePTYEmulation()
 
-	if !isQuietLogin(session.RawCommand()) {
+	if isLoginShell(session.RawCommand()) {
+		serviceBanner := s.ServiceBanner.Load()
+		if serviceBanner != nil {
+			err := showServiceBanner(session, serviceBanner)
+			if err != nil {
+				s.logger.Error(ctx, "agent failed to show service banner", slog.Error(err))
+				s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "service_banner").Add(1)
+			}
+		}
+	}
+
+	if !isQuietLogin(s.fs, session.RawCommand()) {
 		manifest := s.Manifest.Load()
 		if manifest != nil {
-			err := showMOTD(session, manifest.MOTDFile)
+			err := showMOTD(s.fs, session, manifest.MOTDFile)
 			if err != nil {
-				s.logger.Error(ctx, "show MOTD", slog.Error(err))
+				s.logger.Error(ctx, "agent failed to show MOTD", slog.Error(err))
 				s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "motd").Add(1)
 			}
 		} else {
@@ -396,7 +432,7 @@ func (s *Server) startPTYSession(session ptySession, magicTypeLabel string, cmd 
 	// ExitErrors just mean the command we run returned a non-zero exit code, which is normal
 	// and not something to be concerned about.  But, if it's something else, we should log it.
 	if err != nil && !xerrors.As(err, &exitErr) {
-		s.logger.Warn(ctx, "wait error", slog.Error(err))
+		s.logger.Warn(ctx, "process wait exited with error", slog.Error(err))
 		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "wait").Add(1)
 	}
 	if err != nil {
@@ -555,7 +591,12 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string)
 	return cmd, nil
 }
 
-func (s *Server) Serve(l net.Listener) error {
+func (s *Server) Serve(l net.Listener) (retErr error) {
+	s.logger.Info(context.Background(), "started serving listener", slog.F("listen_addr", l.Addr()))
+	defer func() {
+		s.logger.Info(context.Background(), "stopped serving listener",
+			slog.F("listen_addr", l.Addr()), slog.Error(retErr))
+	}()
 	defer l.Close()
 
 	s.trackListener(l, true)
@@ -570,16 +611,21 @@ func (s *Server) Serve(l net.Listener) error {
 }
 
 func (s *Server) handleConn(l net.Listener, c net.Conn) {
+	logger := s.logger.With(
+		slog.F("remote_addr", c.RemoteAddr()),
+		slog.F("local_addr", c.LocalAddr()),
+		slog.F("listen_addr", l.Addr()))
 	defer c.Close()
 
 	if !s.trackConn(l, c, true) {
 		// Server is closed or we no longer want
 		// connections from this listener.
-		s.logger.Debug(context.Background(), "received connection after server closed")
+		logger.Info(context.Background(), "received connection after server closed")
 		return
 	}
 	defer s.trackConn(l, c, false)
-
+	logger.Info(context.Background(), "started serving connection")
+	// note: srv.ConnectionCompleteCallback logs completion of the connection
 	s.srv.HandleConn(c)
 }
 
@@ -648,9 +694,11 @@ func (s *Server) trackSession(ss ssh.Session, add bool) (ok bool) {
 			// Server closed.
 			return false
 		}
+		s.wg.Add(1)
 		s.sessions[ss] = struct{}{}
 		return true
 	}
+	s.wg.Done()
 	delete(s.sessions, ss)
 	return true
 }
@@ -708,12 +756,16 @@ func (*Server) Shutdown(_ context.Context) error {
 	return nil
 }
 
+func isLoginShell(rawCommand string) bool {
+	return len(rawCommand) == 0
+}
+
 // isQuietLogin checks if the SSH server should perform a quiet login or not.
 //
 // https://github.com/openssh/openssh-portable/blob/25bd659cc72268f2858c5415740c442ee950049f/session.c#L816
-func isQuietLogin(rawCommand string) bool {
+func isQuietLogin(fs afero.Fs, rawCommand string) bool {
 	// We are always quiet unless this is a login shell.
-	if len(rawCommand) != 0 {
+	if !isLoginShell(rawCommand) {
 		return true
 	}
 
@@ -724,20 +776,32 @@ func isQuietLogin(rawCommand string) bool {
 		return false
 	}
 
-	_, err = os.Stat(filepath.Join(homedir, ".hushlogin"))
+	_, err = fs.Stat(filepath.Join(homedir, ".hushlogin"))
 	return err == nil
+}
+
+// showServiceBanner will write the service banner if enabled and not blank
+// along with a blank line for spacing.
+func showServiceBanner(session io.Writer, banner *codersdk.ServiceBannerConfig) error {
+	if banner.Enabled && banner.Message != "" {
+		// The banner supports Markdown so we might want to parse it but Markdown is
+		// still fairly readable in its raw form.
+		message := strings.TrimSpace(banner.Message) + "\n\n"
+		return writeWithCarriageReturn(strings.NewReader(message), session)
+	}
+	return nil
 }
 
 // showMOTD will output the message of the day from
 // the given filename to dest, if the file exists.
 //
 // https://github.com/openssh/openssh-portable/blob/25bd659cc72268f2858c5415740c442ee950049f/session.c#L784
-func showMOTD(dest io.Writer, filename string) error {
+func showMOTD(fs afero.Fs, dest io.Writer, filename string) error {
 	if filename == "" {
 		return nil
 	}
 
-	f, err := os.Open(filename)
+	f, err := fs.Open(filename)
 	if err != nil {
 		if xerrors.Is(err, os.ErrNotExist) {
 			// This is not an error, there simply isn't a MOTD to show.
@@ -747,19 +811,22 @@ func showMOTD(dest io.Writer, filename string) error {
 	}
 	defer f.Close()
 
-	s := bufio.NewScanner(f)
+	return writeWithCarriageReturn(f, dest)
+}
+
+// writeWithCarriageReturn writes each line with a carriage return to ensure
+// that each line starts at the beginning of the terminal.
+func writeWithCarriageReturn(src io.Reader, dest io.Writer) error {
+	s := bufio.NewScanner(src)
 	for s.Scan() {
-		// Carriage return ensures each line starts
-		// at the beginning of the terminal.
-		_, err = fmt.Fprint(dest, s.Text()+"\r\n")
+		_, err := fmt.Fprint(dest, s.Text()+"\r\n")
 		if err != nil {
-			return xerrors.Errorf("write MOTD: %w", err)
+			return xerrors.Errorf("write line: %w", err)
 		}
 	}
 	if err := s.Err(); err != nil {
-		return xerrors.Errorf("read MOTD: %w", err)
+		return xerrors.Errorf("read line: %w", err)
 	}
-
 	return nil
 }
 

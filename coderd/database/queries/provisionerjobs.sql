@@ -47,6 +47,38 @@ FROM
 WHERE
 	id = ANY(@ids :: uuid [ ]);
 
+-- name: GetProvisionerJobsByIDsWithQueuePosition :many
+WITH unstarted_jobs AS (
+    SELECT
+        id, created_at
+    FROM
+        provisioner_jobs
+    WHERE
+        started_at IS NULL
+),
+queue_position AS (
+    SELECT
+        id,
+        ROW_NUMBER() OVER (ORDER BY created_at ASC) AS queue_position
+    FROM
+        unstarted_jobs
+),
+queue_size AS (
+	SELECT COUNT(*) as count FROM unstarted_jobs
+)
+SELECT
+	sqlc.embed(pj),
+    COALESCE(qp.queue_position, 0) AS queue_position,
+    COALESCE(qs.count, 0) AS queue_size
+FROM
+	provisioner_jobs pj
+LEFT JOIN
+	queue_position qp ON qp.id = pj.id
+LEFT JOIN
+	queue_size qs ON TRUE
+WHERE
+	pj.id = ANY(@ids :: uuid [ ]);
+
 -- name: GetProvisionerJobsCreatedAfter :many
 SELECT * FROM provisioner_jobs WHERE created_at > $1;
 
@@ -96,3 +128,13 @@ SET
 	error_code = $5
 WHERE
 	id = $1;
+
+-- name: GetHungProvisionerJobs :many
+SELECT
+	*
+FROM
+	provisioner_jobs
+WHERE
+	updated_at < $1
+	AND started_at IS NOT NULL
+	AND completed_at IS NULL;

@@ -11,6 +11,7 @@ import (
 	"net/http/cookiejar"
 	"net/netip"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -39,10 +40,6 @@ const (
 // The agent lifecycle starts in the "created" state, and transitions to
 // "starting" when the agent reports it has begun preparing (e.g. started
 // executing the startup script).
-//
-// Note that states are not guaranteed to be reported, for instance the agent
-// may go from "created" to "ready" without reporting "starting", if it had
-// trouble connecting on startup.
 type WorkspaceAgentLifecycle string
 
 // WorkspaceAgentLifecycle enums.
@@ -57,6 +54,27 @@ const (
 	WorkspaceAgentLifecycleShutdownError   WorkspaceAgentLifecycle = "shutdown_error"
 	WorkspaceAgentLifecycleOff             WorkspaceAgentLifecycle = "off"
 )
+
+// Starting returns true if the agent is in the process of starting.
+func (l WorkspaceAgentLifecycle) Starting() bool {
+	switch l {
+	case WorkspaceAgentLifecycleCreated, WorkspaceAgentLifecycleStarting, WorkspaceAgentLifecycleStartTimeout:
+		return true
+	default:
+		return false
+	}
+}
+
+// ShuttingDown returns true if the agent is in the process of shutting
+// down or has shut down.
+func (l WorkspaceAgentLifecycle) ShuttingDown() bool {
+	switch l {
+	case WorkspaceAgentLifecycleShuttingDown, WorkspaceAgentLifecycleShutdownTimeout, WorkspaceAgentLifecycleShutdownError, WorkspaceAgentLifecycleOff:
+		return true
+	default:
+		return false
+	}
+}
 
 // WorkspaceAgentLifecycleOrder is the order in which workspace agent
 // lifecycle states are expected to be reported during the lifetime of
@@ -116,39 +134,46 @@ type WorkspaceAgentMetadata struct {
 }
 
 type WorkspaceAgent struct {
-	ID                    uuid.UUID               `json:"id" format:"uuid"`
-	CreatedAt             time.Time               `json:"created_at" format:"date-time"`
-	UpdatedAt             time.Time               `json:"updated_at" format:"date-time"`
-	FirstConnectedAt      *time.Time              `json:"first_connected_at,omitempty" format:"date-time"`
-	LastConnectedAt       *time.Time              `json:"last_connected_at,omitempty" format:"date-time"`
-	DisconnectedAt        *time.Time              `json:"disconnected_at,omitempty" format:"date-time"`
-	Status                WorkspaceAgentStatus    `json:"status"`
-	LifecycleState        WorkspaceAgentLifecycle `json:"lifecycle_state"`
-	Name                  string                  `json:"name"`
-	ResourceID            uuid.UUID               `json:"resource_id" format:"uuid"`
-	InstanceID            string                  `json:"instance_id,omitempty"`
-	Architecture          string                  `json:"architecture"`
-	EnvironmentVariables  map[string]string       `json:"environment_variables"`
-	OperatingSystem       string                  `json:"operating_system"`
-	StartupScript         string                  `json:"startup_script,omitempty"`
-	StartupLogsLength     int32                   `json:"startup_logs_length"`
-	StartupLogsOverflowed bool                    `json:"startup_logs_overflowed"`
-	Directory             string                  `json:"directory,omitempty"`
-	ExpandedDirectory     string                  `json:"expanded_directory,omitempty"`
-	Version               string                  `json:"version"`
-	Apps                  []WorkspaceApp          `json:"apps"`
+	ID                          uuid.UUID                           `json:"id" format:"uuid"`
+	CreatedAt                   time.Time                           `json:"created_at" format:"date-time"`
+	UpdatedAt                   time.Time                           `json:"updated_at" format:"date-time"`
+	FirstConnectedAt            *time.Time                          `json:"first_connected_at,omitempty" format:"date-time"`
+	LastConnectedAt             *time.Time                          `json:"last_connected_at,omitempty" format:"date-time"`
+	DisconnectedAt              *time.Time                          `json:"disconnected_at,omitempty" format:"date-time"`
+	StartedAt                   *time.Time                          `json:"started_at,omitempty" format:"date-time"`
+	ReadyAt                     *time.Time                          `json:"ready_at,omitempty" format:"date-time"`
+	Status                      WorkspaceAgentStatus                `json:"status"`
+	LifecycleState              WorkspaceAgentLifecycle             `json:"lifecycle_state"`
+	Name                        string                              `json:"name"`
+	ResourceID                  uuid.UUID                           `json:"resource_id" format:"uuid"`
+	InstanceID                  string                              `json:"instance_id,omitempty"`
+	Architecture                string                              `json:"architecture"`
+	EnvironmentVariables        map[string]string                   `json:"environment_variables"`
+	OperatingSystem             string                              `json:"operating_system"`
+	StartupScript               string                              `json:"startup_script,omitempty"`
+	StartupScriptBehavior       WorkspaceAgentStartupScriptBehavior `json:"startup_script_behavior"`
+	StartupScriptTimeoutSeconds int32                               `json:"startup_script_timeout_seconds"` // StartupScriptTimeoutSeconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.
+	StartupLogsLength           int32                               `json:"startup_logs_length"`
+	StartupLogsOverflowed       bool                                `json:"startup_logs_overflowed"`
+	Directory                   string                              `json:"directory,omitempty"`
+	ExpandedDirectory           string                              `json:"expanded_directory,omitempty"`
+	Version                     string                              `json:"version"`
+	Apps                        []WorkspaceApp                      `json:"apps"`
 	// DERPLatency is mapped by region name (e.g. "New York City", "Seattle").
 	DERPLatency              map[string]DERPRegion `json:"latency,omitempty"`
 	ConnectionTimeoutSeconds int32                 `json:"connection_timeout_seconds"`
 	TroubleshootingURL       string                `json:"troubleshooting_url"`
 	// Deprecated: Use StartupScriptBehavior instead.
-	LoginBeforeReady      bool                                `json:"login_before_ready"`
-	StartupScriptBehavior WorkspaceAgentStartupScriptBehavior `json:"startup_script_behavior"`
-	// StartupScriptTimeoutSeconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.
-	StartupScriptTimeoutSeconds  int32          `json:"startup_script_timeout_seconds"`
-	ShutdownScript               string         `json:"shutdown_script,omitempty"`
-	ShutdownScriptTimeoutSeconds int32          `json:"shutdown_script_timeout_seconds"`
-	Subsystem                    AgentSubsystem `json:"subsystem"`
+	LoginBeforeReady             bool                 `json:"login_before_ready"`
+	ShutdownScript               string               `json:"shutdown_script,omitempty"`
+	ShutdownScriptTimeoutSeconds int32                `json:"shutdown_script_timeout_seconds"`
+	Subsystem                    AgentSubsystem       `json:"subsystem"`
+	Health                       WorkspaceAgentHealth `json:"health"` // Health reports the health of the agent.
+}
+
+type WorkspaceAgentHealth struct {
+	Healthy bool   `json:"healthy" example:"false"`                              // Healthy is true if the agent is healthy.
+	Reason  string `json:"reason,omitempty" example:"agent has lost connection"` // Reason is a human-readable explanation of the agent's health. It is empty if Healthy is true.
 }
 
 type DERPRegion struct {
@@ -160,13 +185,35 @@ type DERPRegion struct {
 // a connection with a workspace.
 // @typescript-ignore WorkspaceAgentConnectionInfo
 type WorkspaceAgentConnectionInfo struct {
-	DERPMap *tailcfg.DERPMap `json:"derp_map"`
+	DERPMap                  *tailcfg.DERPMap `json:"derp_map"`
+	DisableDirectConnections bool             `json:"disable_direct_connections"`
+}
+
+func (c *Client) WorkspaceAgentConnectionInfo(ctx context.Context) (*WorkspaceAgentConnectionInfo, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/connection", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+
+	var info WorkspaceAgentConnectionInfo
+	err = json.NewDecoder(res.Body).Decode(&info)
+	if err != nil {
+		return nil, xerrors.Errorf("decode connection info: %w", err)
+	}
+
+	return &info, nil
 }
 
 // @typescript-ignore DialWorkspaceAgentOptions
 type DialWorkspaceAgentOptions struct {
 	Logger slog.Logger
-	// BlockEndpoints forced a direct connection through DERP.
+	// BlockEndpoints forced a direct connection through DERP. The Client may
+	// have DisableDirect set which will override this value.
 	BlockEndpoints bool
 }
 
@@ -187,6 +234,9 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 	if err != nil {
 		return nil, xerrors.Errorf("decode conn info: %w", err)
 	}
+	if connInfo.DisableDirectConnections {
+		options.BlockEndpoints = true
+	}
 
 	ip := tailnet.IP()
 	var header http.Header
@@ -201,7 +251,7 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 		DERPMap:        connInfo.DERPMap,
 		DERPHeader:     &header,
 		Logger:         options.Logger,
-		BlockEndpoints: options.BlockEndpoints,
+		BlockEndpoints: c.DisableDirectConnections || options.BlockEndpoints,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)
@@ -304,6 +354,7 @@ func (c *Client) WatchWorkspaceAgentMetadata(ctx context.Context, id uuid.UUID) 
 
 	metadataChan := make(chan []WorkspaceAgentMetadata, 256)
 
+	ready := make(chan struct{})
 	watch := func() error {
 		res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/watch-metadata", id), nil)
 		if err != nil {
@@ -316,17 +367,22 @@ func (c *Client) WatchWorkspaceAgentMetadata(ctx context.Context, id uuid.UUID) 
 		nextEvent := ServerSentEventReader(ctx, res.Body)
 		defer res.Body.Close()
 
+		firstEvent := true
 		for {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
 			default:
-				break
 			}
 
 			sse, err := nextEvent()
 			if err != nil {
 				return err
+			}
+
+			if firstEvent {
+				close(ready) // Only close ready after the first event is received.
+				firstEvent = false
 			}
 
 			b, ok := sse.Data.([]byte)
@@ -358,8 +414,17 @@ func (c *Client) WatchWorkspaceAgentMetadata(ctx context.Context, id uuid.UUID) 
 	errorChan := make(chan error, 1)
 	go func() {
 		defer close(errorChan)
-		errorChan <- watch()
+		err := watch()
+		select {
+		case <-ready:
+		default:
+			close(ready) // Error before first event.
+		}
+		errorChan <- err
 	}()
+
+	// Wait until first event is received and the subscription is registered.
+	<-ready
 
 	return metadataChan, errorChan
 }
@@ -489,20 +554,52 @@ func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.
 	return listeningPorts, json.NewDecoder(res.Body).Decode(&listeningPorts)
 }
 
-func (c *Client) WorkspaceAgentStartupLogsAfter(ctx context.Context, agentID uuid.UUID, after int64) (<-chan []WorkspaceAgentStartupLog, io.Closer, error) {
-	afterQuery := ""
+//nolint:revive // Follow is a control flag on the server as well.
+func (c *Client) WorkspaceAgentStartupLogsAfter(ctx context.Context, agentID uuid.UUID, after int64, follow bool) (<-chan []WorkspaceAgentStartupLog, io.Closer, error) {
+	var queryParams []string
 	if after != 0 {
-		afterQuery = fmt.Sprintf("&after=%d", after)
+		queryParams = append(queryParams, fmt.Sprintf("after=%d", after))
 	}
-	followURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/startup-logs?follow%s", agentID, afterQuery))
+	if follow {
+		queryParams = append(queryParams, "follow")
+	}
+	var query string
+	if len(queryParams) > 0 {
+		query = "?" + strings.Join(queryParams, "&")
+	}
+	reqURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/startup-logs%s", agentID, query))
 	if err != nil {
 		return nil, nil, err
 	}
+
+	if !follow {
+		resp, err := c.Request(ctx, http.MethodGet, reqURL.String(), nil)
+		if err != nil {
+			return nil, nil, xerrors.Errorf("execute request: %w", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, nil, ReadBodyAsError(resp)
+		}
+
+		var logs []WorkspaceAgentStartupLog
+		err = json.NewDecoder(resp.Body).Decode(&logs)
+		if err != nil {
+			return nil, nil, xerrors.Errorf("decode startup logs: %w", err)
+		}
+
+		ch := make(chan []WorkspaceAgentStartupLog, 1)
+		ch <- logs
+		close(ch)
+		return ch, closeFunc(func() error { return nil }), nil
+	}
+
 	jar, err := cookiejar.New(nil)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("create cookie jar: %w", err)
 	}
-	jar.SetCookies(followURL, []*http.Cookie{{
+	jar.SetCookies(reqURL, []*http.Cookie{{
 		Name:  SessionTokenCookie,
 		Value: c.SessionToken(),
 	}})
@@ -510,7 +607,7 @@ func (c *Client) WorkspaceAgentStartupLogsAfter(ctx context.Context, agentID uui
 		Jar:       jar,
 		Transport: c.HTTPClient.Transport,
 	}
-	conn, res, err := websocket.Dial(ctx, followURL.String(), &websocket.DialOptions{
+	conn, res, err := websocket.Dial(ctx, reqURL.String(), &websocket.DialOptions{
 		HTTPClient:      httpClient,
 		CompressionMode: websocket.CompressionDisabled,
 	})
@@ -528,8 +625,8 @@ func (c *Client) WorkspaceAgentStartupLogsAfter(ctx context.Context, agentID uui
 		defer close(closed)
 		defer close(logChunks)
 		defer conn.Close(websocket.StatusGoingAway, "")
-		var logs []WorkspaceAgentStartupLog
 		for {
+			var logs []WorkspaceAgentStartupLog
 			err = decoder.Decode(&logs)
 			if err != nil {
 				return

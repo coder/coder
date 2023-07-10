@@ -1,3 +1,18 @@
+-- name: UpdateUserLoginType :one
+UPDATE
+	users
+SET
+	login_type = @new_login_type,
+	hashed_password = CASE WHEN @new_login_type = 'password' :: login_type THEN
+		users.hashed_password
+	ELSE
+		-- If the login type is not password, then the password should be
+        -- cleared.
+		'':: bytea
+	END
+WHERE
+	id = @user_id RETURNING *;
+
 -- name: GetUserByID :one
 SELECT
 	*
@@ -39,7 +54,7 @@ SELECT
 FROM
 	users
 WHERE
-    status = 'active'::user_status AND deleted = false;
+	status = 'active'::user_status AND deleted = false;
 
 -- name: GetFilteredUserCount :one
 -- This will never count deleted users.
@@ -176,9 +191,20 @@ WHERE
 	-- Filter by rbac_roles
 	AND CASE
 		-- @rbac_role allows filtering by rbac roles. If 'member' is included, show everyone, as
-	    -- everyone is a member.
+		-- everyone is a member.
 		WHEN cardinality(@rbac_role :: text[]) > 0 AND 'member' != ANY(@rbac_role :: text[]) THEN
-		    rbac_roles && @rbac_role :: text[]
+			rbac_roles && @rbac_role :: text[]
+		ELSE true
+	END
+	-- Filter by last_seen
+	AND CASE
+		WHEN @last_seen_before :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			last_seen_at <= @last_seen_before
+		ELSE true
+	END
+	AND CASE
+		WHEN @last_seen_after :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			last_seen_at >= @last_seen_after
 		ELSE true
 	END
 	-- End of filters

@@ -12,7 +12,6 @@ import (
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/coderd/coderdtest"
@@ -58,6 +57,8 @@ func New(t *testing.T, options *Options) *codersdk.Client {
 }
 
 func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *coderd.API) {
+	t.Helper()
+
 	if options == nil {
 		options = &Options{}
 	}
@@ -77,7 +78,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 		Keys:                       Keys,
 		ProxyHealthInterval:        options.ProxyHealthInterval,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	setHandler(coderAPI.AGPL.RootHandler)
 	var provisionerCloser io.Closer = nopcloser{}
 	if options.IncludeProvisionerDaemon {
@@ -109,6 +110,11 @@ type LicenseOptions struct {
 	GraceAt     time.Time
 	ExpiresAt   time.Time
 	Features    license.Features
+}
+
+// AddFullLicense generates a license with all features enabled.
+func AddFullLicense(t *testing.T, client *codersdk.Client) codersdk.License {
+	return AddLicense(t, client, LicenseOptions{AllFeatures: true})
 }
 
 // AddLicense generates a new license with the options provided and inserts it.

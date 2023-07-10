@@ -223,17 +223,21 @@ func (r *Runner) Run() {
 		r.logger.Debug(ctx, "sending FailedJob")
 		err := r.sender.FailJob(ctx, r.failedJob)
 		if err != nil {
-			r.logger.Error(ctx, "send FailJob", slog.Error(err))
+			r.logger.Error(ctx, "sending FailJob failed", slog.Error(err))
 		} else {
-			r.logger.Info(ctx, "sent FailedJob")
+			r.logger.Debug(ctx, "sent FailedJob")
 		}
 	} else {
 		r.logger.Debug(ctx, "sending CompletedJob")
 		err := r.sender.CompleteJob(ctx, r.completedJob)
 		if err != nil {
-			r.logger.Error(ctx, "send CompletedJob", slog.Error(err))
+			r.logger.Error(ctx, "sending CompletedJob failed", slog.Error(err))
+			err = r.sender.FailJob(ctx, r.failedJobf("internal provisionerserver error"))
+			if err != nil {
+				r.logger.Error(ctx, "sending FailJob failed (while CompletedJob)", slog.Error(err))
+			}
 		} else {
-			r.logger.Info(ctx, "sent CompletedJob")
+			r.logger.Debug(ctx, "sent CompletedJob")
 		}
 	}
 	close(r.done)
@@ -337,6 +341,9 @@ func (r *Runner) sendHeartbeat(ctx context.Context) (*proto.UpdateJobResponse, e
 }
 
 func (r *Runner) update(ctx context.Context, u *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	ctx, span := r.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 	defer func() {
@@ -537,6 +544,7 @@ func (r *Runner) heartbeatRoutine(ctx context.Context) {
 
 		resp, err := r.sendHeartbeat(ctx)
 		if err != nil {
+			// Calling Fail starts cancellation so the process will exit.
 			err = r.Fail(ctx, r.failedJobf("send periodic update: %s", err))
 			if err != nil {
 				r.logger.Error(ctx, "failed to call FailJob", slog.Error(err))
@@ -547,13 +555,13 @@ func (r *Runner) heartbeatRoutine(ctx context.Context) {
 			ticker.Reset(r.updateInterval)
 			continue
 		}
-		r.logger.Info(ctx, "attempting graceful cancelation")
+		r.logger.Info(ctx, "attempting graceful cancellation")
 		r.Cancel()
-		// Hard-cancel the job after a minute of pending cancelation.
+		// Mark the job as failed after a minute of pending cancellation.
 		timer := time.NewTimer(r.forceCancelInterval)
 		select {
 		case <-timer.C:
-			r.logger.Warn(ctx, "Cancel timed out")
+			r.logger.Debug(ctx, "cancel timed out")
 			err := r.Fail(ctx, r.failedJobf("Cancel timed out"))
 			if err != nil {
 				r.logger.Warn(ctx, "failed to call FailJob", slog.Error(err))
@@ -706,7 +714,7 @@ func (r *Runner) runTemplateImportParse(ctx context.Context) ([]*sdkproto.Templa
 				Stage:     "Parse parameters",
 			})
 		case *sdkproto.Parse_Response_Complete:
-			r.logger.Info(context.Background(), "parse complete",
+			r.logger.Debug(context.Background(), "parse complete",
 				slog.F("template_variables", msgType.Complete.TemplateVariables),
 			)
 
@@ -1167,7 +1175,7 @@ func redactVariableValues(variableValues []*sdkproto.VariableValue) []*sdkproto.
 }
 
 // logProvisionerJobLog logs a message from the provisioner daemon at the appropriate level.
-func (r *Runner) logProvisionerJobLog(ctx context.Context, logLevel sdkproto.LogLevel, msg string, fields ...slog.Field) {
+func (r *Runner) logProvisionerJobLog(ctx context.Context, logLevel sdkproto.LogLevel, msg string, fields ...any) {
 	switch logLevel {
 	case sdkproto.LogLevel_TRACE:
 		r.logger.Debug(ctx, msg, fields...) // There's no trace, so we'll just use debug.

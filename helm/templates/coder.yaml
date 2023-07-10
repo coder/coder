@@ -61,7 +61,7 @@ spec:
           image: {{ include "coder.image" . | quote }}
           imagePullPolicy: {{ .Values.coder.image.pullPolicy }}
           command:
-            - /opt/coder
+            {{- toYaml .Values.coder.command | nindent 12 }}
           args:
             {{- if .Values.coder.workspaceProxy }}
             - wsproxy
@@ -126,12 +126,12 @@ spec:
           securityContext: {{ toYaml .Values.coder.securityContext | nindent 12 }}
           readinessProbe:
             httpGet:
-              path: /api/v2/buildinfo
+              path: /healthz
               port: "http"
               scheme: "HTTP"
           livenessProbe:
             httpGet:
-              path: /api/v2/buildinfo
+              path: /healthz
               port: "http"
               scheme: "HTTP"
           {{- include "coder.volumeMounts" . | nindent 10 }}

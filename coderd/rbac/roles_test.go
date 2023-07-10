@@ -318,6 +318,24 @@ func TestRolePermissions(t *testing.T) {
 				false: {memberMe, otherOrgAdmin, otherOrgMember, templateAdmin},
 			},
 		},
+		{
+			Name:     "WorkspaceLocked",
+			Actions:  rbac.AllActions(),
+			Resource: rbac.ResourceWorkspaceLocked.WithID(uuid.New()).InOrg(orgID).WithOwner(memberMe.Actor.ID),
+			AuthorizeMap: map[bool][]authSubject{
+				true:  {},
+				false: {memberMe, orgAdmin, userAdmin, otherOrgAdmin, otherOrgMember, orgMemberMe, owner, templateAdmin},
+			},
+		},
+		{
+			Name:     "WorkspaceBuild",
+			Actions:  rbac.AllActions(),
+			Resource: rbac.ResourceWorkspaceBuild.WithID(uuid.New()).InOrg(orgID).WithOwner(memberMe.Actor.ID),
+			AuthorizeMap: map[bool][]authSubject{
+				true:  {owner, orgAdmin, orgMemberMe},
+				false: {userAdmin, otherOrgAdmin, otherOrgMember, templateAdmin, memberMe},
+			},
+		},
 	}
 
 	for _, c := range testCases {

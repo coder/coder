@@ -1,6 +1,5 @@
 import * as API from "api/api"
 import { createMachine, assign } from "xstate"
-import * as TypesGen from "api/typesGenerated"
 import { Line } from "components/Logs/Logs"
 
 // Logs are stored as the Line interface to make rendering
@@ -97,7 +96,7 @@ export const workspaceAgentLogsMachine = createMachine(
               type: "ADD_STARTUP_LOGS",
               logs: logs.map((log) => ({
                 id: log.id,
-                level: "info" as TypesGen.LogLevel,
+                level: log.level || "info",
                 output: log.output,
                 time: log.created_at,
               })),

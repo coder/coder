@@ -42,6 +42,14 @@ type MockAuditor struct {
 	auditLogs []database.AuditLog
 }
 
+// ResetLogs removes all audit logs from the mock auditor.
+// This is helpful for testing to get a clean slate.
+func (a *MockAuditor) ResetLogs() {
+	a.mutex.Lock()
+	defer a.mutex.Unlock()
+	a.auditLogs = make([]database.AuditLog, 0)
+}
+
 func (a *MockAuditor) AuditLogs() []database.AuditLog {
 	a.mutex.Lock()
 	defer a.mutex.Unlock()

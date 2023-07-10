@@ -46,8 +46,8 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 
 	logs = loadtestutil.NewSyncWriter(logs)
 	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelDebug)
-	r.client.Logger = logger
-	r.client.LogBodies = true
+	r.client.SetLogger(logger)
+	r.client.SetLogBodies(true)
 
 	// Initialize our metrics eagerly. This is mainly so that we can test for the
 	// presence of a zero-valued metric as opposed to the absence of a metric.
@@ -68,9 +68,9 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 		bytesPerTick        = r.cfg.BytesPerTick
 	)
 
-	logger.Info(ctx, "config",
+	logger.Debug(ctx, "config",
 		slog.F("agent_id", agentID),
-		slog.F("reconnect", reconnect),
+		slog.F("reconnecting_pty_id", reconnect),
 		slog.F("height", height),
 		slog.F("width", width),
 		slog.F("tick_interval", tickInterval),

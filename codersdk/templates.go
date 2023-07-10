@@ -41,11 +41,12 @@ type Template struct {
 	AllowUserAutostop            bool `json:"allow_user_autostop"`
 	AllowUserCancelWorkspaceJobs bool `json:"allow_user_cancel_workspace_jobs"`
 
-	// FailureTTLMillis and InactivityTTLMillis are enterprise-only. Their
+	// FailureTTLMillis, InactivityTTLMillis, and LockedTTLMillis are enterprise-only. Their
 	// values are used if your license is entitled to use the advanced
 	// template scheduling feature.
 	FailureTTLMillis    int64 `json:"failure_ttl_ms"`
 	InactivityTTLMillis int64 `json:"inactivity_ttl_ms"`
+	LockedTTLMillis     int64 `json:"locked_ttl_ms"`
 }
 
 type TransitionStats struct {
@@ -84,8 +85,11 @@ type TemplateUser struct {
 }
 
 type UpdateTemplateACL struct {
-	UserPerms  map[string]TemplateRole `json:"user_perms,omitempty"`
-	GroupPerms map[string]TemplateRole `json:"group_perms,omitempty"`
+	// UserPerms should be a mapping of user id to role. The user id must be the
+	// uuid of the user, not a username or email address.
+	UserPerms map[string]TemplateRole `json:"user_perms,omitempty" example:"<group_id>:admin,4df59e74-c027-470b-ab4d-cbba8963a5e9:use"`
+	// GroupPerms should be a mapping of group id to role.
+	GroupPerms map[string]TemplateRole `json:"group_perms,omitempty" example:"<user_id>>:admin,8bd26b20-f3e8-48be-a903-46bb920cf671:use"`
 }
 
 type UpdateTemplateMeta struct {
@@ -103,6 +107,7 @@ type UpdateTemplateMeta struct {
 	AllowUserCancelWorkspaceJobs bool  `json:"allow_user_cancel_workspace_jobs,omitempty"`
 	FailureTTLMillis             int64 `json:"failure_ttl_ms,omitempty"`
 	InactivityTTLMillis          int64 `json:"inactivity_ttl_ms,omitempty"`
+	LockedTTLMillis              int64 `json:"locked_ttl_ms,omitempty"`
 }
 
 type TemplateExample struct {

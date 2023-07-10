@@ -18,6 +18,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd"
 	agplaudit "github.com/coder/coder/coderd/audit"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
@@ -35,7 +36,7 @@ import (
 // New constructs an Enterprise coderd API instance.
 // This handler is designed to wrap the AGPL Coder code and
 // layer Enterprise functionality on top as much as possible.
-func New(ctx context.Context, options *Options) (*API, error) {
+func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if options.EntitlementsUpdateInterval == 0 {
 		options.EntitlementsUpdateInterval = 10 * time.Minute
 	}
@@ -59,17 +60,41 @@ func New(ctx context.Context, options *Options) (*API, error) {
 		AGPL:    coderd.New(options.Options),
 		Options: options,
 	}
+	defer func() {
+		if err != nil {
+			_ = api.Close()
+		}
+	}()
 
 	api.AGPL.Options.SetUserGroups = api.setUserGroups
+	api.AGPL.SiteHandler.AppearanceFetcher = api.fetchAppearanceConfig
+	api.AGPL.SiteHandler.RegionsFetcher = func(ctx context.Context) (any, error) {
+		// If the user can read the workspace proxy resource, return that.
+		// If not, always default to the regions.
+		actor, ok := dbauthz.ActorFromContext(ctx)
+		if ok && api.Authorizer.Authorize(ctx, actor, rbac.ActionRead, rbac.ResourceWorkspaceProxy) == nil {
+			return api.fetchWorkspaceProxies(ctx)
+		}
+		return api.fetchRegions(ctx)
+	}
 
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
 		OIDC:   options.OIDCConfig,
 	}
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
-		DB:              options.Database,
-		OAuth2Configs:   oauthConfigs,
-		RedirectToLogin: false,
+		DB:                          options.Database,
+		OAuth2Configs:               oauthConfigs,
+		RedirectToLogin:             false,
+		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
+		Optional:                    false,
+	})
+	apiKeyMiddlewareOptional := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+		DB:                          options.Database,
+		OAuth2Configs:               oauthConfigs,
+		RedirectToLogin:             false,
+		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
+		Optional:                    true,
 	})
 
 	deploymentID, err := options.Database.GetDeploymentID(ctx)
@@ -185,11 +210,23 @@ func New(ctx context.Context, options *Options) (*API, error) {
 			})
 		})
 		r.Route("/appearance", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-			)
-			r.Get("/", api.appearance)
-			r.Put("/", api.putAppearance)
+			r.Group(func(r chi.Router) {
+				r.Use(
+					apiKeyMiddlewareOptional,
+					httpmw.ExtractWorkspaceAgent(httpmw.ExtractWorkspaceAgentConfig{
+						DB:       options.Database,
+						Optional: true,
+					}),
+					httpmw.RequireAPIKeyOrWorkspaceAgent(),
+				)
+				r.Get("/", api.appearance)
+			})
+			r.Group(func(r chi.Router) {
+				r.Use(
+					apiKeyMiddleware,
+				)
+				r.Put("/", api.putAppearance)
+			})
 		})
 	})
 
@@ -306,20 +343,25 @@ type API struct {
 	// ProxyHealth checks the reachability of all workspace proxies.
 	ProxyHealth *proxyhealth.ProxyHealth
 
-	entitlementsMu sync.RWMutex
-	entitlements   codersdk.Entitlements
+	entitlementsUpdateMu sync.Mutex
+	entitlementsMu       sync.RWMutex
+	entitlements         codersdk.Entitlements
 }
 
 func (api *API) Close() error {
 	api.cancel()
-	_ = api.replicaManager.Close()
-	_ = api.derpMesh.Close()
+	if api.replicaManager != nil {
+		_ = api.replicaManager.Close()
+	}
+	if api.derpMesh != nil {
+		_ = api.derpMesh.Close()
+	}
 	return api.AGPL.Close()
 }
 
 func (api *API) updateEntitlements(ctx context.Context) error {
-	api.entitlementsMu.Lock()
-	defer api.entitlementsMu.Unlock()
+	api.entitlementsUpdateMu.Lock()
+	defer api.entitlementsUpdateMu.Unlock()
 
 	entitlements, err := license.Entitlements(
 		ctx, api.Database,
@@ -391,7 +433,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 	if changed, enabled := featureChanged(codersdk.FeatureAdvancedTemplateScheduling); changed {
 		if enabled {
-			store := &enterpriseTemplateScheduleStore{}
+			store := &EnterpriseTemplateScheduleStore{}
 			ptr := schedule.TemplateScheduleStore(store)
 			api.AGPL.TemplateScheduleStore.Store(&ptr)
 		} else {
@@ -403,13 +445,19 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	if changed, enabled := featureChanged(codersdk.FeatureHighAvailability); changed {
 		coordinator := agpltailnet.NewCoordinator(api.Logger)
 		if enabled {
-			haCoordinator, err := tailnet.NewCoordinator(api.Logger, api.Pubsub)
+			var haCoordinator agpltailnet.Coordinator
+			if api.AGPL.Experiments.Enabled(codersdk.ExperimentTailnetPGCoordinator) {
+				haCoordinator, err = tailnet.NewPGCoord(api.ctx, api.Logger, api.Pubsub, api.Database)
+			} else {
+				haCoordinator, err = tailnet.NewCoordinator(api.Logger, api.Pubsub)
+			}
 			if err != nil {
 				api.Logger.Error(ctx, "unable to set up high availability coordinator", slog.Error(err))
 				// If we try to setup the HA coordinator and it fails, nothing
 				// is actually changing.
 				changed = false
 			} else {
+				_ = coordinator.Close()
 				coordinator = haCoordinator
 			}
 
@@ -440,7 +488,10 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		}
 	}
 
+	api.entitlementsMu.Lock()
+	defer api.entitlementsMu.Unlock()
 	api.entitlements = entitlements
+	api.AGPL.SiteHandler.Entitlements.Store(&entitlements)
 
 	return nil
 }

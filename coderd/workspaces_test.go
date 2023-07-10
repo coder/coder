@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -25,7 +26,6 @@ import (
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/database/dbtestutil"
-	"github.com/coder/coder/coderd/database/dbtype"
 	"github.com/coder/coder/coderd/parameter"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/schedule"
@@ -163,6 +163,148 @@ func TestWorkspace(t *testing.T) {
 		assert.Equal(t, templateIcon, ws.TemplateIcon)
 		assert.Equal(t, templateDisplayName, ws.TemplateDisplayName)
 		assert.Equal(t, templateAllowUserCancelWorkspaceJobs, ws.TemplateAllowUserCancelWorkspaceJobs)
+	})
+
+	t.Run("Health", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("Healthy", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+				Parse: echo.ParseComplete,
+				ProvisionApply: []*proto.Provision_Response{{
+					Type: &proto.Provision_Response_Complete{
+						Complete: &proto.Provision_Complete{
+							Resources: []*proto.Resource{{
+								Name: "some",
+								Type: "example",
+								Agents: []*proto.Agent{{
+									Id:   uuid.NewString(),
+									Auth: &proto.Agent_Token{},
+								}},
+							}},
+						},
+					},
+				}},
+			})
+			coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+			coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			workspace, err := client.Workspace(ctx, workspace.ID)
+			require.NoError(t, err)
+
+			agent := workspace.LatestBuild.Resources[0].Agents[0]
+
+			assert.True(t, workspace.Health.Healthy)
+			assert.Equal(t, []uuid.UUID{}, workspace.Health.FailingAgents)
+			assert.True(t, agent.Health.Healthy)
+			assert.Empty(t, agent.Health.Reason)
+		})
+
+		t.Run("Unhealthy", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+				Parse: echo.ParseComplete,
+				ProvisionApply: []*proto.Provision_Response{{
+					Type: &proto.Provision_Response_Complete{
+						Complete: &proto.Provision_Complete{
+							Resources: []*proto.Resource{{
+								Name: "some",
+								Type: "example",
+								Agents: []*proto.Agent{{
+									Id:                       uuid.NewString(),
+									Auth:                     &proto.Agent_Token{},
+									ConnectionTimeoutSeconds: 1,
+								}},
+							}},
+						},
+					},
+				}},
+			})
+			coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+			coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			var err error
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+				workspace, err = client.Workspace(ctx, workspace.ID)
+				return assert.NoError(t, err) && !workspace.Health.Healthy
+			}, testutil.IntervalMedium)
+
+			agent := workspace.LatestBuild.Resources[0].Agents[0]
+
+			assert.False(t, workspace.Health.Healthy)
+			assert.Equal(t, []uuid.UUID{agent.ID}, workspace.Health.FailingAgents)
+			assert.False(t, agent.Health.Healthy)
+			assert.NotEmpty(t, agent.Health.Reason)
+		})
+
+		t.Run("Mixed health", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+				Parse: echo.ParseComplete,
+				ProvisionApply: []*proto.Provision_Response{{
+					Type: &proto.Provision_Response_Complete{
+						Complete: &proto.Provision_Complete{
+							Resources: []*proto.Resource{{
+								Name: "some",
+								Type: "example",
+								Agents: []*proto.Agent{{
+									Id:   uuid.NewString(),
+									Name: "a1",
+									Auth: &proto.Agent_Token{},
+								}, {
+									Id:                       uuid.NewString(),
+									Name:                     "a2",
+									Auth:                     &proto.Agent_Token{},
+									ConnectionTimeoutSeconds: 1,
+								}},
+							}},
+						},
+					},
+				}},
+			})
+			coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+			coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			var err error
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+				workspace, err = client.Workspace(ctx, workspace.ID)
+				return assert.NoError(t, err) && !workspace.Health.Healthy
+			}, testutil.IntervalMedium)
+
+			assert.False(t, workspace.Health.Healthy)
+			assert.Len(t, workspace.Health.FailingAgents, 1)
+
+			agent1 := workspace.LatestBuild.Resources[0].Agents[0]
+			agent2 := workspace.LatestBuild.Resources[0].Agents[1]
+
+			assert.Equal(t, []uuid.UUID{agent2.ID}, workspace.Health.FailingAgents)
+			assert.True(t, agent1.Health.Healthy)
+			assert.Empty(t, agent1.Health.Reason)
+			assert.False(t, agent2.Health.Healthy)
+			assert.NotEmpty(t, agent2.Health.Reason)
+		})
 	})
 }
 
@@ -588,7 +730,7 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 		InitiatorID:    owner.UserID,
 		WorkerID:       uuid.NullUUID{},
 		FileID:         file.ID,
-		Tags: dbtype.StringMap{
+		Tags: database.StringMap{
 			"custom": "true",
 		},
 	})
@@ -616,7 +758,7 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 		job.Type = database.ProvisionerJobTypeWorkspaceBuild
 		job.OrganizationID = owner.OrganizationID
 		// Need to prevent acquire from getting this job.
-		job.Tags = dbtype.StringMap{
+		job.Tags = database.StringMap{
 			jobID.String(): "true",
 		}
 		job = dbgen.ProvisionerJob(t, db, job)
@@ -1208,6 +1350,62 @@ func TestWorkspaceFilterManual(t *testing.T) {
 			require.NoError(t, err)
 			return workspaces.Count == 1
 		}, testutil.IntervalMedium, "agent status timeout")
+	})
+
+	t.Run("FilterQueryHasDeletingByAndUnlicensed", func(t *testing.T) {
+		// this test has a licensed counterpart in enterprise/coderd/workspaces_test.go: FilterQueryHasDeletingByAndLicensed
+		t.Parallel()
+		inactivityTTL := 1 * 24 * time.Hour
+		var setCalled int64
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			TemplateScheduleStore: schedule.MockTemplateScheduleStore{
+				SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
+					if atomic.AddInt64(&setCalled, 1) == 2 {
+						assert.Equal(t, inactivityTTL, options.InactivityTTL)
+					}
+					template.InactivityTTL = int64(options.InactivityTTL)
+					return template, nil
+				},
+			},
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		authToken := uuid.NewString()
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		// update template with inactivity ttl
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		template, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			InactivityTTLMillis: inactivityTTL.Milliseconds(),
+		})
+
+		assert.NoError(t, err)
+		assert.Equal(t, inactivityTTL.Milliseconds(), template.InactivityTTLMillis)
+
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		// stop build so workspace is inactive
+		stopBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, stopBuild.ID)
+
+		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: fmt.Sprintf("deleting_by:%s", time.Now().Add(inactivityTTL).Format("2006-01-02")),
+		})
+
+		assert.NoError(t, err)
+		// we are expecting that no workspaces are returned as user is unlicensed
+		// and template.InactivityTTL should be 0
+		assert.Len(t, res.Workspaces, 0)
 	})
 }
 
@@ -2318,4 +2516,207 @@ func TestWorkspaceWithOptionalRichParameters(t *testing.T) {
 		{Name: secondParameterName, Value: secondParameterValue},
 	}
 	require.ElementsMatch(t, expectedBuildParameters, workspaceBuildParameters)
+}
+
+func TestWorkspaceWithEphemeralRichParameters(t *testing.T) {
+	t.Parallel()
+
+	const (
+		firstParameterName         = "first_parameter"
+		firstParameterType         = "string"
+		firstParameterDescription  = "This is first parameter"
+		firstParameterMutable      = true
+		firstParameterDefaultValue = "1"
+		firstParameterValue        = "i_am_first_parameter"
+
+		ephemeralParameterName         = "second_parameter"
+		ephemeralParameterType         = "string"
+		ephemeralParameterDescription  = "This is second parameter"
+		ephemeralParameterDefaultValue = ""
+		ephemeralParameterMutable      = true
+		ephemeralParameterValue        = "i_am_ephemeral"
+	)
+
+	// Create template version with ephemeral parameter
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Provision_Response{
+			{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Parameters: []*proto.RichParameter{
+							{
+								Name:         firstParameterName,
+								Type:         firstParameterType,
+								Description:  firstParameterDescription,
+								DefaultValue: firstParameterDefaultValue,
+								Mutable:      firstParameterMutable,
+							},
+							{
+								Name:         ephemeralParameterName,
+								Type:         ephemeralParameterType,
+								Description:  ephemeralParameterDescription,
+								DefaultValue: ephemeralParameterDefaultValue,
+								Mutable:      ephemeralParameterMutable,
+								Ephemeral:    true,
+							},
+						},
+					},
+				},
+			},
+		},
+		ProvisionApply: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{},
+			},
+		}},
+	})
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+	// Create workspace with default values
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	workspaceBuild := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	require.Equal(t, codersdk.WorkspaceStatusRunning, workspaceBuild.Status)
+
+	// Verify workspace build parameters (default values)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	workspaceBuildParameters, err := client.WorkspaceBuildParameters(ctx, workspaceBuild.ID)
+	require.NoError(t, err)
+
+	expectedBuildParameters := []codersdk.WorkspaceBuildParameter{
+		{Name: firstParameterName, Value: firstParameterDefaultValue},
+		{Name: ephemeralParameterName, Value: ephemeralParameterDefaultValue},
+	}
+	require.ElementsMatch(t, expectedBuildParameters, workspaceBuildParameters)
+
+	// Trigger workspace build job with ephemeral parameter
+	workspaceBuild, err = client.CreateWorkspaceBuild(ctx, workspaceBuild.WorkspaceID, codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionStart,
+		RichParameterValues: []codersdk.WorkspaceBuildParameter{
+			{
+				Name:  ephemeralParameterName,
+				Value: ephemeralParameterValue,
+			},
+		},
+	})
+	require.NoError(t, err)
+	workspaceBuild = coderdtest.AwaitWorkspaceBuildJob(t, client, workspaceBuild.ID)
+	require.Equal(t, codersdk.WorkspaceStatusRunning, workspaceBuild.Status)
+
+	// Verify workspace build parameters (including ephemeral)
+	workspaceBuildParameters, err = client.WorkspaceBuildParameters(ctx, workspaceBuild.ID)
+	require.NoError(t, err)
+
+	expectedBuildParameters = []codersdk.WorkspaceBuildParameter{
+		{Name: firstParameterName, Value: firstParameterDefaultValue},
+		{Name: ephemeralParameterName, Value: ephemeralParameterValue},
+	}
+	require.ElementsMatch(t, expectedBuildParameters, workspaceBuildParameters)
+
+	// Trigger workspace build one more time without the ephemeral parameter
+	workspaceBuild, err = client.CreateWorkspaceBuild(ctx, workspaceBuild.WorkspaceID, codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionStart,
+		RichParameterValues: []codersdk.WorkspaceBuildParameter{
+			{
+				Name:  firstParameterName,
+				Value: firstParameterValue,
+			},
+		},
+	})
+	require.NoError(t, err)
+	workspaceBuild = coderdtest.AwaitWorkspaceBuildJob(t, client, workspaceBuild.ID)
+	require.Equal(t, codersdk.WorkspaceStatusRunning, workspaceBuild.Status)
+
+	// Verify workspace build parameters (ephemeral should be back to default)
+	workspaceBuildParameters, err = client.WorkspaceBuildParameters(ctx, workspaceBuild.ID)
+	require.NoError(t, err)
+
+	expectedBuildParameters = []codersdk.WorkspaceBuildParameter{
+		{Name: firstParameterName, Value: firstParameterValue},
+		{Name: ephemeralParameterName, Value: ephemeralParameterDefaultValue},
+	}
+	require.ElementsMatch(t, expectedBuildParameters, workspaceBuildParameters)
+}
+
+func TestWorkspaceLock(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		var (
+			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user      = coderdtest.CreateFirstUser(t, client)
+			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			template  = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+			_         = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := client.UpdateWorkspaceLock(ctx, workspace.ID, codersdk.UpdateWorkspaceLock{
+			Lock: true,
+		})
+		require.NoError(t, err)
+
+		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+		require.NoError(t, err, "fetch provisioned workspace")
+		require.NotNil(t, workspace.LockedAt)
+		require.WithinRange(t, *workspace.LockedAt, time.Now().Add(-time.Second*10), time.Now())
+
+		lastUsedAt := workspace.LastUsedAt
+		err = client.UpdateWorkspaceLock(ctx, workspace.ID, codersdk.UpdateWorkspaceLock{
+			Lock: false,
+		})
+		require.NoError(t, err)
+
+		workspace, err = client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err, "fetch provisioned workspace")
+		require.Nil(t, workspace.LockedAt)
+		require.True(t, workspace.LastUsedAt.After(lastUsedAt))
+	})
+
+	t.Run("CannotStart", func(t *testing.T) {
+		t.Parallel()
+		var (
+			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user      = coderdtest.CreateFirstUser(t, client)
+			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			template  = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+			_         = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := client.UpdateWorkspaceLock(ctx, workspace.ID, codersdk.UpdateWorkspaceLock{
+			Lock: true,
+		})
+		require.NoError(t, err)
+
+		// Should be able to stop a workspace while it is locked.
+		coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+
+		// Should not be able to start a workspace while it is locked.
+		_, err = client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Transition:        codersdk.WorkspaceTransition(database.WorkspaceTransitionStart),
+		})
+		require.Error(t, err)
+
+		err = client.UpdateWorkspaceLock(ctx, workspace.ID, codersdk.UpdateWorkspaceLock{
+			Lock: false,
+		})
+		require.NoError(t, err)
+		coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStop, database.WorkspaceTransitionStart)
+	})
 }

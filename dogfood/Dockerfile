@@ -53,7 +53,7 @@ RUN mkdir --parents "$GOPATH" && \
 	# charts and values files
 	go install github.com/norwoodj/helm-docs/cmd/helm-docs@v1.5.0 && \
 	# sqlc for Go code generation
-	go install github.com/kyleconroy/sqlc/cmd/sqlc@v1.17.2 && \
+	go install github.com/kyleconroy/sqlc/cmd/sqlc@v1.18.0 && \
 	# gcr-cleaner-cli used by CI to prune unused images
 	go install github.com/sethvargo/gcr-cleaner/cmd/gcr-cleaner-cli@v0.5.1 && \
 	# ruleguard for checking custom rules, without needing to run all of
@@ -78,7 +78,7 @@ RUN mkdir --parents "$GOPATH" && \
 FROM alpine:3.18 as proto
 WORKDIR /tmp
 RUN apk add curl unzip
-RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v21.5/protoc-21.5-linux-x86_64.zip
+RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.3/protoc-23.3-linux-x86_64.zip
 RUN unzip protoc.zip
 
 FROM ubuntu:jammy
@@ -128,6 +128,7 @@ RUN apt-get update --quiet && apt-get install --yes \
 	openjdk-11-jdk-headless \
 	openssh-server \
 	openssl \
+	libssl-dev \
 	pkg-config \
 	python3 \
 	python3-pip \
@@ -155,11 +156,13 @@ RUN apt-get update --quiet && apt-get install --yes \
 	containerd.io \
 	docker-ce \
 	docker-ce-cli \
+	docker-compose-plugin \
 	packer \
 	terraform \
 	fish \
 	unzip \
-	zstd && \
+	zstd \
+	gettext-base && \
 	# Delete package cache to avoid consuming space in layer
 	apt-get clean && \
 	# Configure FIPS-compliant policies
@@ -320,6 +323,7 @@ RUN update-alternatives --install /usr/local/bin/gofmt gofmt /usr/local/go/bin/g
 COPY --from=go /tmp/bin /usr/local/bin
 COPY --from=rust-utils /tmp/bin /usr/local/bin
 COPY --from=proto /tmp/bin /usr/local/bin
+COPY --from=proto /tmp/include /usr/local/bin/include
 
 USER coder
 

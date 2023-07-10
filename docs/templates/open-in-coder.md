@@ -88,7 +88,7 @@ To support any infrastructure and software stack, Coder provides a generic appro
 
    > Be sure to replace `YOUR_ACCESS_URL` with your Coder access url (e.g. https://coder.example.com) and `YOUR_TEMPLATE` with the name of your template.
 
-1. Optional: pre-fill parameter values in the "Create workspace" page
+1. Optional: pre-fill parameter values in the "Create Workspace" page
 
    This can be used to pre-fill the git repo URL, disk size, image, etc.
 

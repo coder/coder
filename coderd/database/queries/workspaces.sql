@@ -406,13 +406,17 @@ SELECT
 	stopped_workspaces.count AS stopped_workspaces
 FROM pending_workspaces, building_workspaces, running_workspaces, failed_workspaces, stopped_workspaces;
 
--- name: GetWorkspacesEligibleForAutoStartStop :many
+-- name: GetWorkspacesEligibleForTransition :many
 SELECT
 	workspaces.*
 FROM
 	workspaces
 LEFT JOIN
 	workspace_builds ON workspace_builds.workspace_id = workspaces.id
+INNER JOIN
+	provisioner_jobs ON workspace_builds.job_id = provisioner_jobs.id
+INNER JOIN
+	templates ON workspaces.template_id = templates.id
 WHERE
 	workspace_builds.build_number = (
 		SELECT
@@ -442,5 +446,36 @@ WHERE
 		(
 			workspace_builds.transition = 'stop'::workspace_transition AND
 			workspaces.autostart_schedule IS NOT NULL
+		) OR
+
+		-- If the workspace's most recent job resulted in an error
+		-- it may be eligible for failed stop.
+		(
+			provisioner_jobs.error IS NOT NULL AND
+			provisioner_jobs.error != '' AND
+			workspace_builds.transition = 'start'::workspace_transition
+		) OR
+
+		-- If the workspace's template has an inactivity_ttl set
+		-- it may be eligible for locking.
+		(
+			templates.inactivity_ttl > 0 AND
+			workspaces.locked_at IS NULL
+		) OR
+
+		-- If the workspace's template has a locked_ttl set
+		-- and the workspace is already locked
+		(
+			templates.locked_ttl > 0 AND
+			workspaces.locked_at IS NOT NULL
 		)
-	);
+	) AND workspaces.deleted = 'false';
+
+-- name: UpdateWorkspaceLockedAt :exec
+UPDATE
+	workspaces
+SET
+	locked_at = $2,
+	last_used_at = now() at time zone 'utc'
+WHERE
+	id = $1;

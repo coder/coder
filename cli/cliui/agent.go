@@ -2,31 +2,21 @@ package cliui
 
 import (
 	"context"
-	"fmt"
 	"io"
-	"os"
-	"os/signal"
-	"sync"
 	"time"
 
-	"github.com/briandowns/spinner"
-	"github.com/muesli/reflow/indent"
-	"github.com/muesli/reflow/wordwrap"
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/codersdk"
 )
 
-var (
-	AgentStartError   = xerrors.New("agent startup exited with non-zero exit status")
-	AgentShuttingDown = xerrors.New("agent is shutting down")
-)
+var errAgentShuttingDown = xerrors.New("agent is shutting down")
 
 type AgentOptions struct {
-	WorkspaceName string
-	Fetch         func(context.Context) (codersdk.WorkspaceAgent, error)
 	FetchInterval time.Duration
-	WarnInterval  time.Duration
+	Fetch         func(context.Context) (codersdk.WorkspaceAgent, error)
+	FetchLogs     func(ctx context.Context, agentID uuid.UUID, after int64, follow bool) (<-chan []codersdk.WorkspaceAgentStartupLog, io.Closer, error)
 	Wait          bool // If true, wait for the agent to be ready (startup script).
 }
 
@@ -35,230 +25,205 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 	if opts.FetchInterval == 0 {
 		opts.FetchInterval = 500 * time.Millisecond
 	}
-	if opts.WarnInterval == 0 {
-		opts.WarnInterval = 30 * time.Second
+	if opts.FetchLogs == nil {
+		opts.FetchLogs = func(_ context.Context, _ uuid.UUID, _ int64, _ bool) (<-chan []codersdk.WorkspaceAgentStartupLog, io.Closer, error) {
+			c := make(chan []codersdk.WorkspaceAgentStartupLog)
+			close(c)
+			return c, closeFunc(func() error { return nil }), nil
+		}
 	}
-	var resourceMutex sync.Mutex
-	agent, err := opts.Fetch(ctx)
+
+	type fetchAgent struct {
+		agent codersdk.WorkspaceAgent
+		err   error
+	}
+	fetchedAgent := make(chan fetchAgent, 1)
+	go func() {
+		t := time.NewTimer(0)
+		defer t.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				agent, err := opts.Fetch(ctx)
+				select {
+				case <-fetchedAgent:
+				default:
+				}
+				if err != nil {
+					fetchedAgent <- fetchAgent{err: xerrors.Errorf("fetch workspace agent: %w", err)}
+					return
+				}
+				fetchedAgent <- fetchAgent{agent: agent}
+				t.Reset(opts.FetchInterval)
+			}
+		}
+	}()
+	fetch := func() (codersdk.WorkspaceAgent, error) {
+		select {
+		case <-ctx.Done():
+			return codersdk.WorkspaceAgent{}, ctx.Err()
+		case f := <-fetchedAgent:
+			if f.err != nil {
+				return codersdk.WorkspaceAgent{}, f.err
+			}
+			return f.agent, nil
+		}
+	}
+
+	agent, err := fetch()
 	if err != nil {
 		return xerrors.Errorf("fetch: %w", err)
 	}
 
-	// Fast path if the agent is ready (avoid showing connecting prompt).
-	// We don't take the fast path for opts.NoWait yet because we want to
-	// show the message.
-	if agent.Status == codersdk.WorkspaceAgentConnected &&
-		(agent.StartupScriptBehavior == codersdk.WorkspaceAgentStartupScriptBehaviorNonBlocking || agent.LifecycleState == codersdk.WorkspaceAgentLifecycleReady) {
-		return nil
-	}
+	sw := &stageWriter{w: writer}
 
-	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
-	defer cancel()
-
-	spin := spinner.New(spinner.CharSets[78], 100*time.Millisecond, spinner.WithColor("fgHiGreen"))
-	spin.Writer = writer
-	spin.ForceOutput = true
-	spin.Suffix = waitingMessage(agent, opts).Spin
-
-	waitMessage := &message{}
-	showMessage := func() {
-		resourceMutex.Lock()
-		defer resourceMutex.Unlock()
-
-		m := waitingMessage(agent, opts)
-		if m.Prompt == waitMessage.Prompt {
-			return
-		}
-		moveUp := ""
-		if waitMessage.Prompt != "" {
-			// If this is an update, move a line up
-			// to keep it tidy and aligned.
-			moveUp = "\033[1A"
-		}
-		waitMessage = m
-
-		// Stop the spinner while we write our message.
-		spin.Stop()
-		spin.Suffix = waitMessage.Spin
-		// Clear the line and (if necessary) move up a line to write our message.
-		_, _ = fmt.Fprintf(writer, "\033[2K%s\n%s\n", moveUp, waitMessage.Prompt)
-		select {
-		case <-ctx.Done():
-		default:
-			// Safe to resume operation.
-			if spin.Suffix != "" {
-				spin.Start()
-			}
-		}
-	}
-
-	// Fast path for showing the error message even when using no wait,
-	// we do this just before starting the spinner to avoid needless
-	// spinning.
-	if agent.Status == codersdk.WorkspaceAgentConnected &&
-		agent.StartupScriptBehavior == codersdk.WorkspaceAgentStartupScriptBehaviorBlocking && !opts.Wait {
-		showMessage()
-		return nil
-	}
-
-	// Start spinning after fast paths are handled.
-	if spin.Suffix != "" {
-		spin.Start()
-	}
-	defer spin.Stop()
-
-	warnAfter := time.NewTimer(opts.WarnInterval)
-	defer warnAfter.Stop()
-	warningShown := make(chan struct{})
-	go func() {
-		select {
-		case <-ctx.Done():
-			close(warningShown)
-		case <-warnAfter.C:
-			close(warningShown)
-			showMessage()
-		}
-	}()
-
-	fetchInterval := time.NewTicker(opts.FetchInterval)
-	defer fetchInterval.Stop()
+	showStartupLogs := false
 	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-fetchInterval.C:
+		// It doesn't matter if we're connected or not, if the agent is
+		// shutting down, we don't know if it's coming back.
+		if agent.LifecycleState.ShuttingDown() {
+			return errAgentShuttingDown
 		}
-		resourceMutex.Lock()
-		agent, err = opts.Fetch(ctx)
-		if err != nil {
-			resourceMutex.Unlock()
-			return xerrors.Errorf("fetch: %w", err)
-		}
-		resourceMutex.Unlock()
+
 		switch agent.Status {
-		case codersdk.WorkspaceAgentConnected:
-			// NOTE(mafredri): Once we have access to the workspace agent's
-			// startup script logs, we can show them here.
-			// https://github.com/coder/coder/issues/2957
-			if agent.StartupScriptBehavior == codersdk.WorkspaceAgentStartupScriptBehaviorBlocking && opts.Wait {
-				switch agent.LifecycleState {
-				case codersdk.WorkspaceAgentLifecycleReady:
-					return nil
-				case codersdk.WorkspaceAgentLifecycleStartTimeout:
-					showMessage()
-				case codersdk.WorkspaceAgentLifecycleStartError:
-					showMessage()
-					return AgentStartError
-				case codersdk.WorkspaceAgentLifecycleShuttingDown, codersdk.WorkspaceAgentLifecycleShutdownTimeout,
-					codersdk.WorkspaceAgentLifecycleShutdownError, codersdk.WorkspaceAgentLifecycleOff:
-					showMessage()
-					return AgentShuttingDown
-				default:
-					select {
-					case <-warningShown:
-						showMessage()
-					default:
-						// This state is normal, we don't want
-						// to show a message prematurely.
+		case codersdk.WorkspaceAgentConnecting, codersdk.WorkspaceAgentTimeout:
+			// Since we were waiting for the agent to connect, also show
+			// startup logs if applicable.
+			showStartupLogs = true
+
+			stage := "Waiting for the workspace agent to connect"
+			sw.Start(stage)
+			for agent.Status == codersdk.WorkspaceAgentConnecting {
+				if agent, err = fetch(); err != nil {
+					return xerrors.Errorf("fetch: %w", err)
+				}
+			}
+
+			if agent.Status == codersdk.WorkspaceAgentTimeout {
+				now := time.Now()
+				sw.Log(now, codersdk.LogLevelInfo, "The workspace agent is having trouble connecting, wait for it to connect or restart your workspace.")
+				sw.Log(now, codersdk.LogLevelInfo, troubleshootingMessage(agent, "https://coder.com/docs/v2/latest/templates#agent-connection-issues"))
+				for agent.Status == codersdk.WorkspaceAgentTimeout {
+					if agent, err = fetch(); err != nil {
+						return xerrors.Errorf("fetch: %w", err)
 					}
 				}
-				continue
 			}
-			return nil
-		case codersdk.WorkspaceAgentTimeout, codersdk.WorkspaceAgentDisconnected:
-			showMessage()
-		}
-	}
-}
+			sw.Complete(stage, agent.FirstConnectedAt.Sub(agent.CreatedAt))
 
-type message struct {
-	Spin         string
-	Prompt       string
-	Troubleshoot bool
-}
-
-func waitingMessage(agent codersdk.WorkspaceAgent, opts AgentOptions) (m *message) {
-	m = &message{
-		Spin:   fmt.Sprintf("Waiting for connection from %s...", DefaultStyles.Field.Render(agent.Name)),
-		Prompt: "Don't panic, your workspace is booting up!",
-	}
-	defer func() {
-		if agent.Status == codersdk.WorkspaceAgentConnected && !opts.Wait {
-			m.Spin = ""
-		}
-		if m.Spin != "" {
-			m.Spin = " " + m.Spin
-		}
-
-		// We don't want to wrap the troubleshooting URL, so we'll handle word
-		// wrapping ourselves (vs using lipgloss).
-		w := wordwrap.NewWriter(DefaultStyles.Paragraph.GetWidth() - DefaultStyles.Paragraph.GetMarginLeft()*2)
-		w.Breakpoints = []rune{' ', '\n'}
-
-		_, _ = fmt.Fprint(w, m.Prompt)
-		if m.Troubleshoot {
-			if agent.TroubleshootingURL != "" {
-				_, _ = fmt.Fprintf(w, " See troubleshooting instructions at:\n%s", agent.TroubleshootingURL)
-			} else {
-				_, _ = fmt.Fprint(w, " Wait for it to (re)connect or restart your workspace.")
+		case codersdk.WorkspaceAgentConnected:
+			if !showStartupLogs && agent.LifecycleState == codersdk.WorkspaceAgentLifecycleReady {
+				// The workspace is ready, there's nothing to do but connect.
+				return nil
 			}
-		}
-		_, _ = fmt.Fprint(w, "\n")
 
-		// We want to prefix the prompt with a caret, but we want text on the
-		// following lines to align with the text on the first line (i.e. added
-		// spacing).
-		ind := " " + DefaultStyles.Prompt.String()
-		iw := indent.NewWriter(1, func(w io.Writer) {
-			_, _ = w.Write([]byte(ind))
-			ind = "   " // Set indentation to space after initial prompt.
-		})
-		_, _ = fmt.Fprint(iw, w.String())
-		m.Prompt = iw.String()
-	}()
+			stage := "Running workspace agent startup script"
+			follow := opts.Wait
+			if !follow {
+				stage += " (non-blocking)"
+			}
+			sw.Start(stage)
 
-	switch agent.Status {
-	case codersdk.WorkspaceAgentTimeout:
-		m.Prompt = "The workspace agent is having trouble connecting."
-	case codersdk.WorkspaceAgentDisconnected:
-		m.Prompt = "The workspace agent lost connection!"
-	case codersdk.WorkspaceAgentConnected:
-		m.Spin = fmt.Sprintf("Waiting for %s to become ready...", DefaultStyles.Field.Render(agent.Name))
-		m.Prompt = "Don't panic, your workspace agent has connected and the workspace is getting ready!"
-		if !opts.Wait {
-			m.Prompt = "Your workspace is still getting ready, it may be in an incomplete state."
-		}
+			err = func() error { // Use func because of defer in for loop.
+				logStream, logsCloser, err := opts.FetchLogs(ctx, agent.ID, 0, follow)
+				if err != nil {
+					return xerrors.Errorf("fetch workspace agent startup logs: %w", err)
+				}
+				defer logsCloser.Close()
 
-		switch agent.LifecycleState {
-		case codersdk.WorkspaceAgentLifecycleStartTimeout:
-			m.Prompt = "The workspace is taking longer than expected to get ready, the agent startup script is still executing."
-		case codersdk.WorkspaceAgentLifecycleStartError:
-			m.Spin = ""
-			m.Prompt = "The workspace ran into a problem while getting ready, the agent startup script exited with non-zero status."
-		default:
+				for {
+					// This select is essentially and inline `fetch()`.
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case f := <-fetchedAgent:
+						if f.err != nil {
+							return xerrors.Errorf("fetch: %w", f.err)
+						}
+						// We could handle changes in the agent status here, like
+						// if the agent becomes disconnected, we may want to stop.
+						// But for now, we'll just keep going, hopefully the agent
+						// will reconnect and update its status.
+						agent = f.agent
+					case logs, ok := <-logStream:
+						if !ok {
+							return nil
+						}
+						for _, log := range logs {
+							sw.Log(log.CreatedAt, log.Level, log.Output)
+						}
+					}
+				}
+			}()
+			if err != nil {
+				return err
+			}
+
+			for follow && agent.LifecycleState.Starting() {
+				if agent, err = fetch(); err != nil {
+					return xerrors.Errorf("fetch: %w", err)
+				}
+			}
+
 			switch agent.LifecycleState {
-			case codersdk.WorkspaceAgentLifecycleShutdownTimeout:
-				m.Spin = ""
-				m.Prompt = "The workspace is shutting down, but is taking longer than expected to shut down and the agent shutdown script is still executing."
-				m.Troubleshoot = true
-			case codersdk.WorkspaceAgentLifecycleShutdownError:
-				m.Spin = ""
-				m.Prompt = "The workspace ran into a problem while shutting down, the agent shutdown script exited with non-zero status."
-				m.Troubleshoot = true
-			case codersdk.WorkspaceAgentLifecycleShuttingDown:
-				m.Spin = ""
-				m.Prompt = "The workspace is shutting down."
-			case codersdk.WorkspaceAgentLifecycleOff:
-				m.Spin = ""
-				m.Prompt = "The workspace is not running."
+			case codersdk.WorkspaceAgentLifecycleReady:
+				sw.Complete(stage, agent.ReadyAt.Sub(*agent.StartedAt))
+			case codersdk.WorkspaceAgentLifecycleStartError:
+				sw.Fail(stage, agent.ReadyAt.Sub(*agent.StartedAt))
+				// Use zero time (omitted) to separate these from the startup logs.
+				sw.Log(time.Time{}, codersdk.LogLevelWarn, "Warning: The startup script exited with an error and your workspace may be incomplete.")
+				sw.Log(time.Time{}, codersdk.LogLevelWarn, troubleshootingMessage(agent, "https://coder.com/docs/v2/latest/templates#startup-script-exited-with-an-error"))
+			default:
+				switch {
+				case agent.LifecycleState.Starting():
+					// Use zero time (omitted) to separate these from the startup logs.
+					sw.Log(time.Time{}, codersdk.LogLevelWarn, "Notice: The startup script is still running and your workspace may be incomplete.")
+					sw.Log(time.Time{}, codersdk.LogLevelWarn, troubleshootingMessage(agent, "https://coder.com/docs/v2/latest/templates#your-workspace-may-be-incomplete"))
+					// Note: We don't complete or fail the stage here, it's
+					// intentionally left open to indicate this stage didn't
+					// complete.
+				case agent.LifecycleState.ShuttingDown():
+					// We no longer know if the startup script failed or not,
+					// but we need to tell the user something.
+					sw.Complete(stage, agent.ReadyAt.Sub(*agent.StartedAt))
+					return errAgentShuttingDown
+				}
 			}
-			// Not a failure state, no troubleshooting necessary.
-			return m
+
+			return nil
+
+		case codersdk.WorkspaceAgentDisconnected:
+			// If the agent was still starting during disconnect, we'll
+			// show startup logs.
+			showStartupLogs = agent.LifecycleState.Starting()
+
+			stage := "The workspace agent lost connection"
+			sw.Start(stage)
+			sw.Log(time.Now(), codersdk.LogLevelWarn, "Wait for it to reconnect or restart your workspace.")
+			sw.Log(time.Now(), codersdk.LogLevelWarn, troubleshootingMessage(agent, "https://coder.com/docs/v2/latest/templates#agent-connection-issues"))
+			for agent.Status == codersdk.WorkspaceAgentDisconnected {
+				if agent, err = fetch(); err != nil {
+					return xerrors.Errorf("fetch: %w", err)
+				}
+			}
+			sw.Complete(stage, agent.LastConnectedAt.Sub(*agent.DisconnectedAt))
 		}
-	default:
-		// Not a failure state, no troubleshooting necessary.
-		return m
 	}
-	m.Troubleshoot = true
+}
+
+func troubleshootingMessage(agent codersdk.WorkspaceAgent, url string) string {
+	m := "For more information and troubleshooting, see " + url
+	if agent.TroubleshootingURL != "" {
+		m += " and " + agent.TroubleshootingURL
+	}
 	return m
+}
+
+type closeFunc func() error
+
+func (c closeFunc) Close() error {
+	return c()
 }

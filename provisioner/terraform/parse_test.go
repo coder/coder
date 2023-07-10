@@ -31,9 +31,7 @@ func TestParse(t *testing.T) {
 			Files: map[string]string{
 				"main.tf": `variable "A" {
 				description = "Testing!"
-			}
-
-			provider "coder" { feature_use_managed_variables = "true" }`,
+			}`,
 			},
 			Response: &proto.Parse_Response{
 				Type: &proto.Parse_Response_Complete{
@@ -54,9 +52,7 @@ func TestParse(t *testing.T) {
 			Files: map[string]string{
 				"main.tf": `variable "A" {
 				default = "wow"
-			}
-
-			provider "coder" { feature_use_managed_variables = "true" }`,
+			}`,
 			},
 			Response: &proto.Parse_Response{
 				Type: &proto.Parse_Response_Complete{
@@ -78,9 +74,7 @@ func TestParse(t *testing.T) {
 				validation {
 					condition = var.A == "value"
 				}
-			}
-
-			provider "coder" { feature_use_managed_variables = "true" }`,
+			}`,
 			},
 			Response: &proto.Parse_Response{
 				Type: &proto.Parse_Response_Complete{
@@ -106,9 +100,7 @@ func TestParse(t *testing.T) {
 			Name: "multiple-variables",
 			Files: map[string]string{
 				"main1.tf": `variable "foo" { }
-				variable "bar" { }
-
-				provider "coder" { feature_use_managed_variables = "true" }`,
+				variable "bar" { }`,
 				"main2.tf": `variable "baz" { }
 				variable "quux" { }`,
 			},
@@ -138,17 +130,13 @@ func TestParse(t *testing.T) {
 			},
 		},
 		{
-			Name: "enable-managed-variables-with-default-bool",
+			Name: "template-variables-with-default-bool",
 			Files: map[string]string{
 				"main.tf": `variable "A" {
 				description = "Testing!"
 				type = 	bool
 				default = true
 				sensitive = true
-			}
-
-			provider "coder" {
-				feature_use_managed_variables = true
 			}`,
 			},
 			Response: &proto.Parse_Response{
@@ -169,17 +157,13 @@ func TestParse(t *testing.T) {
 			},
 		},
 		{
-			Name: "enable-managed-variables-with-default-string",
+			Name: "template-variables-with-default-string",
 			Files: map[string]string{
 				"main.tf": `variable "A" {
 				description = "Testing!"
 				type = 	string
 				default = "abc"
 				sensitive = true
-			}
-
-			provider "coder" {
-				feature_use_managed_variables = true
 			}`,
 			},
 			Response: &proto.Parse_Response{
@@ -200,17 +184,13 @@ func TestParse(t *testing.T) {
 			},
 		},
 		{
-			Name: "enable-managed-variables-with-default-empty-string",
+			Name: "template-variables-with-default-empty-string",
 			Files: map[string]string{
 				"main.tf": `variable "A" {
 				description = "Testing!"
 				type = 	string
 				default = ""
 				sensitive = true
-			}
-
-			provider "coder" {
-				feature_use_managed_variables = true
 			}`,
 			},
 			Response: &proto.Parse_Response{
@@ -231,16 +211,12 @@ func TestParse(t *testing.T) {
 			},
 		},
 		{
-			Name: "enable-managed-variables-without-default",
+			Name: "template-variables-without-default",
 			Files: map[string]string{
 				"main2.tf": `variable "A" {
 				description = "Testing!"
 				type = string
 				sensitive = true
-			}
-
-			provider "coder" {
-				feature_use_managed_variables = true
 			}`,
 			},
 			Response: &proto.Parse_Response{

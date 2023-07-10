@@ -28,6 +28,7 @@ const validFormValues: FormValues = {
   allow_user_autostop: false,
   failure_ttl_ms: 0,
   inactivity_ttl_ms: 0,
+  locked_ttl_ms: 0,
 }
 
 const renderTemplateSettingsPage = async () => {
@@ -107,7 +108,7 @@ describe("TemplateSettingsPage", () => {
     }
     const validate = () => getValidationSchema().validateSync(values)
     expect(validate).toThrowError(
-      t("descriptionMaxError", { ns: "templateSettingsPage" }),
+      t("descriptionMaxError", { ns: "templateSettingsPage" }).toString(),
     )
   })
 })

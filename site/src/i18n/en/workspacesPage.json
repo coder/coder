@@ -1,7 +1,7 @@
 {
-  "emptyCreateWorkspaceMessage": "Create your first workspace",
-  "emptyCreateWorkspaceDescription": "Start editing your source code and building your software",
-  "createFromTemplateButton": "Create from template",
+  "emptyCreateWorkspaceMessage": "Create a Workspace",
+  "emptyCreateWorkspaceDescription": "A workspace is your personal, customizable development environment in the cloud",
+  "createFromTemplateButton": "Select a Template",
   "emptyResultsMessage": "No results matched your search",
   "emptyPageMessage": "No results on this page",
   "updateVersionError": "Error on update workspace version"

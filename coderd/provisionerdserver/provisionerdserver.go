@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
+	"github.com/coder/coder/coderd/database/pubsub"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/schedule"
@@ -56,7 +57,7 @@ type Server struct {
 	GitAuthConfigs        []*gitauth.Config
 	Tags                  json.RawMessage
 	Database              database.Store
-	Pubsub                database.Pubsub
+	Pubsub                pubsub.Pubsub
 	Telemetry             telemetry.Reporter
 	Tracer                trace.Tracer
 	QuotaCommitter        *atomic.Pointer[proto.QuotaCommitter]
@@ -107,7 +108,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 	if err != nil {
 		return nil, xerrors.Errorf("acquire job: %w", err)
 	}
-	server.Logger.Debug(ctx, "locked job from database", slog.F("id", job.ID))
+	server.Logger.Debug(ctx, "locked job from database", slog.F("job_id", job.ID))
 
 	// Marks the acquired job as failed with the error message provided.
 	failJob := func(errorMessage string) error {
@@ -444,7 +445,7 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 	if err != nil {
 		return nil, xerrors.Errorf("parse job id: %w", err)
 	}
-	server.Logger.Debug(ctx, "UpdateJob starting", slog.F("job_id", parsedID))
+	server.Logger.Debug(ctx, "stage UpdateJob starting", slog.F("job_id", parsedID))
 	job, err := server.Database.GetProvisionerJobByID(ctx, parsedID)
 	if err != nil {
 		return nil, xerrors.Errorf("get job: %w", err)
@@ -505,7 +506,7 @@ func (server *Server) UpdateJob(ctx context.Context, request *proto.UpdateJobReq
 		err = server.Pubsub.Publish(provisionersdk.ProvisionerJobLogsNotifyChannel(parsedID), data)
 		if err != nil {
 			server.Logger.Error(ctx, "failed to publish job logs", slog.F("job_id", parsedID), slog.Error(err))
-			return nil, xerrors.Errorf("publish job log: %w", err)
+			return nil, xerrors.Errorf("publish job logs: %w", err)
 		}
 		server.Logger.Debug(ctx, "published job logs", slog.F("job_id", parsedID))
 	}
@@ -591,7 +592,7 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 	if err != nil {
 		return nil, xerrors.Errorf("parse job id: %w", err)
 	}
-	server.Logger.Debug(ctx, "FailJob starting", slog.F("job_id", jobID))
+	server.Logger.Debug(ctx, "stage FailJob starting", slog.F("job_id", jobID))
 	job, err := server.Database.GetProvisionerJobByID(ctx, jobID)
 	if err != nil {
 		return nil, xerrors.Errorf("get provisioner job: %w", err)
@@ -745,7 +746,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 	if err != nil {
 		return nil, xerrors.Errorf("parse job id: %w", err)
 	}
-	server.Logger.Debug(ctx, "CompleteJob starting", slog.F("job_id", jobID))
+	server.Logger.Debug(ctx, "stage CompleteJob starting", slog.F("job_id", jobID))
 	job, err := server.Database.GetProvisionerJobByID(ctx, jobID)
 	if err != nil {
 		return nil, xerrors.Errorf("get job by id: %w", err)
@@ -788,6 +789,8 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			server.Logger.Info(ctx, "inserting template import job parameter",
 				slog.F("job_id", job.ID.String()),
 				slog.F("parameter_name", richParameter.Name),
+				slog.F("type", richParameter.Type),
+				slog.F("ephemeral", richParameter.Ephemeral),
 			)
 			options, err := json.Marshal(richParameter.Options)
 			if err != nil {
@@ -824,7 +827,8 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				ValidationMax:       validationMax,
 				ValidationMonotonic: richParameter.ValidationMonotonic,
 				Required:            richParameter.Required,
-				LegacyVariableName:  richParameter.LegacyVariableName,
+				DisplayOrder:        richParameter.Order,
+				Ephemeral:           richParameter.Ephemeral,
 			})
 			if err != nil {
 				return nil, xerrors.Errorf("insert parameter: %w", err)
@@ -1120,7 +1124,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 		return nil, xerrors.Errorf("publish end of job logs: %w", err)
 	}
 
-	server.Logger.Debug(ctx, "CompleteJob done", slog.F("job_id", jobID))
+	server.Logger.Debug(ctx, "stage CompleteJob done", slog.F("job_id", jobID))
 	return &proto.Empty{}, nil
 }
 

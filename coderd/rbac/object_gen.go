@@ -18,13 +18,16 @@ func AllResources() []Object {
 		ResourceReplicas,
 		ResourceRoleAssignment,
 		ResourceSystem,
+		ResourceTailnetCoordinator,
 		ResourceTemplate,
 		ResourceUser,
 		ResourceUserData,
 		ResourceWildcard,
 		ResourceWorkspace,
 		ResourceWorkspaceApplicationConnect,
+		ResourceWorkspaceBuild,
 		ResourceWorkspaceExecution,
+		ResourceWorkspaceLocked,
 		ResourceWorkspaceProxy,
 	}
 }

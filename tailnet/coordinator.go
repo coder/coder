@@ -1,6 +1,7 @@
 package tailnet
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -174,11 +175,12 @@ func newCore(logger slog.Logger) *core {
 var ErrWouldBlock = xerrors.New("would block")
 
 type TrackedConn struct {
-	ctx     context.Context
-	cancel  func()
-	conn    net.Conn
-	updates chan []*Node
-	logger  slog.Logger
+	ctx      context.Context
+	cancel   func()
+	conn     net.Conn
+	updates  chan []*Node
+	logger   slog.Logger
+	lastData []byte
 
 	// ID is an ephemeral UUID used to uniquely identify the owner of the
 	// connection.
@@ -224,6 +226,10 @@ func (t *TrackedConn) SendUpdates() {
 				t.logger.Error(t.ctx, "unable to marshal nodes update", slog.Error(err), slog.F("nodes", nodes))
 				return
 			}
+			if bytes.Equal(t.lastData, data) {
+				t.logger.Debug(t.ctx, "skipping duplicate update", slog.F("nodes", string(data)))
+				continue
+			}
 
 			// Set a deadline so that hung connections don't put back pressure on the system.
 			// Node updates are tiny, so even the dinkiest connection can handle them if it's not hung.
@@ -237,11 +243,12 @@ func (t *TrackedConn) SendUpdates() {
 			_, err = t.conn.Write(data)
 			if err != nil {
 				// often, this is just because the connection is closed/broken, so only log at debug.
-				t.logger.Debug(t.ctx, "could not write nodes to connection", slog.Error(err), slog.F("nodes", nodes))
+				t.logger.Debug(t.ctx, "could not write nodes to connection",
+					slog.Error(err), slog.F("nodes", string(data)))
 				_ = t.Close()
 				return
 			}
-			t.logger.Debug(t.ctx, "wrote nodes", slog.F("nodes", nodes))
+			t.logger.Debug(t.ctx, "wrote nodes", slog.F("nodes", string(data)))
 
 			// nhooyr.io/websocket has a bugged implementation of deadlines on a websocket net.Conn.  What they are
 			// *supposed* to do is set a deadline for any subsequent writes to complete, otherwise the call to Write()
@@ -255,6 +262,7 @@ func (t *TrackedConn) SendUpdates() {
 				_ = t.Close()
 				return
 			}
+			t.lastData = data
 		}
 	}
 }
@@ -332,7 +340,7 @@ func (c *coordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) 
 	for {
 		err := c.handleNextClientMessage(id, agent, decoder)
 		if err != nil {
-			logger.Debug(ctx, "unable to read client update; closed conn?", slog.Error(err))
+			logger.Debug(ctx, "unable to read client update, connection may be closed", slog.Error(err))
 			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) || errors.Is(err, context.Canceled) {
 				return nil
 			}
@@ -469,7 +477,7 @@ func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) error
 	for {
 		err := c.handleNextAgentMessage(id, decoder)
 		if err != nil {
-			logger.Debug(ctx, "unable to read agent update; closed conn?", slog.Error(err))
+			logger.Debug(ctx, "unable to read agent update, connection may be closed", slog.Error(err))
 			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) || errors.Is(err, context.Canceled) {
 				return nil
 			}

@@ -54,7 +54,7 @@ func TestWorkspaceAgent(t *testing.T) {
 
 		clitest.Start(t, inv)
 		ctx := inv.Context()
-		pty.ExpectMatchContext(ctx, "starting agent")
+		pty.ExpectMatchContext(ctx, "agent is starting now")
 
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
@@ -270,7 +270,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		pty := ptytest.New(t).Attach(inv)
 
 		clitest.Start(t, inv)
-		pty.ExpectMatchContext(inv.Context(), "starting agent")
+		pty.ExpectMatchContext(inv.Context(), "agent is starting now")
 
 		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 		require.Len(t, resources, 1)

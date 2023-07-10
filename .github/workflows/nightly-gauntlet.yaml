@@ -19,11 +19,7 @@ jobs:
       - uses: actions/checkout@v3
 
       - uses: ./.github/actions/setup-go
-
-      - uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: 1.1.9
-          terraform_wrapper: false
+      - uses: ./.github/actions/setup-tf
 
       - name: Run Tests
         run: |

@@ -1,0 +1,8 @@
+Usage: coder licenses list
+
+List licenses (including expired)
+
+Aliases: ls
+
+---
+Run `coder --help` for a list of global options.

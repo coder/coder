@@ -12,6 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func init() {
+	// For golden files, always show the flag.
+	hideForceUnixSlashes = false
+}
+
 func Test_sshConfigSplitOnCoderSection(t *testing.T) {
 	t.Parallel()
 
@@ -140,14 +145,14 @@ func Test_sshConfigExecEscape(t *testing.T) {
 		name    string
 		path    string
 		wantErr bool
-		windows bool
 	}{
-		{"no spaces", "simple", false, true},
-		{"spaces", "path with spaces", false, true},
-		{"quotes", "path with \"quotes\"", false, false},
-		{"backslashes", "path with \\backslashes", false, false},
-		{"tabs", "path with \ttabs", false, false},
-		{"newline fails", "path with \nnewline", true, false},
+		{"windows path", `C:\Program Files\Coder\bin\coder.exe`, false},
+		{"no spaces", "simple", false},
+		{"spaces", "path with spaces", false},
+		{"quotes", "path with \"quotes\"", false},
+		{"backslashes", "path with \\backslashes", false},
+		{"tabs", "path with \ttabs", false},
+		{"newline fails", "path with \nnewline", true},
 	}
 	for _, tt := range tests {
 		tt := tt
@@ -166,7 +171,7 @@ func Test_sshConfigExecEscape(t *testing.T) {
 			err = os.WriteFile(bin, contents, 0o755) //nolint:gosec
 			require.NoError(t, err)
 
-			escaped, err := sshConfigExecEscape(bin)
+			escaped, err := sshConfigExecEscape(bin, false)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -177,6 +182,72 @@ func Test_sshConfigExecEscape(t *testing.T) {
 			require.NoError(t, err)
 			got := strings.TrimSpace(string(b))
 			require.Equal(t, "yay", got)
+		})
+	}
+}
+
+func Test_sshConfigExecEscapeSeparatorForce(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		path string
+		// Behavior is different on Windows
+		expWindowsPath string
+		expOtherPath   string
+		forceUnix      bool
+		wantErr        bool
+	}{
+		{
+			name: "windows_keep_forward_slashes_with_spaces",
+			// Has a space, expect quotes
+			path:           `C:\Program Files\Coder\bin\coder.exe`,
+			expWindowsPath: `"C:\Program Files\Coder\bin\coder.exe"`,
+			expOtherPath:   `"C:\Program Files\Coder\bin\coder.exe"`,
+			forceUnix:      false,
+			wantErr:        false,
+		},
+		{
+			name:           "windows_keep_forward_slashes",
+			path:           `C:\ProgramFiles\Coder\bin\coder.exe`,
+			expWindowsPath: `C:\ProgramFiles\Coder\bin\coder.exe`,
+			expOtherPath:   `C:\ProgramFiles\Coder\bin\coder.exe`,
+			forceUnix:      false,
+			wantErr:        false,
+		},
+		{
+			name:           "windows_force_unix_with_spaces",
+			path:           `C:\Program Files\Coder\bin\coder.exe`,
+			expWindowsPath: `"C:/Program Files/Coder/bin/coder.exe"`,
+			expOtherPath:   `"C:\Program Files\Coder\bin\coder.exe"`,
+			forceUnix:      true,
+			wantErr:        false,
+		},
+		{
+			name:           "windows_force_unix",
+			path:           `C:\ProgramFiles\Coder\bin\coder.exe`,
+			expWindowsPath: `C:/ProgramFiles/Coder/bin/coder.exe`,
+			expOtherPath:   `C:\ProgramFiles\Coder\bin\coder.exe`,
+			forceUnix:      true,
+			wantErr:        false,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			found, err := sshConfigExecEscape(tt.path, tt.forceUnix)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			if runtime.GOOS == "windows" {
+				require.Equal(t, tt.expWindowsPath, found, "(Windows) expected path")
+			} else {
+				// this is a noop on non-windows!
+				require.Equal(t, tt.expOtherPath, found, "(Non-Windows) expected path")
+			}
 		})
 	}
 }

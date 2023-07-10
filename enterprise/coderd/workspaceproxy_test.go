@@ -288,7 +288,7 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, expName, found.Name, "name")
 		require.Equal(t, expDisplayName, found.DisplayName, "display name")
-		require.Equal(t, expIcon, found.Icon, "icon")
+		require.Equal(t, expIcon, found.IconURL, "icon")
 	})
 
 	t.Run("Delete", func(t *testing.T) {
@@ -323,7 +323,7 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 		proxies, err := client.WorkspaceProxies(ctx)
 		require.NoError(t, err)
 		// Default proxy is always there
-		require.Len(t, proxies, 1)
+		require.Len(t, proxies.Regions, 1)
 	})
 }
 
@@ -391,7 +391,7 @@ func TestIssueSignedAppToken(t *testing.T) {
 		proxyClient.SetSessionToken(proxyRes.ProxyToken)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		_, err = proxyClient.IssueSignedAppToken(ctx, workspaceapps.IssueTokenRequest{
+		_, err := proxyClient.IssueSignedAppToken(ctx, workspaceapps.IssueTokenRequest{
 			// Invalid request.
 			AppRequest:   workspaceapps.Request{},
 			SessionToken: client.SessionToken(),
@@ -413,7 +413,7 @@ func TestIssueSignedAppToken(t *testing.T) {
 		proxyClient.SetSessionToken(proxyRes.ProxyToken)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		_, err = proxyClient.IssueSignedAppToken(ctx, goodRequest)
+		_, err := proxyClient.IssueSignedAppToken(ctx, goodRequest)
 		require.NoError(t, err)
 	})
 

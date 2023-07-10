@@ -55,7 +55,7 @@ while true; do
 		;;
 	--build-base)
 		build_base="$2"
-		shift
+		shift 2
 		;;
 	--push)
 		push=1

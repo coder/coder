@@ -1,0 +1,13 @@
+Usage: coder licenses
+
+Add, delete, and list licenses
+
+Aliases: license
+
+[1mSubcommands[0m
+    add       Add license to Coder deployment
+    delete    Delete license by ID
+    list      List licenses (including expired)
+
+---
+Run `coder --help` for a list of global options.

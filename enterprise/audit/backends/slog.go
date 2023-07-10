@@ -28,7 +28,7 @@ func (b slogBackend) Export(ctx context.Context, alog database.AuditLog) error {
 	// pleasantly format the output. For example, the clean result of
 	// (*NullString).Value() may be printed instead of {String: "foo", Valid: true}.
 	sfs := structs.Fields(alog)
-	var fields []slog.Field
+	var fields []any
 	for _, sf := range sfs {
 		fields = append(fields, slog.F(sf.Name(), sf.Value()))
 	}

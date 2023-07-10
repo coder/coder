@@ -1,10 +1,7 @@
-import { useQuery } from "@tanstack/react-query"
 import { useMachine } from "@xstate/react"
-import { getWorkspaceBuildLogs } from "api/api"
-import { Workspace } from "api/typesGenerated"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import { Loader } from "components/Loader/Loader"
-import { FC, useRef } from "react"
+import { FC } from "react"
 import { useParams } from "react-router-dom"
 import { quotaMachine } from "xServices/quotas/quotasXService"
 import { workspaceMachine } from "xServices/workspace/workspaceXService"
@@ -15,28 +12,13 @@ import { useOrganizationId } from "hooks"
 import { isAxiosError } from "axios"
 import { Margins } from "components/Margins/Margins"
 
-const useFailedBuildLogs = (workspace: Workspace | undefined) => {
-  const now = useRef(new Date())
-  return useQuery({
-    queryKey: ["logs", workspace?.latest_build.id],
-    queryFn: () => {
-      if (!workspace) {
-        throw new Error(
-          `Build log query being called before workspace is defined`,
-        )
-      }
-
-      return getWorkspaceBuildLogs(workspace.latest_build.id, now.current)
-    },
-    enabled: workspace?.latest_build.job.error !== undefined,
-  })
-}
-
 export const WorkspacePage: FC = () => {
-  const { username, workspace: workspaceName } = useParams() as {
+  const params = useParams() as {
     username: string
     workspace: string
   }
+  const workspaceName = params.workspace
+  const username = params.username.replace("@", "")
   const orgId = useOrganizationId()
   const [workspaceState, workspaceSend] = useMachine(workspaceMachine, {
     context: {
@@ -48,7 +30,6 @@ export const WorkspacePage: FC = () => {
   const { workspace, error } = workspaceState.context
   const [quotaState] = useMachine(quotaMachine, { context: { username } })
   const { getQuotaError } = quotaState.context
-  const failedBuildLogs = useFailedBuildLogs(workspace)
   const pageError = error ?? getQuotaError
 
   return (
@@ -71,7 +52,6 @@ export const WorkspacePage: FC = () => {
           }
         >
           <WorkspaceReadyPage
-            failedBuildLogs={failedBuildLogs.data}
             workspaceState={workspaceState}
             quotaState={quotaState}
             workspaceSend={workspaceSend}

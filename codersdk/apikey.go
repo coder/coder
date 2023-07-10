@@ -32,6 +32,11 @@ const (
 	LoginTypeGithub   LoginType = "github"
 	LoginTypeOIDC     LoginType = "oidc"
 	LoginTypeToken    LoginType = "token"
+	// LoginTypeNone is used if no login method is available for this user.
+	// If this is set, the user has no method of logging in.
+	// API keys can still be created by an owner and used by the user.
+	// These keys would use the `LoginTypeToken` type.
+	LoginTypeNone LoginType = "none"
 )
 
 type APIKeyScope string
@@ -73,7 +78,10 @@ func (c *Client) CreateToken(ctx context.Context, userID string, req CreateToken
 }
 
 // CreateAPIKey generates an API key for the user ID provided.
-// DEPRECATED: use CreateToken instead.
+// CreateToken should be used over CreateAPIKey. CreateToken allows better
+// tracking of the token's usage and allows for custom expiration.
+// Only use CreateAPIKey if you want to emulate the session created for
+// a browser like login.
 func (c *Client) CreateAPIKey(ctx context.Context, user string) (GenerateAPIKeyResponse, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/keys", user), nil)
 	if err != nil {

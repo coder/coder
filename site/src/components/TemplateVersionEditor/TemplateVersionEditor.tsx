@@ -379,7 +379,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
                 {buildLogs && buildLogs.length > 0 && (
                   <WorkspaceBuildLogs
-                    templateEditorPane
+                    sx={{ borderRadius: 0 }}
                     hideTimestamps
                     logs={buildLogs}
                   />

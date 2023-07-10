@@ -83,9 +83,9 @@ func Test_ProxyCRUD(t *testing.T) {
 		proxies, err := client.WorkspaceProxies(ctx)
 		require.NoError(t, err, "failed to get workspace proxies")
 		// Include primary
-		require.Len(t, proxies, 2, "expected 1 proxy")
+		require.Len(t, proxies.Regions, 2, "expected 1 proxy")
 		found := false
-		for _, proxy := range proxies {
+		for _, proxy := range proxies.Regions {
 			if proxy.Name == expectedName {
 				found = true
 			}
@@ -125,7 +125,7 @@ func Test_ProxyCRUD(t *testing.T) {
 
 		inv, conf := newCLI(
 			t,
-			"wsproxy", "delete", expectedName,
+			"wsproxy", "delete", "-y", expectedName,
 		)
 
 		pty := ptytest.New(t)
@@ -137,6 +137,6 @@ func Test_ProxyCRUD(t *testing.T) {
 
 		proxies, err := client.WorkspaceProxies(ctx)
 		require.NoError(t, err, "failed to get workspace proxies")
-		require.Len(t, proxies, 1, "expected only primary proxy")
+		require.Len(t, proxies.Regions, 1, "expected only primary proxy")
 	})
 }

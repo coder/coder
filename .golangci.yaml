@@ -115,7 +115,8 @@ linters-settings:
     local-prefixes: coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder
 
   gocyclo:
-    min-complexity: 50
+    # goal: 30
+    min-complexity: 47
 
   importas:
     no-unaliased: true
@@ -200,12 +201,11 @@ issues:
   max-same-issues: 0
 
 run:
-  concurrency: 4
   skip-dirs:
     - node_modules
   skip-files:
     - scripts/rules.go
-  timeout: 5m
+  timeout: 10m
 
 # Over time, add more and more linters from
 # https://golangci-lint.run/usage/linters/ as the code improves.

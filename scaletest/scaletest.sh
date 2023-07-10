@@ -14,19 +14,32 @@ SCALETEST_SCENARIO="${SCALETEST_SCENARIO:-}"
 SCALETEST_PROJECT="${SCALETEST_PROJECT:-}"
 SCALETEST_PROMETHEUS_REMOTE_WRITE_USER="${SCALETEST_PROMETHEUS_REMOTE_WRITE_USER:-}"
 SCALETEST_PROMETHEUS_REMOTE_WRITE_PASSWORD="${SCALETEST_PROMETHEUS_REMOTE_WRITE_PASSWORD:-}"
+SCALETEST_CODER_LICENSE="${SCALETEST_CODER_LICENSE:-}"
 SCALETEST_SKIP_CLEANUP="${SCALETEST_SKIP_CLEANUP:-0}"
+SCALETEST_CREATE_CONCURRENCY="${SCALETEST_CREATE_CONCURRENCY:-10}"
+SCALETEST_TRAFFIC_BYTES_PER_TICK="${SCALETEST_TRAFFIC_BYTES_PER_TICK:-1024}"
+SCALETEST_TRAFFIC_TICK_INTERVAL="${SCALETEST_TRAFFIC_TICK_INTERVAL:-10s}"
+SCALETEST_DESTROY="${SCALETEST_DESTROY:-0}"
 
 script_name=$(basename "$0")
-args="$(getopt -o "" -l dry-run,help,name:,num-workspaces:,project:,scenario:,skip-cleanup -- "$@")"
+args="$(getopt -o "" -l create-concurrency:,destroy,dry-run,help,name:,num-workspaces:,project:,scenario:,skip-cleanup,traffic-bytes-per-tick:,traffic-tick-interval:, -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
+	--create-concurrency)
+		SCALETEST_CREATE_CONCURRENCY="$2"
+		shift 2
+		;;
+	--destroy)
+		SCALETEST_DESTROY=1
+		shift
+		;;
 	--dry-run)
 		DRY_RUN=1
 		shift
 		;;
 	--help)
-		echo "Usage: $script_name --name <name> --project <project> --num-workspaces <num-workspaces> --scenario <scenario> [--dry-run] [--skip-cleanup]"
+		echo "Usage: $script_name --name <name> --project <project> --num-workspaces <num-workspaces> --scenario <scenario> [--create-concurrency <create-concurrency>] [--destroy] [--dry-run] [--skip-cleanup] [--traffic-bytes-per-tick <number>] [--traffic-tick-interval <duration>]"
 		exit 1
 		;;
 	--name)
@@ -48,6 +61,14 @@ while true; do
 	--skip-cleanup)
 		SCALETEST_SKIP_CLEANUP=1
 		shift
+		;;
+	--traffic-bytes-per-tick)
+		SCALETEST_TRAFFIC_BYTES_PER_TICK="$2"
+		shift 2
+		;;
+	--traffic-tick-interval)
+		SCALETEST_TRAFFIC_TICK_INTERVAL="$2"
+		shift 2
 		;;
 	--)
 		shift
@@ -84,11 +105,10 @@ fi
 if [[ -z "${SCALETEST_PROMETHEUS_REMOTE_WRITE_USER}" ]] || [[ -z "${SCALETEST_PROMETHEUS_REMOTE_WRITE_PASSWORD}" ]]; then
 	echo "SCALETEST_PROMETHEUS_REMOTE_WRITE_USER or SCALETEST_PROMETHEUS_REMOTE_WRITE_PASSWORD not specified."
 	echo "No prometheus metrics will be collected!"
-	read -pr "Continue (y/N)? " choice
-	case "$choice" in
-	y | Y | yes | YES) ;;
-	*) exit 1 ;;
-	esac
+	read -p "Continue (y/N)? " -n1 -r
+	if [[ "${REPLY}" != [yY] ]]; then
+		exit 1
+	fi
 fi
 
 SCALETEST_SCENARIO_VARS="${PROJECT_ROOT}/scaletest/terraform/scenario-${SCALETEST_SCENARIO}.tfvars"
@@ -127,7 +147,7 @@ echo "Initializing terraform."
 maybedryrun "$DRY_RUN" terraform init
 
 echo "Setting up infrastructure."
-maybedryrun "$DRY_RUN" terraform apply --var-file="${SCALETEST_SCENARIO_VARS}" --var-file="${SCALETEST_SECRETS}" --auto-approve
+maybedryrun "$DRY_RUN" terraform apply --var-file="${SCALETEST_SCENARIO_VARS}" --var-file="${SCALETEST_SECRETS}" --var state=started --auto-approve
 
 if [[ "${DRY_RUN}" != 1 ]]; then
 	SCALETEST_CODER_URL=$(<"${CONFIG_DIR}/url")
@@ -136,25 +156,49 @@ else
 fi
 KUBECONFIG="${PROJECT_ROOT}/scaletest/.coderv2/${SCALETEST_NAME}-cluster.kubeconfig"
 echo "Waiting for Coder deployment at ${SCALETEST_CODER_URL} to become ready"
-maybedryrun "$DRY_RUN" kubectl --kubeconfig="${KUBECONFIG}" -n "coder-${SCALETEST_NAME}" rollout status deployment/coder
+max_attempts=10
+for attempt in $(seq 1 $max_attempts); do
+	maybedryrun "$DRY_RUN" curl --silent --fail --output /dev/null "${SCALETEST_CODER_URL}/api/v2/buildinfo"
+	curl_status=$?
+	if [[ $curl_status -eq 0 ]]; then
+		break
+	fi
+	if attempt -eq $max_attempts; then
+		echo
+		echo "Coder deployment failed to become ready in time!"
+		exit 1
+	fi
+	echo "Coder deployment not ready yet (${attempt}/${max_attempts}), sleeping 3 seconds"
+	maybedryrun "$DRY_RUN" sleep 3
+done
 
 echo "Initializing Coder deployment."
 DRY_RUN="$DRY_RUN" "${PROJECT_ROOT}/scaletest/lib/coder_init.sh" "${SCALETEST_CODER_URL}"
 
+if [[ -n "${SCALETEST_CODER_LICENSE}" ]]; then
+	echo "Applying Coder Enterprise License"
+	DRY_RUN="$DRY_RUN" "${PROJECT_ROOT}/scaletest/lib/coder_shim.sh" license add -l "${SCALETEST_CODER_LICENSE}"
+fi
+
 echo "Creating ${SCALETEST_NUM_WORKSPACES} workspaces."
-DRY_RUN="$DRY_RUN" "${PROJECT_ROOT}/scaletest/lib/coder_shim.sh" scaletest create-workspaces \
+DRY_RUN="$DRY_RUN" "${PROJECT_ROOT}/scaletest/lib/coder_shim.sh" exp scaletest create-workspaces \
 	--count "${SCALETEST_NUM_WORKSPACES}" \
 	--template=kubernetes \
-	--concurrency 10 \
+	--concurrency "${SCALETEST_CREATE_CONCURRENCY}" \
 	--no-cleanup
 
 echo "Sleeping 10 minutes to establish a baseline measurement."
 maybedryrun "$DRY_RUN" sleep 600
 
 echo "Sending traffic to workspaces"
-maybedryrun "$DRY_RUN" "${PROJECT_ROOT}/scaletest/lib/coder_workspacetraffic.sh" "${SCALETEST_NAME}"
+maybedryrun "$DRY_RUN" "${PROJECT_ROOT}/scaletest/lib/coder_workspacetraffic.sh" \
+	--name "${SCALETEST_NAME}" \
+	--traffic-bytes-per-tick "${SCALETEST_TRAFFIC_BYTES_PER_TICK}" \
+	--traffic-tick-interval "${SCALETEST_TRAFFIC_TICK_INTERVAL}"
 maybedryrun "$DRY_RUN" kubectl --kubeconfig="${KUBECONFIG}" -n "coder-${SCALETEST_NAME}" wait pods coder-scaletest-workspace-traffic --for condition=Ready
-maybedryrun "$DRY_RUN" kubectl --kubeconfig="${KUBECONFIG}" -n "coder-${SCALETEST_NAME}" logs -f pod/coder-scaletest-workspace-traffic
+
+echo "Sleeping 15 minutes for traffic generation"
+maybedryrun "$DRY_RUN" sleep 900
 
 echo "Starting pprof"
 maybedryrun "$DRY_RUN" kubectl -n "coder-${SCALETEST_NAME}" port-forward deployment/coder 6061:6060 &
@@ -169,6 +213,7 @@ while ! maybedryrun "$DRY_RUN" timeout 1 bash -c "echo > /dev/tcp/localhost/6061
 		echo "pprof failed to become ready in time!"
 		exit 1
 	fi
+	pprof_attempt_counter+=1
 	maybedryrun "$DRY_RUN" sleep 3
 done
 
@@ -186,5 +231,10 @@ if [[ "${SCALETEST_SKIP_CLEANUP}" == 1 ]]; then
 	exit 0
 fi
 
-echo "Cleaning up"
-maybedryrun "$DRY_RUN" terraform destroy --var-file="${SCALETEST_SCENARIO_VARS}" --var-file="${SCALETEST_SECRETS}" --auto-approve
+if [[ "${SCALETEST_DESTROY}" == 1 ]]; then
+	echo "Destroying infrastructure"
+	maybedryrun "$DRY_RUN" terraform destroy --var-file="${SCALETEST_SCENARIO_VARS}" --var-file="${SCALETEST_SECRETS}" --auto-approve
+else
+	echo "Scaling down infrastructure"
+	maybedryrun "$DRY_RUN" terraform apply --var-file="${SCALETEST_SCENARIO_VARS}" --var-file="${SCALETEST_SECRETS}" --var state=stopped --auto-approve
+fi

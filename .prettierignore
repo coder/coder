@@ -30,6 +30,7 @@ site/storybook-static/
 site/test-results/*
 site/e2e/test-results/*
 site/e2e/states/*.json
+site/e2e/.auth.json
 site/playwright-report/*
 site/.swc
 site/dist/
@@ -74,3 +75,6 @@ helm/templates/*.yaml
 
 # Testdata shouldn't be formatted.
 scripts/apitypings/testdata/**/*.ts
+
+# Generated files shouldn't be formatted.
+site/e2e/provisionerGenerated.ts

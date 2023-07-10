@@ -35,27 +35,31 @@ func (r *RootCmd) speedtest() *clibase.Cmd {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
-			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, codersdk.Me, inv.Args[0])
+			_, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, codersdk.Me, inv.Args[0])
 			if err != nil {
 				return err
 			}
 
 			err = cliui.Agent(ctx, inv.Stderr, cliui.AgentOptions{
-				WorkspaceName: workspace.Name,
 				Fetch: func(ctx context.Context) (codersdk.WorkspaceAgent, error) {
 					return client.WorkspaceAgent(ctx, workspaceAgent.ID)
 				},
 				Wait: false,
 			})
-			if err != nil && !xerrors.Is(err, cliui.AgentStartError) {
+			if err != nil {
 				return xerrors.Errorf("await agent: %w", err)
 			}
+
 			logger, ok := LoggerFromContext(ctx)
 			if !ok {
 				logger = slog.Make(sloghuman.Sink(inv.Stderr))
 			}
 			if r.verbose {
 				logger = logger.Leveled(slog.LevelDebug)
+			}
+
+			if r.disableDirect {
+				_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
 			}
 			conn, err := client.DialWorkspaceAgent(ctx, workspaceAgent.ID, &codersdk.DialWorkspaceAgentOptions{
 				Logger: logger,
