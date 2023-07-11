@@ -57,8 +57,8 @@ func ExtractRealIP(config *RealIPConfig) func(next http.Handler) http.Handler {
 func ExtractRealIPAddress(config *RealIPConfig, req *http.Request) (net.IP, error) {
 	if config == nil {
 		config = &RealIPConfig{
-			TrustedOrigins: []*net.IPNet{},
-			TrustedHeaders: []string{},
+			TrustedOrigins: nil,
+			TrustedHeaders: nil,
 		}
 	}
 
@@ -85,8 +85,8 @@ func ExtractRealIPAddress(config *RealIPConfig, req *http.Request) (net.IP, erro
 func FilterUntrustedOriginHeaders(config *RealIPConfig, req *http.Request) {
 	if config == nil {
 		config = &RealIPConfig{
-			TrustedOrigins: []*net.IPNet{},
-			TrustedHeaders: []string{},
+			TrustedOrigins: nil,
+			TrustedHeaders: nil,
 		}
 	}
 
