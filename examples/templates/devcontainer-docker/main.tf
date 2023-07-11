@@ -162,11 +162,6 @@ data "coder_parameter" "repo" {
   description  = "Select a repository to automatically clone and start working with a devcontainer."
   mutable      = true
   option {
-    name        = "coder/coder"
-    description = "A tool that provisions remote development environments via Terraform"
-    value       = "https://github.com/coder/coder"
-  }
-  option {
     name        = "vercel/next.js"
     description = "The React Framework"
     value       = "https://github.com/vercel/next.js"
@@ -211,7 +206,7 @@ data "coder_parameter" "custom_repo_url" {
 
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
-  image = "ghcr.io/coder/envbuilder:0.0.6"
+  image = "ghcr.io/coder/envbuilder:0.1.3"
   # Uses lower() to avoid Docker restriction on container names.
   name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
   # Hostname makes the shell more user friendly: coder@my-workspace:~$

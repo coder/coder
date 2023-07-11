@@ -118,11 +118,6 @@ data "coder_parameter" "repo" {
   description  = "Select a repository to automatically clone and start working with a devcontainer."
   mutable      = true
   option {
-    name        = "coder/coder"
-    description = "A tool that provisions remote development environments via Terraform"
-    value       = "https://github.com/coder/coder"
-  }
-  option {
     name        = "vercel/next.js"
     description = "The React Framework"
     value       = "https://github.com/vercel/next.js"
@@ -192,7 +187,7 @@ resource "kubernetes_deployment" "workspace" {
       spec {
         container {
           name  = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
-          image = "ghcr.io/coder/envbuilder:0.0.6"
+          image = "ghcr.io/coder/envbuilder:0.1.3"
           env {
             name  = "CODER_AGENT_TOKEN"
             value = coder_agent.main.token
