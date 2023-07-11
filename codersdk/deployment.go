@@ -1553,7 +1553,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Git Auth Built-In GitHub",
-			Description: "Turns on/off the built-in GitHub App used for authenticating users with private repositories. Enabled by default.",
+			Description: "Toggles the built-in GitHub App used for authenticating users with private repositories.",
 			Flag:        "gitauth-builtin-github",
 			Env:         "CODER_GITAUTH_BUILTIN_GITHUB",
 			Default:     "true",
