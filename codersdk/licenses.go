@@ -11,6 +11,10 @@ import (
 	"golang.org/x/xerrors"
 )
 
+const (
+	LicenseExpiryClaim = "license_expires"
+)
+
 type AddLicenseRequest struct {
 	License string `json:"license" validate:"required"`
 }
@@ -24,6 +28,36 @@ type License struct {
 	// parsed verbatim, not just the fields this version of Coder
 	// understands.
 	Claims map[string]interface{} `json:"claims" table:"claims"`
+}
+
+// ExpiresAt returns the expiration time of the license.
+// If the claim is missing or has an unexpected type, an error is returned.
+func (l *License) ExpiresAt() (time.Time, error) {
+	expClaim, ok := l.Claims[LicenseExpiryClaim]
+	if !ok {
+		return time.Time{}, xerrors.New("license_expires claim is missing")
+	}
+
+	// The claim could be a unix timestamp or a RFC3339 formatted string.
+	// Everything is already an interface{}, so we need to do some type
+	// assertions to figure out what we're dealing with.
+	if unix, ok := expClaim.(json.Number); ok {
+		i64, err := unix.Int64()
+		if err != nil {
+			return time.Time{}, xerrors.Errorf("license_expires claim is not a valid unix timestamp: %w", err)
+		}
+		return time.Unix(i64, 0), nil
+	}
+
+	if str, ok := expClaim.(string); ok {
+		t, err := time.Parse(time.RFC3339, str)
+		if err != nil {
+			return time.Time{}, xerrors.Errorf("license_expires claim is not a valid RFC3339 timestamp: %w", err)
+		}
+		return t, nil
+	}
+
+	return time.Time{}, xerrors.Errorf("license_expires claim has unexpected type %T", expClaim)
 }
 
 // Features provides the feature claims in license.
