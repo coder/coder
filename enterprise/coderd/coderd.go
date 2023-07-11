@@ -366,6 +366,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	api.entitlementsUpdateMu.Lock()
 	defer api.entitlementsUpdateMu.Unlock()
 
+	// The built-in auth isn't licensed so we don't count it.
 	gitAuthConfigs := 0
 	for _, config := range api.GitAuthConfigs {
 		if config.ID == gitauth.CoderGitHubAppConfig.ID {
