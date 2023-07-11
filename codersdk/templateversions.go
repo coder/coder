@@ -25,6 +25,7 @@ type TemplateVersion struct {
 	CreatedAt      time.Time      `json:"created_at" format:"date-time"`
 	UpdatedAt      time.Time      `json:"updated_at" format:"date-time"`
 	Name           string         `json:"name"`
+	Message        string         `json:"message"`
 	Job            ProvisionerJob `json:"job"`
 	Readme         string         `json:"readme"`
 	CreatedBy      User           `json:"created_by"`
@@ -63,6 +64,7 @@ type TemplateVersionParameter struct {
 	ValidationMax        *int32                           `json:"validation_max,omitempty"`
 	ValidationMonotonic  ValidationMonotonicOrder         `json:"validation_monotonic,omitempty" enums:"increasing,decreasing"`
 	Required             bool                             `json:"required"`
+	Ephemeral            bool                             `json:"ephemeral"`
 }
 
 // TemplateVersionParameterOption represents a selectable option for a template parameter.

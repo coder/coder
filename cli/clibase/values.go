@@ -24,6 +24,40 @@ type NoOptDefValuer interface {
 	NoOptDefValue() string
 }
 
+// Validator is a wrapper around a pflag.Value that allows for validation
+// of the value after or before it has been set.
+type Validator[T pflag.Value] struct {
+	Value T
+	// validate is called after the value is set.
+	validate func(T) error
+}
+
+func Validate[T pflag.Value](opt T, validate func(value T) error) *Validator[T] {
+	return &Validator[T]{Value: opt, validate: validate}
+}
+
+func (i *Validator[T]) String() string {
+	return i.Value.String()
+}
+
+func (i *Validator[T]) Set(input string) error {
+	err := i.Value.Set(input)
+	if err != nil {
+		return err
+	}
+	if i.validate != nil {
+		err = i.validate(i.Value)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (i *Validator[T]) Type() string {
+	return i.Value.Type()
+}
+
 // values.go contains a standard set of value types that can be used as
 // Option Values.
 
@@ -329,10 +363,12 @@ type Struct[T any] struct {
 	Value T
 }
 
+//nolint:revive
 func (s *Struct[T]) Set(v string) error {
 	return yaml.Unmarshal([]byte(v), &s.Value)
 }
 
+//nolint:revive
 func (s *Struct[T]) String() string {
 	byt, err := yaml.Marshal(s.Value)
 	if err != nil {
@@ -361,6 +397,7 @@ func (s *Struct[T]) UnmarshalYAML(n *yaml.Node) error {
 	return n.Decode(&s.Value)
 }
 
+//nolint:revive
 func (s *Struct[T]) Type() string {
 	return fmt.Sprintf("struct[%T]", s.Value)
 }

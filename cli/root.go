@@ -79,13 +79,14 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 		r.dotfiles(),
 		r.login(),
 		r.logout(),
+		r.netcheck(),
 		r.portForward(),
 		r.publickey(),
 		r.resetPassword(),
 		r.state(),
 		r.templates(),
-		r.users(),
 		r.tokens(),
+		r.users(),
 		r.version(defaultVersionInfo),
 
 		// Workspace Commands
@@ -107,7 +108,6 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 
 		// Hidden
 		r.gitssh(),
-		r.netcheck(),
 		r.vscodeSSH(),
 		r.workspaceAgent(),
 		r.expCmd(),

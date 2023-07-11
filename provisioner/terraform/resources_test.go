@@ -429,6 +429,8 @@ func TestConvertResources(t *testing.T) {
 				Name:          "number_example",
 				Type:          "number",
 				DefaultValue:  "4",
+				Ephemeral:     true,
+				Mutable:       true,
 				ValidationMin: nil,
 				ValidationMax: nil,
 			}, {

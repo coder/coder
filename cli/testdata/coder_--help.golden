@@ -19,6 +19,7 @@ Coder v0.0.0-devel — A tool for provisioning self-hosted development environme
     list              List workspaces
     login             Authenticate with Coder deployment
     logout            Unauthenticate your local session
+    netcheck          Print network debug information for DERP and STUN
     ping              Ping a workspace
     port-forward      Forward ports from machine to a workspace
     publickey         Output your Coder public key used for Git operations

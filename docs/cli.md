@@ -35,6 +35,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>list</code>](./cli/list.md)                     | List workspaces                                                        |
 | [<code>login</code>](./cli/login.md)                   | Authenticate with Coder deployment                                     |
 | [<code>logout</code>](./cli/logout.md)                 | Unauthenticate your local session                                      |
+| [<code>netcheck</code>](./cli/netcheck.md)             | Print network debug information for DERP and STUN                      |
 | [<code>ping</code>](./cli/ping.md)                     | Ping a workspace                                                       |
 | [<code>port-forward</code>](./cli/port-forward.md)     | Forward ports from machine to a workspace                              |
 | [<code>provisionerd</code>](./cli/provisionerd.md)     | Manage provisioner daemons                                             |

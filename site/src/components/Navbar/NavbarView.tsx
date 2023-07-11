@@ -24,6 +24,7 @@ import Skeleton from "@mui/material/Skeleton"
 import { BUTTON_SM_HEIGHT } from "theme/theme"
 import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency"
 import { usePermissions } from "hooks/usePermissions"
+import Typography from "@mui/material/Typography"
 
 export const USERS_LINK = `/users?filter=${encodeURIComponent("status:active")}`
 
@@ -269,6 +270,40 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
         onClose={closeMenu}
         sx={{ "& .MuiMenu-paper": { py: 1 } }}
       >
+        <Box
+          sx={{
+            w: "100%",
+            fontSize: 14,
+            padding: 2,
+            maxWidth: "320px",
+            lineHeight: "140%",
+          }}
+        >
+          <Typography
+            component="h4"
+            sx={{
+              fontSize: "inherit",
+              fontWeight: 600,
+              lineHeight: "inherit",
+              margin: 0,
+            }}
+          >
+            Reduce workspace latency by selecting the region nearest you.
+          </Typography>
+          <Typography
+            component="p"
+            sx={{
+              fontSize: "inherit",
+              color: (theme) => theme.palette.text.secondary,
+              lineHeight: "inherit",
+              marginTop: 0.5,
+            }}
+          >
+            * Only applies to web connections. Local ssh connections will
+            automatically select the nearest region based on latency.
+          </Typography>
+        </Box>
+        <Divider sx={{ borderColor: (theme) => theme.palette.divider }} />
         {proxyContextValue.proxies?.map((proxy) => (
           <MenuItem
             onClick={() => {
@@ -335,6 +370,9 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
 }
 
 const useStyles = makeStyles((theme) => ({
+  displayInitial: {
+    display: "initial",
+  },
   root: {
     height: navHeight,
     background: theme.palette.background.paper,

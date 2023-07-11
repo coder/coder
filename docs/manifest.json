@@ -593,6 +593,11 @@
           "path": "cli/logout.md"
         },
         {
+          "title": "netcheck",
+          "description": "Print network debug information for DERP and STUN",
+          "path": "cli/netcheck.md"
+        },
+        {
           "title": "ping",
           "description": "Ping a workspace",
           "path": "cli/ping.md"

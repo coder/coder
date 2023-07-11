@@ -3,7 +3,7 @@ import { AvatarData } from "components/AvatarData/AvatarData"
 import { Avatar } from "components/Avatar/Avatar"
 import TableCell from "@mui/material/TableCell"
 import TableRow from "@mui/material/TableRow"
-import { FC } from "react"
+import { FC, ReactNode, useState } from "react"
 import {
   HealthyBadge,
   NotHealthyBadge,
@@ -12,6 +12,10 @@ import {
 } from "components/DeploySettingsLayout/Badges"
 import { ProxyLatencyReport } from "contexts/useProxyLatency"
 import { getLatencyColor } from "utils/latency"
+import Collapse from "@mui/material/Collapse"
+import { Maybe } from "components/Conditionals/Maybe"
+import { useClickableTableRow } from "hooks"
+import Box from "@mui/material/Box"
 
 export const ProxyRow: FC<{
   latency?: ProxyLatencyReport
@@ -20,13 +24,30 @@ export const ProxyRow: FC<{
   // If we have a more specific proxy status, use that.
   // All users can see healthy/unhealthy, some can see more.
   let statusBadge = <ProxyStatus proxy={proxy} />
+  let shouldShowMessages = false
   if ("status" in proxy) {
-    statusBadge = <DetailedProxyStatus proxy={proxy as WorkspaceProxy} />
+    const wsproxy = proxy as WorkspaceProxy
+    statusBadge = <DetailedProxyStatus proxy={wsproxy} />
+    shouldShowMessages = Boolean(
+      (wsproxy.status?.report?.warnings &&
+        wsproxy.status?.report?.warnings.length > 0) ||
+        (wsproxy.status?.report?.errors &&
+          wsproxy.status?.report?.errors.length > 0),
+    )
   }
+
+  const [isMsgsOpen, setIsMsgsOpen] = useState(false)
+  const toggle = () => {
+    if (shouldShowMessages) {
+      setIsMsgsOpen((v) => !v)
+    }
+  }
+  const clickableProps = useClickableTableRow(toggle)
+  const rowProps = shouldShowMessages ? clickableProps : undefined
 
   return (
     <>
-      <TableRow key={proxy.name} data-testid={`${proxy.name}`}>
+      <TableRow key={proxy.name} data-testid={proxy.name} {...rowProps}>
         <TableCell>
           <AvatarData
             title={
@@ -44,6 +65,7 @@ export const ProxyRow: FC<{
                 />
               )
             }
+            subtitle={shouldShowMessages ? "Click to view details" : undefined}
           />
         </TableCell>
 
@@ -62,7 +84,93 @@ export const ProxyRow: FC<{
           {latency ? `${latency.latencyMS.toFixed(0)} ms` : "Not available"}
         </TableCell>
       </TableRow>
+      <Maybe condition={shouldShowMessages}>
+        <TableRow>
+          <TableCell
+            colSpan={4}
+            sx={{ padding: "0px !important", borderBottom: 0 }}
+          >
+            <Collapse in={isMsgsOpen}>
+              <ProxyMessagesRow proxy={proxy as WorkspaceProxy} />
+            </Collapse>
+          </TableCell>
+        </TableRow>
+      </Maybe>
     </>
+  )
+}
+
+const ProxyMessagesRow: FC<{
+  proxy: WorkspaceProxy
+}> = ({ proxy }) => {
+  return (
+    <>
+      <ProxyMessagesList
+        title={
+          <Box
+            component="span"
+            sx={{ color: (theme) => theme.palette.error.light }}
+          >
+            Errors
+          </Box>
+        }
+        messages={proxy.status?.report?.errors}
+      />
+      <ProxyMessagesList
+        title={
+          <Box
+            component="span"
+            sx={{ color: (theme) => theme.palette.warning.light }}
+          >
+            Warnings
+          </Box>
+        }
+        messages={proxy.status?.report?.warnings}
+      />
+    </>
+  )
+}
+
+const ProxyMessagesList: FC<{
+  title: ReactNode
+  messages?: string[]
+}> = ({ title, messages }) => {
+  if (!messages) {
+    return <></>
+  }
+
+  return (
+    <Box
+      sx={{
+        borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
+        backgroundColor: (theme) => theme.palette.background.default,
+        p: (theme) => theme.spacing(2, 3),
+      }}
+    >
+      <Box
+        id="nested-list-subheader"
+        sx={{
+          mb: 0.5,
+          fontSize: 13,
+          fontWeight: 600,
+        }}
+      >
+        {title}
+      </Box>
+      {messages.map((error, index) => (
+        <Box
+          component="pre"
+          key={"message" + index}
+          sx={{
+            margin: (theme) => theme.spacing(0, 0, 1),
+            fontSize: 14,
+            whiteSpace: "pre-wrap",
+          }}
+        >
+          {error}
+        </Box>
+      ))}
+    </Box>
   )
 }
 

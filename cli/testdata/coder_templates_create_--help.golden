@@ -21,6 +21,11 @@ Create a template from the current directory or as specified by flag
           Specify an inactivity TTL for workspaces created from this template.
           This licensed feature's default is 0h (off).
 
+  -m, --message string
+          Specify a message describing the changes in this version of the
+          template. Messages longer than 72 characters will be displayed as
+          truncated.
+
       --private bool
           Disable the default behavior of granting template access to the
           'everyone' group. The template permissions must be updated to allow

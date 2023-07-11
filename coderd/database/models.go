@@ -1609,6 +1609,8 @@ type TemplateVersion struct {
 	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
 	// IDs of Git auth providers for a specific template version
 	GitAuthProviders []string `db:"git_auth_providers" json:"git_auth_providers"`
+	// Message describing the changes in this version of the template, similar to a Git commit message. Like a commit message, this should be a short, high-level description of the changes in this version of the template. This message is immutable and should not be updated after the fact.
+	Message string `db:"message" json:"message"`
 }
 
 type TemplateVersionParameter struct {
@@ -1643,6 +1645,8 @@ type TemplateVersionParameter struct {
 	DisplayName string `db:"display_name" json:"display_name"`
 	// Specifies the order in which to display parameters in user interfaces.
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
+	// The value of an ephemeral parameter will not be preserved between consecutive workspace builds.
+	Ephemeral bool `db:"ephemeral" json:"ephemeral"`
 }
 
 type TemplateVersionVariable struct {

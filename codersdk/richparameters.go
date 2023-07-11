@@ -148,8 +148,8 @@ func (r *ParameterResolver) ValidateResolve(p TemplateVersionParameter, v *Works
 	}
 	// First, the provided value
 	resolvedValue := v
-	// Second, previous value
-	if resolvedValue == nil {
+	// Second, previous value if not ephemeral
+	if resolvedValue == nil && !p.Ephemeral {
 		resolvedValue = prevV
 	}
 	// Last, default value

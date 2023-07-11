@@ -47,6 +47,14 @@ Specify the directory to create from, use '-' to read tar from stdin.
 
 Ignore warnings about not having a .terraform.lock.hcl file present in the template.
 
+### -m, --message
+
+|      |                     |
+| ---- | ------------------- |
+| Type | <code>string</code> |
+
+Specify a message describing the changes in this version of the template. Messages longer than 72 characters will be displayed as truncated.
+
 ### --name
 
 |      |                     |

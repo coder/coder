@@ -1306,6 +1306,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
 			Name:           req.Name,
+			Message:        req.Message,
 			Readme:         "",
 			JobID:          provisionerJob.ID,
 			CreatedBy:      apiKey.UserID,
@@ -1420,6 +1421,7 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 		CreatedAt:      version.CreatedAt,
 		UpdatedAt:      version.UpdatedAt,
 		Name:           version.Name,
+		Message:        version.Message,
 		Job:            job,
 		Readme:         version.Readme,
 		CreatedBy:      createdBy,
@@ -1484,6 +1486,7 @@ func convertTemplateVersionParameter(param database.TemplateVersionParameter) (c
 		ValidationError:      param.ValidationError,
 		ValidationMonotonic:  codersdk.ValidationMonotonicOrder(param.ValidationMonotonic),
 		Required:             param.Required,
+		Ephemeral:            param.Ephemeral,
 	}, nil
 }
 

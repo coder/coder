@@ -352,6 +352,7 @@ export const MockTemplateVersion: TypesGen.TemplateVersion = {
   template_id: "test-template",
   job: MockProvisionerJob,
   name: "test-version",
+  message: "first version",
   readme: `---
 name:Template test
 ---
@@ -369,6 +370,7 @@ export const MockTemplateVersion2: TypesGen.TemplateVersion = {
   template_id: "test-template",
   job: MockProvisionerJob,
   name: "test-version-2",
+  message: "first version",
   readme: `---
 name:Template test 2
 ---
@@ -386,6 +388,7 @@ export const MockTemplateVersion3: TypesGen.TemplateVersion = {
   template_id: "test-template",
   job: MockProvisionerJob,
   name: "test-version-3",
+  message: "first version",
   readme: "README",
   created_by: MockUser,
   warnings: ["UNSUPPORTED_WORKSPACES"],
@@ -542,6 +545,9 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   startup_script_timeout_seconds: 120,
   shutdown_script_timeout_seconds: 120,
   subsystem: "envbox",
+  health: {
+    healthy: true,
+  },
 }
 
 export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
@@ -552,6 +558,10 @@ export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
   version: "",
   latency: {},
   lifecycle_state: "ready",
+  health: {
+    healthy: false,
+    reason: "agent is not connected",
+  },
 }
 
 export const MockWorkspaceAgentOutdated: TypesGen.WorkspaceAgent = {
@@ -596,6 +606,10 @@ export const MockWorkspaceAgentTimeout: TypesGen.WorkspaceAgent = {
   version: "",
   latency: {},
   lifecycle_state: "created",
+  health: {
+    healthy: false,
+    reason: "agent is taking too long to connect",
+  },
 }
 
 export const MockWorkspaceAgentStarting: TypesGen.WorkspaceAgent = {
@@ -624,6 +638,10 @@ export const MockWorkspaceAgentStartError: TypesGen.WorkspaceAgent = {
   id: "test-workspace-agent-start-error",
   name: "a-workspace-agent-errored-while-running-startup-script",
   lifecycle_state: "start_error",
+  health: {
+    healthy: false,
+    reason: "agent startup script failed",
+  },
 }
 
 export const MockWorkspaceAgentShuttingDown: TypesGen.WorkspaceAgent = {
@@ -631,6 +649,10 @@ export const MockWorkspaceAgentShuttingDown: TypesGen.WorkspaceAgent = {
   id: "test-workspace-agent-shutting-down",
   name: "a-shutting-down-workspace-agent",
   lifecycle_state: "shutting_down",
+  health: {
+    healthy: false,
+    reason: "agent is shutting down",
+  },
 }
 
 export const MockWorkspaceAgentShutdownTimeout: TypesGen.WorkspaceAgent = {
@@ -638,6 +660,10 @@ export const MockWorkspaceAgentShutdownTimeout: TypesGen.WorkspaceAgent = {
   id: "test-workspace-agent-shutdown-timeout",
   name: "a-workspace-agent-timed-out-while-running-shutdownup-script",
   lifecycle_state: "shutdown_timeout",
+  health: {
+    healthy: false,
+    reason: "agent is shutting down",
+  },
 }
 
 export const MockWorkspaceAgentShutdownError: TypesGen.WorkspaceAgent = {
@@ -645,6 +671,10 @@ export const MockWorkspaceAgentShutdownError: TypesGen.WorkspaceAgent = {
   id: "test-workspace-agent-shutdown-error",
   name: "a-workspace-agent-errored-while-running-shutdownup-script",
   lifecycle_state: "shutdown_error",
+  health: {
+    healthy: false,
+    reason: "agent is shutting down",
+  },
 }
 
 export const MockWorkspaceAgentOff: TypesGen.WorkspaceAgent = {
@@ -652,6 +682,10 @@ export const MockWorkspaceAgentOff: TypesGen.WorkspaceAgent = {
   id: "test-workspace-agent-off",
   name: "a-workspace-agent-is-shut-down",
   lifecycle_state: "off",
+  health: {
+    healthy: false,
+    reason: "agent is shutting down",
+  },
 }
 
 export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
@@ -803,6 +837,10 @@ export const MockWorkspace: TypesGen.Workspace = {
   ttl_ms: 2 * 60 * 60 * 1000,
   latest_build: MockWorkspaceBuild,
   last_used_at: "2022-05-16T15:29:10.302441433Z",
+  health: {
+    healthy: true,
+    failing_agents: [],
+  },
 }
 
 export const MockStoppedWorkspace: TypesGen.Workspace = {
@@ -920,6 +958,7 @@ export const MockTemplateVersionParameter1: TypesGen.TemplateVersionParameter =
     icon: "/icon/folder.svg",
     options: [],
     required: true,
+    ephemeral: false,
   }
 
 export const MockTemplateVersionParameter2: TypesGen.TemplateVersionParameter =
@@ -936,6 +975,7 @@ export const MockTemplateVersionParameter2: TypesGen.TemplateVersionParameter =
     validation_max: 3,
     validation_monotonic: "increasing",
     required: true,
+    ephemeral: false,
   }
 
 export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
@@ -951,6 +991,7 @@ export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
     validation_error: "No way!",
     validation_regex: "^[a-z]{3}$",
     required: true,
+    ephemeral: false,
   }
 
 export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
@@ -964,6 +1005,7 @@ export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
     icon: "/icon/database.svg",
     options: [],
     required: true,
+    ephemeral: false,
   }
 
 export const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter =
@@ -980,6 +1022,7 @@ export const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter =
     validation_max: 10,
     validation_monotonic: "decreasing",
     required: true,
+    ephemeral: false,
   }
 
 export const MockTemplateVersionVariable1: TypesGen.TemplateVersionVariable = {
