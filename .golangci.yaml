@@ -3,13 +3,9 @@
 
 linters-settings:
   exhaustruct:
-    exclude:
-      - 'clibase\.Cmd'
-      - 'clibase\.Option'
-      - 'codersdk\.Response'
-      - 'codersdk\.\w+Request'
-      - 'http\.Client'
-      - "TypescriptType"
+    include:
+      # Gradually extend to cover more of the codebase.
+      - 'httpmw\.\w+'
   gocognit:
     min-complexity: 46 # Min code complexity (def 30).
 
