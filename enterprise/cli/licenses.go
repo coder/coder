@@ -181,7 +181,20 @@ func (r *RootCmd) licensesList() *clibase.Cmd {
 				}
 				return out, nil
 			}),
-		cliui.JSONFormat(),
+		cliui.ChangeFormatterData(cliui.JSONFormat(), func(data any) (any, error) {
+			list, ok := data.([]codersdk.License)
+			if !ok {
+				return nil, xerrors.Errorf("invalid data type %T", data)
+			}
+			for i := range list {
+				humanExp, err := list[i].ExpiresAt()
+				if err == nil {
+					list[i].Claims[codersdk.LicenseExpiryClaim+"_human"] = humanExp.Format(time.RFC3339)
+				}
+			}
+
+			return list, nil
+		}),
 	)
 
 	client := new(codersdk.Client)

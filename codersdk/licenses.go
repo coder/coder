@@ -20,9 +20,9 @@ type AddLicenseRequest struct {
 }
 
 type License struct {
-	ID         int32     `json:"id" table:"id,default_sort"`
-	UUID       uuid.UUID `json:"uuid" table:"uuid" format:"uuid"`
-	UploadedAt time.Time `json:"uploaded_at" table:"uploaded_at" format:"date-time"`
+	ID         int32     `json:"id"`
+	UUID       uuid.UUID `json:"uuid" format:"uuid"`
+	UploadedAt time.Time `json:"uploaded_at" format:"date-time"`
 	// Claims are the JWT claims asserted by the license.  Here we use
 	// a generic string map to ensure that all data from the server is
 	// parsed verbatim, not just the fields this version of Coder
@@ -38,7 +38,7 @@ func (l *License) ExpiresAt() (time.Time, error) {
 		return time.Time{}, xerrors.New("license_expires claim is missing")
 	}
 
-	// The claim could be a unix timestamp or a RFC3339 formatted string.
+	// This claim should be a unix timestamp.
 	// Everything is already an interface{}, so we need to do some type
 	// assertions to figure out what we're dealing with.
 	if unix, ok := expClaim.(json.Number); ok {
@@ -47,14 +47,6 @@ func (l *License) ExpiresAt() (time.Time, error) {
 			return time.Time{}, xerrors.Errorf("license_expires claim is not a valid unix timestamp: %w", err)
 		}
 		return time.Unix(i64, 0), nil
-	}
-
-	if str, ok := expClaim.(string); ok {
-		t, err := time.Parse(time.RFC3339, str)
-		if err != nil {
-			return time.Time{}, xerrors.Errorf("license_expires claim is not a valid RFC3339 timestamp: %w", err)
-		}
-		return t, nil
 	}
 
 	return time.Time{}, xerrors.Errorf("license_expires claim has unexpected type %T", expClaim)
