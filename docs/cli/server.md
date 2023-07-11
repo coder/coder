@@ -273,7 +273,7 @@ Time to force cancel provisioning tasks that are stuck.
 | Environment | <code>$CODER_GITAUTH_BUILTIN_GITHUB</code> |
 | Default     | <code>true</code>                          |
 
-Turns on/off the built-in GitHub App used for authenticating users with private repositories. Enabled by default.
+Toggles the built-in GitHub App used for authenticating users with private repositories.
 
 ### --http-address
 
