@@ -36,7 +36,7 @@ export const ProxyRow: FC<{
     )
   }
 
-  const [isMsgsOpen, setIsMsgsOpen] = useState(false)
+  const [isMsgsOpen, setIsMsgsOpen] = useState(true)
   const toggle = () => {
     if (shouldShowMessages) {
       setIsMsgsOpen((v) => !v)
@@ -65,7 +65,7 @@ export const ProxyRow: FC<{
                 />
               )
             }
-            subtitle={shouldShowMessages ? "Click to view details" : undefined}
+            subtitle={shouldShowMessages ? "Click to hide details" : undefined}
           />
         </TableCell>
 
