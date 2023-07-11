@@ -2,6 +2,14 @@
 # Over time we should try tightening some of these.
 
 linters-settings:
+  exhaustruct:
+    exclude:
+      - 'clibase\.Cmd'
+      - 'clibase\.Option'
+      - 'codersdk\.Response'
+      - 'codersdk\.\w+Request'
+      - 'http\.Client'
+      - "TypescriptType"
   gocognit:
     min-complexity: 46 # Min code complexity (def 30).
 
@@ -196,6 +204,9 @@ issues:
         - errcheck
         - forcetypeassert
         - exhaustruct # This is unhelpful in tests.
+    - path: scripts/*
+      linters:
+        - exhaustruct
 
   fix: true
   max-issues-per-linter: 0
