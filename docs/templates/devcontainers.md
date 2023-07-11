@@ -21,6 +21,10 @@ There are several benefits to adding a devcontainer-compatible template to Coder
 - [Docker](https://github.com/coder/coder/tree/main/examples/templates/devcontainer-docker)
 - [Kubernetes](https://github.com/coder/coder/tree/main/examples/templates/devcontainer-kubernetes)
 
+![Devcontainer parameter screen](../images/templates/devcontainers.png)
+
+[Parameters](./parameters.md) can be used to prompt the user for a repo URL when they are creating a workspace.
+
 ## Authentication
 
 You may need to authenticate to your container registry (e.g. Artifactory) or git provider (e.g. GitLab) to use envbuilder. Refer to the [envbuilder documentation](https://github.com/coder/envbuilder/) for more information.
