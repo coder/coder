@@ -96,7 +96,7 @@ export const UnhealthyTooltip = () => {
       iconClassName={styles.unhealthyIcon}
       buttonClassName={styles.unhealthyButton}
     >
-      <HelpTooltipTitle>Workspace is unhealty</HelpTooltipTitle>
+      <HelpTooltipTitle>Workspace is unhealthy</HelpTooltipTitle>
       <HelpTooltipText>
         Your workspace is running but some agents had failed during
         initialization.

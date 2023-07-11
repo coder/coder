@@ -228,7 +228,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           {workspace.latest_build.status === "running" &&
             !workspace.health.healthy && (
               <Alert severity="warning">
-                <AlertTitle>Workspace is unhealty</AlertTitle>
+                <AlertTitle>Workspace is unhealthy</AlertTitle>
                 <AlertDetail>
                   Your workspace is running but some agents had failed during
                   initialization.
