@@ -29,15 +29,14 @@ func Test_ProxyCRUD(t *testing.T) {
 			"*",
 		}
 
-		client := coderdenttest.New(t, &coderdenttest.Options{
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
 			},
-		})
-		_ = coderdtest.CreateFirstUser(t, client)
-		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureWorkspaceProxy: 1,
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspaceProxy: 1,
+				},
 			},
 		})
 
@@ -102,15 +101,14 @@ func Test_ProxyCRUD(t *testing.T) {
 			"*",
 		}
 
-		client := coderdenttest.New(t, &coderdenttest.Options{
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
 			},
-		})
-		_ = coderdtest.CreateFirstUser(t, client)
-		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureWorkspaceProxy: 1,
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspaceProxy: 1,
+				},
 			},
 		})
 

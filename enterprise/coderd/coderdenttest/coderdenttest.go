@@ -10,6 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/coderd/database/dbfake"
+	"github.com/coder/coder/coderd/database/pubsub"
+
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -48,15 +51,20 @@ type Options struct {
 	SCIMAPIKey                 []byte
 	UserWorkspaceQuota         int
 	ProxyHealthInterval        time.Duration
+	LicenseOptions             *LicenseOptions
+	DontAddLicense             bool
+	DontAddFirstUser           bool
 }
 
 // New constructs a codersdk client connected to an in-memory Enterprise API instance.
-func New(t *testing.T, options *Options) *codersdk.Client {
-	client, _, _ := NewWithAPI(t, options)
-	return client
+func New(t *testing.T, options *Options) (*codersdk.Client, codersdk.CreateFirstUserResponse) {
+	client, _, _, user := NewWithAPI(t, options)
+	return client, user
 }
 
-func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *coderd.API) {
+func NewWithAPI(t *testing.T, options *Options) (
+	*codersdk.Client, io.Closer, *coderd.API, codersdk.CreateFirstUserResponse,
+) {
 	t.Helper()
 
 	if options == nil {
@@ -65,6 +73,7 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 	if options.Options == nil {
 		options.Options = &coderdtest.Options{}
 	}
+	require.False(t, options.DontAddFirstUser && !options.DontAddLicense, "DontAddFirstUser requires DontAddLicense")
 	setHandler, cancelFunc, serverURL, oop := coderdtest.NewOptions(t, options.Options)
 	coderAPI, err := coderd.New(context.Background(), &coderd.Options{
 		RBAC:                       true,
@@ -99,7 +108,26 @@ func NewWithAPI(t *testing.T, options *Options) (*codersdk.Client, io.Closer, *c
 			},
 		},
 	}
-	return client, provisionerCloser, coderAPI
+	var user codersdk.CreateFirstUserResponse
+	if !options.DontAddFirstUser {
+		user = coderdtest.CreateFirstUser(t, client)
+		if !options.DontAddLicense {
+			lo := LicenseOptions{}
+			if options.LicenseOptions != nil {
+				lo = *options.LicenseOptions
+				// The pgCoord is not supported by the fake DB & in-memory Pubsub.  It only works on a real postgres.
+				if lo.AllFeatures || (lo.Features != nil && lo.Features[codersdk.FeatureHighAvailability] != 0) {
+					// we check for the in-memory test types so that the real types don't have to exported
+					_, ok := coderAPI.Pubsub.(*pubsub.MemoryPubsub)
+					require.False(t, ok, "FeatureHighAvailability is incompatible with MemoryPubsub")
+					_, ok = coderAPI.Database.(*dbfake.FakeQuerier)
+					require.False(t, ok, "FeatureHighAvailability is incompatible with dbfake")
+				}
+			}
+			_ = AddLicense(t, client, lo)
+		}
+	}
+	return client, provisionerCloser, coderAPI, user
 }
 
 type LicenseOptions struct {

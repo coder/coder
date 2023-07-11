@@ -18,7 +18,6 @@ import (
 
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/clitest"
-	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
@@ -118,8 +117,7 @@ func TestLicensesAddReal(t *testing.T) {
 	t.Parallel()
 	t.Run("Fails", func(t *testing.T) {
 		t.Parallel()
-		client := coderdenttest.New(t, nil)
-		coderdtest.CreateFirstUser(t, client)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
 		inv, conf := newCLI(
 			t,
 			"licenses", "add", "-l", fakeLicenseJWT,
@@ -173,8 +171,7 @@ func TestLicensesListReal(t *testing.T) {
 	t.Parallel()
 	t.Run("Empty", func(t *testing.T) {
 		t.Parallel()
-		client := coderdenttest.New(t, nil)
-		coderdtest.CreateFirstUser(t, client)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
 		inv, conf := newCLI(
 			t,
 			"licenses", "list",
@@ -215,8 +212,7 @@ func TestLicensesDeleteReal(t *testing.T) {
 	t.Parallel()
 	t.Run("Empty", func(t *testing.T) {
 		t.Parallel()
-		client := coderdenttest.New(t, nil)
-		coderdtest.CreateFirstUser(t, client)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
 		inv, conf := newCLI(
 			t,
 			"licenses", "delete", "1")
