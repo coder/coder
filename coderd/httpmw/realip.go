@@ -84,7 +84,10 @@ func ExtractRealIPAddress(config *RealIPConfig, req *http.Request) (net.IP, erro
 // of each proxy header is set.
 func FilterUntrustedOriginHeaders(config *RealIPConfig, req *http.Request) {
 	if config == nil {
-		config = &RealIPConfig{}
+		config = &RealIPConfig{
+			TrustedOrigins: []*net.IPNet{},
+			TrustedHeaders: []string{},
+		}
 	}
 
 	cf := isContainedIn(config.TrustedOrigins, getRemoteAddress(req.RemoteAddr))
