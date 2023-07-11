@@ -65,7 +65,11 @@ export const ProxyRow: FC<{
                 />
               )
             }
-            subtitle={shouldShowMessages ? "Click to hide details" : undefined}
+            subtitle={
+              shouldShowMessages
+                ? `Click to ${isMsgsOpen ? "hide" : "show"} details`
+                : undefined
+            }
           />
         </TableCell>
 
