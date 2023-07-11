@@ -56,7 +56,10 @@ func ExtractRealIP(config *RealIPConfig) func(next http.Handler) http.Handler {
 // configuration and headers. It does not mutate the original request.
 func ExtractRealIPAddress(config *RealIPConfig, req *http.Request) (net.IP, error) {
 	if config == nil {
-		config = &RealIPConfig{}
+		config = &RealIPConfig{
+			TrustedOrigins: nil,
+			TrustedHeaders: nil,
+		}
 	}
 
 	cf := isContainedIn(config.TrustedOrigins, getRemoteAddress(req.RemoteAddr))
@@ -81,7 +84,10 @@ func ExtractRealIPAddress(config *RealIPConfig, req *http.Request) (net.IP, erro
 // of each proxy header is set.
 func FilterUntrustedOriginHeaders(config *RealIPConfig, req *http.Request) {
 	if config == nil {
-		config = &RealIPConfig{}
+		config = &RealIPConfig{
+			TrustedOrigins: nil,
+			TrustedHeaders: nil,
+		}
 	}
 
 	cf := isContainedIn(config.TrustedOrigins, getRemoteAddress(req.RemoteAddr))
@@ -208,7 +214,10 @@ func RealIP(ctx context.Context) *RealIPState {
 // ParseRealIPConfig takes a raw string array of headers and origins
 // to produce a config.
 func ParseRealIPConfig(headers, origins []string) (*RealIPConfig, error) {
-	config := &RealIPConfig{}
+	config := &RealIPConfig{
+		TrustedOrigins: []*net.IPNet{},
+		TrustedHeaders: []string{},
+	}
 	for _, origin := range origins {
 		_, network, err := net.ParseCIDR(origin)
 		if err != nil {
