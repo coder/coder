@@ -467,7 +467,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 				logger.Debug(
 					ctx, "loaded default git auth config",
-					slog.F("id", gitauth.CoderGitHubAppConfig.ID),
+					"id", gitauth.CoderGitHubAppConfig.ID,
 				)
 			}
 
