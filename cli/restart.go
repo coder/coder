@@ -10,6 +10,8 @@ import (
 )
 
 func (r *RootCmd) restart() *clibase.Cmd {
+	var buildOptions bool
+
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Annotations: workspaceCommand,
@@ -20,21 +22,39 @@ func (r *RootCmd) restart() *clibase.Cmd {
 			r.InitClient(client),
 		),
 		Options: clibase.OptionSet{
+			{
+				Flag:        "build-options",
+				Description: "Prompt for one-time build options defined with ephemeral parameters.",
+				Value:       clibase.BoolOf(&buildOptions),
+			},
 			cliui.SkipPromptOption(),
 		},
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
 			out := inv.Stdout
 
-			_, err := cliui.Prompt(inv, cliui.PromptOptions{
-				Text:      "Confirm restart workspace?",
-				IsConfirm: true,
-			})
+			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
 			}
 
-			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
+			template, err := client.Template(inv.Context(), workspace.TemplateID)
+			if err != nil {
+				return nil
+			}
+
+			buildParams, err := prepStartWorkspace(inv, client, prepStartWorkspaceArgs{
+				Template:     template,
+				BuildOptions: buildOptions,
+			})
+			if err != nil {
+				return nil
+			}
+
+			_, err = cliui.Prompt(inv, cliui.PromptOptions{
+				Text:      "Confirm restart workspace?",
+				IsConfirm: true,
+			})
 			if err != nil {
 				return err
 			}
@@ -51,7 +71,8 @@ func (r *RootCmd) restart() *clibase.Cmd {
 			}
 
 			build, err = client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-				Transition: codersdk.WorkspaceTransitionStart,
+				Transition:          codersdk.WorkspaceTransitionStart,
+				RichParameterValues: buildParams.richParameters,
 			})
 			if err != nil {
 				return err
