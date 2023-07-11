@@ -76,7 +76,7 @@ WHERE
 -- name: GetWorkspaces :many
 SELECT
 	workspaces.*,
-	templates.name AS template_name,
+	COALESCE(template_name.template_name, 'unknown') as template_name,
 	latest_build.template_version_id,
 	latest_build.template_version_name,
 	COUNT(*) OVER () as count
@@ -114,10 +114,14 @@ LEFT JOIN LATERAL (
 	LIMIT
 		1
 ) latest_build ON TRUE
-LEFT JOIN
-	templates
-ON
-	templates.id = workspaces.template_id
+LEFT JOIN LATERAL (
+	SELECT
+		templates.name AS template_name
+	FROM
+		templates
+	WHERE
+		templates.id = workspaces.template_id
+) template_name ON true
 WHERE
 	-- Optionally include deleted workspaces
 	workspaces.deleted = @deleted

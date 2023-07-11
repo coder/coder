@@ -15,7 +15,6 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/db2sdk"
 	"github.com/coder/coder/coderd/database/dbauthz"
@@ -234,14 +233,12 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 			}
 
 			for _, workspace := range workspaceRows {
-				templateName := workspace.TemplateName.String
-				if !workspace.TemplateName.Valid {
-					templateName = "unknown"
-				}
+				templateName := workspace.TemplateName
 				templateVersionName := workspace.TemplateVersionName.String
 				if !workspace.TemplateVersionName.Valid {
 					templateVersionName = "unknown"
 				}
+
 				user, err := db.GetUserByID(ctx, workspace.OwnerID)
 				if err != nil {
 					logger.Error(ctx, "can't get user from the database", slog.F("user_id", workspace.OwnerID), slog.Error(err))

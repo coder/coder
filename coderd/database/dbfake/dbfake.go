@@ -669,10 +669,7 @@ func (q *fakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspac
 
 		for _, t := range q.templates {
 			if t.ID == w.TemplateID {
-				wr.TemplateName = sql.NullString{
-					Valid:  true,
-					String: t.Name,
-				}
+				wr.TemplateName = t.Name
 				break
 			}
 		}

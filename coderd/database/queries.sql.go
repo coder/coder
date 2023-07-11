@@ -8392,7 +8392,7 @@ func (q *sqlQuerier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspace
 const getWorkspaces = `-- name: GetWorkspaces :many
 SELECT
 	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.locked_at,
-	templates.name AS template_name,
+	COALESCE(template_name.template_name, 'unknown') as template_name,
 	latest_build.template_version_id,
 	latest_build.template_version_name,
 	COUNT(*) OVER () as count
@@ -8430,10 +8430,14 @@ LEFT JOIN LATERAL (
 	LIMIT
 		1
 ) latest_build ON TRUE
-LEFT JOIN
-	templates
-ON
-	templates.id = workspaces.template_id
+LEFT JOIN LATERAL (
+	SELECT
+		templates.name AS template_name
+	FROM
+		templates
+	WHERE
+		templates.id = workspaces.template_id
+) template_name ON true
 WHERE
 	-- Optionally include deleted workspaces
 	workspaces.deleted = $1
@@ -8616,7 +8620,7 @@ type GetWorkspacesRow struct {
 	Ttl                 sql.NullInt64  `db:"ttl" json:"ttl"`
 	LastUsedAt          time.Time      `db:"last_used_at" json:"last_used_at"`
 	LockedAt            sql.NullTime   `db:"locked_at" json:"locked_at"`
-	TemplateName        sql.NullString `db:"template_name" json:"template_name"`
+	TemplateName        string         `db:"template_name" json:"template_name"`
 	TemplateVersionID   uuid.UUID      `db:"template_version_id" json:"template_version_id"`
 	TemplateVersionName sql.NullString `db:"template_version_name" json:"template_version_name"`
 	Count               int64          `db:"count" json:"count"`
