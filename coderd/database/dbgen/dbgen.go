@@ -477,6 +477,7 @@ func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVers
 		CreatedAt:      takeFirst(orig.CreatedAt, database.Now()),
 		UpdatedAt:      takeFirst(orig.UpdatedAt, database.Now()),
 		Name:           takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
+		Message:        orig.Message,
 		Readme:         takeFirst(orig.Readme, namesgenerator.GetRandomName(1)),
 		JobID:          takeFirst(orig.JobID, uuid.New()),
 		CreatedBy:      takeFirst(orig.CreatedBy, uuid.New()),

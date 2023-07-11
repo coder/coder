@@ -1435,6 +1435,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "example_id": "string",
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+  "message": "string",
   "name": "string",
   "provisioner": "terraform",
   "storage_method": "file",
@@ -1458,6 +1459,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ---------------------- | ---------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------ |
 | `example_id`           | string                                                                 | false    |              |                                                              |
 | `file_id`              | string                                                                 | false    |              |                                                              |
+| `message`              | string                                                                 | false    |              |                                                              |
 | `name`                 | string                                                                 | false    |              |                                                              |
 | `provisioner`          | string                                                                 | true     |              |                                                              |
 | `storage_method`       | [codersdk.ProvisionerStorageMethod](#codersdkprovisionerstoragemethod) | true     |              |                                                              |
@@ -4149,6 +4151,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     },
     "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
   },
+  "message": "string",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "readme": "string",
@@ -4166,6 +4169,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `created_by`      | [codersdk.User](#codersdkuser)                                              | false    |              |             |
 | `id`              | string                                                                      | false    |              |             |
 | `job`             | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                          | false    |              |             |
+| `message`         | string                                                                      | false    |              |             |
 | `name`            | string                                                                      | false    |              |             |
 | `organization_id` | string                                                                      | false    |              |             |
 | `readme`          | string                                                                      | false    |              |             |

@@ -6989,6 +6989,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "message": {
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -9080,6 +9083,9 @@ const docTemplate = `{
                 },
                 "job": {
                     "$ref": "#/definitions/codersdk.ProvisionerJob"
+                },
+                "message": {
+                    "type": "string"
                 },
                 "name": {
                     "type": "string"

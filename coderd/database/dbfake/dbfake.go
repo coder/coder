@@ -3921,6 +3921,10 @@ func (q *fakeQuerier) InsertTemplateVersion(_ context.Context, arg database.Inse
 		return database.TemplateVersion{}, err
 	}
 
+	if len(arg.Message) > 1048576 {
+		return database.TemplateVersion{}, xerrors.New("message too long")
+	}
+
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -3932,6 +3936,7 @@ func (q *fakeQuerier) InsertTemplateVersion(_ context.Context, arg database.Inse
 		CreatedAt:      arg.CreatedAt,
 		UpdatedAt:      arg.UpdatedAt,
 		Name:           arg.Name,
+		Message:        arg.Message,
 		Readme:         arg.Readme,
 		JobID:          arg.JobID,
 		CreatedBy:      arg.CreatedBy,

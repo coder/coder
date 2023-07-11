@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/briandowns/spinner"
@@ -21,6 +22,7 @@ import (
 type templateUploadFlags struct {
 	directory      string
 	ignoreLockfile bool
+	message        string
 }
 
 func (pf *templateUploadFlags) options() []clibase.Option {
@@ -35,6 +37,11 @@ func (pf *templateUploadFlags) options() []clibase.Option {
 		Description: "Ignore warnings about not having a .terraform.lock.hcl file present in the template.",
 		Default:     "false",
 		Value:       clibase.BoolOf(&pf.ignoreLockfile),
+	}, {
+		Flag:          "message",
+		FlagShorthand: "m",
+		Description:   "Specify a message describing the changes in this version of the template. Messages longer than 72 characters will be displayed as truncated.",
+		Value:         clibase.StringOf(&pf.message),
 	}}
 }
 
@@ -110,6 +117,20 @@ func (pf *templateUploadFlags) checkForLockfile(inv *clibase.Invocation) error {
 	return nil
 }
 
+func (pf *templateUploadFlags) templateMessage(inv *clibase.Invocation) string {
+	title := strings.SplitN(pf.message, "\n", 2)[0]
+	if len(title) > 72 {
+		cliui.Warn(inv.Stdout, "Template message is longer than 72 characters, it will be displayed as truncated.")
+	}
+	if title != pf.message {
+		cliui.Warn(inv.Stdout, "Template message contains newlines, only the first line will be displayed.")
+	}
+	if pf.message != "" {
+		return pf.message
+	}
+	return "Uploaded from the CLI"
+}
+
 func (pf *templateUploadFlags) templateName(args []string) (string, error) {
 	if pf.stdin() {
 		// Can't infer name from directory if none provided.
@@ -174,6 +195,8 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				return xerrors.Errorf("check for lockfile: %w", err)
 			}
 
+			message := uploadFlags.templateMessage(inv)
+
 			resp, err := uploadFlags.upload(inv, client)
 			if err != nil {
 				return err
@@ -186,6 +209,7 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 
 			job, err := createValidTemplateVersion(inv, createValidTemplateVersionArgs{
 				Name:            versionName,
+				Message:         message,
 				Client:          client,
 				Organization:    organization,
 				Provisioner:     database.ProvisionerType(provisioner),
