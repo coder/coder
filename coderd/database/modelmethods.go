@@ -201,7 +201,7 @@ func (m GetOrganizationIDsByMemberIDsRow) RBACObject() rbac.Object {
 	// TODO: This feels incorrect as we are really returning a list of orgmembers.
 	// This return type should be refactored to return a list of orgmembers, not this
 	// special type.
-	return rbac.ResourceUser.WithID(m.UserID)
+	return rbac.ResourceUser.WithID(m.UserID).WithOwner(m.UserID.String())
 }
 
 func (o Organization) RBACObject() rbac.Object {
@@ -233,7 +233,7 @@ func (f File) RBACObject() rbac.Object {
 // If you are trying to get the RBAC object for the UserData, use
 // u.UserDataRBACObject() instead.
 func (u User) RBACObject() rbac.Object {
-	return rbac.ResourceUser.WithID(u.ID)
+	return rbac.ResourceUser.WithID(u.ID).WithOwner(u.ID.String())
 }
 
 func (u User) UserDataRBACObject() rbac.Object {
@@ -241,7 +241,7 @@ func (u User) UserDataRBACObject() rbac.Object {
 }
 
 func (u GetUsersRow) RBACObject() rbac.Object {
-	return rbac.ResourceUser.WithID(u.ID)
+	return rbac.ResourceUser.WithID(u.ID).WithOwner(u.ID.String())
 }
 
 func (u GitSSHKey) RBACObject() rbac.Object {

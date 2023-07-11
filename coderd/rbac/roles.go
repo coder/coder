@@ -145,14 +145,18 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Name:        member,
 		DisplayName: "",
 		Site: Permissions(map[string][]Action{
-			// All users can read all other users and know they exist.
-			ResourceUser.Type:           {ActionRead},
 			ResourceRoleAssignment.Type: {ActionRead},
 			// All users can see the provisioner daemons.
 			ResourceProvisionerDaemon.Type: {ActionRead},
 		}),
-		Org:  map[string][]Permission{},
-		User: allPermsExcept(ResourceWorkspaceLocked),
+		Org: map[string][]Permission{},
+		User: append(allPermsExcept(ResourceWorkspaceLocked, ResourceUser),
+			Permissions(map[string][]Action{
+				// Users cannot do create/update/delete on themselves, but they
+				// can read their own details.
+				ResourceUser.Type: {ActionRead},
+			})...,
+		),
 	}.withCachedRegoValue()
 
 	auditorRole := Role{
@@ -163,6 +167,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// are not in.
 			ResourceTemplate.Type: {ActionRead},
 			ResourceAuditLog.Type: {ActionRead},
+			ResourceUser.Type:     {ActionRead},
 		}),
 		Org:  map[string][]Permission{},
 		User: []Permission{},
@@ -172,6 +177,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Name:        templateAdmin,
 		DisplayName: "Template Admin",
 		Site: Permissions(map[string][]Action{
+			ResourceUser.Type:     {ActionRead},
 			ResourceTemplate.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 			// CRUD all files, even those they did not upload.
 			ResourceFile.Type:      {ActionCreate, ActionRead, ActionUpdate, ActionDelete},

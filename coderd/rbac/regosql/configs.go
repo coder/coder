@@ -22,6 +22,22 @@ func userACLMatcher(m sqltypes.VariableMatcher) sqltypes.VariableMatcher {
 	return ACLGroupMatcher(m, "user_acl", []string{"input", "object", "acl_user_list"})
 }
 
+func UserConverter() *sqltypes.VariableConverter {
+	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
+		resourceIDMatcher(),
+		// Users are never owned by an organization.
+		sqltypes.AlwaysFalse(organizationOwnerMatcher()),
+		// Users are always owned by themselves.
+		sqltypes.StringVarMatcher("id :: text", []string{"input", "object", "owner"}),
+	)
+	matcher.RegisterMatcher(
+		// No ACLs on the user type
+		sqltypes.AlwaysFalse(groupACLMatcher(matcher)),
+		sqltypes.AlwaysFalse(userACLMatcher(matcher)),
+	)
+	return matcher
+}
+
 func TemplateConverter() *sqltypes.VariableConverter {
 	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
 		resourceIDMatcher(),

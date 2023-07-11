@@ -256,7 +256,10 @@ type userQuerier interface {
 }
 
 func (q *sqlQuerier) GetAuthorizedUserCount(ctx context.Context, arg GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
-	authorizedFilter, err := prepared.CompileToSQL(ctx, rbac.ConfigWithoutACL())
+	authorizedFilter, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
+		VariableConverter: regosql.UserConverter(),
+	})
+
 	if err != nil {
 		return -1, xerrors.Errorf("compile authorized filter: %w", err)
 	}
