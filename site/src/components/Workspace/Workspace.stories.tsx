@@ -234,6 +234,20 @@ export const CancellationError: Story = {
   },
 }
 
+export const Unhealthy: Story = {
+  args: {
+    ...Running.args,
+    workspace: {
+      ...Mocks.MockWorkspace,
+      latest_build: { ...Mocks.MockWorkspace.latest_build, status: "running" },
+      health: {
+        healthy: false,
+        failing_agents: [],
+      },
+    },
+  },
+}
+
 function makeFailedBuildLogs(): ProvisionerJobLog[] {
   return [
     {
