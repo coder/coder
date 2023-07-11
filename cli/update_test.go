@@ -90,9 +90,13 @@ func TestUpdateWithRichParameters(t *testing.T) {
 		secondParameterDescription = "This is second parameter"
 		secondParameterValue       = "2"
 
+		ephemeralParameterName        = "ephemeral_parameter"
+		ephemeralParameterDescription = "This is ephemeral parameter"
+		ephemeralParameterValue       = "3"
+
 		immutableParameterName        = "immutable_parameter"
 		immutableParameterDescription = "This is not mutable parameter"
-		immutableParameterValue       = "3"
+		immutableParameterValue       = "4"
 	)
 
 	echoResponses := &echo.Responses{
@@ -105,6 +109,7 @@ func TestUpdateWithRichParameters(t *testing.T) {
 							{Name: firstParameterName, Description: firstParameterDescription, Mutable: true},
 							{Name: immutableParameterName, Description: immutableParameterDescription, Mutable: false},
 							{Name: secondParameterName, Description: secondParameterDescription, Mutable: true},
+							{Name: ephemeralParameterName, Description: ephemeralParameterDescription, Mutable: true, Ephemeral: true},
 						},
 					},
 				},
@@ -155,6 +160,55 @@ func TestUpdateWithRichParameters(t *testing.T) {
 			firstParameterDescription, firstParameterValue,
 			fmt.Sprintf("Parameter %q is not mutable, so can't be customized after workspace creation.", immutableParameterName), "",
 			secondParameterDescription, secondParameterValue,
+		}
+		for i := 0; i < len(matches); i += 2 {
+			match := matches[i]
+			value := matches[i+1]
+			pty.ExpectMatch(match)
+			if value != "" {
+				pty.WriteLine(value)
+			}
+		}
+		<-doneChan
+	})
+
+	t.Run("BuildOptions", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, echoResponses)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		tempDir := t.TempDir()
+		removeTmpDirUntilSuccessAfterTest(t, tempDir)
+		parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
+		_, _ = parameterFile.WriteString(
+			firstParameterName + ": " + firstParameterValue + "\n" +
+				immutableParameterName + ": " + immutableParameterValue + "\n" +
+				secondParameterName + ": " + secondParameterValue)
+
+		inv, root := clitest.New(t, "create", "my-workspace", "--template", template.Name, "--rich-parameter-file", parameterFile.Name(), "-y")
+		clitest.SetupConfig(t, client, root)
+		err := inv.Run()
+		assert.NoError(t, err)
+
+		inv, root = clitest.New(t, "update", "my-workspace", "--build-options")
+		clitest.SetupConfig(t, client, root)
+
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t).Attach(inv)
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		matches := []string{
+			ephemeralParameterDescription, ephemeralParameterValue,
+			"Planning workspace", "",
 		}
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]

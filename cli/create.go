@@ -258,7 +258,7 @@ PromptRichParamLoop:
 		}
 
 		// Param file is all or nothing
-		if !useParamFile {
+		if !useParamFile && !templateVersionParameter.Ephemeral {
 			for _, e := range args.ExistingRichParams {
 				if e.Name == templateVersionParameter.Name {
 					// If the param already exists, we do not need to prompt it again.
