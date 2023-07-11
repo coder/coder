@@ -607,12 +607,12 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 	}
 	if arg.Limit > 0 {
 		if int(arg.Limit) > len(workspaces) {
-			return convertToWorkspaceRows(workspaces, int64(beforePageCount)), nil
+			return q.convertToWorkspaceRowsNoLock(ctx, workspaces, int64(beforePageCount)), nil
 		}
 		workspaces = workspaces[:arg.Limit]
 	}
 
-	return convertToWorkspaceRows(workspaces, int64(beforePageCount)), nil
+	return q.convertToWorkspaceRowsNoLock(ctx, workspaces, int64(beforePageCount)), nil
 }
 
 // mapAgentStatus determines the agent status based on different timestamps like created_at, last_connected_at, disconnected_at, etc.
@@ -649,10 +649,10 @@ func mapAgentStatus(dbAgent database.WorkspaceAgent, agentInactiveDisconnectTime
 	return status
 }
 
-func convertToWorkspaceRows(workspaces []database.Workspace, count int64) []database.GetWorkspacesRow {
-	rows := make([]database.GetWorkspacesRow, len(workspaces))
-	for i, w := range workspaces {
-		rows[i] = database.GetWorkspacesRow{
+func (q *fakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspaces []database.Workspace, count int64) []database.GetWorkspacesRow {
+	rows := make([]database.GetWorkspacesRow, 0, len(workspaces))
+	for _, w := range workspaces {
+		wr := database.GetWorkspacesRow{
 			ID:                w.ID,
 			CreatedAt:         w.CreatedAt,
 			UpdatedAt:         w.UpdatedAt,
@@ -666,6 +666,28 @@ func convertToWorkspaceRows(workspaces []database.Workspace, count int64) []data
 			LastUsedAt:        w.LastUsedAt,
 			Count:             count,
 		}
+
+		for _, t := range q.templates {
+			if t.ID == w.TemplateID {
+				wr.TemplateName = t.Name
+				break
+			}
+		}
+
+		if build, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, w.ID); err == nil {
+			for _, tv := range q.templateVersions {
+				if tv.ID == build.TemplateVersionID {
+					wr.TemplateVersionID = tv.ID
+					wr.TemplateVersionName = sql.NullString{
+						Valid:  true,
+						String: tv.Name,
+					}
+					break
+				}
+			}
+		}
+
+		rows = append(rows, wr)
 	}
 	return rows
 }
