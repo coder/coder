@@ -527,6 +527,7 @@ distro() {
 
 	if [ -f /etc/os-release ]; then
 		(
+			# shellcheck disable=SC1091
 			. /etc/os-release
 			if [ "${ID_LIKE-}" ]; then
 				for id_like in $ID_LIKE; do
@@ -553,6 +554,7 @@ distro_name() {
 
 	if [ -f /etc/os-release ]; then
 		(
+			# shellcheck disable=SC1091
 			. /etc/os-release
 			echo "$PRETTY_NAME"
 		)
