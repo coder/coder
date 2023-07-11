@@ -143,7 +143,7 @@ func TestLicensesListFake(t *testing.T) {
 		expectedLicenseExpires := time.Date(2024, 4, 6, 16, 53, 35, 0, time.UTC)
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-		inv := setupFakeLicenseServerTest(t, "licenses", "list")
+		inv := setupFakeLicenseServerTest(t, "licenses", "list", "-o", "json")
 		stdout := new(bytes.Buffer)
 		inv.Stdout = stdout
 		errC := make(chan error)
@@ -159,9 +159,9 @@ func TestLicensesListFake(t *testing.T) {
 		assert.Equal(t, "claim1", licenses[0].Claims["h1"])
 		assert.Equal(t, int32(5), licenses[1].ID)
 		assert.Equal(t, "claim2", licenses[1].Claims["h2"])
-		expiresClaim := licenses[0].Claims["license_expires"]
+		expiresClaim := licenses[0].Claims["license_expires_human"]
 		expiresString, ok := expiresClaim.(string)
-		require.True(t, ok, "license_expires claim is not a string")
+		require.True(t, ok, "license_expires_human claim is not a string")
 		assert.NotEmpty(t, expiresClaim)
 		expiresTime, err := time.Parse(time.RFC3339, expiresString)
 		require.NoError(t, err)
@@ -177,7 +177,7 @@ func TestLicensesListReal(t *testing.T) {
 		coderdtest.CreateFirstUser(t, client)
 		inv, conf := newCLI(
 			t,
-			"licenses", "list",
+			"licenses", "list", "-o", "json",
 		)
 		stdout := new(bytes.Buffer)
 		inv.Stdout = stdout
