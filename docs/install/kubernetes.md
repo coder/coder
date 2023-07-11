@@ -174,12 +174,10 @@ coder:
 
 ### Azure
 
-We recommend deploying Coder with the [Azure Application Gateway](https://learn.microsoft.com/en-us/azure/application-gateway/ingress-controller-overview) instead of the Azure Load Balancer, as the Application Gateway supports:
+In certain enterprise environments, the [Azure Application Gateway](https://learn.microsoft.com/en-us/azure/application-gateway/ingress-controller-overview) was needed. The Application Gateway supports:
 
 - Websocket traffic (required for workspace connections)
 - TLS termination
-
-The Azure Load Balancer does not support the above and is only suited for TCP-only traffic.
 
 ## Upgrading Coder via Helm
 
