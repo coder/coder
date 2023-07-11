@@ -351,9 +351,7 @@ func TestAgent(t *testing.T) {
 
 	t.Run("NotInfinite", func(t *testing.T) {
 		t.Parallel()
-		var (
-			fetchCalled uint64
-		)
+		var fetchCalled uint64
 
 		cmd := &clibase.Cmd{
 			Handler: func(inv *clibase.Invocation) error {
