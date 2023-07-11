@@ -235,6 +235,12 @@ func (r *RootCmd) createProxy() *clibase.Cmd {
 		noPrompts   bool
 		formatter   = newUpdateProxyResponseFormatter()
 	)
+	validateIcon := func(s *clibase.String) error {
+		if !(strings.HasPrefix(s.Value(), "/emojis/") || strings.HasPrefix(s.Value(), "http")) {
+			return xerrors.New("icon must be a relative path to an emoji or a publicly hosted image URL")
+		}
+		return nil
+	}
 
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -271,10 +277,7 @@ func (r *RootCmd) createProxy() *clibase.Cmd {
 					Text:    "Icon URL:",
 					Default: "/emojis/1f5fa.png",
 					Validate: func(s string) error {
-						if !(strings.HasPrefix(s, "/emojis/") || strings.HasPrefix(s, "http")) {
-							return xerrors.New("icon must be a relative path to an emoji or a publicly hosted image URL")
-						}
-						return nil
+						return validateIcon(clibase.StringOf(&s))
 					},
 				})
 				if err != nil {
@@ -319,7 +322,7 @@ func (r *RootCmd) createProxy() *clibase.Cmd {
 		clibase.Option{
 			Flag:        "icon",
 			Description: "Display icon of the proxy.",
-			Value:       clibase.StringOf(&proxyIcon),
+			Value:       clibase.Validate(clibase.StringOf(&proxyIcon), validateIcon),
 		},
 		clibase.Option{
 			Flag:        "no-prompt",
