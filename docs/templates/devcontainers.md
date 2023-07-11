@@ -19,6 +19,7 @@ There are several benefits to adding a devcontainer-compatible template to Coder
 ## Example templates
 
 - [Docker](https://github.com/coder/coder/tree/main/examples/templates/devcontainer-docker)
+- [Kubernetes](https://github.com/coder/coder/tree/main/examples/templates/devcontainer-kubernetes)
 
 ## Authentication
 
@@ -27,3 +28,7 @@ You may need to authenticate to your container registry (e.g. Artifactory) or gi
 ## Caching
 
 To improve build times, devcontainers can be cached. Refer to the [envbuilder documentation](https://github.com/coder/envbuilder/) for more information.
+
+## Other features & known issues
+
+Envbuilder is still under active development. Refer to the [envbuilder GitHub repo](https://github.com/coder/envbuilder/) for more information and to submit feature requests.
