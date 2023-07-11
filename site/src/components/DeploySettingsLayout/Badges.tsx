@@ -44,9 +44,9 @@ export const NotHealthyBadge: FC = () => {
 export const NotRegisteredBadge: FC = () => {
   const styles = useStyles()
   return (
-    <Tooltip title="Workspace Proxy not responding to http(s) requests.">
+    <Tooltip title="Workspace Proxy has never come online and needs to be started.">
       <span className={combineClasses([styles.badge, styles.warnBadge])}>
-        Not Dialable
+        Never Seen
       </span>
     </Tooltip>
   )
@@ -55,9 +55,11 @@ export const NotRegisteredBadge: FC = () => {
 export const NotReachableBadge: FC = () => {
   const styles = useStyles()
   return (
-    <span className={combineClasses([styles.badge, styles.errorBadge])}>
-      Not Reachable
-    </span>
+    <Tooltip title="Workspace Proxy not responding to http(s) requests.">
+      <span className={combineClasses([styles.badge, styles.warnBadge])}>
+        Not Dialable
+      </span>
+    </Tooltip>
   )
 }
 
