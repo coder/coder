@@ -23,6 +23,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 		startAt           string
 		stopAfter         time.Duration
 		workspaceName     string
+		buildOptions      bool
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -123,6 +124,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 				Template:          template,
 				RichParameterFile: richParameterFile,
 				NewWorkspaceName:  workspaceName,
+				BuildOptions:      buildOptions,
 			})
 			if err != nil {
 				return xerrors.Errorf("prepare build: %w", err)
@@ -189,6 +191,11 @@ func (r *RootCmd) create() *clibase.Cmd {
 			Description: "Specify a duration after which the workspace should shut down (e.g. 8h).",
 			Value:       clibase.DurationOf(&stopAfter),
 		},
+		clibase.Option{
+			Flag:        "build-options",
+			Description: "Prompt for one-time build options defined with ephemeral parameters.",
+			Value:       clibase.BoolOf(&buildOptions),
+		},
 		cliui.SkipPromptOption(),
 	)
 
@@ -202,6 +209,7 @@ type prepWorkspaceBuildArgs struct {
 	NewWorkspaceName   string
 
 	UpdateWorkspace bool
+	BuildOptions    bool
 	WorkspaceID     uuid.UUID
 }
 

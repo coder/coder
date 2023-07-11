@@ -11,6 +11,7 @@ func (r *RootCmd) update() *clibase.Cmd {
 	var (
 		richParameterFile string
 		alwaysPrompt      bool
+		buildOptions      bool
 	)
 
 	client := new(codersdk.Client)
@@ -53,6 +54,8 @@ func (r *RootCmd) update() *clibase.Cmd {
 
 				UpdateWorkspace: true,
 				WorkspaceID:     workspace.LatestBuild.ID,
+
+				BuildOptions: buildOptions,
 			})
 			if err != nil {
 				return nil
@@ -86,14 +89,18 @@ func (r *RootCmd) update() *clibase.Cmd {
 		{
 			Flag:        "always-prompt",
 			Description: "Always prompt all parameters. Does not pull parameter values from existing workspace.",
-
-			Value: clibase.BoolOf(&alwaysPrompt),
+			Value:       clibase.BoolOf(&alwaysPrompt),
 		},
 		{
 			Flag:        "rich-parameter-file",
 			Description: "Specify a file path with values for rich parameters defined in the template.",
 			Env:         "CODER_RICH_PARAMETER_FILE",
 			Value:       clibase.StringOf(&richParameterFile),
+		},
+		{
+			Flag:        "build-options",
+			Description: "Prompt for one-time build options defined with ephemeral parameters.",
+			Value:       clibase.BoolOf(&buildOptions),
 		},
 	}
 	return cmd
