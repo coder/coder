@@ -291,12 +291,14 @@ func (h *Handler) renderHTMLWithState(rw http.ResponseWriter, r *http.Request, f
 	// Cookies are sent when requesting HTML, so we can get the user
 	// and pre-populate the state for the frontend to reduce requests.
 	apiKey, actor, _ := httpmw.ExtractAPIKey(rw, r, httpmw.ExtractAPIKeyConfig{
-		Optional:      true,
-		DB:            h.opts.Database,
-		OAuth2Configs: h.opts.OAuth2Configs,
+		DB:              h.opts.Database,
+		OAuth2Configs:   h.opts.OAuth2Configs,
+		RedirectToLogin: false,
 		// Special case for site, we can always disable refresh here because
 		// the frontend will perform API requests if this fails.
 		DisableSessionExpiryRefresh: true,
+		Optional:                    true,
+		SessionTokenFunc:            nil,
 	})
 	if apiKey != nil && actor != nil {
 		ctx := dbauthz.As(r.Context(), actor.Actor)

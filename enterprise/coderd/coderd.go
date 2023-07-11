@@ -88,6 +88,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		RedirectToLogin:             false,
 		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
 		Optional:                    false,
+		SessionTokenFunc:            nil, // Default behaviour
 	})
 	apiKeyMiddlewareOptional := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                          options.Database,
@@ -95,6 +96,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		RedirectToLogin:             false,
 		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
 		Optional:                    true,
+		SessionTokenFunc:            nil, // Default behaviour
 	})
 
 	deploymentID, err := options.Database.GetDeploymentID(ctx)
