@@ -1414,11 +1414,13 @@ export const Entitlements: Entitlement[] = [
 export type Experiment =
   | "convert-to-oidc"
   | "moons"
+  | "single_tailnet"
   | "tailnet_pg_coordinator"
   | "workspace_actions"
 export const Experiments: Experiment[] = [
   "convert-to-oidc",
   "moons",
+  "single_tailnet",
   "tailnet_pg_coordinator",
   "workspace_actions",
 ]

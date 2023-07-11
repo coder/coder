@@ -655,7 +655,7 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	agentConn, release, err := api.tailnet.AgentConn(ctx, workspaceAgent.ID)
+	agentConn, release, err := api.agentProvider.AgentConn(ctx, workspaceAgent.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error dialing workspace agent.",

@@ -7647,13 +7647,15 @@ const docTemplate = `{
                 "moons",
                 "workspace_actions",
                 "tailnet_pg_coordinator",
-                "convert-to-oidc"
+                "convert-to-oidc",
+                "single_tailnet"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
                 "ExperimentWorkspaceActions",
                 "ExperimentTailnetPGCoordinator",
-                "ExperimentConvertToOIDC"
+                "ExperimentConvertToOIDC",
+                "ExperimentSingleTailnet"
             ]
         },
         "codersdk.Feature": {
