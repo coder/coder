@@ -35,6 +35,7 @@ export const WorkspacesRow: FC<{
               {workspace.name}
               {workspace.outdated && (
                 <WorkspaceOutdatedTooltip
+                  templateId={workspace.template_id}
                   onUpdateVersion={() => {
                     onUpdateWorkspace(workspace)
                   }}
