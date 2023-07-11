@@ -3222,15 +3222,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "message": "string",
   "name": "string"
 }
 ```
 
 ### Properties
 
-| Name   | Type   | Required | Restrictions | Description |
-| ------ | ------ | -------- | ------------ | ----------- |
-| `name` | string | false    |              |             |
+| Name      | Type   | Required | Restrictions | Description |
+| --------- | ------ | -------- | ------------ | ----------- |
+| `message` | string | false    |              |             |
+| `name`    | string | false    |              |             |
 
 ## codersdk.PatchWorkspaceProxy
 

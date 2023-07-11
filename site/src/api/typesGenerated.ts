@@ -644,6 +644,7 @@ export interface PatchGroupRequest {
 // From codersdk/templateversions.go
 export interface PatchTemplateVersionRequest {
   readonly name: string
+  readonly message: string
 }
 
 // From codersdk/workspaceproxy.go

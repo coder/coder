@@ -23,10 +23,9 @@ interface TooltipProps {
   ariaLabel?: string
 }
 
-export const OutdatedHelpTooltip: FC<React.PropsWithChildren<TooltipProps>> = ({
-  onUpdateVersion,
-  ariaLabel,
-}) => {
+export const WorkspaceOutdatedTooltip: FC<
+  React.PropsWithChildren<TooltipProps>
+> = ({ onUpdateVersion, ariaLabel }) => {
   const styles = useStyles()
 
   return (

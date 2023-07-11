@@ -87,7 +87,8 @@ type TemplateVersionVariable struct {
 }
 
 type PatchTemplateVersionRequest struct {
-	Name string `json:"name" validate:"omitempty,template_version_name"`
+	Name    string `json:"name" validate:"omitempty,template_version_name"`
+	Message string `json:"message" validate:"omitempty"`
 }
 
 // TemplateVersion returns a template version by ID.

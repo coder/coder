@@ -91,7 +91,8 @@ UPDATE
 SET
 	template_id = $2,
 	updated_at = $3,
-	name = $4
+	name = $4,
+	message = $5
 WHERE
 	id = $1 RETURNING *;
 

@@ -387,7 +387,7 @@ export const templateVersionEditorMachine = createMachine(
       },
       publishingVersion: async (
         { version, templateId },
-        { name, isActiveVersion },
+        { name, message, isActiveVersion },
       ) => {
         if (!version) {
           throw new Error("Version is not set")
@@ -398,7 +398,7 @@ export const templateVersionEditorMachine = createMachine(
         await Promise.all([
           // Only do a patch if the name is different
           name !== version.name
-            ? API.patchTemplateVersion(version.id, { name })
+            ? API.patchTemplateVersion(version.id, { name, message })
             : Promise.resolve(),
           isActiveVersion
             ? API.updateActiveTemplateVersion(templateId, {
