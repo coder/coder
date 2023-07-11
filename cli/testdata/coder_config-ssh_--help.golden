@@ -12,6 +12,11 @@ Add an SSH Host entry for your workspaces "ssh coder.workspace"
      [40m [0m[91;40m$ coder config-ssh --dry-run[0m[40m [0m
 
 [1mOptions[0m
+      --coder-cli-path string, $CODER_SSH_CONFIG_CLI_PATH
+          Optional to specify the path for the coder cli uses in ProxyCommand.
+          By default, the coder cli used is the same cli being invoked with
+          'config ssh'.
+
   -n, --dry-run bool, $CODER_SSH_DRY_RUN
           Perform a trial run with no changes made, showing a diff at the end.
 
