@@ -57,6 +57,14 @@ Ignore warnings about not having a .terraform.lock.hcl file present in the templ
 
 Specify an inactivity TTL for workspaces created from this template. This licensed feature's default is 0h (off).
 
+### -m, --message
+
+|      |                     |
+| ---- | ------------------- |
+| Type | <code>string</code> |
+
+Specify a message describing the changes in this version of the template. Messages longer than 72 characters will be displayed as truncated.
+
 ### --private
 
 |      |                   |

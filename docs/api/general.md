@@ -196,12 +196,17 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "disable_password_auth": true,
     "disable_path_apps": true,
     "disable_session_expiry_refresh": true,
+    "enable_terraform_debug_mode": true,
     "experiments": ["string"],
     "git_auth": {
       "value": [
         {
+          "app_install_url": "string",
+          "app_installations_url": "string",
           "auth_url": "string",
           "client_id": "string",
+          "device_code_url": "string",
+          "device_flow": true,
           "id": "string",
           "no_refresh": true,
           "regex": "string",

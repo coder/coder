@@ -30,7 +30,10 @@ func TestWorkspaceAgent(t *testing.T) {
 		db := dbfake.New()
 		rtr := chi.NewRouter()
 		rtr.Use(
-			httpmw.ExtractWorkspaceAgent(db),
+			httpmw.ExtractWorkspaceAgent(httpmw.ExtractWorkspaceAgentConfig{
+				DB:       db,
+				Optional: false,
+			}),
 		)
 		rtr.Get("/", nil)
 		r := setup(db, uuid.New())
@@ -65,7 +68,10 @@ func TestWorkspaceAgent(t *testing.T) {
 
 		rtr := chi.NewRouter()
 		rtr.Use(
-			httpmw.ExtractWorkspaceAgent(db),
+			httpmw.ExtractWorkspaceAgent(httpmw.ExtractWorkspaceAgentConfig{
+				DB:       db,
+				Optional: false,
+			}),
 		)
 		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 			_ = httpmw.WorkspaceAgent(r)

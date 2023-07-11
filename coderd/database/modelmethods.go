@@ -145,6 +145,11 @@ func (w Workspace) RBACObject() rbac.Object {
 }
 
 func (w Workspace) ExecutionRBAC() rbac.Object {
+	// If a workspace is locked it cannot be accessed.
+	if w.LockedAt.Valid {
+		return w.LockedRBAC()
+	}
+
 	return rbac.ResourceWorkspaceExecution.
 		WithID(w.ID).
 		InOrg(w.OrganizationID).
@@ -152,7 +157,35 @@ func (w Workspace) ExecutionRBAC() rbac.Object {
 }
 
 func (w Workspace) ApplicationConnectRBAC() rbac.Object {
+	// If a workspace is locked it cannot be accessed.
+	if w.LockedAt.Valid {
+		return w.LockedRBAC()
+	}
+
 	return rbac.ResourceWorkspaceApplicationConnect.
+		WithID(w.ID).
+		InOrg(w.OrganizationID).
+		WithOwner(w.OwnerID.String())
+}
+
+func (w Workspace) WorkspaceBuildRBAC(transition WorkspaceTransition) rbac.Object {
+	// If a workspace is locked it cannot be built.
+	// However we need to allow stopping a workspace by a caller once a workspace
+	// is locked (e.g. for autobuild). Additionally, if a user wants to delete
+	// a locked workspace, they shouldn't have to have it unlocked first.
+	if w.LockedAt.Valid && transition != WorkspaceTransitionStop &&
+		transition != WorkspaceTransitionDelete {
+		return w.LockedRBAC()
+	}
+
+	return rbac.ResourceWorkspaceBuild.
+		WithID(w.ID).
+		InOrg(w.OrganizationID).
+		WithOwner(w.OwnerID.String())
+}
+
+func (w Workspace) LockedRBAC() rbac.Object {
+	return rbac.ResourceWorkspaceLocked.
 		WithID(w.ID).
 		InOrg(w.OrganizationID).
 		WithOwner(w.OwnerID.String())

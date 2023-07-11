@@ -2,7 +2,6 @@ package cliui_test
 
 import (
 	"context"
-	"net/url"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -33,7 +32,7 @@ func TestGitAuth(t *testing.T) {
 						ID:              "github",
 						Type:            codersdk.GitProviderGitHub,
 						Authenticated:   fetched.Load(),
-						AuthenticateURL: "https://example.com/gitauth/github?redirect=" + url.QueryEscape("/gitauth?notify"),
+						AuthenticateURL: "https://example.com/gitauth/github",
 					}}, nil
 				},
 				FetchInterval: time.Millisecond,

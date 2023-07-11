@@ -2,7 +2,7 @@ terraform {
   required_providers {
     fly = {
       source  = "fly-apps/fly"
-      version = "~>0.0.21"
+      version = "~>0.0.23"
     }
     coder = {
       source  = "coder/coder"
@@ -12,25 +12,16 @@ terraform {
 }
 
 provider "fly" {
-  useinternaltunnel    = true
-  internaltunnelorg    = var.fly_org
-  internaltunnelregion = data.coder_parameter.region.value
-  fly_api_token        = var.fly_api_token == "" ? null : var.fly_api_token
+  fly_api_token = var.fly_api_token == "" ? null : var.fly_api_token
 }
 
 provider "coder" {
-  feature_use_managed_variables = true
 }
 
 resource "fly_app" "workspace" {
   name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
   org  = var.fly_org
 }
-
-# resource "fly_ip" "workspace-ip4" {
-#   app  = fly_app.workspace.name
-#   type = "v4"
-# }
 
 resource "fly_volume" "home-volume" {
   app    = fly_app.workspace.name
@@ -51,7 +42,6 @@ resource "fly_machine" "workspace" {
   env = {
     CODER_AGENT_TOKEN = "${coder_agent.main.token}"
   }
-  # entrypoint = ["sh", "-c", replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "${fly_ip.workspace-ip4.address}")] # replace localhost with the IP of the workspace
   entrypoint = ["sh", "-c", coder_agent.main.init_script]
   services = [
     {

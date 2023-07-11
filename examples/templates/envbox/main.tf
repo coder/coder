@@ -38,7 +38,6 @@ variable "use_kubeconfig" {
 }
 
 provider "coder" {
-  feature_use_managed_variables = "true"
 }
 
 variable "namespace" {

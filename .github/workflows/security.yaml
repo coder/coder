@@ -8,6 +8,9 @@ permissions:
 on:
   workflow_dispatch:
 
+  # Uncomment when testing.
+  # pull_request:
+
   schedule:
     # Run every 6 hours Monday-Friday!
     - cron: "0 0/6 * * 1-5"
@@ -119,6 +122,7 @@ jobs:
 
       - name: Run Prisma Cloud image scan
         uses: PaloAltoNetworks/prisma-cloud-scan@v1
+        if: false
         with:
           pcc_console_url: ${{ secrets.PRISMA_CLOUD_URL }}
           pcc_user: ${{ secrets.PRISMA_CLOUD_ACCESS_KEY }}

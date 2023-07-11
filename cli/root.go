@@ -79,13 +79,14 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 		r.dotfiles(),
 		r.login(),
 		r.logout(),
+		r.netcheck(),
 		r.portForward(),
 		r.publickey(),
 		r.resetPassword(),
 		r.state(),
 		r.templates(),
-		r.users(),
 		r.tokens(),
+		r.users(),
 		r.version(defaultVersionInfo),
 
 		// Workspace Commands
@@ -95,7 +96,6 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 		r.list(),
 		r.ping(),
 		r.rename(),
-		r.scaletest(),
 		r.schedules(),
 		r.show(),
 		r.speedtest(),
@@ -108,9 +108,9 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 
 		// Hidden
 		r.gitssh(),
-		r.netcheck(),
 		r.vscodeSSH(),
 		r.workspaceAgent(),
+		r.expCmd(),
 	}
 }
 
@@ -260,6 +260,18 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 	// Add a wrapper to every command to enable debugging options.
 	cmd.Walk(func(cmd *clibase.Cmd) {
 		h := cmd.Handler
+		if h == nil {
+			// We should never have a nil handler, but if we do, do not
+			// wrap it. Wrapping it just hides a nil pointer dereference.
+			// If a nil handler exists, this is a developer bug. If no handler
+			// is required for a command such as command grouping (e.g. `users'
+			// and 'groups'), then the handler should be set to the helper
+			// function.
+			//	func(inv *clibase.Invocation) error {
+			//		return inv.Command.HelpHandler(inv)
+			//	}
+			return
+		}
 		cmd.Handler = func(i *clibase.Invocation) error {
 			if !debugOptions {
 				return h(i)
@@ -531,7 +543,7 @@ func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
 
 			if r.debugHTTP {
 				client.PlainLogger = os.Stderr
-				client.LogBodies = true
+				client.SetLogBodies(true)
 			}
 			client.DisableDirectConnections = r.disableDirect
 

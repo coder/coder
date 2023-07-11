@@ -77,12 +77,13 @@ INSERT INTO
 		created_at,
 		updated_at,
 		"name",
+		message,
 		readme,
 		job_id,
 		created_by
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;
 
 -- name: UpdateTemplateVersionByID :one
 UPDATE

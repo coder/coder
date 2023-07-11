@@ -52,8 +52,8 @@ func (r *Runner) Run(ctx context.Context, _ string, w io.Writer) error {
 	logs := loadtestutil.NewSyncWriter(w)
 	defer logs.Close()
 	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelDebug)
-	r.client.Logger = logger
-	r.client.LogBodies = true
+	r.client.SetLogger(logger)
+	r.client.SetLogBodies(true)
 
 	_, _ = fmt.Fprintln(logs, "Opening connection to workspace agent")
 	switch r.cfg.ConnectionMode {

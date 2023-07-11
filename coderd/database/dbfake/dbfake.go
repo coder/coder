@@ -139,7 +139,6 @@ type data struct {
 	workspaceResources        []database.WorkspaceResource
 	workspaces                []database.Workspace
 	workspaceProxies          []database.WorkspaceProxy
-
 	// Locks is a map of lock names. Any keys within the map are currently
 	// locked.
 	locks                   map[int64]struct{}
@@ -149,6 +148,7 @@ type data struct {
 	serviceBanner           []byte
 	logoURL                 string
 	appSecurityKey          string
+	oauthSigningKey         string
 	lastLicenseID           int32
 	defaultProxyDisplayName string
 	defaultProxyIconURL     string
@@ -1868,6 +1868,13 @@ func (q *fakeQuerier) GetLogoURL(_ context.Context) (string, error) {
 	return q.logoURL, nil
 }
 
+func (q *fakeQuerier) GetOAuthSigningKey(_ context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	return q.oauthSigningKey, nil
+}
+
 func (q *fakeQuerier) GetOrganizationByID(_ context.Context, id uuid.UUID) (database.Organization, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -2410,6 +2417,12 @@ func (q *fakeQuerier) GetTemplateVersionParameters(_ context.Context, templateVe
 		}
 		parameters = append(parameters, param)
 	}
+	sort.Slice(parameters, func(i, j int) bool {
+		if parameters[i].DisplayOrder != parameters[j].DisplayOrder {
+			return parameters[i].DisplayOrder < parameters[j].DisplayOrder
+		}
+		return strings.ToLower(parameters[i].Name) < strings.ToLower(parameters[j].Name)
+	})
 	return parameters, nil
 }
 
@@ -3482,12 +3495,17 @@ func (q *fakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, no
 			return nil, err
 		}
 
-		if build.Transition == database.WorkspaceTransitionStart && !build.Deadline.IsZero() && build.Deadline.Before(now) {
+		if build.Transition == database.WorkspaceTransitionStart &&
+			!build.Deadline.IsZero() &&
+			build.Deadline.Before(now) &&
+			!workspace.LockedAt.Valid {
 			workspaces = append(workspaces, workspace)
 			continue
 		}
 
-		if build.Transition == database.WorkspaceTransitionStop && workspace.AutostartSchedule.Valid {
+		if build.Transition == database.WorkspaceTransitionStop &&
+			workspace.AutostartSchedule.Valid &&
+			!workspace.LockedAt.Valid {
 			workspaces = append(workspaces, workspace)
 			continue
 		}
@@ -3497,6 +3515,19 @@ func (q *fakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, no
 			return nil, xerrors.Errorf("get provisioner job by ID: %w", err)
 		}
 		if db2sdk.ProvisionerJobStatus(job) == codersdk.ProvisionerJobFailed {
+			workspaces = append(workspaces, workspace)
+			continue
+		}
+
+		template, err := q.GetTemplateByID(ctx, workspace.TemplateID)
+		if err != nil {
+			return nil, xerrors.Errorf("get template by ID: %w", err)
+		}
+		if !workspace.LockedAt.Valid && template.InactivityTTL > 0 {
+			workspaces = append(workspaces, workspace)
+			continue
+		}
+		if workspace.LockedAt.Valid && template.LockedTTL > 0 {
 			workspaces = append(workspaces, workspace)
 			continue
 		}
@@ -3890,6 +3921,10 @@ func (q *fakeQuerier) InsertTemplateVersion(_ context.Context, arg database.Inse
 		return database.TemplateVersion{}, err
 	}
 
+	if len(arg.Message) > 1048576 {
+		return database.TemplateVersion{}, xerrors.New("message too long")
+	}
+
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -3901,6 +3936,7 @@ func (q *fakeQuerier) InsertTemplateVersion(_ context.Context, arg database.Inse
 		CreatedAt:      arg.CreatedAt,
 		UpdatedAt:      arg.UpdatedAt,
 		Name:           arg.Name,
+		Message:        arg.Message,
 		Readme:         arg.Readme,
 		JobID:          arg.JobID,
 		CreatedBy:      arg.CreatedBy,
@@ -3934,7 +3970,8 @@ func (q *fakeQuerier) InsertTemplateVersionParameter(_ context.Context, arg data
 		ValidationMax:       arg.ValidationMax,
 		ValidationMonotonic: arg.ValidationMonotonic,
 		Required:            arg.Required,
-		LegacyVariableName:  arg.LegacyVariableName,
+		DisplayOrder:        arg.DisplayOrder,
+		Ephemeral:           arg.Ephemeral,
 	}
 	q.templateVersionParameters = append(q.templateVersionParameters, param)
 	return param, nil
@@ -4688,6 +4725,7 @@ func (q *fakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 		tpl.MaxTTL = arg.MaxTTL
 		tpl.FailureTTL = arg.FailureTTL
 		tpl.InactivityTTL = arg.InactivityTTL
+		tpl.LockedTTL = arg.LockedTTL
 		q.templates[idx] = tpl
 		return tpl.DeepCopy(), nil
 	}
@@ -4868,6 +4906,27 @@ func (q *fakeQuerier) UpdateUserLinkedID(_ context.Context, params database.Upda
 	}
 
 	return database.UserLink{}, sql.ErrNoRows
+}
+
+func (q *fakeQuerier) UpdateUserLoginType(_ context.Context, arg database.UpdateUserLoginTypeParams) (database.User, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return database.User{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, u := range q.users {
+		if u.ID == arg.UserID {
+			u.LoginType = arg.NewLoginType
+			if arg.NewLoginType != database.LoginTypePassword {
+				u.HashedPassword = []byte{}
+			}
+			q.users[i] = u
+			return u, nil
+		}
+	}
+	return database.User{}, sql.ErrNoRows
 }
 
 func (q *fakeQuerier) UpdateUserProfile(_ context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
@@ -5197,6 +5256,27 @@ func (q *fakeQuerier) UpdateWorkspaceLastUsedAt(_ context.Context, arg database.
 	return sql.ErrNoRows
 }
 
+func (q *fakeQuerier) UpdateWorkspaceLockedAt(_ context.Context, arg database.UpdateWorkspaceLockedAtParams) error {
+	if err := validateDatabaseType(arg); err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, workspace := range q.workspaces {
+		if workspace.ID != arg.ID {
+			continue
+		}
+		workspace.LockedAt = arg.LockedAt
+		workspace.LastUsedAt = database.Now()
+		q.workspaces[index] = workspace
+		return nil
+	}
+
+	return sql.ErrNoRows
+}
+
 func (q *fakeQuerier) UpdateWorkspaceProxy(_ context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -5304,6 +5384,14 @@ func (q *fakeQuerier) UpsertLogoURL(_ context.Context, data string) error {
 	defer q.mutex.RUnlock()
 
 	q.logoURL = data
+	return nil
+}
+
+func (q *fakeQuerier) UpsertOAuthSigningKey(_ context.Context, value string) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	q.oauthSigningKey = value
 	return nil
 }
 

@@ -20,7 +20,6 @@ export interface WorkspaceProxyViewProps {
   getWorkspaceProxiesError?: Error | unknown
   isLoading: boolean
   hasLoaded: boolean
-  onSelect: (proxy: Region) => void
   preferredProxy?: Region
   selectProxyError?: Error | unknown
 }
@@ -33,9 +32,7 @@ export const WorkspaceProxyView: FC<
   getWorkspaceProxiesError,
   isLoading,
   hasLoaded,
-  onSelect,
   selectProxyError,
-  preferredProxy,
 }) => {
   return (
     <Stack>
@@ -69,10 +66,6 @@ export const WorkspaceProxyView: FC<
                     latency={proxyLatencies?.[proxy.id]}
                     key={proxy.id}
                     proxy={proxy}
-                    onSelectRegion={onSelect}
-                    preferred={
-                      preferredProxy ? proxy.id === preferredProxy.id : false
-                    }
                   />
                 ))}
               </Cond>

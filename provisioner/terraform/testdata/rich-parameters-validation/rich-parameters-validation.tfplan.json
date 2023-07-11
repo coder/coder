@@ -1,6 +1,6 @@
 {
-  "format_version": "1.1",
-  "terraform_version": "1.4.0",
+  "format_version": "1.2",
+  "terraform_version": "1.5.1",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -24,6 +24,7 @@
             "shutdown_script": null,
             "shutdown_script_timeout": 300,
             "startup_script": null,
+            "startup_script_behavior": null,
             "startup_script_timeout": 300,
             "troubleshooting_url": null
           },
@@ -71,6 +72,7 @@
           "shutdown_script": null,
           "shutdown_script_timeout": 300,
           "startup_script": null,
+          "startup_script_behavior": null,
           "startup_script_timeout": 300,
           "troubleshooting_url": null
         },
@@ -111,7 +113,7 @@
   ],
   "prior_state": {
     "format_version": "1.0",
-    "terraform_version": "1.4.0",
+    "terraform_version": "1.5.1",
     "values": {
       "root_module": {
         "resources": [
@@ -126,14 +128,14 @@
               "default": "4",
               "description": null,
               "display_name": null,
+              "ephemeral": true,
               "icon": null,
-              "id": "b4018ceb-5529-4ea9-8d44-f1435255f5ce",
-              "legacy_variable": null,
-              "legacy_variable_name": null,
-              "mutable": false,
+              "id": "2ef43cec-ce06-45d0-9dc2-5e9dcc5e506a",
+              "mutable": true,
               "name": "number_example",
               "option": null,
               "optional": true,
+              "order": null,
               "type": "number",
               "validation": [],
               "value": "4"
@@ -153,14 +155,14 @@
               "default": "4",
               "description": null,
               "display_name": null,
+              "ephemeral": false,
               "icon": null,
-              "id": "78f023f8-d78a-4660-bc55-f4af607e9c92",
-              "legacy_variable": null,
-              "legacy_variable_name": null,
+              "id": "240d3feb-e553-4ec9-b72d-644f4937caae",
               "mutable": false,
               "name": "number_example_max",
               "option": null,
               "optional": true,
+              "order": null,
               "type": "number",
               "validation": [
                 {
@@ -192,14 +194,14 @@
               "default": "-3",
               "description": null,
               "display_name": null,
+              "ephemeral": false,
               "icon": null,
-              "id": "d4dc1b09-51d8-4428-92e5-637ca7f23826",
-              "legacy_variable": null,
-              "legacy_variable_name": null,
+              "id": "006306f8-3541-4a3c-9bd5-ddc9acac22da",
               "mutable": false,
               "name": "number_example_max_zero",
               "option": null,
               "optional": true,
+              "order": null,
               "type": "number",
               "validation": [
                 {
@@ -231,14 +233,14 @@
               "default": "4",
               "description": null,
               "display_name": null,
+              "ephemeral": false,
               "icon": null,
-              "id": "7e0c0c5d-4c6f-44d3-aaae-31e6698d65d8",
-              "legacy_variable": null,
-              "legacy_variable_name": null,
+              "id": "2cc53ecc-6086-461a-989d-77b5c40be5d7",
               "mutable": false,
               "name": "number_example_min",
               "option": null,
               "optional": true,
+              "order": null,
               "type": "number",
               "validation": [
                 {
@@ -270,14 +272,14 @@
               "default": "4",
               "description": null,
               "display_name": null,
+              "ephemeral": false,
               "icon": null,
-              "id": "1e9fe990-cc13-4cdb-84dd-ab198ffe8e8d",
-              "legacy_variable": null,
-              "legacy_variable_name": null,
+              "id": "691a525b-9424-4c38-a6da-d6029ab9c3ac",
               "mutable": false,
               "name": "number_example_min_max",
               "option": null,
               "optional": true,
+              "order": null,
               "type": "number",
               "validation": [
                 {
@@ -309,14 +311,14 @@
               "default": "4",
               "description": null,
               "display_name": null,
+              "ephemeral": false,
               "icon": null,
-              "id": "a358e7b2-9ace-49fe-b94b-476f1a5e0fbd",
-              "legacy_variable": null,
-              "legacy_variable_name": null,
+              "id": "a7c46d06-44dd-4df2-8d16-a1130298dc59",
               "mutable": false,
               "name": "number_example_min_zero",
               "option": null,
               "optional": true,
+              "order": null,
               "type": "number",
               "validation": [
                 {
@@ -346,7 +348,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.8.2"
+        "version_constraint": "0.11.0"
       },
       "null": {
         "name": "null",
@@ -391,6 +393,12 @@
           "expressions": {
             "default": {
               "constant_value": 4
+            },
+            "ephemeral": {
+              "constant_value": true
+            },
+            "mutable": {
+              "constant_value": true
             },
             "name": {
               "constant_value": "number_example"
@@ -536,5 +544,6 @@
         }
       ]
     }
-  }
+  },
+  "timestamp": "2023-07-10T08:58:27Z"
 }
