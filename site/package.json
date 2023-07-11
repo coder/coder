@@ -41,7 +41,7 @@
     "@monaco-editor/react": "4.5.0",
     "@mui/icons-material": "5.11.16",
     "@mui/lab": "5.0.0-alpha.129",
-    "@mui/material": "5.12.3",
+    "@mui/material": "5.14.0",
     "@mui/styles": "5.12.3",
     "@tanstack/react-query": "4.22.4",
     "@testing-library/react-hooks": "8.0.1",
