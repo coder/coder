@@ -451,6 +451,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
   },
   "expanded_directory": "string",
   "first_connected_at": "2019-08-24T14:15:22Z",
+  "health": {
+    "healthy": false,
+    "reason": "agent has lost connection"
+  },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "instance_id": "string",
   "last_connected_at": "2019-08-24T14:15:22Z",

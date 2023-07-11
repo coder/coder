@@ -48,6 +48,10 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
+  "health": {
+    "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+    "healthy": false
+  },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_used_at": "2019-08-24T14:15:22Z",
   "latest_build": {
@@ -112,6 +116,10 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
             },
             "expanded_directory": "string",
             "first_connected_at": "2019-08-24T14:15:22Z",
+            "health": {
+              "healthy": false,
+              "reason": "agent has lost connection"
+            },
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "instance_id": "string",
             "last_connected_at": "2019-08-24T14:15:22Z",
@@ -228,6 +236,10 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
+  "health": {
+    "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+    "healthy": false
+  },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_used_at": "2019-08-24T14:15:22Z",
   "latest_build": {
@@ -292,6 +304,10 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
             },
             "expanded_directory": "string",
             "first_connected_at": "2019-08-24T14:15:22Z",
+            "health": {
+              "healthy": false,
+              "reason": "agent has lost connection"
+            },
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "instance_id": "string",
             "last_connected_at": "2019-08-24T14:15:22Z",
@@ -393,32 +409,11 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
 
 ### Parameters
 
-| Name          | In    | Type   | Required | Description                                            |
-| ------------- | ----- | ------ | -------- | ------------------------------------------------------ |
-| `owner`       | query | string | false    | Filter by owner username                               |
-| `template`    | query | string | false    | Filter by template name                                |
-| `name`        | query | string | false    | Filter with partial-match by workspace name            |
-| `status`      | query | string | false    | Filter by workspace status                             |
-| `has_agent`   | query | string | false    | Filter by agent status                                 |
-| `deleting_by` | query | string | false    | Filter workspaces scheduled to be deleted by this time |
-
-#### Enumerated Values
-
-| Parameter   | Value          |
-| ----------- | -------------- |
-| `status`    | `pending`      |
-| `status`    | `running`      |
-| `status`    | `stopping`     |
-| `status`    | `stopped`      |
-| `status`    | `failed`       |
-| `status`    | `canceling`    |
-| `status`    | `canceled`     |
-| `status`    | `deleted`      |
-| `status`    | `deleting`     |
-| `has_agent` | `connected`    |
-| `has_agent` | `connecting`   |
-| `has_agent` | `disconnected` |
-| `has_agent` | `timeout`      |
+| Name     | In    | Type    | Required | Description                                                                                                        |
+| -------- | ----- | ------- | -------- | ------------------------------------------------------------------------------------------------------------------ |
+| `q`      | query | string  | false    | Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, deleting_by. |
+| `limit`  | query | integer | false    | Page limit                                                                                                         |
+| `offset` | query | integer | false    | Page offset                                                                                                        |
 
 ### Example responses
 
@@ -432,6 +427,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
       "autostart_schedule": "string",
       "created_at": "2019-08-24T14:15:22Z",
       "deleting_at": "2019-08-24T14:15:22Z",
+      "health": {
+        "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+        "healthy": false
+      },
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_used_at": "2019-08-24T14:15:22Z",
       "latest_build": {
@@ -492,6 +491,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                 },
                 "expanded_directory": "string",
                 "first_connected_at": "2019-08-24T14:15:22Z",
+                "health": {
+                  "healthy": false,
+                  "reason": "agent has lost connection"
+                },
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "instance_id": "string",
                 "last_connected_at": "2019-08-24T14:15:22Z",
@@ -609,6 +612,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
+  "health": {
+    "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+    "healthy": false
+  },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_used_at": "2019-08-24T14:15:22Z",
   "latest_build": {
@@ -673,6 +680,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
             },
             "expanded_directory": "string",
             "first_connected_at": "2019-08-24T14:15:22Z",
+            "health": {
+              "healthy": false,
+              "reason": "agent has lost connection"
+            },
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "instance_id": "string",
             "last_connected_at": "2019-08-24T14:15:22Z",

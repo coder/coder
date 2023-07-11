@@ -88,6 +88,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"created_at":         ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
 		"updated_at":         ActionIgnore, // Changes, but is implicit and not helpful in a diff.
 		"name":               ActionTrack,
+		"message":            ActionIgnore, // Never changes after creation.
 		"readme":             ActionTrack,
 		"job_id":             ActionIgnore, // Not helpful in a diff because jobs aren't tracked in audit logs.
 		"created_by":         ActionTrack,

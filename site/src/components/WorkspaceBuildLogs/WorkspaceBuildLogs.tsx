@@ -1,10 +1,10 @@
 import { makeStyles } from "@mui/styles"
 import dayjs from "dayjs"
-import { FC, Fragment } from "react"
+import { ComponentProps, FC, Fragment } from "react"
 import { ProvisionerJobLog } from "../../api/typesGenerated"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { Logs } from "../Logs/Logs"
-import { Theme } from "@mui/material/styles"
+import Box from "@mui/material/Box"
 
 const Language = {
   seconds: "seconds",
@@ -38,26 +38,30 @@ const getStageDurationInSeconds = (logs: ProvisionerJobLog[]) => {
   return completedAt.diff(startedAt, "seconds")
 }
 
-export interface WorkspaceBuildLogsProps {
+export type WorkspaceBuildLogsProps = {
   logs: ProvisionerJobLog[]
   hideTimestamps?: boolean
-
-  // If true, render different styles that fit the template editor pane
-  // a bit better.
-  templateEditorPane?: boolean
-}
+} & ComponentProps<typeof Box>
 
 export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
   hideTimestamps,
   logs,
-  templateEditorPane,
+  ...boxProps
 }) => {
   const groupedLogsByStage = groupLogsByStage(logs)
   const stages = Object.keys(groupedLogsByStage)
-  const styles = useStyles({ templateEditorPane: Boolean(templateEditorPane) })
+  const styles = useStyles()
 
   return (
-    <div className={styles.logs}>
+    <Box
+      {...boxProps}
+      sx={{
+        border: (theme) => `1px solid ${theme.palette.divider}`,
+        borderRadius: 1,
+        fontFamily: MONOSPACE_FONT_FAMILY,
+        ...boxProps.sx,
+      }}
+    >
       {stages.map((stage) => {
         const logs = groupedLogsByStage[stage]
         const isEmpty = logs.every((log) => log.output === "")
@@ -83,56 +87,36 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
           </Fragment>
         )
       })}
-    </div>
+    </Box>
   )
 }
 
-const useStyles = makeStyles<
-  Theme,
-  {
-    templateEditorPane: boolean
-  }
->((theme) => ({
-  logs: {
-    border: `1px solid ${theme.palette.divider}`,
-    borderRadius: (props) =>
-      props.templateEditorPane ? "0px" : theme.shape.borderRadius,
-    fontFamily: MONOSPACE_FONT_FAMILY,
-  },
-
+const useStyles = makeStyles((theme) => ({
   header: {
-    fontSize: 14,
-    padding: theme.spacing(2),
-    paddingLeft: theme.spacing(3),
-    paddingRight: theme.spacing(3),
-    borderTop: `1px solid ${theme.palette.divider}`,
-    borderBottom: `1px solid ${theme.palette.divider}`,
-    backgroundColor: theme.palette.background.paper,
+    fontSize: 13,
+    fontWeight: 600,
+    padding: theme.spacing(0.5, 3),
     display: "flex",
     alignItems: "center",
     fontFamily: "Inter",
-
-    "&:first-of-type": {
-      borderTopLeftRadius: theme.shape.borderRadius,
-      borderTopRightRadius: theme.shape.borderRadius,
-      borderTop: 0,
-    },
+    borderBottom: `1px solid ${theme.palette.divider}`,
+    position: "sticky",
+    top: 0,
+    background: theme.palette.background.default,
 
     "&:last-child": {
       borderBottom: 0,
-      borderTop: `1px solid ${theme.palette.divider}`,
-      borderBottomLeftRadius: theme.shape.borderRadius,
-      borderBottomRightRadius: theme.shape.borderRadius,
+      borderRadius: "0 0 8px 8px",
     },
 
-    "& + $header": {
-      borderTop: 0,
+    "&:first-child": {
+      borderRadius: "8px 8px 0 0",
     },
   },
 
   duration: {
     marginLeft: "auto",
     color: theme.palette.text.secondary,
-    fontSize: theme.typography.body2.fontSize,
+    fontSize: 12,
   },
 }))

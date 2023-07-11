@@ -389,6 +389,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     },
     "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
   },
+  "message": "string",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "readme": "string",
@@ -469,6 +470,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     },
     "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
   },
+  "message": "string",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "readme": "string",
@@ -506,6 +508,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
 {
   "example_id": "string",
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+  "message": "string",
   "name": "string",
   "provisioner": "terraform",
   "storage_method": "file",
@@ -572,6 +575,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
     },
     "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
   },
+  "message": "string",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "readme": "string",
@@ -875,6 +879,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions \
       },
       "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
     },
+    "message": "string",
     "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "readme": "string",
@@ -927,6 +932,7 @@ Status Code **200**
 | `»» tags`             | object                                                                   | false    |              |             |
 | `»»» [any property]`  | string                                                                   | false    |              |             |
 | `»» worker_id`        | string(uuid)                                                             | false    |              |             |
+| `» message`           | string                                                                   | false    |              |             |
 | `» name`              | string                                                                   | false    |              |             |
 | `» organization_id`   | string(uuid)                                                             | false    |              |             |
 | `» readme`            | string                                                                   | false    |              |             |
@@ -1068,6 +1074,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions/{templ
       },
       "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
     },
+    "message": "string",
     "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "readme": "string",
@@ -1120,6 +1127,7 @@ Status Code **200**
 | `»» tags`             | object                                                                   | false    |              |             |
 | `»»» [any property]`  | string                                                                   | false    |              |             |
 | `»» worker_id`        | string(uuid)                                                             | false    |              |             |
+| `» message`           | string                                                                   | false    |              |             |
 | `» name`              | string                                                                   | false    |              |             |
 | `» organization_id`   | string(uuid)                                                             | false    |              |             |
 | `» readme`            | string                                                                   | false    |              |             |
@@ -1205,6 +1213,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion} \
     },
     "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
   },
+  "message": "string",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "readme": "string",
@@ -1293,6 +1302,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
     },
     "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
   },
+  "message": "string",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "readme": "string",
@@ -1659,6 +1669,10 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
         },
         "expanded_directory": "string",
         "first_connected_at": "2019-08-24T14:15:22Z",
+        "health": {
+          "healthy": false,
+          "reason": "agent has lost connection"
+        },
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "instance_id": "string",
         "last_connected_at": "2019-08-24T14:15:22Z",
@@ -1751,6 +1765,9 @@ Status Code **200**
 | `»»» [any property]`                 | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» expanded_directory`              | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» first_connected_at`              | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»» health`                          | [codersdk.WorkspaceAgentHealth](schemas.md#codersdkworkspaceagenthealth)                               | false    |              | Health reports the health of the agent.                                                                                                                                                                                                        |
+| `»»» healthy`                        | boolean                                                                                                | false    |              | Healthy is true if the agent is healthy.                                                                                                                                                                                                       |
+| `»»» reason`                         | string                                                                                                 | false    |              | Reason is a human-readable explanation of the agent's health. It is empty if Healthy is true.                                                                                                                                                  |
 | `»» id`                              | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» instance_id`                     | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» last_connected_at`               | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
@@ -2044,6 +2061,10 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
         },
         "expanded_directory": "string",
         "first_connected_at": "2019-08-24T14:15:22Z",
+        "health": {
+          "healthy": false,
+          "reason": "agent has lost connection"
+        },
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "instance_id": "string",
         "last_connected_at": "2019-08-24T14:15:22Z",
@@ -2136,6 +2157,9 @@ Status Code **200**
 | `»»» [any property]`                 | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» expanded_directory`              | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» first_connected_at`              | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»» health`                          | [codersdk.WorkspaceAgentHealth](schemas.md#codersdkworkspaceagenthealth)                               | false    |              | Health reports the health of the agent.                                                                                                                                                                                                        |
+| `»»» healthy`                        | boolean                                                                                                | false    |              | Healthy is true if the agent is healthy.                                                                                                                                                                                                       |
+| `»»» reason`                         | string                                                                                                 | false    |              | Reason is a human-readable explanation of the agent's health. It is empty if Healthy is true.                                                                                                                                                  |
 | `»» id`                              | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» instance_id`                     | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» last_connected_at`               | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
@@ -2239,6 +2263,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
     "description": "string",
     "description_plaintext": "string",
     "display_name": "string",
+    "ephemeral": true,
     "icon": "string",
     "mutable": true,
     "name": "string",
@@ -2278,6 +2303,7 @@ Status Code **200**
 | `» description`           | string                                                                           | false    |              |             |
 | `» description_plaintext` | string                                                                           | false    |              |             |
 | `» display_name`          | string                                                                           | false    |              |             |
+| `» ephemeral`             | boolean                                                                          | false    |              |             |
 | `» icon`                  | string                                                                           | false    |              |             |
 | `» mutable`               | boolean                                                                          | false    |              |             |
 | `» name`                  | string                                                                           | false    |              |             |

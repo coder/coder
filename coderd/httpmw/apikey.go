@@ -77,6 +77,13 @@ type OAuth2Configs struct {
 	OIDC   OAuth2Config
 }
 
+func (c *OAuth2Configs) IsZero() bool {
+	if c == nil {
+		return true
+	}
+	return c.Github == nil && c.OIDC == nil
+}
+
 const (
 	SignedOutErrorMessage = "You are signed out or your session has expired. Please sign in again to continue."
 	internalErrorMessage  = "An internal error occurred. Please try again or contact the system administrator."
@@ -237,13 +244,14 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		}
 		// Check if the OAuth token is expired
 		if link.OAuthExpiry.Before(now) && !link.OAuthExpiry.IsZero() && link.OAuthRefreshToken != "" {
-			if cfg.OAuth2Configs == nil {
+			if cfg.OAuth2Configs.IsZero() {
 				return write(http.StatusInternalServerError, codersdk.Response{
 					Message: internalErrorMessage,
 					Detail: fmt.Sprintf("Unable to refresh OAuth token for login type %q. "+
 						"No OAuth2Configs provided. Contact an administrator to configure this login type.", key.LoginType),
 				})
 			}
+
 			var oauthConfig OAuth2Config
 			switch key.LoginType {
 			case database.LoginTypeGithub:
@@ -256,6 +264,19 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 					Detail:  fmt.Sprintf("Unexpected authentication type %q.", key.LoginType),
 				})
 			}
+
+			// It's possible for cfg.OAuth2Configs to be non-nil, but still
+			// missing this type. For example, if a user logged in with GitHub,
+			// but the administrator later removed GitHub and replaced it with
+			// OIDC.
+			if oauthConfig == nil {
+				return write(http.StatusInternalServerError, codersdk.Response{
+					Message: internalErrorMessage,
+					Detail: fmt.Sprintf("Unable to refresh OAuth token for login type %q. "+
+						"OAuth2Config not provided. Contact an administrator to configure this login type.", key.LoginType),
+				})
+			}
+
 			// If it is, let's refresh it from the provided config
 			token, err := oauthConfig.TokenSource(r.Context(), &oauth2.Token{
 				AccessToken:  link.OAuthAccessToken,

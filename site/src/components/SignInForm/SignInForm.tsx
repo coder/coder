@@ -37,7 +37,7 @@ const useStyles = makeStyles((theme) => ({
       fontWeight: 600,
     },
   },
-  error: {
+  alert: {
     marginBottom: theme.spacing(4),
   },
   divider: {
@@ -69,6 +69,7 @@ export interface SignInFormProps {
   isSigningIn: boolean
   redirectTo: string
   error?: unknown
+  info?: string
   authMethods?: AuthMethods
   onSubmit: (credentials: { email: string; password: string }) => void
   // initialTouched is only used for testing the error state of the form.
@@ -80,6 +81,7 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
   redirectTo,
   isSigningIn,
   error,
+  info,
   onSubmit,
   initialTouched,
 }) => {
@@ -100,8 +102,13 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
         <strong>{commonTranslation.t("coder")}</strong>
       </h1>
       <Maybe condition={error !== undefined}>
-        <div className={styles.error}>
+        <div className={styles.alert}>
           <ErrorAlert error={error} />
+        </div>
+      </Maybe>
+      <Maybe condition={Boolean(info) && info !== "" && error === undefined}>
+        <div className={styles.alert}>
+          <Alert severity="info">{info}</Alert>
         </div>
       </Maybe>
       <Maybe condition={passwordEnabled && showPasswordAuth}>

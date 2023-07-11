@@ -164,6 +164,148 @@ func TestWorkspace(t *testing.T) {
 		assert.Equal(t, templateDisplayName, ws.TemplateDisplayName)
 		assert.Equal(t, templateAllowUserCancelWorkspaceJobs, ws.TemplateAllowUserCancelWorkspaceJobs)
 	})
+
+	t.Run("Health", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("Healthy", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+				Parse: echo.ParseComplete,
+				ProvisionApply: []*proto.Provision_Response{{
+					Type: &proto.Provision_Response_Complete{
+						Complete: &proto.Provision_Complete{
+							Resources: []*proto.Resource{{
+								Name: "some",
+								Type: "example",
+								Agents: []*proto.Agent{{
+									Id:   uuid.NewString(),
+									Auth: &proto.Agent_Token{},
+								}},
+							}},
+						},
+					},
+				}},
+			})
+			coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+			coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			workspace, err := client.Workspace(ctx, workspace.ID)
+			require.NoError(t, err)
+
+			agent := workspace.LatestBuild.Resources[0].Agents[0]
+
+			assert.True(t, workspace.Health.Healthy)
+			assert.Equal(t, []uuid.UUID{}, workspace.Health.FailingAgents)
+			assert.True(t, agent.Health.Healthy)
+			assert.Empty(t, agent.Health.Reason)
+		})
+
+		t.Run("Unhealthy", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+				Parse: echo.ParseComplete,
+				ProvisionApply: []*proto.Provision_Response{{
+					Type: &proto.Provision_Response_Complete{
+						Complete: &proto.Provision_Complete{
+							Resources: []*proto.Resource{{
+								Name: "some",
+								Type: "example",
+								Agents: []*proto.Agent{{
+									Id:                       uuid.NewString(),
+									Auth:                     &proto.Agent_Token{},
+									ConnectionTimeoutSeconds: 1,
+								}},
+							}},
+						},
+					},
+				}},
+			})
+			coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+			coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			var err error
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+				workspace, err = client.Workspace(ctx, workspace.ID)
+				return assert.NoError(t, err) && !workspace.Health.Healthy
+			}, testutil.IntervalMedium)
+
+			agent := workspace.LatestBuild.Resources[0].Agents[0]
+
+			assert.False(t, workspace.Health.Healthy)
+			assert.Equal(t, []uuid.UUID{agent.ID}, workspace.Health.FailingAgents)
+			assert.False(t, agent.Health.Healthy)
+			assert.NotEmpty(t, agent.Health.Reason)
+		})
+
+		t.Run("Mixed health", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+				Parse: echo.ParseComplete,
+				ProvisionApply: []*proto.Provision_Response{{
+					Type: &proto.Provision_Response_Complete{
+						Complete: &proto.Provision_Complete{
+							Resources: []*proto.Resource{{
+								Name: "some",
+								Type: "example",
+								Agents: []*proto.Agent{{
+									Id:   uuid.NewString(),
+									Name: "a1",
+									Auth: &proto.Agent_Token{},
+								}, {
+									Id:                       uuid.NewString(),
+									Name:                     "a2",
+									Auth:                     &proto.Agent_Token{},
+									ConnectionTimeoutSeconds: 1,
+								}},
+							}},
+						},
+					},
+				}},
+			})
+			coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+			coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			var err error
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+				workspace, err = client.Workspace(ctx, workspace.ID)
+				return assert.NoError(t, err) && !workspace.Health.Healthy
+			}, testutil.IntervalMedium)
+
+			assert.False(t, workspace.Health.Healthy)
+			assert.Len(t, workspace.Health.FailingAgents, 1)
+
+			agent1 := workspace.LatestBuild.Resources[0].Agents[0]
+			agent2 := workspace.LatestBuild.Resources[0].Agents[1]
+
+			assert.Equal(t, []uuid.UUID{agent2.ID}, workspace.Health.FailingAgents)
+			assert.True(t, agent1.Health.Healthy)
+			assert.Empty(t, agent1.Health.Reason)
+			assert.False(t, agent2.Health.Healthy)
+			assert.NotEmpty(t, agent2.Health.Reason)
+		})
+	})
 }
 
 func TestAdminViewAllWorkspaces(t *testing.T) {
@@ -2372,6 +2514,131 @@ func TestWorkspaceWithOptionalRichParameters(t *testing.T) {
 		// Coderd inserts the default for the missing parameter
 		{Name: firstParameterName, Value: firstParameterDefaultValue},
 		{Name: secondParameterName, Value: secondParameterValue},
+	}
+	require.ElementsMatch(t, expectedBuildParameters, workspaceBuildParameters)
+}
+
+func TestWorkspaceWithEphemeralRichParameters(t *testing.T) {
+	t.Parallel()
+
+	const (
+		firstParameterName         = "first_parameter"
+		firstParameterType         = "string"
+		firstParameterDescription  = "This is first parameter"
+		firstParameterMutable      = true
+		firstParameterDefaultValue = "1"
+		firstParameterValue        = "i_am_first_parameter"
+
+		ephemeralParameterName         = "second_parameter"
+		ephemeralParameterType         = "string"
+		ephemeralParameterDescription  = "This is second parameter"
+		ephemeralParameterDefaultValue = ""
+		ephemeralParameterMutable      = true
+		ephemeralParameterValue        = "i_am_ephemeral"
+	)
+
+	// Create template version with ephemeral parameter
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Provision_Response{
+			{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Parameters: []*proto.RichParameter{
+							{
+								Name:         firstParameterName,
+								Type:         firstParameterType,
+								Description:  firstParameterDescription,
+								DefaultValue: firstParameterDefaultValue,
+								Mutable:      firstParameterMutable,
+							},
+							{
+								Name:         ephemeralParameterName,
+								Type:         ephemeralParameterType,
+								Description:  ephemeralParameterDescription,
+								DefaultValue: ephemeralParameterDefaultValue,
+								Mutable:      ephemeralParameterMutable,
+								Ephemeral:    true,
+							},
+						},
+					},
+				},
+			},
+		},
+		ProvisionApply: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{},
+			},
+		}},
+	})
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+	// Create workspace with default values
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	workspaceBuild := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	require.Equal(t, codersdk.WorkspaceStatusRunning, workspaceBuild.Status)
+
+	// Verify workspace build parameters (default values)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	workspaceBuildParameters, err := client.WorkspaceBuildParameters(ctx, workspaceBuild.ID)
+	require.NoError(t, err)
+
+	expectedBuildParameters := []codersdk.WorkspaceBuildParameter{
+		{Name: firstParameterName, Value: firstParameterDefaultValue},
+		{Name: ephemeralParameterName, Value: ephemeralParameterDefaultValue},
+	}
+	require.ElementsMatch(t, expectedBuildParameters, workspaceBuildParameters)
+
+	// Trigger workspace build job with ephemeral parameter
+	workspaceBuild, err = client.CreateWorkspaceBuild(ctx, workspaceBuild.WorkspaceID, codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionStart,
+		RichParameterValues: []codersdk.WorkspaceBuildParameter{
+			{
+				Name:  ephemeralParameterName,
+				Value: ephemeralParameterValue,
+			},
+		},
+	})
+	require.NoError(t, err)
+	workspaceBuild = coderdtest.AwaitWorkspaceBuildJob(t, client, workspaceBuild.ID)
+	require.Equal(t, codersdk.WorkspaceStatusRunning, workspaceBuild.Status)
+
+	// Verify workspace build parameters (including ephemeral)
+	workspaceBuildParameters, err = client.WorkspaceBuildParameters(ctx, workspaceBuild.ID)
+	require.NoError(t, err)
+
+	expectedBuildParameters = []codersdk.WorkspaceBuildParameter{
+		{Name: firstParameterName, Value: firstParameterDefaultValue},
+		{Name: ephemeralParameterName, Value: ephemeralParameterValue},
+	}
+	require.ElementsMatch(t, expectedBuildParameters, workspaceBuildParameters)
+
+	// Trigger workspace build one more time without the ephemeral parameter
+	workspaceBuild, err = client.CreateWorkspaceBuild(ctx, workspaceBuild.WorkspaceID, codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionStart,
+		RichParameterValues: []codersdk.WorkspaceBuildParameter{
+			{
+				Name:  firstParameterName,
+				Value: firstParameterValue,
+			},
+		},
+	})
+	require.NoError(t, err)
+	workspaceBuild = coderdtest.AwaitWorkspaceBuildJob(t, client, workspaceBuild.ID)
+	require.Equal(t, codersdk.WorkspaceStatusRunning, workspaceBuild.Status)
+
+	// Verify workspace build parameters (ephemeral should be back to default)
+	workspaceBuildParameters, err = client.WorkspaceBuildParameters(ctx, workspaceBuild.ID)
+	require.NoError(t, err)
+
+	expectedBuildParameters = []codersdk.WorkspaceBuildParameter{
+		{Name: firstParameterName, Value: firstParameterValue},
+		{Name: ephemeralParameterName, Value: ephemeralParameterDefaultValue},
 	}
 	require.ElementsMatch(t, expectedBuildParameters, workspaceBuildParameters)
 }

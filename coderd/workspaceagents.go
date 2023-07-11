@@ -1267,6 +1267,24 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		workspaceAgent.ReadyAt = &dbAgent.ReadyAt.Time
 	}
 
+	switch {
+	case workspaceAgent.Status != codersdk.WorkspaceAgentConnected && workspaceAgent.LifecycleState == codersdk.WorkspaceAgentLifecycleOff:
+		workspaceAgent.Health.Reason = "agent is not running"
+	case workspaceAgent.Status == codersdk.WorkspaceAgentTimeout:
+		workspaceAgent.Health.Reason = "agent is taking too long to connect"
+	case workspaceAgent.Status == codersdk.WorkspaceAgentDisconnected:
+		workspaceAgent.Health.Reason = "agent has lost connection"
+	// Note: We could also handle codersdk.WorkspaceAgentLifecycleStartTimeout
+	// here, but it's more of a soft issue, so we don't want to mark the agent
+	// as unhealthy.
+	case workspaceAgent.LifecycleState == codersdk.WorkspaceAgentLifecycleStartError:
+		workspaceAgent.Health.Reason = "agent startup script exited with an error"
+	case workspaceAgent.LifecycleState.ShuttingDown():
+		workspaceAgent.Health.Reason = "agent is shutting down"
+	default:
+		workspaceAgent.Health.Healthy = true
+	}
+
 	return workspaceAgent, nil
 }
 

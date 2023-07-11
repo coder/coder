@@ -32,6 +32,7 @@ const createTemplateVersionParameter = (
     validation_monotonic: "increasing",
     description_plaintext: "",
     required: true,
+    ephemeral: false,
     ...partial,
   }
 }

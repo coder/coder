@@ -1769,6 +1769,7 @@ const (
 	// WARNING: This cannot be enabled when using HA.
 	ExperimentSingleTailnet Experiment = "single_tailnet"
 
+	ExperimentWorkspaceBuildLogsUI Experiment = "workspace_build_logs_ui"
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"
 )
@@ -1777,7 +1778,9 @@ const (
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsAll = Experiments{}
+var ExperimentsAll = Experiments{
+	ExperimentWorkspaceBuildLogsUI,
+}
 
 // Experiments is a list of experiments that are enabled for the deployment.
 // Multiple experiments may be enabled at the same time.

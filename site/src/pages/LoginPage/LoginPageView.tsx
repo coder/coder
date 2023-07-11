@@ -25,6 +25,9 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
   const { error } = context
   const data = context.data as UnauthenticatedData
   const styles = useStyles()
+  // This allows messages to be displayed at the top of the sign in form.
+  // Helpful for any redirects that want to inform the user of something.
+  const info = new URLSearchParams(location.search).get("info") || undefined
 
   return isLoading ? (
     <FullScreenLoader />
@@ -37,6 +40,7 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
           redirectTo={redirectTo}
           isSigningIn={isSigningIn}
           error={error}
+          info={info}
           onSubmit={onSignIn}
         />
         <footer className={styles.footer}>

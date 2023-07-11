@@ -9,6 +9,7 @@ import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar"
 import { dark } from "./theme"
 import "./theme/globalFonts"
 import { StyledEngineProvider, ThemeProvider } from "@mui/material/styles"
+import { LocalPreferencesProvider } from "contexts/LocalPreferencesContext"
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,17 +26,19 @@ export const AppProviders: FC<PropsWithChildren> = ({ children }) => {
   return (
     <HelmetProvider>
       <StyledEngineProvider injectFirst>
-        <ThemeProvider theme={dark}>
-          <CssBaseline enableColorScheme />
-          <ErrorBoundary>
-            <QueryClientProvider client={queryClient}>
-              <AuthProvider>
-                {children}
-                <GlobalSnackbar />
-              </AuthProvider>
-            </QueryClientProvider>
-          </ErrorBoundary>
-        </ThemeProvider>
+        <LocalPreferencesProvider>
+          <ThemeProvider theme={dark}>
+            <CssBaseline enableColorScheme />
+            <ErrorBoundary>
+              <QueryClientProvider client={queryClient}>
+                <AuthProvider>
+                  {children}
+                  <GlobalSnackbar />
+                </AuthProvider>
+              </QueryClientProvider>
+            </ErrorBoundary>
+          </ThemeProvider>
+        </LocalPreferencesProvider>
       </StyledEngineProvider>
     </HelmetProvider>
   )

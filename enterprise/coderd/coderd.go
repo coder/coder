@@ -83,15 +83,20 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		OIDC:   options.OIDCConfig,
 	}
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
-		DB:              options.Database,
-		OAuth2Configs:   oauthConfigs,
-		RedirectToLogin: false,
+		DB:                          options.Database,
+		OAuth2Configs:               oauthConfigs,
+		RedirectToLogin:             false,
+		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
+		Optional:                    false,
+		SessionTokenFunc:            nil, // Default behavior
 	})
 	apiKeyMiddlewareOptional := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
-		DB:              options.Database,
-		OAuth2Configs:   oauthConfigs,
-		RedirectToLogin: false,
-		Optional:        true,
+		DB:                          options.Database,
+		OAuth2Configs:               oauthConfigs,
+		RedirectToLogin:             false,
+		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
+		Optional:                    true,
+		SessionTokenFunc:            nil, // Default behavior
 	})
 
 	deploymentID, err := options.Database.GetDeploymentID(ctx)

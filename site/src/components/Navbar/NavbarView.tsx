@@ -24,11 +24,7 @@ import Skeleton from "@mui/material/Skeleton"
 import { BUTTON_SM_HEIGHT } from "theme/theme"
 import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency"
 import { usePermissions } from "hooks/usePermissions"
-import {
-  HelpTooltip,
-  HelpTooltipText,
-  HelpTooltipTitle,
-} from "components/Tooltips/HelpTooltip"
+import Typography from "@mui/material/Typography"
 
 export const USERS_LINK = `/users?filter=${encodeURIComponent("status:active")}`
 
@@ -191,7 +187,6 @@ export const NavbarView: FC<NavbarViewProps> = ({
 const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
   proxyContextValue,
 }) => {
-  const styles = useStyles()
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [isOpen, setIsOpen] = useState(false)
   const [refetchDate, setRefetchDate] = useState<Date>()
@@ -275,33 +270,39 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
         onClose={closeMenu}
         sx={{ "& .MuiMenu-paper": { py: 1 } }}
       >
-        <MenuItem
-          sx={[
-            { fontSize: 14 },
-            { "&:hover": { backgroundColor: "transparent" } },
-            { wordWrap: "break-word" },
-            { inlineSize: "200px" },
-            { whiteSpace: "normal" },
-            { textAlign: "center" },
-          ]}
-          onClick={(e) => {
-            // Stop the menu from closing
-            e.stopPropagation()
+        <Box
+          sx={{
+            w: "100%",
+            fontSize: 14,
+            padding: 2,
+            maxWidth: "320px",
+            lineHeight: "140%",
           }}
         >
-          <div>
+          <Typography
+            component="h4"
+            sx={{
+              fontSize: "inherit",
+              fontWeight: 600,
+              lineHeight: "inherit",
+              margin: 0,
+            }}
+          >
             Reduce workspace latency by selecting the region nearest you.
-            {/* This was always on a newline below the text. This puts it on the same line.
-                It still doesn't look great, but it is marginally better.  */}
-            <HelpTooltip buttonClassName={styles.displayInitial}>
-              <HelpTooltipTitle>Workspace Proxy Selection</HelpTooltipTitle>
-              <HelpTooltipText>
-                Only applies to web connections. Local ssh connections will
-                automatically select the nearest region based on latency.
-              </HelpTooltipText>
-            </HelpTooltip>
-          </div>
-        </MenuItem>
+          </Typography>
+          <Typography
+            component="p"
+            sx={{
+              fontSize: "inherit",
+              color: (theme) => theme.palette.text.secondary,
+              lineHeight: "inherit",
+              marginTop: 0.5,
+            }}
+          >
+            * Only applies to web connections. Local ssh connections will
+            automatically select the nearest region based on latency.
+          </Typography>
+        </Box>
         <Divider sx={{ borderColor: (theme) => theme.palette.divider }} />
         {proxyContextValue.proxies?.map((proxy) => (
           <MenuItem

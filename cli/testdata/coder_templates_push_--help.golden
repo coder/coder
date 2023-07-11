@@ -17,6 +17,11 @@ Push a new template version from the current directory or as specified by flag
           Ignore warnings about not having a .terraform.lock.hcl file present in
           the template.
 
+  -m, --message string
+          Specify a message describing the changes in this version of the
+          template. Messages longer than 72 characters will be displayed as
+          truncated.
+
       --name string
           Specify a name for the new template version. It will be automatically
           generated if not provided.

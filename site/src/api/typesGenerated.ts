@@ -200,6 +200,7 @@ export interface CreateTemplateVersionDryRunRequest {
 // From codersdk/organizations.go
 export interface CreateTemplateVersionRequest {
   readonly name?: string
+  readonly message?: string
   readonly template_id?: string
   readonly storage_method: ProvisionerStorageMethod
   readonly file_id?: string
@@ -915,6 +916,7 @@ export interface TemplateVersion {
   readonly created_at: string
   readonly updated_at: string
   readonly name: string
+  readonly message: string
   readonly job: ProvisionerJob
   readonly readme: string
   readonly created_by: User
@@ -946,6 +948,7 @@ export interface TemplateVersionParameter {
   readonly validation_max?: number
   readonly validation_monotonic?: ValidationMonotonicOrder
   readonly required: boolean
+  readonly ephemeral: boolean
 }
 
 // From codersdk/templateversions.go
@@ -1145,6 +1148,7 @@ export interface Workspace {
   readonly last_used_at: string
   readonly deleting_at?: string
   readonly locked_at?: string
+  readonly health: WorkspaceHealth
 }
 
 // From codersdk/workspaceagents.go
@@ -1181,6 +1185,13 @@ export interface WorkspaceAgent {
   readonly shutdown_script?: string
   readonly shutdown_script_timeout_seconds: number
   readonly subsystem: AgentSubsystem
+  readonly health: WorkspaceAgentHealth
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentHealth {
+  readonly healthy: boolean
+  readonly reason?: string
 }
 
 // From codersdk/workspaceagentconn.go
@@ -1301,6 +1312,12 @@ export interface WorkspaceFilter {
 }
 
 // From codersdk/workspaces.go
+export interface WorkspaceHealth {
+  readonly healthy: boolean
+  readonly failing_agents: string[]
+}
+
+// From codersdk/workspaces.go
 export interface WorkspaceOptions {
   readonly include_deleted?: boolean
 }
@@ -1417,12 +1434,14 @@ export type Experiment =
   | "single_tailnet"
   | "tailnet_pg_coordinator"
   | "workspace_actions"
+  | "workspace_build_logs_ui"
 export const Experiments: Experiment[] = [
   "convert-to-oidc",
   "moons",
   "single_tailnet",
   "tailnet_pg_coordinator",
   "workspace_actions",
+  "workspace_build_logs_ui",
 ]
 
 // From codersdk/deployment.go
