@@ -198,6 +198,7 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 		dryRun              bool
 		skipProxyCommand    bool
 		forceUnixSeparators bool
+		coderCliPath        string
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -233,10 +234,16 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 				// that it's possible to capture the diff.
 				out = inv.Stderr
 			}
-			coderBinary, err := currentBinPath(out)
-			if err != nil {
-				return err
+
+			var err error
+			coderBinary := coderCliPath
+			if coderBinary == "" {
+				coderBinary, err = currentBinPath(out)
+				if err != nil {
+					return err
+				}
 			}
+
 			escapedCoderBinary, err := sshConfigExecEscape(coderBinary, forceUnixSeparators)
 			if err != nil {
 				return xerrors.Errorf("escape coder binary for ssh failed: %w", err)
@@ -500,6 +507,14 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 			Default:     sshDefaultConfigFileName,
 			Description: "Specifies the path to an SSH config.",
 			Value:       clibase.StringOf(&sshConfigFile),
+		},
+		{
+			Flag:    "coder-cli-path",
+			Env:     "CODER_SSH_CONFIG_CLI_PATH",
+			Default: "",
+			Description: "Optional to specify the path for the coder cli uses in ProxyCommand. " +
+				"By default, the coder cli used is the same cli being invoked with 'config ssh'.",
+			Value: clibase.StringOf(&coderCliPath),
 		},
 		{
 			Flag:          "ssh-option",
