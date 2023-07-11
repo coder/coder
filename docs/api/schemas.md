@@ -2533,12 +2533,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value                    |
-| ------------------------ |
-| `moons`                  |
-| `workspace_actions`      |
-| `tailnet_pg_coordinator` |
-| `convert-to-oidc`        |
+| Value                     |
+| ------------------------- |
+| `moons`                   |
+| `workspace_actions`       |
+| `tailnet_pg_coordinator`  |
+| `convert-to-oidc`         |
+| `workspace_build_logs_ui` |
 
 ## codersdk.Feature
 

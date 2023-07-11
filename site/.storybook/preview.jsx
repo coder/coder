@@ -5,6 +5,7 @@ import { HelmetProvider } from "react-helmet-async"
 import { dark } from "../src/theme"
 import "../src/theme/globalFonts"
 import "../src/i18n"
+import { LocalPreferencesProvider } from "../src/contexts/LocalPreferencesContext"
 
 export const decorators = [
   (Story) => (
@@ -21,6 +22,13 @@ export const decorators = [
       <HelmetProvider>
         <Story />
       </HelmetProvider>
+    )
+  },
+  (Story) => {
+    return (
+      <LocalPreferencesProvider>
+        <Story />
+      </LocalPreferencesProvider>
     )
   },
 ]

@@ -8,6 +8,7 @@ import { withReactContext } from "storybook-react-context"
 import EventSource from "eventsourcemock"
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext"
 import { DashboardProviderContext } from "components/Dashboard/DashboardProvider"
+import { WorkspaceBuildLogsSection } from "pages/WorkspacePage/WorkspaceBuildLogsSection"
 
 const MockedAppearance = {
   config: Mocks.MockAppearance,
@@ -152,7 +153,7 @@ export const FailedWithLogs: Story = {
         },
       },
     },
-    failedBuildLogs: makeFailedBuildLogs(),
+    buildLogs: <WorkspaceBuildLogsSection logs={makeFailedBuildLogs()} />,
   },
 }
 
@@ -170,8 +171,8 @@ export const FailedWithRetry: Story = {
         },
       },
     },
-    failedBuildLogs: makeFailedBuildLogs(),
     canRetryDebugMode: true,
+    buildLogs: <WorkspaceBuildLogsSection logs={makeFailedBuildLogs()} />,
   },
 }
 
@@ -229,6 +230,7 @@ export const CancellationError: Story = {
         message: "Job could not be canceled.",
       }),
     },
+    buildLogs: <WorkspaceBuildLogsSection logs={makeFailedBuildLogs()} />,
   },
 }
 
