@@ -67,9 +67,15 @@ func TestCommand(t *testing.T) {
 							Required: true,
 						},
 						clibase.Option{
-							Name:     "req-string",
-							Flag:     "req-string",
-							Value:    clibase.StringOf(&reqStr),
+							Name: "req-string",
+							Flag: "req-string",
+							Value: clibase.Validate(clibase.StringOf(&reqStr), func(value *clibase.String) error {
+								ok := strings.Contains(value.String(), " ")
+								if !ok {
+									return xerrors.Errorf("string must contain a space")
+								}
+								return nil
+							}),
 							Required: true,
 						},
 					},
@@ -252,7 +258,7 @@ func TestCommand(t *testing.T) {
 	t.Run("RequiredFlagsMissingBool", func(t *testing.T) {
 		t.Parallel()
 		i := cmd().Invoke(
-			"required-flag", "--req-string", "foo",
+			"required-flag", "--req-string", "foo bar",
 		)
 		fio := fakeIO(i)
 		err := i.Run()
@@ -271,10 +277,21 @@ func TestCommand(t *testing.T) {
 		require.ErrorContains(t, err, "Missing values for the required flags: req-string")
 	})
 
+	t.Run("RequiredFlagsInvalid", func(t *testing.T) {
+		t.Parallel()
+		i := cmd().Invoke(
+			"required-flag", "--req-string", "nospace",
+		)
+		fio := fakeIO(i)
+		err := i.Run()
+		require.Error(t, err, fio.Stdout.String())
+		require.ErrorContains(t, err, "string must contain a space")
+	})
+
 	t.Run("RequiredFlagsOK", func(t *testing.T) {
 		t.Parallel()
 		i := cmd().Invoke(
-			"required-flag", "--req-bool", "true", "--req-string", "foo",
+			"required-flag", "--req-bool", "true", "--req-string", "foo bar",
 		)
 		fio := fakeIO(i)
 		err := i.Run()
