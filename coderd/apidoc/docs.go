@@ -7454,6 +7454,9 @@ const docTemplate = `{
                 "git_auth": {
                     "$ref": "#/definitions/clibase.Struct-array_codersdk_GitAuthConfig"
                 },
+                "git_auth_builtin_github": {
+                    "type": "boolean"
+                },
                 "http_address": {
                     "description": "HTTPAddress is a string because it may be set to zero to disable.",
                     "type": "string"

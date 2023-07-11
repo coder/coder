@@ -378,6 +378,7 @@ export interface DeploymentValues {
   // Named type "github.com/coder/coder/cli/clibase.Struct[[]github.com/coder/coder/codersdk.GitAuthConfig]" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly git_auth?: any
+  readonly git_auth_builtin_github?: boolean
   readonly config_ssh?: SSHConfig
   readonly wgtunnel_host?: string
   readonly disable_owner_workspace_exec?: boolean

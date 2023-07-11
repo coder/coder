@@ -19,6 +19,30 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+var (
+	// CoderGitHubAppConfig facilitates GitHub device auth
+	// using https://github.com/apps/coder to authenticate private repos.
+	// No need for a GitHub App or callback URL.
+	// Works even on localhost if Coder can reach GitHub.
+	CoderGitHubAppConfig = &Config{
+		OAuth2Config: &oauth2.Config{
+			ClientID: "Iv1.6a2b4b4aec4f4fe7",
+			Endpoint: endpoint[codersdk.GitProviderGitHub],
+		},
+		ID:                  "github-coder",
+		Regex:               regex[codersdk.GitProviderGitHub],
+		Type:                codersdk.GitProviderGitHub,
+		ValidateURL:         validateURL[codersdk.GitProviderGitHub],
+		AppInstallURL:       "https://github.com/apps/coder/installations/new",
+		AppInstallationsURL: appInstallationsURL[codersdk.GitProviderGitHub],
+		DeviceAuth: &DeviceAuth{
+			ClientID: "Iv1.6a2b4b4aec4f4fe7",
+			TokenURL: endpoint[codersdk.GitProviderGitHub].TokenURL,
+			CodeURL:  deviceAuthURL[codersdk.GitProviderGitHub],
+		},
+	}
+)
+
 type OAuth2Config interface {
 	AuthCodeURL(state string, opts ...oauth2.AuthCodeOption) string
 	Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error)

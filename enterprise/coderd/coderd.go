@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/coderd"
 	agplaudit "github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database/dbauthz"
+	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
@@ -365,14 +366,22 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	api.entitlementsUpdateMu.Lock()
 	defer api.entitlementsUpdateMu.Unlock()
 
+	gitAuthConfigs := 0
+	for _, config := range api.GitAuthConfigs {
+		if config.ID == gitauth.CoderGitHubAppConfig.ID {
+			continue
+		}
+		gitAuthConfigs++
+	}
+
 	entitlements, err := license.Entitlements(
 		ctx, api.Database,
-		api.Logger, len(api.replicaManager.All()), len(api.GitAuthConfigs), api.Keys, map[codersdk.FeatureName]bool{
+		api.Logger, len(api.replicaManager.All()), gitAuthConfigs, api.Keys, map[codersdk.FeatureName]bool{
 			codersdk.FeatureAuditLog:                   api.AuditLogging,
 			codersdk.FeatureBrowserOnly:                api.BrowserOnly,
 			codersdk.FeatureSCIM:                       len(api.SCIMAPIKey) != 0,
 			codersdk.FeatureHighAvailability:           api.DERPServerRelayAddress != "",
-			codersdk.FeatureMultipleGitAuth:            len(api.GitAuthConfigs) > 1,
+			codersdk.FeatureMultipleGitAuth:            gitAuthConfigs > 1,
 			codersdk.FeatureTemplateRBAC:               api.RBAC,
 			codersdk.FeatureExternalProvisionerDaemons: true,
 			codersdk.FeatureAdvancedTemplateScheduling: true,

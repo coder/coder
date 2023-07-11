@@ -111,7 +111,9 @@ func ReadGitAuthProvidersFromEnv(environ []string) ([]codersdk.GitAuthConfig, er
 
 		providerNum, err := strconv.Atoi(tokens[0])
 		if err != nil {
-			return nil, xerrors.Errorf("parse number: %s", v.Name)
+			// Configuration options are available that are non-numbers!
+			// e.g. CODER_GITAUTH_BUILTIN_GITHUB
+			continue
 		}
 
 		var provider codersdk.GitAuthConfig
@@ -458,6 +460,14 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				logger.Debug(
 					ctx, "loaded git auth config",
 					slog.F("id", c.ID),
+				)
+			}
+			if cfg.GitAuthBuiltinGitHub.Value() {
+				gitAuthConfigs = append(gitAuthConfigs, gitauth.CoderGitHubAppConfig)
+
+				logger.Debug(
+					ctx, "loaded default git auth config",
+					slog.F("id", gitauth.CoderGitHubAppConfig.ID),
 				)
 			}
 

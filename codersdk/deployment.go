@@ -161,6 +161,7 @@ type DeploymentValues struct {
 	DisablePasswordAuth             clibase.Bool                    `json:"disable_password_auth,omitempty" typescript:",notnull"`
 	Support                         SupportConfig                   `json:"support,omitempty" typescript:",notnull"`
 	GitAuthProviders                clibase.Struct[[]GitAuthConfig] `json:"git_auth,omitempty" typescript:",notnull"`
+	GitAuthBuiltinGitHub            clibase.Bool                    `json:"git_auth_builtin_github,omitempty" typescript:",notnull"`
 	SSHConfig                       SSHConfig                       `json:"config_ssh,omitempty" typescript:",notnull"`
 	WgtunnelHost                    clibase.String                  `json:"wgtunnel_host,omitempty" typescript:",notnull"`
 	DisableOwnerWorkspaceExec       clibase.Bool                    `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
@@ -1549,6 +1550,15 @@ Write out the current server config as YAML to stdout.`,
 			// YAML:        "gitAuthProviders",
 			Value:  &c.GitAuthProviders,
 			Hidden: true,
+		},
+		{
+			Name:        "Git Auth Built-In GitHub",
+			Description: "Turns on/off the built-in GitHub App used for authenticating users with private repositories. Enabled by default.",
+			Flag:        "gitauth-builtin-github",
+			Env:         "CODER_GITAUTH_BUILTIN_GITHUB",
+			Default:     "true",
+			Value:       &c.GitAuthBuiltinGitHub,
+			Group:       &deploymentGroupConfig,
 		},
 		{
 			Name:        "Custom wgtunnel Host",

@@ -1921,6 +1921,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         }
       ]
     },
+    "git_auth_builtin_github": true,
     "http_address": "string",
     "in_memory_database": true,
     "job_hang_detector_interval": 0,
@@ -2258,6 +2259,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       }
     ]
   },
+  "git_auth_builtin_github": true,
   "http_address": "string",
   "in_memory_database": true,
   "job_hang_detector_interval": 0,
@@ -2439,6 +2441,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `enable_terraform_debug_mode`        | boolean                                                                                    | false    |              |                                                                    |
 | `experiments`                        | array of string                                                                            | false    |              |                                                                    |
 | `git_auth`                           | [clibase.Struct-array_codersdk_GitAuthConfig](#clibasestruct-array_codersdk_gitauthconfig) | false    |              |                                                                    |
+| `git_auth_builtin_github`            | boolean                                                                                    | false    |              |                                                                    |
 | `http_address`                       | string                                                                                     | false    |              | Http address is a string because it may be set to zero to disable. |
 | `in_memory_database`                 | boolean                                                                                    | false    |              |                                                                    |
 | `job_hang_detector_interval`         | integer                                                                                    | false    |              |                                                                    |

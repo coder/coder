@@ -265,6 +265,16 @@ Enable one or more experiments. These are not ready for production. Separate mul
 
 Time to force cancel provisioning tasks that are stuck.
 
+### --gitauth-builtin-github
+
+|             |                                            |
+| ----------- | ------------------------------------------ |
+| Type        | <code>bool</code>                          |
+| Environment | <code>$CODER_GITAUTH_BUILTIN_GITHUB</code> |
+| Default     | <code>true</code>                          |
+
+Turns on/off the built-in GitHub App used for authenticating users with private repositories. Enabled by default.
+
 ### --http-address
 
 |             |                                          |

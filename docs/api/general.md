@@ -217,6 +217,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         }
       ]
     },
+    "git_auth_builtin_github": true,
     "http_address": "string",
     "in_memory_database": true,
     "job_hang_detector_interval": 0,
