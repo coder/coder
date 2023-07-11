@@ -10,7 +10,7 @@ source "${SCRIPT_DIR}/lib.sh"
 
 GOOS="$(go env GOOS)"
 GOARCH="$(go env GOARCH)"
-RELATIVE_BINARY_PATH="build/coder_${GOOS}_${GOARCH}"
+RELATIVE_BINARY_PATH="build/coder-slim_${GOOS}_${GOARCH}"
 
 # To preserve the CWD when running the binary, we need to use pushd and popd to
 # get absolute paths to everything.
@@ -20,10 +20,6 @@ CODER_DEV_BIN="$(realpath "$RELATIVE_BINARY_PATH")"
 CODER_DEV_DIR="$(realpath ./.coderv2)"
 popd
 
-if [[ ! -x "${CODER_DEV_BIN}" ]]; then
-	echo "Run this command first:"
-	echo "  make $RELATIVE_BINARY_PATH"
-	exit 1
-fi
+make -j "${RELATIVE_BINARY_PATH}"
 
 exec "${CODER_DEV_BIN}" --global-config "${CODER_DEV_DIR}" "$@"
