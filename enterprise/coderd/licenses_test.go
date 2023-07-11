@@ -33,7 +33,7 @@ func TestPostLicense(t *testing.T) {
 		assert.GreaterOrEqual(t, respLic.ID, int32(0))
 		// just a couple spot checks for sanity
 		assert.Equal(t, "testing", respLic.Claims["account_id"])
-		features, err := respLic.Features()
+		features, err := respLic.FeaturesClaims()
 		require.NoError(t, err)
 		assert.EqualValues(t, 1, features[codersdk.FeatureAuditLog])
 	})
@@ -105,7 +105,7 @@ func TestGetLicense(t *testing.T) {
 		assert.Equal(t, int32(1), licenses[0].ID)
 		assert.Equal(t, "testing", licenses[0].Claims["account_id"])
 
-		features, err := licenses[0].Features()
+		features, err := licenses[0].FeaturesClaims()
 		require.NoError(t, err)
 		assert.Equal(t, map[codersdk.FeatureName]int64{
 			codersdk.FeatureAuditLog:     1,
@@ -117,7 +117,7 @@ func TestGetLicense(t *testing.T) {
 		assert.Equal(t, "testing2", licenses[1].Claims["account_id"])
 		assert.Equal(t, true, licenses[1].Claims["trial"])
 
-		features, err = licenses[1].Features()
+		features, err = licenses[1].FeaturesClaims()
 		require.NoError(t, err)
 		assert.Equal(t, map[codersdk.FeatureName]int64{
 			codersdk.FeatureUserLimit:   200,

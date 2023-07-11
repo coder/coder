@@ -141,15 +141,15 @@ func (r *RootCmd) licensesList() *clibase.Cmd {
 		ID         int32     `table:"id,default_sort"`
 		UUID       uuid.UUID `table:"uuid" format:"uuid"`
 		UploadedAt time.Time `table:"uploaded_at" format:"date-time"`
-		// Claims is the formatted string for the license claims.
+		// Features is the formatted string for the license claims.
 		// Used for the table view.
-		Claims    string    `table:"claims"`
+		Features  string    `table:"features"`
 		ExpiresAt time.Time `table:"expires_at" format:"date-time"`
 	}
 
 	formatter := cliui.NewOutputFormatter(
 		cliui.ChangeFormatterData(
-			cliui.TableFormat([]tableLicense{}, []string{"UUID", "Expires At", "Uploaded At", "Claims"}),
+			cliui.TableFormat([]tableLicense{}, []string{"UUID", "Expires At", "Uploaded At", "Features"}),
 			func(data any) (any, error) {
 				list, ok := data.([]codersdk.License)
 				if !ok {
@@ -157,25 +157,28 @@ func (r *RootCmd) licensesList() *clibase.Cmd {
 				}
 				out := make([]tableLicense, 0, len(list))
 				for _, lic := range list {
-					var claims string
-					features, err := lic.Features()
+					var formattedFeatures string
+					features, err := lic.FeaturesClaims()
 					if err != nil {
-						claims = xerrors.Errorf("invalid license: %w", err).Error()
+						formattedFeatures = xerrors.Errorf("invalid license: %w", err).Error()
 					} else {
 						var strs []string
+						if lic.AllFeaturesClaim() {
+							strs = append(strs, "all")
+						}
 						for k, v := range features {
 							strs = append(strs, fmt.Sprintf("%s=%v", k, v))
 						}
-						claims = strings.Join(strs, ", ")
+						formattedFeatures = strings.Join(strs, ", ")
 					}
-					// If this errors a zero time is returned.
+					// If this returns an error, a zero time is returned.
 					exp, _ := lic.ExpiresAt()
 
 					out = append(out, tableLicense{
 						ID:         lic.ID,
 						UUID:       lic.UUID,
 						UploadedAt: lic.UploadedAt,
-						Claims:     claims,
+						Features:   formattedFeatures,
 						ExpiresAt:  exp,
 					})
 				}

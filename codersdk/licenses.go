@@ -52,8 +52,17 @@ func (l *License) ExpiresAt() (time.Time, error) {
 	return time.Time{}, xerrors.Errorf("license_expires claim has unexpected type %T", expClaim)
 }
 
-// Features provides the feature claims in license.
-func (l *License) Features() (map[FeatureName]int64, error) {
+func (l *License) AllFeaturesClaim() bool {
+	if all, ok := l.Claims["all_features"].(bool); ok {
+		return all
+	}
+	return false
+}
+
+// FeaturesClaims provides the feature claims in license.
+// This only returns the explicit claims. If checking for actual usage,
+// also check `AllFeaturesClaim`.
+func (l *License) FeaturesClaims() (map[FeatureName]int64, error) {
 	strMap, ok := l.Claims["features"].(map[string]interface{})
 	if !ok {
 		return nil, xerrors.New("features key is unexpected type")
