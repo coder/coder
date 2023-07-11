@@ -52,6 +52,13 @@ func (l *License) ExpiresAt() (time.Time, error) {
 	return time.Time{}, xerrors.Errorf("license_expires claim has unexpected type %T", expClaim)
 }
 
+func (l *License) Trail() bool {
+	if trail, ok := l.Claims["trail"].(bool); ok {
+		return trail
+	}
+	return false
+}
+
 func (l *License) AllFeaturesClaim() bool {
 	if all, ok := l.Claims["all_features"].(bool); ok {
 		return all

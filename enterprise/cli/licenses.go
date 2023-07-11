@@ -145,6 +145,7 @@ func (r *RootCmd) licensesList() *clibase.Cmd {
 		// Used for the table view.
 		Features  string    `table:"features"`
 		ExpiresAt time.Time `table:"expires_at" format:"date-time"`
+		Trial     bool      `table:"trial"`
 	}
 
 	formatter := cliui.NewOutputFormatter(
@@ -180,6 +181,7 @@ func (r *RootCmd) licensesList() *clibase.Cmd {
 						UploadedAt: lic.UploadedAt,
 						Features:   formattedFeatures,
 						ExpiresAt:  exp,
+						Trial:      lic.Trail(),
 					})
 				}
 				return out, nil
