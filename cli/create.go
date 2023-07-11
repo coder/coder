@@ -240,6 +240,10 @@ func prepWorkspaceBuild(inv *clibase.Invocation, client *codersdk.Client, args p
 	richParameters := make([]codersdk.WorkspaceBuildParameter, 0)
 PromptRichParamLoop:
 	for _, templateVersionParameter := range templateVersionParameters {
+		if templateVersionParameter.Ephemeral {
+			continue
+		}
+
 		if !disclaimerPrinted {
 			_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Paragraph.Render("This template has customizable parameters. Values can be changed after create, but may have unintended side effects (like data loss).")+"\r\n")
 			disclaimerPrinted = true
