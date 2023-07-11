@@ -15,13 +15,16 @@ var errAgentShuttingDown = xerrors.New("agent is shutting down")
 
 type AgentOptions struct {
 	FetchInterval time.Duration
-	Fetch         func(context.Context) (codersdk.WorkspaceAgent, error)
+	Fetch         func(ctx context.Context, agentID uuid.UUID) (codersdk.WorkspaceAgent, error)
 	FetchLogs     func(ctx context.Context, agentID uuid.UUID, after int64, follow bool) (<-chan []codersdk.WorkspaceAgentStartupLog, io.Closer, error)
 	Wait          bool // If true, wait for the agent to be ready (startup script).
 }
 
 // Agent displays a spinning indicator that waits for a workspace agent to connect.
-func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
+func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentOptions) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	if opts.FetchInterval == 0 {
 		opts.FetchInterval = 500 * time.Millisecond
 	}
@@ -47,7 +50,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 			case <-ctx.Done():
 				return
 			case <-t.C:
-				agent, err := opts.Fetch(ctx)
+				agent, err := opts.Fetch(ctx, agentID)
 				select {
 				case <-fetchedAgent:
 				default:
