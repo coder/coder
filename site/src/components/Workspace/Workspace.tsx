@@ -225,6 +225,19 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
         >
           {buildError}
           {cancellationError}
+          {workspace.latest_build.status === "running" &&
+            !workspace.health.healthy && (
+              <Alert severity="warning">
+                <AlertTitle>Workspace is unhealthy</AlertTitle>
+                <AlertDetail>
+                  Your workspace is running but{" "}
+                  {workspace.health.failing_agents.length > 1
+                    ? `${workspace.health.failing_agents.length} agents are unhealthy`
+                    : `1 agent is unhealthy`}
+                  .
+                </AlertDetail>
+              </Alert>
+            )}
 
           <ChooseOne>
             <Cond condition={workspace.latest_build.status === "deleted"}>
