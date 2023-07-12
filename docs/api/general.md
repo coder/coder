@@ -398,6 +398,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       },
       "hidden": true,
       "name": "string",
+      "required": true,
       "use_instead": [{}],
       "value": null,
       "value_source": "",

@@ -1609,6 +1609,8 @@ type TemplateVersion struct {
 	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
 	// IDs of Git auth providers for a specific template version
 	GitAuthProviders []string `db:"git_auth_providers" json:"git_auth_providers"`
+	// Message describing the changes in this version of the template, similar to a Git commit message. Like a commit message, this should be a short, high-level description of the changes in this version of the template. This message is immutable and should not be updated after the fact.
+	Message string `db:"message" json:"message"`
 }
 
 type TemplateVersionParameter struct {

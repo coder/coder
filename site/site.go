@@ -297,6 +297,8 @@ func (h *Handler) renderHTMLWithState(rw http.ResponseWriter, r *http.Request, f
 		// Special case for site, we can always disable refresh here because
 		// the frontend will perform API requests if this fails.
 		DisableSessionExpiryRefresh: true,
+		RedirectToLogin:             false,
+		SessionTokenFunc:            nil,
 	})
 	if apiKey != nil && actor != nil {
 		ctx := dbauthz.As(r.Context(), actor.Actor)

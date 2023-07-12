@@ -3,6 +3,7 @@ import { Stack } from "components/Stack/Stack"
 import { PropsWithChildren, FC } from "react"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 import { combineClasses } from "utils/combineClasses"
+import Tooltip from "@mui/material/Tooltip"
 
 export const EnabledBadge: FC = () => {
   const styles = useStyles()
@@ -43,18 +44,22 @@ export const NotHealthyBadge: FC = () => {
 export const NotRegisteredBadge: FC = () => {
   const styles = useStyles()
   return (
-    <span className={combineClasses([styles.badge, styles.warnBadge])}>
-      Not Registered
-    </span>
+    <Tooltip title="Workspace Proxy has never come online and needs to be started.">
+      <span className={combineClasses([styles.badge, styles.warnBadge])}>
+        Never Seen
+      </span>
+    </Tooltip>
   )
 }
 
 export const NotReachableBadge: FC = () => {
   const styles = useStyles()
   return (
-    <span className={combineClasses([styles.badge, styles.errorBadge])}>
-      Not Reachable
-    </span>
+    <Tooltip title="Workspace Proxy not responding to http(s) requests.">
+      <span className={combineClasses([styles.badge, styles.warnBadge])}>
+        Not Dialable
+      </span>
+    </Tooltip>
   )
 }
 

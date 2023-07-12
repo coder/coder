@@ -200,6 +200,7 @@ export interface CreateTemplateVersionDryRunRequest {
 // From codersdk/organizations.go
 export interface CreateTemplateVersionRequest {
   readonly name?: string
+  readonly message?: string
   readonly template_id?: string
   readonly storage_method: ProvisionerStorageMethod
   readonly file_id?: string
@@ -915,6 +916,7 @@ export interface TemplateVersion {
   readonly created_at: string
   readonly updated_at: string
   readonly name: string
+  readonly message: string
   readonly job: ProvisionerJob
   readonly readme: string
   readonly created_by: User

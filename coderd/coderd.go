@@ -390,6 +390,7 @@ func New(options *Options) *API {
 		RedirectToLogin:             false,
 		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
 		Optional:                    false,
+		SessionTokenFunc:            nil, // Default behavior
 	})
 	// Same as above but it redirects to the login page.
 	apiKeyMiddlewareRedirect := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
@@ -398,6 +399,7 @@ func New(options *Options) *API {
 		RedirectToLogin:             true,
 		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
 		Optional:                    false,
+		SessionTokenFunc:            nil, // Default behavior
 	})
 	// Same as the first but it's optional.
 	apiKeyMiddlewareOptional := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
@@ -406,6 +408,7 @@ func New(options *Options) *API {
 		RedirectToLogin:             false,
 		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
 		Optional:                    true,
+		SessionTokenFunc:            nil, // Default behavior
 	})
 
 	// API rate limit middleware. The counter is local and not shared between
