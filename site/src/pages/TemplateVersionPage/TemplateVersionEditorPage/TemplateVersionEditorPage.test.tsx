@@ -144,7 +144,11 @@ test("Do not mark as active if promote is not checked", async () => {
   expect(updateActiveTemplateVersion).toBeCalledTimes(0)
 })
 
-test("Patch request is not send when the name is not updated", async () => {
+test("Patch request is not send when there are no changes", async () => {
+  const MockTemplateVersionWithEmptyMessage = {
+    ...MockTemplateVersion,
+    message: "",
+  }
   const user = userEvent.setup()
   renderWithAuth(<TemplateVersionEditorPage />, {
     extraRoutes: [
@@ -160,10 +164,13 @@ test("Patch request is not send when the name is not updated", async () => {
   jest.spyOn(api, "uploadTemplateFile").mockResolvedValueOnce({ hash: "hash" })
   jest
     .spyOn(api, "createTemplateVersion")
-    .mockResolvedValueOnce(MockTemplateVersion)
+    .mockResolvedValueOnce(MockTemplateVersionWithEmptyMessage)
   jest
     .spyOn(api, "getTemplateVersion")
-    .mockResolvedValue({ ...MockTemplateVersion, id: "new-version-id" })
+    .mockResolvedValue({
+      ...MockTemplateVersionWithEmptyMessage,
+      id: "new-version-id",
+    })
   jest
     .spyOn(api, "watchBuildLogsByTemplateVersionId")
     .mockImplementation((_, options) => {
@@ -179,7 +186,7 @@ test("Patch request is not send when the name is not updated", async () => {
   // Publish
   const patchTemplateVersion = jest
     .spyOn(api, "patchTemplateVersion")
-    .mockResolvedValue(MockTemplateVersion)
+    .mockResolvedValue(MockTemplateVersionWithEmptyMessage)
   await within(topbar).findByText("Success")
   const publishButton = within(topbar).getByRole("button", {
     name: "Publish version",
@@ -188,7 +195,7 @@ test("Patch request is not send when the name is not updated", async () => {
   const publishDialog = await screen.findByTestId("dialog")
   // It is using the name from the template version
   const nameField = within(publishDialog).getByLabelText("Version name")
-  expect(nameField).toHaveValue(MockTemplateVersion.name)
+  expect(nameField).toHaveValue(MockTemplateVersionWithEmptyMessage.name)
   // Publish
   await user.click(
     within(publishDialog).getByRole("button", { name: "Publish" }),

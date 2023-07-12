@@ -395,9 +395,9 @@ export const templateVersionEditorMachine = createMachine(
         if (!templateId) {
           throw new Error("Template is not set")
         }
+        const haveChanges = name !== version.name || message !== version.message
         await Promise.all([
-          // Only do a patch if the data has changed.
-          name !== version.name || message !== version.message
+          haveChanges
             ? API.patchTemplateVersion(version.id, { name, message })
             : Promise.resolve(),
           isActiveVersion
