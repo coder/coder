@@ -163,6 +163,7 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 		provisionerTags []string
 		uploadFlags     templateUploadFlags
 		activate        bool
+		create          bool
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -289,6 +290,12 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			Description: "Whether the new template will be marked active.",
 			Default:     "true",
 			Value:       clibase.BoolOf(&activate),
+		},
+		{
+			Flag:        "create",
+			Description: "Create the template if it does not exist.",
+			Default:     "false",
+			Value:       clibase.BoolOf(&create),
 		},
 		cliui.SkipPromptOption(),
 	}
