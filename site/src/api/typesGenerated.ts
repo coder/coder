@@ -866,7 +866,7 @@ export interface Template {
   readonly description: string
   readonly icon: string
   readonly default_ttl_ms: number
-  readonly max_ttl_ms?: number
+  readonly max_ttl_ms: number
   readonly restart_requirement: TemplateRestartRequirement
   readonly created_by_id: string
   readonly created_by_name: string

@@ -71,6 +71,7 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 			&i.ActiveVersionID,
 			&i.Description,
 			&i.DefaultTTL,
+			&i.MaxTTL,
 			&i.CreatedBy,
 			&i.Icon,
 			&i.UserACL,
@@ -82,6 +83,8 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 			&i.FailureTTL,
 			&i.InactivityTTL,
 			&i.LockedTTL,
+			&i.RestartRequirementDaysOfWeek,
+			&i.RestartRequirementWeeks,
 		); err != nil {
 			return nil, xerrors.Errorf("scan: %w", err)
 		}

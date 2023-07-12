@@ -70,6 +70,11 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         ? template.locked_ttl_ms / MS_DAY_CONVERSION
         : 0,
 
+      restart_requirement: {
+        days_of_week: template.restart_requirement.days_of_week,
+        weeks: template.restart_requirement.weeks,
+      },
+
       allow_user_autostart: template.allow_user_autostart,
       allow_user_autostop: template.allow_user_autostop,
       failure_cleanup_enabled:
