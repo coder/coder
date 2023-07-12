@@ -679,11 +679,19 @@ func (api *API) templateExamples(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, ex)
 }
 
+// getCreatedByNamesByTemplateIDs returns a map of template IDs to the
+// usernames of the users who created them. If the caller does not have
+// permission to view the given creator, then the username will be the empty
+// string.
 func getCreatedByNamesByTemplateIDs(ctx context.Context, db database.Store, templates []database.Template) (map[string]string, error) {
 	creators := make(map[string]string, len(templates))
 	for _, template := range templates {
 		creator, err := db.GetUserByID(ctx, template.CreatedBy)
 		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) || dbauthz.IsNotAuthorizedError(err) {
+				// Users might be omitted if the caller does not have access.
+				continue
+			}
 			return map[string]string{}, err
 		}
 		creators[template.ID.String()] = creator.Username
@@ -713,6 +721,12 @@ func (api *API) convertTemplate(
 
 	buildTimeStats := api.metricsCache.TemplateBuildTimeStats(template.ID)
 
+	// Only include this uuid if the user has permission to view the user.
+	// We know this if the username is not empty.
+	createdBy := uuid.Nil
+	if createdByName != "" {
+		createdBy = template.CreatedBy
+	}
 	return codersdk.Template{
 		ID:                           template.ID,
 		CreatedAt:                    template.CreatedAt,
@@ -728,7 +742,7 @@ func (api *API) convertTemplate(
 		Icon:                         template.Icon,
 		DefaultTTLMillis:             time.Duration(template.DefaultTTL).Milliseconds(),
 		MaxTTLMillis:                 time.Duration(template.MaxTTL).Milliseconds(),
-		CreatedByID:                  template.CreatedBy,
+		CreatedByID:                  createdBy,
 		CreatedByName:                createdByName,
 		AllowUserAutostart:           template.AllowUserAutostart,
 		AllowUserAutostop:            template.AllowUserAutostop,

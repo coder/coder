@@ -20,6 +20,7 @@ import (
 
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
@@ -53,8 +54,9 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// User can be the empty user if the caller does not have permission.
 	user, err := api.Database.GetUserByID(ctx, templateVersion.CreatedBy)
-	if err != nil {
+	if err != nil && !dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error on fetching user.",
 			Detail:  err.Error(),
@@ -165,7 +167,7 @@ func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	user, err := api.Database.GetUserByID(ctx, templateVersion.CreatedBy)
-	if err != nil {
+	if err != nil && !dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error on fetching user.",
 			Detail:  err.Error(),
@@ -843,7 +845,7 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	user, err := api.Database.GetUserByID(ctx, templateVersion.CreatedBy)
-	if err != nil {
+	if err != nil && !dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error on fetching user.",
 			Detail:  err.Error(),
@@ -1012,7 +1014,7 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 	}
 
 	user, err := api.Database.GetUserByID(ctx, templateVersion.CreatedBy)
-	if err != nil {
+	if err != nil && !dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error on fetching user.",
 			Detail:  err.Error(),
@@ -1325,7 +1327,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 	aReq.New = templateVersion
 
 	user, err := api.Database.GetUserByID(ctx, templateVersion.CreatedBy)
-	if err != nil {
+	if err != nil && !dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error on fetching user.",
 			Detail:  err.Error(),
@@ -1404,14 +1406,20 @@ func (api *API) templateVersionLogs(rw http.ResponseWriter, r *http.Request) {
 }
 
 func convertTemplateVersion(version database.TemplateVersion, job codersdk.ProvisionerJob, user database.User, warnings []codersdk.TemplateVersionWarning) codersdk.TemplateVersion {
-	createdBy := codersdk.User{
-		ID:        user.ID,
-		Username:  user.Username,
-		Email:     user.Email,
-		CreatedAt: user.CreatedAt,
-		Status:    codersdk.UserStatus(user.Status),
-		Roles:     []codersdk.Role{},
-		AvatarURL: user.AvatarURL.String,
+	// Only populate these fields if the user is not nil.
+	// It is usually nil because the caller cannot access the user
+	// resource in question.
+	var createdBy codersdk.User
+	if user.ID != uuid.Nil {
+		createdBy = codersdk.User{
+			ID:        user.ID,
+			Username:  user.Username,
+			Email:     user.Email,
+			CreatedAt: user.CreatedAt,
+			Status:    codersdk.UserStatus(user.Status),
+			Roles:     []codersdk.Role{},
+			AvatarURL: user.AvatarURL.String,
+		}
 	}
 
 	return codersdk.TemplateVersion{

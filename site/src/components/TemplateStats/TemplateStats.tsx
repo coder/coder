@@ -7,6 +7,7 @@ import {
   formatTemplateActiveDevelopers,
 } from "utils/templates"
 import { Template, TemplateVersion } from "../../api/typesGenerated"
+import { Maybe } from "components/Conditionals/Maybe"
 
 const Language = {
   usedByLabel: "Used by",
@@ -56,10 +57,12 @@ export const TemplateStats: FC<TemplateStatsProps> = ({
         label={Language.lastUpdateLabel}
         value={createDayString(template.updated_at)}
       />
-      <StatsItem
-        label={Language.createdByLabel}
-        value={template.created_by_name}
-      />
+      <Maybe condition={template.created_by_name !== ""}>
+        <StatsItem
+          label={Language.createdByLabel}
+          value={template.created_by_name}
+        />
+      </Maybe>
     </Stats>
   )
 }
