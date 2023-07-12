@@ -397,7 +397,7 @@ export const templateVersionEditorMachine = createMachine(
         }
         await Promise.all([
           // Only do a patch if the name is different
-          name !== version.name
+          name !== version.name || message !== version.message
             ? API.patchTemplateVersion(version.id, { name, message })
             : Promise.resolve(),
           isActiveVersion
