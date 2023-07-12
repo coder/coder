@@ -4186,7 +4186,7 @@ func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateT
 }
 
 const getTemplateVersionParameters = `-- name: GetTemplateVersionParameters :many
-SELECT template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, display_name, display_order FROM template_version_parameters WHERE template_version_id = $1 ORDER BY display_order ASC, LOWER(name) ASC
+SELECT template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, display_name, display_order, ephemeral FROM template_version_parameters WHERE template_version_id = $1 ORDER BY display_order ASC, LOWER(name) ASC
 `
 
 func (q *sqlQuerier) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionParameter, error) {
@@ -4215,6 +4215,7 @@ func (q *sqlQuerier) GetTemplateVersionParameters(ctx context.Context, templateV
 			&i.Required,
 			&i.DisplayName,
 			&i.DisplayOrder,
+			&i.Ephemeral,
 		); err != nil {
 			return nil, err
 		}
@@ -4247,7 +4248,8 @@ INSERT INTO
         validation_monotonic,
         required,
         display_name,
-        display_order
+        display_order,
+        ephemeral
     )
 VALUES
     (
@@ -4266,8 +4268,9 @@ VALUES
         $13,
         $14,
         $15,
-        $16
-    ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, display_name, display_order
+        $16,
+        $17
+    ) RETURNING template_version_id, name, description, type, mutable, default_value, icon, options, validation_regex, validation_min, validation_max, validation_error, validation_monotonic, required, display_name, display_order, ephemeral
 `
 
 type InsertTemplateVersionParameterParams struct {
@@ -4287,6 +4290,7 @@ type InsertTemplateVersionParameterParams struct {
 	Required            bool            `db:"required" json:"required"`
 	DisplayName         string          `db:"display_name" json:"display_name"`
 	DisplayOrder        int32           `db:"display_order" json:"display_order"`
+	Ephemeral           bool            `db:"ephemeral" json:"ephemeral"`
 }
 
 func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg InsertTemplateVersionParameterParams) (TemplateVersionParameter, error) {
@@ -4307,6 +4311,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		arg.Required,
 		arg.DisplayName,
 		arg.DisplayOrder,
+		arg.Ephemeral,
 	)
 	var i TemplateVersionParameter
 	err := row.Scan(
@@ -4326,13 +4331,14 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 		&i.Required,
 		&i.DisplayName,
 		&i.DisplayOrder,
+		&i.Ephemeral,
 	)
 	return i, err
 }
 
 const getPreviousTemplateVersion = `-- name: GetPreviousTemplateVersion :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message
 FROM
 	template_versions
 WHERE
@@ -4367,13 +4373,14 @@ func (q *sqlQuerier) GetPreviousTemplateVersion(ctx context.Context, arg GetPrev
 		&i.JobID,
 		&i.CreatedBy,
 		pq.Array(&i.GitAuthProviders),
+		&i.Message,
 	)
 	return i, err
 }
 
 const getTemplateVersionByID = `-- name: GetTemplateVersionByID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message
 FROM
 	template_versions
 WHERE
@@ -4394,13 +4401,14 @@ func (q *sqlQuerier) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (
 		&i.JobID,
 		&i.CreatedBy,
 		pq.Array(&i.GitAuthProviders),
+		&i.Message,
 	)
 	return i, err
 }
 
 const getTemplateVersionByJobID = `-- name: GetTemplateVersionByJobID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message
 FROM
 	template_versions
 WHERE
@@ -4421,13 +4429,14 @@ func (q *sqlQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.U
 		&i.JobID,
 		&i.CreatedBy,
 		pq.Array(&i.GitAuthProviders),
+		&i.Message,
 	)
 	return i, err
 }
 
 const getTemplateVersionByTemplateIDAndName = `-- name: GetTemplateVersionByTemplateIDAndName :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message
 FROM
 	template_versions
 WHERE
@@ -4454,13 +4463,14 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 		&i.JobID,
 		&i.CreatedBy,
 		pq.Array(&i.GitAuthProviders),
+		&i.Message,
 	)
 	return i, err
 }
 
 const getTemplateVersionsByIDs = `-- name: GetTemplateVersionsByIDs :many
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message
 FROM
 	template_versions
 WHERE
@@ -4487,6 +4497,7 @@ func (q *sqlQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UU
 			&i.JobID,
 			&i.CreatedBy,
 			pq.Array(&i.GitAuthProviders),
+			&i.Message,
 		); err != nil {
 			return nil, err
 		}
@@ -4503,7 +4514,7 @@ func (q *sqlQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UU
 
 const getTemplateVersionsByTemplateID = `-- name: GetTemplateVersionsByTemplateID :many
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message
 FROM
 	template_versions
 WHERE
@@ -4568,6 +4579,7 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 			&i.JobID,
 			&i.CreatedBy,
 			pq.Array(&i.GitAuthProviders),
+			&i.Message,
 		); err != nil {
 			return nil, err
 		}
@@ -4583,7 +4595,7 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 }
 
 const getTemplateVersionsCreatedAfter = `-- name: GetTemplateVersionsCreatedAfter :many
-SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers FROM template_versions WHERE created_at > $1
+SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message FROM template_versions WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]TemplateVersion, error) {
@@ -4606,6 +4618,7 @@ func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, create
 			&i.JobID,
 			&i.CreatedBy,
 			pq.Array(&i.GitAuthProviders),
+			&i.Message,
 		); err != nil {
 			return nil, err
 		}
@@ -4629,12 +4642,13 @@ INSERT INTO
 		created_at,
 		updated_at,
 		"name",
+		message,
 		readme,
 		job_id,
 		created_by
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message
 `
 
 type InsertTemplateVersionParams struct {
@@ -4644,6 +4658,7 @@ type InsertTemplateVersionParams struct {
 	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
 	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
 	Name           string        `db:"name" json:"name"`
+	Message        string        `db:"message" json:"message"`
 	Readme         string        `db:"readme" json:"readme"`
 	JobID          uuid.UUID     `db:"job_id" json:"job_id"`
 	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
@@ -4657,6 +4672,7 @@ func (q *sqlQuerier) InsertTemplateVersion(ctx context.Context, arg InsertTempla
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		arg.Name,
+		arg.Message,
 		arg.Readme,
 		arg.JobID,
 		arg.CreatedBy,
@@ -4673,6 +4689,7 @@ func (q *sqlQuerier) InsertTemplateVersion(ctx context.Context, arg InsertTempla
 		&i.JobID,
 		&i.CreatedBy,
 		pq.Array(&i.GitAuthProviders),
+		&i.Message,
 	)
 	return i, err
 }
@@ -4685,7 +4702,7 @@ SET
 	updated_at = $3,
 	name = $4
 WHERE
-	id = $1 RETURNING id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers
+	id = $1 RETURNING id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message
 `
 
 type UpdateTemplateVersionByIDParams struct {
@@ -4714,6 +4731,7 @@ func (q *sqlQuerier) UpdateTemplateVersionByID(ctx context.Context, arg UpdateTe
 		&i.JobID,
 		&i.CreatedBy,
 		pq.Array(&i.GitAuthProviders),
+		&i.Message,
 	)
 	return i, err
 }
@@ -8444,7 +8462,11 @@ func (q *sqlQuerier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspace
 
 const getWorkspaces = `-- name: GetWorkspaces :many
 SELECT
-	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.locked_at, COUNT(*) OVER () as count
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.locked_at,
+	COALESCE(template_name.template_name, 'unknown') as template_name,
+	latest_build.template_version_id,
+	latest_build.template_version_name,
+	COUNT(*) OVER () as count
 FROM
     workspaces
 JOIN
@@ -8454,6 +8476,8 @@ ON
 LEFT JOIN LATERAL (
 	SELECT
 		workspace_builds.transition,
+		workspace_builds.template_version_id,
+		template_versions.name AS template_version_name,
 		provisioner_jobs.id AS provisioner_job_id,
 		provisioner_jobs.started_at,
 		provisioner_jobs.updated_at,
@@ -8466,6 +8490,10 @@ LEFT JOIN LATERAL (
 		provisioner_jobs
 	ON
 		provisioner_jobs.id = workspace_builds.job_id
+	LEFT JOIN
+		template_versions
+	ON
+		template_versions.id = workspace_builds.template_version_id
 	WHERE
 		workspace_builds.workspace_id = workspaces.id
 	ORDER BY
@@ -8473,6 +8501,14 @@ LEFT JOIN LATERAL (
 	LIMIT
 		1
 ) latest_build ON TRUE
+LEFT JOIN LATERAL (
+	SELECT
+		templates.name AS template_name
+	FROM
+		templates
+	WHERE
+		templates.id = workspaces.template_id
+) template_name ON true
 WHERE
 	-- Optionally include deleted workspaces
 	workspaces.deleted = $1
@@ -8544,13 +8580,13 @@ WHERE
 	-- Filter by owner_id
 	AND CASE
 		WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			owner_id = $3
+			workspaces.owner_id = $3
 		ELSE true
 	END
 	-- Filter by owner_name
 	AND CASE
 		WHEN $4 :: text != '' THEN
-			owner_id = (SELECT id FROM users WHERE lower(username) = lower($4) AND deleted = false)
+			workspaces.owner_id = (SELECT id FROM users WHERE lower(username) = lower($4) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_name
@@ -8558,19 +8594,19 @@ WHERE
 	-- Use the organization filter to restrict to 1 org if needed.
 	AND CASE
 		WHEN $5 :: text != '' THEN
-			template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower($5) AND deleted = false)
+			workspaces.template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower($5) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_ids
 	AND CASE
 		WHEN array_length($6 :: uuid[], 1) > 0 THEN
-			template_id = ANY($6)
+			workspaces.template_id = ANY($6)
 		ELSE true
 	END
 	-- Filter by name, matching on substring
 	AND CASE
 		WHEN $7 :: text != '' THEN
-			name ILIKE '%' || $7 || '%'
+			workspaces.name ILIKE '%' || $7 || '%'
 		ELSE true
 	END
 	-- Filter by agent status
@@ -8618,7 +8654,7 @@ ORDER BY
 		latest_build.error IS NULL AND
 		latest_build.transition = 'start'::workspace_transition) DESC,
 	LOWER(users.username) ASC,
-	LOWER(name) ASC
+	LOWER(workspaces.name) ASC
 LIMIT
 	CASE
 		WHEN $11 :: integer > 0 THEN
@@ -8643,19 +8679,22 @@ type GetWorkspacesParams struct {
 }
 
 type GetWorkspacesRow struct {
-	ID                uuid.UUID      `db:"id" json:"id"`
-	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
-	OwnerID           uuid.UUID      `db:"owner_id" json:"owner_id"`
-	OrganizationID    uuid.UUID      `db:"organization_id" json:"organization_id"`
-	TemplateID        uuid.UUID      `db:"template_id" json:"template_id"`
-	Deleted           bool           `db:"deleted" json:"deleted"`
-	Name              string         `db:"name" json:"name"`
-	AutostartSchedule sql.NullString `db:"autostart_schedule" json:"autostart_schedule"`
-	Ttl               sql.NullInt64  `db:"ttl" json:"ttl"`
-	LastUsedAt        time.Time      `db:"last_used_at" json:"last_used_at"`
-	LockedAt          sql.NullTime   `db:"locked_at" json:"locked_at"`
-	Count             int64          `db:"count" json:"count"`
+	ID                  uuid.UUID      `db:"id" json:"id"`
+	CreatedAt           time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt           time.Time      `db:"updated_at" json:"updated_at"`
+	OwnerID             uuid.UUID      `db:"owner_id" json:"owner_id"`
+	OrganizationID      uuid.UUID      `db:"organization_id" json:"organization_id"`
+	TemplateID          uuid.UUID      `db:"template_id" json:"template_id"`
+	Deleted             bool           `db:"deleted" json:"deleted"`
+	Name                string         `db:"name" json:"name"`
+	AutostartSchedule   sql.NullString `db:"autostart_schedule" json:"autostart_schedule"`
+	Ttl                 sql.NullInt64  `db:"ttl" json:"ttl"`
+	LastUsedAt          time.Time      `db:"last_used_at" json:"last_used_at"`
+	LockedAt            sql.NullTime   `db:"locked_at" json:"locked_at"`
+	TemplateName        string         `db:"template_name" json:"template_name"`
+	TemplateVersionID   uuid.UUID      `db:"template_version_id" json:"template_version_id"`
+	TemplateVersionName sql.NullString `db:"template_version_name" json:"template_version_name"`
+	Count               int64          `db:"count" json:"count"`
 }
 
 func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]GetWorkspacesRow, error) {
@@ -8692,6 +8731,9 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 			&i.Ttl,
 			&i.LastUsedAt,
 			&i.LockedAt,
+			&i.TemplateName,
+			&i.TemplateVersionID,
+			&i.TemplateVersionName,
 			&i.Count,
 		); err != nil {
 			return nil, err

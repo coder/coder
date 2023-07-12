@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clitest"
-	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/pty/ptytest"
@@ -19,8 +18,7 @@ func TestFeaturesList(t *testing.T) {
 	t.Parallel()
 	t.Run("Table", func(t *testing.T) {
 		t.Parallel()
-		client := coderdenttest.New(t, nil)
-		coderdtest.CreateFirstUser(t, client)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
 		inv, conf := newCLI(t, "features", "list")
 		clitest.SetupConfig(t, client, conf)
 		pty := ptytest.New(t).Attach(inv)
@@ -31,8 +29,7 @@ func TestFeaturesList(t *testing.T) {
 	t.Run("JSON", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdenttest.New(t, nil)
-		coderdtest.CreateFirstUser(t, client)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
 		inv, conf := newCLI(t, "features", "list", "-o", "json")
 		clitest.SetupConfig(t, client, conf)
 		doneChan := make(chan struct{})

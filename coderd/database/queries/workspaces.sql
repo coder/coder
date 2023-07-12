@@ -75,7 +75,11 @@ WHERE
 
 -- name: GetWorkspaces :many
 SELECT
-	workspaces.*, COUNT(*) OVER () as count
+	workspaces.*,
+	COALESCE(template_name.template_name, 'unknown') as template_name,
+	latest_build.template_version_id,
+	latest_build.template_version_name,
+	COUNT(*) OVER () as count
 FROM
     workspaces
 JOIN
@@ -85,6 +89,8 @@ ON
 LEFT JOIN LATERAL (
 	SELECT
 		workspace_builds.transition,
+		workspace_builds.template_version_id,
+		template_versions.name AS template_version_name,
 		provisioner_jobs.id AS provisioner_job_id,
 		provisioner_jobs.started_at,
 		provisioner_jobs.updated_at,
@@ -97,6 +103,10 @@ LEFT JOIN LATERAL (
 		provisioner_jobs
 	ON
 		provisioner_jobs.id = workspace_builds.job_id
+	LEFT JOIN
+		template_versions
+	ON
+		template_versions.id = workspace_builds.template_version_id
 	WHERE
 		workspace_builds.workspace_id = workspaces.id
 	ORDER BY
@@ -104,6 +114,14 @@ LEFT JOIN LATERAL (
 	LIMIT
 		1
 ) latest_build ON TRUE
+LEFT JOIN LATERAL (
+	SELECT
+		templates.name AS template_name
+	FROM
+		templates
+	WHERE
+		templates.id = workspaces.template_id
+) template_name ON true
 WHERE
 	-- Optionally include deleted workspaces
 	workspaces.deleted = @deleted
@@ -175,13 +193,13 @@ WHERE
 	-- Filter by owner_id
 	AND CASE
 		WHEN @owner_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			owner_id = @owner_id
+			workspaces.owner_id = @owner_id
 		ELSE true
 	END
 	-- Filter by owner_name
 	AND CASE
 		WHEN @owner_username :: text != '' THEN
-			owner_id = (SELECT id FROM users WHERE lower(username) = lower(@owner_username) AND deleted = false)
+			workspaces.owner_id = (SELECT id FROM users WHERE lower(username) = lower(@owner_username) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_name
@@ -189,19 +207,19 @@ WHERE
 	-- Use the organization filter to restrict to 1 org if needed.
 	AND CASE
 		WHEN @template_name :: text != '' THEN
-			template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower(@template_name) AND deleted = false)
+			workspaces.template_id = ANY(SELECT id FROM templates WHERE lower(name) = lower(@template_name) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_ids
 	AND CASE
 		WHEN array_length(@template_ids :: uuid[], 1) > 0 THEN
-			template_id = ANY(@template_ids)
+			workspaces.template_id = ANY(@template_ids)
 		ELSE true
 	END
 	-- Filter by name, matching on substring
 	AND CASE
 		WHEN @name :: text != '' THEN
-			name ILIKE '%' || @name || '%'
+			workspaces.name ILIKE '%' || @name || '%'
 		ELSE true
 	END
 	-- Filter by agent status
@@ -249,7 +267,7 @@ ORDER BY
 		latest_build.error IS NULL AND
 		latest_build.transition = 'start'::workspace_transition) DESC,
 	LOWER(users.username) ASC,
-	LOWER(name) ASC
+	LOWER(workspaces.name) ASC
 LIMIT
 	CASE
 		WHEN @limit_ :: integer > 0 THEN

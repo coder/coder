@@ -38,6 +38,8 @@ func TestCommand(t *testing.T) {
 			verbose bool
 			lower   bool
 			prefix  string
+			reqBool bool
+			reqStr  string
 		)
 		return &clibase.Cmd{
 			Use: "root [subcommand]",
@@ -55,6 +57,34 @@ func TestCommand(t *testing.T) {
 			},
 			Children: []*clibase.Cmd{
 				{
+					Use:   "required-flag --req-bool=true --req-string=foo",
+					Short: "Example with required flags",
+					Options: clibase.OptionSet{
+						clibase.Option{
+							Name:     "req-bool",
+							Flag:     "req-bool",
+							Value:    clibase.BoolOf(&reqBool),
+							Required: true,
+						},
+						clibase.Option{
+							Name: "req-string",
+							Flag: "req-string",
+							Value: clibase.Validate(clibase.StringOf(&reqStr), func(value *clibase.String) error {
+								ok := strings.Contains(value.String(), " ")
+								if !ok {
+									return xerrors.Errorf("string must contain a space")
+								}
+								return nil
+							}),
+							Required: true,
+						},
+					},
+					Handler: func(i *clibase.Invocation) error {
+						_, _ = i.Stdout.Write([]byte(fmt.Sprintf("%s-%t", reqStr, reqBool)))
+						return nil
+					},
+				},
+				{
 					Use:   "toupper [word]",
 					Short: "Converts a word to upper case",
 					Middleware: clibase.Chain(
@@ -68,8 +98,8 @@ func TestCommand(t *testing.T) {
 							Value: clibase.BoolOf(&lower),
 						},
 					},
-					Handler: (func(i *clibase.Invocation) error {
-						i.Stdout.Write([]byte(prefix))
+					Handler: func(i *clibase.Invocation) error {
+						_, _ = i.Stdout.Write([]byte(prefix))
 						w := i.Args[0]
 						if lower {
 							w = strings.ToLower(w)
@@ -85,7 +115,7 @@ func TestCommand(t *testing.T) {
 							i.Stdout.Write([]byte("!!!"))
 						}
 						return nil
-					}),
+					},
 				},
 			},
 		}
@@ -212,6 +242,60 @@ func TestCommand(t *testing.T) {
 		)
 		fio := fakeIO(i)
 		require.Error(t, i.Run(), fio.Stdout.String())
+	})
+
+	t.Run("RequiredFlagsMissing", func(t *testing.T) {
+		t.Parallel()
+		i := cmd().Invoke(
+			"required-flag",
+		)
+		fio := fakeIO(i)
+		err := i.Run()
+		require.Error(t, err, fio.Stdout.String())
+		require.ErrorContains(t, err, "Missing values")
+	})
+
+	t.Run("RequiredFlagsMissingBool", func(t *testing.T) {
+		t.Parallel()
+		i := cmd().Invoke(
+			"required-flag", "--req-string", "foo bar",
+		)
+		fio := fakeIO(i)
+		err := i.Run()
+		require.Error(t, err, fio.Stdout.String())
+		require.ErrorContains(t, err, "Missing values for the required flags: req-bool")
+	})
+
+	t.Run("RequiredFlagsMissingString", func(t *testing.T) {
+		t.Parallel()
+		i := cmd().Invoke(
+			"required-flag", "--req-bool", "true",
+		)
+		fio := fakeIO(i)
+		err := i.Run()
+		require.Error(t, err, fio.Stdout.String())
+		require.ErrorContains(t, err, "Missing values for the required flags: req-string")
+	})
+
+	t.Run("RequiredFlagsInvalid", func(t *testing.T) {
+		t.Parallel()
+		i := cmd().Invoke(
+			"required-flag", "--req-string", "nospace",
+		)
+		fio := fakeIO(i)
+		err := i.Run()
+		require.Error(t, err, fio.Stdout.String())
+		require.ErrorContains(t, err, "string must contain a space")
+	})
+
+	t.Run("RequiredFlagsOK", func(t *testing.T) {
+		t.Parallel()
+		i := cmd().Invoke(
+			"required-flag", "--req-bool", "true", "--req-string", "foo bar",
+		)
+		fio := fakeIO(i)
+		err := i.Run()
+		require.NoError(t, err, fio.Stdout.String())
 	})
 }
 

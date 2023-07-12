@@ -2,6 +2,10 @@
 # Over time we should try tightening some of these.
 
 linters-settings:
+  exhaustruct:
+    include:
+      # Gradually extend to cover more of the codebase.
+      - 'httpmw\.\w+'
   gocognit:
     min-complexity: 46 # Min code complexity (def 30).
 
@@ -195,6 +199,10 @@ issues:
         # We use assertions rather than explicitly checking errors in tests
         - errcheck
         - forcetypeassert
+        - exhaustruct # This is unhelpful in tests.
+    - path: scripts/*
+      linters:
+        - exhaustruct
 
   fix: true
   max-issues-per-linter: 0
@@ -219,6 +227,7 @@ linters:
     - errcheck
     - errname
     - errorlint
+    - exhaustruct
     - exportloopref
     - forcetypeassert
     - gocritic

@@ -102,12 +102,9 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces
-// @Param owner query string false "Filter by owner username"
-// @Param template query string false "Filter by template name"
-// @Param name query string false "Filter with partial-match by workspace name"
-// @Param status query string false "Filter by workspace status" Enums(pending,running,stopping,stopped,failed,canceling,canceled,deleted,deleting)
-// @Param has_agent query string false "Filter by agent status" Enums(connected,connecting,disconnected,timeout)
-// @Param deleting_by query string false "Filter workspaces scheduled to be deleted by this time"
+// @Param q query string false "Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, deleting_by."
+// @Param limit query int false "Page limit"
+// @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.WorkspacesResponse
 // @Router /workspaces [get]
 func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {

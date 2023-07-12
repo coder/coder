@@ -36,7 +36,7 @@ var errDuplicateKey = &pq.Error{
 
 // New returns an in-memory fake of the database.
 func New() database.Store {
-	q := &fakeQuerier{
+	q := &FakeQuerier{
 		mutex: &sync.RWMutex{},
 		data: &data{
 			apiKeys:                   make([]database.APIKey, 0),
@@ -88,18 +88,19 @@ func (inTxMutex) RLock()   {}
 func (inTxMutex) Unlock()  {}
 func (inTxMutex) RUnlock() {}
 
-// fakeQuerier replicates database functionality to enable quick testing.
-type fakeQuerier struct {
+// FakeQuerier replicates database functionality to enable quick testing.  It's an exported type so that our test code
+// can do type checks.
+type FakeQuerier struct {
 	mutex rwMutex
 	*data
 }
 
-func (*fakeQuerier) Wrappers() []string {
+func (*FakeQuerier) Wrappers() []string {
 	return []string{}
 }
 
 type fakeTx struct {
-	*fakeQuerier
+	*FakeQuerier
 	locks map[int64]struct{}
 }
 
@@ -213,41 +214,41 @@ func validateDatabaseType(args interface{}) error {
 	return nil
 }
 
-func (*fakeQuerier) Ping(_ context.Context) (time.Duration, error) {
+func (*FakeQuerier) Ping(_ context.Context) (time.Duration, error) {
 	return 0, nil
 }
 
 func (tx *fakeTx) AcquireLock(_ context.Context, id int64) error {
-	if _, ok := tx.fakeQuerier.locks[id]; ok {
+	if _, ok := tx.FakeQuerier.locks[id]; ok {
 		return xerrors.Errorf("cannot acquire lock %d: already held", id)
 	}
-	tx.fakeQuerier.locks[id] = struct{}{}
+	tx.FakeQuerier.locks[id] = struct{}{}
 	tx.locks[id] = struct{}{}
 	return nil
 }
 
 func (tx *fakeTx) TryAcquireLock(_ context.Context, id int64) (bool, error) {
-	if _, ok := tx.fakeQuerier.locks[id]; ok {
+	if _, ok := tx.FakeQuerier.locks[id]; ok {
 		return false, nil
 	}
-	tx.fakeQuerier.locks[id] = struct{}{}
+	tx.FakeQuerier.locks[id] = struct{}{}
 	tx.locks[id] = struct{}{}
 	return true, nil
 }
 
 func (tx *fakeTx) releaseLocks() {
 	for id := range tx.locks {
-		delete(tx.fakeQuerier.locks, id)
+		delete(tx.FakeQuerier.locks, id)
 	}
 	tx.locks = map[int64]struct{}{}
 }
 
 // InTx doesn't rollback data properly for in-memory yet.
-func (q *fakeQuerier) InTx(fn func(database.Store) error, _ *sql.TxOptions) error {
+func (q *FakeQuerier) InTx(fn func(database.Store) error, _ *sql.TxOptions) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 	tx := &fakeTx{
-		fakeQuerier: &fakeQuerier{mutex: inTxMutex{}, data: q.data},
+		FakeQuerier: &FakeQuerier{mutex: inTxMutex{}, data: q.data},
 		locks:       map[int64]struct{}{},
 	}
 	defer tx.releaseLocks()
@@ -256,7 +257,7 @@ func (q *fakeQuerier) InTx(fn func(database.Store) error, _ *sql.TxOptions) erro
 }
 
 // getUserByIDNoLock is used by other functions in the database fake.
-func (q *fakeQuerier) getUserByIDNoLock(id uuid.UUID) (database.User, error) {
+func (q *FakeQuerier) getUserByIDNoLock(id uuid.UUID) (database.User, error) {
 	for _, user := range q.users {
 		if user.ID == id {
 			return user, nil
@@ -265,7 +266,7 @@ func (q *fakeQuerier) getUserByIDNoLock(id uuid.UUID) (database.User, error) {
 	return database.User{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetAuthorizedUserCount(ctx context.Context, params database.GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
+func (q *FakeQuerier) GetAuthorizedUserCount(ctx context.Context, params database.GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
 	if err := validateDatabaseType(params); err != nil {
 		return 0, err
 	}
@@ -363,7 +364,7 @@ func convertUsers(users []database.User, count int64) []database.GetUsersRow {
 }
 
 //nolint:gocyclo
-func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetWorkspacesParams, prepared rbac.PreparedAuthorized) ([]database.GetWorkspacesRow, error) {
+func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetWorkspacesParams, prepared rbac.PreparedAuthorized) ([]database.GetWorkspacesRow, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return nil, err
 	}
@@ -607,12 +608,12 @@ func (q *fakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 	}
 	if arg.Limit > 0 {
 		if int(arg.Limit) > len(workspaces) {
-			return convertToWorkspaceRows(workspaces, int64(beforePageCount)), nil
+			return q.convertToWorkspaceRowsNoLock(ctx, workspaces, int64(beforePageCount)), nil
 		}
 		workspaces = workspaces[:arg.Limit]
 	}
 
-	return convertToWorkspaceRows(workspaces, int64(beforePageCount)), nil
+	return q.convertToWorkspaceRowsNoLock(ctx, workspaces, int64(beforePageCount)), nil
 }
 
 // mapAgentStatus determines the agent status based on different timestamps like created_at, last_connected_at, disconnected_at, etc.
@@ -649,10 +650,10 @@ func mapAgentStatus(dbAgent database.WorkspaceAgent, agentInactiveDisconnectTime
 	return status
 }
 
-func convertToWorkspaceRows(workspaces []database.Workspace, count int64) []database.GetWorkspacesRow {
-	rows := make([]database.GetWorkspacesRow, len(workspaces))
-	for i, w := range workspaces {
-		rows[i] = database.GetWorkspacesRow{
+func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspaces []database.Workspace, count int64) []database.GetWorkspacesRow {
+	rows := make([]database.GetWorkspacesRow, 0, len(workspaces))
+	for _, w := range workspaces {
+		wr := database.GetWorkspacesRow{
 			ID:                w.ID,
 			CreatedAt:         w.CreatedAt,
 			UpdatedAt:         w.UpdatedAt,
@@ -666,11 +667,33 @@ func convertToWorkspaceRows(workspaces []database.Workspace, count int64) []data
 			LastUsedAt:        w.LastUsedAt,
 			Count:             count,
 		}
+
+		for _, t := range q.templates {
+			if t.ID == w.TemplateID {
+				wr.TemplateName = t.Name
+				break
+			}
+		}
+
+		if build, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, w.ID); err == nil {
+			for _, tv := range q.templateVersions {
+				if tv.ID == build.TemplateVersionID {
+					wr.TemplateVersionID = tv.ID
+					wr.TemplateVersionName = sql.NullString{
+						Valid:  true,
+						String: tv.Name,
+					}
+					break
+				}
+			}
+		}
+
+		rows = append(rows, wr)
 	}
 	return rows
 }
 
-func (q *fakeQuerier) getWorkspaceByIDNoLock(_ context.Context, id uuid.UUID) (database.Workspace, error) {
+func (q *FakeQuerier) getWorkspaceByIDNoLock(_ context.Context, id uuid.UUID) (database.Workspace, error) {
 	for _, workspace := range q.workspaces {
 		if workspace.ID == id {
 			return workspace, nil
@@ -679,7 +702,7 @@ func (q *fakeQuerier) getWorkspaceByIDNoLock(_ context.Context, id uuid.UUID) (d
 	return database.Workspace{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) getWorkspaceByAgentIDNoLock(_ context.Context, agentID uuid.UUID) (database.Workspace, error) {
+func (q *FakeQuerier) getWorkspaceByAgentIDNoLock(_ context.Context, agentID uuid.UUID) (database.Workspace, error) {
 	var agent database.WorkspaceAgent
 	for _, _agent := range q.workspaceAgents {
 		if _agent.ID == agentID {
@@ -722,7 +745,7 @@ func (q *fakeQuerier) getWorkspaceByAgentIDNoLock(_ context.Context, agentID uui
 	return database.Workspace{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) getWorkspaceBuildByIDNoLock(_ context.Context, id uuid.UUID) (database.WorkspaceBuild, error) {
+func (q *FakeQuerier) getWorkspaceBuildByIDNoLock(_ context.Context, id uuid.UUID) (database.WorkspaceBuild, error) {
 	for _, history := range q.workspaceBuilds {
 		if history.ID == id {
 			return history, nil
@@ -731,7 +754,7 @@ func (q *fakeQuerier) getWorkspaceBuildByIDNoLock(_ context.Context, id uuid.UUI
 	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) getLatestWorkspaceBuildByWorkspaceIDNoLock(_ context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
+func (q *FakeQuerier) getLatestWorkspaceBuildByWorkspaceIDNoLock(_ context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
 	var row database.WorkspaceBuild
 	var buildNum int32 = -1
 	for _, workspaceBuild := range q.workspaceBuilds {
@@ -746,7 +769,7 @@ func (q *fakeQuerier) getLatestWorkspaceBuildByWorkspaceIDNoLock(_ context.Conte
 	return row, nil
 }
 
-func (q *fakeQuerier) getTemplateByIDNoLock(_ context.Context, id uuid.UUID) (database.Template, error) {
+func (q *FakeQuerier) getTemplateByIDNoLock(_ context.Context, id uuid.UUID) (database.Template, error) {
 	for _, template := range q.templates {
 		if template.ID == id {
 			return template.DeepCopy(), nil
@@ -755,7 +778,7 @@ func (q *fakeQuerier) getTemplateByIDNoLock(_ context.Context, id uuid.UUID) (da
 	return database.Template{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.Template, error) {
+func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.Template, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return nil, err
 	}
@@ -815,7 +838,7 @@ func (q *fakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.G
 	return nil, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) getTemplateVersionByIDNoLock(_ context.Context, templateVersionID uuid.UUID) (database.TemplateVersion, error) {
+func (q *FakeQuerier) getTemplateVersionByIDNoLock(_ context.Context, templateVersionID uuid.UUID) (database.TemplateVersion, error) {
 	for _, templateVersion := range q.templateVersions {
 		if templateVersion.ID != templateVersionID {
 			continue
@@ -825,7 +848,7 @@ func (q *fakeQuerier) getTemplateVersionByIDNoLock(_ context.Context, templateVe
 	return database.TemplateVersion{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetTemplateUserRoles(_ context.Context, id uuid.UUID) ([]database.TemplateUser, error) {
+func (q *FakeQuerier) GetTemplateUserRoles(_ context.Context, id uuid.UUID) ([]database.TemplateUser, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -866,7 +889,7 @@ func (q *fakeQuerier) GetTemplateUserRoles(_ context.Context, id uuid.UUID) ([]d
 	return users, nil
 }
 
-func (q *fakeQuerier) GetTemplateGroupRoles(_ context.Context, id uuid.UUID) ([]database.TemplateGroup, error) {
+func (q *FakeQuerier) GetTemplateGroupRoles(_ context.Context, id uuid.UUID) ([]database.TemplateGroup, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -903,7 +926,7 @@ func (q *fakeQuerier) GetTemplateGroupRoles(_ context.Context, id uuid.UUID) ([]
 	return groups, nil
 }
 
-func (q *fakeQuerier) getWorkspaceAgentByIDNoLock(_ context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
+func (q *FakeQuerier) getWorkspaceAgentByIDNoLock(_ context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
 	// The schema sorts this by created at, so we iterate the array backwards.
 	for i := len(q.workspaceAgents) - 1; i >= 0; i-- {
 		agent := q.workspaceAgents[i]
@@ -914,7 +937,7 @@ func (q *fakeQuerier) getWorkspaceAgentByIDNoLock(_ context.Context, id uuid.UUI
 	return database.WorkspaceAgent{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) getWorkspaceAgentsByResourceIDsNoLock(_ context.Context, resourceIDs []uuid.UUID) ([]database.WorkspaceAgent, error) {
+func (q *FakeQuerier) getWorkspaceAgentsByResourceIDsNoLock(_ context.Context, resourceIDs []uuid.UUID) ([]database.WorkspaceAgent, error) {
 	workspaceAgents := make([]database.WorkspaceAgent, 0)
 	for _, agent := range q.workspaceAgents {
 		for _, resourceID := range resourceIDs {
@@ -927,7 +950,7 @@ func (q *fakeQuerier) getWorkspaceAgentsByResourceIDsNoLock(_ context.Context, r
 	return workspaceAgents, nil
 }
 
-func (q *fakeQuerier) getProvisionerJobByIDNoLock(_ context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
+func (q *FakeQuerier) getProvisionerJobByIDNoLock(_ context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
 	for _, provisionerJob := range q.provisionerJobs {
 		if provisionerJob.ID != id {
 			continue
@@ -937,7 +960,7 @@ func (q *fakeQuerier) getProvisionerJobByIDNoLock(_ context.Context, id uuid.UUI
 	return database.ProvisionerJob{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) getWorkspaceResourcesByJobIDNoLock(_ context.Context, jobID uuid.UUID) ([]database.WorkspaceResource, error) {
+func (q *FakeQuerier) getWorkspaceResourcesByJobIDNoLock(_ context.Context, jobID uuid.UUID) ([]database.WorkspaceResource, error) {
 	resources := make([]database.WorkspaceResource, 0)
 	for _, resource := range q.workspaceResources {
 		if resource.JobID != jobID {
@@ -948,7 +971,7 @@ func (q *fakeQuerier) getWorkspaceResourcesByJobIDNoLock(_ context.Context, jobI
 	return resources, nil
 }
 
-func (q *fakeQuerier) getGroupByIDNoLock(_ context.Context, id uuid.UUID) (database.Group, error) {
+func (q *FakeQuerier) getGroupByIDNoLock(_ context.Context, id uuid.UUID) (database.Group, error) {
 	for _, group := range q.groups {
 		if group.ID == id {
 			return group, nil
@@ -970,17 +993,17 @@ func isNotNull(v interface{}) bool {
 
 // ErrUnimplemented is returned by methods only used by the enterprise/tailnet.pgCoord.  This coordinator explicitly
 // depends on  postgres triggers that announce changes on the pubsub.  Implementing support for this in the fake
-// database would  strongly couple the fakeQuerier to the pubsub, which is undesirable.  Furthermore, it makes little
-// sense to directly  test the pgCoord against anything other than postgres.  The fakeQuerier is designed to allow us to
+// database would  strongly couple the FakeQuerier to the pubsub, which is undesirable.  Furthermore, it makes little
+// sense to directly  test the pgCoord against anything other than postgres.  The FakeQuerier is designed to allow us to
 // test the Coderd  API, and for that kind of test, the in-memory, AGPL tailnet coordinator is sufficient.  Therefore,
-// these methods  remain unimplemented in the fakeQuerier.
+// these methods  remain unimplemented in the FakeQuerier.
 var ErrUnimplemented = xerrors.New("unimplemented")
 
-func (*fakeQuerier) AcquireLock(_ context.Context, _ int64) error {
+func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
 
-func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.AcquireProvisionerJobParams) (database.ProvisionerJob, error) {
+func (q *FakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.AcquireProvisionerJobParams) (database.ProvisionerJob, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.ProvisionerJob{}, err
 	}
@@ -1035,11 +1058,11 @@ func (q *fakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 	return database.ProvisionerJob{}, sql.ErrNoRows
 }
 
-func (*fakeQuerier) CleanTailnetCoordinators(_ context.Context) error {
+func (*FakeQuerier) CleanTailnetCoordinators(_ context.Context) error {
 	return ErrUnimplemented
 }
 
-func (q *fakeQuerier) DeleteAPIKeyByID(_ context.Context, id string) error {
+func (q *FakeQuerier) DeleteAPIKeyByID(_ context.Context, id string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -1054,7 +1077,7 @@ func (q *fakeQuerier) DeleteAPIKeyByID(_ context.Context, id string) error {
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) DeleteAPIKeysByUserID(_ context.Context, userID uuid.UUID) error {
+func (q *FakeQuerier) DeleteAPIKeysByUserID(_ context.Context, userID uuid.UUID) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -1067,7 +1090,7 @@ func (q *fakeQuerier) DeleteAPIKeysByUserID(_ context.Context, userID uuid.UUID)
 	return nil
 }
 
-func (q *fakeQuerier) DeleteApplicationConnectAPIKeysByUserID(_ context.Context, userID uuid.UUID) error {
+func (q *FakeQuerier) DeleteApplicationConnectAPIKeysByUserID(_ context.Context, userID uuid.UUID) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -1080,11 +1103,11 @@ func (q *fakeQuerier) DeleteApplicationConnectAPIKeysByUserID(_ context.Context,
 	return nil
 }
 
-func (*fakeQuerier) DeleteCoordinator(context.Context, uuid.UUID) error {
+func (*FakeQuerier) DeleteCoordinator(context.Context, uuid.UUID) error {
 	return ErrUnimplemented
 }
 
-func (q *fakeQuerier) DeleteGitSSHKey(_ context.Context, userID uuid.UUID) error {
+func (q *FakeQuerier) DeleteGitSSHKey(_ context.Context, userID uuid.UUID) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -1099,7 +1122,7 @@ func (q *fakeQuerier) DeleteGitSSHKey(_ context.Context, userID uuid.UUID) error
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) DeleteGroupByID(_ context.Context, id uuid.UUID) error {
+func (q *FakeQuerier) DeleteGroupByID(_ context.Context, id uuid.UUID) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -1113,7 +1136,7 @@ func (q *fakeQuerier) DeleteGroupByID(_ context.Context, id uuid.UUID) error {
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) DeleteGroupMemberFromGroup(_ context.Context, arg database.DeleteGroupMemberFromGroupParams) error {
+func (q *FakeQuerier) DeleteGroupMemberFromGroup(_ context.Context, arg database.DeleteGroupMemberFromGroupParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -1125,7 +1148,7 @@ func (q *fakeQuerier) DeleteGroupMemberFromGroup(_ context.Context, arg database
 	return nil
 }
 
-func (q *fakeQuerier) DeleteGroupMembersByOrgAndUser(_ context.Context, arg database.DeleteGroupMembersByOrgAndUserParams) error {
+func (q *FakeQuerier) DeleteGroupMembersByOrgAndUser(_ context.Context, arg database.DeleteGroupMembersByOrgAndUserParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -1155,7 +1178,7 @@ func (q *fakeQuerier) DeleteGroupMembersByOrgAndUser(_ context.Context, arg data
 	return nil
 }
 
-func (q *fakeQuerier) DeleteLicense(_ context.Context, id int32) (int32, error) {
+func (q *FakeQuerier) DeleteLicense(_ context.Context, id int32) (int32, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -1169,17 +1192,17 @@ func (q *fakeQuerier) DeleteLicense(_ context.Context, id int32) (int32, error) 
 	return 0, sql.ErrNoRows
 }
 
-func (*fakeQuerier) DeleteOldWorkspaceAgentStartupLogs(_ context.Context) error {
+func (*FakeQuerier) DeleteOldWorkspaceAgentStartupLogs(_ context.Context) error {
 	// noop
 	return nil
 }
 
-func (*fakeQuerier) DeleteOldWorkspaceAgentStats(_ context.Context) error {
+func (*FakeQuerier) DeleteOldWorkspaceAgentStats(_ context.Context) error {
 	// no-op
 	return nil
 }
 
-func (q *fakeQuerier) DeleteReplicasUpdatedBefore(_ context.Context, before time.Time) error {
+func (q *FakeQuerier) DeleteReplicasUpdatedBefore(_ context.Context, before time.Time) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -1192,15 +1215,15 @@ func (q *fakeQuerier) DeleteReplicasUpdatedBefore(_ context.Context, before time
 	return nil
 }
 
-func (*fakeQuerier) DeleteTailnetAgent(context.Context, database.DeleteTailnetAgentParams) (database.DeleteTailnetAgentRow, error) {
+func (*FakeQuerier) DeleteTailnetAgent(context.Context, database.DeleteTailnetAgentParams) (database.DeleteTailnetAgentRow, error) {
 	return database.DeleteTailnetAgentRow{}, ErrUnimplemented
 }
 
-func (*fakeQuerier) DeleteTailnetClient(context.Context, database.DeleteTailnetClientParams) (database.DeleteTailnetClientRow, error) {
+func (*FakeQuerier) DeleteTailnetClient(context.Context, database.DeleteTailnetClientParams) (database.DeleteTailnetClientRow, error) {
 	return database.DeleteTailnetClientRow{}, ErrUnimplemented
 }
 
-func (q *fakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIKey, error) {
+func (q *FakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIKey, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1212,7 +1235,7 @@ func (q *fakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIK
 	return database.APIKey{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetAPIKeyByName(_ context.Context, params database.GetAPIKeyByNameParams) (database.APIKey, error) {
+func (q *FakeQuerier) GetAPIKeyByName(_ context.Context, params database.GetAPIKeyByNameParams) (database.APIKey, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1227,7 +1250,7 @@ func (q *fakeQuerier) GetAPIKeyByName(_ context.Context, params database.GetAPIK
 	return database.APIKey{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetAPIKeysByLoginType(_ context.Context, t database.LoginType) ([]database.APIKey, error) {
+func (q *FakeQuerier) GetAPIKeysByLoginType(_ context.Context, t database.LoginType) ([]database.APIKey, error) {
 	if err := validateDatabaseType(t); err != nil {
 		return nil, err
 	}
@@ -1244,7 +1267,7 @@ func (q *fakeQuerier) GetAPIKeysByLoginType(_ context.Context, t database.LoginT
 	return apiKeys, nil
 }
 
-func (q *fakeQuerier) GetAPIKeysByUserID(_ context.Context, params database.GetAPIKeysByUserIDParams) ([]database.APIKey, error) {
+func (q *FakeQuerier) GetAPIKeysByUserID(_ context.Context, params database.GetAPIKeysByUserIDParams) ([]database.APIKey, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1257,7 +1280,7 @@ func (q *fakeQuerier) GetAPIKeysByUserID(_ context.Context, params database.GetA
 	return apiKeys, nil
 }
 
-func (q *fakeQuerier) GetAPIKeysLastUsedAfter(_ context.Context, after time.Time) ([]database.APIKey, error) {
+func (q *FakeQuerier) GetAPIKeysLastUsedAfter(_ context.Context, after time.Time) ([]database.APIKey, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1270,7 +1293,7 @@ func (q *fakeQuerier) GetAPIKeysLastUsedAfter(_ context.Context, after time.Time
 	return apiKeys, nil
 }
 
-func (q *fakeQuerier) GetActiveUserCount(_ context.Context) (int64, error) {
+func (q *FakeQuerier) GetActiveUserCount(_ context.Context) (int64, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1283,14 +1306,14 @@ func (q *fakeQuerier) GetActiveUserCount(_ context.Context) (int64, error) {
 	return active, nil
 }
 
-func (q *fakeQuerier) GetAppSecurityKey(_ context.Context) (string, error) {
+func (q *FakeQuerier) GetAppSecurityKey(_ context.Context) (string, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	return q.appSecurityKey, nil
 }
 
-func (q *fakeQuerier) GetAuditLogsOffset(_ context.Context, arg database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
+func (q *FakeQuerier) GetAuditLogsOffset(_ context.Context, arg database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return nil, err
 	}
@@ -1383,7 +1406,7 @@ func (q *fakeQuerier) GetAuditLogsOffset(_ context.Context, arg database.GetAudi
 	return logs, nil
 }
 
-func (q *fakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.UUID) (database.GetAuthorizationUserRolesRow, error) {
+func (q *FakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.UUID) (database.GetAuthorizationUserRolesRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1426,21 +1449,21 @@ func (q *fakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.U
 	}, nil
 }
 
-func (q *fakeQuerier) GetDERPMeshKey(_ context.Context) (string, error) {
+func (q *FakeQuerier) GetDERPMeshKey(_ context.Context) (string, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	return q.derpMeshKey, nil
 }
 
-func (q *fakeQuerier) GetDefaultProxyConfig(_ context.Context) (database.GetDefaultProxyConfigRow, error) {
+func (q *FakeQuerier) GetDefaultProxyConfig(_ context.Context) (database.GetDefaultProxyConfigRow, error) {
 	return database.GetDefaultProxyConfigRow{
 		DisplayName: q.defaultProxyDisplayName,
 		IconUrl:     q.defaultProxyIconURL,
 	}, nil
 }
 
-func (q *fakeQuerier) GetDeploymentDAUs(_ context.Context, tzOffset int32) ([]database.GetDeploymentDAUsRow, error) {
+func (q *FakeQuerier) GetDeploymentDAUs(_ context.Context, tzOffset int32) ([]database.GetDeploymentDAUsRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1479,14 +1502,14 @@ func (q *fakeQuerier) GetDeploymentDAUs(_ context.Context, tzOffset int32) ([]da
 	return rs, nil
 }
 
-func (q *fakeQuerier) GetDeploymentID(_ context.Context) (string, error) {
+func (q *FakeQuerier) GetDeploymentID(_ context.Context) (string, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	return q.deploymentID, nil
 }
 
-func (q *fakeQuerier) GetDeploymentWorkspaceAgentStats(_ context.Context, createdAfter time.Time) (database.GetDeploymentWorkspaceAgentStatsRow, error) {
+func (q *FakeQuerier) GetDeploymentWorkspaceAgentStats(_ context.Context, createdAfter time.Time) (database.GetDeploymentWorkspaceAgentStatsRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1536,7 +1559,7 @@ func (q *fakeQuerier) GetDeploymentWorkspaceAgentStats(_ context.Context, create
 	return stat, nil
 }
 
-func (q *fakeQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (database.GetDeploymentWorkspaceStatsRow, error) {
+func (q *FakeQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (database.GetDeploymentWorkspaceStatsRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1580,7 +1603,7 @@ func (q *fakeQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (database
 	return stat, nil
 }
 
-func (q *fakeQuerier) GetFileByHashAndCreator(_ context.Context, arg database.GetFileByHashAndCreatorParams) (database.File, error) {
+func (q *FakeQuerier) GetFileByHashAndCreator(_ context.Context, arg database.GetFileByHashAndCreatorParams) (database.File, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.File{}, err
 	}
@@ -1596,7 +1619,7 @@ func (q *fakeQuerier) GetFileByHashAndCreator(_ context.Context, arg database.Ge
 	return database.File{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetFileByID(_ context.Context, id uuid.UUID) (database.File, error) {
+func (q *FakeQuerier) GetFileByID(_ context.Context, id uuid.UUID) (database.File, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1608,7 +1631,7 @@ func (q *fakeQuerier) GetFileByID(_ context.Context, id uuid.UUID) (database.Fil
 	return database.File{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetFileTemplates(_ context.Context, id uuid.UUID) ([]database.GetFileTemplatesRow, error) {
+func (q *FakeQuerier) GetFileTemplates(_ context.Context, id uuid.UUID) ([]database.GetFileTemplatesRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1649,7 +1672,7 @@ func (q *fakeQuerier) GetFileTemplates(_ context.Context, id uuid.UUID) ([]datab
 	return rows, nil
 }
 
-func (q *fakeQuerier) GetFilteredUserCount(ctx context.Context, arg database.GetFilteredUserCountParams) (int64, error) {
+func (q *FakeQuerier) GetFilteredUserCount(ctx context.Context, arg database.GetFilteredUserCountParams) (int64, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return 0, err
 	}
@@ -1657,7 +1680,7 @@ func (q *fakeQuerier) GetFilteredUserCount(ctx context.Context, arg database.Get
 	return count, err
 }
 
-func (q *fakeQuerier) GetGitAuthLink(_ context.Context, arg database.GetGitAuthLinkParams) (database.GitAuthLink, error) {
+func (q *FakeQuerier) GetGitAuthLink(_ context.Context, arg database.GetGitAuthLinkParams) (database.GitAuthLink, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.GitAuthLink{}, err
 	}
@@ -1676,7 +1699,7 @@ func (q *fakeQuerier) GetGitAuthLink(_ context.Context, arg database.GetGitAuthL
 	return database.GitAuthLink{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetGitSSHKey(_ context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
+func (q *FakeQuerier) GetGitSSHKey(_ context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1688,14 +1711,14 @@ func (q *fakeQuerier) GetGitSSHKey(_ context.Context, userID uuid.UUID) (databas
 	return database.GitSSHKey{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetGroupByID(ctx context.Context, id uuid.UUID) (database.Group, error) {
+func (q *FakeQuerier) GetGroupByID(ctx context.Context, id uuid.UUID) (database.Group, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	return q.getGroupByIDNoLock(ctx, id)
 }
 
-func (q *fakeQuerier) GetGroupByOrgAndName(_ context.Context, arg database.GetGroupByOrgAndNameParams) (database.Group, error) {
+func (q *FakeQuerier) GetGroupByOrgAndName(_ context.Context, arg database.GetGroupByOrgAndNameParams) (database.Group, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.Group{}, err
 	}
@@ -1713,7 +1736,7 @@ func (q *fakeQuerier) GetGroupByOrgAndName(_ context.Context, arg database.GetGr
 	return database.Group{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetGroupMembers(_ context.Context, groupID uuid.UUID) ([]database.User, error) {
+func (q *FakeQuerier) GetGroupMembers(_ context.Context, groupID uuid.UUID) ([]database.User, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1738,7 +1761,7 @@ func (q *fakeQuerier) GetGroupMembers(_ context.Context, groupID uuid.UUID) ([]d
 	return users, nil
 }
 
-func (q *fakeQuerier) GetGroupsByOrganizationID(_ context.Context, organizationID uuid.UUID) ([]database.Group, error) {
+func (q *FakeQuerier) GetGroupsByOrganizationID(_ context.Context, organizationID uuid.UUID) ([]database.Group, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1753,7 +1776,7 @@ func (q *fakeQuerier) GetGroupsByOrganizationID(_ context.Context, organizationI
 	return groups, nil
 }
 
-func (q *fakeQuerier) GetHungProvisionerJobs(_ context.Context, hungSince time.Time) ([]database.ProvisionerJob, error) {
+func (q *FakeQuerier) GetHungProvisionerJobs(_ context.Context, hungSince time.Time) ([]database.ProvisionerJob, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1766,7 +1789,7 @@ func (q *fakeQuerier) GetHungProvisionerJobs(_ context.Context, hungSince time.T
 	return hungJobs, nil
 }
 
-func (q *fakeQuerier) GetLastUpdateCheck(_ context.Context) (string, error) {
+func (q *FakeQuerier) GetLastUpdateCheck(_ context.Context) (string, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1776,14 +1799,14 @@ func (q *fakeQuerier) GetLastUpdateCheck(_ context.Context) (string, error) {
 	return string(q.lastUpdateCheck), nil
 }
 
-func (q *fakeQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
+func (q *FakeQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	return q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, workspaceID)
 }
 
-func (q *fakeQuerier) GetLatestWorkspaceBuilds(_ context.Context) ([]database.WorkspaceBuild, error) {
+func (q *FakeQuerier) GetLatestWorkspaceBuilds(_ context.Context) ([]database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1809,7 +1832,7 @@ func (q *fakeQuerier) GetLatestWorkspaceBuilds(_ context.Context) ([]database.Wo
 	return returnBuilds, nil
 }
 
-func (q *fakeQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceBuild, error) {
+func (q *FakeQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1836,7 +1859,7 @@ func (q *fakeQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(_ context.Context, 
 	return returnBuilds, nil
 }
 
-func (q *fakeQuerier) GetLicenseByID(_ context.Context, id int32) (database.License, error) {
+func (q *FakeQuerier) GetLicenseByID(_ context.Context, id int32) (database.License, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1848,7 +1871,7 @@ func (q *fakeQuerier) GetLicenseByID(_ context.Context, id int32) (database.Lice
 	return database.License{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetLicenses(_ context.Context) ([]database.License, error) {
+func (q *FakeQuerier) GetLicenses(_ context.Context) ([]database.License, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1857,7 +1880,7 @@ func (q *fakeQuerier) GetLicenses(_ context.Context) ([]database.License, error)
 	return results, nil
 }
 
-func (q *fakeQuerier) GetLogoURL(_ context.Context) (string, error) {
+func (q *FakeQuerier) GetLogoURL(_ context.Context) (string, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1868,14 +1891,14 @@ func (q *fakeQuerier) GetLogoURL(_ context.Context) (string, error) {
 	return q.logoURL, nil
 }
 
-func (q *fakeQuerier) GetOAuthSigningKey(_ context.Context) (string, error) {
+func (q *FakeQuerier) GetOAuthSigningKey(_ context.Context) (string, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	return q.oauthSigningKey, nil
 }
 
-func (q *fakeQuerier) GetOrganizationByID(_ context.Context, id uuid.UUID) (database.Organization, error) {
+func (q *FakeQuerier) GetOrganizationByID(_ context.Context, id uuid.UUID) (database.Organization, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1887,7 +1910,7 @@ func (q *fakeQuerier) GetOrganizationByID(_ context.Context, id uuid.UUID) (data
 	return database.Organization{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetOrganizationByName(_ context.Context, name string) (database.Organization, error) {
+func (q *FakeQuerier) GetOrganizationByName(_ context.Context, name string) (database.Organization, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1899,7 +1922,7 @@ func (q *fakeQuerier) GetOrganizationByName(_ context.Context, name string) (dat
 	return database.Organization{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetOrganizationIDsByMemberIDs(_ context.Context, ids []uuid.UUID) ([]database.GetOrganizationIDsByMemberIDsRow, error) {
+func (q *FakeQuerier) GetOrganizationIDsByMemberIDs(_ context.Context, ids []uuid.UUID) ([]database.GetOrganizationIDsByMemberIDsRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1922,7 +1945,7 @@ func (q *fakeQuerier) GetOrganizationIDsByMemberIDs(_ context.Context, ids []uui
 	return getOrganizationIDsByMemberIDRows, nil
 }
 
-func (q *fakeQuerier) GetOrganizationMemberByUserID(_ context.Context, arg database.GetOrganizationMemberByUserIDParams) (database.OrganizationMember, error) {
+func (q *FakeQuerier) GetOrganizationMemberByUserID(_ context.Context, arg database.GetOrganizationMemberByUserIDParams) (database.OrganizationMember, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.OrganizationMember{}, err
 	}
@@ -1942,7 +1965,7 @@ func (q *fakeQuerier) GetOrganizationMemberByUserID(_ context.Context, arg datab
 	return database.OrganizationMember{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetOrganizationMembershipsByUserID(_ context.Context, userID uuid.UUID) ([]database.OrganizationMember, error) {
+func (q *FakeQuerier) GetOrganizationMembershipsByUserID(_ context.Context, userID uuid.UUID) ([]database.OrganizationMember, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1957,7 +1980,7 @@ func (q *fakeQuerier) GetOrganizationMembershipsByUserID(_ context.Context, user
 	return memberships, nil
 }
 
-func (q *fakeQuerier) GetOrganizations(_ context.Context) ([]database.Organization, error) {
+func (q *FakeQuerier) GetOrganizations(_ context.Context) ([]database.Organization, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1967,7 +1990,7 @@ func (q *fakeQuerier) GetOrganizations(_ context.Context) ([]database.Organizati
 	return q.organizations, nil
 }
 
-func (q *fakeQuerier) GetOrganizationsByUserID(_ context.Context, userID uuid.UUID) ([]database.Organization, error) {
+func (q *FakeQuerier) GetOrganizationsByUserID(_ context.Context, userID uuid.UUID) ([]database.Organization, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -1989,7 +2012,7 @@ func (q *fakeQuerier) GetOrganizationsByUserID(_ context.Context, userID uuid.UU
 	return organizations, nil
 }
 
-func (q *fakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.UUID) ([]database.ParameterSchema, error) {
+func (q *FakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.UUID) ([]database.ParameterSchema, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2009,7 +2032,7 @@ func (q *fakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.U
 	return parameters, nil
 }
 
-func (q *fakeQuerier) GetPreviousTemplateVersion(_ context.Context, arg database.GetPreviousTemplateVersionParams) (database.TemplateVersion, error) {
+func (q *FakeQuerier) GetPreviousTemplateVersion(_ context.Context, arg database.GetPreviousTemplateVersionParams) (database.TemplateVersion, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.TemplateVersion{}, err
 	}
@@ -2060,7 +2083,7 @@ func (q *fakeQuerier) GetPreviousTemplateVersion(_ context.Context, arg database
 	return previousTemplateVersions[0], nil
 }
 
-func (q *fakeQuerier) GetProvisionerDaemons(_ context.Context) ([]database.ProvisionerDaemon, error) {
+func (q *FakeQuerier) GetProvisionerDaemons(_ context.Context) ([]database.ProvisionerDaemon, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2070,14 +2093,14 @@ func (q *fakeQuerier) GetProvisionerDaemons(_ context.Context) ([]database.Provi
 	return q.provisionerDaemons, nil
 }
 
-func (q *fakeQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
+func (q *FakeQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	return q.getProvisionerJobByIDNoLock(ctx, id)
 }
 
-func (q *fakeQuerier) GetProvisionerJobsByIDs(_ context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
+func (q *FakeQuerier) GetProvisionerJobsByIDs(_ context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2097,7 +2120,7 @@ func (q *fakeQuerier) GetProvisionerJobsByIDs(_ context.Context, ids []uuid.UUID
 	return jobs, nil
 }
 
-func (q *fakeQuerier) GetProvisionerJobsByIDsWithQueuePosition(_ context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+func (q *FakeQuerier) GetProvisionerJobsByIDsWithQueuePosition(_ context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2129,7 +2152,7 @@ func (q *fakeQuerier) GetProvisionerJobsByIDsWithQueuePosition(_ context.Context
 	return jobs, nil
 }
 
-func (q *fakeQuerier) GetProvisionerJobsCreatedAfter(_ context.Context, after time.Time) ([]database.ProvisionerJob, error) {
+func (q *FakeQuerier) GetProvisionerJobsCreatedAfter(_ context.Context, after time.Time) ([]database.ProvisionerJob, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2142,7 +2165,7 @@ func (q *fakeQuerier) GetProvisionerJobsCreatedAfter(_ context.Context, after ti
 	return jobs, nil
 }
 
-func (q *fakeQuerier) GetProvisionerLogsAfterID(_ context.Context, arg database.GetProvisionerLogsAfterIDParams) ([]database.ProvisionerJobLog, error) {
+func (q *FakeQuerier) GetProvisionerLogsAfterID(_ context.Context, arg database.GetProvisionerLogsAfterIDParams) ([]database.ProvisionerJobLog, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return nil, err
 	}
@@ -2163,7 +2186,7 @@ func (q *fakeQuerier) GetProvisionerLogsAfterID(_ context.Context, arg database.
 	return logs, nil
 }
 
-func (q *fakeQuerier) GetQuotaAllowanceForUser(_ context.Context, userID uuid.UUID) (int64, error) {
+func (q *FakeQuerier) GetQuotaAllowanceForUser(_ context.Context, userID uuid.UUID) (int64, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2181,7 +2204,7 @@ func (q *fakeQuerier) GetQuotaAllowanceForUser(_ context.Context, userID uuid.UU
 	return sum, nil
 }
 
-func (q *fakeQuerier) GetQuotaConsumedForUser(_ context.Context, userID uuid.UUID) (int64, error) {
+func (q *FakeQuerier) GetQuotaConsumedForUser(_ context.Context, userID uuid.UUID) (int64, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2208,7 +2231,7 @@ func (q *fakeQuerier) GetQuotaConsumedForUser(_ context.Context, userID uuid.UUI
 	return sum, nil
 }
 
-func (q *fakeQuerier) GetReplicasUpdatedAfter(_ context.Context, updatedAt time.Time) ([]database.Replica, error) {
+func (q *FakeQuerier) GetReplicasUpdatedAfter(_ context.Context, updatedAt time.Time) ([]database.Replica, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 	replicas := make([]database.Replica, 0)
@@ -2220,7 +2243,7 @@ func (q *fakeQuerier) GetReplicasUpdatedAfter(_ context.Context, updatedAt time.
 	return replicas, nil
 }
 
-func (q *fakeQuerier) GetServiceBanner(_ context.Context) (string, error) {
+func (q *FakeQuerier) GetServiceBanner(_ context.Context) (string, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2231,15 +2254,15 @@ func (q *fakeQuerier) GetServiceBanner(_ context.Context) (string, error) {
 	return string(q.serviceBanner), nil
 }
 
-func (*fakeQuerier) GetTailnetAgents(context.Context, uuid.UUID) ([]database.TailnetAgent, error) {
+func (*FakeQuerier) GetTailnetAgents(context.Context, uuid.UUID) ([]database.TailnetAgent, error) {
 	return nil, ErrUnimplemented
 }
 
-func (*fakeQuerier) GetTailnetClientsForAgent(context.Context, uuid.UUID) ([]database.TailnetClient, error) {
+func (*FakeQuerier) GetTailnetClientsForAgent(context.Context, uuid.UUID) ([]database.TailnetClient, error) {
 	return nil, ErrUnimplemented
 }
 
-func (q *fakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
+func (q *FakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.GetTemplateAverageBuildTimeRow{}, err
 	}
@@ -2293,14 +2316,14 @@ func (q *fakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg datab
 	return row, nil
 }
 
-func (q *fakeQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (database.Template, error) {
+func (q *FakeQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (database.Template, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	return q.getTemplateByIDNoLock(ctx, id)
 }
 
-func (q *fakeQuerier) GetTemplateByOrganizationAndName(_ context.Context, arg database.GetTemplateByOrganizationAndNameParams) (database.Template, error) {
+func (q *FakeQuerier) GetTemplateByOrganizationAndName(_ context.Context, arg database.GetTemplateByOrganizationAndNameParams) (database.Template, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.Template{}, err
 	}
@@ -2323,7 +2346,7 @@ func (q *fakeQuerier) GetTemplateByOrganizationAndName(_ context.Context, arg da
 	return database.Template{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, arg database.GetTemplateDAUsParams) ([]database.GetTemplateDAUsRow, error) {
+func (q *FakeQuerier) GetTemplateDAUs(_ context.Context, arg database.GetTemplateDAUsParams) ([]database.GetTemplateDAUsRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2366,14 +2389,14 @@ func (q *fakeQuerier) GetTemplateDAUs(_ context.Context, arg database.GetTemplat
 	return rs, nil
 }
 
-func (q *fakeQuerier) GetTemplateVersionByID(ctx context.Context, templateVersionID uuid.UUID) (database.TemplateVersion, error) {
+func (q *FakeQuerier) GetTemplateVersionByID(ctx context.Context, templateVersionID uuid.UUID) (database.TemplateVersion, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	return q.getTemplateVersionByIDNoLock(ctx, templateVersionID)
 }
 
-func (q *fakeQuerier) GetTemplateVersionByJobID(_ context.Context, jobID uuid.UUID) (database.TemplateVersion, error) {
+func (q *FakeQuerier) GetTemplateVersionByJobID(_ context.Context, jobID uuid.UUID) (database.TemplateVersion, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2386,7 +2409,7 @@ func (q *fakeQuerier) GetTemplateVersionByJobID(_ context.Context, jobID uuid.UU
 	return database.TemplateVersion{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetTemplateVersionByTemplateIDAndName(_ context.Context, arg database.GetTemplateVersionByTemplateIDAndNameParams) (database.TemplateVersion, error) {
+func (q *FakeQuerier) GetTemplateVersionByTemplateIDAndName(_ context.Context, arg database.GetTemplateVersionByTemplateIDAndNameParams) (database.TemplateVersion, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.TemplateVersion{}, err
 	}
@@ -2406,7 +2429,7 @@ func (q *fakeQuerier) GetTemplateVersionByTemplateIDAndName(_ context.Context, a
 	return database.TemplateVersion{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetTemplateVersionParameters(_ context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionParameter, error) {
+func (q *FakeQuerier) GetTemplateVersionParameters(_ context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionParameter, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2426,7 +2449,7 @@ func (q *fakeQuerier) GetTemplateVersionParameters(_ context.Context, templateVe
 	return parameters, nil
 }
 
-func (q *fakeQuerier) GetTemplateVersionVariables(_ context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionVariable, error) {
+func (q *FakeQuerier) GetTemplateVersionVariables(_ context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionVariable, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2440,7 +2463,7 @@ func (q *fakeQuerier) GetTemplateVersionVariables(_ context.Context, templateVer
 	return variables, nil
 }
 
-func (q *fakeQuerier) GetTemplateVersionsByIDs(_ context.Context, ids []uuid.UUID) ([]database.TemplateVersion, error) {
+func (q *FakeQuerier) GetTemplateVersionsByIDs(_ context.Context, ids []uuid.UUID) ([]database.TemplateVersion, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2460,7 +2483,7 @@ func (q *fakeQuerier) GetTemplateVersionsByIDs(_ context.Context, ids []uuid.UUI
 	return versions, nil
 }
 
-func (q *fakeQuerier) GetTemplateVersionsByTemplateID(_ context.Context, arg database.GetTemplateVersionsByTemplateIDParams) (version []database.TemplateVersion, err error) {
+func (q *FakeQuerier) GetTemplateVersionsByTemplateID(_ context.Context, arg database.GetTemplateVersionsByTemplateIDParams) (version []database.TemplateVersion, err error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return version, err
 	}
@@ -2523,7 +2546,7 @@ func (q *fakeQuerier) GetTemplateVersionsByTemplateID(_ context.Context, arg dat
 	return version, nil
 }
 
-func (q *fakeQuerier) GetTemplateVersionsCreatedAfter(_ context.Context, after time.Time) ([]database.TemplateVersion, error) {
+func (q *FakeQuerier) GetTemplateVersionsCreatedAfter(_ context.Context, after time.Time) ([]database.TemplateVersion, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2536,7 +2559,7 @@ func (q *fakeQuerier) GetTemplateVersionsCreatedAfter(_ context.Context, after t
 	return versions, nil
 }
 
-func (q *fakeQuerier) GetTemplates(_ context.Context) ([]database.Template, error) {
+func (q *FakeQuerier) GetTemplates(_ context.Context) ([]database.Template, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2554,7 +2577,7 @@ func (q *fakeQuerier) GetTemplates(_ context.Context) ([]database.Template, erro
 	return templates, nil
 }
 
-func (q *fakeQuerier) GetTemplatesWithFilter(ctx context.Context, arg database.GetTemplatesWithFilterParams) ([]database.Template, error) {
+func (q *FakeQuerier) GetTemplatesWithFilter(ctx context.Context, arg database.GetTemplatesWithFilterParams) ([]database.Template, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return nil, err
 	}
@@ -2562,7 +2585,7 @@ func (q *fakeQuerier) GetTemplatesWithFilter(ctx context.Context, arg database.G
 	return q.GetAuthorizedTemplates(ctx, arg, nil)
 }
 
-func (q *fakeQuerier) GetUnexpiredLicenses(_ context.Context) ([]database.License, error) {
+func (q *FakeQuerier) GetUnexpiredLicenses(_ context.Context) ([]database.License, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2577,7 +2600,7 @@ func (q *fakeQuerier) GetUnexpiredLicenses(_ context.Context) ([]database.Licens
 	return results, nil
 }
 
-func (q *fakeQuerier) GetUserByEmailOrUsername(_ context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {
+func (q *FakeQuerier) GetUserByEmailOrUsername(_ context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.User{}, err
 	}
@@ -2593,14 +2616,14 @@ func (q *fakeQuerier) GetUserByEmailOrUsername(_ context.Context, arg database.G
 	return database.User{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetUserByID(_ context.Context, id uuid.UUID) (database.User, error) {
+func (q *FakeQuerier) GetUserByID(_ context.Context, id uuid.UUID) (database.User, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	return q.getUserByIDNoLock(id)
 }
 
-func (q *fakeQuerier) GetUserCount(_ context.Context) (int64, error) {
+func (q *FakeQuerier) GetUserCount(_ context.Context) (int64, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2613,7 +2636,7 @@ func (q *fakeQuerier) GetUserCount(_ context.Context) (int64, error) {
 	return existing, nil
 }
 
-func (q *fakeQuerier) GetUserLinkByLinkedID(_ context.Context, id string) (database.UserLink, error) {
+func (q *FakeQuerier) GetUserLinkByLinkedID(_ context.Context, id string) (database.UserLink, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2625,7 +2648,7 @@ func (q *fakeQuerier) GetUserLinkByLinkedID(_ context.Context, id string) (datab
 	return database.UserLink{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetUserLinkByUserIDLoginType(_ context.Context, params database.GetUserLinkByUserIDLoginTypeParams) (database.UserLink, error) {
+func (q *FakeQuerier) GetUserLinkByUserIDLoginType(_ context.Context, params database.GetUserLinkByUserIDLoginTypeParams) (database.UserLink, error) {
 	if err := validateDatabaseType(params); err != nil {
 		return database.UserLink{}, err
 	}
@@ -2641,7 +2664,7 @@ func (q *fakeQuerier) GetUserLinkByUserIDLoginType(_ context.Context, params dat
 	return database.UserLink{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams) ([]database.GetUsersRow, error) {
+func (q *FakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams) ([]database.GetUsersRow, error) {
 	if err := validateDatabaseType(params); err != nil {
 		return nil, err
 	}
@@ -2757,7 +2780,7 @@ func (q *fakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 	return convertUsers(users, int64(beforePageCount)), nil
 }
 
-func (q *fakeQuerier) GetUsersByIDs(_ context.Context, ids []uuid.UUID) ([]database.User, error) {
+func (q *FakeQuerier) GetUsersByIDs(_ context.Context, ids []uuid.UUID) ([]database.User, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2773,7 +2796,7 @@ func (q *fakeQuerier) GetUsersByIDs(_ context.Context, ids []uuid.UUID) ([]datab
 	return users, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceAgentByAuthToken(_ context.Context, authToken uuid.UUID) (database.WorkspaceAgent, error) {
+func (q *FakeQuerier) GetWorkspaceAgentByAuthToken(_ context.Context, authToken uuid.UUID) (database.WorkspaceAgent, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2787,14 +2810,14 @@ func (q *fakeQuerier) GetWorkspaceAgentByAuthToken(_ context.Context, authToken 
 	return database.WorkspaceAgent{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
+func (q *FakeQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	return q.getWorkspaceAgentByIDNoLock(ctx, id)
 }
 
-func (q *fakeQuerier) GetWorkspaceAgentByInstanceID(_ context.Context, instanceID string) (database.WorkspaceAgent, error) {
+func (q *FakeQuerier) GetWorkspaceAgentByInstanceID(_ context.Context, instanceID string) (database.WorkspaceAgent, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2808,7 +2831,7 @@ func (q *fakeQuerier) GetWorkspaceAgentByInstanceID(_ context.Context, instanceI
 	return database.WorkspaceAgent{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceAgentLifecycleStateByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentLifecycleStateByIDRow, error) {
+func (q *FakeQuerier) GetWorkspaceAgentLifecycleStateByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceAgentLifecycleStateByIDRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2823,7 +2846,7 @@ func (q *fakeQuerier) GetWorkspaceAgentLifecycleStateByID(ctx context.Context, i
 	}, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceAgentMetadata(_ context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentMetadatum, error) {
+func (q *FakeQuerier) GetWorkspaceAgentMetadata(_ context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentMetadatum, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2836,7 +2859,7 @@ func (q *fakeQuerier) GetWorkspaceAgentMetadata(_ context.Context, workspaceAgen
 	return metadata, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceAgentStartupLogsAfter(_ context.Context, arg database.GetWorkspaceAgentStartupLogsAfterParams) ([]database.WorkspaceAgentStartupLog, error) {
+func (q *FakeQuerier) GetWorkspaceAgentStartupLogsAfter(_ context.Context, arg database.GetWorkspaceAgentStartupLogsAfterParams) ([]database.WorkspaceAgentStartupLog, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return nil, err
 	}
@@ -2857,7 +2880,7 @@ func (q *fakeQuerier) GetWorkspaceAgentStartupLogsAfter(_ context.Context, arg d
 	return logs, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceAgentStats(_ context.Context, createdAfter time.Time) ([]database.GetWorkspaceAgentStatsRow, error) {
+func (q *FakeQuerier) GetWorkspaceAgentStats(_ context.Context, createdAfter time.Time) ([]database.GetWorkspaceAgentStatsRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2930,7 +2953,7 @@ func (q *fakeQuerier) GetWorkspaceAgentStats(_ context.Context, createdAfter tim
 	return stats, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAfter time.Time) ([]database.GetWorkspaceAgentStatsAndLabelsRow, error) {
+func (q *FakeQuerier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAfter time.Time) ([]database.GetWorkspaceAgentStatsAndLabelsRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -3001,14 +3024,14 @@ func (q *fakeQuerier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, creat
 	return stats, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, resourceIDs []uuid.UUID) ([]database.WorkspaceAgent, error) {
+func (q *FakeQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, resourceIDs []uuid.UUID) ([]database.WorkspaceAgent, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	return q.getWorkspaceAgentsByResourceIDsNoLock(ctx, resourceIDs)
 }
 
-func (q *fakeQuerier) GetWorkspaceAgentsCreatedAfter(_ context.Context, after time.Time) ([]database.WorkspaceAgent, error) {
+func (q *FakeQuerier) GetWorkspaceAgentsCreatedAfter(_ context.Context, after time.Time) ([]database.WorkspaceAgent, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -3021,7 +3044,7 @@ func (q *fakeQuerier) GetWorkspaceAgentsCreatedAfter(_ context.Context, after ti
 	return workspaceAgents, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgent, error) {
+func (q *FakeQuerier) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgent, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -3053,7 +3076,7 @@ func (q *fakeQuerier) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.C
 	return agents, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceAppByAgentIDAndSlug(_ context.Context, arg database.GetWorkspaceAppByAgentIDAndSlugParams) (database.WorkspaceApp, error) {
+func (q *FakeQuerier) GetWorkspaceAppByAgentIDAndSlug(_ context.Context, arg database.GetWorkspaceAppByAgentIDAndSlugParams) (database.WorkspaceApp, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.WorkspaceApp{}, err
 	}
@@ -3073,7 +3096,7 @@ func (q *fakeQuerier) GetWorkspaceAppByAgentIDAndSlug(_ context.Context, arg dat
 	return database.WorkspaceApp{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceAppsByAgentID(_ context.Context, id uuid.UUID) ([]database.WorkspaceApp, error) {
+func (q *FakeQuerier) GetWorkspaceAppsByAgentID(_ context.Context, id uuid.UUID) ([]database.WorkspaceApp, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -3089,7 +3112,7 @@ func (q *fakeQuerier) GetWorkspaceAppsByAgentID(_ context.Context, id uuid.UUID)
 	return apps, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceAppsByAgentIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceApp, error) {
+func (q *FakeQuerier) GetWorkspaceAppsByAgentIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceApp, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -3105,7 +3128,7 @@ func (q *fakeQuerier) GetWorkspaceAppsByAgentIDs(_ context.Context, ids []uuid.U
 	return apps, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceAppsCreatedAfter(_ context.Context, after time.Time) ([]database.WorkspaceApp, error) {
+func (q *FakeQuerier) GetWorkspaceAppsCreatedAfter(_ context.Context, after time.Time) ([]database.WorkspaceApp, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -3118,14 +3141,14 @@ func (q *fakeQuerier) GetWorkspaceAppsCreatedAfter(_ context.Context, after time
 	return apps, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (database.WorkspaceBuild, error) {
+func (q *FakeQuerier) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	return q.getWorkspaceBuildByIDNoLock(ctx, id)
 }
 
-func (q *fakeQuerier) GetWorkspaceBuildByJobID(_ context.Context, jobID uuid.UUID) (database.WorkspaceBuild, error) {
+func (q *FakeQuerier) GetWorkspaceBuildByJobID(_ context.Context, jobID uuid.UUID) (database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -3137,7 +3160,7 @@ func (q *fakeQuerier) GetWorkspaceBuildByJobID(_ context.Context, jobID uuid.UUI
 	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(_ context.Context, arg database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (database.WorkspaceBuild, error) {
+func (q *FakeQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(_ context.Context, arg database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (database.WorkspaceBuild, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.WorkspaceBuild{}, err
 	}
@@ -3157,7 +3180,7 @@ func (q *fakeQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(_ context.Con
 	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceBuildParameters(_ context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
+func (q *FakeQuerier) GetWorkspaceBuildParameters(_ context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -3171,7 +3194,7 @@ func (q *fakeQuerier) GetWorkspaceBuildParameters(_ context.Context, workspaceBu
 	return params, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceBuildsByWorkspaceID(_ context.Context,
+func (q *FakeQuerier) GetWorkspaceBuildsByWorkspaceID(_ context.Context,
 	params database.GetWorkspaceBuildsByWorkspaceIDParams,
 ) ([]database.WorkspaceBuild, error) {
 	if err := validateDatabaseType(params); err != nil {
@@ -3234,7 +3257,7 @@ func (q *fakeQuerier) GetWorkspaceBuildsByWorkspaceID(_ context.Context,
 	return history, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceBuildsCreatedAfter(_ context.Context, after time.Time) ([]database.WorkspaceBuild, error) {
+func (q *FakeQuerier) GetWorkspaceBuildsCreatedAfter(_ context.Context, after time.Time) ([]database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -3247,21 +3270,21 @@ func (q *fakeQuerier) GetWorkspaceBuildsCreatedAfter(_ context.Context, after ti
 	return workspaceBuilds, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (database.Workspace, error) {
+func (q *FakeQuerier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	return q.getWorkspaceByAgentIDNoLock(ctx, agentID)
 }
 
-func (q *fakeQuerier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (database.Workspace, error) {
+func (q *FakeQuerier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	return q.getWorkspaceByIDNoLock(ctx, id)
 }
 
-func (q *fakeQuerier) GetWorkspaceByOwnerIDAndName(_ context.Context, arg database.GetWorkspaceByOwnerIDAndNameParams) (database.Workspace, error) {
+func (q *FakeQuerier) GetWorkspaceByOwnerIDAndName(_ context.Context, arg database.GetWorkspaceByOwnerIDAndNameParams) (database.Workspace, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.Workspace{}, err
 	}
@@ -3293,7 +3316,7 @@ func (q *fakeQuerier) GetWorkspaceByOwnerIDAndName(_ context.Context, arg databa
 	return database.Workspace{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceByWorkspaceAppID(_ context.Context, workspaceAppID uuid.UUID) (database.Workspace, error) {
+func (q *FakeQuerier) GetWorkspaceByWorkspaceAppID(_ context.Context, workspaceAppID uuid.UUID) (database.Workspace, error) {
 	if err := validateDatabaseType(workspaceAppID); err != nil {
 		return database.Workspace{}, err
 	}
@@ -3310,7 +3333,7 @@ func (q *fakeQuerier) GetWorkspaceByWorkspaceAppID(_ context.Context, workspaceA
 	return database.Workspace{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceProxies(_ context.Context) ([]database.WorkspaceProxy, error) {
+func (q *FakeQuerier) GetWorkspaceProxies(_ context.Context) ([]database.WorkspaceProxy, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -3324,7 +3347,7 @@ func (q *fakeQuerier) GetWorkspaceProxies(_ context.Context) ([]database.Workspa
 	return cpy, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceProxyByHostname(_ context.Context, params database.GetWorkspaceProxyByHostnameParams) (database.WorkspaceProxy, error) {
+func (q *FakeQuerier) GetWorkspaceProxyByHostname(_ context.Context, params database.GetWorkspaceProxyByHostnameParams) (database.WorkspaceProxy, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -3360,7 +3383,7 @@ func (q *fakeQuerier) GetWorkspaceProxyByHostname(_ context.Context, params data
 	return database.WorkspaceProxy{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceProxyByID(_ context.Context, id uuid.UUID) (database.WorkspaceProxy, error) {
+func (q *FakeQuerier) GetWorkspaceProxyByID(_ context.Context, id uuid.UUID) (database.WorkspaceProxy, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -3372,7 +3395,7 @@ func (q *fakeQuerier) GetWorkspaceProxyByID(_ context.Context, id uuid.UUID) (da
 	return database.WorkspaceProxy{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceProxyByName(_ context.Context, name string) (database.WorkspaceProxy, error) {
+func (q *FakeQuerier) GetWorkspaceProxyByName(_ context.Context, name string) (database.WorkspaceProxy, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -3387,7 +3410,7 @@ func (q *fakeQuerier) GetWorkspaceProxyByName(_ context.Context, name string) (d
 	return database.WorkspaceProxy{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceResourceByID(_ context.Context, id uuid.UUID) (database.WorkspaceResource, error) {
+func (q *FakeQuerier) GetWorkspaceResourceByID(_ context.Context, id uuid.UUID) (database.WorkspaceResource, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -3399,7 +3422,7 @@ func (q *fakeQuerier) GetWorkspaceResourceByID(_ context.Context, id uuid.UUID) 
 	return database.WorkspaceResource{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) GetWorkspaceResourceMetadataByResourceIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceResourceMetadatum, error) {
+func (q *FakeQuerier) GetWorkspaceResourceMetadataByResourceIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceResourceMetadatum, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -3414,7 +3437,7 @@ func (q *fakeQuerier) GetWorkspaceResourceMetadataByResourceIDs(_ context.Contex
 	return metadata, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceResourceMetadataCreatedAfter(ctx context.Context, after time.Time) ([]database.WorkspaceResourceMetadatum, error) {
+func (q *FakeQuerier) GetWorkspaceResourceMetadataCreatedAfter(ctx context.Context, after time.Time) ([]database.WorkspaceResourceMetadatum, error) {
 	resources, err := q.GetWorkspaceResourcesCreatedAfter(ctx, after)
 	if err != nil {
 		return nil, err
@@ -3438,14 +3461,14 @@ func (q *fakeQuerier) GetWorkspaceResourceMetadataCreatedAfter(ctx context.Conte
 	return metadata, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]database.WorkspaceResource, error) {
+func (q *FakeQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]database.WorkspaceResource, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	return q.getWorkspaceResourcesByJobIDNoLock(ctx, jobID)
 }
 
-func (q *fakeQuerier) GetWorkspaceResourcesByJobIDs(_ context.Context, jobIDs []uuid.UUID) ([]database.WorkspaceResource, error) {
+func (q *FakeQuerier) GetWorkspaceResourcesByJobIDs(_ context.Context, jobIDs []uuid.UUID) ([]database.WorkspaceResource, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -3461,7 +3484,7 @@ func (q *fakeQuerier) GetWorkspaceResourcesByJobIDs(_ context.Context, jobIDs []
 	return resources, nil
 }
 
-func (q *fakeQuerier) GetWorkspaceResourcesCreatedAfter(_ context.Context, after time.Time) ([]database.WorkspaceResource, error) {
+func (q *FakeQuerier) GetWorkspaceResourcesCreatedAfter(_ context.Context, after time.Time) ([]database.WorkspaceResource, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -3474,7 +3497,7 @@ func (q *fakeQuerier) GetWorkspaceResourcesCreatedAfter(_ context.Context, after
 	return resources, nil
 }
 
-func (q *fakeQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {
+func (q *FakeQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return nil, err
 	}
@@ -3484,7 +3507,7 @@ func (q *fakeQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorkspa
 	return workspaceRows, err
 }
 
-func (q *fakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.Workspace, error) {
+func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -3536,7 +3559,7 @@ func (q *fakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, no
 	return workspaces, nil
 }
 
-func (q *fakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
+func (q *FakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.APIKey{}, err
 	}
@@ -3573,7 +3596,7 @@ func (q *fakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyP
 	return key, nil
 }
 
-func (q *fakeQuerier) InsertAllUsersGroup(ctx context.Context, orgID uuid.UUID) (database.Group, error) {
+func (q *FakeQuerier) InsertAllUsersGroup(ctx context.Context, orgID uuid.UUID) (database.Group, error) {
 	return q.InsertGroup(ctx, database.InsertGroupParams{
 		ID:             orgID,
 		Name:           database.AllUsersGroup,
@@ -3581,7 +3604,7 @@ func (q *fakeQuerier) InsertAllUsersGroup(ctx context.Context, orgID uuid.UUID) 
 	})
 }
 
-func (q *fakeQuerier) InsertAuditLog(_ context.Context, arg database.InsertAuditLogParams) (database.AuditLog, error) {
+func (q *FakeQuerier) InsertAuditLog(_ context.Context, arg database.InsertAuditLogParams) (database.AuditLog, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.AuditLog{}, err
 	}
@@ -3599,7 +3622,7 @@ func (q *fakeQuerier) InsertAuditLog(_ context.Context, arg database.InsertAudit
 	return alog, nil
 }
 
-func (q *fakeQuerier) InsertDERPMeshKey(_ context.Context, id string) error {
+func (q *FakeQuerier) InsertDERPMeshKey(_ context.Context, id string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -3607,7 +3630,7 @@ func (q *fakeQuerier) InsertDERPMeshKey(_ context.Context, id string) error {
 	return nil
 }
 
-func (q *fakeQuerier) InsertDeploymentID(_ context.Context, id string) error {
+func (q *FakeQuerier) InsertDeploymentID(_ context.Context, id string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -3615,7 +3638,7 @@ func (q *fakeQuerier) InsertDeploymentID(_ context.Context, id string) error {
 	return nil
 }
 
-func (q *fakeQuerier) InsertFile(_ context.Context, arg database.InsertFileParams) (database.File, error) {
+func (q *FakeQuerier) InsertFile(_ context.Context, arg database.InsertFileParams) (database.File, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.File{}, err
 	}
@@ -3636,7 +3659,7 @@ func (q *fakeQuerier) InsertFile(_ context.Context, arg database.InsertFileParam
 	return file, nil
 }
 
-func (q *fakeQuerier) InsertGitAuthLink(_ context.Context, arg database.InsertGitAuthLinkParams) (database.GitAuthLink, error) {
+func (q *FakeQuerier) InsertGitAuthLink(_ context.Context, arg database.InsertGitAuthLinkParams) (database.GitAuthLink, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.GitAuthLink{}, err
 	}
@@ -3657,7 +3680,7 @@ func (q *fakeQuerier) InsertGitAuthLink(_ context.Context, arg database.InsertGi
 	return gitAuthLink, nil
 }
 
-func (q *fakeQuerier) InsertGitSSHKey(_ context.Context, arg database.InsertGitSSHKeyParams) (database.GitSSHKey, error) {
+func (q *FakeQuerier) InsertGitSSHKey(_ context.Context, arg database.InsertGitSSHKeyParams) (database.GitSSHKey, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.GitSSHKey{}, err
 	}
@@ -3677,7 +3700,7 @@ func (q *fakeQuerier) InsertGitSSHKey(_ context.Context, arg database.InsertGitS
 	return gitSSHKey, nil
 }
 
-func (q *fakeQuerier) InsertGroup(_ context.Context, arg database.InsertGroupParams) (database.Group, error) {
+func (q *FakeQuerier) InsertGroup(_ context.Context, arg database.InsertGroupParams) (database.Group, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.Group{}, err
 	}
@@ -3706,7 +3729,7 @@ func (q *fakeQuerier) InsertGroup(_ context.Context, arg database.InsertGroupPar
 	return group, nil
 }
 
-func (q *fakeQuerier) InsertGroupMember(_ context.Context, arg database.InsertGroupMemberParams) error {
+func (q *FakeQuerier) InsertGroupMember(_ context.Context, arg database.InsertGroupMemberParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
 	}
@@ -3730,7 +3753,7 @@ func (q *fakeQuerier) InsertGroupMember(_ context.Context, arg database.InsertGr
 	return nil
 }
 
-func (q *fakeQuerier) InsertLicense(
+func (q *FakeQuerier) InsertLicense(
 	_ context.Context, arg database.InsertLicenseParams,
 ) (database.License, error) {
 	if err := validateDatabaseType(arg); err != nil {
@@ -3751,7 +3774,7 @@ func (q *fakeQuerier) InsertLicense(
 	return l, nil
 }
 
-func (q *fakeQuerier) InsertOrganization(_ context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {
+func (q *FakeQuerier) InsertOrganization(_ context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.Organization{}, err
 	}
@@ -3769,7 +3792,7 @@ func (q *fakeQuerier) InsertOrganization(_ context.Context, arg database.InsertO
 	return organization, nil
 }
 
-func (q *fakeQuerier) InsertOrganizationMember(_ context.Context, arg database.InsertOrganizationMemberParams) (database.OrganizationMember, error) {
+func (q *FakeQuerier) InsertOrganizationMember(_ context.Context, arg database.InsertOrganizationMemberParams) (database.OrganizationMember, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.OrganizationMember{}, err
 	}
@@ -3789,7 +3812,7 @@ func (q *fakeQuerier) InsertOrganizationMember(_ context.Context, arg database.I
 	return organizationMember, nil
 }
 
-func (q *fakeQuerier) InsertProvisionerDaemon(_ context.Context, arg database.InsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
+func (q *FakeQuerier) InsertProvisionerDaemon(_ context.Context, arg database.InsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.ProvisionerDaemon{}, err
 	}
@@ -3808,7 +3831,7 @@ func (q *fakeQuerier) InsertProvisionerDaemon(_ context.Context, arg database.In
 	return daemon, nil
 }
 
-func (q *fakeQuerier) InsertProvisionerJob(_ context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
+func (q *FakeQuerier) InsertProvisionerJob(_ context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.ProvisionerJob{}, err
 	}
@@ -3833,7 +3856,7 @@ func (q *fakeQuerier) InsertProvisionerJob(_ context.Context, arg database.Inser
 	return job, nil
 }
 
-func (q *fakeQuerier) InsertProvisionerJobLogs(_ context.Context, arg database.InsertProvisionerJobLogsParams) ([]database.ProvisionerJobLog, error) {
+func (q *FakeQuerier) InsertProvisionerJobLogs(_ context.Context, arg database.InsertProvisionerJobLogsParams) ([]database.ProvisionerJobLog, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return nil, err
 	}
@@ -3862,7 +3885,7 @@ func (q *fakeQuerier) InsertProvisionerJobLogs(_ context.Context, arg database.I
 	return logs, nil
 }
 
-func (q *fakeQuerier) InsertReplica(_ context.Context, arg database.InsertReplicaParams) (database.Replica, error) {
+func (q *FakeQuerier) InsertReplica(_ context.Context, arg database.InsertReplicaParams) (database.Replica, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.Replica{}, err
 	}
@@ -3885,7 +3908,7 @@ func (q *fakeQuerier) InsertReplica(_ context.Context, arg database.InsertReplic
 	return replica, nil
 }
 
-func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTemplateParams) (database.Template, error) {
+func (q *FakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTemplateParams) (database.Template, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.Template{}, err
 	}
@@ -3916,9 +3939,13 @@ func (q *fakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 	return template.DeepCopy(), nil
 }
 
-func (q *fakeQuerier) InsertTemplateVersion(_ context.Context, arg database.InsertTemplateVersionParams) (database.TemplateVersion, error) {
+func (q *FakeQuerier) InsertTemplateVersion(_ context.Context, arg database.InsertTemplateVersionParams) (database.TemplateVersion, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.TemplateVersion{}, err
+	}
+
+	if len(arg.Message) > 1048576 {
+		return database.TemplateVersion{}, xerrors.New("message too long")
 	}
 
 	q.mutex.Lock()
@@ -3932,6 +3959,7 @@ func (q *fakeQuerier) InsertTemplateVersion(_ context.Context, arg database.Inse
 		CreatedAt:      arg.CreatedAt,
 		UpdatedAt:      arg.UpdatedAt,
 		Name:           arg.Name,
+		Message:        arg.Message,
 		Readme:         arg.Readme,
 		JobID:          arg.JobID,
 		CreatedBy:      arg.CreatedBy,
@@ -3940,7 +3968,7 @@ func (q *fakeQuerier) InsertTemplateVersion(_ context.Context, arg database.Inse
 	return version, nil
 }
 
-func (q *fakeQuerier) InsertTemplateVersionParameter(_ context.Context, arg database.InsertTemplateVersionParameterParams) (database.TemplateVersionParameter, error) {
+func (q *FakeQuerier) InsertTemplateVersionParameter(_ context.Context, arg database.InsertTemplateVersionParameterParams) (database.TemplateVersionParameter, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.TemplateVersionParameter{}, err
 	}
@@ -3966,12 +3994,13 @@ func (q *fakeQuerier) InsertTemplateVersionParameter(_ context.Context, arg data
 		ValidationMonotonic: arg.ValidationMonotonic,
 		Required:            arg.Required,
 		DisplayOrder:        arg.DisplayOrder,
+		Ephemeral:           arg.Ephemeral,
 	}
 	q.templateVersionParameters = append(q.templateVersionParameters, param)
 	return param, nil
 }
 
-func (q *fakeQuerier) InsertTemplateVersionVariable(_ context.Context, arg database.InsertTemplateVersionVariableParams) (database.TemplateVersionVariable, error) {
+func (q *FakeQuerier) InsertTemplateVersionVariable(_ context.Context, arg database.InsertTemplateVersionVariableParams) (database.TemplateVersionVariable, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.TemplateVersionVariable{}, err
 	}
@@ -3994,7 +4023,7 @@ func (q *fakeQuerier) InsertTemplateVersionVariable(_ context.Context, arg datab
 	return variable, nil
 }
 
-func (q *fakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParams) (database.User, error) {
+func (q *FakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParams) (database.User, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.User{}, err
 	}
@@ -4038,7 +4067,7 @@ func (q *fakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 	return user, nil
 }
 
-func (q *fakeQuerier) InsertUserGroupsByName(_ context.Context, arg database.InsertUserGroupsByNameParams) error {
+func (q *FakeQuerier) InsertUserGroupsByName(_ context.Context, arg database.InsertUserGroupsByNameParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -4061,7 +4090,7 @@ func (q *fakeQuerier) InsertUserGroupsByName(_ context.Context, arg database.Ins
 	return nil
 }
 
-func (q *fakeQuerier) InsertUserLink(_ context.Context, args database.InsertUserLinkParams) (database.UserLink, error) {
+func (q *FakeQuerier) InsertUserLink(_ context.Context, args database.InsertUserLinkParams) (database.UserLink, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -4080,7 +4109,7 @@ func (q *fakeQuerier) InsertUserLink(_ context.Context, args database.InsertUser
 	return link, nil
 }
 
-func (q *fakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWorkspaceParams) (database.Workspace, error) {
+func (q *FakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWorkspaceParams) (database.Workspace, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.Workspace{}, err
 	}
@@ -4105,7 +4134,7 @@ func (q *fakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWork
 	return workspace, nil
 }
 
-func (q *fakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.InsertWorkspaceAgentParams) (database.WorkspaceAgent, error) {
+func (q *FakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.InsertWorkspaceAgentParams) (database.WorkspaceAgent, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.WorkspaceAgent{}, err
 	}
@@ -4140,7 +4169,7 @@ func (q *fakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 	return agent, nil
 }
 
-func (q *fakeQuerier) InsertWorkspaceAgentMetadata(_ context.Context, arg database.InsertWorkspaceAgentMetadataParams) error {
+func (q *FakeQuerier) InsertWorkspaceAgentMetadata(_ context.Context, arg database.InsertWorkspaceAgentMetadataParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -4158,7 +4187,7 @@ func (q *fakeQuerier) InsertWorkspaceAgentMetadata(_ context.Context, arg databa
 	return nil
 }
 
-func (q *fakeQuerier) InsertWorkspaceAgentStartupLogs(_ context.Context, arg database.InsertWorkspaceAgentStartupLogsParams) ([]database.WorkspaceAgentStartupLog, error) {
+func (q *FakeQuerier) InsertWorkspaceAgentStartupLogs(_ context.Context, arg database.InsertWorkspaceAgentStartupLogsParams) ([]database.WorkspaceAgentStartupLog, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return nil, err
 	}
@@ -4202,7 +4231,7 @@ func (q *fakeQuerier) InsertWorkspaceAgentStartupLogs(_ context.Context, arg dat
 	return logs, nil
 }
 
-func (q *fakeQuerier) InsertWorkspaceAgentStat(_ context.Context, p database.InsertWorkspaceAgentStatParams) (database.WorkspaceAgentStat, error) {
+func (q *FakeQuerier) InsertWorkspaceAgentStat(_ context.Context, p database.InsertWorkspaceAgentStatParams) (database.WorkspaceAgentStat, error) {
 	if err := validateDatabaseType(p); err != nil {
 		return database.WorkspaceAgentStat{}, err
 	}
@@ -4233,7 +4262,7 @@ func (q *fakeQuerier) InsertWorkspaceAgentStat(_ context.Context, p database.Ins
 	return stat, nil
 }
 
-func (q *fakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
+func (q *FakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.WorkspaceApp{}, err
 	}
@@ -4267,7 +4296,7 @@ func (q *fakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 	return workspaceApp, nil
 }
 
-func (q *fakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.InsertWorkspaceBuildParams) (database.WorkspaceBuild, error) {
+func (q *FakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.InsertWorkspaceBuildParams) (database.WorkspaceBuild, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.WorkspaceBuild{}, err
 	}
@@ -4293,7 +4322,7 @@ func (q *fakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 	return workspaceBuild, nil
 }
 
-func (q *fakeQuerier) InsertWorkspaceBuildParameters(_ context.Context, arg database.InsertWorkspaceBuildParametersParams) error {
+func (q *FakeQuerier) InsertWorkspaceBuildParameters(_ context.Context, arg database.InsertWorkspaceBuildParametersParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
 	}
@@ -4311,7 +4340,7 @@ func (q *fakeQuerier) InsertWorkspaceBuildParameters(_ context.Context, arg data
 	return nil
 }
 
-func (q *fakeQuerier) InsertWorkspaceProxy(_ context.Context, arg database.InsertWorkspaceProxyParams) (database.WorkspaceProxy, error) {
+func (q *FakeQuerier) InsertWorkspaceProxy(_ context.Context, arg database.InsertWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -4335,7 +4364,7 @@ func (q *fakeQuerier) InsertWorkspaceProxy(_ context.Context, arg database.Inser
 	return p, nil
 }
 
-func (q *fakeQuerier) InsertWorkspaceResource(_ context.Context, arg database.InsertWorkspaceResourceParams) (database.WorkspaceResource, error) {
+func (q *FakeQuerier) InsertWorkspaceResource(_ context.Context, arg database.InsertWorkspaceResourceParams) (database.WorkspaceResource, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.WorkspaceResource{}, err
 	}
@@ -4359,7 +4388,7 @@ func (q *fakeQuerier) InsertWorkspaceResource(_ context.Context, arg database.In
 	return resource, nil
 }
 
-func (q *fakeQuerier) InsertWorkspaceResourceMetadata(_ context.Context, arg database.InsertWorkspaceResourceMetadataParams) ([]database.WorkspaceResourceMetadatum, error) {
+func (q *FakeQuerier) InsertWorkspaceResourceMetadata(_ context.Context, arg database.InsertWorkspaceResourceMetadataParams) ([]database.WorkspaceResourceMetadatum, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return nil, err
 	}
@@ -4390,7 +4419,7 @@ func (q *fakeQuerier) InsertWorkspaceResourceMetadata(_ context.Context, arg dat
 	return metadata, nil
 }
 
-func (q *fakeQuerier) RegisterWorkspaceProxy(_ context.Context, arg database.RegisterWorkspaceProxyParams) (database.WorkspaceProxy, error) {
+func (q *FakeQuerier) RegisterWorkspaceProxy(_ context.Context, arg database.RegisterWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -4406,11 +4435,11 @@ func (q *fakeQuerier) RegisterWorkspaceProxy(_ context.Context, arg database.Reg
 	return database.WorkspaceProxy{}, sql.ErrNoRows
 }
 
-func (*fakeQuerier) TryAcquireLock(_ context.Context, _ int64) (bool, error) {
+func (*FakeQuerier) TryAcquireLock(_ context.Context, _ int64) (bool, error) {
 	return false, xerrors.New("TryAcquireLock must only be called within a transaction")
 }
 
-func (q *fakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPIKeyByIDParams) error {
+func (q *FakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPIKeyByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
 	}
@@ -4431,7 +4460,7 @@ func (q *fakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPI
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateGitAuthLink(_ context.Context, arg database.UpdateGitAuthLinkParams) (database.GitAuthLink, error) {
+func (q *FakeQuerier) UpdateGitAuthLink(_ context.Context, arg database.UpdateGitAuthLinkParams) (database.GitAuthLink, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.GitAuthLink{}, err
 	}
@@ -4456,7 +4485,7 @@ func (q *fakeQuerier) UpdateGitAuthLink(_ context.Context, arg database.UpdateGi
 	return database.GitAuthLink{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateGitSSHKey(_ context.Context, arg database.UpdateGitSSHKeyParams) (database.GitSSHKey, error) {
+func (q *FakeQuerier) UpdateGitSSHKey(_ context.Context, arg database.UpdateGitSSHKeyParams) (database.GitSSHKey, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.GitSSHKey{}, err
 	}
@@ -4477,7 +4506,7 @@ func (q *fakeQuerier) UpdateGitSSHKey(_ context.Context, arg database.UpdateGitS
 	return database.GitSSHKey{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateGroupByID(_ context.Context, arg database.UpdateGroupByIDParams) (database.Group, error) {
+func (q *FakeQuerier) UpdateGroupByID(_ context.Context, arg database.UpdateGroupByIDParams) (database.Group, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.Group{}, err
 	}
@@ -4497,7 +4526,7 @@ func (q *fakeQuerier) UpdateGroupByID(_ context.Context, arg database.UpdateGrou
 	return database.Group{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateMemberRoles(_ context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
+func (q *FakeQuerier) UpdateMemberRoles(_ context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.OrganizationMember{}, err
 	}
@@ -4527,7 +4556,7 @@ func (q *fakeQuerier) UpdateMemberRoles(_ context.Context, arg database.UpdateMe
 	return database.OrganizationMember{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateProvisionerJobByID(_ context.Context, arg database.UpdateProvisionerJobByIDParams) error {
+func (q *FakeQuerier) UpdateProvisionerJobByID(_ context.Context, arg database.UpdateProvisionerJobByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
 	}
@@ -4546,7 +4575,7 @@ func (q *fakeQuerier) UpdateProvisionerJobByID(_ context.Context, arg database.U
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateProvisionerJobWithCancelByID(_ context.Context, arg database.UpdateProvisionerJobWithCancelByIDParams) error {
+func (q *FakeQuerier) UpdateProvisionerJobWithCancelByID(_ context.Context, arg database.UpdateProvisionerJobWithCancelByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
 	}
@@ -4566,7 +4595,7 @@ func (q *fakeQuerier) UpdateProvisionerJobWithCancelByID(_ context.Context, arg 
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateProvisionerJobWithCompleteByID(_ context.Context, arg database.UpdateProvisionerJobWithCompleteByIDParams) error {
+func (q *FakeQuerier) UpdateProvisionerJobWithCompleteByID(_ context.Context, arg database.UpdateProvisionerJobWithCompleteByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
 	}
@@ -4588,7 +4617,7 @@ func (q *fakeQuerier) UpdateProvisionerJobWithCompleteByID(_ context.Context, ar
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateReplica(_ context.Context, arg database.UpdateReplicaParams) (database.Replica, error) {
+func (q *FakeQuerier) UpdateReplica(_ context.Context, arg database.UpdateReplicaParams) (database.Replica, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.Replica{}, err
 	}
@@ -4615,7 +4644,7 @@ func (q *fakeQuerier) UpdateReplica(_ context.Context, arg database.UpdateReplic
 	return database.Replica{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateTemplateACLByID(_ context.Context, arg database.UpdateTemplateACLByIDParams) (database.Template, error) {
+func (q *FakeQuerier) UpdateTemplateACLByID(_ context.Context, arg database.UpdateTemplateACLByIDParams) (database.Template, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.Template{}, err
 	}
@@ -4636,7 +4665,7 @@ func (q *fakeQuerier) UpdateTemplateACLByID(_ context.Context, arg database.Upda
 	return database.Template{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateTemplateActiveVersionByID(_ context.Context, arg database.UpdateTemplateActiveVersionByIDParams) error {
+func (q *FakeQuerier) UpdateTemplateActiveVersionByID(_ context.Context, arg database.UpdateTemplateActiveVersionByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
 	}
@@ -4656,7 +4685,7 @@ func (q *fakeQuerier) UpdateTemplateActiveVersionByID(_ context.Context, arg dat
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateTemplateDeletedByID(_ context.Context, arg database.UpdateTemplateDeletedByIDParams) error {
+func (q *FakeQuerier) UpdateTemplateDeletedByID(_ context.Context, arg database.UpdateTemplateDeletedByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
 	}
@@ -4676,7 +4705,7 @@ func (q *fakeQuerier) UpdateTemplateDeletedByID(_ context.Context, arg database.
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.UpdateTemplateMetaByIDParams) (database.Template, error) {
+func (q *FakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.UpdateTemplateMetaByIDParams) (database.Template, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.Template{}, err
 	}
@@ -4700,7 +4729,7 @@ func (q *fakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 	return database.Template{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database.UpdateTemplateScheduleByIDParams) (database.Template, error) {
+func (q *FakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database.UpdateTemplateScheduleByIDParams) (database.Template, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.Template{}, err
 	}
@@ -4728,7 +4757,7 @@ func (q *fakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 	return database.Template{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateTemplateVersionByID(_ context.Context, arg database.UpdateTemplateVersionByIDParams) (database.TemplateVersion, error) {
+func (q *FakeQuerier) UpdateTemplateVersionByID(_ context.Context, arg database.UpdateTemplateVersionByIDParams) (database.TemplateVersion, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.TemplateVersion{}, err
 	}
@@ -4749,7 +4778,7 @@ func (q *fakeQuerier) UpdateTemplateVersionByID(_ context.Context, arg database.
 	return database.TemplateVersion{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateTemplateVersionDescriptionByJobID(_ context.Context, arg database.UpdateTemplateVersionDescriptionByJobIDParams) error {
+func (q *FakeQuerier) UpdateTemplateVersionDescriptionByJobID(_ context.Context, arg database.UpdateTemplateVersionDescriptionByJobIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
 	}
@@ -4769,7 +4798,7 @@ func (q *fakeQuerier) UpdateTemplateVersionDescriptionByJobID(_ context.Context,
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateTemplateVersionGitAuthProvidersByJobID(_ context.Context, arg database.UpdateTemplateVersionGitAuthProvidersByJobIDParams) error {
+func (q *FakeQuerier) UpdateTemplateVersionGitAuthProvidersByJobID(_ context.Context, arg database.UpdateTemplateVersionGitAuthProvidersByJobIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
 	}
@@ -4789,7 +4818,7 @@ func (q *fakeQuerier) UpdateTemplateVersionGitAuthProvidersByJobID(_ context.Con
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateUserDeletedByID(_ context.Context, params database.UpdateUserDeletedByIDParams) error {
+func (q *FakeQuerier) UpdateUserDeletedByID(_ context.Context, params database.UpdateUserDeletedByIDParams) error {
 	if err := validateDatabaseType(params); err != nil {
 		return err
 	}
@@ -4822,7 +4851,7 @@ func (q *fakeQuerier) UpdateUserDeletedByID(_ context.Context, params database.U
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateUserHashedPassword(_ context.Context, arg database.UpdateUserHashedPasswordParams) error {
+func (q *FakeQuerier) UpdateUserHashedPassword(_ context.Context, arg database.UpdateUserHashedPasswordParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
 	}
@@ -4841,7 +4870,7 @@ func (q *fakeQuerier) UpdateUserHashedPassword(_ context.Context, arg database.U
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateUserLastSeenAt(_ context.Context, arg database.UpdateUserLastSeenAtParams) (database.User, error) {
+func (q *FakeQuerier) UpdateUserLastSeenAt(_ context.Context, arg database.UpdateUserLastSeenAtParams) (database.User, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.User{}, err
 	}
@@ -4861,7 +4890,7 @@ func (q *fakeQuerier) UpdateUserLastSeenAt(_ context.Context, arg database.Updat
 	return database.User{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateUserLink(_ context.Context, params database.UpdateUserLinkParams) (database.UserLink, error) {
+func (q *FakeQuerier) UpdateUserLink(_ context.Context, params database.UpdateUserLinkParams) (database.UserLink, error) {
 	if err := validateDatabaseType(params); err != nil {
 		return database.UserLink{}, err
 	}
@@ -4883,7 +4912,7 @@ func (q *fakeQuerier) UpdateUserLink(_ context.Context, params database.UpdateUs
 	return database.UserLink{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateUserLinkedID(_ context.Context, params database.UpdateUserLinkedIDParams) (database.UserLink, error) {
+func (q *FakeQuerier) UpdateUserLinkedID(_ context.Context, params database.UpdateUserLinkedIDParams) (database.UserLink, error) {
 	if err := validateDatabaseType(params); err != nil {
 		return database.UserLink{}, err
 	}
@@ -4903,7 +4932,7 @@ func (q *fakeQuerier) UpdateUserLinkedID(_ context.Context, params database.Upda
 	return database.UserLink{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateUserLoginType(_ context.Context, arg database.UpdateUserLoginTypeParams) (database.User, error) {
+func (q *FakeQuerier) UpdateUserLoginType(_ context.Context, arg database.UpdateUserLoginTypeParams) (database.User, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.User{}, err
 	}
@@ -4924,7 +4953,7 @@ func (q *fakeQuerier) UpdateUserLoginType(_ context.Context, arg database.Update
 	return database.User{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateUserProfile(_ context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
+func (q *FakeQuerier) UpdateUserProfile(_ context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.User{}, err
 	}
@@ -4945,7 +4974,7 @@ func (q *fakeQuerier) UpdateUserProfile(_ context.Context, arg database.UpdateUs
 	return database.User{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateUserQuietHoursSchedule(_ context.Context, arg database.UpdateUserQuietHoursScheduleParams) (database.User, error) {
+func (q *FakeQuerier) UpdateUserQuietHoursSchedule(_ context.Context, arg database.UpdateUserQuietHoursScheduleParams) (database.User, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.User{}, err
 	}
@@ -4964,7 +4993,7 @@ func (q *fakeQuerier) UpdateUserQuietHoursSchedule(_ context.Context, arg databa
 	return database.User{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateUserRoles(_ context.Context, arg database.UpdateUserRolesParams) (database.User, error) {
+func (q *FakeQuerier) UpdateUserRoles(_ context.Context, arg database.UpdateUserRolesParams) (database.User, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.User{}, err
 	}
@@ -4998,7 +5027,7 @@ func (q *fakeQuerier) UpdateUserRoles(_ context.Context, arg database.UpdateUser
 	return database.User{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateUserStatus(_ context.Context, arg database.UpdateUserStatusParams) (database.User, error) {
+func (q *FakeQuerier) UpdateUserStatus(_ context.Context, arg database.UpdateUserStatusParams) (database.User, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.User{}, err
 	}
@@ -5018,7 +5047,7 @@ func (q *fakeQuerier) UpdateUserStatus(_ context.Context, arg database.UpdateUse
 	return database.User{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspace(_ context.Context, arg database.UpdateWorkspaceParams) (database.Workspace, error) {
+func (q *FakeQuerier) UpdateWorkspace(_ context.Context, arg database.UpdateWorkspaceParams) (database.Workspace, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.Workspace{}, err
 	}
@@ -5048,7 +5077,7 @@ func (q *fakeQuerier) UpdateWorkspace(_ context.Context, arg database.UpdateWork
 	return database.Workspace{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspaceAgentConnectionByID(_ context.Context, arg database.UpdateWorkspaceAgentConnectionByIDParams) error {
+func (q *FakeQuerier) UpdateWorkspaceAgentConnectionByID(_ context.Context, arg database.UpdateWorkspaceAgentConnectionByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
 	}
@@ -5070,7 +5099,7 @@ func (q *fakeQuerier) UpdateWorkspaceAgentConnectionByID(_ context.Context, arg 
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspaceAgentLifecycleStateByID(_ context.Context, arg database.UpdateWorkspaceAgentLifecycleStateByIDParams) error {
+func (q *FakeQuerier) UpdateWorkspaceAgentLifecycleStateByID(_ context.Context, arg database.UpdateWorkspaceAgentLifecycleStateByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
 	}
@@ -5089,7 +5118,7 @@ func (q *fakeQuerier) UpdateWorkspaceAgentLifecycleStateByID(_ context.Context, 
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspaceAgentMetadata(_ context.Context, arg database.UpdateWorkspaceAgentMetadataParams) error {
+func (q *FakeQuerier) UpdateWorkspaceAgentMetadata(_ context.Context, arg database.UpdateWorkspaceAgentMetadataParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -5112,7 +5141,7 @@ func (q *fakeQuerier) UpdateWorkspaceAgentMetadata(_ context.Context, arg databa
 	return nil
 }
 
-func (q *fakeQuerier) UpdateWorkspaceAgentStartupByID(_ context.Context, arg database.UpdateWorkspaceAgentStartupByIDParams) error {
+func (q *FakeQuerier) UpdateWorkspaceAgentStartupByID(_ context.Context, arg database.UpdateWorkspaceAgentStartupByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
 	}
@@ -5134,7 +5163,7 @@ func (q *fakeQuerier) UpdateWorkspaceAgentStartupByID(_ context.Context, arg dat
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspaceAgentStartupLogOverflowByID(_ context.Context, arg database.UpdateWorkspaceAgentStartupLogOverflowByIDParams) error {
+func (q *FakeQuerier) UpdateWorkspaceAgentStartupLogOverflowByID(_ context.Context, arg database.UpdateWorkspaceAgentStartupLogOverflowByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
 	}
@@ -5151,7 +5180,7 @@ func (q *fakeQuerier) UpdateWorkspaceAgentStartupLogOverflowByID(_ context.Conte
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspaceAppHealthByID(_ context.Context, arg database.UpdateWorkspaceAppHealthByIDParams) error {
+func (q *FakeQuerier) UpdateWorkspaceAppHealthByID(_ context.Context, arg database.UpdateWorkspaceAppHealthByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
 	}
@@ -5170,7 +5199,7 @@ func (q *fakeQuerier) UpdateWorkspaceAppHealthByID(_ context.Context, arg databa
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspaceAutostart(_ context.Context, arg database.UpdateWorkspaceAutostartParams) error {
+func (q *FakeQuerier) UpdateWorkspaceAutostart(_ context.Context, arg database.UpdateWorkspaceAutostartParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
 	}
@@ -5190,7 +5219,7 @@ func (q *fakeQuerier) UpdateWorkspaceAutostart(_ context.Context, arg database.U
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.UpdateWorkspaceBuildByIDParams) (database.WorkspaceBuild, error) {
+func (q *FakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.UpdateWorkspaceBuildByIDParams) (database.WorkspaceBuild, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.WorkspaceBuild{}, err
 	}
@@ -5212,7 +5241,7 @@ func (q *fakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.U
 	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspaceBuildCostByID(_ context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) (database.WorkspaceBuild, error) {
+func (q *FakeQuerier) UpdateWorkspaceBuildCostByID(_ context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) (database.WorkspaceBuild, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.WorkspaceBuild{}, err
 	}
@@ -5231,7 +5260,7 @@ func (q *fakeQuerier) UpdateWorkspaceBuildCostByID(_ context.Context, arg databa
 	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspaceDeletedByID(_ context.Context, arg database.UpdateWorkspaceDeletedByIDParams) error {
+func (q *FakeQuerier) UpdateWorkspaceDeletedByID(_ context.Context, arg database.UpdateWorkspaceDeletedByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
 	}
@@ -5250,7 +5279,7 @@ func (q *fakeQuerier) UpdateWorkspaceDeletedByID(_ context.Context, arg database
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspaceLastUsedAt(_ context.Context, arg database.UpdateWorkspaceLastUsedAtParams) error {
+func (q *FakeQuerier) UpdateWorkspaceLastUsedAt(_ context.Context, arg database.UpdateWorkspaceLastUsedAtParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
 	}
@@ -5270,7 +5299,7 @@ func (q *fakeQuerier) UpdateWorkspaceLastUsedAt(_ context.Context, arg database.
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspaceLockedAt(_ context.Context, arg database.UpdateWorkspaceLockedAtParams) error {
+func (q *FakeQuerier) UpdateWorkspaceLockedAt(_ context.Context, arg database.UpdateWorkspaceLockedAtParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
 	}
@@ -5291,7 +5320,7 @@ func (q *fakeQuerier) UpdateWorkspaceLockedAt(_ context.Context, arg database.Up
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspaceProxy(_ context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
+func (q *FakeQuerier) UpdateWorkspaceProxy(_ context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -5316,7 +5345,7 @@ func (q *fakeQuerier) UpdateWorkspaceProxy(_ context.Context, arg database.Updat
 	return database.WorkspaceProxy{}, sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspaceProxyDeleted(_ context.Context, arg database.UpdateWorkspaceProxyDeletedParams) error {
+func (q *FakeQuerier) UpdateWorkspaceProxyDeleted(_ context.Context, arg database.UpdateWorkspaceProxyDeletedParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -5331,7 +5360,7 @@ func (q *fakeQuerier) UpdateWorkspaceProxyDeleted(_ context.Context, arg databas
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpdateWorkspaceTTL(_ context.Context, arg database.UpdateWorkspaceTTLParams) error {
+func (q *FakeQuerier) UpdateWorkspaceTTL(_ context.Context, arg database.UpdateWorkspaceTTLParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
 	}
@@ -5351,7 +5380,7 @@ func (q *fakeQuerier) UpdateWorkspaceTTL(_ context.Context, arg database.UpdateW
 	return sql.ErrNoRows
 }
 
-func (q *fakeQuerier) UpsertAppSecurityKey(_ context.Context, data string) error {
+func (q *FakeQuerier) UpsertAppSecurityKey(_ context.Context, data string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -5359,13 +5388,13 @@ func (q *fakeQuerier) UpsertAppSecurityKey(_ context.Context, data string) error
 	return nil
 }
 
-func (q *fakeQuerier) UpsertDefaultProxy(_ context.Context, arg database.UpsertDefaultProxyParams) error {
+func (q *FakeQuerier) UpsertDefaultProxy(_ context.Context, arg database.UpsertDefaultProxyParams) error {
 	q.defaultProxyDisplayName = arg.DisplayName
 	q.defaultProxyIconURL = arg.IconUrl
 	return nil
 }
 
-func (q *fakeQuerier) UpsertLastUpdateCheck(_ context.Context, data string) error {
+func (q *FakeQuerier) UpsertLastUpdateCheck(_ context.Context, data string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -5373,7 +5402,7 @@ func (q *fakeQuerier) UpsertLastUpdateCheck(_ context.Context, data string) erro
 	return nil
 }
 
-func (q *fakeQuerier) UpsertLogoURL(_ context.Context, data string) error {
+func (q *FakeQuerier) UpsertLogoURL(_ context.Context, data string) error {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -5381,7 +5410,7 @@ func (q *fakeQuerier) UpsertLogoURL(_ context.Context, data string) error {
 	return nil
 }
 
-func (q *fakeQuerier) UpsertOAuthSigningKey(_ context.Context, value string) error {
+func (q *FakeQuerier) UpsertOAuthSigningKey(_ context.Context, value string) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -5389,7 +5418,7 @@ func (q *fakeQuerier) UpsertOAuthSigningKey(_ context.Context, value string) err
 	return nil
 }
 
-func (q *fakeQuerier) UpsertServiceBanner(_ context.Context, data string) error {
+func (q *FakeQuerier) UpsertServiceBanner(_ context.Context, data string) error {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -5397,14 +5426,14 @@ func (q *fakeQuerier) UpsertServiceBanner(_ context.Context, data string) error 
 	return nil
 }
 
-func (*fakeQuerier) UpsertTailnetAgent(context.Context, database.UpsertTailnetAgentParams) (database.TailnetAgent, error) {
+func (*FakeQuerier) UpsertTailnetAgent(context.Context, database.UpsertTailnetAgentParams) (database.TailnetAgent, error) {
 	return database.TailnetAgent{}, ErrUnimplemented
 }
 
-func (*fakeQuerier) UpsertTailnetClient(context.Context, database.UpsertTailnetClientParams) (database.TailnetClient, error) {
+func (*FakeQuerier) UpsertTailnetClient(context.Context, database.UpsertTailnetClientParams) (database.TailnetClient, error) {
 	return database.TailnetClient{}, ErrUnimplemented
 }
 
-func (*fakeQuerier) UpsertTailnetCoordinator(context.Context, uuid.UUID) (database.TailnetCoordinator, error) {
+func (*FakeQuerier) UpsertTailnetCoordinator(context.Context, uuid.UUID) (database.TailnetCoordinator, error) {
 	return database.TailnetCoordinator{}, ErrUnimplemented
 }

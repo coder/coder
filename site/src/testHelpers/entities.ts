@@ -352,6 +352,7 @@ export const MockTemplateVersion: TypesGen.TemplateVersion = {
   template_id: "test-template",
   job: MockProvisionerJob,
   name: "test-version",
+  message: "first version",
   readme: `---
 name:Template test
 ---
@@ -369,6 +370,7 @@ export const MockTemplateVersion2: TypesGen.TemplateVersion = {
   template_id: "test-template",
   job: MockProvisionerJob,
   name: "test-version-2",
+  message: "first version",
   readme: `---
 name:Template test 2
 ---
@@ -386,6 +388,7 @@ export const MockTemplateVersion3: TypesGen.TemplateVersion = {
   template_id: "test-template",
   job: MockProvisionerJob,
   name: "test-version-3",
+  message: "first version",
   readme: "README",
   created_by: MockUser,
   warnings: ["UNSUPPORTED_WORKSPACES"],
@@ -955,6 +958,7 @@ export const MockTemplateVersionParameter1: TypesGen.TemplateVersionParameter =
     icon: "/icon/folder.svg",
     options: [],
     required: true,
+    ephemeral: false,
   }
 
 export const MockTemplateVersionParameter2: TypesGen.TemplateVersionParameter =
@@ -971,6 +975,7 @@ export const MockTemplateVersionParameter2: TypesGen.TemplateVersionParameter =
     validation_max: 3,
     validation_monotonic: "increasing",
     required: true,
+    ephemeral: false,
   }
 
 export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
@@ -986,6 +991,7 @@ export const MockTemplateVersionParameter3: TypesGen.TemplateVersionParameter =
     validation_error: "No way!",
     validation_regex: "^[a-z]{3}$",
     required: true,
+    ephemeral: false,
   }
 
 export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
@@ -999,6 +1005,7 @@ export const MockTemplateVersionParameter4: TypesGen.TemplateVersionParameter =
     icon: "/icon/database.svg",
     options: [],
     required: true,
+    ephemeral: false,
   }
 
 export const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter =
@@ -1015,6 +1022,7 @@ export const MockTemplateVersionParameter5: TypesGen.TemplateVersionParameter =
     validation_max: 10,
     validation_monotonic: "decreasing",
     required: true,
+    ephemeral: false,
   }
 
 export const MockTemplateVersionVariable1: TypesGen.TemplateVersionVariable = {

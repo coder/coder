@@ -200,9 +200,7 @@ func TestGitAuthDevice(t *testing.T) {
 		require.Equal(t, "authorization_pending", sdkErr.Detail)
 
 		resp = gitauth.ExchangeDeviceCodeResponse{
-			Token: &oauth2.Token{
-				AccessToken: "hey",
-			},
+			AccessToken: "hey",
 		}
 
 		err = client.GitAuthDeviceExchange(context.Background(), "test", codersdk.GitAuthDeviceExchange{

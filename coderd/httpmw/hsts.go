@@ -20,7 +20,7 @@ type HSTSConfig struct {
 func HSTSConfigOptions(maxAge int, options []string) (HSTSConfig, error) {
 	if maxAge <= 0 {
 		// No header, so no need to build the header string.
-		return HSTSConfig{}, nil
+		return HSTSConfig{HeaderValue: ""}, nil
 	}
 
 	// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security

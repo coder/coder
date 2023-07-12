@@ -1,8 +1,16 @@
-Usage: coder licenses list
+Usage: coder licenses list [flags]
 
 List licenses (including expired)
 
 Aliases: ls
+
+[1mOptions[0m
+  -c, --column string-array (default: UUID,Expires At,Uploaded At,Features)
+          Columns to display in table output. Available columns: id, uuid,
+          uploaded at, features, expires at, trial.
+
+  -o, --output string (default: table)
+          Output format. Available formats: table, json.
 
 ---
 Run `coder --help` for a list of global options.

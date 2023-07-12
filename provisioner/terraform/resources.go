@@ -499,6 +499,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 			Icon:         param.Icon,
 			Required:     !param.Optional,
 			Order:        int32(param.Order),
+			Ephemeral:    param.Ephemeral,
 		}
 		if len(param.Validation) == 1 {
 			protoParam.ValidationRegex = param.Validation[0].Regex

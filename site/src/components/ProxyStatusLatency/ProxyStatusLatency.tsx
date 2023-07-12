@@ -17,10 +17,11 @@ export const ProxyStatusLatency: FC<{
     return (
       <Tooltip title="Loading latency...">
         <CircularProgress
-          size="14px"
+          size={14}
           sx={{
             // Always use the no latency color for loading.
             color: getLatencyColor(theme, undefined),
+            marginLeft: "auto",
           }}
         />
       </Tooltip>

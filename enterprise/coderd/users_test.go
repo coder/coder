@@ -33,15 +33,14 @@ func TestUserQuietHours(t *testing.T) {
 	dv.UserQuietHoursSchedule.DefaultSchedule.Set(defaultQuietHoursSchedule)
 	dv.UserQuietHoursSchedule.WindowDuration.Set("8h") // default is 4h
 
-	client := coderdenttest.New(t, &coderdenttest.Options{
+	client, user := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			DeploymentValues: dv,
 		},
-	})
-	user := coderdtest.CreateFirstUser(t, client)
-	_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-		Features: license.Features{
-			codersdk.FeatureAdvancedTemplateScheduling: 1,
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureAdvancedTemplateScheduling: 1,
+			},
 		},
 	})
 

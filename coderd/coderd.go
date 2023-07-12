@@ -307,18 +307,19 @@ func New(options *Options) *API {
 		},
 	)
 
-	staticHandler := site.New(&site.Options{
-		BinFS:     binFS,
-		BinHashes: binHashes,
-		Database:  options.Database,
-		SiteFS:    site.FS(),
-	})
-	staticHandler.Experiments.Store(&experiments)
-
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
 		OIDC:   options.OIDCConfig,
 	}
+
+	staticHandler := site.New(&site.Options{
+		BinFS:         binFS,
+		BinHashes:     binHashes,
+		Database:      options.Database,
+		SiteFS:        site.FS(),
+		OAuth2Configs: oauthConfigs,
+	})
+	staticHandler.Experiments.Store(&experiments)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	r := chi.NewRouter()
@@ -398,6 +399,7 @@ func New(options *Options) *API {
 		RedirectToLogin:             false,
 		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
 		Optional:                    false,
+		SessionTokenFunc:            nil, // Default behavior
 	})
 	// Same as above but it redirects to the login page.
 	apiKeyMiddlewareRedirect := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
@@ -406,6 +408,7 @@ func New(options *Options) *API {
 		RedirectToLogin:             true,
 		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
 		Optional:                    false,
+		SessionTokenFunc:            nil, // Default behavior
 	})
 	// Same as the first but it's optional.
 	apiKeyMiddlewareOptional := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
@@ -414,6 +417,7 @@ func New(options *Options) *API {
 		RedirectToLogin:             false,
 		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
 		Optional:                    true,
+		SessionTokenFunc:            nil, // Default behavior
 	})
 
 	// API rate limit middleware. The counter is local and not shared between
@@ -640,12 +644,18 @@ func New(options *Options) *API {
 				r.Post("/login", api.postLogin)
 				r.Route("/oauth2", func(r chi.Router) {
 					r.Route("/github", func(r chi.Router) {
-						r.Use(httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient, nil))
+						r.Use(
+							httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient, nil),
+							apiKeyMiddlewareOptional,
+						)
 						r.Get("/callback", api.userOAuth2Github)
 					})
 				})
 				r.Route("/oidc/callback", func(r chi.Router) {
-					r.Use(httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient, oidcAuthURLParams))
+					r.Use(
+						httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient, oidcAuthURLParams),
+						apiKeyMiddlewareOptional,
+					)
 					r.Get("/", api.userOIDC)
 				})
 			})

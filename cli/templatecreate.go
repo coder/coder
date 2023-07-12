@@ -92,6 +92,8 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 				return xerrors.Errorf("check for lockfile: %w", err)
 			}
 
+			message := uploadFlags.templateMessage(inv)
+
 			// Confirm upload of the directory.
 			resp, err := uploadFlags.upload(inv, client)
 			if err != nil {
@@ -104,6 +106,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			}
 
 			job, err := createValidTemplateVersion(inv, createValidTemplateVersionArgs{
+				Message:         message,
 				Client:          client,
 				Organization:    organization,
 				Provisioner:     database.ProvisionerType(provisioner),
@@ -205,6 +208,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 
 type createValidTemplateVersionArgs struct {
 	Name         string
+	Message      string
 	Client       *codersdk.Client
 	Organization codersdk.Organization
 	Provisioner  database.ProvisionerType
@@ -238,6 +242,7 @@ func createValidTemplateVersion(inv *clibase.Invocation, args createValidTemplat
 
 	req := codersdk.CreateTemplateVersionRequest{
 		Name:               args.Name,
+		Message:            args.Message,
 		StorageMethod:      codersdk.ProvisionerStorageMethodFile,
 		FileID:             args.FileID,
 		Provisioner:        codersdk.ProvisionerType(args.Provisioner),
