@@ -214,10 +214,10 @@ func main() {
 					agent.LastConnectedAt = &lastConnectedAt
 				},
 			}
-			err := cliui.Agent(inv.Context(), inv.Stdout, cliui.AgentOptions{
+			err := cliui.Agent(inv.Context(), inv.Stdout, uuid.Nil, cliui.AgentOptions{
 				FetchInterval: 100 * time.Millisecond,
 				Wait:          true,
-				Fetch: func(_ context.Context) (codersdk.WorkspaceAgent, error) {
+				Fetch: func(_ context.Context, _ uuid.UUID) (codersdk.WorkspaceAgent, error) {
 					if len(fetchSteps) == 0 {
 						return agent, nil
 					}

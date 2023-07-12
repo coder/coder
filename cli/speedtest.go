@@ -40,11 +40,9 @@ func (r *RootCmd) speedtest() *clibase.Cmd {
 				return err
 			}
 
-			err = cliui.Agent(ctx, inv.Stderr, cliui.AgentOptions{
-				Fetch: func(ctx context.Context) (codersdk.WorkspaceAgent, error) {
-					return client.WorkspaceAgent(ctx, workspaceAgent.ID)
-				},
-				Wait: false,
+			err = cliui.Agent(ctx, inv.Stderr, workspaceAgent.ID, cliui.AgentOptions{
+				Fetch: client.WorkspaceAgent,
+				Wait:  false,
 			})
 			if err != nil {
 				return xerrors.Errorf("await agent: %w", err)
