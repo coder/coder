@@ -93,23 +93,6 @@ updates:
         update-types:
           - version-update:semver-major
 
-  - package-ecosystem: "terraform"
-    directory: "/examples/templates"
-    schedule:
-      interval: "monthly"
-      time: "06:00"
-      timezone: "America/Chicago"
-    commit-message:
-      prefix: "chore"
-    labels: []
-    ignore:
-      # We likely want to update this ourselves.
-      - dependency-name: "coder/coder"
-    groups:
-      examples-terraform:
-        patterns:
-          - "*"
-
   # Update dogfood.
   - package-ecosystem: "docker"
     directory: "/dogfood/"
