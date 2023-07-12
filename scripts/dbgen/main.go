@@ -53,7 +53,7 @@ func run() error {
 	}
 	databasePath := filepath.Join(localPath, "..", "..", "..", "coderd", "database")
 
-	err = orderAndStubDatabaseFunctions(filepath.Join(databasePath, "dbfake", "dbfake.go"), "q", "fakeQuerier", func(params stubParams) string {
+	err = orderAndStubDatabaseFunctions(filepath.Join(databasePath, "dbfake", "dbfake.go"), "q", "FakeQuerier", func(params stubParams) string {
 		return `panic("not implemented")`
 	})
 	if err != nil {

@@ -378,7 +378,7 @@ func (m *Manager) Close() error {
 	defer m.mutex.Unlock()
 	ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelFunc()
-	// nolint:gocritic // Updating a replica is a sytsem function.
+	// nolint:gocritic // Updating a replica is a system function.
 	_, err := m.db.UpdateReplica(dbauthz.AsSystemRestricted(ctx), database.UpdateReplicaParams{
 		ID:        m.self.ID,
 		UpdatedAt: database.Now(),

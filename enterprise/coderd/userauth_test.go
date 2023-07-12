@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/coder/coder/enterprise/coderd/license"
+
 	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -36,14 +38,13 @@ func TestUserOIDC(t *testing.T) {
 			})
 			config.AllowSignups = true
 
-			client := coderdenttest.New(t, &coderdenttest.Options{
+			client, _ := coderdenttest.New(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
 					OIDCConfig: config,
 				},
-			})
-			_ = coderdtest.CreateFirstUser(t, client)
-			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-				AllFeatures: true,
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{codersdk.FeatureTemplateRBAC: 1},
+				},
 			})
 
 			admin, err := client.User(ctx, "me")
@@ -81,14 +82,13 @@ func TestUserOIDC(t *testing.T) {
 			})
 			config.AllowSignups = true
 
-			client := coderdenttest.New(t, &coderdenttest.Options{
+			client, _ := coderdenttest.New(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
 					OIDCConfig: config,
 				},
-			})
-			_ = coderdtest.CreateFirstUser(t, client)
-			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-				AllFeatures: true,
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{codersdk.FeatureTemplateRBAC: 1},
+				},
 			})
 
 			admin, err := client.User(ctx, "me")
@@ -121,14 +121,13 @@ func TestUserOIDC(t *testing.T) {
 			config := conf.OIDCConfig(t, jwt.MapClaims{})
 			config.AllowSignups = true
 
-			client := coderdenttest.New(t, &coderdenttest.Options{
+			client, firstUser := coderdenttest.New(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
 					OIDCConfig: config,
 				},
-			})
-			firstUser := coderdtest.CreateFirstUser(t, client)
-			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-				AllFeatures: true,
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{codersdk.FeatureTemplateRBAC: 1},
+				},
 			})
 
 			// Add some extra users/groups that should be asserted after.
@@ -187,14 +186,13 @@ func TestUserOIDC(t *testing.T) {
 			config := conf.OIDCConfig(t, jwt.MapClaims{})
 			config.AllowSignups = true
 
-			client := coderdenttest.New(t, &coderdenttest.Options{
+			client, _ := coderdenttest.New(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
 					OIDCConfig: config,
 				},
-			})
-			_ = coderdtest.CreateFirstUser(t, client)
-			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-				AllFeatures: true,
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{codersdk.FeatureTemplateRBAC: 1},
+				},
 			})
 
 			admin, err := client.User(ctx, "me")

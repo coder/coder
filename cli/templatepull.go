@@ -6,7 +6,7 @@ import (
 	"os"
 	"sort"
 
-	"github.com/codeclysm/extract"
+	"github.com/codeclysm/extract/v3"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"

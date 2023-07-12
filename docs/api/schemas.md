@@ -2543,7 +2543,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ------------------------- |
 | `moons`                   |
 | `workspace_actions`       |
-| `tailnet_pg_coordinator`  |
+| `tailnet_ha_coordinator`  |
 | `convert-to-oidc`         |
 | `single_tailnet`          |
 | `workspace_build_logs_ui` |

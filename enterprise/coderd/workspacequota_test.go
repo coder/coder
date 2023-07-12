@@ -39,19 +39,17 @@ func TestWorkspaceQuota(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		max := 1
-		client, _, api := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		client, _, api, user := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			UserWorkspaceQuota: max,
-		})
-		coderdtest.NewProvisionerDaemon(t, api.AGPL)
-		coderdtest.NewProvisionerDaemon(t, api.AGPL)
-		coderdtest.NewProvisionerDaemon(t, api.AGPL)
-
-		user := coderdtest.CreateFirstUser(t, client)
-		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureTemplateRBAC: 1,
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+				},
 			},
 		})
+		coderdtest.NewProvisionerDaemon(t, api.AGPL)
+		coderdtest.NewProvisionerDaemon(t, api.AGPL)
+		coderdtest.NewProvisionerDaemon(t, api.AGPL)
 
 		verifyQuota(ctx, t, client, 0, 0)
 
