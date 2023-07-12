@@ -35,8 +35,8 @@ coder)
 		# A feature requiring the full binary was requested and the
 		# binary is missing, normally it's built by `develop.sh`, but
 		# it's an expensive operation, so we require manual action here.
-		echo "Running \"coder $1\" requires the full binary, please run \"develop.sh\" first or build the binary manually:"
-		echo "  make $RELATIVE_BINARY_PATH"
+		echo "Running \"coder $1\" requires the full binary, please run \"develop.sh\" first or build the binary manually:" 1>&2
+		echo "  make $RELATIVE_BINARY_PATH" 1>&2
 		exit 1
 	fi
 	;;
