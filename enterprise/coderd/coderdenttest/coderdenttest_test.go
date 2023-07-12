@@ -8,5 +8,5 @@ import (
 
 func TestNew(t *testing.T) {
 	t.Parallel()
-	_ = coderdenttest.New(t, nil)
+	_, _ = coderdenttest.New(t, nil)
 }

@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/enterprise/coderd/license"
@@ -21,8 +20,7 @@ func TestPostLicense(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
-		client := coderdenttest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
 		respLic := coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 			AccountType: license.AccountTypeSalesforce,
 			AccountID:   "testing",
@@ -40,7 +38,8 @@ func TestPostLicense(t *testing.T) {
 
 	t.Run("Unauthorized", func(t *testing.T) {
 		t.Parallel()
-		client := coderdenttest.New(t, nil)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
+		client.SetSessionToken("")
 		_, err := client.AddLicense(context.Background(), codersdk.AddLicenseRequest{
 			License: "content",
 		})
@@ -54,8 +53,7 @@ func TestPostLicense(t *testing.T) {
 
 	t.Run("Corrupted", func(t *testing.T) {
 		t.Parallel()
-		client := coderdenttest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{})
 		_, err := client.AddLicense(context.Background(), codersdk.AddLicenseRequest{
 			License: "invalid",
@@ -73,8 +71,7 @@ func TestGetLicense(t *testing.T) {
 	t.Parallel()
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
-		client := coderdenttest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
@@ -132,8 +129,7 @@ func TestDeleteLicense(t *testing.T) {
 	t.Parallel()
 	t.Run("Empty", func(t *testing.T) {
 		t.Parallel()
-		client := coderdenttest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
@@ -148,8 +144,7 @@ func TestDeleteLicense(t *testing.T) {
 
 	t.Run("BadID", func(t *testing.T) {
 		t.Parallel()
-		client := coderdenttest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
@@ -161,8 +156,7 @@ func TestDeleteLicense(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
-		client := coderdenttest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 

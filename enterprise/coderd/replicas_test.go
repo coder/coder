@@ -20,22 +20,27 @@ import (
 
 func TestReplicas(t *testing.T) {
 	t.Parallel()
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("only test with real postgresF")
+	}
 	t.Run("ErrorWithoutLicense", func(t *testing.T) {
 		t.Parallel()
 		db, pubsub := dbtestutil.NewDB(t)
-		firstClient := coderdenttest.New(t, &coderdenttest.Options{
+		firstClient, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
 				Database:                 db,
 				Pubsub:                   pubsub,
 			},
+			DontAddLicense: true,
 		})
-		_ = coderdtest.CreateFirstUser(t, firstClient)
-		secondClient, _, secondAPI := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		secondClient, _, secondAPI, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				Database: db,
 				Pubsub:   pubsub,
 			},
+			DontAddFirstUser: true,
+			DontAddLicense:   true,
 		})
 		secondClient.SetSessionToken(firstClient.SessionToken())
 		ents, err := secondClient.Entitlements(context.Background())
@@ -50,25 +55,26 @@ func TestReplicas(t *testing.T) {
 	t.Run("ConnectAcrossMultiple", func(t *testing.T) {
 		t.Parallel()
 		db, pubsub := dbtestutil.NewDB(t)
-		firstClient := coderdenttest.New(t, &coderdenttest.Options{
+		firstClient, firstUser := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
 				Database:                 db,
 				Pubsub:                   pubsub,
 			},
-		})
-		firstUser := coderdtest.CreateFirstUser(t, firstClient)
-		coderdenttest.AddLicense(t, firstClient, coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureHighAvailability: 1,
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureHighAvailability: 1,
+				},
 			},
 		})
 
-		secondClient := coderdenttest.New(t, &coderdenttest.Options{
+		secondClient, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				Database: db,
 				Pubsub:   pubsub,
 			},
+			DontAddLicense:   true,
+			DontAddFirstUser: true,
 		})
 		secondClient.SetSessionToken(firstClient.SessionToken())
 		replicas, err := secondClient.Replicas(context.Background())
@@ -93,27 +99,28 @@ func TestReplicas(t *testing.T) {
 		t.Parallel()
 		db, pubsub := dbtestutil.NewDB(t)
 		certificates := []tls.Certificate{testutil.GenerateTLSCertificate(t, "localhost")}
-		firstClient := coderdenttest.New(t, &coderdenttest.Options{
+		firstClient, firstUser := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
 				Database:                 db,
 				Pubsub:                   pubsub,
 				TLSCertificates:          certificates,
 			},
-		})
-		firstUser := coderdtest.CreateFirstUser(t, firstClient)
-		coderdenttest.AddLicense(t, firstClient, coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureHighAvailability: 1,
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureHighAvailability: 1,
+				},
 			},
 		})
 
-		secondClient := coderdenttest.New(t, &coderdenttest.Options{
+		secondClient, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				Database:        db,
 				Pubsub:          pubsub,
 				TLSCertificates: certificates,
 			},
+			DontAddFirstUser: true,
+			DontAddLicense:   true,
 		})
 		secondClient.SetSessionToken(firstClient.SessionToken())
 		replicas, err := secondClient.Replicas(context.Background())

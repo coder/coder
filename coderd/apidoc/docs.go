@@ -7615,14 +7615,14 @@ const docTemplate = `{
             "enum": [
                 "moons",
                 "workspace_actions",
-                "tailnet_pg_coordinator",
+                "tailnet_ha_coordinator",
                 "convert-to-oidc",
                 "workspace_build_logs_ui"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
                 "ExperimentWorkspaceActions",
-                "ExperimentTailnetPGCoordinator",
+                "ExperimentTailnetHACoordinator",
                 "ExperimentConvertToOIDC",
                 "ExperimentWorkspaceBuildLogsUI"
             ]
