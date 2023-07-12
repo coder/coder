@@ -36,8 +36,12 @@ func (r *RootCmd) create() *clibase.Cmd {
 				return err
 			}
 
+			workspaceOwner := codersdk.Me
 			if len(inv.Args) >= 1 {
-				workspaceName = inv.Args[0]
+				workspaceOwner, workspaceName, err = splitNamedWorkspace(inv.Args[0])
+				if err != nil {
+					return err
+				}
 			}
 
 			if workspaceName == "" {
@@ -56,7 +60,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 				}
 			}
 
-			_, err = client.WorkspaceByOwnerAndName(inv.Context(), codersdk.Me, workspaceName, codersdk.WorkspaceOptions{})
+			_, err = client.WorkspaceByOwnerAndName(inv.Context(), workspaceOwner, workspaceName, codersdk.WorkspaceOptions{})
 			if err == nil {
 				return xerrors.Errorf("A workspace already exists named %q!", workspaceName)
 			}
@@ -143,7 +147,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 				ttlMillis = &template.MaxTTLMillis
 			}
 
-			workspace, err := client.CreateWorkspace(inv.Context(), organization.ID, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			workspace, err := client.CreateWorkspace(inv.Context(), organization.ID, workspaceOwner, codersdk.CreateWorkspaceRequest{
 				TemplateID:          template.ID,
 				Name:                workspaceName,
 				AutostartSchedule:   schedSpec,
