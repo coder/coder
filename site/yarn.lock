@@ -11844,10 +11844,10 @@ xterm-addon-web-links@0.8.0:
   resolved "https://registry.yarnpkg.com/xterm-addon-web-links/-/xterm-addon-web-links-0.8.0.tgz#2cb1d57129271022569208578b0bf4774e7e6ea9"
   integrity sha512-J4tKngmIu20ytX9SEJjAP3UGksah7iALqBtfTwT9ZnmFHVplCumYQsUJfKuS+JwMhjsjH61YXfndenLNvjRrEw==
 
-xterm@5.1.0:
-  version "5.1.0"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-5.1.0.tgz#3e160d60e6801c864b55adf19171c49d2ff2b4fc"
-  integrity sha512-LovENH4WDzpwynj+OTkLyZgJPeDom9Gra4DMlGAgz6pZhIDCQ+YuO7yfwanY+gVbn/mmZIStNOnVRU/ikQuAEQ==
+xterm@5.2.1:
+  version "5.2.1"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-5.2.1.tgz#b3fea7bdb55b9be1d4b31f4cd1091f26ac42afb8"
+  integrity sha512-cs5Y1fFevgcdoh2hJROMVIWwoBHD80P1fIP79gopLHJIE4kTzzblanoivxTiQ4+92YM9IxS36H1q0MxIJXQBcA==
 
 y18n@^5.0.5:
   version "5.0.8"
