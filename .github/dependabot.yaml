@@ -96,6 +96,7 @@ updates:
       npm-react:
         patterns:
           - "react*"
+          - "@types/react*"
       npm-xterm:
         patterns:
           - "xterm*"
@@ -118,7 +119,9 @@ updates:
           - "@typescript-eslint/parser"
       npm-jest:
         patterns:
-          - "jest
+          - "jest*"
+          - "@swc/jest"
+          - "@types/jest"
 
   - package-ecosystem: "terraform"
     directory: "/examples/templates"
