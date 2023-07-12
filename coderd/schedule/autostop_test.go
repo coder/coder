@@ -41,10 +41,13 @@ func TestCalculateAutoStop(t *testing.T) {
 	t.Log("saturdayMidnightSydney", saturdayMidnightSydney)
 
 	cases := []struct {
-		name                       string
-		now                        time.Time
-		templateAllowAutostop      bool
-		templateDefaultTTL         time.Duration
+		name                  string
+		now                   time.Time
+		templateAllowAutostop bool
+		templateDefaultTTL    time.Duration
+		// TODO(@dean): remove max_ttl tests
+		useMaxTTL                  bool
+		templateMaxTTL             time.Duration
 		templateRestartRequirement schedule.TemplateRestartRequirement
 		userQuietHoursSchedule     string
 		// workspaceTTL is usually copied from the template's TTL when the
@@ -265,6 +268,38 @@ func TestCalculateAutoStop(t *testing.T) {
 			workspaceTTL: 0,
 			errContains:  "coder server system clock is incorrect",
 		},
+		{
+			name:                   "RestartRequirementIgnoresMaxTTL",
+			now:                    fridayEveningSydney.In(time.UTC),
+			templateAllowAutostop:  false,
+			templateDefaultTTL:     0,
+			useMaxTTL:              false,
+			templateMaxTTL:         time.Hour, // should be ignored
+			userQuietHoursSchedule: sydneyQuietHours,
+			templateRestartRequirement: schedule.TemplateRestartRequirement{
+				DaysOfWeek: 0b00100000, // Saturday
+				Weeks:      0,          // weekly
+			},
+			workspaceTTL: 0,
+			// expectedDeadline is copied from expectedMaxDeadline.
+			expectedMaxDeadline: saturdayMidnightSydney.In(time.UTC),
+		},
+		{
+			name:                   "MaxTTLIgnoresRestartRequirement",
+			now:                    fridayEveningSydney.In(time.UTC),
+			templateAllowAutostop:  false,
+			templateDefaultTTL:     0,
+			useMaxTTL:              true,
+			templateMaxTTL:         time.Hour, // should NOT be ignored
+			userQuietHoursSchedule: sydneyQuietHours,
+			templateRestartRequirement: schedule.TemplateRestartRequirement{
+				DaysOfWeek: 0b00100000, // Saturday
+				Weeks:      0,          // weekly
+			},
+			workspaceTTL: 0,
+			// expectedDeadline is copied from expectedMaxDeadline.
+			expectedMaxDeadline: fridayEveningSydney.Add(time.Hour).In(time.UTC),
+		},
 	}
 
 	for _, c := range cases {
@@ -279,10 +314,12 @@ func TestCalculateAutoStop(t *testing.T) {
 			templateScheduleStore := schedule.MockTemplateScheduleStore{
 				GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 					return schedule.TemplateScheduleOptions{
-						UserAutostartEnabled: false,
-						UserAutostopEnabled:  c.templateAllowAutostop,
-						DefaultTTL:           c.templateDefaultTTL,
-						RestartRequirement:   c.templateRestartRequirement,
+						UserAutostartEnabled:  false,
+						UserAutostopEnabled:   c.templateAllowAutostop,
+						DefaultTTL:            c.templateDefaultTTL,
+						MaxTTL:                c.templateMaxTTL,
+						UseRestartRequirement: !c.useMaxTTL,
+						RestartRequirement:    c.templateRestartRequirement,
 					}, nil
 				},
 			}

@@ -2,6 +2,7 @@ package schedule
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,16 +14,22 @@ import (
 
 // EnterpriseTemplateScheduleStore provides an agpl.TemplateScheduleStore that
 // has all fields implemented for enterprise customers.
-type EnterpriseTemplateScheduleStore struct{}
+type EnterpriseTemplateScheduleStore struct {
+	// UseRestartRequirement decides whether the RestartRequirement field should
+	// be used instead of the MaxTTL field for determining the max deadline of a
+	// workspace build. This value is determined by a feature flag, licensing,
+	// and whether a default user quiet hours schedule is set.
+	UseRestartRequirement atomic.Bool
+}
 
 var _ agpl.TemplateScheduleStore = &EnterpriseTemplateScheduleStore{}
 
-func NewEnterpriseTemplateScheduleStore() agpl.TemplateScheduleStore {
+func NewEnterpriseTemplateScheduleStore() *EnterpriseTemplateScheduleStore {
 	return &EnterpriseTemplateScheduleStore{}
 }
 
 // GetTemplateScheduleOptions implements agpl.TemplateScheduleStore.
-func (*EnterpriseTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context, db database.Store, templateID uuid.UUID) (agpl.TemplateScheduleOptions, error) {
+func (s *EnterpriseTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context, db database.Store, templateID uuid.UUID) (agpl.TemplateScheduleOptions, error) {
 	tpl, err := db.GetTemplateByID(ctx, templateID)
 	if err != nil {
 		return agpl.TemplateScheduleOptions{}, err
@@ -42,9 +49,11 @@ func (*EnterpriseTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.C
 	}
 
 	return agpl.TemplateScheduleOptions{
-		UserAutostartEnabled: tpl.AllowUserAutostart,
-		UserAutostopEnabled:  tpl.AllowUserAutostop,
-		DefaultTTL:           time.Duration(tpl.DefaultTTL),
+		UserAutostartEnabled:  tpl.AllowUserAutostart,
+		UserAutostopEnabled:   tpl.AllowUserAutostop,
+		DefaultTTL:            time.Duration(tpl.DefaultTTL),
+		MaxTTL:                time.Duration(tpl.MaxTTL),
+		UseRestartRequirement: s.UseRestartRequirement.Load(),
 		RestartRequirement: agpl.TemplateRestartRequirement{
 			DaysOfWeek: uint8(tpl.RestartRequirementDaysOfWeek),
 			Weeks:      tpl.RestartRequirementWeeks,
@@ -58,6 +67,7 @@ func (*EnterpriseTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.C
 // SetTemplateScheduleOptions implements agpl.TemplateScheduleStore.
 func (*EnterpriseTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, tpl database.Template, opts agpl.TemplateScheduleOptions) (database.Template, error) {
 	if int64(opts.DefaultTTL) == tpl.DefaultTTL &&
+		int64(opts.MaxTTL) == tpl.MaxTTL &&
 		int16(opts.RestartRequirement.DaysOfWeek) == tpl.RestartRequirementDaysOfWeek &&
 		opts.RestartRequirement.Weeks == tpl.RestartRequirementWeeks &&
 		int64(opts.FailureTTL) == tpl.FailureTTL &&
@@ -80,6 +90,7 @@ func (*EnterpriseTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.C
 		AllowUserAutostart:           opts.UserAutostartEnabled,
 		AllowUserAutostop:            opts.UserAutostopEnabled,
 		DefaultTTL:                   int64(opts.DefaultTTL),
+		MaxTTL:                       int64(opts.MaxTTL),
 		RestartRequirementDaysOfWeek: int16(opts.RestartRequirement.DaysOfWeek),
 		RestartRequirementWeeks:      opts.RestartRequirement.Weeks,
 		FailureTTL:                   int64(opts.FailureTTL),

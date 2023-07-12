@@ -7030,6 +7030,10 @@ const docTemplate = `{
                     "description": "LockedTTLMillis allows optionally specifying the max lifetime before Coder\npermanently deletes locked workspaces created from this template.",
                     "type": "integer"
                 },
+                "max_ttl_ms": {
+                    "description": "TODO(@dean): remove max_ttl once restart_requirement is matured",
+                    "type": "integer"
+                },
                 "name": {
                     "description": "Name is the name of the template.",
                     "type": "string"
@@ -7710,14 +7714,16 @@ const docTemplate = `{
                 "workspace_actions",
                 "tailnet_ha_coordinator",
                 "convert-to-oidc",
-                "workspace_build_logs_ui"
+                "workspace_build_logs_ui",
+                "template_restart_requirement"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
                 "ExperimentWorkspaceActions",
                 "ExperimentTailnetHACoordinator",
                 "ExperimentConvertToOIDC",
-                "ExperimentWorkspaceBuildLogsUI"
+                "ExperimentWorkspaceBuildLogsUI",
+                "ExperimentTemplateRestartRequirement"
             ]
         },
         "codersdk.Feature": {
@@ -9021,6 +9027,10 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "locked_ttl_ms": {
+                    "type": "integer"
+                },
+                "max_ttl_ms": {
+                    "description": "TODO(@dean): remove max_ttl once restart_requirement is matured",
                     "type": "integer"
                 },
                 "name": {

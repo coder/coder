@@ -95,6 +95,14 @@ type TemplateScheduleOptions struct {
 	UserAutostartEnabled bool          `json:"user_autostart_enabled"`
 	UserAutostopEnabled  bool          `json:"user_autostop_enabled"`
 	DefaultTTL           time.Duration `json:"default_ttl"`
+	// TODO(@dean): remove MaxTTL once restart_requirement is matured and the
+	// default
+	MaxTTL time.Duration `json:"max_ttl"`
+	// UseRestartRequirement dictates whether the restart requirement should be
+	// used instead of MaxTTL. This is governed by the feature flag and
+	// licensing.
+	// TODO(@dean): remove this when we remove max_tll
+	UseRestartRequirement bool
 	// RestartRequirement dictates when the workspace must be restarted. This
 	// used to be handled by MaxTTL.
 	RestartRequirement TemplateRestartRequirement `json:"restart_requirement"`
@@ -138,6 +146,8 @@ func (*agplTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context
 		DefaultTTL:           time.Duration(tpl.DefaultTTL),
 		// Disregard the values in the database, since RestartRequirement,
 		// FailureTTL, InactivityTTL, and LockedTTL are enterprise features.
+		UseRestartRequirement: false,
+		MaxTTL:                0,
 		RestartRequirement: TemplateRestartRequirement{
 			DaysOfWeek: 0,
 			Weeks:      0,
@@ -160,6 +170,7 @@ func (*agplTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context
 		DefaultTTL: int64(opts.DefaultTTL),
 		// Don't allow changing these settings, but keep the value in the DB (to
 		// avoid clearing settings if the license has an issue).
+		MaxTTL:                       tpl.MaxTTL,
 		RestartRequirementDaysOfWeek: tpl.RestartRequirementDaysOfWeek,
 		RestartRequirementWeeks:      tpl.RestartRequirementWeeks,
 		AllowUserAutostart:           tpl.AllowUserAutostart,

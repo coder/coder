@@ -19,6 +19,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 		description                  string
 		icon                         string
 		defaultTTL                   time.Duration
+		maxTTL                       time.Duration
 		restartRequirementDaysOfWeek []string
 		restartRequirementWeeks      int64
 		failureTTL                   time.Duration
@@ -54,6 +55,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				restartRequirementWeeks > 0 ||
 				!allowUserAutostart ||
 				!allowUserAutostop ||
+				maxTTL != 0 ||
 				failureTTL != 0 ||
 				inactivityTTL != 0
 			if requiresEntitlement {
@@ -101,6 +103,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				Description:      description,
 				Icon:             icon,
 				DefaultTTLMillis: defaultTTL.Milliseconds(),
+				MaxTTLMillis:     maxTTL.Milliseconds(),
 				RestartRequirement: &codersdk.TemplateRestartRequirement{
 					DaysOfWeek: restartRequirementDaysOfWeek,
 					Weeks:      restartRequirementWeeks,
@@ -148,14 +151,23 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 			Value:       clibase.DurationOf(&defaultTTL),
 		},
 		{
+			Flag:        "max-ttl",
+			Description: "Edit the template maximum time before shutdown - workspaces created from this template must shutdown within the given duration after starting. This is an enterprise-only feature.",
+			Value:       clibase.DurationOf(&maxTTL),
+		},
+		{
 			Flag:        "restart-requirement-weekdays",
 			Description: "Edit the template restart requirement weekdays - workspaces created from this template must be restarted on the given weekdays. To unset this value for the template (and disable the restart requirement for the template), pass 'none'.",
-			Value:       clibase.StringArrayOf(&restartRequirementDaysOfWeek),
+			// TODO(@dean): unhide when we delete max_ttl
+			Hidden: true,
+			Value:  clibase.StringArrayOf(&restartRequirementDaysOfWeek),
 		},
 		{
 			Flag:        "restart-requirement-weeks",
 			Description: "Edit the template restart requirement weeks - workspaces created from this template must be restarted on an n-weekly basis.",
-			Value:       clibase.Int64Of(&restartRequirementWeeks),
+			// TODO(@dean): unhide when we delete max_ttl
+			Hidden: true,
+			Value:  clibase.Int64Of(&restartRequirementWeeks),
 		},
 		{
 			Flag:        "failure-ttl",

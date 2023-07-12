@@ -45,6 +45,7 @@ const (
 	FeatureExternalProvisionerDaemons FeatureName = "external_provisioner_daemons"
 	FeatureAppearance                 FeatureName = "appearance"
 	FeatureAdvancedTemplateScheduling FeatureName = "advanced_template_scheduling"
+	FeatureTemplateRestartRequirement FeatureName = "template_restart_requirement"
 	FeatureWorkspaceProxy             FeatureName = "workspace_proxy"
 )
 
@@ -1796,6 +1797,19 @@ const (
 	ExperimentConvertToOIDC Experiment = "convert-to-oidc"
 
 	ExperimentWorkspaceBuildLogsUI Experiment = "workspace_build_logs_ui"
+
+	// ExperimentTemplateRestartRequirement allows template admins to have more
+	// control over when workspaces created on a template are required to
+	// restart, and allows users to ensure these restarts never happen during
+	// their business hours.
+	//
+	// Enables:
+	// - User quiet hours schedule settings
+	// - Template restart requirement settings
+	// - Changes the max_deadline algorithm to use restart requirement and user
+	//   quiet hours instead of max_ttl.
+	ExperimentTemplateRestartRequirement Experiment = "template_restart_requirement"
+
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"
 )

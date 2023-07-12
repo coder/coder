@@ -223,7 +223,9 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	}
 
 	var (
-		defaultTTL                   time.Duration
+		defaultTTL time.Duration
+		// TODO(@dean): remove max_ttl once restart_requirement is ready
+		maxTTL                       time.Duration
 		restartRequirementDaysOfWeek []string
 		restartRequirementWeeks      int64
 		failureTTL                   time.Duration
@@ -254,11 +256,20 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	if defaultTTL < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be a positive integer."})
 	}
+	if maxTTL < 0 {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "max_ttl_ms", Detail: "Must be a positive integer."})
+	}
+	if maxTTL != 0 && defaultTTL > maxTTL {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be less than or equal to max_ttl_ms if max_ttl_ms is set."})
+	}
 	if len(restartRequirementDaysOfWeek) > 0 {
 		restartRequirementDaysOfWeekParsed, err = codersdk.WeekdaysToBitmap(restartRequirementDaysOfWeek)
 		if err != nil {
 			validErrs = append(validErrs, codersdk.ValidationError{Field: "restart_requirement.days_of_week", Detail: err.Error()})
 		}
+	}
+	if createTemplate.MaxTTLMillis != nil {
+		maxTTL = time.Duration(*createTemplate.MaxTTLMillis) * time.Millisecond
 	}
 	if restartRequirementWeeks < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "restart_requirement.weeks", Detail: "Must be a positive integer."})
@@ -325,6 +336,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			UserAutostartEnabled: allowUserAutostart,
 			UserAutostopEnabled:  allowUserAutostop,
 			DefaultTTL:           defaultTTL,
+			MaxTTL:               maxTTL,
 			// Some of these values are enterprise-only, but the
 			// TemplateScheduleStore will handle avoiding setting them if
 			// unlicensed.
@@ -520,6 +532,12 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	if req.DefaultTTLMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be a positive integer."})
 	}
+	if req.MaxTTLMillis < 0 {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "max_ttl_ms", Detail: "Must be a positive integer."})
+	}
+	if req.MaxTTLMillis != 0 && req.DefaultTTLMillis > req.MaxTTLMillis {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be less than or equal to max_ttl_ms if max_ttl_ms is set."})
+	}
 	if req.RestartRequirement == nil {
 		req.RestartRequirement = &codersdk.TemplateRestartRequirement{
 			DaysOfWeek: codersdk.BitmapToWeekdays(scheduleOpts.RestartRequirement.DaysOfWeek),
@@ -569,6 +587,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.AllowUserAutostop == template.AllowUserAutostop &&
 			req.AllowUserCancelWorkspaceJobs == template.AllowUserCancelWorkspaceJobs &&
 			req.DefaultTTLMillis == time.Duration(template.DefaultTTL).Milliseconds() &&
+			req.MaxTTLMillis == time.Duration(template.MaxTTL).Milliseconds() &&
 			restartRequirementDaysOfWeekParsed == scheduleOpts.RestartRequirement.DaysOfWeek &&
 			req.RestartRequirement.Weeks == scheduleOpts.RestartRequirement.Weeks &&
 			req.FailureTTLMillis == time.Duration(template.FailureTTL).Milliseconds() &&
@@ -598,11 +617,13 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		defaultTTL := time.Duration(req.DefaultTTLMillis) * time.Millisecond
+		maxTTL := time.Duration(req.MaxTTLMillis) * time.Millisecond
 		failureTTL := time.Duration(req.FailureTTLMillis) * time.Millisecond
 		inactivityTTL := time.Duration(req.InactivityTTLMillis) * time.Millisecond
 		lockedTTL := time.Duration(req.LockedTTLMillis) * time.Millisecond
 
 		if defaultTTL != time.Duration(template.DefaultTTL) ||
+			maxTTL != time.Duration(template.MaxTTL) ||
 			restartRequirementDaysOfWeekParsed != scheduleOpts.RestartRequirement.DaysOfWeek ||
 			req.RestartRequirement.Weeks != scheduleOpts.RestartRequirement.Weeks ||
 			failureTTL != time.Duration(template.FailureTTL) ||
@@ -617,6 +638,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 				UserAutostartEnabled: req.AllowUserAutostart,
 				UserAutostopEnabled:  req.AllowUserAutostop,
 				DefaultTTL:           defaultTTL,
+				MaxTTL:               maxTTL,
 				RestartRequirement: schedule.TemplateRestartRequirement{
 					DaysOfWeek: restartRequirementDaysOfWeekParsed,
 					Weeks:      req.RestartRequirement.Weeks,
@@ -769,6 +791,7 @@ func (api *API) convertTemplate(
 		Description:                  template.Description,
 		Icon:                         template.Icon,
 		DefaultTTLMillis:             time.Duration(template.DefaultTTL).Milliseconds(),
+		MaxTTLMillis:                 time.Duration(template.MaxTTL).Milliseconds(),
 		CreatedByID:                  template.CreatedBy,
 		CreatedByName:                createdByName,
 		AllowUserAutostart:           template.AllowUserAutostart,

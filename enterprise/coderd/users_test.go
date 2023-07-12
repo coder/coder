@@ -40,6 +40,7 @@ func TestUserQuietHours(t *testing.T) {
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureAdvancedTemplateScheduling: 1,
+				codersdk.FeatureTemplateRestartRequirement: 1,
 			},
 		},
 	})

@@ -1378,6 +1378,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "icon": "string",
   "inactivity_ttl_ms": 0,
   "locked_ttl_ms": 0,
+  "max_ttl_ms": 0,
   "name": "string",
   "restart_requirement": {
     "days_of_week": ["monday"],
@@ -1402,6 +1403,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `icon`                                                                                                                                                                                    | string                                                                     | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                                                                                                    |
 | `inactivity_ttl_ms`                                                                                                                                                                       | integer                                                                    | false    |              | Inactivity ttl ms allows optionally specifying the max lifetime before Coder locks inactive workspaces created from this template.                                                                                                                                                                                  |
 | `locked_ttl_ms`                                                                                                                                                                           | integer                                                                    | false    |              | Locked ttl ms allows optionally specifying the max lifetime before Coder permanently deletes locked workspaces created from this template.                                                                                                                                                                          |
+| `max_ttl_ms`                                                                                                                                                                              | integer                                                                    | false    |              | Max ttl ms remove max_ttl once restart_requirement is matured                                                                                                                                                                                                                                                       |
 | `name`                                                                                                                                                                                    | string                                                                     | true     |              | Name is the name of the template.                                                                                                                                                                                                                                                                                   |
 | `restart_requirement`                                                                                                                                                                     | [codersdk.TemplateRestartRequirement](#codersdktemplaterestartrequirement) | false    |              | Restart requirement allows optionally specifying the restart requirement for workspaces created from this template. This is an enterprise feature.                                                                                                                                                                  |
 | `template_version_id`                                                                                                                                                                     | string                                                                     | true     |              | Template version ID is an in-progress or completed job to use as an initial version of the template.                                                                                                                                                                                                                |
@@ -2549,13 +2551,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value                     |
-| ------------------------- |
-| `moons`                   |
-| `workspace_actions`       |
-| `tailnet_ha_coordinator`  |
-| `convert-to-oidc`         |
-| `workspace_build_logs_ui` |
+| Value                          |
+| ------------------------------ |
+| `moons`                        |
+| `workspace_actions`            |
+| `tailnet_ha_coordinator`       |
+| `convert-to-oidc`              |
+| `workspace_build_logs_ui`      |
+| `template_restart_requirement` |
 
 ## codersdk.Feature
 
@@ -3977,6 +3980,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "inactivity_ttl_ms": 0,
   "locked_ttl_ms": 0,
+  "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",
@@ -4009,6 +4013,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `id`                               | string                                                                     | false    |              |                                                                                                                                                                                 |
 | `inactivity_ttl_ms`                | integer                                                                    | false    |              |                                                                                                                                                                                 |
 | `locked_ttl_ms`                    | integer                                                                    | false    |              |                                                                                                                                                                                 |
+| `max_ttl_ms`                       | integer                                                                    | false    |              | Max ttl ms remove max_ttl once restart_requirement is matured                                                                                                                   |
 | `name`                             | string                                                                     | false    |              |                                                                                                                                                                                 |
 | `organization_id`                  | string                                                                     | false    |              |                                                                                                                                                                                 |
 | `provisioner`                      | string                                                                     | false    |              |                                                                                                                                                                                 |

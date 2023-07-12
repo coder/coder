@@ -29,6 +29,8 @@ type Template struct {
 	Description      string                 `json:"description"`
 	Icon             string                 `json:"icon"`
 	DefaultTTLMillis int64                  `json:"default_ttl_ms"`
+	// TODO(@dean): remove max_ttl once restart_requirement is matured
+	MaxTTLMillis int64 `json:"max_ttl_ms,omitempty"`
 	// RestartRequirement is an enterprise feature. Its value is only used if
 	// your license is entitled to use the advanced template scheduling feature.
 	RestartRequirement TemplateRestartRequirement `json:"restart_requirement"`
@@ -171,6 +173,8 @@ type UpdateTemplateMeta struct {
 	Description      string `json:"description,omitempty"`
 	Icon             string `json:"icon,omitempty"`
 	DefaultTTLMillis int64  `json:"default_ttl_ms,omitempty"`
+	// TODO(@dean): remove max_ttl once restart_requirement is matured
+	MaxTTLMillis int64 `json:"max_ttl_ms,omitempty"`
 	// RestartRequirement can only be set if your license includes the advanced
 	// template scheduling feature. If you attempt to set this value while
 	// unlicensed, it will be ignored.

@@ -180,6 +180,7 @@ export interface CreateTemplateRequest {
   readonly icon?: string
   readonly template_version_id: string
   readonly default_ttl_ms?: number
+  readonly max_ttl_ms?: number
   readonly restart_requirement?: TemplateRestartRequirement
   readonly allow_user_cancel_workspace_jobs?: boolean
   readonly allow_user_autostart?: boolean
@@ -865,6 +866,7 @@ export interface Template {
   readonly description: string
   readonly icon: string
   readonly default_ttl_ms: number
+  readonly max_ttl_ms?: number
   readonly restart_requirement: TemplateRestartRequirement
   readonly created_by_id: string
   readonly created_by_name: string
@@ -1042,6 +1044,7 @@ export interface UpdateTemplateMeta {
   readonly description?: string
   readonly icon?: string
   readonly default_ttl_ms?: number
+  readonly max_ttl_ms?: number
   readonly restart_requirement?: TemplateRestartRequirement
   readonly allow_user_autostart?: boolean
   readonly allow_user_autostop?: boolean
@@ -1461,12 +1464,14 @@ export type Experiment =
   | "convert-to-oidc"
   | "moons"
   | "tailnet_ha_coordinator"
+  | "template_restart_requirement"
   | "workspace_actions"
   | "workspace_build_logs_ui"
 export const Experiments: Experiment[] = [
   "convert-to-oidc",
   "moons",
   "tailnet_ha_coordinator",
+  "template_restart_requirement",
   "workspace_actions",
   "workspace_build_logs_ui",
 ]
@@ -1482,6 +1487,7 @@ export type FeatureName =
   | "multiple_git_auth"
   | "scim"
   | "template_rbac"
+  | "template_restart_requirement"
   | "user_limit"
   | "workspace_proxy"
 export const FeatureNames: FeatureName[] = [
@@ -1494,6 +1500,7 @@ export const FeatureNames: FeatureName[] = [
   "multiple_git_auth",
   "scim",
   "template_rbac",
+  "template_restart_requirement",
   "user_limit",
   "workspace_proxy",
 ]

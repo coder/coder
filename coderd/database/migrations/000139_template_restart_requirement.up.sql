@@ -1,7 +1,9 @@
 BEGIN;
 
 ALTER TABLE templates
-	DROP COLUMN max_ttl,
+	-- The max_ttl column will be dropped eventually when the new "restart
+	-- requirement" feature flag is fully rolled out.
+	-- DROP COLUMN max_ttl,
 	ADD COLUMN restart_requirement_days_of_week smallint NOT NULL DEFAULT 0,
 	ADD COLUMN restart_requirement_weeks bigint NOT NULL DEFAULT 0;
 

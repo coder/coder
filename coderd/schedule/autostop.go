@@ -85,7 +85,15 @@ func CalculateAutostop(ctx context.Context, params CalculateAutostopParams) (Aut
 		}
 	}
 
-	if templateSchedule.RestartRequirement.DaysOfWeek != 0 {
+	// Use the old algorithm for calculating max_deadline if the instance isn't
+	// configured or entitled to use the new feature flag yet.
+	// TODO(@dean): remove this once the feature flag is enabled for all
+	if !templateSchedule.UseRestartRequirement && templateSchedule.MaxTTL > 0 {
+		autostop.MaxDeadline = now.Add(templateSchedule.MaxTTL)
+	}
+
+	// TODO(@dean): remove extra conditional
+	if templateSchedule.UseRestartRequirement && templateSchedule.RestartRequirement.DaysOfWeek != 0 {
 		// The template has a restart requirement, so determine the max deadline
 		// of this workspace build.
 
@@ -185,13 +193,12 @@ func CalculateAutostop(ctx context.Context, params CalculateAutostopParams) (Aut
 				return autostop, xerrors.New("could not find next occurrence of template restart requirement in user quiet hours schedule")
 			}
 		}
+	}
 
-		// If the workspace doesn't have a deadline or the max deadline is
-		// sooner than the workspace deadline, use the max deadline as the
-		// actual deadline.
-		if autostop.Deadline.IsZero() || autostop.MaxDeadline.Before(autostop.Deadline) {
-			autostop.Deadline = autostop.MaxDeadline
-		}
+	// If the workspace doesn't have a deadline or the max deadline is sooner
+	// than the workspace deadline, use the max deadline as the actual deadline.
+	if !autostop.MaxDeadline.IsZero() && (autostop.Deadline.IsZero() || autostop.MaxDeadline.Before(autostop.Deadline)) {
+		autostop.Deadline = autostop.MaxDeadline
 	}
 
 	if (!autostop.Deadline.IsZero() && autostop.Deadline.Before(now)) || (!autostop.MaxDeadline.IsZero() && autostop.MaxDeadline.Before(now)) {

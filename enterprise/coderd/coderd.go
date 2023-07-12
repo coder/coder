@@ -394,7 +394,10 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureMultipleGitAuth:            len(api.GitAuthConfigs) > 1,
 			codersdk.FeatureTemplateRBAC:               api.RBAC,
 			codersdk.FeatureExternalProvisionerDaemons: true,
-			codersdk.FeatureAdvancedTemplateScheduling: api.DefaultQuietHoursSchedule != "",
+			codersdk.FeatureAdvancedTemplateScheduling: true,
+			// FeatureTemplateRestartRequirement depends on
+			// FeatureAdvancedTemplateScheduling.
+			codersdk.FeatureTemplateRestartRequirement: api.DefaultQuietHoursSchedule != "",
 			codersdk.FeatureWorkspaceProxy:             true,
 		})
 	if err != nil {
@@ -411,6 +414,18 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			"License requires telemetry but telemetry is disabled",
 		}
 		api.Logger.Error(ctx, "license requires telemetry enabled")
+		return nil
+	}
+
+	if entitlements.Features[codersdk.FeatureTemplateRestartRequirement].Enabled && !entitlements.Features[codersdk.FeatureAdvancedTemplateScheduling].Enabled {
+		api.entitlements.Errors = []string{
+			`Your license is entitled to the feature "template restart ` +
+				`requirement" (and you have it enabled by setting the ` +
+				"default quiet hours schedule), but you are not entitled to " +
+				`the dependency feature "advanced template scheduling". ` +
+				"Please contact support for a new license.",
+		}
+		api.Logger.Error(ctx, "license is entitled to template restart requirement but not advanced template scheduling")
 		return nil
 	}
 
@@ -455,7 +470,26 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	if changed, enabled := featureChanged(codersdk.FeatureAdvancedTemplateScheduling); changed {
 		if enabled {
 			templateStore := schedule.NewEnterpriseTemplateScheduleStore()
+			templateStoreInterface := agplschedule.TemplateScheduleStore(templateStore)
+			api.AGPL.TemplateScheduleStore.Store(&templateStoreInterface)
+
+		} else {
+			templateStore := agplschedule.NewAGPLTemplateScheduleStore()
 			api.AGPL.TemplateScheduleStore.Store(&templateStore)
+
+			quietHoursStore := agplschedule.NewAGPLUserQuietHoursScheduleStore()
+			api.AGPL.UserQuietHoursScheduleStore.Store(&quietHoursStore)
+		}
+	}
+
+	if changed, enabled := featureChanged(codersdk.FeatureTemplateRestartRequirement); changed {
+		if enabled {
+			templateStore := *(api.AGPL.TemplateScheduleStore.Load())
+			enterpriseTemplateStore, ok := templateStore.(*schedule.EnterpriseTemplateScheduleStore)
+			if !ok {
+				api.Logger.Error(ctx, "unable to set up enterprise template schedule store, template restart requirements will not be applied to workspace builds")
+			}
+			enterpriseTemplateStore.UseRestartRequirement.Store(true)
 
 			quietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(api.DefaultQuietHoursSchedule, api.QuietHoursWindowDuration)
 			if err != nil {
@@ -464,8 +498,11 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				api.AGPL.UserQuietHoursScheduleStore.Store(&quietHoursStore)
 			}
 		} else {
-			templateStore := agplschedule.NewAGPLTemplateScheduleStore()
-			api.AGPL.TemplateScheduleStore.Store(&templateStore)
+			templateStore := *(api.AGPL.TemplateScheduleStore.Load())
+			enterpriseTemplateStore, ok := templateStore.(*schedule.EnterpriseTemplateScheduleStore)
+			if ok {
+				enterpriseTemplateStore.UseRestartRequirement.Store(false)
+			}
 
 			quietHoursStore := agplschedule.NewAGPLUserQuietHoursScheduleStore()
 			api.AGPL.UserQuietHoursScheduleStore.Store(&quietHoursStore)

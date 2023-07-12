@@ -118,11 +118,12 @@ SET
 	allow_user_autostart = $3,
 	allow_user_autostop = $4,
 	default_ttl = $5,
-	restart_requirement_days_of_week = $6,
-	restart_requirement_weeks = $7,
-	failure_ttl = $8,
-	inactivity_ttl = $9,
-	locked_ttl = $10
+	max_ttl = $6,
+	restart_requirement_days_of_week = $7,
+	restart_requirement_weeks = $8,
+	failure_ttl = $9,
+	inactivity_ttl = $10,
+	locked_ttl = $11
 WHERE
 	id = $1
 RETURNING

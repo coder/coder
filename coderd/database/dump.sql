@@ -561,6 +561,7 @@ CREATE TABLE templates (
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     display_name character varying(64) DEFAULT ''::character varying NOT NULL,
     allow_user_cancel_workspace_jobs boolean DEFAULT true NOT NULL,
+    max_ttl bigint DEFAULT '0'::bigint NOT NULL,
     allow_user_autostart boolean DEFAULT true NOT NULL,
     allow_user_autostop boolean DEFAULT true NOT NULL,
     failure_ttl bigint DEFAULT 0 NOT NULL,

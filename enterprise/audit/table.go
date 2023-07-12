@@ -70,6 +70,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"description":                      ActionTrack,
 		"icon":                             ActionTrack,
 		"default_ttl":                      ActionTrack,
+		"max_ttl":                          ActionTrack,
 		"restart_requirement_days_of_week": ActionTrack,
 		"restart_requirement_weeks":        ActionTrack,
 		"created_by":                       ActionTrack,
