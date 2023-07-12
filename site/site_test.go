@@ -69,6 +69,53 @@ func TestInjection(t *testing.T) {
 	require.Equal(t, db2sdk.User(user, []uuid.UUID{}), got)
 }
 
+func TestInjectionFailureProducesCleanHTML(t *testing.T) {
+	t.Parallel()
+
+	db := dbfake.New()
+
+	// Create an expired user with a refresh token, but provide no OAuth2
+	// configuration so that refresh is impossible, this should result in
+	// an error when ExtractAPIKey is called.
+	user := dbgen.User(t, db, database.User{})
+	_, token := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    user.ID,
+		LastUsed:  database.Now().Add(-time.Hour),
+		ExpiresAt: database.Now().Add(-time.Second),
+		LoginType: database.LoginTypeGithub,
+	})
+	_ = dbgen.UserLink(t, db, database.UserLink{
+		UserID:            user.ID,
+		LoginType:         database.LoginTypeGithub,
+		OAuthRefreshToken: "hello",
+		OAuthExpiry:       database.Now().Add(-time.Second),
+	})
+
+	binFs := http.FS(fstest.MapFS{})
+	siteFS := fstest.MapFS{
+		"index.html": &fstest.MapFile{
+			Data: []byte("<html>{{ .User }}</html>"),
+		},
+	}
+	handler := site.New(&site.Options{
+		BinFS:    binFs,
+		Database: db,
+		SiteFS:   siteFS,
+	})
+
+	r := httptest.NewRequest("GET", "/", nil)
+	r.Header.Set(codersdk.SessionTokenHeader, token)
+	rw := httptest.NewRecorder()
+
+	handler.ServeHTTP(rw, r)
+
+	// Ensure we get a clean HTTML response with no user data or errors
+	// from httpmw.ExtractAPIKey.
+	require.Equal(t, http.StatusOK, rw.Code)
+	body := rw.Body.String()
+	require.Equal(t, "<html></html>", body)
+}
+
 func TestCaching(t *testing.T) {
 	t.Parallel()
 
