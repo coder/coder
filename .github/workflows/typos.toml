@@ -4,6 +4,7 @@ Jetbrains = "JetBrains"
 IST = "IST"
 MacOS = "macOS"
 AKS = "AKS"
+O_WRONLY = "O_WRONLY"
 
 [default.extend-words]
 AKS = "AKS"
