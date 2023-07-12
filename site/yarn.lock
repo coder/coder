@@ -2265,13 +2265,13 @@
     tiny-glob "^0.2.9"
     tslib "^2.4.0"
 
-"@playwright/test@1.35.1":
-  version "1.35.1"
-  resolved "https://registry.yarnpkg.com/@playwright/test/-/test-1.35.1.tgz#a596b61e15b980716696f149cc7a2002f003580c"
-  integrity sha512-b5YoFe6J9exsMYg0pQAobNDR85T1nLumUYgUTtKm4d21iX2L7WqKq9dW8NGJ+2vX0etZd+Y7UeuqsxDXm9+5ZA==
+"@playwright/test@1.36.0":
+  version "1.36.0"
+  resolved "https://registry.yarnpkg.com/@playwright/test/-/test-1.36.0.tgz#df2c0b09bbd27016adf1892b0c3502c4ce88d307"
+  integrity sha512-yN+fvMYtiyLFDCQos+lWzoX4XW3DNuaxjBu68G0lkgLgC6BP+m/iTxJQoSicz/x2G5EsrqlZTqTIP9sTgLQerg==
   dependencies:
     "@types/node" "*"
-    playwright-core "1.35.1"
+    playwright-core "1.36.0"
   optionalDependencies:
     fsevents "2.3.2"
 
@@ -3593,20 +3593,15 @@
     "@types/node" "*"
     form-data "^3.0.0"
 
-"@types/node@*":
-  version "18.14.0"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-18.14.0.tgz#94c47b9217bbac49d4a67a967fdcdeed89ebb7d0"
-  integrity sha512-5EWrvLmglK+imbCJY0+INViFWUHg1AHel1sq4ZVSfdcNqGy9Edv3UB9IIzzg+xPaUcAgZYcfVs2fBcwDeZzU0A==
+"@types/node@*", "@types/node@>=13.7.0":
+  version "20.3.1"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-20.3.1.tgz#e8a83f1aa8b649377bb1fb5d7bac5cb90e784dfe"
+  integrity sha512-EhcH/wvidPy1WeML3TtYFGR83UzjxeWRen9V402T8aUGYsCHOmfoisV3ZSg03gAFIbLq8TnWOJ0f4cALtnSEUg==
 
 "@types/node@14.18.22":
   version "14.18.22"
   resolved "https://registry.yarnpkg.com/@types/node/-/node-14.18.22.tgz#fd2a15dca290fc9ad565b672fde746191cd0c6e6"
   integrity sha512-qzaYbXVzin6EPjghf/hTdIbnVW1ErMx8rPzwRNJhlbyJhu2SyqlvjGOY/tbUt6VFyzg56lROcOeSQRInpt63Yw==
-
-"@types/node@>=13.7.0":
-  version "20.3.1"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-20.3.1.tgz#e8a83f1aa8b649377bb1fb5d7bac5cb90e784dfe"
-  integrity sha512-EhcH/wvidPy1WeML3TtYFGR83UzjxeWRen9V402T8aUGYsCHOmfoisV3ZSg03gAFIbLq8TnWOJ0f4cALtnSEUg==
 
 "@types/node@^16.0.0":
   version "16.18.23"
@@ -9429,10 +9424,10 @@ pkg-dir@^5.0.0:
   dependencies:
     find-up "^5.0.0"
 
-playwright-core@1.35.1:
-  version "1.35.1"
-  resolved "https://registry.yarnpkg.com/playwright-core/-/playwright-core-1.35.1.tgz#52c1e6ffaa6a8c29de1a5bdf8cce0ce290ffb81d"
-  integrity sha512-pNXb6CQ7OqmGDRspEjlxE49w+4YtR6a3X6mT1hZXeJHWmsEz7SunmvZeiG/+y1yyMZdHnnn73WKYdtV1er0Xyg==
+playwright-core@1.36.0:
+  version "1.36.0"
+  resolved "https://registry.yarnpkg.com/playwright-core/-/playwright-core-1.36.0.tgz#35d1ed5f364a31e58bc8f06688ab02d538b96eb6"
+  integrity sha512-7RTr8P6YJPAqB+8j5ATGHqD6LvLLM39sYVNsslh78g8QeLcBs5750c6+msjrHUwwGt+kEbczBj1XB22WMwn+WA==
 
 pluralize@^8.0.0:
   version "8.0.0"
