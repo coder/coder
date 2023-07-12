@@ -69,7 +69,7 @@
     "i18next": "22.5.0",
     "jest-environment-jsdom": "29.5.0",
     "jest-location-mock": "1.0.9",
-    "just-debounce-it": "3.1.1",
+    "just-debounce-it": "3.2.0",
     "lodash": "4.17.21",
     "monaco-editor": "0.39.0",
     "pretty-bytes": "6.1.0",

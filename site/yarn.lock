@@ -8115,10 +8115,10 @@ jss@10.10.0, jss@^10.10.0:
     array-includes "^3.1.5"
     object.assign "^4.1.3"
 
-just-debounce-it@3.1.1:
-  version "3.1.1"
-  resolved "https://registry.yarnpkg.com/just-debounce-it/-/just-debounce-it-3.1.1.tgz#aa07c395d48c394233e4bafdcc49ed188fcf62a5"
-  integrity sha512-oPsuRyWp99LJaQ4KXC3A42tQNqkRTcPy0A8BCkRZ5cPCgsx81upB2KUrmHZvDUNhnCDKe7MshfTuWFQB9iXwDg==
+just-debounce-it@3.2.0:
+  version "3.2.0"
+  resolved "https://registry.yarnpkg.com/just-debounce-it/-/just-debounce-it-3.2.0.tgz#4352265f4af44188624ce9fdbc6bff4d49c63a80"
+  integrity sha512-WXzwLL0745uNuedrCsCs3rpmfD6DBaf7uuVwaq98/8dafURfgQaBsSpjiPp5+CW6Vjltwy9cOGI6qE71b3T8iQ==
 
 kind-of@^6.0.2:
   version "6.0.3"
