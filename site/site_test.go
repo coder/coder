@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/coderd/database/db2sdk"
 	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/database/dbgen"
+	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/site"
 	"github.com/coder/coder/testutil"
@@ -101,6 +102,12 @@ func TestInjectionFailureProducesCleanHTML(t *testing.T) {
 		BinFS:    binFs,
 		Database: db,
 		SiteFS:   siteFS,
+
+		// No OAuth2 configs, refresh will fail.
+		OAuth2Configs: &httpmw.OAuth2Configs{
+			Github: nil,
+			OIDC:   nil,
+		},
 	})
 
 	r := httptest.NewRequest("GET", "/", nil)
