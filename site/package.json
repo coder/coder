@@ -31,7 +31,7 @@
     "deadcode": "ts-prune | grep -v \".stories\\|.typegen\\|.config\\|e2e\\|__mocks__\\|used in module\\|testHelpers\\|typesGenerated\" || echo \"No deadcode found.\""
   },
   "dependencies": {
-    "@emoji-mart/data": "1.0.5",
+    "@emoji-mart/data": "1.1.2",
     "@emoji-mart/react": "1.0.1",
     "@emotion/react": "11.11.1",
     "@emotion/styled": "11.11.0",
