@@ -165,10 +165,15 @@ func (r *RootCmd) licensesList() *clibase.Cmd {
 					} else {
 						var strs []string
 						if lic.AllFeaturesClaim() {
-							strs = append(strs, "all")
-						}
-						for k, v := range features {
-							strs = append(strs, fmt.Sprintf("%s=%v", k, v))
+							// If all features are enabled, just include that
+							strs = append(strs, "all features")
+						} else {
+							for k, v := range features {
+								if v > 0 {
+									// Only include claims > 0
+									strs = append(strs, fmt.Sprintf("%s=%v", k, v))
+								}
+							}
 						}
 						formattedFeatures = strings.Join(strs, ", ")
 					}
@@ -181,7 +186,7 @@ func (r *RootCmd) licensesList() *clibase.Cmd {
 						UploadedAt: lic.UploadedAt,
 						Features:   formattedFeatures,
 						ExpiresAt:  exp,
-						Trial:      lic.Trail(),
+						Trial:      lic.Trial(),
 					})
 				}
 				return out, nil
