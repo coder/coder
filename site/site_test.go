@@ -109,7 +109,7 @@ func TestInjectionFailureProducesCleanHTML(t *testing.T) {
 
 	handler.ServeHTTP(rw, r)
 
-	// Ensure we get a clean HTTML response with no user data or errors
+	// Ensure we get a clean HTML response with no user data or errors
 	// from httpmw.ExtractAPIKey.
 	require.Equal(t, http.StatusOK, rw.Code)
 	body := rw.Body.String()
