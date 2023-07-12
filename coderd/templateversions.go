@@ -113,8 +113,8 @@ func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 		updateParams.Name = params.Name
 	}
 
-	if params.Message != "" {
-		updateParams.Message = params.Message
+	if params.Message != nil {
+		updateParams.Message = *params.Message
 	}
 
 	errTemplateVersionNameConflict := xerrors.New("template version name must be unique for a template")
