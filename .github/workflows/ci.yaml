@@ -198,7 +198,7 @@ jobs:
         with:
           # This doesn't need caching. It's super fast anyways!
           cache: false
-          go-version: 1.20.5
+          go-version: 1.20.6
 
       - name: Install prettier
         # We only need prettier for fmt, so do not install all dependencies.
