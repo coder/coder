@@ -76,7 +76,7 @@ func TestInjectionFailureProducesCleanHTML(t *testing.T) {
 
 	// Create an expired user with a refresh token, but provide no OAuth2
 	// configuration so that refresh is impossible, this should result in
-	// an error when ExtractAPIKey is called.
+	// an error when httpmw.ExtractAPIKey is called.
 	user := dbgen.User(t, db, database.User{})
 	_, token := dbgen.APIKey(t, db, database.APIKey{
 		UserID:    user.ID,
