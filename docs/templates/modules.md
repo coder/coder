@@ -40,7 +40,7 @@ If you are running Coder on a VM, make sure you have `git` installed and the `co
 ```
 
 ```sh
-# /home/coder/.gitconfig
+# /home/coder/.git-credentials
 
 # GitHub example:
 https://your-github-username:your-github-pat@github.com
