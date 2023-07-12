@@ -165,12 +165,10 @@ test("Patch request is not send when there are no changes", async () => {
   jest
     .spyOn(api, "createTemplateVersion")
     .mockResolvedValueOnce(MockTemplateVersionWithEmptyMessage)
-  jest
-    .spyOn(api, "getTemplateVersion")
-    .mockResolvedValue({
-      ...MockTemplateVersionWithEmptyMessage,
-      id: "new-version-id",
-    })
+  jest.spyOn(api, "getTemplateVersion").mockResolvedValue({
+    ...MockTemplateVersionWithEmptyMessage,
+    id: "new-version-id",
+  })
   jest
     .spyOn(api, "watchBuildLogsByTemplateVersionId")
     .mockImplementation((_, options) => {
