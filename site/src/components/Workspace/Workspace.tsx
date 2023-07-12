@@ -230,8 +230,11 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               <Alert severity="warning">
                 <AlertTitle>Workspace is unhealthy</AlertTitle>
                 <AlertDetail>
-                  Your workspace is running but some agents had failed during
-                  initialization.
+                  Your workspace is running but{" "}
+                  {workspace.health.failing_agents.length > 1
+                    ? `${workspace.health.failing_agents.length} agents are unhealthy`
+                    : `1 agent is unhealthy`}
+                  .
                 </AlertDetail>
               </Alert>
             )}
