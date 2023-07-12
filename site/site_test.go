@@ -118,9 +118,9 @@ func TestInjectionFailureProducesCleanHTML(t *testing.T) {
 
 	// Ensure we get a clean HTML response with no user data or errors
 	// from httpmw.ExtractAPIKey.
-	require.Equal(t, http.StatusOK, rw.Code)
+	assert.Equal(t, http.StatusOK, rw.Code)
 	body := rw.Body.String()
-	require.Equal(t, "<html></html>", body)
+	assert.Equal(t, "<html></html>", body)
 }
 
 func TestCaching(t *testing.T) {
