@@ -620,8 +620,12 @@ func (q *querier) GetAuthorizedUserCount(ctx context.Context, arg database.GetFi
 }
 
 func (q *querier) GetUsersWithCount(ctx context.Context, arg database.GetUsersParams) ([]database.User, int64, error) {
-	// TODO Implement this with a SQL filter. The count is incorrect without it.
-	rowUsers, err := q.db.GetUsers(ctx, arg)
+	prep, err := prepareSQLFilter(ctx, q.auth, rbac.ActionRead, rbac.ResourceUser.Type)
+	if err != nil {
+		return nil, -1, xerrors.Errorf("failed to prepare sql filter: %w", err)
+	}
+
+	rowUsers, err := q.db.GetAuthorizedUsers(ctx, arg, prep)
 	if err != nil {
 		return nil, -1, err
 	}
@@ -630,18 +634,8 @@ func (q *querier) GetUsersWithCount(ctx context.Context, arg database.GetUsersPa
 		return []database.User{}, 0, nil
 	}
 
-	act, ok := ActorFromContext(ctx)
-	if !ok {
-		return nil, -1, NoActorError
-	}
-
 	// TODO: Is this correct? Should we return a restricted user?
 	users := database.ConvertUserRows(rowUsers)
-	users, err = rbac.Filter(ctx, q.auth, act, rbac.ActionRead, users)
-	if err != nil {
-		return nil, -1, err
-	}
-
 	return users, rowUsers[0].Count, nil
 }
 
@@ -697,6 +691,13 @@ func authorizedTemplateVersionFromJob(ctx context.Context, q *querier, job datab
 	default:
 		return database.TemplateVersion{}, xerrors.Errorf("unknown job type: %q", job.Type)
 	}
+}
+
+// GetAuthorizedUsers is not required for dbauthz since GetUsers is already
+// authenticated.
+func (q *querier) GetAuthorizedUsers(ctx context.Context, arg database.GetUsersParams, _ rbac.PreparedAuthorized) ([]database.GetUsersRow, error) {
+	// GetUsers is authenticated.
+	return q.GetUsers(ctx, arg)
 }
 
 func (q *querier) AcquireLock(ctx context.Context, id int64) error {
@@ -1427,8 +1428,12 @@ func (q *querier) GetUserLinkByUserIDLoginType(ctx context.Context, arg database
 }
 
 func (q *querier) GetUsers(ctx context.Context, arg database.GetUsersParams) ([]database.GetUsersRow, error) {
-	// TODO: We should use GetUsersWithCount with a better method signature.
-	return fetchWithPostFilter(q.auth, q.db.GetUsers)(ctx, arg)
+	// This does the filtering in SQL.
+	prep, err := prepareSQLFilter(ctx, q.auth, rbac.ActionRead, rbac.ResourceUser.Type)
+	if err != nil {
+		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+	}
+	return q.db.GetAuthorizedUsers(ctx, arg, prep)
 }
 
 // GetUsersByIDs is only used for usernames on workspace return data.

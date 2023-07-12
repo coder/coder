@@ -446,6 +446,21 @@ func (mr *MockStoreMockRecorder) GetAuthorizedUserCount(arg0, arg1, arg2 interfa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedUserCount", reflect.TypeOf((*MockStore)(nil).GetAuthorizedUserCount), arg0, arg1, arg2)
 }
 
+// GetAuthorizedUsers mocks base method.
+func (m *MockStore) GetAuthorizedUsers(arg0 context.Context, arg1 database.GetUsersParams, arg2 rbac.PreparedAuthorized) ([]database.GetUsersRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAuthorizedUsers", arg0, arg1, arg2)
+	ret0, _ := ret[0].([]database.GetUsersRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAuthorizedUsers indicates an expected call of GetAuthorizedUsers.
+func (mr *MockStoreMockRecorder) GetAuthorizedUsers(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedUsers", reflect.TypeOf((*MockStore)(nil).GetAuthorizedUsers), arg0, arg1, arg2)
+}
+
 // GetAuthorizedWorkspaces mocks base method.
 func (m *MockStore) GetAuthorizedWorkspaces(arg0 context.Context, arg1 database.GetWorkspacesParams, arg2 rbac.PreparedAuthorized) ([]database.GetWorkspacesRow, error) {
 	m.ctrl.T.Helper()

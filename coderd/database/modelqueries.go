@@ -252,7 +252,68 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 }
 
 type userQuerier interface {
+	GetAuthorizedUsers(ctx context.Context, arg GetUsersParams, prepared rbac.PreparedAuthorized) ([]GetUsersRow, error)
 	GetAuthorizedUserCount(ctx context.Context, arg GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error)
+}
+
+func (q *sqlQuerier) GetAuthorizedUsers(ctx context.Context, arg GetUsersParams, prepared rbac.PreparedAuthorized) ([]GetUsersRow, error) {
+	authorizedFilter, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
+		VariableConverter: regosql.UserConverter(),
+	})
+
+	if err != nil {
+		return nil, xerrors.Errorf("compile authorized filter: %w", err)
+	}
+
+	filtered, err := insertAuthorizedFilter(getUsers, fmt.Sprintf(" AND %s", authorizedFilter))
+	if err != nil {
+		return nil, xerrors.Errorf("insert authorized filter: %w", err)
+	}
+
+	query := fmt.Sprintf("-- name: GetAuthorizedUsers :many\n%s", filtered)
+	rows, err := q.db.QueryContext(ctx, query,
+		arg.AfterID,
+		arg.Search,
+		pq.Array(arg.Status),
+		pq.Array(arg.RbacRole),
+		arg.LastSeenBefore,
+		arg.LastSeenAfter,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUsersRow
+	for rows.Next() {
+		var i GetUsersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.Username,
+			&i.HashedPassword,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Status,
+			&i.RBACRoles,
+			&i.LoginType,
+			&i.AvatarURL,
+			&i.Deleted,
+			&i.LastSeenAt,
+			&i.Count,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 func (q *sqlQuerier) GetAuthorizedUserCount(ctx context.Context, arg GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {

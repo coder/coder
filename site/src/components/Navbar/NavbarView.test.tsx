@@ -48,6 +48,7 @@ describe("NavbarView", () => {
         onSignOut={noop}
         canViewAuditLog
         canViewDeployment
+        canViewUsers
       />,
     )
     const workspacesLink = await screen.findByText(navLanguage.workspaces)
@@ -62,6 +63,7 @@ describe("NavbarView", () => {
         onSignOut={noop}
         canViewAuditLog
         canViewDeployment
+        canViewUsers
       />,
     )
     const templatesLink = await screen.findByText(navLanguage.templates)
@@ -76,6 +78,7 @@ describe("NavbarView", () => {
         onSignOut={noop}
         canViewAuditLog
         canViewDeployment
+        canViewUsers
       />,
     )
     const userLink = await screen.findByText(navLanguage.users)
@@ -98,6 +101,7 @@ describe("NavbarView", () => {
         onSignOut={noop}
         canViewAuditLog
         canViewDeployment
+        canViewUsers
       />,
     )
 
@@ -115,6 +119,7 @@ describe("NavbarView", () => {
         onSignOut={noop}
         canViewAuditLog
         canViewDeployment
+        canViewUsers
       />,
     )
     const auditLink = await screen.findByText(navLanguage.audit)
@@ -129,6 +134,7 @@ describe("NavbarView", () => {
         onSignOut={noop}
         canViewAuditLog={false}
         canViewDeployment
+        canViewUsers
       />,
     )
     const auditLink = screen.queryByText(navLanguage.audit)
@@ -143,6 +149,7 @@ describe("NavbarView", () => {
         onSignOut={noop}
         canViewAuditLog
         canViewDeployment
+        canViewUsers
       />,
     )
     const auditLink = await screen.findByText(navLanguage.deployment)
@@ -159,6 +166,7 @@ describe("NavbarView", () => {
         onSignOut={noop}
         canViewAuditLog={false}
         canViewDeployment={false}
+        canViewUsers={false}
       />,
     )
     const auditLink = screen.queryByText(navLanguage.deployment)
