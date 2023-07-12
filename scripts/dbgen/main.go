@@ -32,6 +32,11 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+	customFuncs, err := readCustomQuerierFunctions()
+	if err != nil {
+		panic(err)
+	}
+	funcs = append(funcs, customFuncs...)
 	funcByName = map[string]struct{}{}
 	for _, f := range funcs {
 		funcByName[f.Name] = struct{}{}
@@ -423,11 +428,25 @@ func readQuerierFunctions() ([]querierFunction, error) {
 		return nil, err
 	}
 	querierPath := filepath.Join(localPath, "..", "..", "..", "coderd", "database", "querier.go")
+	return loadQuerierFunctions(querierPath, "sqlcQuerier")
+}
 
-	querierData, err := os.ReadFile(querierPath)
+// readCustomQuerierFunctions reads the functions from coderd/database/modelqueries.go
+func readCustomQuerierFunctions() ([]querierFunction, error) {
+	localPath, err := localFilePath()
+	if err != nil {
+		return nil, err
+	}
+	querierPath := filepath.Join(localPath, "..", "..", "..", "coderd", "database", "modelqueries.go")
+	return loadQuerierFunctions(querierPath, "customQuerier")
+}
+
+func loadQuerierFunctions(filename string, interfaceName string) ([]querierFunction, error) {
+	querierData, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, xerrors.Errorf("read querier: %w", err)
 	}
+
 	f, err := decorator.Parse(querierData)
 	if err != nil {
 		return nil, err
@@ -447,7 +466,7 @@ func readQuerierFunctions() ([]querierFunction, error) {
 			}
 			// This is the name of the interface. If that ever changes,
 			// this will need to be updated.
-			if typeSpec.Name.Name != "sqlcQuerier" {
+			if typeSpec.Name.Name != interfaceName {
 				continue
 			}
 			querier, ok = typeSpec.Type.(*dst.InterfaceType)
@@ -461,7 +480,9 @@ func readQuerierFunctions() ([]querierFunction, error) {
 		return nil, xerrors.Errorf("querier not found")
 	}
 	funcs := []querierFunction{}
-	for _, method := range querier.Methods.List {
+	allMethods := interfaceMethods(querier)
+
+	for _, method := range allMethods {
 		funcType, ok := method.Type.(*dst.FuncType)
 		if !ok {
 			continue
@@ -539,4 +560,31 @@ func nameFromSnakeCase(s string) string {
 		}
 	}
 	return ret
+}
+
+// interfaceMethods returns all embedded methods of an interface.
+func interfaceMethods(i *dst.InterfaceType) []*dst.Field {
+	var allMethods []*dst.Field
+	for _, field := range i.Methods.List {
+		switch fieldType := field.Type.(type) {
+		case *dst.FuncType:
+			allMethods = append(allMethods, field)
+		case *dst.InterfaceType:
+			allMethods = append(allMethods, interfaceMethods(fieldType)...)
+		case *dst.Ident:
+			// Embedded interfaces are Idents -> TypeSpec -> InterfaceType
+			// If the embedded interface is not in the parsed file, then
+			// the Obj will be nil.
+			if fieldType.Obj != nil {
+				objDecl, ok := fieldType.Obj.Decl.(*dst.TypeSpec)
+				if ok {
+					isInterface, ok := objDecl.Type.(*dst.InterfaceType)
+					if ok {
+						allMethods = append(allMethods, interfaceMethods(isInterface)...)
+					}
+				}
+			}
+		}
+	}
+	return allMethods
 }

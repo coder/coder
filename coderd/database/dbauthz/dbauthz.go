@@ -575,11 +575,6 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 	return nil
 }
 
-func (q *querier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, _ rbac.PreparedAuthorized) ([]database.Template, error) {
-	// TODO Delete this function, all GetTemplates should be authorized. For now just call getTemplates on the authz querier.
-	return q.GetTemplatesWithFilter(ctx, arg)
-}
-
 func (q *querier) SoftDeleteTemplateByID(ctx context.Context, id uuid.UUID) error {
 	deleteF := func(ctx context.Context, id uuid.UUID) error {
 		return q.db.UpdateTemplateDeletedByID(ctx, database.UpdateTemplateDeletedByIDParams{
@@ -589,34 +584,6 @@ func (q *querier) SoftDeleteTemplateByID(ctx context.Context, id uuid.UUID) erro
 		})
 	}
 	return deleteQ(q.log, q.auth, q.db.GetTemplateByID, deleteF)(ctx, id)
-}
-
-func (q *querier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateGroup, error) {
-	// An actor is authorized to read template group roles if they are authorized to read the template.
-	template, err := q.db.GetTemplateByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	if err := q.authorizeContext(ctx, rbac.ActionRead, template); err != nil {
-		return nil, err
-	}
-	return q.db.GetTemplateGroupRoles(ctx, id)
-}
-
-func (q *querier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateUser, error) {
-	// An actor is authorized to query template user roles if they are authorized to read the template.
-	template, err := q.db.GetTemplateByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	if err := q.authorizeContext(ctx, rbac.ActionRead, template); err != nil {
-		return nil, err
-	}
-	return q.db.GetTemplateUserRoles(ctx, id)
-}
-
-func (q *querier) GetAuthorizedUserCount(ctx context.Context, arg database.GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
-	return q.db.GetAuthorizedUserCount(ctx, arg, prepared)
 }
 
 func (q *querier) GetUsersWithCount(ctx context.Context, arg database.GetUsersParams) ([]database.User, int64, error) {
@@ -647,11 +614,6 @@ func (q *querier) SoftDeleteUserByID(ctx context.Context, id uuid.UUID) error {
 		})
 	}
 	return deleteQ(q.log, q.auth, q.db.GetUserByID, deleteF)(ctx, id)
-}
-
-func (q *querier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetWorkspacesParams, _ rbac.PreparedAuthorized) ([]database.GetWorkspacesRow, error) {
-	// TODO Delete this function, all GetWorkspaces should be authorized. For now just call GetWorkspaces on the authz querier.
-	return q.GetWorkspaces(ctx, arg)
 }
 
 func (q *querier) SoftDeleteWorkspaceByID(ctx context.Context, id uuid.UUID) error {
@@ -691,13 +653,6 @@ func authorizedTemplateVersionFromJob(ctx context.Context, q *querier, job datab
 	default:
 		return database.TemplateVersion{}, xerrors.Errorf("unknown job type: %q", job.Type)
 	}
-}
-
-// GetAuthorizedUsers is not required for dbauthz since GetUsers is already
-// authenticated.
-func (q *querier) GetAuthorizedUsers(ctx context.Context, arg database.GetUsersParams, _ rbac.PreparedAuthorized) ([]database.GetUsersRow, error) {
-	// GetUsers is authenticated.
-	return q.GetUsers(ctx, arg)
 }
 
 func (q *querier) AcquireLock(ctx context.Context, id int64) error {
@@ -2646,4 +2601,49 @@ func (q *querier) UpsertTailnetCoordinator(ctx context.Context, id uuid.UUID) (d
 		return database.TailnetCoordinator{}, err
 	}
 	return q.db.UpsertTailnetCoordinator(ctx, id)
+}
+
+func (q *querier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, _ rbac.PreparedAuthorized) ([]database.Template, error) {
+	// TODO Delete this function, all GetTemplates should be authorized. For now just call getTemplates on the authz querier.
+	return q.GetTemplatesWithFilter(ctx, arg)
+}
+
+func (q *querier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateGroup, error) {
+	// An actor is authorized to read template group roles if they are authorized to read the template.
+	template, err := q.db.GetTemplateByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, rbac.ActionRead, template); err != nil {
+		return nil, err
+	}
+	return q.db.GetTemplateGroupRoles(ctx, id)
+}
+
+func (q *querier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateUser, error) {
+	// An actor is authorized to query template user roles if they are authorized to read the template.
+	template, err := q.db.GetTemplateByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, rbac.ActionRead, template); err != nil {
+		return nil, err
+	}
+	return q.db.GetTemplateUserRoles(ctx, id)
+}
+
+func (q *querier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetWorkspacesParams, _ rbac.PreparedAuthorized) ([]database.GetWorkspacesRow, error) {
+	// TODO Delete this function, all GetWorkspaces should be authorized. For now just call GetWorkspaces on the authz querier.
+	return q.GetWorkspaces(ctx, arg)
+}
+
+// GetAuthorizedUsers is not required for dbauthz since GetUsers is already
+// authenticated.
+func (q *querier) GetAuthorizedUsers(ctx context.Context, arg database.GetUsersParams, _ rbac.PreparedAuthorized) ([]database.GetUsersRow, error) {
+	// GetUsers is authenticated.
+	return q.GetUsers(ctx, arg)
+}
+
+func (q *querier) GetAuthorizedUserCount(ctx context.Context, arg database.GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
+	return q.db.GetAuthorizedUserCount(ctx, arg, prepared)
 }
