@@ -234,7 +234,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				filesRateLimit = -1
 			}
 
-			PrintLogo(inv)
+			PrintLogo(inv, "Coder")
 			logger, logCloser, err := BuildLogger(inv, cfg)
 			if err != nil {
 				return xerrors.Errorf("make logger: %w", err)
@@ -1333,13 +1333,15 @@ func newProvisionerDaemon(
 }
 
 // nolint: revive
-func PrintLogo(inv *clibase.Invocation) {
+func PrintLogo(inv *clibase.Invocation, daemonTitle string) {
 	// Only print the logo in TTYs.
 	if !isTTYOut(inv) {
 		return
 	}
 
-	_, _ = fmt.Fprintf(inv.Stdout, "%s - Your Self-Hosted Remote Development Platform\n", cliui.DefaultStyles.Bold.Render("Coder "+buildinfo.Version()))
+	versionString := cliui.DefaultStyles.Bold.Render(daemonTitle + " " + buildinfo.Version())
+
+	_, _ = fmt.Fprintf(inv.Stdout, "%s - Your Self-Hosted Remote Development Platform\n", versionString)
 }
 
 func loadCertificates(tlsCertFiles, tlsKeyFiles []string) ([]tls.Certificate, error) {

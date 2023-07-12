@@ -108,7 +108,7 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 
 			go cli.DumpHandler(ctx)
 
-			cli.PrintLogo(inv)
+			cli.PrintLogo(inv, "Coder Workspace Proxy")
 			logger, logCloser, err := cli.BuildLogger(inv, cfg)
 			if err != nil {
 				return xerrors.Errorf("make logger: %w", err)
