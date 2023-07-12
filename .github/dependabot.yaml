@@ -92,6 +92,33 @@ updates:
       - dependency-name: "@types/node"
         update-types:
           - version-update:semver-major
+    groups:
+      npm-react:
+        patterns:
+          - "react*"
+      npm-xterm:
+        patterns:
+          - "xterm*"
+      npm-xstate:
+        patterns:
+          - "xstate"
+          - "@xstate*"
+      npm-mui:
+        patterns:
+          - "@mui*"
+      npm-storybook:
+        patterns:
+          - "@storybook*"
+          - "storybook*"
+      npm-eslint:
+        patterns:
+          - "eslint*"
+          - "@eslint*"
+          - "@typescript-eslint/eslint-plugin"
+          - "@typescript-eslint/parser"
+      npm-jest:
+        patterns:
+          - "jest
 
   - package-ecosystem: "terraform"
     directory: "/examples/templates"
