@@ -345,12 +345,15 @@ func TestCalculateAutoStop(t *testing.T) {
 				},
 			}
 
+			org := dbgen.Organization(t, db, database.Organization{})
 			user := dbgen.User(t, db, database.User{
 				QuietHoursSchedule: c.userQuietHoursSchedule,
 			})
 			template := dbgen.Template(t, db, database.Template{
-				Name:        "template",
-				Provisioner: database.ProvisionerTypeEcho,
+				Name:           "template",
+				Provisioner:    database.ProvisionerTypeEcho,
+				OrganizationID: org.ID,
+				CreatedBy:      user.ID,
 			})
 			template, err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 				ID:                           template.ID,
@@ -368,9 +371,10 @@ func TestCalculateAutoStop(t *testing.T) {
 				}
 			}
 			workspace := dbgen.Workspace(t, db, database.Workspace{
-				TemplateID: template.ID,
-				Ttl:        workspaceTTL,
-				OwnerID:    user.ID,
+				TemplateID:     template.ID,
+				OrganizationID: org.ID,
+				OwnerID:        user.ID,
+				Ttl:            workspaceTTL,
 			})
 
 			autostop, err := schedule.CalculateAutostop(ctx, schedule.CalculateAutostopParams{

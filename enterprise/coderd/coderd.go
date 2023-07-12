@@ -472,13 +472,9 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			templateStore := schedule.NewEnterpriseTemplateScheduleStore()
 			templateStoreInterface := agplschedule.TemplateScheduleStore(templateStore)
 			api.AGPL.TemplateScheduleStore.Store(&templateStoreInterface)
-
 		} else {
 			templateStore := agplschedule.NewAGPLTemplateScheduleStore()
 			api.AGPL.TemplateScheduleStore.Store(&templateStore)
-
-			quietHoursStore := agplschedule.NewAGPLUserQuietHoursScheduleStore()
-			api.AGPL.UserQuietHoursScheduleStore.Store(&quietHoursStore)
 		}
 	}
 

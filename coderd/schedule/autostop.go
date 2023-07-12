@@ -225,7 +225,7 @@ func nextDayMidnight(t time.Time) time.Time {
 	yy, mm, dd := t.Date()
 	// time.Date will correctly normalize the date if it's past the end of the
 	// month. E.g. October 32nd will be November 1st.
-	dd += 1
+	dd++
 	return time.Date(yy, mm, dd, 0, 0, 0, 0, t.Location())
 }
 
