@@ -25,8 +25,9 @@ func userACLMatcher(m sqltypes.VariableMatcher) sqltypes.VariableMatcher {
 func UserConverter() *sqltypes.VariableConverter {
 	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
 		resourceIDMatcher(),
-		// Users are never owned by an organization.
-		sqltypes.AlwaysFalse(organizationOwnerMatcher()),
+		// Users are never owned by an organization, so always return the empty string
+		// for the org owner.
+		sqltypes.StringVarMatcher("''", []string{"input", "object", "org_owner"}),
 		// Users are always owned by themselves.
 		sqltypes.StringVarMatcher("id :: text", []string{"input", "object", "owner"}),
 	)

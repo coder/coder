@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/slices"
 

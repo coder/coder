@@ -242,6 +242,26 @@ neq(input.object.owner, "");
 				p("false")),
 			VariableConverter: regosql.TemplateConverter(),
 		},
+		{
+			Name: "UserNoOrgOwner",
+			Queries: []string{
+				`input.object.org_owner != ""`,
+			},
+			ExpectedSQL:       p("'' != ''"),
+			VariableConverter: regosql.UserConverter(),
+		},
+		{
+			Name: "UserOwnsSelf",
+			Queries: []string{
+				`"10d03e62-7703-4df5-a358-4f76577d4e2f" = input.object.owner;
+				input.object.owner != "";
+				input.object.org_owner = ""`,
+			},
+			VariableConverter: regosql.UserConverter(),
+			ExpectedSQL: p(
+				p("'10d03e62-7703-4df5-a358-4f76577d4e2f' = id :: text") + " AND " + p("id :: text != ''") + " AND " + p("'' = ''"),
+			),
+		},
 	}
 
 	for _, tc := range testCases {
