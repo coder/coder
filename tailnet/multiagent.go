@@ -31,7 +31,7 @@ type MultiAgent struct {
 	Logger slog.Logger
 
 	AgentIsLegacyFunc func(agentID uuid.UUID) bool
-	OnSubscribe       func(enq Queue, agent uuid.UUID) error
+	OnSubscribe       func(enq Queue, agent uuid.UUID) (*Node, error)
 	OnUnsubscribe     func(enq Queue, agent uuid.UUID) error
 	OnNodeUpdate      func(id uuid.UUID, node *Node) error
 	OnRemove          func(id uuid.UUID)
@@ -78,7 +78,16 @@ func (m *MultiAgent) SubscribeAgent(agentID uuid.UUID) error {
 		return ErrMultiAgentClosed
 	}
 
-	return m.OnSubscribe(m, agentID)
+	node, err := m.OnSubscribe(m, agentID)
+	if err != nil {
+		return err
+	}
+
+	if node != nil {
+		return m.enqueueLocked([]*Node{node})
+	}
+
+	return nil
 }
 
 func (m *MultiAgent) UnsubscribeAgent(agentID uuid.UUID) error {
@@ -102,14 +111,18 @@ func (m *MultiAgent) NextUpdate(ctx context.Context) ([]*Node, bool) {
 }
 
 func (m *MultiAgent) Enqueue(nodes []*Node) error {
-	atomic.StoreInt64(&m.lastWrite, time.Now().Unix())
-
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	if m.closed {
 		return nil
 	}
+
+	return m.enqueueLocked(nodes)
+}
+
+func (m *MultiAgent) enqueueLocked(nodes []*Node) error {
+	atomic.StoreInt64(&m.lastWrite, time.Now().Unix())
 
 	select {
 	case m.updates <- nodes:

@@ -73,37 +73,34 @@ func (c *haCoordinator) addClient(id uuid.UUID, q agpl.Queue) {
 	c.mutex.Unlock()
 }
 
-func (c *haCoordinator) clientSubscribeToAgent(enq agpl.Queue, agentID uuid.UUID) error {
+func (c *haCoordinator) clientSubscribeToAgent(enq agpl.Queue, agentID uuid.UUID) (*agpl.Node, error) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
 	c.initOrSetAgentConnectionSocketLocked(agentID, enq)
 
 	node := c.nodes[enq.UniqueID()]
-
-	agentNode, ok := c.nodes[agentID]
-	// If we have the node locally, publish it immediately to the multiagent.
-	if ok {
-		err := enq.Enqueue([]*agpl.Node{agentNode})
-		if err != nil {
-			return xerrors.Errorf("enqueue agent on subscribe: %w", err)
-		}
-	} else {
-		// If we don't have the node locally, notify other coordinators.
-		err := c.publishClientHello(agentID)
-		if err != nil {
-			return xerrors.Errorf("publish client hello: %w", err)
-		}
-	}
-
 	if node != nil {
 		err := c.sendNodeToAgentLocked(agentID, node)
 		if err != nil {
-			return xerrors.Errorf("handle client update: %w", err)
+			return nil, xerrors.Errorf("handle client update: %w", err)
 		}
 	}
 
-	return nil
+	agentNode, ok := c.nodes[agentID]
+	// If we have the node locally, give it back to the multiagent.
+	if ok {
+		return agentNode, nil
+	}
+
+	// If we don't have the node locally, notify other coordinators.
+	err := c.publishClientHello(agentID)
+	if err != nil {
+		return nil, xerrors.Errorf("publish client hello: %w", err)
+	}
+
+	// nolint:nilnil
+	return nil, nil
 }
 
 type haCoordinator struct {
@@ -168,9 +165,16 @@ func (c *haCoordinator) ServeClient(conn net.Conn, id, agentID uuid.UUID) error 
 	c.addClient(id, tc)
 	defer c.clientDisconnected(id)
 
-	err := c.clientSubscribeToAgent(tc, agentID)
+	agentNode, err := c.clientSubscribeToAgent(tc, agentID)
 	if err != nil {
 		return xerrors.Errorf("subscribe agent: %w", err)
+	}
+
+	if agentNode != nil {
+		err := tc.Enqueue([]*agpl.Node{agentNode})
+		if err != nil {
+			logger.Debug(ctx, "enqueue initial node", slog.Error(err))
+		}
 	}
 
 	go tc.SendUpdates()

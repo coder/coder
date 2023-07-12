@@ -143,6 +143,7 @@ func (c *coordinator) ServeMultiAgent(id uuid.UUID) MultiAgentConn {
 		Logger:            c.core.logger,
 		AgentIsLegacyFunc: c.core.agentIsLegacy,
 		OnSubscribe:       c.core.clientSubscribeToAgent,
+		OnUnsubscribe:     c.core.clientUnsubscribeFromAgent,
 		OnNodeUpdate:      c.core.clientNodeUpdate,
 		OnRemove:          c.core.clientDisconnected,
 	}).Init()
@@ -268,9 +269,16 @@ func (c *coordinator) ServeClient(conn net.Conn, id, agentID uuid.UUID) error {
 	c.core.addClient(id, tc)
 	defer c.core.clientDisconnected(id)
 
-	err := c.core.clientSubscribeToAgent(tc, agentID)
+	agentNode, err := c.core.clientSubscribeToAgent(tc, agentID)
 	if err != nil {
 		return xerrors.Errorf("subscribe agent: %w", err)
+	}
+
+	if agentNode != nil {
+		err := tc.Enqueue([]*Node{agentNode})
+		if err != nil {
+			logger.Debug(ctx, "enqueue initial node", slog.Error(err))
+		}
 	}
 
 	// On this goroutine, we read updates from the client and publish them.  We start a second goroutine
@@ -316,16 +324,15 @@ func (c *core) clientDisconnected(id uuid.UUID) {
 	for agentID := range c.clientsToAgents[id] {
 		connectionSockets, ok := c.agentToConnectionSockets[agentID]
 		if !ok {
-			return
+			continue
 		}
 		delete(connectionSockets, id)
 		logger.Debug(context.Background(), "deleted client connectionSocket from map", slog.F("agent_id", agentID))
 
-		if len(connectionSockets) != 0 {
-			return
+		if len(connectionSockets) == 0 {
+			delete(c.agentToConnectionSockets, agentID)
+			logger.Debug(context.Background(), "deleted last client connectionSocket from map", slog.F("agent_id", agentID))
 		}
-		delete(c.agentToConnectionSockets, agentID)
-		logger.Debug(context.Background(), "deleted last client connectionSocket from map", slog.F("agent_id", agentID))
 	}
 
 	delete(c.clients, id)
@@ -380,7 +387,7 @@ func (c *core) clientNodeUpdateLocked(id uuid.UUID, node *Node) error {
 	return nil
 }
 
-func (c *core) clientSubscribeToAgent(enq Queue, agentID uuid.UUID) error {
+func (c *core) clientSubscribeToAgent(enq Queue, agentID uuid.UUID) (*Node, error) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -390,15 +397,15 @@ func (c *core) clientSubscribeToAgent(enq Queue, agentID uuid.UUID) error {
 
 	node, ok := c.nodes[enq.UniqueID()]
 	if ok {
-		// If we have the node, send it to the agent. If not, it will be sent
-		// async.
+		// If we have the client node, send it to the agent. If not, it will be
+		// sent async.
 		agentSocket, ok := c.agentSockets[agentID]
 		if !ok {
 			logger.Debug(context.Background(), "subscribe to agent; socket is nil")
 		} else {
 			err := agentSocket.Enqueue([]*Node{node})
 			if err != nil {
-				return xerrors.Errorf("enqueue client to agent: %w", err)
+				return nil, xerrors.Errorf("enqueue client to agent: %w", err)
 			}
 		}
 	} else {
@@ -409,11 +416,20 @@ func (c *core) clientSubscribeToAgent(enq Queue, agentID uuid.UUID) error {
 	if !ok {
 		// This is ok, once the agent connects the node will be sent over.
 		logger.Debug(context.Background(), "agent node doesn't exist", slog.F("agent_id", agentID))
-		return nil
 	}
 
 	// Send the subscribed agent back to the multi agent.
-	return enq.Enqueue([]*Node{agentNode})
+	return agentNode, nil
+}
+
+func (c *core) clientUnsubscribeFromAgent(enq Queue, agentID uuid.UUID) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	delete(c.clientsToAgents[enq.UniqueID()], agentID)
+	delete(c.agentToConnectionSockets[agentID], enq.UniqueID())
+
+	return nil
 }
 
 func (c *core) agentLogger(id uuid.UUID) slog.Logger {

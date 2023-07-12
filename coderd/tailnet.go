@@ -56,14 +56,15 @@ func NewServerTailnet(
 
 	serverCtx, cancel := context.WithCancel(ctx)
 	tn := &ServerTailnet{
-		ctx:        serverCtx,
-		cancel:     cancel,
-		logger:     logger,
-		conn:       conn,
-		coord:      coord,
-		cache:      cache,
-		agentNodes: map[uuid.UUID]*tailnetNode{},
-		transport:  tailnetTransport.Clone(),
+		ctx:          serverCtx,
+		cancel:       cancel,
+		logger:       logger,
+		conn:         conn,
+		coord:        coord,
+		cache:        cache,
+		agentNodes:   map[uuid.UUID]time.Time{},
+		agentTickets: map[uuid.UUID]map[uuid.UUID]struct{}{},
+		transport:    tailnetTransport.Clone(),
 	}
 	tn.transport.DialContext = tn.dialContext
 	tn.transport.MaxIdleConnsPerHost = 10
@@ -122,15 +123,19 @@ func (s *ServerTailnet) expireOldAgents() {
 
 		s.nodesMu.Lock()
 		agentConn := s.getAgentConn()
-		for agentID, node := range s.agentNodes {
-			if time.Since(node.lastConnection) > cutoff {
-				err := agentConn.UnsubscribeAgent(agentID)
-				if err != nil {
-					s.logger.Error(s.ctx, "unsubscribe expired agent", slog.Error(err), slog.F("agent_id", agentID))
-				}
-				delete(s.agentNodes, agentID)
+		for agentID, lastConnection := range s.agentNodes {
+			// If no one has connected since the cutoff and there are no active
+			// connections, remove the agent.
+			if time.Since(lastConnection) > cutoff && len(s.agentTickets[agentID]) == 0 {
+				_ = agentConn
+				// err := agentConn.UnsubscribeAgent(agentID)
+				// if err != nil {
+				// 	s.logger.Error(s.ctx, "unsubscribe expired agent", slog.Error(err), slog.F("agent_id", agentID))
+				// }
+				// delete(s.agentNodes, agentID)
 
-				// TODO(coadler): actually remove from the netmap
+				// TODO(coadler): actually remove from the netmap, then reenable
+				// the above
 			}
 		}
 		s.nodesMu.Unlock()
@@ -176,10 +181,6 @@ func (s *ServerTailnet) reinitCoordinator() {
 	s.nodesMu.Unlock()
 }
 
-type tailnetNode struct {
-	lastConnection time.Time
-}
-
 type ServerTailnet struct {
 	ctx    context.Context
 	cancel func()
@@ -191,8 +192,10 @@ type ServerTailnet struct {
 	cache     *wsconncache.Cache
 	nodesMu   sync.Mutex
 	// agentNodes is a map of agent tailnetNodes the server wants to keep a
-	// connection to.
-	agentNodes map[uuid.UUID]*tailnetNode
+	// connection to. It contains the last time the agent was connected to.
+	agentNodes map[uuid.UUID]time.Time
+	// agentTockets holds a map of all open connections to an agent.
+	agentTickets map[uuid.UUID]map[uuid.UUID]struct{}
 
 	transport *http.Transport
 }
@@ -237,7 +240,9 @@ func (s *ServerTailnet) dialContext(ctx context.Context, network, addr string) (
 
 func (s *ServerTailnet) ensureAgent(agentID uuid.UUID) error {
 	s.nodesMu.Lock()
-	tnode, ok := s.agentNodes[agentID]
+	defer s.nodesMu.Unlock()
+
+	_, ok := s.agentNodes[agentID]
 	// If we don't have the node, subscribe.
 	if !ok {
 		s.logger.Debug(s.ctx, "subscribing to agent", slog.F("agent_id", agentID))
@@ -245,15 +250,10 @@ func (s *ServerTailnet) ensureAgent(agentID uuid.UUID) error {
 		if err != nil {
 			return xerrors.Errorf("subscribe agent: %w", err)
 		}
-		tnode = &tailnetNode{
-			lastConnection: time.Now(),
-		}
-		s.agentNodes[agentID] = tnode
-	} else {
-		tnode.lastConnection = time.Now()
+		s.agentTickets[agentID] = map[uuid.UUID]struct{}{}
 	}
-	s.nodesMu.Unlock()
 
+	s.agentNodes[agentID] = time.Now()
 	return nil
 }
 
