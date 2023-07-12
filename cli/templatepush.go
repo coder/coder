@@ -186,12 +186,14 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				return err
 			}
 
-			var templateExists bool
+			var createTemplate bool
 			template, err := client.TemplateByName(inv.Context(), organization.ID, name)
-			if create && err == nil {
-				templateExists = true
-			} else if !create && err != nil {
-				return err
+			if err != nil {
+				if create {
+					createTemplate = true
+				} else {
+					return err
+				}
 			}
 
 			err = uploadFlags.checkForLockfile(inv)
@@ -222,7 +224,7 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				Variables:       variables,
 			}
 
-			if templateExists {
+			if !createTemplate {
 				args.Name = versionName
 				args.Template = &template
 				args.ReuseParameters = !alwaysPrompt
@@ -237,7 +239,7 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				return xerrors.Errorf("job failed: %s", job.Job.Status)
 			}
 
-			if !templateExists {
+			if createTemplate {
 				_, err = client.CreateTemplate(inv.Context(), organization.ID, codersdk.CreateTemplateRequest{
 					Name:      name,
 					VersionID: job.ID,
