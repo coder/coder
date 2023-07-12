@@ -21,19 +21,17 @@ func TestCheckACLPermissions(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	t.Cleanup(cancel)
 
-	adminClient := coderdenttest.New(t, &coderdenttest.Options{
+	adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 		},
-	})
-	// Create adminClient, member, and org adminClient
-	adminUser := coderdtest.CreateFirstUser(t, adminClient)
-	_ = coderdenttest.AddLicense(t, adminClient, coderdenttest.LicenseOptions{
-		Features: license.Features{
-			codersdk.FeatureTemplateRBAC: 1,
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
 		},
 	})
-
+	// Create member and org adminClient
 	memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
 	memberUser, err := memberClient.User(ctx, codersdk.Me)
 	require.NoError(t, err)

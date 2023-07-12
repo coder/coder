@@ -145,6 +145,20 @@ export const NoSearchResults: Story = {
   },
 }
 
+export const UnhealthyWorkspace: Story = {
+  args: {
+    workspaces: [
+      {
+        ...createWorkspace("running"),
+        health: {
+          healthy: false,
+          failing_agents: [],
+        },
+      },
+    ],
+  },
+}
+
 export const Error: Story = {
   args: {
     error: mockApiError({ message: "Something went wrong" }),

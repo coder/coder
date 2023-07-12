@@ -33,16 +33,15 @@ func TestBlockNonBrowser(t *testing.T) {
 	t.Parallel()
 	t.Run("Enabled", func(t *testing.T) {
 		t.Parallel()
-		client := coderdenttest.New(t, &coderdenttest.Options{
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			BrowserOnly: true,
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
 			},
-		})
-		user := coderdtest.CreateFirstUser(t, client)
-		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureBrowserOnly: 1,
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureBrowserOnly: 1,
+				},
 			},
 		})
 		_, agent := setupWorkspaceAgent(t, client, user, 0)
@@ -53,15 +52,14 @@ func TestBlockNonBrowser(t *testing.T) {
 	})
 	t.Run("Disabled", func(t *testing.T) {
 		t.Parallel()
-		client := coderdenttest.New(t, &coderdenttest.Options{
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
 			},
-		})
-		user := coderdtest.CreateFirstUser(t, client)
-		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureBrowserOnly: 0,
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureBrowserOnly: 0,
+				},
 			},
 		})
 		_, agent := setupWorkspaceAgent(t, client, user, 0)

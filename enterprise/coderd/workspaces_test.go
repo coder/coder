@@ -33,13 +33,11 @@ func TestCreateWorkspace(t *testing.T) {
 	t.Run("Unauthorized", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdenttest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureTemplateRBAC: 1,
 			},
-		})
+		}})
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -95,19 +93,20 @@ func TestWorkspaceAutobuild(t *testing.T) {
 				IgnoreErrors: true,
 			})
 			failureTTL = time.Minute
-
-			client = coderdenttest.New(t, &coderdenttest.Options{
-				Options: &coderdtest.Options{
-					Logger:                   &logger,
-					AutobuildTicker:          ticker,
-					IncludeProvisionerDaemon: true,
-					AutobuildStats:           statCh,
-					TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
-				},
-			})
 		)
-		user := coderdtest.CreateFirstUser(t, client)
-		_ = coderdenttest.AddFullLicense(t, client)
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Logger:                   &logger,
+				AutobuildTicker:          ticker,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statCh,
+				TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
+			},
+		})
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
@@ -141,19 +140,20 @@ func TestWorkspaceAutobuild(t *testing.T) {
 				IgnoreErrors: true,
 			})
 			failureTTL = time.Minute
-
-			client = coderdenttest.New(t, &coderdenttest.Options{
-				Options: &coderdtest.Options{
-					Logger:                   &logger,
-					AutobuildTicker:          ticker,
-					IncludeProvisionerDaemon: true,
-					AutobuildStats:           statCh,
-					TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
-				},
-			})
 		)
-		user := coderdtest.CreateFirstUser(t, client)
-		_ = coderdenttest.AddFullLicense(t, client)
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Logger:                   &logger,
+				AutobuildTicker:          ticker,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statCh,
+				TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
+			},
+		})
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.ProvisionComplete,
@@ -186,19 +186,20 @@ func TestWorkspaceAutobuild(t *testing.T) {
 				// builds.
 				IgnoreErrors: true,
 			})
-
-			client = coderdenttest.New(t, &coderdenttest.Options{
-				Options: &coderdtest.Options{
-					Logger:                   &logger,
-					AutobuildTicker:          ticker,
-					IncludeProvisionerDaemon: true,
-					AutobuildStats:           statCh,
-					TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
-				},
-			})
 		)
-		user := coderdtest.CreateFirstUser(t, client)
-		_ = coderdenttest.AddFullLicense(t, client)
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Logger:                   &logger,
+				AutobuildTicker:          ticker,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statCh,
+				TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
+			},
+		})
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.ProvisionComplete,
@@ -228,18 +229,19 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			ticker      = make(chan time.Time)
 			statCh      = make(chan autobuild.Stats)
 			inactiveTTL = time.Minute
-
-			client = coderdenttest.New(t, &coderdenttest.Options{
-				Options: &coderdtest.Options{
-					AutobuildTicker:          ticker,
-					IncludeProvisionerDaemon: true,
-					AutobuildStats:           statCh,
-					TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
-				},
-			})
 		)
-		user := coderdtest.CreateFirstUser(t, client)
-		_ = coderdenttest.AddFullLicense(t, client)
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				AutobuildTicker:          ticker,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statCh,
+				TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
+			},
+		})
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
@@ -284,18 +286,19 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			ticker      = make(chan time.Time)
 			statCh      = make(chan autobuild.Stats)
 			inactiveTTL = time.Minute
-
-			client = coderdenttest.New(t, &coderdenttest.Options{
-				Options: &coderdtest.Options{
-					AutobuildTicker:          ticker,
-					IncludeProvisionerDaemon: true,
-					AutobuildStats:           statCh,
-					TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
-				},
-			})
 		)
-		user := coderdtest.CreateFirstUser(t, client)
-		_ = coderdenttest.AddFullLicense(t, client)
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				AutobuildTicker:          ticker,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statCh,
+				TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
+			},
+		})
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.ProvisionComplete,
@@ -325,18 +328,19 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			ticker    = make(chan time.Time)
 			statCh    = make(chan autobuild.Stats)
 			lockedTTL = time.Minute
-
-			client = coderdenttest.New(t, &coderdenttest.Options{
-				Options: &coderdtest.Options{
-					AutobuildTicker:          ticker,
-					IncludeProvisionerDaemon: true,
-					AutobuildStats:           statCh,
-					TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
-				},
-			})
 		)
-		user := coderdtest.CreateFirstUser(t, client)
-		_ = coderdenttest.AddFullLicense(t, client)
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				AutobuildTicker:          ticker,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statCh,
+				TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
+			},
+		})
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.ProvisionComplete,
@@ -366,18 +370,19 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			ticker      = make(chan time.Time)
 			statCh      = make(chan autobuild.Stats)
 			inactiveTTL = time.Minute
-
-			client = coderdenttest.New(t, &coderdenttest.Options{
-				Options: &coderdtest.Options{
-					AutobuildTicker:          ticker,
-					IncludeProvisionerDaemon: true,
-					AutobuildStats:           statCh,
-					TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
-				},
-			})
 		)
-		user := coderdtest.CreateFirstUser(t, client)
-		_ = coderdenttest.AddFullLicense(t, client)
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				AutobuildTicker:          ticker,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statCh,
+				TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
+			},
+		})
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.ProvisionComplete,
@@ -416,18 +421,19 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			ticker        = make(chan time.Time)
 			statCh        = make(chan autobuild.Stats)
 			transitionTTL = time.Minute
-
-			client = coderdenttest.New(t, &coderdenttest.Options{
-				Options: &coderdtest.Options{
-					AutobuildTicker:          ticker,
-					IncludeProvisionerDaemon: true,
-					AutobuildStats:           statCh,
-					TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
-				},
-			})
 		)
-		user := coderdtest.CreateFirstUser(t, client)
-		_ = coderdenttest.AddFullLicense(t, client)
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				AutobuildTicker:          ticker,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statCh,
+				TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
+			},
+		})
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
@@ -485,18 +491,19 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			ticker    = make(chan time.Time)
 			statCh    = make(chan autobuild.Stats)
 			lockedTTL = time.Minute
-
-			client = coderdenttest.New(t, &coderdenttest.Options{
-				Options: &coderdtest.Options{
-					AutobuildTicker:          ticker,
-					IncludeProvisionerDaemon: true,
-					AutobuildStats:           statCh,
-					TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
-				},
-			})
 		)
-		user := coderdtest.CreateFirstUser(t, client)
-		_ = coderdenttest.AddFullLicense(t, client)
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				AutobuildTicker:          ticker,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statCh,
+				TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
+			},
+		})
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.ProvisionComplete,
@@ -542,22 +549,22 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		t.Parallel()
 
 		var (
-			ctx     = testutil.Context(t, testutil.WaitMedium)
-			tickCh  = make(chan time.Time)
-			statsCh = make(chan autobuild.Stats)
-			client  = coderdenttest.New(t, &coderdenttest.Options{
-				Options: &coderdtest.Options{
-					AutobuildTicker:          tickCh,
-					IncludeProvisionerDaemon: true,
-					AutobuildStats:           statsCh,
-					TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
-				},
-			})
+			ctx         = testutil.Context(t, testutil.WaitMedium)
+			tickCh      = make(chan time.Time)
+			statsCh     = make(chan autobuild.Stats)
 			inactiveTTL = time.Minute
 		)
-
-		user := coderdtest.CreateFirstUser(t, client)
-		_ = coderdenttest.AddFullLicense(t, client)
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				AutobuildTicker:          tickCh,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statsCh,
+				TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
+			},
+		})
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
@@ -623,15 +630,14 @@ func TestWorkspacesFiltering(t *testing.T) {
 
 		inactivityTTL := 1 * 24 * time.Hour
 
-		client := coderdenttest.New(t, &coderdenttest.Options{
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
 			},
-		})
-		user := coderdtest.CreateFirstUser(t, client)
-		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureAdvancedTemplateScheduling: 1,
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAdvancedTemplateScheduling: 1,
+				},
 			},
 		})
 

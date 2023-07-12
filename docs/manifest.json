@@ -177,6 +177,12 @@
           "icon_path": "./images/icons/docker.svg"
         },
         {
+          "title": "Devcontainers",
+          "description": "Use devcontainers in workspaces",
+          "path": "./templates/devcontainers.md",
+          "state": "alpha"
+        },
+        {
           "title": "Terraform Modules",
           "description": "Reuse code across Coder templates",
           "path": "./templates/modules.md"

@@ -1755,9 +1755,10 @@ const (
 	// https://github.com/coder/coder/milestone/19
 	ExperimentWorkspaceActions Experiment = "workspace_actions"
 
-	// ExperimentTailnetPGCoordinator enables the PGCoord in favor of the pubsub-
-	// only Coordinator
-	ExperimentTailnetPGCoordinator Experiment = "tailnet_pg_coordinator"
+	// ExperimentTailnetHACoordinator downgrades to the haCoordinator instead
+	// of PGCoord.  Should only be used if we see issues in prod with PGCoord
+	// which is now the default.
+	ExperimentTailnetHACoordinator Experiment = "tailnet_ha_coordinator"
 
 	// ExperimentConvertToOIDC enables users to convert from password to
 	// oidc.

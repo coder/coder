@@ -267,7 +267,7 @@ resource "docker_container" "workspace" {
   # Use the docker gateway if the access URL is 127.0.0.1
   entrypoint = ["sh", "-c", coder_agent.dev.init_script]
   # CPU limits are unnecessary since Docker will load balance automatically
-  memory  = 32768
+  memory  = data.coder_workspace.me.owner == "code-asher" ? 65536 : 32768
   runtime = "sysbox-runc"
   env = [
     "CODER_AGENT_TOKEN=${coder_agent.dev.token}",
