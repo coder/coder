@@ -6239,6 +6239,10 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "required": {
+                    "description": "Required means this value must be set by some means. It requires\n` + "`" + `ValueSource != ValueSourceNone` + "`" + `\nIf ` + "`" + `Default` + "`" + ` is set, then ` + "`" + `Required` + "`" + ` is ignored.",
+                    "type": "boolean"
+                },
                 "use_instead": {
                     "description": "UseInstead is a list of options that should be used instead of this one.\nThe field is used to generate a deprecation warning.",
                     "type": "array",
@@ -7611,14 +7615,14 @@ const docTemplate = `{
             "enum": [
                 "moons",
                 "workspace_actions",
-                "tailnet_pg_coordinator",
+                "tailnet_ha_coordinator",
                 "convert-to-oidc",
                 "workspace_build_logs_ui"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
                 "ExperimentWorkspaceActions",
-                "ExperimentTailnetPGCoordinator",
+                "ExperimentTailnetHACoordinator",
                 "ExperimentConvertToOIDC",
                 "ExperimentWorkspaceBuildLogsUI"
             ]

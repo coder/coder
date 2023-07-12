@@ -5,7 +5,6 @@ import { HelmetProvider } from "react-helmet-async"
 import { dark } from "../src/theme"
 import "../src/theme/globalFonts"
 import "../src/i18n"
-import { LocalPreferencesProvider } from "../src/contexts/LocalPreferencesContext"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
 export const decorators = [
@@ -23,13 +22,6 @@ export const decorators = [
       <HelmetProvider>
         <Story />
       </HelmetProvider>
-    )
-  },
-  (Story) => {
-    return (
-      <LocalPreferencesProvider>
-        <Story />
-      </LocalPreferencesProvider>
     )
   },
   (Story) => {

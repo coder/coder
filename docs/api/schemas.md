@@ -533,6 +533,7 @@
   },
   "hidden": true,
   "name": "string",
+  "required": true,
   "use_instead": [
     {
       "annotations": {
@@ -557,6 +558,7 @@
       },
       "hidden": true,
       "name": "string",
+      "required": true,
       "use_instead": [],
       "value": null,
       "value_source": "",
@@ -571,21 +573,22 @@
 
 ### Properties
 
-| Name             | Type                                       | Required | Restrictions | Description                                                                                                                    |
-| ---------------- | ------------------------------------------ | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| `annotations`    | [clibase.Annotations](#clibaseannotations) | false    |              | Annotations enable extensions to clibase higher up in the stack. It's useful for help formatting and documentation generation. |
-| `default`        | string                                     | false    |              | Default is parsed into Value if set.                                                                                           |
-| `description`    | string                                     | false    |              |                                                                                                                                |
-| `env`            | string                                     | false    |              | Env is the environment variable used to configure this option. If unset, environment configuring is disabled.                  |
-| `flag`           | string                                     | false    |              | Flag is the long name of the flag used to configure this option. If unset, flag configuring is disabled.                       |
-| `flag_shorthand` | string                                     | false    |              | Flag shorthand is the one-character shorthand for the flag. If unset, no shorthand is used.                                    |
-| `group`          | [clibase.Group](#clibasegroup)             | false    |              | Group is a group hierarchy that helps organize this option in help, configs and other documentation.                           |
-| `hidden`         | boolean                                    | false    |              |                                                                                                                                |
-| `name`           | string                                     | false    |              |                                                                                                                                |
-| `use_instead`    | array of [clibase.Option](#clibaseoption)  | false    |              | Use instead is a list of options that should be used instead of this one. The field is used to generate a deprecation warning. |
-| `value`          | any                                        | false    |              | Value includes the types listed in values.go.                                                                                  |
-| `value_source`   | [clibase.ValueSource](#clibasevaluesource) | false    |              |                                                                                                                                |
-| `yaml`           | string                                     | false    |              | Yaml is the YAML key used to configure this option. If unset, YAML configuring is disabled.                                    |
+| Name             | Type                                       | Required | Restrictions | Description                                                                                                                                        |
+| ---------------- | ------------------------------------------ | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `annotations`    | [clibase.Annotations](#clibaseannotations) | false    |              | Annotations enable extensions to clibase higher up in the stack. It's useful for help formatting and documentation generation.                     |
+| `default`        | string                                     | false    |              | Default is parsed into Value if set.                                                                                                               |
+| `description`    | string                                     | false    |              |                                                                                                                                                    |
+| `env`            | string                                     | false    |              | Env is the environment variable used to configure this option. If unset, environment configuring is disabled.                                      |
+| `flag`           | string                                     | false    |              | Flag is the long name of the flag used to configure this option. If unset, flag configuring is disabled.                                           |
+| `flag_shorthand` | string                                     | false    |              | Flag shorthand is the one-character shorthand for the flag. If unset, no shorthand is used.                                                        |
+| `group`          | [clibase.Group](#clibasegroup)             | false    |              | Group is a group hierarchy that helps organize this option in help, configs and other documentation.                                               |
+| `hidden`         | boolean                                    | false    |              |                                                                                                                                                    |
+| `name`           | string                                     | false    |              |                                                                                                                                                    |
+| `required`       | boolean                                    | false    |              | Required means this value must be set by some means. It requires `ValueSource != ValueSourceNone` If `Default` is set, then `Required` is ignored. |
+| `use_instead`    | array of [clibase.Option](#clibaseoption)  | false    |              | Use instead is a list of options that should be used instead of this one. The field is used to generate a deprecation warning.                     |
+| `value`          | any                                        | false    |              | Value includes the types listed in values.go.                                                                                                      |
+| `value_source`   | [clibase.ValueSource](#clibasevaluesource) | false    |              |                                                                                                                                                    |
+| `yaml`           | string                                     | false    |              | Yaml is the YAML key used to configure this option. If unset, YAML configuring is disabled.                                                        |
 
 ## clibase.Struct-array_codersdk_GitAuthConfig
 
@@ -2099,6 +2102,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       },
       "hidden": true,
       "name": "string",
+      "required": true,
       "use_instead": [{}],
       "value": null,
       "value_source": "",
@@ -2537,7 +2541,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ------------------------- |
 | `moons`                   |
 | `workspace_actions`       |
-| `tailnet_pg_coordinator`  |
+| `tailnet_ha_coordinator`  |
 | `convert-to-oidc`         |
 | `workspace_build_logs_ui` |
 

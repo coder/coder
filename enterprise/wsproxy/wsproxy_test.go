@@ -26,7 +26,7 @@ func TestWorkspaceProxyWorkspaceApps(t *testing.T) {
 			"*",
 		}
 
-		client, _, api := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		client, _, api, user := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues:         deploymentValues,
 				AppHostname:              "*.primary.test.coder.com",
@@ -41,12 +41,10 @@ func TestWorkspaceProxyWorkspaceApps(t *testing.T) {
 					},
 				},
 			},
-		})
-
-		user := coderdtest.CreateFirstUser(t, client)
-		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureWorkspaceProxy: 1,
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspaceProxy: 1,
+				},
 			},
 		})
 

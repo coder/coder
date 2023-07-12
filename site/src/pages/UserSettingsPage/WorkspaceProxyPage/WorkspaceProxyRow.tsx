@@ -3,7 +3,7 @@ import { AvatarData } from "components/AvatarData/AvatarData"
 import { Avatar } from "components/Avatar/Avatar"
 import TableCell from "@mui/material/TableCell"
 import TableRow from "@mui/material/TableRow"
-import { FC, ReactNode, useState } from "react"
+import { FC, ReactNode } from "react"
 import {
   HealthyBadge,
   NotHealthyBadge,
@@ -12,9 +12,7 @@ import {
 } from "components/DeploySettingsLayout/Badges"
 import { ProxyLatencyReport } from "contexts/useProxyLatency"
 import { getLatencyColor } from "utils/latency"
-import Collapse from "@mui/material/Collapse"
 import { Maybe } from "components/Conditionals/Maybe"
-import { useClickableTableRow } from "hooks"
 import Box from "@mui/material/Box"
 
 export const ProxyRow: FC<{
@@ -36,18 +34,9 @@ export const ProxyRow: FC<{
     )
   }
 
-  const [isMsgsOpen, setIsMsgsOpen] = useState(false)
-  const toggle = () => {
-    if (shouldShowMessages) {
-      setIsMsgsOpen((v) => !v)
-    }
-  }
-  const clickableProps = useClickableTableRow(toggle)
-  const rowProps = shouldShowMessages ? clickableProps : undefined
-
   return (
     <>
-      <TableRow key={proxy.name} data-testid={proxy.name} {...rowProps}>
+      <TableRow key={proxy.name} data-testid={proxy.name}>
         <TableCell>
           <AvatarData
             title={
@@ -65,7 +54,6 @@ export const ProxyRow: FC<{
                 />
               )
             }
-            subtitle={shouldShowMessages ? "Click to view details" : undefined}
           />
         </TableCell>
 
@@ -90,9 +78,7 @@ export const ProxyRow: FC<{
             colSpan={4}
             sx={{ padding: "0px !important", borderBottom: 0 }}
           >
-            <Collapse in={isMsgsOpen}>
-              <ProxyMessagesRow proxy={proxy as WorkspaceProxy} />
-            </Collapse>
+            <ProxyMessagesRow proxy={proxy as WorkspaceProxy} />
           </TableCell>
         </TableRow>
       </Maybe>

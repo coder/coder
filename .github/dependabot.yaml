@@ -92,23 +92,36 @@ updates:
       - dependency-name: "@types/node"
         update-types:
           - version-update:semver-major
-
-  - package-ecosystem: "terraform"
-    directory: "/examples/templates"
-    schedule:
-      interval: "monthly"
-      time: "06:00"
-      timezone: "America/Chicago"
-    commit-message:
-      prefix: "chore"
-    labels: []
-    ignore:
-      # We likely want to update this ourselves.
-      - dependency-name: "coder/coder"
     groups:
-      examples-terraform:
+      npm-react:
         patterns:
-          - "*"
+          - "react*"
+          - "@types/react*"
+      npm-xterm:
+        patterns:
+          - "xterm*"
+      npm-xstate:
+        patterns:
+          - "xstate"
+          - "@xstate*"
+      npm-mui:
+        patterns:
+          - "@mui*"
+      npm-storybook:
+        patterns:
+          - "@storybook*"
+          - "storybook*"
+      npm-eslint:
+        patterns:
+          - "eslint*"
+          - "@eslint*"
+          - "@typescript-eslint/eslint-plugin"
+          - "@typescript-eslint/parser"
+      npm-jest:
+        patterns:
+          - "jest*"
+          - "@swc/jest"
+          - "@types/jest"
 
   # Update dogfood.
   - package-ecosystem: "docker"

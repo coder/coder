@@ -122,7 +122,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@v1.14.12
+        uses: crate-ci/typos@v1.16.0
         with:
           config: .github/workflows/typos.toml
 
@@ -198,7 +198,7 @@ jobs:
         with:
           # This doesn't need caching. It's super fast anyways!
           cache: false
-          go-version: 1.20.5
+          go-version: 1.20.6
 
       - name: Install prettier
         # We only need prettier for fmt, so do not install all dependencies.
