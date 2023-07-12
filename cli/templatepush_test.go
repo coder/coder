@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -654,6 +655,7 @@ func TestTemplatePush(t *testing.T) {
 			template, err := client.TemplateByName(context.Background(), user.OrganizationID, templateName)
 			require.NoError(t, err)
 			require.Equal(t, templateName, template.Name)
+			require.NotEqual(t, uuid.Nil, template.ActiveVersionID)
 		})
 	})
 }
