@@ -5105,55 +5105,6 @@ func (q *sqlQuerier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.
 	return i, err
 }
 
-const getFilteredUserCount = `-- name: GetFilteredUserCount :one
-SELECT
-	COUNT(*)
-FROM
-	users
-WHERE
-	users.deleted = false
-	-- Start filters
-	-- Filter by name, email or username
-	AND CASE
-		WHEN $1 :: text != '' THEN (
-			email ILIKE concat('%', $1, '%')
-			OR username ILIKE concat('%', $1, '%')
-		)
-		ELSE true
-	END
-	-- Filter by status
-	AND CASE
-		-- @status needs to be a text because it can be empty, If it was
-		-- user_status enum, it would not.
-		WHEN cardinality($2 :: user_status[]) > 0 THEN
-			status = ANY($2 :: user_status[])
-		ELSE true
-	END
-	-- Filter by rbac_roles
-	AND CASE
-		-- @rbac_role allows filtering by rbac roles. If 'member' is included, show everyone, as everyone is a member.
-		WHEN cardinality($3 :: text[]) > 0 AND 'member' != ANY($3 :: text[])
-		THEN rbac_roles && $3 :: text[]
-		ELSE true
-	END
-	-- Authorize Filter clause will be injected below in GetAuthorizedUserCount
-	-- @authorize_filter
-`
-
-type GetFilteredUserCountParams struct {
-	Search   string       `db:"search" json:"search"`
-	Status   []UserStatus `db:"status" json:"status"`
-	RbacRole []string     `db:"rbac_role" json:"rbac_role"`
-}
-
-// This will never count deleted users.
-func (q *sqlQuerier) GetFilteredUserCount(ctx context.Context, arg GetFilteredUserCountParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getFilteredUserCount, arg.Search, pq.Array(arg.Status), pq.Array(arg.RbacRole))
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
 SELECT
 	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at

@@ -350,13 +350,6 @@ func (m metricsStore) GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([
 	return rows, err
 }
 
-func (m metricsStore) GetFilteredUserCount(ctx context.Context, arg database.GetFilteredUserCountParams) (int64, error) {
-	start := time.Now()
-	count, err := m.s.GetFilteredUserCount(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetFilteredUserCount").Observe(time.Since(start).Seconds())
-	return count, err
-}
-
 func (m metricsStore) GetGitAuthLink(ctx context.Context, arg database.GetGitAuthLinkParams) (database.GitAuthLink, error) {
 	start := time.Now()
 	link, err := m.s.GetGitAuthLink(ctx, arg)
