@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/testutil"
 )
 
 func TestUpdate(t *testing.T) {
@@ -190,12 +191,14 @@ func TestUpdateWithRichParameters(t *testing.T) {
 				immutableParameterName + ": " + immutableParameterValue + "\n" +
 				secondParameterName + ": " + secondParameterValue)
 
-		inv, root := clitest.New(t, "create", "my-workspace", "--template", template.Name, "--rich-parameter-file", parameterFile.Name(), "-y")
+		const workspaceName = "my-workspace"
+
+		inv, root := clitest.New(t, "create", workspaceName, "--template", template.Name, "--rich-parameter-file", parameterFile.Name(), "-y")
 		clitest.SetupConfig(t, client, root)
 		err := inv.Run()
 		assert.NoError(t, err)
 
-		inv, root = clitest.New(t, "update", "my-workspace", "--build-options")
+		inv, root = clitest.New(t, "update", workspaceName, "--build-options")
 		clitest.SetupConfig(t, client, root)
 
 		doneChan := make(chan struct{})
@@ -219,6 +222,19 @@ func TestUpdateWithRichParameters(t *testing.T) {
 			}
 		}
 		<-doneChan
+
+		// Verify if build option is set
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		workspace, err := client.WorkspaceByOwnerAndName(ctx, user.UserID.String(), workspaceName, codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		actualParameters, err := client.WorkspaceBuildParameters(ctx, workspace.LatestBuild.ID)
+		require.NoError(t, err)
+		require.Contains(t, actualParameters, codersdk.WorkspaceBuildParameter{
+			Name:  ephemeralParameterName,
+			Value: ephemeralParameterValue,
+		})
 	})
 }
 
