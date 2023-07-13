@@ -214,17 +214,6 @@ func nextDayMidnight(t time.Time) time.Time {
 	return time.Date(yy, mm, dd, 0, 0, 0, 0, t.Location())
 }
 
-// truncateMondayMidnight truncates a time to the previous Monday at midnight in
-// the time object's timezone.
-func truncateMondayMidnight(t time.Time) time.Time {
-	// time.Date will correctly normalize the date if it's past the end of the
-	// month. E.g. October 32nd will be November 1st.
-	yy, mm, dd := t.Date()
-	dd -= int(t.Weekday() - 1)
-	t = time.Date(yy, mm, dd, 0, 0, 0, 0, t.Location())
-	return truncateMidnight(t)
-}
-
 // WeeksSinceEpoch gets the weeks since the epoch for a given time. This is a
 // 0-indexed number of weeks since the epoch (Monday).
 //
