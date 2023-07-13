@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"go/format"
+	"go/parser"
 	"go/token"
 	"os"
 	"path"
@@ -422,17 +423,46 @@ func readQuerierFunctions() ([]querierFunction, error) {
 	if err != nil {
 		return nil, err
 	}
-	querierPath := filepath.Join(localPath, "..", "..", "..", "coderd", "database", "querier.go")
 
-	querierData, err := os.ReadFile(querierPath)
-	if err != nil {
-		return nil, xerrors.Errorf("read querier: %w", err)
-	}
-	f, err := decorator.Parse(querierData)
-	if err != nil {
-		return nil, err
+	// Parse the database package as a whole so all references are resolved across
+	// files.
+	dirPath := filepath.Join(localPath, "..", "..", "..", "coderd", "database")
+	packages, err := decorator.ParseDir(token.NewFileSet(), dirPath, func(info os.FileInfo) bool {
+		if strings.HasSuffix(info.Name(), "_test.go") {
+			return false
+		}
+		if !strings.HasSuffix(info.Name(), ".go") {
+			return false
+		}
+		return true
+	}, parser.ParseComments)
+
+	dbPackage := packages["database"]
+
+	findFile := func(name string) *dst.File {
+		for k, v := range dbPackage.Files {
+			if strings.HasSuffix(k, name) {
+				return v
+			}
+		}
+		return nil
 	}
 
+	funcs, err := loadInterfaceFuncs(findFile("querier.go"), "sqlcQuerier")
+	if err != nil {
+		return nil, xerrors.Errorf("load interface %s funcs: %w", "sqlcQuerier", err)
+	}
+
+	// Custom funcs should be appended after the regular functions
+	customFuncs, err := loadInterfaceFuncs(findFile("modelqueries.go"), "customQuerier")
+	if err != nil {
+		return nil, xerrors.Errorf("load interface %s funcs: %w", "customQuerier", err)
+	}
+
+	return append(funcs, customFuncs...), nil
+}
+
+func loadInterfaceFuncs(f *dst.File, interfaceName string) ([]querierFunction, error) {
 	var querier *dst.InterfaceType
 	for _, decl := range f.Decls {
 		genDecl, ok := decl.(*dst.GenDecl)
@@ -447,7 +477,7 @@ func readQuerierFunctions() ([]querierFunction, error) {
 			}
 			// This is the name of the interface. If that ever changes,
 			// this will need to be updated.
-			if typeSpec.Name.Name != "sqlcQuerier" {
+			if typeSpec.Name.Name != interfaceName {
 				continue
 			}
 			querier, ok = typeSpec.Type.(*dst.InterfaceType)
@@ -461,7 +491,8 @@ func readQuerierFunctions() ([]querierFunction, error) {
 		return nil, xerrors.Errorf("querier not found")
 	}
 	funcs := []querierFunction{}
-	for _, method := range querier.Methods.List {
+	allMethods := interfaceMethods(querier)
+	for _, method := range allMethods {
 		funcType, ok := method.Type.(*dst.FuncType)
 		if !ok {
 			continue
@@ -539,4 +570,31 @@ func nameFromSnakeCase(s string) string {
 		}
 	}
 	return ret
+}
+
+// interfaceMethods returns all embedded methods of an interface.
+func interfaceMethods(i *dst.InterfaceType) []*dst.Field {
+	var allMethods []*dst.Field
+	for _, field := range i.Methods.List {
+		switch fieldType := field.Type.(type) {
+		case *dst.FuncType:
+			allMethods = append(allMethods, field)
+		case *dst.InterfaceType:
+			allMethods = append(allMethods, interfaceMethods(fieldType)...)
+		case *dst.Ident:
+			// Embedded interfaces are Idents -> TypeSpec -> InterfaceType
+			// If the embedded interface is not in the parsed file, then
+			// the Obj will be nil.
+			if fieldType.Obj != nil {
+				objDecl, ok := fieldType.Obj.Decl.(*dst.TypeSpec)
+				if ok {
+					isInterface, ok := objDecl.Type.(*dst.InterfaceType)
+					if ok {
+						allMethods = append(allMethods, interfaceMethods(isInterface)...)
+					}
+				}
+			}
+		}
+	}
+	return allMethods
 }

@@ -8,12 +8,10 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/slices"
 
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/rbac"
 )
 
 const wrapname = "dbmetrics.metricsStore"
@@ -71,41 +69,6 @@ func (m metricsStore) InTx(f func(database.Store) error, options *sql.TxOptions)
 	err := m.s.InTx(f, options)
 	m.txDuration.Observe(time.Since(start).Seconds())
 	return err
-}
-
-func (m metricsStore) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.Template, error) {
-	start := time.Now()
-	templates, err := m.s.GetAuthorizedTemplates(ctx, arg, prepared)
-	m.queryLatencies.WithLabelValues("GetAuthorizedTemplates").Observe(time.Since(start).Seconds())
-	return templates, err
-}
-
-func (m metricsStore) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateGroup, error) {
-	start := time.Now()
-	roles, err := m.s.GetTemplateGroupRoles(ctx, id)
-	m.queryLatencies.WithLabelValues("GetTemplateGroupRoles").Observe(time.Since(start).Seconds())
-	return roles, err
-}
-
-func (m metricsStore) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateUser, error) {
-	start := time.Now()
-	roles, err := m.s.GetTemplateUserRoles(ctx, id)
-	m.queryLatencies.WithLabelValues("GetTemplateUserRoles").Observe(time.Since(start).Seconds())
-	return roles, err
-}
-
-func (m metricsStore) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetWorkspacesParams, prepared rbac.PreparedAuthorized) ([]database.GetWorkspacesRow, error) {
-	start := time.Now()
-	workspaces, err := m.s.GetAuthorizedWorkspaces(ctx, arg, prepared)
-	m.queryLatencies.WithLabelValues("GetAuthorizedWorkspaces").Observe(time.Since(start).Seconds())
-	return workspaces, err
-}
-
-func (m metricsStore) GetAuthorizedUserCount(ctx context.Context, arg database.GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
-	start := time.Now()
-	count, err := m.s.GetAuthorizedUserCount(ctx, arg, prepared)
-	m.queryLatencies.WithLabelValues("GetAuthorizedUserCount").Observe(time.Since(start).Seconds())
-	return count, err
 }
 
 func (m metricsStore) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
@@ -1638,4 +1601,39 @@ func (m metricsStore) UpsertTailnetCoordinator(ctx context.Context, id uuid.UUID
 	start := time.Now()
 	defer m.queryLatencies.WithLabelValues("UpsertTailnetCoordinator").Observe(time.Since(start).Seconds())
 	return m.s.UpsertTailnetCoordinator(ctx, id)
+}
+
+func (m metricsStore) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.Template, error) {
+	start := time.Now()
+	templates, err := m.s.GetAuthorizedTemplates(ctx, arg, prepared)
+	m.queryLatencies.WithLabelValues("GetAuthorizedTemplates").Observe(time.Since(start).Seconds())
+	return templates, err
+}
+
+func (m metricsStore) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateGroup, error) {
+	start := time.Now()
+	roles, err := m.s.GetTemplateGroupRoles(ctx, id)
+	m.queryLatencies.WithLabelValues("GetTemplateGroupRoles").Observe(time.Since(start).Seconds())
+	return roles, err
+}
+
+func (m metricsStore) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateUser, error) {
+	start := time.Now()
+	roles, err := m.s.GetTemplateUserRoles(ctx, id)
+	m.queryLatencies.WithLabelValues("GetTemplateUserRoles").Observe(time.Since(start).Seconds())
+	return roles, err
+}
+
+func (m metricsStore) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetWorkspacesParams, prepared rbac.PreparedAuthorized) ([]database.GetWorkspacesRow, error) {
+	start := time.Now()
+	workspaces, err := m.s.GetAuthorizedWorkspaces(ctx, arg, prepared)
+	m.queryLatencies.WithLabelValues("GetAuthorizedWorkspaces").Observe(time.Since(start).Seconds())
+	return workspaces, err
+}
+
+func (m metricsStore) GetAuthorizedUserCount(ctx context.Context, arg database.GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
+	start := time.Now()
+	count, err := m.s.GetAuthorizedUserCount(ctx, arg, prepared)
+	m.queryLatencies.WithLabelValues("GetAuthorizedUserCount").Observe(time.Since(start).Seconds())
+	return count, err
 }
