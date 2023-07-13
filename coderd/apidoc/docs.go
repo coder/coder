@@ -4513,9 +4513,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/agentsdk.StatsResponse"
                         }
                     }
-                },
-                "x-apidocgen": {
-                    "skip": true
                 }
             }
         },
@@ -4594,9 +4591,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
-                "x-apidocgen": {
-                    "skip": true
                 }
             }
         },
