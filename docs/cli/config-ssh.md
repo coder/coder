@@ -25,14 +25,14 @@ coder config-ssh [flags]
 
 ## Options
 
-### --coder-cli-path
+### --coder-binary-path
 
-|             |                                         |
-| ----------- | --------------------------------------- |
-| Type        | <code>string</code>                     |
-| Environment | <code>$CODER_SSH_CONFIG_CLI_PATH</code> |
+|             |                                            |
+| ----------- | ------------------------------------------ |
+| Type        | <code>string</code>                        |
+| Environment | <code>$CODER_SSH_CONFIG_BINARY_PATH</code> |
 
-Optional to specify the path for the coder cli uses in ProxyCommand. By default, the coder cli used is the same cli being invoked with 'config ssh'.
+Optionally specify the absolute path to the coder binary used in ProxyCommand. By default, the binary invoking this command ('config ssh') is used.
 
 ### -n, --dry-run
 
