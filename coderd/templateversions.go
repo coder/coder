@@ -106,10 +106,15 @@ func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 		TemplateID: templateVersion.TemplateID,
 		UpdatedAt:  database.Now(),
 		Name:       templateVersion.Name,
+		Message:    templateVersion.Message,
 	}
 
 	if params.Name != "" {
 		updateParams.Name = params.Name
+	}
+
+	if params.Message != nil {
+		updateParams.Message = *params.Message
 	}
 
 	errTemplateVersionNameConflict := xerrors.New("template version name must be unique for a template")

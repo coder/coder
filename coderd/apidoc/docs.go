@@ -8222,6 +8222,9 @@ const docTemplate = `{
         "codersdk.PatchTemplateVersionRequest": {
             "type": "object",
             "properties": {
+                "message": {
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
                 }

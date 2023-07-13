@@ -1,5 +1,5 @@
 import Link from "@mui/material/Link"
-import { OutdatedHelpTooltip } from "components/Tooltips"
+import { WorkspaceOutdatedTooltip } from "components/Tooltips"
 import { FC, useRef, useState } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { createDayString } from "utils/createDayString"
@@ -101,7 +101,9 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
               </Link>
 
               {workspace.outdated && (
-                <OutdatedHelpTooltip
+                <WorkspaceOutdatedTooltip
+                  templateName={workspace.template_name}
+                  templateId={workspace.template_id}
                   onUpdateVersion={handleUpdate}
                   ariaLabel="update version"
                 />

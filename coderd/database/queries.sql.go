@@ -4688,7 +4688,8 @@ UPDATE
 SET
 	template_id = $2,
 	updated_at = $3,
-	name = $4
+	name = $4,
+	message = $5
 WHERE
 	id = $1 RETURNING id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message
 `
@@ -4698,6 +4699,7 @@ type UpdateTemplateVersionByIDParams struct {
 	TemplateID uuid.NullUUID `db:"template_id" json:"template_id"`
 	UpdatedAt  time.Time     `db:"updated_at" json:"updated_at"`
 	Name       string        `db:"name" json:"name"`
+	Message    string        `db:"message" json:"message"`
 }
 
 func (q *sqlQuerier) UpdateTemplateVersionByID(ctx context.Context, arg UpdateTemplateVersionByIDParams) (TemplateVersion, error) {
@@ -4706,6 +4708,7 @@ func (q *sqlQuerier) UpdateTemplateVersionByID(ctx context.Context, arg UpdateTe
 		arg.TemplateID,
 		arg.UpdatedAt,
 		arg.Name,
+		arg.Message,
 	)
 	var i TemplateVersion
 	err := row.Scan(
