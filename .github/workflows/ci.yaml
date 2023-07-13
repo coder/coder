@@ -101,9 +101,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - uses: ./.github/actions/setup-go
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
 
-      - uses: ./.github/actions/setup-node
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
 
       - name: Get golangci-lint cache dir
         run: |
@@ -196,9 +198,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - uses: ./.github/actions/setup-node
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
 
-      - uses: buildjet/setup-go@v4
+      - name: Setup Go
+        uses: buildjet/setup-go@v4
         with:
           # This doesn't need caching. It's super fast anyways!
           cache: false
@@ -241,8 +245,11 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: ./.github/actions/setup-go
-      - uses: ./.github/actions/setup-tf
+      - name: Setup Go  
+        uses: ./.github/actions/setup-go
+
+      - name: Setup Terraform
+        uses: ./.github/actions/setup-tf
 
       - name: Test with Mock Database
         id: test
@@ -302,8 +309,11 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: ./.github/actions/setup-go
-      - uses: ./.github/actions/setup-tf
+      - name: Setup Go  
+        uses: ./.github/actions/setup-go
+
+      - name: Setup Terraform
+        uses: ./.github/actions/setup-tf
 
       - name: Test with PostgreSQL Database
         run: |
@@ -342,8 +352,11 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: ./.github/actions/setup-go
-      - uses: ./.github/actions/setup-tf
+      - name: Setup Go  
+        uses: ./.github/actions/setup-go
+
+      - name: Setup Terraform
+        uses: ./.github/actions/setup-tf
 
       - name: Run Tests
         run: |
@@ -379,8 +392,12 @@ jobs:
       - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
 
-      - uses: ./.github/actions/setup-go
-      - uses: ./.github/actions/setup-node
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
 
       - name: Install goimports
         run: go install golang.org/x/tools/cmd/goimports@latest
@@ -451,7 +468,8 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: ./.github/actions/setup-node
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
 
       - run: yarn test:ci --max-workers $(nproc)
         working-directory: site
@@ -476,9 +494,14 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: ./.github/actions/setup-node
-      - uses: ./.github/actions/setup-go
-      - uses: ./.github/actions/setup-tf
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Setup Terraform
+        uses: ./.github/actions/setup-tf
 
       - name: Build
         run: |
@@ -513,7 +536,8 @@ jobs:
           # only get 1 commit on shallow checkout.
           fetch-depth: 0
 
-      - uses: ./.github/actions/setup-node
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
 
       # This step is not meant for mainline because any detected changes to
       # storybook snapshots will require manual approval/review in order for

@@ -35,7 +35,8 @@ jobs:
         with:
           languages: go, javascript
 
-      - uses: ./.github/actions/setup-go
+      - name: Setup Go  
+        uses: ./.github/actions/setup-go
 
       # Workaround to prevent CodeQL from building the dashboard.
       - name: Remove Makefile

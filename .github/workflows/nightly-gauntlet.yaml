@@ -18,8 +18,11 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: ./.github/actions/setup-go
-      - uses: ./.github/actions/setup-tf
+      - name: Setup Go  
+        uses: ./.github/actions/setup-go
+
+      - name: Setup Terraform
+        uses: ./.github/actions/setup-tf
 
       - name: Run Tests
         run: |
@@ -38,9 +41,12 @@ jobs:
     runs-on: "buildjet-2vcpu-ubuntu-2204"
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
 
-      - uses: ./.github/actions/setup-go
+      - name: Setup Go  
+        uses: ./.github/actions/setup-go
+
       - name: Run Tests
         run: |
           gotestsum --junitfile="gotests.xml" -- --tags="timing" -p=1 -run='_Timing/' ./...
