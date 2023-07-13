@@ -1,11 +1,11 @@
 package cli_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/net/context"
 
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/coderd/coderdtest"
@@ -16,7 +16,13 @@ import (
 	"github.com/coder/coder/testutil"
 )
 
-func TestRestart(t *testing.T) {
+const (
+	ephemeralParameterName        = "ephemeral_parameter"
+	ephemeralParameterDescription = "This is ephemeral parameter"
+	ephemeralParameterValue       = "3"
+)
+
+func TestStart(t *testing.T) {
 	t.Parallel()
 
 	echoResponses := &echo.Responses{
@@ -44,36 +50,6 @@ func TestRestart(t *testing.T) {
 		}},
 	}
 
-	t.Run("OK", func(t *testing.T) {
-		t.Parallel()
-
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		inv, root := clitest.New(t, "restart", workspace.Name, "--yes")
-		clitest.SetupConfig(t, client, root)
-
-		pty := ptytest.New(t).Attach(inv)
-
-		done := make(chan error, 1)
-		go func() {
-			done <- inv.WithContext(ctx).Run()
-		}()
-		pty.ExpectMatch("Stopping workspace")
-		pty.ExpectMatch("Starting workspace")
-		pty.ExpectMatch("workspace has been restarted")
-
-		err := <-done
-		require.NoError(t, err, "execute failed")
-	})
-
 	t.Run("BuildOptions", func(t *testing.T) {
 		t.Parallel()
 
@@ -85,7 +61,7 @@ func TestRestart(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		inv, root := clitest.New(t, "restart", workspace.Name, "--build-options")
+		inv, root := clitest.New(t, "start", workspace.Name, "--build-options")
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t).Attach(inv)
@@ -97,10 +73,7 @@ func TestRestart(t *testing.T) {
 
 		matches := []string{
 			ephemeralParameterDescription, ephemeralParameterValue,
-			"Confirm restart workspace?", "yes",
-			"Stopping workspace", "",
-			"Starting workspace", "",
-			"workspace has been restarted", "",
+			"workspace has been started", "",
 		}
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
@@ -117,7 +90,7 @@ func TestRestart(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
-		workspace, err := client.WorkspaceByOwnerAndName(ctx, user.UserID.String(), workspace.Name, codersdk.WorkspaceOptions{})
+		workspace, err := client.WorkspaceByOwnerAndName(ctx, workspace.OwnerName, workspace.Name, codersdk.WorkspaceOptions{})
 		require.NoError(t, err)
 		actualParameters, err := client.WorkspaceBuildParameters(ctx, workspace.LatestBuild.ID)
 		require.NoError(t, err)
