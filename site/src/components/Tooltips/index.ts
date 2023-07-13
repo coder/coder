@@ -1,4 +1,4 @@
 export { AuditHelpTooltip } from "./AuditHelpTooltip"
-export { OutdatedHelpTooltip } from "./OutdatedHelpTooltip"
+export { WorkspaceOutdatedTooltip } from "./WorkspaceOutdatedTooltip"
 export { UserRoleHelpTooltip } from "./UserRoleHelpTooltip"
 export { WorkspaceHelpTooltip } from "./WorkspaceHelpTooltip"

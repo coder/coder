@@ -243,7 +243,6 @@ func (api *API) postWorkspaceAgentStartup(rw http.ResponseWriter, r *http.Reques
 // @Param request body agentsdk.PatchStartupLogs true "Startup logs"
 // @Success 200 {object} codersdk.Response
 // @Router /workspaceagents/me/startup-logs [patch]
-// @x-apidocgen {"skip": true}
 func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
@@ -1297,7 +1296,6 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 // @Param request body agentsdk.Stats true "Stats request"
 // @Success 200 {object} agentsdk.StatsResponse
 // @Router /workspaceagents/me/report-stats [post]
-// @x-apidocgen {"skip": true}
 func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

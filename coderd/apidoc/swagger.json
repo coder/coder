@@ -3971,9 +3971,6 @@
               "$ref": "#/definitions/agentsdk.StatsResponse"
             }
           }
-        },
-        "x-apidocgen": {
-          "skip": true
         }
       }
     },
@@ -4040,9 +4037,6 @@
               "$ref": "#/definitions/codersdk.Response"
             }
           }
-        },
-        "x-apidocgen": {
-          "skip": true
         }
       }
     },
@@ -7390,6 +7384,9 @@
     "codersdk.PatchTemplateVersionRequest": {
       "type": "object",
       "properties": {
+        "message": {
+          "type": "string"
+        },
         "name": {
           "type": "string"
         }
