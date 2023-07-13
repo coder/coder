@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	"github.com/tabbed/pqtype"
+	"github.com/sqlc-dev/pqtype"
 )
 
 const deleteAPIKeyByID = `-- name: DeleteAPIKeyByID :exec
