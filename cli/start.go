@@ -104,7 +104,7 @@ func prepStartWorkspace(inv *clibase.Invocation, client *codersdk.Client, args p
 	}
 
 	for _, templateVersionParameter := range templateVersionParameters {
-		if !templateVersionParameter.Ephemeral || !templateVersionParameter.Mutable {
+		if !templateVersionParameter.Ephemeral {
 			continue
 		}
 
