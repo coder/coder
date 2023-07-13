@@ -354,7 +354,11 @@ func TestTemplateEdit(t *testing.T) {
 				}
 
 				// Otherwise, proxy the request to the real API server.
-				httputil.NewSingleHostReverseProxy(client.URL).ServeHTTP(w, r)
+				rp := httputil.NewSingleHostReverseProxy(client.URL)
+				rp.Transport = &http.Transport{
+					DisableKeepAlives: true,
+				}
+				rp.ServeHTTP(w, r)
 			}))
 			t.Cleanup(proxy.Close)
 
@@ -479,7 +483,11 @@ func TestTemplateEdit(t *testing.T) {
 				}
 
 				// Otherwise, proxy the request to the real API server.
-				httputil.NewSingleHostReverseProxy(client.URL).ServeHTTP(w, r)
+				rp := httputil.NewSingleHostReverseProxy(client.URL)
+				rp.Transport = &http.Transport{
+					DisableKeepAlives: true,
+				}
+				rp.ServeHTTP(w, r)
 			}))
 			defer proxy.Close()
 
@@ -595,7 +603,11 @@ func TestTemplateEdit(t *testing.T) {
 				}
 
 				// Otherwise, proxy the request to the real API server.
-				httputil.NewSingleHostReverseProxy(client.URL).ServeHTTP(w, r)
+				rp := httputil.NewSingleHostReverseProxy(client.URL)
+				rp.Transport = &http.Transport{
+					DisableKeepAlives: true,
+				}
+				rp.ServeHTTP(w, r)
 			}))
 			defer proxy.Close()
 
@@ -682,7 +694,11 @@ func TestTemplateEdit(t *testing.T) {
 				}
 
 				// Otherwise, proxy the request to the real API server.
-				httputil.NewSingleHostReverseProxy(client.URL).ServeHTTP(w, r)
+				rp := httputil.NewSingleHostReverseProxy(client.URL)
+				rp.Transport = &http.Transport{
+					DisableKeepAlives: true,
+				}
+				rp.ServeHTTP(w, r)
 			}))
 			defer proxy.Close()
 
@@ -814,7 +830,11 @@ func TestTemplateEdit(t *testing.T) {
 				}
 
 				// Otherwise, proxy the request to the real API server.
-				httputil.NewSingleHostReverseProxy(client.URL).ServeHTTP(w, r)
+				rp := httputil.NewSingleHostReverseProxy(client.URL)
+				rp.Transport = &http.Transport{
+					DisableKeepAlives: true,
+				}
+				rp.ServeHTTP(w, r)
 			}))
 			defer proxy.Close()
 
@@ -919,7 +939,11 @@ func TestTemplateEdit(t *testing.T) {
 				}
 
 				// Otherwise, proxy the request to the real API server.
-				httputil.NewSingleHostReverseProxy(client.URL).ServeHTTP(w, r)
+				rp := httputil.NewSingleHostReverseProxy(client.URL)
+				rp.Transport = &http.Transport{
+					DisableKeepAlives: true,
+				}
+				rp.ServeHTTP(w, r)
 			}))
 			defer proxy.Close()
 
