@@ -16,9 +16,11 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 )
 
-// Force these imports, for some reason the autogen does not include them.
-var _ uuid.UUID
-var _ rbac.Action
+var (
+	// Force these imports, for some reason the autogen does not include them.
+	_ uuid.UUID
+	_ rbac.Action
+)
 
 const wrapname = "dbmetrics.metricsStore"
 
