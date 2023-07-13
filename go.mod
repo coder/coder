@@ -50,8 +50,8 @@ replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20230621095435-
 // Waiting on https://github.com/imulab/go-scim/pull/95 to merge.
 replace github.com/imulab/go-scim/pkg/v2 => github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136
 
-// Waiting for https://github.com/kyleconroy/sqlc/pull/2418 to be released in sqlc 1.20.0
-replace github.com/tabbed/pqtype v0.2.0 => github.com/sqlc-dev/pqtype v0.2.0
+// Waiting for https://github.com/kyleconroy/sqlc/pull/2418 to be released in sqlc 1.19.1.
+// replace github.com/tabbed/pqtype v0.2.0 => github.com/sqlc-dev/pqtype v0.2.0
 
 require (
 	cdr.dev/slog v1.5.4
