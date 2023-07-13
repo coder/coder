@@ -13,7 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
+	"tailscale.com/envknob"
+
 	"github.com/google/uuid"
 	"go4.org/netipx"
 	"golang.org/x/xerrors"
@@ -55,6 +56,22 @@ func init() {
 	// Globally disable network namespacing. All networking happens in
 	// userspace.
 	netns.SetEnabled(false)
+	// Tailscale, by default, "trims" the set of peers down to ones that we are "actively" communicating with in
+	// an effort to save memory.  But, we want to make sure the Wireguard connection is up and handshaked before sending
+	// TCP traffic over it to avoid anomalously long round-trip time of the initial handshake
+	// c.f. https://github.com/coder/coder/issues/7388#issuecomment-1625463069 for more details.
+	//
+	// If Tailscale is waiting for traffic to bring up Wireguard, and we wait for Wireguard to send traffic, that's a
+	// deadlock.  So, disable this feature.
+	//
+	// Note that Tailscale.com's use case is very different from ours: in their use case, users create one persistent
+	// tailnet per device, and it allows connections to every other thing in Tailscale that belongs to them.  The
+	// tailnet stays up as long as your laptop or phone is turned on.
+	//
+	// Our use case is different: for clients, it's a point-to-point connection to a single workspace, and lasts only as
+	// long as the connection.  For agents, it's connections to a small number of clients (CLI or Coderd) that are being
+	// actively used by the end user.
+	envknob.Setenv("TS_DEBUG_TRIM_WIREGUARD", "false")
 }
 
 type Options struct {
@@ -431,7 +448,6 @@ func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 		}
 		c.logger.Debug(context.Background(), "adding node", slog.F("node", node))
 
-		peerStatus, ok := status.Peer[node.Key]
 		peerNode := &tailcfg.Node{
 			ID:         node.ID,
 			Created:    time.Now(),
@@ -442,10 +458,7 @@ func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 			Endpoints:  node.Endpoints,
 			DERP:       fmt.Sprintf("%s:%d", tailcfg.DerpMagicIP, node.PreferredDERP),
 			Hostinfo:   hostinfo.New().View(),
-			// Starting KeepAlive messages at the initialization
-			// of a connection cause it to hang for an unknown
-			// reason. TODO: @kylecarbs debug this!
-			KeepAlive: ok && peerStatus.Active,
+			KeepAlive:  true,
 		}
 		if c.blockEndpoints {
 			peerNode.Endpoints = nil
@@ -531,54 +544,60 @@ func (c *Conn) BlockEndpoints() bool {
 	return c.blockEndpoints
 }
 
-// AwaitReachable pings the provided IP continually until the
-// address is reachable. It's the callers responsibility to provide
-// a timeout, otherwise this function will block forever.
+var unixEpoch = time.Unix(0, 0)
+
+// AwaitReachable waits until the peer with given IP is reachable, which we define as having handshaked at least once at
+// the Wireguard layer. It's the callers responsibility to provide  a timeout, otherwise this function will block
+// forever.
 func (c *Conn) AwaitReachable(ctx context.Context, ip netip.Addr) bool {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel() // Cancel all pending pings on exit.
+	rightAway := make(chan struct{}, 1)
+	rightAway <- struct{}{}
+	tkr := time.NewTicker(50 * time.Millisecond)
+	defer tkr.Stop()
 
-	completedCtx, completed := context.WithCancel(context.Background())
-	defer completed()
-
-	run := func() {
-		// Safety timeout, initially we'll have around 10-20 goroutines
-		// running in parallel. The exponential backoff will converge
-		// around ~1 ping / 30s, this means we'll have around 10-20
-		// goroutines pending towards the end as well.
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
-		defer cancel()
-
-		_, _, _, err := c.Ping(ctx, ip)
-		if err == nil {
-			completed()
-		}
-	}
-
-	eb := backoff.NewExponentialBackOff()
-	eb.MaxElapsedTime = 0
-	eb.InitialInterval = 50 * time.Millisecond
-	eb.MaxInterval = 30 * time.Second
-	// Consume the first interval since
-	// we'll fire off a ping immediately.
-	_ = eb.NextBackOff()
-
-	t := backoff.NewTicker(eb)
-	defer t.Stop()
-
-	go run()
 	for {
 		select {
-		case <-completedCtx.Done():
-			return true
-		case <-t.C:
-			// Pings can take a while, so we can run multiple
-			// in parallel to return ASAP.
-			go run()
 		case <-ctx.Done():
 			return false
+		case <-tkr.C:
+		case <-rightAway:
+		}
+
+		nKeys := c.getNodeKeysForIP(ip)
+		if len(nKeys) == 0 {
+			c.logger.Debug(ctx, "missing node(s) for IP", slog.F("ip", ip.String()))
+			continue
+		}
+		s := c.Status()
+		for _, nKey := range nKeys {
+			ps, ok := s.Peer[nKey]
+			if !ok {
+				c.logger.Debug(ctx, "missing status for node", slog.F("node", nKey.ShortString()))
+				continue
+			}
+			// Note that wireguard initializes the last handshake to the Unix Epoch until there is at least one
+			// handshake
+			if ps.LastHandshake.After(unixEpoch) {
+				return true
+			}
 		}
 	}
+}
+
+// getNodeKeysForIP returns all the keys for the given IP address.  There could be multiple keys if the agent/client
+// for the IP disconnects and reconnects, since we regenerate the node key each time.
+func (c *Conn) getNodeKeysForIP(ip netip.Addr) []key.NodePublic {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	var keys []key.NodePublic
+	for _, p := range c.peerMap {
+		for _, prefix := range p.AllowedIPs {
+			if prefix.Contains(ip) {
+				keys = append(keys, p.Key)
+			}
+		}
+	}
+	return keys
 }
 
 // Closed is a channel that ends when the connection has

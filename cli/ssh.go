@@ -199,7 +199,6 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				return xerrors.Errorf("dial agent: %w", err)
 			}
 			defer conn.Close()
-			conn.AwaitReachable(ctx)
 			stopPolling := tryPollWorkspaceAutostop(ctx, client, workspace)
 			defer stopPolling()
 

@@ -146,7 +146,6 @@ func (r *RootCmd) vscodeSSH() *clibase.Cmd {
 			}
 			defer agentConn.Close()
 
-			agentConn.AwaitReachable(ctx)
 			rawSSH, err := agentConn.SSH(ctx)
 			if err != nil {
 				return err

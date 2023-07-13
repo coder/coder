@@ -37,6 +37,8 @@ func TestTailnet(t *testing.T) {
 	})
 	t.Run("Connect", func(t *testing.T) {
 		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
 		w1IP := tailnet.IP()
 		w1, err := tailnet.NewConn(&tailnet.Options{
 			Addresses: []netip.Prefix{netip.PrefixFrom(w1IP, 128)},
@@ -63,11 +65,14 @@ func TestTailnet(t *testing.T) {
 			err := w1.UpdateNodes([]*tailnet.Node{node}, false)
 			assert.NoError(t, err)
 		})
-		require.True(t, w2.AwaitReachable(context.Background(), w1IP))
+		require.True(t, w2.AwaitReachable(ctx, w1IP))
+
 		conn := make(chan struct{}, 1)
 		go func() {
 			listener, err := w1.Listen("tcp", ":35565")
-			assert.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 			defer listener.Close()
 			nc, err := listener.Accept()
 			if !assert.NoError(t, err) {
@@ -76,8 +81,7 @@ func TestTailnet(t *testing.T) {
 			_ = nc.Close()
 			conn <- struct{}{}
 		}()
-
-		nc, err := w2.DialContextTCP(context.Background(), netip.AddrPortFrom(w1IP, 35565))
+		nc, err := w2.DialContextTCP(ctx, netip.AddrPortFrom(w1IP, 35565))
 		require.NoError(t, err)
 		_ = nc.Close()
 		<-conn
