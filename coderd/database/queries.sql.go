@@ -5136,8 +5136,6 @@ WHERE
 		THEN rbac_roles && $3 :: text[]
 		ELSE true
 	END
-	-- Authorize Filter clause will be injected below in GetAuthorizedUserCount
-	-- @authorize_filter
 `
 
 type GetFilteredUserCountParams struct {

@@ -255,7 +255,6 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 }
 
 type userQuerier interface {
-	GetAuthorizedUserCount(ctx context.Context, arg GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error)
 	GetAuthorizedUsers(ctx context.Context, arg GetUsersParams, prepared rbac.PreparedAuthorized) ([]GetUsersRow, error)
 }
 
@@ -317,30 +316,6 @@ func (q *sqlQuerier) GetAuthorizedUsers(ctx context.Context, arg GetUsersParams,
 		return nil, err
 	}
 	return items, nil
-}
-
-func (q *sqlQuerier) GetAuthorizedUserCount(ctx context.Context, arg GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
-	authorizedFilter, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
-		VariableConverter: regosql.UserConverter(),
-	})
-	if err != nil {
-		return -1, xerrors.Errorf("compile authorized filter: %w", err)
-	}
-
-	filtered, err := insertAuthorizedFilter(getFilteredUserCount, fmt.Sprintf(" AND %s", authorizedFilter))
-	if err != nil {
-		return -1, xerrors.Errorf("insert authorized filter: %w", err)
-	}
-
-	query := fmt.Sprintf("-- name: GetAuthorizedUserCount :one\n%s", filtered)
-	row := q.db.QueryRowContext(ctx, query,
-		arg.Search,
-		pq.Array(arg.Status),
-		pq.Array(arg.RbacRole),
-	)
-	var count int64
-	err = row.Scan(&count)
-	return count, err
 }
 
 func insertAuthorizedFilter(query string, replaceWith string) (string, error) {

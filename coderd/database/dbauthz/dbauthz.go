@@ -615,12 +615,9 @@ func (q *querier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]dat
 	return q.db.GetTemplateUserRoles(ctx, id)
 }
 
-func (q *querier) GetAuthorizedUserCount(ctx context.Context, arg database.GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
-	return q.db.GetAuthorizedUserCount(ctx, arg, prepared)
-}
-
 func (q *querier) GetUsersWithCount(ctx context.Context, arg database.GetUsersParams) ([]database.User, int64, error) {
-	rowUsers, err := q.db.GetUsers(ctx, arg)
+	// q.GetUsers only returns authorized users
+	rowUsers, err := q.GetUsers(ctx, arg)
 	if err != nil {
 		return nil, -1, err
 	}
@@ -939,12 +936,10 @@ func (q *querier) GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]dat
 }
 
 func (q *querier) GetFilteredUserCount(ctx context.Context, arg database.GetFilteredUserCountParams) (int64, error) {
-	prep, err := prepareSQLFilter(ctx, q.auth, rbac.ActionRead, rbac.ResourceUser.Type)
-	if err != nil {
-		return -1, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return -1, err
 	}
-	// TODO: This should be the only implementation.
-	return q.GetAuthorizedUserCount(ctx, arg, prep)
+	return q.db.GetFilteredUserCount(ctx, arg)
 }
 
 func (q *querier) GetGitAuthLink(ctx context.Context, arg database.GetGitAuthLinkParams) (database.GitAuthLink, error) {

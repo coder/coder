@@ -869,19 +869,17 @@ func (s *MethodTestSuite) TestUser() {
 			Asserts(a, rbac.ActionRead, b, rbac.ActionRead).
 			Returns(slice.New(a, b))
 	}))
-	s.Run("GetAuthorizedUserCount", s.Subtest(func(db database.Store, check *expects) {
-		_ = dbgen.User(s.T(), db, database.User{})
-		check.Args(database.GetFilteredUserCountParams{}, emptyPreparedAuthorized{}).Asserts().Returns(int64(1))
-	}))
 	s.Run("GetFilteredUserCount", s.Subtest(func(db database.Store, check *expects) {
 		_ = dbgen.User(s.T(), db, database.User{})
-		check.Args(database.GetFilteredUserCountParams{}).Asserts().Returns(int64(1))
+		check.Args(database.GetFilteredUserCountParams{}).Asserts(
+			rbac.ResourceSystem, rbac.ActionRead).Returns(int64(1))
 	}))
 	s.Run("GetUsers", s.Subtest(func(db database.Store, check *expects) {
-		a := dbgen.User(s.T(), db, database.User{Username: "GetUsers-a-user"})
-		b := dbgen.User(s.T(), db, database.User{Username: "GetUsers-b-user"})
+		dbgen.User(s.T(), db, database.User{Username: "GetUsers-a-user"})
+		dbgen.User(s.T(), db, database.User{Username: "GetUsers-b-user"})
 		check.Args(database.GetUsersParams{}).
-			Asserts(a, rbac.ActionRead, b, rbac.ActionRead)
+			// Asserts are done in a SQL filter
+			Asserts()
 	}))
 	s.Run("GetUsersWithCount", s.Subtest(func(db database.Store, check *expects) {
 		a := dbgen.User(s.T(), db, database.User{Username: "GetUsersWithCount-a-user"})

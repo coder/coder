@@ -267,80 +267,6 @@ func (q *FakeQuerier) getUserByIDNoLock(id uuid.UUID) (database.User, error) {
 	return database.User{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) GetAuthorizedUserCount(ctx context.Context, params database.GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
-	if err := validateDatabaseType(params); err != nil {
-		return 0, err
-	}
-
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	// Call this to match the same function calls as the SQL implementation.
-	if prepared != nil {
-		_, err := prepared.CompileToSQL(ctx, rbac.ConfigWithoutACL())
-		if err != nil {
-			return -1, err
-		}
-	}
-
-	users := make([]database.User, 0, len(q.users))
-
-	for _, user := range q.users {
-		// If the filter exists, ensure the object is authorized.
-		if prepared != nil && prepared.Authorize(ctx, user.RBACObject()) != nil {
-			continue
-		}
-
-		users = append(users, user)
-	}
-
-	// Filter out deleted since they should never be returned..
-	tmp := make([]database.User, 0, len(users))
-	for _, user := range users {
-		if !user.Deleted {
-			tmp = append(tmp, user)
-		}
-	}
-	users = tmp
-
-	if params.Search != "" {
-		tmp := make([]database.User, 0, len(users))
-		for i, user := range users {
-			if strings.Contains(strings.ToLower(user.Email), strings.ToLower(params.Search)) {
-				tmp = append(tmp, users[i])
-			} else if strings.Contains(strings.ToLower(user.Username), strings.ToLower(params.Search)) {
-				tmp = append(tmp, users[i])
-			}
-		}
-		users = tmp
-	}
-
-	if len(params.Status) > 0 {
-		usersFilteredByStatus := make([]database.User, 0, len(users))
-		for i, user := range users {
-			if slice.ContainsCompare(params.Status, user.Status, func(a, b database.UserStatus) bool {
-				return strings.EqualFold(string(a), string(b))
-			}) {
-				usersFilteredByStatus = append(usersFilteredByStatus, users[i])
-			}
-		}
-		users = usersFilteredByStatus
-	}
-
-	if len(params.RbacRole) > 0 && !slice.Contains(params.RbacRole, rbac.RoleMember()) {
-		usersFilteredByRole := make([]database.User, 0, len(users))
-		for i, user := range users {
-			if slice.OverlapCompare(params.RbacRole, user.RBACRoles, strings.EqualFold) {
-				usersFilteredByRole = append(usersFilteredByRole, users[i])
-			}
-		}
-
-		users = usersFilteredByRole
-	}
-
-	return int64(len(users)), nil
-}
-
 func convertUsers(users []database.User, count int64) []database.GetUsersRow {
 	rows := make([]database.GetUsersRow, len(users))
 	for i, u := range users {
@@ -1673,12 +1599,58 @@ func (q *FakeQuerier) GetFileTemplates(_ context.Context, id uuid.UUID) ([]datab
 	return rows, nil
 }
 
-func (q *FakeQuerier) GetFilteredUserCount(ctx context.Context, arg database.GetFilteredUserCountParams) (int64, error) {
-	if err := validateDatabaseType(arg); err != nil {
+func (q *FakeQuerier) GetFilteredUserCount(ctx context.Context, params database.GetFilteredUserCountParams) (int64, error) {
+	if err := validateDatabaseType(params); err != nil {
 		return 0, err
 	}
-	count, err := q.GetAuthorizedUserCount(ctx, arg, nil)
-	return count, err
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	// Filter out deleted since they should never be returned..
+	users := make([]database.User, 0, len(q.users))
+	for _, user := range q.users {
+		if !user.Deleted {
+			users = append(users, user)
+		}
+	}
+
+	if params.Search != "" {
+		tmp := make([]database.User, 0, len(users))
+		for i, user := range users {
+			if strings.Contains(strings.ToLower(user.Email), strings.ToLower(params.Search)) {
+				tmp = append(tmp, users[i])
+			} else if strings.Contains(strings.ToLower(user.Username), strings.ToLower(params.Search)) {
+				tmp = append(tmp, users[i])
+			}
+		}
+		users = tmp
+	}
+
+	if len(params.Status) > 0 {
+		usersFilteredByStatus := make([]database.User, 0, len(users))
+		for i, user := range users {
+			if slice.ContainsCompare(params.Status, user.Status, func(a, b database.UserStatus) bool {
+				return strings.EqualFold(string(a), string(b))
+			}) {
+				usersFilteredByStatus = append(usersFilteredByStatus, users[i])
+			}
+		}
+		users = usersFilteredByStatus
+	}
+
+	if len(params.RbacRole) > 0 && !slice.Contains(params.RbacRole, rbac.RoleMember()) {
+		usersFilteredByRole := make([]database.User, 0, len(users))
+		for i, user := range users {
+			if slice.OverlapCompare(params.RbacRole, user.RBACRoles, strings.EqualFold) {
+				usersFilteredByRole = append(usersFilteredByRole, users[i])
+			}
+		}
+
+		users = usersFilteredByRole
+	}
+
+	return int64(len(users)), nil
 }
 
 func (q *FakeQuerier) GetGitAuthLink(_ context.Context, arg database.GetGitAuthLinkParams) (database.GitAuthLink, error) {
