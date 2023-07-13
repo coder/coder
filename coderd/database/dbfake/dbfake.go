@@ -1599,7 +1599,7 @@ func (q *FakeQuerier) GetFileTemplates(_ context.Context, id uuid.UUID) ([]datab
 	return rows, nil
 }
 
-func (q *FakeQuerier) GetFilteredUserCount(ctx context.Context, params database.GetFilteredUserCountParams) (int64, error) {
+func (q *FakeQuerier) GetFilteredUserCount(_ context.Context, params database.GetFilteredUserCountParams) (int64, error) {
 	if err := validateDatabaseType(params); err != nil {
 		return 0, err
 	}

@@ -262,7 +262,6 @@ func (q *sqlQuerier) GetAuthorizedUsers(ctx context.Context, arg GetUsersParams,
 	authorizedFilter, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
 		VariableConverter: regosql.UserConverter(),
 	})
-
 	if err != nil {
 		return nil, xerrors.Errorf("compile authorized filter: %w", err)
 	}
