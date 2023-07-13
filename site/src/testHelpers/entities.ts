@@ -149,31 +149,34 @@ export const MockWorkspaceProxies: TypesGen.WorkspaceProxy[] = [
 ]
 
 export const MockProxyLatencies: Record<string, ProxyLatencyReport> = {
-  ...MockWorkspaceProxies.reduce((acc, proxy) => {
-    if (!proxy.healthy) {
+  ...MockWorkspaceProxies.reduce(
+    (acc, proxy) => {
+      if (!proxy.healthy) {
+        return acc
+      }
+      acc[proxy.id] = {
+        // Make one of them inaccurate.
+        accurate: proxy.id !== "26e84c16-db24-4636-a62d-aa1a4232b858",
+        // This is a deterministic way to generate a latency to for each proxy.
+        // It will be the same for each run as long as the IDs don't change.
+        latencyMS:
+          (Number(
+            Array.from(proxy.id).reduce(
+              // Multiply each char code by some large prime number to increase the
+              // size of the number and allow use to get some decimal points.
+              (acc, char) => acc + char.charCodeAt(0) * 37,
+              0,
+            ),
+          ) /
+            // Cap at 250ms
+            100) %
+          250,
+        at: new Date(),
+      }
       return acc
-    }
-    acc[proxy.id] = {
-      // Make one of them inaccurate.
-      accurate: proxy.id !== "26e84c16-db24-4636-a62d-aa1a4232b858",
-      // This is a deterministic way to generate a latency to for each proxy.
-      // It will be the same for each run as long as the IDs don't change.
-      latencyMS:
-        (Number(
-          Array.from(proxy.id).reduce(
-            // Multiply each char code by some large prime number to increase the
-            // size of the number and allow use to get some decimal points.
-            (acc, char) => acc + char.charCodeAt(0) * 37,
-            0,
-          ),
-        ) /
-          // Cap at 250ms
-          100) %
-        250,
-      at: new Date(),
-    }
-    return acc
-  }, {} as Record<string, ProxyLatencyReport>),
+    },
+    {} as Record<string, ProxyLatencyReport>,
+  ),
 }
 
 export const MockBuildInfo: TypesGen.BuildInfoResponse = {

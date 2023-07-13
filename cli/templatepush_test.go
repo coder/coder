@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -612,6 +613,52 @@ func TestTemplatePush(t *testing.T) {
 			assert.Len(t, templateVariables, 2)
 			require.Equal(t, "second_variable", templateVariables[1].Name)
 			require.Equal(t, "foobar", templateVariables[1].Value)
+		})
+
+		t.Run("CreateTemplate", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+				Parse:          echo.ParseComplete,
+				ProvisionApply: provisionCompleteWithAgent,
+			})
+
+			const templateName = "my-template"
+			args := []string{
+				"templates",
+				"push",
+				templateName,
+				"--directory", source,
+				"--test.provisioner", string(database.ProvisionerTypeEcho),
+				"--create",
+			}
+			inv, root := clitest.New(t, args...)
+			clitest.SetupConfig(t, client, root)
+			pty := ptytest.New(t).Attach(inv)
+
+			waiter := clitest.StartWithWaiter(t, inv)
+
+			matches := []struct {
+				match string
+				write string
+			}{
+				{match: "Upload", write: "yes"},
+				{match: "template has been created"},
+			}
+			for _, m := range matches {
+				pty.ExpectMatch(m.match)
+				if m.write != "" {
+					pty.WriteLine(m.write)
+				}
+			}
+
+			waiter.RequireSuccess()
+
+			template, err := client.TemplateByName(context.Background(), user.OrganizationID, templateName)
+			require.NoError(t, err)
+			require.Equal(t, templateName, template.Name)
+			require.NotEqual(t, uuid.Nil, template.ActiveVersionID)
 		})
 	})
 }

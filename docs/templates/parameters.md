@@ -149,6 +149,24 @@ data "coder_parameter" "region" {
 It is allowed to modify the mutability state anytime. In case of emergency, template authors can temporarily allow for changing immutable parameters to fix an operational issue, but it is not
 advised to overuse this opportunity.
 
+## Ephemeral parameters
+
+Ephemeral parameters are introduced to users in the form of "build options." This functionality can be used to model
+specific behaviors within a Coder workspace, such as reverting to a previous image, restoring from a volume snapshot, or
+building a project without utilizing cache.
+
+As these parameters are ephemeral in nature, subsequent builds will proceed in the standard manner.
+
+```hcl
+data "coder_parameter" "force_rebuild" {
+  name         = "force_rebuild"
+  type         = "bool"
+  description  = "Rebuild the Docker image rather than use the cached one."
+  mutable      = true
+  ephemeral    = true
+}
+```
+
 ## Validation
 
 Rich parameters support multiple validation modes - min, max, monotonic numbers, and regular expressions.

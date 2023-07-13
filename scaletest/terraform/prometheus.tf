@@ -32,8 +32,9 @@ resource "null_resource" "prometheus_namespace" {
 
 # Create a secret to store the remote write key
 resource "kubernetes_secret" "prometheus-credentials" {
-  count = local.prometheus_remote_write_enabled ? 1 : 0
-  type  = "kubernetes.io/basic-auth"
+  count      = local.prometheus_remote_write_enabled ? 1 : 0
+  type       = "kubernetes.io/basic-auth"
+  depends_on = [null_resource.prometheus_namespace]
   metadata {
     name      = "prometheus-credentials"
     namespace = local.prometheus_namespace
@@ -165,7 +166,7 @@ resource "local_file" "coder-monitoring-manifest" {
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
-  namespace: ${local.prometheus_namespace}
+  namespace: ${local.coder_namespace}
   name: coder-monitoring
 spec:
   selector:
