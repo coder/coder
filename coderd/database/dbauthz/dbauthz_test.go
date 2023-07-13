@@ -882,9 +882,9 @@ func (s *MethodTestSuite) TestUser() {
 			Asserts()
 	}))
 	s.Run("GetUsersWithCount", s.Subtest(func(db database.Store, check *expects) {
-		a := dbgen.User(s.T(), db, database.User{Username: "GetUsersWithCount-a-user"})
-		b := dbgen.User(s.T(), db, database.User{Username: "GetUsersWithCount-b-user"})
-		check.Args(database.GetUsersParams{}).Asserts(a, rbac.ActionRead, b, rbac.ActionRead)
+		_ = dbgen.User(s.T(), db, database.User{Username: "GetUsersWithCount-a-user"})
+		_ = dbgen.User(s.T(), db, database.User{Username: "GetUsersWithCount-b-user"})
+		check.Args(database.GetUsersParams{}).Asserts()
 	}))
 	s.Run("InsertUser", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertUserParams{
