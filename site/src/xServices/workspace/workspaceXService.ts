@@ -138,7 +138,7 @@ const permissionsToCheck = (
       },
       action: "read",
     },
-  } as const)
+  }) as const
 
 export const workspaceMachine = createMachine(
   {

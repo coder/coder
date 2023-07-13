@@ -1277,6 +1277,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
 
 ```json
 {
+  "message": "string",
   "name": "string"
 }
 ```

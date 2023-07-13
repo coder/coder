@@ -11,6 +11,8 @@ func (r *RootCmd) update() *clibase.Cmd {
 	var (
 		richParameterFile string
 		alwaysPrompt      bool
+
+		parameterFlags workspaceParameterFlags
 	)
 
 	client := new(codersdk.Client)
@@ -28,20 +30,20 @@ func (r *RootCmd) update() *clibase.Cmd {
 			if err != nil {
 				return err
 			}
-			if !workspace.Outdated && !alwaysPrompt {
+			if !workspace.Outdated && !alwaysPrompt && !parameterFlags.buildOptions {
 				_, _ = fmt.Fprintf(inv.Stdout, "Workspace isn't outdated!\n")
 				return nil
 			}
 			template, err := client.Template(inv.Context(), workspace.TemplateID)
 			if err != nil {
-				return nil
+				return err
 			}
 
 			var existingRichParams []codersdk.WorkspaceBuildParameter
 			if !alwaysPrompt {
 				existingRichParams, err = client.WorkspaceBuildParameters(inv.Context(), workspace.LatestBuild.ID)
 				if err != nil {
-					return nil
+					return err
 				}
 			}
 
@@ -53,9 +55,11 @@ func (r *RootCmd) update() *clibase.Cmd {
 
 				UpdateWorkspace: true,
 				WorkspaceID:     workspace.LatestBuild.ID,
+
+				BuildOptions: parameterFlags.buildOptions,
 			})
 			if err != nil {
-				return nil
+				return err
 			}
 
 			build, err := client.CreateWorkspaceBuild(inv.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
@@ -86,8 +90,7 @@ func (r *RootCmd) update() *clibase.Cmd {
 		{
 			Flag:        "always-prompt",
 			Description: "Always prompt all parameters. Does not pull parameter values from existing workspace.",
-
-			Value: clibase.BoolOf(&alwaysPrompt),
+			Value:       clibase.BoolOf(&alwaysPrompt),
 		},
 		{
 			Flag:        "rich-parameter-file",
@@ -96,5 +99,6 @@ func (r *RootCmd) update() *clibase.Cmd {
 			Value:       clibase.StringOf(&richParameterFile),
 		},
 	}
+	cmd.Options = append(cmd.Options, parameterFlags.options()...)
 	return cmd
 }

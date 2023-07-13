@@ -1796,6 +1796,12 @@ const (
 	// oidc.
 	ExperimentConvertToOIDC Experiment = "convert-to-oidc"
 
+	// ExperimentSingleTailnet replaces workspace connections inside coderd to
+	// all use a single tailnet, instead of the previous behavior of creating a
+	// single tailnet for each agent.
+	// WARNING: This cannot be enabled when using HA.
+	ExperimentSingleTailnet Experiment = "single_tailnet"
+
 	ExperimentWorkspaceBuildLogsUI Experiment = "workspace_build_logs_ui"
 
 	// ExperimentTemplateRestartRequirement allows template admins to have more

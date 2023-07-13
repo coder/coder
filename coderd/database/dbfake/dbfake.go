@@ -4773,6 +4773,7 @@ func (q *FakeQuerier) UpdateTemplateVersionByID(_ context.Context, arg database.
 		templateVersion.TemplateID = arg.TemplateID
 		templateVersion.UpdatedAt = arg.UpdatedAt
 		templateVersion.Name = arg.Name
+		templateVersion.Message = arg.Message
 		q.templateVersions[index] = templateVersion
 		return templateVersion, nil
 	}

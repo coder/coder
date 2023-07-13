@@ -139,6 +139,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		}
 	}()
 
+	IP()
 	dialer := &tsdial.Dialer{
 		Logf: Logger(options.Logger.Named("tsdial")),
 	}
@@ -182,10 +183,17 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	netMap.SelfNode.DiscoKey = magicConn.DiscoPublicKey()
 
 	netStack, err := netstack.Create(
-		Logger(options.Logger.Named("netstack")), tunDevice, wireguardEngine, magicConn, dialer, dnsManager)
+		Logger(options.Logger.Named("netstack")),
+		tunDevice,
+		wireguardEngine,
+		magicConn,
+		dialer,
+		dnsManager,
+	)
 	if err != nil {
 		return nil, xerrors.Errorf("create netstack: %w", err)
 	}
+
 	dialer.NetstackDialTCP = func(ctx context.Context, dst netip.AddrPort) (net.Conn, error) {
 		return netStack.DialContextTCP(ctx, dst)
 	}
@@ -203,7 +211,14 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	localIPs, _ := localIPSet.IPSet()
 	logIPSet := netipx.IPSetBuilder{}
 	logIPs, _ := logIPSet.IPSet()
-	wireguardEngine.SetFilter(filter.New(netMap.PacketFilter, localIPs, logIPs, nil, Logger(options.Logger.Named("packet-filter"))))
+	wireguardEngine.SetFilter(filter.New(
+		netMap.PacketFilter,
+		localIPs,
+		logIPs,
+		nil,
+		Logger(options.Logger.Named("packet-filter")),
+	))
+
 	dialContext, dialCancel := context.WithCancel(context.Background())
 	server := &Conn{
 		blockEndpoints:           options.BlockEndpoints,
@@ -230,6 +245,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 			_ = server.Close()
 		}
 	}()
+
 	wireguardEngine.SetStatusCallback(func(s *wgengine.Status, err error) {
 		server.logger.Debug(context.Background(), "wireguard status", slog.F("status", s), slog.Error(err))
 		if err != nil {
@@ -251,6 +267,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		server.lastMutex.Unlock()
 		server.sendNode()
 	})
+
 	wireguardEngine.SetNetInfoCallback(func(ni *tailcfg.NetInfo) {
 		server.logger.Debug(context.Background(), "netinfo callback", slog.F("netinfo", ni))
 		server.lastMutex.Lock()
@@ -262,6 +279,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		server.lastMutex.Unlock()
 		server.sendNode()
 	})
+
 	magicConn.SetDERPForcedWebsocketCallback(func(region int, reason string) {
 		server.logger.Debug(context.Background(), "derp forced websocket", slog.F("region", region), slog.F("reason", reason))
 		server.lastMutex.Lock()
@@ -273,6 +291,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		server.lastMutex.Unlock()
 		server.sendNode()
 	})
+
 	netStack.ForwardTCPIn = server.forwardTCP
 	netStack.ForwardTCPSockOpts = server.forwardTCPSockOpts
 
@@ -284,20 +303,28 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	return server, nil
 }
 
-// IP generates a new IP with a static service prefix.
-func IP() netip.Addr {
-	// This is Tailscale's ephemeral service prefix.
-	// This can be changed easily later-on, because
-	// all of our nodes are ephemeral.
+func maskUUID(uid uuid.UUID) uuid.UUID {
+	// This is Tailscale's ephemeral service prefix. This can be changed easily
+	// later-on, because all of our nodes are ephemeral.
 	// fd7a:115c:a1e0
-	uid := uuid.New()
 	uid[0] = 0xfd
 	uid[1] = 0x7a
 	uid[2] = 0x11
 	uid[3] = 0x5c
 	uid[4] = 0xa1
 	uid[5] = 0xe0
+	return uid
+}
+
+// IP generates a random IP with a static service prefix.
+func IP() netip.Addr {
+	uid := maskUUID(uuid.New())
 	return netip.AddrFrom16(uid)
+}
+
+// IP generates a new IP from a UUID.
+func IPFromUUID(uid uuid.UUID) netip.Addr {
+	return netip.AddrFrom16(maskUUID(uid))
 }
 
 // Conn is an actively listening Wireguard connection.
@@ -334,6 +361,29 @@ type Conn struct {
 	trafficStats *connstats.Statistics
 }
 
+func (c *Conn) SetAddresses(ips []netip.Prefix) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	c.netMap.Addresses = ips
+
+	netMapCopy := *c.netMap
+	c.logger.Debug(context.Background(), "updating network map")
+	c.wireguardEngine.SetNetworkMap(&netMapCopy)
+	err := c.reconfig()
+	if err != nil {
+		return xerrors.Errorf("reconfig: %w", err)
+	}
+
+	return nil
+}
+
+func (c *Conn) Addresses() []netip.Prefix {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	return c.netMap.Addresses
+}
+
 func (c *Conn) SetNodeCallback(callback func(node *Node)) {
 	c.lastMutex.Lock()
 	c.nodeCallback = callback
@@ -364,32 +414,6 @@ func (c *Conn) SetBlockEndpoints(blockEndpoints bool) {
 // SetDERPRegionDialer updates the dialer to use for connecting to DERP regions.
 func (c *Conn) SetDERPRegionDialer(dialer func(ctx context.Context, region *tailcfg.DERPRegion) net.Conn) {
 	c.magicConn.SetDERPRegionDialer(dialer)
-}
-
-func (c *Conn) RemoveAllPeers() error {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
-	c.netMap.Peers = []*tailcfg.Node{}
-	c.peerMap = map[tailcfg.NodeID]*tailcfg.Node{}
-	netMapCopy := *c.netMap
-	c.logger.Debug(context.Background(), "updating network map")
-	c.wireguardEngine.SetNetworkMap(&netMapCopy)
-	cfg, err := nmcfg.WGCfg(c.netMap, Logger(c.logger.Named("wgconfig")), netmap.AllowSingleHosts, "")
-	if err != nil {
-		return xerrors.Errorf("update wireguard config: %w", err)
-	}
-	err = c.wireguardEngine.Reconfig(cfg, c.wireguardRouter, &dns.Config{}, &tailcfg.Debug{})
-	if err != nil {
-		if c.isClosed() {
-			return nil
-		}
-		if errors.Is(err, wgengine.ErrNoChanges) {
-			return nil
-		}
-		return xerrors.Errorf("reconfig: %w", err)
-	}
-	return nil
 }
 
 // UpdateNodes connects with a set of peers. This can be constantly updated,
@@ -423,6 +447,7 @@ func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 		}
 		delete(c.peerMap, peer.ID)
 	}
+
 	for _, node := range nodes {
 		// If no preferred DERP is provided, we can't reach the node.
 		if node.PreferredDERP == 0 {
@@ -452,17 +477,29 @@ func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 		}
 		c.peerMap[node.ID] = peerNode
 	}
+
 	c.netMap.Peers = make([]*tailcfg.Node, 0, len(c.peerMap))
 	for _, peer := range c.peerMap {
 		c.netMap.Peers = append(c.netMap.Peers, peer.Clone())
 	}
+
 	netMapCopy := *c.netMap
 	c.logger.Debug(context.Background(), "updating network map")
 	c.wireguardEngine.SetNetworkMap(&netMapCopy)
+	err := c.reconfig()
+	if err != nil {
+		return xerrors.Errorf("reconfig: %w", err)
+	}
+
+	return nil
+}
+
+func (c *Conn) reconfig() error {
 	cfg, err := nmcfg.WGCfg(c.netMap, Logger(c.logger.Named("wgconfig")), netmap.AllowSingleHosts, "")
 	if err != nil {
 		return xerrors.Errorf("update wireguard config: %w", err)
 	}
+
 	err = c.wireguardEngine.Reconfig(cfg, c.wireguardRouter, &dns.Config{}, &tailcfg.Debug{})
 	if err != nil {
 		if c.isClosed() {
@@ -473,6 +510,7 @@ func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 		}
 		return xerrors.Errorf("reconfig: %w", err)
 	}
+
 	return nil
 }
 

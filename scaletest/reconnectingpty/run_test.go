@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/coderdtest"
@@ -243,7 +244,7 @@ func Test_Runner(t *testing.T) {
 func setupRunnerTest(t *testing.T) (client *codersdk.Client, agentID uuid.UUID) {
 	t.Helper()
 
-	client = coderdtest.New(t, &coderdtest.Options{
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
 	})
 	user := coderdtest.CreateFirstUser(t, client)
@@ -282,12 +283,16 @@ func setupRunnerTest(t *testing.T) (client *codersdk.Client, agentID uuid.UUID) 
 	agentClient.SetSessionToken(authToken)
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,
-		Logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("agent"),
+		Logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("agent").Leveled(slog.LevelDebug),
 	})
 	t.Cleanup(func() {
 		_ = agentCloser.Close()
 	})
 
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+	require.Eventually(t, func() bool {
+		t.Log("agent id", resources[0].Agents[0].ID)
+		return (*api.TailnetCoordinator.Load()).Node(resources[0].Agents[0].ID) != nil
+	}, testutil.WaitLong, testutil.IntervalMedium, "agent never connected")
 	return client, resources[0].Agents[0].ID
 }

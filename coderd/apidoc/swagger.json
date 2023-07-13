@@ -4047,9 +4047,6 @@
               "$ref": "#/definitions/agentsdk.StatsResponse"
             }
           }
-        },
-        "x-apidocgen": {
-          "skip": true
         }
       }
     },
@@ -4116,9 +4113,6 @@
               "$ref": "#/definitions/codersdk.Response"
             }
           }
-        },
-        "x-apidocgen": {
-          "skip": true
         }
       }
     },
@@ -5327,6 +5321,9 @@
     "agentsdk.Manifest": {
       "type": "object",
       "properties": {
+        "agent_id": {
+          "type": "string"
+        },
         "apps": {
           "type": "array",
           "items": {
@@ -6905,6 +6902,7 @@
         "workspace_actions",
         "tailnet_ha_coordinator",
         "convert-to-oidc",
+        "single_tailnet",
         "workspace_build_logs_ui",
         "template_restart_requirement"
       ],
@@ -6913,6 +6911,7 @@
         "ExperimentWorkspaceActions",
         "ExperimentTailnetHACoordinator",
         "ExperimentConvertToOIDC",
+        "ExperimentSingleTailnet",
         "ExperimentWorkspaceBuildLogsUI",
         "ExperimentTemplateRestartRequirement"
       ]
@@ -7474,6 +7473,9 @@
     "codersdk.PatchTemplateVersionRequest": {
       "type": "object",
       "properties": {
+        "message": {
+          "type": "string"
+        },
         "name": {
           "type": "string"
         }

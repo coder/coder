@@ -20,7 +20,7 @@ const templatePermissions = (templateId: string) =>
       },
       action: "update",
     },
-  } as const)
+  }) as const
 
 const fetchTemplateSettings = async (orgId: string, name: string) => {
   const template = await getTemplateByName(orgId, name)

@@ -109,6 +109,7 @@ type Options struct {
 	GitAuthConfigs        []*gitauth.Config
 	TrialGenerator        func(context.Context, string) error
 	TemplateScheduleStore schedule.TemplateScheduleStore
+	Coordinator           tailnet.Coordinator
 
 	HealthcheckFunc    func(ctx context.Context, apiKey string) *healthcheck.Report
 	HealthcheckTimeout time.Duration

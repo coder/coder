@@ -4599,9 +4599,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/agentsdk.StatsResponse"
                         }
                     }
-                },
-                "x-apidocgen": {
-                    "skip": true
                 }
             }
         },
@@ -4680,9 +4677,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
-                "x-apidocgen": {
-                    "skip": true
                 }
             }
         },
@@ -6047,6 +6041,9 @@ const docTemplate = `{
         "agentsdk.Manifest": {
             "type": "object",
             "properties": {
+                "agent_id": {
+                    "type": "string"
+                },
                 "apps": {
                     "type": "array",
                     "items": {
@@ -7714,6 +7711,7 @@ const docTemplate = `{
                 "workspace_actions",
                 "tailnet_ha_coordinator",
                 "convert-to-oidc",
+                "single_tailnet",
                 "workspace_build_logs_ui",
                 "template_restart_requirement"
             ],
@@ -7722,6 +7720,7 @@ const docTemplate = `{
                 "ExperimentWorkspaceActions",
                 "ExperimentTailnetHACoordinator",
                 "ExperimentConvertToOIDC",
+                "ExperimentSingleTailnet",
                 "ExperimentWorkspaceBuildLogsUI",
                 "ExperimentTemplateRestartRequirement"
             ]
@@ -8322,6 +8321,9 @@ const docTemplate = `{
         "codersdk.PatchTemplateVersionRequest": {
             "type": "object",
             "properties": {
+                "message": {
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
                 }

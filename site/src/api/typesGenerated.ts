@@ -646,6 +646,7 @@ export interface PatchGroupRequest {
 // From codersdk/templateversions.go
 export interface PatchTemplateVersionRequest {
   readonly name: string
+  readonly message?: string
 }
 
 // From codersdk/workspaceproxy.go
@@ -1463,6 +1464,7 @@ export const Entitlements: Entitlement[] = [
 export type Experiment =
   | "convert-to-oidc"
   | "moons"
+  | "single_tailnet"
   | "tailnet_ha_coordinator"
   | "template_restart_requirement"
   | "workspace_actions"
@@ -1470,6 +1472,7 @@ export type Experiment =
 export const Experiments: Experiment[] = [
   "convert-to-oidc",
   "moons",
+  "single_tailnet",
   "tailnet_ha_coordinator",
   "template_restart_requirement",
   "workspace_actions",
