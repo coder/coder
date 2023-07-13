@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Setup Go  
+      - name: Setup Go
         uses: ./.github/actions/setup-go
 
       - name: Setup Terraform
@@ -44,7 +44,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Setup Go  
+      - name: Setup Go
         uses: ./.github/actions/setup-go
 
       - name: Run Tests

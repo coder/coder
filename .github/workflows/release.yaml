@@ -94,7 +94,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Go  
+      - name: Setup Go
         uses: ./.github/actions/setup-go
 
       - name: Cache Node
