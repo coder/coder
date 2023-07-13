@@ -240,7 +240,7 @@ func appServer(t *testing.T, headers http.Header) uint16 {
 		ln      net.Listener
 		tcpAddr *net.TCPAddr
 	)
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 32; i++ {
 		var err error
 		// #nosec
 		ln, err = net.Listen("tcp", ":0")
@@ -251,10 +251,12 @@ func appServer(t *testing.T, headers http.Header) uint16 {
 		require.True(t, ok)
 		if tcpAddr.Port < codersdk.WorkspaceAgentMinimumListeningPort {
 			_ = ln.Close()
+			ln = nil
 			time.Sleep(20 * time.Millisecond)
 			continue
 		}
 	}
+	require.NotNil(t, ln, "failed to find a free port greater than the minimum app port")
 
 	server := http.Server{
 		ReadHeaderTimeout: time.Minute,
