@@ -237,7 +237,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		})
 		r.Route("/users/{user}/quiet-hours", func(r chi.Router) {
 			r.Use(
-				// TODO: enabled MW?
+				api.restartRequirementEnabledMW,
 				apiKeyMiddleware,
 				httpmw.ExtractUserParam(options.Database, false),
 			)
@@ -494,6 +494,10 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				api.AGPL.UserQuietHoursScheduleStore.Store(&quietHoursStore)
 			}
 		} else {
+			if api.DefaultQuietHoursSchedule != "" {
+				api.Logger.Warn(ctx, "template restart requirements are not enabled (due to setting default quiet hours schedule) as your license is not entitled to this feature")
+			}
+
 			templateStore := *(api.AGPL.TemplateScheduleStore.Load())
 			enterpriseTemplateStore, ok := templateStore.(*schedule.EnterpriseTemplateScheduleStore)
 			if ok {
