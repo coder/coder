@@ -156,7 +156,7 @@ jobs:
 
       - uses: sqlc-dev/setup-sqlc@v3
         with:
-          sqlc-version: '1.18.0'
+          sqlc-version: "1.18.0"
 
       - name: go install tools
         run: |
