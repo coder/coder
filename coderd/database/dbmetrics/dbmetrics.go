@@ -8,11 +8,17 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/slices"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/rbac"
 )
+
+// Force these imports, for some reason the autogen does not include them.
+var _ uuid.UUID
+var _ rbac.Action
 
 const wrapname = "dbmetrics.metricsStore"
 
