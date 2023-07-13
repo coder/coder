@@ -1661,10 +1661,10 @@
   dependencies:
     tslib "^2.0.3"
 
-"@fontsource/ibm-plex-mono@4.5.10":
-  version "4.5.10"
-  resolved "https://registry.yarnpkg.com/@fontsource/ibm-plex-mono/-/ibm-plex-mono-4.5.10.tgz#25d004646853bf46b3787341300662fe61f8ad78"
-  integrity sha512-YmyewD+qHgo4ylcNSg6T9zpneRS34HhFd8cpF2TrJMbM3iKOW59XwmZqzdKyctzU0UQoHUFzjAAzDJ4THElFRA==
+"@fontsource/ibm-plex-mono@5.0.5":
+  version "5.0.5"
+  resolved "https://registry.yarnpkg.com/@fontsource/ibm-plex-mono/-/ibm-plex-mono-5.0.5.tgz#cee5c1a1d467e6b47349e815d9d14cd254208732"
+  integrity sha512-A1rDiQB7X7oOgsZbjeSQV3r/ZOBEZDjKEnlLvWqd4sMBZwGKTDnCxQYoqedY/8if2NXyiQoLXPdV5RpQ/3BerQ==
 
 "@fontsource/inter@5.0.2":
   version "5.0.2"
