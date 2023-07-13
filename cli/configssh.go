@@ -512,9 +512,15 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 			Flag:    "coder-cli-path",
 			Env:     "CODER_SSH_CONFIG_CLI_PATH",
 			Default: "",
-			Description: "Optional to specify the path for the coder cli uses in ProxyCommand. " +
+			Description: "Optional to specify the absolute path for the coder cli uses in ProxyCommand. " +
 				"By default, the coder cli used is the same cli being invoked with 'config ssh'.",
-			Value: clibase.StringOf(&coderCliPath),
+			Value: clibase.Validate(clibase.StringOf(&coderCliPath), func(value *clibase.String) error {
+				absolute := filepath.IsAbs(value.String())
+				if !absolute {
+					return xerrors.Errorf("coder cli path must be an absolute path")
+				}
+				return nil
+			}),
 		},
 		{
 			Flag:          "ssh-option",
