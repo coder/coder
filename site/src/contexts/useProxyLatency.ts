@@ -87,43 +87,46 @@ export const useProxyLatency = (
     // proxyMap is a map of the proxy path_app_url to the proxy object.
     // This is for the observer to know which requests are important to
     // record.
-    const proxyChecks = proxies.reduce((acc, proxy) => {
-      // Only run the latency check on healthy proxies.
-      if (!proxy.healthy) {
-        return acc
-      }
-
-      // Do not run latency checks if a cached check exists below the latestFetchRequest Date.
-      // This prevents fetching latencies too often.
-      // 1. Fetch the latest stored latency for the given proxy.
-      // 2. If the latest latency is after the latestFetchRequest, then skip the latency check.
-      if (storedLatencies && storedLatencies[proxy.id]) {
-        const fetchRequestDate = new Date(latestFetchRequest)
-        const latest = storedLatencies[proxy.id].reduce((prev, next) =>
-          prev.at > next.at ? prev : next,
-        )
-
-        if (latest && latest.at > fetchRequestDate) {
-          // dispatch the cached latency. This latency already went through the
-          // guard logic below, so we can just dispatch it again directly.
-          dispatchProxyLatencies({
-            proxyID: proxy.id,
-            cached: true,
-            report: latest,
-          })
+    const proxyChecks = proxies.reduce(
+      (acc, proxy) => {
+        // Only run the latency check on healthy proxies.
+        if (!proxy.healthy) {
           return acc
         }
-      }
 
-      // Add a random query param to the url to make sure we don't get a cached response.
-      // This is important in case there is some caching layer between us and the proxy.
-      const url = new URL(
-        `/latency-check?cache_bust=${generateRandomString(6)}`,
-        proxy.path_app_url,
-      )
-      acc[url.toString()] = proxy
-      return acc
-    }, {} as Record<string, Region>)
+        // Do not run latency checks if a cached check exists below the latestFetchRequest Date.
+        // This prevents fetching latencies too often.
+        // 1. Fetch the latest stored latency for the given proxy.
+        // 2. If the latest latency is after the latestFetchRequest, then skip the latency check.
+        if (storedLatencies && storedLatencies[proxy.id]) {
+          const fetchRequestDate = new Date(latestFetchRequest)
+          const latest = storedLatencies[proxy.id].reduce((prev, next) =>
+            prev.at > next.at ? prev : next,
+          )
+
+          if (latest && latest.at > fetchRequestDate) {
+            // dispatch the cached latency. This latency already went through the
+            // guard logic below, so we can just dispatch it again directly.
+            dispatchProxyLatencies({
+              proxyID: proxy.id,
+              cached: true,
+              report: latest,
+            })
+            return acc
+          }
+        }
+
+        // Add a random query param to the url to make sure we don't get a cached response.
+        // This is important in case there is some caching layer between us and the proxy.
+        const url = new URL(
+          `/latency-check?cache_bust=${generateRandomString(6)}`,
+          proxy.path_app_url,
+        )
+        acc[url.toString()] = proxy
+        return acc
+      },
+      {} as Record<string, Region>,
+    )
 
     // dispatchProxyLatenciesGuarded will assign the latency to the proxy
     // via the reducer. But it will only do so if the performance entry is
