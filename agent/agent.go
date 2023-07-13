@@ -64,6 +64,7 @@ type Options struct {
 	SSHMaxTimeout          time.Duration
 	TailnetListenPort      uint16
 	Subsystem              codersdk.AgentSubsystem
+	Addresses              []netip.Prefix
 
 	PrometheusRegistry *prometheus.Registry
 }
@@ -132,6 +133,7 @@ func New(options Options) Agent {
 		connStatsChan:          make(chan *agentsdk.Stats, 1),
 		sshMaxTimeout:          options.SSHMaxTimeout,
 		subsystem:              options.Subsystem,
+		addresses:              options.Addresses,
 
 		prometheusRegistry: prometheusRegistry,
 		metrics:            newAgentMetrics(prometheusRegistry),
@@ -177,6 +179,7 @@ type agent struct {
 	lifecycleStates   []agentsdk.PostLifecycleRequest
 
 	network       *tailnet.Conn
+	addresses     []netip.Prefix
 	connStatsChan chan *agentsdk.Stats
 	latestStat    atomic.Pointer[agentsdk.Stats]
 
@@ -545,6 +548,10 @@ func (a *agent) run(ctx context.Context) error {
 	}
 	a.logger.Info(ctx, "fetched manifest", slog.F("manifest", manifest))
 
+	if manifest.AgentID == uuid.Nil {
+		return xerrors.New("nil agentID returned by manifest")
+	}
+
 	// Expand the directory and send it back to coderd so external
 	// applications that rely on the directory can use it.
 	//
@@ -630,7 +637,7 @@ func (a *agent) run(ctx context.Context) error {
 	network := a.network
 	a.closeMutex.Unlock()
 	if network == nil {
-		network, err = a.createTailnet(ctx, manifest.DERPMap, manifest.DisableDirectConnections)
+		network, err = a.createTailnet(ctx, manifest.AgentID, manifest.DERPMap, manifest.DisableDirectConnections)
 		if err != nil {
 			return xerrors.Errorf("create tailnet: %w", err)
 		}
@@ -648,6 +655,11 @@ func (a *agent) run(ctx context.Context) error {
 
 		a.startReportingConnectionStats(ctx)
 	} else {
+		// Update the wireguard IPs if the agent ID changed.
+		err := network.SetAddresses(a.wireguardAddresses(manifest.AgentID))
+		if err != nil {
+			a.logger.Error(ctx, "update tailnet addresses", slog.Error(err))
+		}
 		// Update the DERP map and allow/disallow direct connections.
 		network.SetDERPMap(manifest.DERPMap)
 		network.SetBlockEndpoints(manifest.DisableDirectConnections)
@@ -659,6 +671,20 @@ func (a *agent) run(ctx context.Context) error {
 		return xerrors.Errorf("run coordinator: %w", err)
 	}
 	return nil
+}
+
+func (a *agent) wireguardAddresses(agentID uuid.UUID) []netip.Prefix {
+	if len(a.addresses) == 0 {
+		return []netip.Prefix{
+			// This is the IP that should be used primarily.
+			netip.PrefixFrom(tailnet.IPFromUUID(agentID), 128),
+			// We also listen on the legacy codersdk.WorkspaceAgentIP. This
+			// allows for a transition away from wsconncache.
+			netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128),
+		}
+	}
+
+	return a.addresses
 }
 
 func (a *agent) trackConnGoroutine(fn func()) error {
@@ -675,9 +701,9 @@ func (a *agent) trackConnGoroutine(fn func()) error {
 	return nil
 }
 
-func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap, disableDirectConnections bool) (_ *tailnet.Conn, err error) {
+func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *tailcfg.DERPMap, disableDirectConnections bool) (_ *tailnet.Conn, err error) {
 	network, err := tailnet.NewConn(&tailnet.Options{
-		Addresses:      []netip.Prefix{netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128)},
+		Addresses:      a.wireguardAddresses(agentID),
 		DERPMap:        derpMap,
 		Logger:         a.logger.Named("tailnet"),
 		ListenPort:     a.tailnetListenPort,

@@ -31,7 +31,7 @@ env:
   # For some reason, setup-go won't actually pick up a new patch version if
   # it has an old one cached. We need to manually specify the versions so we
   # can get the latest release. Never use "~1.xx" here!
-  CODER_GO_VERSION: "1.20.5"
+  CODER_GO_VERSION: "1.20.6"
 
 jobs:
   release:

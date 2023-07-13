@@ -7,7 +7,7 @@ cdroot
 
 usage() {
 	cat <<EOH
-Usage: ./release.sh [--dry-run] [-h | --help] [--ref <ref>] [--major | --minor | --patch]
+Usage: ./release.sh [--dry-run] [-h | --help] [--ref <ref>] [--major | --minor | --patch] [--force]
 
 This script should be called to create a new release.
 
@@ -33,6 +33,9 @@ Flags:
 Set --major or --minor to force a larger version bump, even when there are no
 breaking changes. By default a patch version will be created, --patch is no-op.
 
+Set --force force the provided increment to be used (e.g. --patch), even if
+there are breaking changes, etc.
+
 Set --ref if you need to specify a specific commit that the new version will
 be tagged at, otherwise the latest commit will be used.
 
@@ -44,8 +47,9 @@ branch=main
 dry_run=0
 ref=
 increment=
+force=0
 
-args="$(getopt -o h -l dry-run,help,ref:,major,minor,patch -- "$@")"
+args="$(getopt -o h -l dry-run,help,ref:,major,minor,patch,force -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
@@ -66,6 +70,10 @@ while true; do
 			error "Cannot specify multiple version increments."
 		fi
 		increment=${1#--}
+		shift
+		;;
+	--force)
+		force=1
 		shift
 		;;
 	--)
@@ -112,8 +120,12 @@ trap 'log "Check commit metadata failed, you can try to set \"export CODER_IGNOR
 source "$SCRIPT_DIR/release/check_commit_metadata.sh" "$old_version" "$ref"
 trap - EXIT
 
+tag_version_args=(--old-version "$old_version" --ref "$ref" --"$increment")
+if ((force == 1)); then
+	tag_version_args+=(--force)
+fi
 log "Executing DRYRUN of release tagging..."
-new_version="$(execrelative ./release/tag_version.sh --old-version "$old_version" --ref "$ref" --"$increment" --dry-run)"
+new_version="$(execrelative ./release/tag_version.sh "${tag_version_args[@]}" --dry-run)"
 log
 read -p "Continue? (y/n) " -n 1 -r continue_release
 log
@@ -139,7 +151,7 @@ fi
 log
 # Run without dry-run to actually create the tag, note we don't update the
 # new_version variable here to ensure we're pushing what we showed before.
-maybedryrun "$dry_run" execrelative ./release/tag_version.sh --old-version "$old_version" --ref "$ref" --"$increment" >/dev/null
+maybedryrun "$dry_run" execrelative ./release/tag_version.sh "${tag_version_args[@]}" >/dev/null
 maybedryrun "$dry_run" git push --tags -u origin "$new_version"
 
 if ((dry_run)); then

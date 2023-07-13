@@ -44,7 +44,7 @@ updates:
         update-types:
           - version-update:semver-patch
     groups:
-      go-otel:
+      otel:
         patterns:
           - "go.nhat.io/otelsql"
           - "go.opentelemetry.io/otel*"
@@ -67,7 +67,7 @@ updates:
       # our Go code.
       - dependency-name: "terraform"
     groups:
-      docker:
+      scripts-docker:
         patterns:
           - "*"
 
@@ -92,23 +92,36 @@ updates:
       - dependency-name: "@types/node"
         update-types:
           - version-update:semver-major
-
-  - package-ecosystem: "terraform"
-    directory: "/examples/templates"
-    schedule:
-      interval: "monthly"
-      time: "06:00"
-      timezone: "America/Chicago"
-    commit-message:
-      prefix: "chore"
-    labels: []
-    ignore:
-      # We likely want to update this ourselves.
-      - dependency-name: "coder/coder"
     groups:
-      examples-terraform:
+      react:
         patterns:
-          - "*"
+          - "react*"
+          - "@types/react*"
+      xterm:
+        patterns:
+          - "xterm*"
+      xstate:
+        patterns:
+          - "xstate"
+          - "@xstate*"
+      mui:
+        patterns:
+          - "@mui*"
+      storybook:
+        patterns:
+          - "@storybook*"
+          - "storybook*"
+      eslint:
+        patterns:
+          - "eslint*"
+          - "@eslint*"
+          - "@typescript-eslint/eslint-plugin"
+          - "@typescript-eslint/parser"
+      jest:
+        patterns:
+          - "jest*"
+          - "@swc/jest"
+          - "@types/jest"
 
   # Update dogfood.
   - package-ecosystem: "docker"
