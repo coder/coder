@@ -36,7 +36,7 @@
     "@emotion/react": "11.11.1",
     "@emotion/styled": "11.11.0",
     "@fastly/performance-observer-polyfill": "2.0.0",
-    "@fontsource/ibm-plex-mono": "4.5.10",
+    "@fontsource/ibm-plex-mono": "5.0.5",
     "@fontsource/inter": "5.0.2",
     "@monaco-editor/react": "4.5.0",
     "@mui/icons-material": "5.14.0",
