@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/coderd/database/db2sdk"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/rbac/regosql"
 	"github.com/coder/coder/coderd/util/slice"
 	"github.com/coder/coder/codersdk"
 )
@@ -5436,4 +5437,39 @@ func (*FakeQuerier) UpsertTailnetClient(context.Context, database.UpsertTailnetC
 
 func (*FakeQuerier) UpsertTailnetCoordinator(context.Context, uuid.UUID) (database.TailnetCoordinator, error) {
 	return database.TailnetCoordinator{}, ErrUnimplemented
+}
+
+func (q *FakeQuerier) GetAuthorizedUsers(ctx context.Context, arg database.GetUsersParams, prepared rbac.PreparedAuthorized) ([]database.GetUsersRow, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return nil, err
+	}
+
+	// Call this to match the same function calls as the SQL implementation.
+	if prepared != nil {
+		_, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
+			VariableConverter: regosql.UserConverter(),
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	users, err := q.GetUsers(ctx, arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	filteredUsers := make([]database.GetUsersRow, 0, len(users))
+	for _, user := range users {
+		// If the filter exists, ensure the object is authorized.
+		if prepared != nil && prepared.Authorize(ctx, user.RBACObject()) != nil {
+			continue
+		}
+
+		filteredUsers = append(filteredUsers, user)
+	}
+	return filteredUsers, nil
 }

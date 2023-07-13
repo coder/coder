@@ -208,6 +208,9 @@ WHERE
 		ELSE true
 	END
 	-- End of filters
+
+	-- Authorize Filter clause will be injected below in GetAuthorizedUsers
+	-- @authorize_filter
 ORDER BY
 	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
 	LOWER(username) ASC OFFSET @offset_opt

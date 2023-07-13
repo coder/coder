@@ -36,6 +36,23 @@ func TemplateConverter() *sqltypes.VariableConverter {
 	return matcher
 }
 
+func UserConverter() *sqltypes.VariableConverter {
+	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
+		resourceIDMatcher(),
+		// Users are never owned by an organization, so always return the empty string
+		// for the org owner.
+		sqltypes.StringVarMatcher("''", []string{"input", "object", "org_owner"}),
+		// Users never have an owner, and are only owned site wide.
+		sqltypes.StringVarMatcher("''", []string{"input", "object", "owner"}),
+	)
+	matcher.RegisterMatcher(
+		// No ACLs on the user type
+		sqltypes.AlwaysFalse(groupACLMatcher(matcher)),
+		sqltypes.AlwaysFalse(userACLMatcher(matcher)),
+	)
+	return matcher
+}
+
 // NoACLConverter should be used when the target SQL table does not contain
 // group or user ACL columns.
 func NoACLConverter() *sqltypes.VariableConverter {
