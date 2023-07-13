@@ -23,16 +23,19 @@ jest.mock("contexts/useProxyLatency", () => ({
       if (!proxies) {
         return {} as Record<string, ProxyLatencyReport>
       }
-      return proxies.reduce((acc, proxy) => {
-        acc[proxy.id] = {
-          accurate: true,
-          // Return a constant latency of 8ms.
-          // If you make this random it could break stories.
-          latencyMS: 8,
-          at: new Date(),
-        }
-        return acc
-      }, {} as Record<string, ProxyLatencyReport>)
+      return proxies.reduce(
+        (acc, proxy) => {
+          acc[proxy.id] = {
+            accurate: true,
+            // Return a constant latency of 8ms.
+            // If you make this random it could break stories.
+            latencyMS: 8,
+            at: new Date(),
+          }
+          return acc
+        },
+        {} as Record<string, ProxyLatencyReport>,
+      )
     }, [proxies])
 
     return { proxyLatencies, refetch: jest.fn() }
