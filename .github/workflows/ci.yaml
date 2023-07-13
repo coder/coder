@@ -481,8 +481,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
 
       - run: yarn test:ci --max-workers $(nproc)
         working-directory: site
