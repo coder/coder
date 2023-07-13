@@ -47,7 +47,7 @@ func (r *RootCmd) start() *clibase.Cmd {
 
 			template, err := client.Template(inv.Context(), workspace.TemplateID)
 			if err != nil {
-				return nil
+				return err
 			}
 
 			buildParams, err := prepStartWorkspace(inv, client, prepStartWorkspaceArgs{
@@ -55,7 +55,7 @@ func (r *RootCmd) start() *clibase.Cmd {
 				BuildOptions: parameterFlags.buildOptions,
 			})
 			if err != nil {
-				return nil
+				return err
 			}
 
 			build, err := client.CreateWorkspaceBuild(inv.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{

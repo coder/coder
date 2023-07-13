@@ -36,14 +36,14 @@ func (r *RootCmd) update() *clibase.Cmd {
 			}
 			template, err := client.Template(inv.Context(), workspace.TemplateID)
 			if err != nil {
-				return nil
+				return err
 			}
 
 			var existingRichParams []codersdk.WorkspaceBuildParameter
 			if !alwaysPrompt {
 				existingRichParams, err = client.WorkspaceBuildParameters(inv.Context(), workspace.LatestBuild.ID)
 				if err != nil {
-					return nil
+					return err
 				}
 			}
 
@@ -59,7 +59,7 @@ func (r *RootCmd) update() *clibase.Cmd {
 				BuildOptions: parameterFlags.buildOptions,
 			})
 			if err != nil {
-				return nil
+				return err
 			}
 
 			build, err := client.CreateWorkspaceBuild(inv.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{

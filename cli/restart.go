@@ -33,7 +33,7 @@ func (r *RootCmd) restart() *clibase.Cmd {
 
 			template, err := client.Template(inv.Context(), workspace.TemplateID)
 			if err != nil {
-				return nil
+				return err
 			}
 
 			buildParams, err := prepStartWorkspace(inv, client, prepStartWorkspaceArgs{
@@ -41,7 +41,7 @@ func (r *RootCmd) restart() *clibase.Cmd {
 				BuildOptions: parameterFlags.buildOptions,
 			})
 			if err != nil {
-				return nil
+				return err
 			}
 
 			_, err = cliui.Prompt(inv, cliui.PromptOptions{
