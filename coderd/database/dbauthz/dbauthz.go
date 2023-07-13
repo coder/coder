@@ -626,7 +626,6 @@ func (q *querier) GetUsersWithCount(ctx context.Context, arg database.GetUsersPa
 		return []database.User{}, 0, nil
 	}
 
-	// TODO: Is this correct? Should we return a restricted user?
 	users := database.ConvertUserRows(rowUsers)
 	return users, rowUsers[0].Count, nil
 }

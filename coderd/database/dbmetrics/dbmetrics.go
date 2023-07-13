@@ -101,6 +101,13 @@ func (m metricsStore) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 	return workspaces, err
 }
 
+func (m metricsStore) GetAuthorizedUsers(ctx context.Context, arg database.GetUsersParams, prepared rbac.PreparedAuthorized) ([]database.GetUsersRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAuthorizedUsers(ctx, arg, prepared)
+	m.queryLatencies.WithLabelValues("GetAuthorizedUsers").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
 	start := time.Now()
 	err := m.s.AcquireLock(ctx, pgAdvisoryXactLock)
@@ -1631,11 +1638,4 @@ func (m metricsStore) UpsertTailnetCoordinator(ctx context.Context, id uuid.UUID
 	start := time.Now()
 	defer m.queryLatencies.WithLabelValues("UpsertTailnetCoordinator").Observe(time.Since(start).Seconds())
 	return m.s.UpsertTailnetCoordinator(ctx, id)
-}
-
-func (m metricsStore) GetAuthorizedUsers(ctx context.Context, arg database.GetUsersParams, prepared rbac.PreparedAuthorized) ([]database.GetUsersRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetAuthorizedUsers(ctx, arg, prepared)
-	m.queryLatencies.WithLabelValues("GetAuthorizedUsers").Observe(time.Since(start).Seconds())
-	return r0, r1
 }
