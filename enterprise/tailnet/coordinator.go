@@ -17,6 +17,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database/pubsub"
+	"github.com/coder/coder/codersdk"
 	agpl "github.com/coder/coder/tailnet"
 )
 
@@ -37,9 +38,12 @@ func NewCoordinator(logger slog.Logger, ps pubsub.Pubsub) (agpl.Coordinator, err
 		closeFunc:                cancelFunc,
 		close:                    make(chan struct{}),
 		nodes:                    map[uuid.UUID]*agpl.Node{},
-		agentSockets:             map[uuid.UUID]*agpl.TrackedConn{},
-		agentToConnectionSockets: map[uuid.UUID]map[uuid.UUID]*agpl.TrackedConn{},
+		agentSockets:             map[uuid.UUID]agpl.Queue{},
+		agentToConnectionSockets: map[uuid.UUID]map[uuid.UUID]agpl.Queue{},
 		agentNameCache:           nameCache,
+		clients:                  map[uuid.UUID]agpl.Queue{},
+		clientsToAgents:          map[uuid.UUID]map[uuid.UUID]agpl.Queue{},
+		legacyAgents:             map[uuid.UUID]struct{}{},
 	}
 
 	if err := coord.runPubsub(ctx); err != nil {
@@ -47,6 +51,56 @@ func NewCoordinator(logger slog.Logger, ps pubsub.Pubsub) (agpl.Coordinator, err
 	}
 
 	return coord, nil
+}
+
+func (c *haCoordinator) ServeMultiAgent(id uuid.UUID) agpl.MultiAgentConn {
+	m := (&agpl.MultiAgent{
+		ID:                id,
+		Logger:            c.log,
+		AgentIsLegacyFunc: c.agentIsLegacy,
+		OnSubscribe:       c.clientSubscribeToAgent,
+		OnNodeUpdate:      c.clientNodeUpdate,
+		OnRemove:          c.clientDisconnected,
+	}).Init()
+	c.addClient(id, m)
+	return m
+}
+
+func (c *haCoordinator) addClient(id uuid.UUID, q agpl.Queue) {
+	c.mutex.Lock()
+	c.clients[id] = q
+	c.clientsToAgents[id] = map[uuid.UUID]agpl.Queue{}
+	c.mutex.Unlock()
+}
+
+func (c *haCoordinator) clientSubscribeToAgent(enq agpl.Queue, agentID uuid.UUID) (*agpl.Node, error) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	c.initOrSetAgentConnectionSocketLocked(agentID, enq)
+
+	node := c.nodes[enq.UniqueID()]
+	if node != nil {
+		err := c.sendNodeToAgentLocked(agentID, node)
+		if err != nil {
+			return nil, xerrors.Errorf("handle client update: %w", err)
+		}
+	}
+
+	agentNode, ok := c.nodes[agentID]
+	// If we have the node locally, give it back to the multiagent.
+	if ok {
+		return agentNode, nil
+	}
+
+	// If we don't have the node locally, notify other coordinators.
+	err := c.publishClientHello(agentID)
+	if err != nil {
+		return nil, xerrors.Errorf("publish client hello: %w", err)
+	}
+
+	// nolint:nilnil
+	return nil, nil
 }
 
 type haCoordinator struct {
@@ -60,14 +114,26 @@ type haCoordinator struct {
 	// nodes maps agent and connection IDs their respective node.
 	nodes map[uuid.UUID]*agpl.Node
 	// agentSockets maps agent IDs to their open websocket.
-	agentSockets map[uuid.UUID]*agpl.TrackedConn
+	agentSockets map[uuid.UUID]agpl.Queue
 	// agentToConnectionSockets maps agent IDs to connection IDs of conns that
 	// are subscribed to updates for that agent.
-	agentToConnectionSockets map[uuid.UUID]map[uuid.UUID]*agpl.TrackedConn
+	agentToConnectionSockets map[uuid.UUID]map[uuid.UUID]agpl.Queue
+
+	// clients holds a map of all clients connected to the coordinator. This is
+	// necessary because a client may not be subscribed into any agents.
+	clients map[uuid.UUID]agpl.Queue
+	// clientsToAgents is an index of clients to all of their subscribed agents.
+	clientsToAgents map[uuid.UUID]map[uuid.UUID]agpl.Queue
 
 	// agentNameCache holds a cache of agent names. If one of them disappears,
 	// it's helpful to have a name cached for debugging.
 	agentNameCache *lru.Cache[uuid.UUID, string]
+
+	// legacyAgents holda a mapping of all agents detected as legacy, meaning
+	// they only listen on codersdk.WorkspaceAgentIP. They aren't compatible
+	// with the new ServerTailnet, so they must be connected through
+	// wsconncache.
+	legacyAgents map[uuid.UUID]struct{}
 }
 
 // Node returns an in-memory node by ID.
@@ -88,61 +154,35 @@ func (c *haCoordinator) agentLogger(agent uuid.UUID) slog.Logger {
 
 // ServeClient accepts a WebSocket connection that wants to connect to an agent
 // with the specified ID.
-func (c *haCoordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) error {
+func (c *haCoordinator) ServeClient(conn net.Conn, id, agentID uuid.UUID) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	logger := c.clientLogger(id, agent)
-
-	c.mutex.Lock()
-	connectionSockets, ok := c.agentToConnectionSockets[agent]
-	if !ok {
-		connectionSockets = map[uuid.UUID]*agpl.TrackedConn{}
-		c.agentToConnectionSockets[agent] = connectionSockets
-	}
+	logger := c.clientLogger(id, agentID)
 
 	tc := agpl.NewTrackedConn(ctx, cancel, conn, id, logger, 0)
-	// Insert this connection into a map so the agent
-	// can publish node updates.
-	connectionSockets[id] = tc
+	defer tc.Close()
 
-	// When a new connection is requested, we update it with the latest
-	// node of the agent. This allows the connection to establish.
-	node, ok := c.nodes[agent]
-	if ok {
-		err := tc.Enqueue([]*agpl.Node{node})
-		c.mutex.Unlock()
+	c.addClient(id, tc)
+	defer c.clientDisconnected(id)
+
+	agentNode, err := c.clientSubscribeToAgent(tc, agentID)
+	if err != nil {
+		return xerrors.Errorf("subscribe agent: %w", err)
+	}
+
+	if agentNode != nil {
+		err := tc.Enqueue([]*agpl.Node{agentNode})
 		if err != nil {
-			return xerrors.Errorf("enqueue node: %w", err)
-		}
-	} else {
-		c.mutex.Unlock()
-		err := c.publishClientHello(agent)
-		if err != nil {
-			return xerrors.Errorf("publish client hello: %w", err)
+			logger.Debug(ctx, "enqueue initial node", slog.Error(err))
 		}
 	}
-	go tc.SendUpdates()
 
-	defer func() {
-		c.mutex.Lock()
-		defer c.mutex.Unlock()
-		// Clean all traces of this connection from the map.
-		delete(c.nodes, id)
-		connectionSockets, ok := c.agentToConnectionSockets[agent]
-		if !ok {
-			return
-		}
-		delete(connectionSockets, id)
-		if len(connectionSockets) != 0 {
-			return
-		}
-		delete(c.agentToConnectionSockets, agent)
-	}()
+	go tc.SendUpdates()
 
 	decoder := json.NewDecoder(conn)
 	// Indefinitely handle messages from the client websocket.
 	for {
-		err := c.handleNextClientMessage(id, agent, decoder)
+		err := c.handleNextClientMessage(id, decoder)
 		if err != nil {
 			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) {
 				return nil
@@ -152,35 +192,90 @@ func (c *haCoordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID
 	}
 }
 
-func (c *haCoordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *json.Decoder) error {
+func (c *haCoordinator) initOrSetAgentConnectionSocketLocked(agentID uuid.UUID, enq agpl.Queue) {
+	connectionSockets, ok := c.agentToConnectionSockets[agentID]
+	if !ok {
+		connectionSockets = map[uuid.UUID]agpl.Queue{}
+		c.agentToConnectionSockets[agentID] = connectionSockets
+	}
+	connectionSockets[enq.UniqueID()] = enq
+	c.clientsToAgents[enq.UniqueID()][agentID] = c.agentSockets[agentID]
+}
+
+func (c *haCoordinator) clientDisconnected(id uuid.UUID) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	for agentID := range c.clientsToAgents[id] {
+		// Clean all traces of this connection from the map.
+		delete(c.nodes, id)
+		connectionSockets, ok := c.agentToConnectionSockets[agentID]
+		if !ok {
+			return
+		}
+		delete(connectionSockets, id)
+		if len(connectionSockets) != 0 {
+			return
+		}
+		delete(c.agentToConnectionSockets, agentID)
+	}
+
+	delete(c.clients, id)
+	delete(c.clientsToAgents, id)
+}
+
+func (c *haCoordinator) handleNextClientMessage(id uuid.UUID, decoder *json.Decoder) error {
 	var node agpl.Node
 	err := decoder.Decode(&node)
 	if err != nil {
 		return xerrors.Errorf("read json: %w", err)
 	}
 
+	return c.clientNodeUpdate(id, &node)
+}
+
+func (c *haCoordinator) clientNodeUpdate(id uuid.UUID, node *agpl.Node) error {
 	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	// Update the node of this client in our in-memory map. If an agent entirely
 	// shuts down and reconnects, it needs to be aware of all clients attempting
 	// to establish connections.
-	c.nodes[id] = &node
-	// Write the new node from this client to the actively connected agent.
-	agentSocket, ok := c.agentSockets[agent]
+	c.nodes[id] = node
 
+	for agentID, agentSocket := range c.clientsToAgents[id] {
+		if agentSocket == nil {
+			// If we don't own the agent locally, send it over pubsub to a node that
+			// owns the agent.
+			err := c.publishNodesToAgent(agentID, []*agpl.Node{node})
+			if err != nil {
+				c.log.Error(context.Background(), "publish node to agent", slog.Error(err), slog.F("agent_id", agentID))
+			}
+		} else {
+			// Write the new node from this client to the actively connected agent.
+			err := agentSocket.Enqueue([]*agpl.Node{node})
+			if err != nil {
+				c.log.Error(context.Background(), "enqueue node to agent", slog.Error(err), slog.F("agent_id", agentID))
+			}
+		}
+	}
+
+	return nil
+}
+
+func (c *haCoordinator) sendNodeToAgentLocked(agentID uuid.UUID, node *agpl.Node) error {
+	agentSocket, ok := c.agentSockets[agentID]
 	if !ok {
-		c.mutex.Unlock()
 		// If we don't own the agent locally, send it over pubsub to a node that
 		// owns the agent.
-		err := c.publishNodesToAgent(agent, []*agpl.Node{&node})
+		err := c.publishNodesToAgent(agentID, []*agpl.Node{node})
 		if err != nil {
 			return xerrors.Errorf("publish node to agent")
 		}
 		return nil
 	}
-	err = agentSocket.Enqueue([]*agpl.Node{&node})
-	c.mutex.Unlock()
+	err := agentSocket.Enqueue([]*agpl.Node{node})
 	if err != nil {
-		return xerrors.Errorf("enqueu nodes: %w", err)
+		return xerrors.Errorf("enqueue node: %w", err)
 	}
 	return nil
 }
@@ -202,7 +297,7 @@ func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) err
 	// dead.
 	oldAgentSocket, ok := c.agentSockets[id]
 	if ok {
-		overwrites = oldAgentSocket.Overwrites + 1
+		overwrites = oldAgentSocket.Overwrites() + 1
 		_ = oldAgentSocket.Close()
 	}
 	// This uniquely identifies a connection that belongs to this goroutine.
@@ -219,6 +314,9 @@ func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) err
 		}
 	}
 	c.agentSockets[id] = tc
+	for clientID := range c.agentToConnectionSockets[id] {
+		c.clientsToAgents[clientID][id] = tc
+	}
 	c.mutex.Unlock()
 	go tc.SendUpdates()
 
@@ -234,9 +332,12 @@ func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) err
 
 		// Only delete the connection if it's ours. It could have been
 		// overwritten.
-		if idConn, ok := c.agentSockets[id]; ok && idConn.ID == unique {
+		if idConn, ok := c.agentSockets[id]; ok && idConn.UniqueID() == unique {
 			delete(c.agentSockets, id)
 			delete(c.nodes, id)
+		}
+		for clientID := range c.agentToConnectionSockets[id] {
+			c.clientsToAgents[clientID][id] = nil
 		}
 	}()
 
@@ -285,6 +386,13 @@ func (c *haCoordinator) handleClientHello(id uuid.UUID) error {
 	return c.publishAgentToNodes(id, node)
 }
 
+func (c *haCoordinator) agentIsLegacy(agentID uuid.UUID) bool {
+	c.mutex.RLock()
+	_, ok := c.legacyAgents[agentID]
+	c.mutex.RUnlock()
+	return ok
+}
+
 func (c *haCoordinator) handleAgentUpdate(id uuid.UUID, decoder *json.Decoder) (*agpl.Node, error) {
 	var node agpl.Node
 	err := decoder.Decode(&node)
@@ -293,6 +401,11 @@ func (c *haCoordinator) handleAgentUpdate(id uuid.UUID, decoder *json.Decoder) (
 	}
 
 	c.mutex.Lock()
+	// Keep a cache of all legacy agents.
+	if len(node.Addresses) > 0 && node.Addresses[0].Addr() == codersdk.WorkspaceAgentIP {
+		c.legacyAgents[id] = struct{}{}
+	}
+
 	oldNode := c.nodes[id]
 	if oldNode != nil {
 		if oldNode.AsOf.After(node.AsOf) {
@@ -311,7 +424,9 @@ func (c *haCoordinator) handleAgentUpdate(id uuid.UUID, decoder *json.Decoder) (
 	for _, connectionSocket := range connectionSockets {
 		_ = connectionSocket.Enqueue([]*agpl.Node{&node})
 	}
+
 	c.mutex.Unlock()
+
 	return &node, nil
 }
 
@@ -334,20 +449,18 @@ func (c *haCoordinator) Close() error {
 	for _, socket := range c.agentSockets {
 		socket := socket
 		go func() {
-			_ = socket.Close()
+			_ = socket.CoordinatorClose()
 			wg.Done()
 		}()
 	}
 
-	for _, connMap := range c.agentToConnectionSockets {
-		wg.Add(len(connMap))
-		for _, socket := range connMap {
-			socket := socket
-			go func() {
-				_ = socket.Close()
-				wg.Done()
-			}()
-		}
+	wg.Add(len(c.clients))
+	for _, client := range c.clients {
+		client := client
+		go func() {
+			_ = client.CoordinatorClose()
+			wg.Done()
+		}()
 	}
 
 	wg.Wait()
@@ -422,13 +535,12 @@ func (c *haCoordinator) runPubsub(ctx context.Context) error {
 	}
 	go func() {
 		for {
-			var message []byte
 			select {
 			case <-ctx.Done():
 				return
-			case message = <-messageQueue:
+			case message := <-messageQueue:
+				c.handlePubsubMessage(ctx, message)
 			}
-			c.handlePubsubMessage(ctx, message)
 		}
 	}()
 

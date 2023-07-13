@@ -176,8 +176,10 @@ RUN DOCKER_BUILDX_VERSION=$(curl -s "https://api.github.com/repos/docker/buildx/
 
 # See https://github.com/cli/cli/issues/6175#issuecomment-1235984381 for proof
 # the apt repository is unreliable
-RUN curl -L https://github.com/cli/cli/releases/download/v2.14.7/gh_2.14.7_linux_amd64.deb -o gh.deb && \
-	dpkg -i gh.deb
+RUN GH_CLI_VERSION=$(curl -s "https://api.github.com/repos/cli/cli/releases/latest" | grep '"tag_name":' |  sed -E 's/.*"v([^"]+)".*/\1/') && \
+	curl -L https://github.com/cli/cli/releases/download/v${GH_CLI_VERSION}/gh_${GH_CLI_VERSION}_linux_amd64.deb -o gh.deb && \
+	dpkg -i gh.deb && \
+	rm gh.deb
 
 # Install Lazygit
 # See https://github.com/jesseduffield/lazygit#ubuntu

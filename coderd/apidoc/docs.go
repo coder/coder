@@ -5961,6 +5961,9 @@ const docTemplate = `{
         "agentsdk.Manifest": {
             "type": "object",
             "properties": {
+                "agent_id": {
+                    "type": "string"
+                },
                 "apps": {
                     "type": "array",
                     "items": {
@@ -7617,6 +7620,7 @@ const docTemplate = `{
                 "workspace_actions",
                 "tailnet_ha_coordinator",
                 "convert-to-oidc",
+                "single_tailnet",
                 "workspace_build_logs_ui"
             ],
             "x-enum-varnames": [
@@ -7624,6 +7628,7 @@ const docTemplate = `{
                 "ExperimentWorkspaceActions",
                 "ExperimentTailnetHACoordinator",
                 "ExperimentConvertToOIDC",
+                "ExperimentSingleTailnet",
                 "ExperimentWorkspaceBuildLogsUI"
             ]
         },

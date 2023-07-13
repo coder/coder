@@ -23,7 +23,7 @@ func TestMain(m *testing.M) {
 func TestTailnet(t *testing.T) {
 	t.Parallel()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	derpMap := tailnettest.RunDERPAndSTUN(t)
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
 	t.Run("InstantClose", func(t *testing.T) {
 		t.Parallel()
 		conn, err := tailnet.NewConn(&tailnet.Options{
@@ -172,7 +172,7 @@ func TestConn_PreferredDERP(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	derpMap := tailnettest.RunDERPAndSTUN(t)
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 		Logger:    logger.Named("w1"),
