@@ -43,7 +43,7 @@
     "@mui/lab": "5.0.0-alpha.129",
     "@mui/material": "5.14.0",
     "@mui/styles": "5.14.0",
-    "@tanstack/react-query": "4.22.4",
+    "@tanstack/react-query": "4.29.19",
     "@testing-library/react-hooks": "8.0.1",
     "@types/color-convert": "2.0.0",
     "@types/react-color": "3.0.6",
