@@ -189,11 +189,10 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			var createTemplate bool
 			template, err := client.TemplateByName(inv.Context(), organization.ID, name)
 			if err != nil {
-				if create {
-					createTemplate = true
-				} else {
+				if !create {
 					return err
 				}
+				createTemplate = true
 			}
 
 			err = uploadFlags.checkForLockfile(inv)

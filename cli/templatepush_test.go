@@ -644,10 +644,13 @@ func TestTemplatePush(t *testing.T) {
 				write string
 			}{
 				{match: "Upload", write: "yes"},
+				{match: "template has been created"},
 			}
 			for _, m := range matches {
 				pty.ExpectMatch(m.match)
-				pty.WriteLine(m.write)
+				if m.write != "" {
+					pty.WriteLine(m.write)
+				}
 			}
 
 			waiter.RequireSuccess()
