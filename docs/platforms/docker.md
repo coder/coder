@@ -74,8 +74,8 @@ Coder with Docker has the following advantages:
 
 You can use a remote Docker host in 2 ways.
 
-1. over SSH. See [here](https://registry.terraform.io/providers/kreuzwerker/docker/latest/docs#remote-hosts) for details.
-2. over TCP. See [here](https://registry.terraform.io/providers/kreuzwerker/docker/latest/docs#certificate-information) for details.
+1. Over SSH. See [here](https://registry.terraform.io/providers/kreuzwerker/docker/latest/docs#remote-hosts) for details.
+2. Over TCP. See [here](https://registry.terraform.io/providers/kreuzwerker/docker/latest/docs#certificate-information) for details.
 
 ## Troubleshooting
 
