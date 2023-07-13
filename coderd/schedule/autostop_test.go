@@ -3,6 +3,7 @@ package schedule_test
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"testing"
 	"time"
 
@@ -39,6 +40,32 @@ func TestCalculateAutoStop(t *testing.T) {
 	t.Log("wednesdayMidnightUTC", wednesdayMidnightUTC)
 	t.Log("fridayEveningSydney", fridayEveningSydney)
 	t.Log("saturdayMidnightSydney", saturdayMidnightSydney)
+
+	dstIn := time.Date(2023, 10, 1, 2, 0, 0, 0, sydneyLoc)   // 1 hour backward
+	dstInQuietHours := "CRON_TZ=Australia/Sydney 30 2 * * *" // never
+	// The expected behavior is that we will pick the next time that falls on
+	// quiet hours after the DST transition. In this case, it will be the same
+	// time the next day.
+	dstInQuietHoursExpectedTime := time.Date(2023, 10, 2, 2, 30, 0, 0, sydneyLoc)
+	beforeDstIn := time.Date(2023, 10, 1, 0, 0, 0, 0, sydneyLoc)
+	saturdayMidnightAfterDstIn := time.Date(2023, 10, 7, 0, 0, 0, 0, sydneyLoc)
+
+	// Wednesday after DST starts.
+	duringDst := time.Date(2023, 10, 4, 0, 0, 0, 0, sydneyLoc)
+	saturdayMidnightAfterDuringDst := saturdayMidnightAfterDstIn
+
+	dstOut := time.Date(2024, 4, 7, 3, 0, 0, 0, sydneyLoc)                        // 1 hour forward
+	dstOutQuietHours := "CRON_TZ=Australia/Sydney 30 3 * * *"                     // twice
+	dstOutQuietHoursExpectedTime := time.Date(2024, 4, 7, 3, 30, 0, 0, sydneyLoc) // in reality, this is the first occurrence
+	beforeDstOut := time.Date(2024, 4, 7, 0, 0, 0, 0, sydneyLoc)
+	saturdayMidnightAfterDstOut := time.Date(2024, 4, 13, 0, 0, 0, 0, sydneyLoc)
+
+	t.Log("dstIn", dstIn)
+	t.Log("beforeDstIn", beforeDstIn)
+	t.Log("saturdayMidnightAfterDstIn", saturdayMidnightAfterDstIn)
+	t.Log("dstOut", dstOut)
+	t.Log("beforeDstOut", beforeDstOut)
+	t.Log("saturdayMidnightAfterDstOut", saturdayMidnightAfterDstOut)
 
 	cases := []struct {
 		name                  string
@@ -269,6 +296,78 @@ func TestCalculateAutoStop(t *testing.T) {
 			errContains:  "coder server system clock is incorrect",
 		},
 		{
+			name:                   "DaylightSavings/OK",
+			now:                    duringDst,
+			templateAllowAutostop:  true,
+			templateDefaultTTL:     0,
+			userQuietHoursSchedule: sydneyQuietHours,
+			templateRestartRequirement: schedule.TemplateRestartRequirement{
+				DaysOfWeek: 0b00100000, // Saturday
+				Weeks:      1,          // weekly
+			},
+			workspaceTTL: 0,
+			// expectedDeadline is copied from expectedMaxDeadline.
+			expectedMaxDeadline: saturdayMidnightAfterDuringDst,
+		},
+		{
+			name:                   "DaylightSavings/SwitchMidWeek/In",
+			now:                    beforeDstIn,
+			templateAllowAutostop:  true,
+			templateDefaultTTL:     0,
+			userQuietHoursSchedule: sydneyQuietHours,
+			templateRestartRequirement: schedule.TemplateRestartRequirement{
+				DaysOfWeek: 0b00100000, // Saturday
+				Weeks:      1,          // weekly
+			},
+			workspaceTTL: 0,
+			// expectedDeadline is copied from expectedMaxDeadline.
+			expectedMaxDeadline: saturdayMidnightAfterDstIn,
+		},
+		{
+			name:                   "DaylightSavings/SwitchMidWeek/Out",
+			now:                    beforeDstOut,
+			templateAllowAutostop:  true,
+			templateDefaultTTL:     0,
+			userQuietHoursSchedule: sydneyQuietHours,
+			templateRestartRequirement: schedule.TemplateRestartRequirement{
+				DaysOfWeek: 0b00100000, // Saturday
+				Weeks:      1,          // weekly
+			},
+			workspaceTTL: 0,
+			// expectedDeadline is copied from expectedMaxDeadline.
+			expectedMaxDeadline: saturdayMidnightAfterDstOut,
+		},
+		{
+			name:                   "DaylightSavings/QuietHoursFallsOnDstSwitch/In",
+			now:                    beforeDstIn.Add(-24 * time.Hour),
+			templateAllowAutostop:  true,
+			templateDefaultTTL:     0,
+			userQuietHoursSchedule: dstInQuietHours,
+			templateRestartRequirement: schedule.TemplateRestartRequirement{
+				DaysOfWeek: 0b01000000, // Sunday
+				Weeks:      1,          // weekly
+			},
+			workspaceTTL: 0,
+			// expectedDeadline is copied from expectedMaxDeadline.
+			expectedMaxDeadline: dstInQuietHoursExpectedTime,
+		},
+		{
+			name:                   "DaylightSavings/QuietHoursFallsOnDstSwitch/Out",
+			now:                    beforeDstOut.Add(-24 * time.Hour),
+			templateAllowAutostop:  true,
+			templateDefaultTTL:     0,
+			userQuietHoursSchedule: dstOutQuietHours,
+			templateRestartRequirement: schedule.TemplateRestartRequirement{
+				DaysOfWeek: 0b01000000, // Sunday
+				Weeks:      1,          // weekly
+			},
+			workspaceTTL: 0,
+			// expectedDeadline is copied from expectedMaxDeadline.
+			expectedMaxDeadline: dstOutQuietHoursExpectedTime,
+		},
+
+		// TODO(@dean): remove max_ttl tests
+		{
 			name:                   "RestartRequirementIgnoresMaxTTL",
 			now:                    fridayEveningSydney.In(time.UTC),
 			templateAllowAutostop:  false,
@@ -407,6 +506,77 @@ func TestCalculateAutoStop(t *testing.T) {
 			} else {
 				require.WithinDuration(t, c.expectedMaxDeadline, autostop.MaxDeadline, 15*time.Second, "max deadline does not match expected")
 				require.GreaterOrEqual(t, autostop.MaxDeadline.Unix(), autostop.Deadline.Unix(), "max deadline is smaller than deadline")
+			}
+		})
+	}
+}
+
+func TestFindWeek(t *testing.T) {
+	t.Parallel()
+
+	timezones := []string{
+		"UTC",
+		"America/Los_Angeles",
+		"America/New_York",
+		"Europe/Dublin",
+		"Europe/London",
+		"Europe/Paris",
+		"Asia/Kolkata", // India (UTC+5:30)
+		"Asia/Tokyo",
+		"Australia/Sydney",
+		"Australia/Brisbane",
+	}
+
+	for _, tz := range timezones {
+		tz := tz
+		t.Run("Loc/"+tz, func(t *testing.T) {
+			t.Parallel()
+
+			loc, err := time.LoadLocation(tz)
+			require.NoError(t, err)
+
+			now := time.Now().In(loc)
+			currentWeek, err := schedule.WeeksSinceEpoch(now)
+			require.NoError(t, err)
+
+			currentWeekMondayExpected := now.AddDate(0, 0, -int(now.Weekday())+1)
+			y, m, d := currentWeekMondayExpected.Date()
+			currentWeekMondayExpected = time.Date(y, m, d, 0, 0, 0, 0, loc)
+			currentWeekMonday, err := schedule.GetMondayOfWeek(now.Location(), currentWeek)
+			require.NoError(t, err)
+			require.Equal(t, currentWeekMondayExpected, currentWeekMonday)
+
+			t.Log("now", now)
+			t.Log("currentWeek", currentWeek)
+			t.Log("currentMonday", currentWeekMonday)
+
+			// Loop through every single Monday and Sunday for the next 100
+			// years and make sure the week calculations are correct.
+			for i := int64(1); i < 52*100; i++ {
+				msg := fmt.Sprintf("week %d", i)
+
+				monday := currentWeekMonday.AddDate(0, 0, int(i*7))
+				y, m, d := monday.Date()
+				monday = time.Date(y, m, d, 0, 0, 0, 0, loc)
+				require.Equal(t, monday.Weekday(), time.Monday, msg)
+				t.Log(msg, "monday", monday)
+
+				week, err := schedule.WeeksSinceEpoch(monday)
+				require.NoError(t, err, msg)
+				require.Equal(t, currentWeek+i, week, msg)
+
+				gotMonday, err := schedule.GetMondayOfWeek(monday.Location(), week)
+				require.NoError(t, err, msg)
+				require.Equal(t, monday, gotMonday, msg)
+
+				// Check that we get the same week number for late Sunday.
+				sunday := time.Date(y, m, d+6, 23, 59, 59, 0, loc)
+				require.Equal(t, sunday.Weekday(), time.Sunday, msg)
+				t.Log(msg, "sunday", sunday)
+
+				week, err = schedule.WeeksSinceEpoch(sunday)
+				require.NoError(t, err, msg)
+				require.Equal(t, currentWeek+i, week, msg)
 			}
 		})
 	}

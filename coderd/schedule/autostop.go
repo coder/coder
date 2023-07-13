@@ -118,24 +118,9 @@ func CalculateAutostop(ctx context.Context, params CalculateAutostopParams) (Aut
 			// change the startOfDay to be the Monday of the next applicable
 			// week.
 			if templateSchedule.RestartRequirement.Weeks > 1 {
-				epoch := TemplateRestartRequirementEpoch(loc)
-				if startOfStopDay.Before(epoch) {
-					return autostop, xerrors.New("coder server system clock is incorrect, cannot calculate template restart requirement")
-				}
-				since := startOfStopDay.Sub(epoch)
-				weeksSinceEpoch := int64(since.Hours() / (24 * 7))
-				requiredWeeks := templateSchedule.RestartRequirement.Weeks
-				weeksRemainder := weeksSinceEpoch % requiredWeeks
-				if weeksRemainder != 0 {
-					// Add (requiredWeeks - weeksSince) * 7 days to the current
-					// startOfStopDay, then truncate to Monday midnight.
-					//
-					// This sets startOfStopDay to Monday at midnight of the
-					// next applicable week.
-					y, mo, d := startOfStopDay.Date()
-					d += int(requiredWeeks-weeksRemainder) * 7
-					startOfStopDay = time.Date(y, mo, d, 0, 0, 0, 0, loc)
-					startOfStopDay = truncateMondayMidnight(startOfStopDay)
+				startOfStopDay, err = GetNextApplicableMondayOfNWeeks(startOfStopDay, templateSchedule.RestartRequirement.Weeks)
+				if err != nil {
+					return autostop, xerrors.Errorf("determine start of stop week: %w", err)
 				}
 			}
 
@@ -238,4 +223,103 @@ func truncateMondayMidnight(t time.Time) time.Time {
 	dd -= int(t.Weekday() - 1)
 	t = time.Date(yy, mm, dd, 0, 0, 0, 0, t.Location())
 	return truncateMidnight(t)
+}
+
+// WeeksSinceEpoch gets the weeks since the epoch for a given time. This is a
+// 0-indexed number of weeks since the epoch (Monday).
+//
+// The timezone embedded in the time object is used to determine the epoch.
+func WeeksSinceEpoch(now time.Time) (int64, error) {
+	epoch := TemplateRestartRequirementEpoch(now.Location())
+	if now.Before(epoch) {
+		return 0, xerrors.New("coder server system clock is incorrect, cannot calculate template restart requirement")
+	}
+
+	// This calculation needs to be done using YearDay, as dividing by the
+	// amount of hours is impacted by daylight savings. Even though daylight
+	// savings is usually only an hour difference, this calculation is used to
+	// get the current week number and could result in an entire week getting
+	// skipped if the calculation is off by an hour.
+	//
+	// Old naive algorithm: weeksSinceEpoch := int64(since.Hours() / (24 * 7))
+
+	// Get days since epoch. Start with a negative number of days, as we want to
+	// subtract the YearDay() of the epoch itself.
+	days := -epoch.YearDay()
+	for i := epoch.Year(); i < now.Year(); i++ {
+		startOfNextYear := time.Date(i+1, 1, 1, 0, 0, 0, 0, now.Location())
+		if startOfNextYear.Year() != i+1 {
+			return 0, xerrors.New("overflow calculating weeks since epoch")
+		}
+		endOfThisYear := startOfNextYear.AddDate(0, 0, -1)
+		if endOfThisYear.Year() != i {
+			return 0, xerrors.New("overflow calculating weeks since epoch")
+		}
+
+		days += endOfThisYear.YearDay()
+	}
+	// Add this year's days.
+	days += now.YearDay()
+
+	// Ensure that the number of days is positive.
+	if days < 0 {
+		return 0, xerrors.New("overflow calculating weeks since epoch")
+	}
+
+	// Divide by 7 to get the number of weeks.
+	weeksSinceEpoch := int64(days / 7)
+	return weeksSinceEpoch, nil
+}
+
+// GetMondayOfWeek gets the Monday (0:00) of the n-th week since epoch.
+func GetMondayOfWeek(loc *time.Location, n int64) (time.Time, error) {
+	if n < 0 {
+		return time.Time{}, xerrors.New("weeks since epoch must be positive")
+	}
+	epoch := TemplateRestartRequirementEpoch(loc)
+	monday := epoch.AddDate(0, 0, int(n*7))
+
+	y, m, d := monday.Date()
+	monday = time.Date(y, m, d, 0, 0, 0, 0, loc)
+	if monday.Weekday() != time.Monday {
+		return time.Time{}, xerrors.Errorf("calculated incorrect Monday for week %v since epoch (actual weekday %q)", n, monday.Weekday())
+	}
+	return monday, nil
+}
+
+// GetNextApplicableMondayOfNWeeks gets the next Monday (0:00) of the next week
+// divisible by n since epoch. If the next applicable week is invalid for any
+// reason, the week after will be used instead (up to 2 attempts).
+//
+// If the current week is divisible by n, then the provided time is returned as
+// is.
+//
+// The timezone embedded in the time object is used to determine the epoch.
+func GetNextApplicableMondayOfNWeeks(now time.Time, n int64) (time.Time, error) {
+	// Get the current week number.
+	weeksSinceEpoch, err := WeeksSinceEpoch(now)
+	if err != nil {
+		return time.Time{}, xerrors.Errorf("get current week number: %w", err)
+	}
+
+	// Get the next week divisible by n.
+	remainder := weeksSinceEpoch % n
+	week := weeksSinceEpoch + (n - remainder)
+	if remainder == 0 {
+		return now, nil
+	}
+
+	// Loop until we find a week that doesn't fail.
+	var lastErr error
+	for i := int64(0); i < 3; i++ {
+		monday, err := GetMondayOfWeek(now.Location(), week+i)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
+		return monday, nil
+	}
+
+	return time.Time{}, xerrors.Errorf("get next applicable Monday of %v weeks: %w", n, lastErr)
 }
