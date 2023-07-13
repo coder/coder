@@ -10,7 +10,7 @@ import (
 )
 
 func (r *RootCmd) restart() *clibase.Cmd {
-	var buildOptions bool
+	var parameterFlags workspaceParameterFlags
 
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -21,14 +21,7 @@ func (r *RootCmd) restart() *clibase.Cmd {
 			clibase.RequireNArgs(1),
 			r.InitClient(client),
 		),
-		Options: clibase.OptionSet{
-			{
-				Flag:        "build-options",
-				Description: "Prompt for one-time build options defined with ephemeral parameters.",
-				Value:       clibase.BoolOf(&buildOptions),
-			},
-			cliui.SkipPromptOption(),
-		},
+		Options: append(parameterFlags.options(), cliui.SkipPromptOption()),
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
 			out := inv.Stdout
@@ -45,7 +38,7 @@ func (r *RootCmd) restart() *clibase.Cmd {
 
 			buildParams, err := prepStartWorkspace(inv, client, prepStartWorkspaceArgs{
 				Template:     template,
-				BuildOptions: buildOptions,
+				BuildOptions: parameterFlags.buildOptions,
 			})
 			if err != nil {
 				return nil

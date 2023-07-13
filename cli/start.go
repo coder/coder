@@ -11,8 +11,23 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+// workspaceParameterFlags are used by "start", "restart", "create", and "update".
+type workspaceParameterFlags struct {
+	buildOptions bool
+}
+
+func (wpf *workspaceParameterFlags) options() []clibase.Option {
+	return clibase.OptionSet{
+		{
+			Flag:        "build-options",
+			Description: "Prompt for one-time build options defined with ephemeral parameters.",
+			Value:       clibase.BoolOf(&wpf.buildOptions),
+		},
+	}
+}
+
 func (r *RootCmd) start() *clibase.Cmd {
-	var buildOptions bool
+	var parameterFlags workspaceParameterFlags
 
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -23,14 +38,7 @@ func (r *RootCmd) start() *clibase.Cmd {
 			clibase.RequireNArgs(1),
 			r.InitClient(client),
 		),
-		Options: clibase.OptionSet{
-			{
-				Flag:        "build-options",
-				Description: "Prompt for one-time build options defined with ephemeral parameters.",
-				Value:       clibase.BoolOf(&buildOptions),
-			},
-			cliui.SkipPromptOption(),
-		},
+		Options: append(parameterFlags.options(), cliui.SkipPromptOption()),
 		Handler: func(inv *clibase.Invocation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
@@ -44,7 +52,7 @@ func (r *RootCmd) start() *clibase.Cmd {
 
 			buildParams, err := prepStartWorkspace(inv, client, prepStartWorkspaceArgs{
 				Template:     template,
-				BuildOptions: buildOptions,
+				BuildOptions: parameterFlags.buildOptions,
 			})
 			if err != nil {
 				return nil

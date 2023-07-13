@@ -11,7 +11,8 @@ func (r *RootCmd) update() *clibase.Cmd {
 	var (
 		richParameterFile string
 		alwaysPrompt      bool
-		buildOptions      bool
+
+		parameterFlags workspaceParameterFlags
 	)
 
 	client := new(codersdk.Client)
@@ -29,7 +30,7 @@ func (r *RootCmd) update() *clibase.Cmd {
 			if err != nil {
 				return err
 			}
-			if !workspace.Outdated && !alwaysPrompt && !buildOptions {
+			if !workspace.Outdated && !alwaysPrompt && !parameterFlags.buildOptions {
 				_, _ = fmt.Fprintf(inv.Stdout, "Workspace isn't outdated!\n")
 				return nil
 			}
@@ -55,7 +56,7 @@ func (r *RootCmd) update() *clibase.Cmd {
 				UpdateWorkspace: true,
 				WorkspaceID:     workspace.LatestBuild.ID,
 
-				BuildOptions: buildOptions,
+				BuildOptions: parameterFlags.buildOptions,
 			})
 			if err != nil {
 				return nil
@@ -97,11 +98,7 @@ func (r *RootCmd) update() *clibase.Cmd {
 			Env:         "CODER_RICH_PARAMETER_FILE",
 			Value:       clibase.StringOf(&richParameterFile),
 		},
-		{
-			Flag:        "build-options",
-			Description: "Prompt for one-time build options defined with ephemeral parameters.",
-			Value:       clibase.BoolOf(&buildOptions),
-		},
 	}
+	cmd.Options = append(cmd.Options, parameterFlags.options()...)
 	return cmd
 }
