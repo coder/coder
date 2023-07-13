@@ -16,7 +16,8 @@ jobs:
     # so 0.016 * 240 = 3.84 USD per run.
     timeout-minutes: 240
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
@@ -31,7 +32,8 @@ jobs:
           # impact.
           gotestsum --junitfile="gotests.xml" -- -timeout=240m -count=10 -race ./...
 
-      - uses: ./.github/actions/upload-datadog
+      - name: Upload test results to DataDog
+        uses: ./.github/actions/upload-datadog
         if: always()
         with:
           api-key: ${{ secrets.DATADOG_API_KEY }}
@@ -51,7 +53,8 @@ jobs:
         run: |
           gotestsum --junitfile="gotests.xml" -- --tags="timing" -p=1 -run='_Timing/' ./...
 
-      - uses: ./.github/actions/upload-datadog
+      - name: Upload test results to DataDog
+        uses: ./.github/actions/upload-datadog
         if: always()
         with:
           api-key: ${{ secrets.DATADOG_API_KEY }}

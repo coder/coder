@@ -36,9 +36,11 @@ jobs:
       k8s: ${{ steps.filter.outputs.k8s }}
       ci: ${{ steps.filter.outputs.ci }}
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
       # For pull requests it's not necessary to checkout the code
-      - uses: dorny/paths-filter@v2
+      - name: check changed files
+        uses: dorny/paths-filter@v2
         id: filter
         with:
           filters: |
@@ -151,7 +153,8 @@ jobs:
     needs: changes
     if: needs.changes.outputs.docs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
@@ -243,7 +246,8 @@ jobs:
           - macos-latest
           - windows-2019
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
@@ -280,12 +284,14 @@ jobs:
           # so we need to print the test stats to the log.
           go run ./scripts/ci-report/main.go gotests.json | tee gotests_stats.json
 
-      - uses: ./.github/actions/upload-datadog
+      - name: Upload test stats to Datadog
+        uses: ./.github/actions/upload-datadog
         if: success() || failure()
         with:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
-      - uses: codecov/codecov-action@v3
+      - name: Check code coverage
+        uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
         # the `fail_ci_if_error` option that defaults to `false`, but
         # that is no guarantee, see:
@@ -307,7 +313,8 @@ jobs:
     # even if some of the preceding steps are slow.
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
@@ -327,12 +334,14 @@ jobs:
           # so we need to print the test stats to the log.
           go run ./scripts/ci-report/main.go gotests.json | tee gotests_stats.json
 
-      - uses: ./.github/actions/upload-datadog
+      - name: Upload test stats to Datadog
+        uses: ./.github/actions/upload-datadog
         if: success() || failure()
         with:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
-      - uses: codecov/codecov-action@v3
+      - name: Check code coverage
+        uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
         # the `fail_ci_if_error` option that defaults to `false`, but
         # that is no guarantee, see:
@@ -350,7 +359,8 @@ jobs:
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
@@ -362,7 +372,8 @@ jobs:
         run: |
           gotestsum --junitfile="gotests.xml" -- -race ./...
 
-      - uses: ./.github/actions/upload-datadog
+      - name: Upload test stats to Datadog
+        uses: ./.github/actions/upload-datadog
         if: always()
         with:
           api-key: ${{ secrets.DATADOG_API_KEY }}
@@ -379,7 +390,8 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
@@ -450,7 +462,8 @@ jobs:
             echo "::endgroup::"
           done
 
-      - uses: actions/upload-artifact@v3
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
         with:
           name: coder
           path: |
@@ -465,7 +478,8 @@ jobs:
     if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
@@ -473,7 +487,8 @@ jobs:
       - run: yarn test:ci --max-workers $(nproc)
         working-directory: site
 
-      - uses: codecov/codecov-action@v3
+      - name: Check code coverage
+        uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
         # the `fail_ci_if_error` option that defaults to `false`, but
         # that is no guarantee, see:
@@ -491,7 +506,8 @@ jobs:
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
@@ -529,7 +545,8 @@ jobs:
     needs: changes
     if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
         with:
           # Required by Chromatic for build-over-build history, otherwise we
           # only get 1 commit on shallow checkout.
