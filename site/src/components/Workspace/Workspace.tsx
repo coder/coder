@@ -194,8 +194,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 
         <PageHeaderActions>
           <WorkspaceActions
-            workspaceStatus={workspace.latest_build.status}
-            isOutdated={workspace.outdated}
+            workspace={workspace}
             handleStart={handleStart}
             handleStop={handleStop}
             handleRestart={handleRestart}

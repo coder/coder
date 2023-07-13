@@ -138,7 +138,7 @@ const permissionsToCheck = (
       },
       action: "read",
     },
-  }) as const
+  } as const)
 
 export const workspaceMachine = createMachine(
   {
@@ -151,9 +151,6 @@ export const workspaceMachine = createMachine(
       services: {} as {
         loadInitialWorkspaceData: {
           data: Awaited<ReturnType<typeof loadInitialWorkspaceData>>
-        }
-        getTemplateParameters: {
-          data: TypesGen.TemplateVersionParameter[]
         }
         updateWorkspace: {
           data: TypesGen.WorkspaceBuild

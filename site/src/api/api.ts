@@ -481,8 +481,8 @@ export function waitForBuild(build: TypesGen.WorkspaceBuild) {
       let latestJobInfo: TypesGen.ProvisionerJob | undefined = undefined
 
       while (
-        !["succeeded", "canceled"].some(
-          (status) => latestJobInfo?.status.includes(status),
+        !["succeeded", "canceled"].some((status) =>
+          latestJobInfo?.status.includes(status),
         )
       ) {
         const { job } = await getWorkspaceBuildByNumber(
@@ -1345,4 +1345,16 @@ export const issueReconnectingPTYSignedToken = async (
     params,
   )
   return response.data
+}
+
+export const getWorkspaceParameters = async (workspace: TypesGen.Workspace) => {
+  const latestBuild = workspace.latest_build
+  const [templateVersionRichParameters, buildParameters] = await Promise.all([
+    getTemplateVersionRichParameters(latestBuild.template_version_id),
+    getWorkspaceBuildParameters(latestBuild.id),
+  ])
+  return {
+    templateVersionRichParameters,
+    buildParameters,
+  }
 }

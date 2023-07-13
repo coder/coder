@@ -100,13 +100,11 @@ export const WorkspaceReadyPage = ({
       ["canceling", "deleting", "pending", "starting", "stopping"].includes(
         workspace.latest_build.status,
       ))
-
   const {
     mutate: restartWorkspace,
     error: restartBuildError,
     isLoading: isRestarting,
   } = useRestartWorkspace()
-
   // keep banner machine in sync with workspace
   useEffect(() => {
     bannerSend({ type: "REFRESH_WORKSPACE", workspace })

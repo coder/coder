@@ -182,3 +182,21 @@ export const workspaceBuildParameterValue = (
   })
   return (buildParameter && buildParameter.value) || ""
 }
+
+export const getInitialParameterValues = (
+  templateParameters: TemplateVersionParameter[],
+  buildParameters: WorkspaceBuildParameter[],
+) => {
+  return templateParameters.map((parameter) => {
+    const buildParameter = buildParameters.find(
+      (p) => p.name === parameter.name,
+    )
+    if (!buildParameter) {
+      return {
+        name: parameter.name,
+        value: parameter.default_value,
+      }
+    }
+    return buildParameter
+  })
+}

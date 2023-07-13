@@ -9,6 +9,7 @@ import { useFormik } from "formik"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
 import {
+  getInitialParameterValues,
   useValidationSchemaForRichParameters,
   workspaceBuildParameterValue,
 } from "utils/richParameters"
@@ -48,18 +49,10 @@ export const WorkspaceParametersForm: FC<{
   const form = useFormik<WorkspaceParametersFormValues>({
     onSubmit,
     initialValues: {
-      rich_parameter_values: mutableParameters.map((parameter) => {
-        const buildParameter = buildParameters.find(
-          (p) => p.name === parameter.name,
-        )
-        if (!buildParameter) {
-          return {
-            name: parameter.name,
-            value: parameter.default_value,
-          }
-        }
-        return buildParameter
-      }),
+      rich_parameter_values: getInitialParameterValues(
+        mutableParameters,
+        buildParameters,
+      ),
     },
     validationSchema: Yup.object({
       rich_parameter_values: useValidationSchemaForRichParameters(
