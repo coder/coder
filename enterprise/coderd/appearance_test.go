@@ -6,9 +6,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/coderd/coderdtest"

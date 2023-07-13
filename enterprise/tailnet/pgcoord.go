@@ -125,6 +125,11 @@ func NewPGCoord(ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store
 	return c, nil
 }
 
+func (c *pgCoord) ServeMultiAgent(id uuid.UUID) agpl.MultiAgentConn {
+	_, _ = c, id
+	panic("not implemented") // TODO: Implement
+}
+
 func (*pgCoord) ServeHTTPDebug(w http.ResponseWriter, _ *http.Request) {
 	// TODO(spikecurtis) I'd like to hold off implementing this until after the rest of this is code reviewed.
 	w.WriteHeader(http.StatusOK)

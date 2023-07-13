@@ -161,6 +161,7 @@
 
 ```json
 {
+  "agent_id": "string",
   "apps": [
     {
       "command": "string",
@@ -260,6 +261,7 @@
 
 | Name                         | Type                                                                                              | Required | Restrictions | Description                                                                                                                                                |
 | ---------------------------- | ------------------------------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent_id`                   | string                                                                                            | false    |              |                                                                                                                                                            |
 | `apps`                       | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)                                           | false    |              |                                                                                                                                                            |
 | `derpmap`                    | [tailcfg.DERPMap](#tailcfgderpmap)                                                                | false    |              |                                                                                                                                                            |
 | `directory`                  | string                                                                                            | false    |              |                                                                                                                                                            |
@@ -2543,6 +2545,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `workspace_actions`       |
 | `tailnet_ha_coordinator`  |
 | `convert-to-oidc`         |
+| `single_tailnet`          |
 | `workspace_build_logs_ui` |
 
 ## codersdk.Feature

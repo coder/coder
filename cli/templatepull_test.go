@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/codeclysm/extract"
+	"github.com/codeclysm/extract/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 

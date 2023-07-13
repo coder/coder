@@ -292,6 +292,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/manifest \
 
 ```json
 {
+  "agent_id": "string",
   "apps": [
     {
       "command": "string",
