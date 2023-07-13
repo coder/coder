@@ -109,7 +109,6 @@ RUN apt-get update --quiet && apt-get install --yes \
 	curl \
 	fd-find \
 	file \
- 	gh \
 	git \
 	gnupg \
 	graphviz \
