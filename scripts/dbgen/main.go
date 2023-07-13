@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"fmt"
 	"go/format"
-	"go/parser"
 	"go/token"
 	"os"
 	"path"
@@ -419,47 +418,41 @@ type querierFunction struct {
 
 // readQuerierFunctions reads the functions from coderd/database/querier.go
 func readQuerierFunctions() ([]querierFunction, error) {
-	localPath, err := localFilePath()
+	f, err := parseDBFile("querier.go")
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("parse querier.go: %w", err)
 	}
-
-	// Parse the database package as a whole so all references are resolved across
-	// files.
-	dirPath := filepath.Join(localPath, "..", "..", "..", "coderd", "database")
-	packages, err := decorator.ParseDir(token.NewFileSet(), dirPath, func(info os.FileInfo) bool {
-		if strings.HasSuffix(info.Name(), "_test.go") {
-			return false
-		}
-		if !strings.HasSuffix(info.Name(), ".go") {
-			return false
-		}
-		return true
-	}, parser.ParseComments)
-
-	dbPackage := packages["database"]
-
-	findFile := func(name string) *dst.File {
-		for k, v := range dbPackage.Files {
-			if strings.HasSuffix(k, name) {
-				return v
-			}
-		}
-		return nil
-	}
-
-	funcs, err := loadInterfaceFuncs(findFile("querier.go"), "sqlcQuerier")
+	funcs, err := loadInterfaceFuncs(f, "sqlcQuerier")
 	if err != nil {
 		return nil, xerrors.Errorf("load interface %s funcs: %w", "sqlcQuerier", err)
 	}
 
+	customFile, err := parseDBFile("modelqueries.go")
+	if err != nil {
+		return nil, xerrors.Errorf("parse modelqueriers.go: %w", err)
+	}
 	// Custom funcs should be appended after the regular functions
-	customFuncs, err := loadInterfaceFuncs(findFile("modelqueries.go"), "customQuerier")
+	customFuncs, err := loadInterfaceFuncs(customFile, "customQuerier")
 	if err != nil {
 		return nil, xerrors.Errorf("load interface %s funcs: %w", "customQuerier", err)
 	}
 
 	return append(funcs, customFuncs...), nil
+}
+
+func parseDBFile(filename string) (*dst.File, error) {
+	localPath, err := localFilePath()
+	if err != nil {
+		return nil, err
+	}
+
+	querierPath := filepath.Join(localPath, "..", "..", "..", "coderd", "database", filename)
+	querierData, err := os.ReadFile(querierPath)
+	if err != nil {
+		return nil, xerrors.Errorf("read %s: %w", filename, err)
+	}
+	f, err := decorator.Parse(querierData)
+	return f, err
 }
 
 func loadInterfaceFuncs(f *dst.File, interfaceName string) ([]querierFunction, error) {
