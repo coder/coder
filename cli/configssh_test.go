@@ -584,7 +584,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 		{
 			name: "Custom CLI Path",
 			args: []string{
-				"-y", "--coder-cli-path", "/foo/bar/coder",
+				"-y", "--coder-binary-path", "/foo/bar/coder",
 			},
 			wantErr: false,
 			echoResponse: &echo.Responses{

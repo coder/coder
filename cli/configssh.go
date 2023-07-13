@@ -509,8 +509,8 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 			Value:       clibase.StringOf(&sshConfigFile),
 		},
 		{
-			Flag:    "coder-cli-path",
-			Env:     "CODER_SSH_CONFIG_CLI_PATH",
+			Flag:    "coder-binary-path",
+			Env:     "CODER_SSH_CONFIG_BINARY_PATH",
 			Default: "",
 			Description: "Optionally specify the absolute path to the coder binary used in ProxyCommand. " +
 				"By default, the binary invoking this command ('config ssh') is used.",
