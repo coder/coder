@@ -43,7 +43,7 @@ var (
 	workspacePollInterval   = time.Minute
 	autostopNotifyCountdown = []time.Duration{30 * time.Minute}
 
-	remoteForwardRegex = regexp.MustCompile(`^\d+:\w+:\d+$`)
+	remoteForwardRegex = regexp.MustCompile(`^(\d+):(.+):(\d+)$`)
 )
 
 //nolint:gocyclo
