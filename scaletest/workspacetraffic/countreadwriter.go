@@ -53,6 +53,9 @@ func reportableErr(err error) bool {
 	if err == nil {
 		return false
 	}
+	if xerrors.Is(err, io.EOF) {
+		return false
+	}
 	if xerrors.Is(err, context.Canceled) {
 		return false
 	}

@@ -23,6 +23,8 @@ type Config struct {
 
 	ReadMetrics  ConnMetrics `json:"-"`
 	WriteMetrics ConnMetrics `json:"-"`
+
+	SSH bool `json:"ssh"`
 }
 
 func (c Config) Validate() error {
