@@ -7,6 +7,7 @@ import (
 	"net"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/pion/udp"
@@ -183,8 +184,12 @@ func TestPortForward(t *testing.T) {
 			testDial(t, c1)
 
 			cancelCmd()
-			err = <-errC
-			require.ErrorIs(t, err, context.Canceled)
+			select {
+			case <-time.After(testutil.WaitLong):
+				t.Fatal("timeout canceling port forward")
+			case err = <-errC:
+				require.ErrorIs(t, err, context.Canceled)
+			}
 		})
 
 		t.Run(c.name+"_TwoPorts", func(t *testing.T) {
@@ -207,15 +212,24 @@ func TestPortForward(t *testing.T) {
 			inv.Stdin = pty.Input()
 			inv.Stdout = pty.Output()
 			inv.Stderr = pty.Output()
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			defer cancel()
+			// don't set a timeout on the port-forward command, because the command context has to stay active across
+			// the call to t.Parallel() below, during which all non-parallel parts run to completion.  We don't know
+			// how long this will take, as it depends on the number of test cases.
+			ctxCmd, cancelCmd := context.WithCancel(context.Background())
+			defer cancelCmd()
 			errC := make(chan error)
 			go func() {
-				errC <- inv.WithContext(ctx).Run()
+				errC <- inv.WithContext(ctxCmd).Run()
 			}()
-			pty.ExpectMatchContext(ctx, "Ready!")
+			ctxExpect, cancelExpect := context.WithTimeout(ctxCmd, testutil.WaitLong)
+			defer cancelExpect()
+			pty.ExpectMatchContext(ctxExpect, "Ready!")
 
 			t.Parallel() // Port is reserved, enable parallel execution.
+
+			// Now that we've unpaused for parallel execution, set a new timeout context for this part of the test.
+			ctx, cancel := context.WithTimeout(ctxCmd, testutil.WaitLong)
+			defer cancel()
 
 			// Open a connection to both listener 1 and 2 simultaneously and
 			// then test them out of order.
@@ -229,9 +243,13 @@ func TestPortForward(t *testing.T) {
 			testDial(t, c2)
 			testDial(t, c1)
 
-			cancel()
-			err = <-errC
-			require.ErrorIs(t, err, context.Canceled)
+			cancelCmd()
+			select {
+			case <-time.After(testutil.WaitLong):
+				t.Fatal("timeout canceling port forward")
+			case err = <-errC:
+				require.ErrorIs(t, err, context.Canceled)
+			}
 		})
 	}
 
@@ -260,15 +278,23 @@ func TestPortForward(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
 		inv.Stderr = pty.Output()
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		// don't set a timeout on the port-forward command, because the command context has to stay active across
+		// the call to t.Parallel() below, during which all non-parallel parts run to completion.  We don't know
+		// how long this will take, as it depends on the number of test cases.
+		ctxCmd, cancelCmd := context.WithCancel(context.Background())
+		defer cancelCmd()
 		errC := make(chan error)
 		go func() {
-			errC <- inv.WithContext(ctx).Run()
+			errC <- inv.WithContext(ctxCmd).Run()
 		}()
-		pty.ExpectMatchContext(ctx, "Ready!")
+		ctxExpect, cancelExpect := context.WithTimeout(ctxCmd, testutil.WaitLong)
+		defer cancelExpect()
+		pty.ExpectMatchContext(ctxExpect, "Ready!")
 
 		t.Parallel() // Port is reserved, enable parallel execution.
+		// Now that we've unpaused for parallel execution, set a new timeout context for this part of the test.
+		ctx, cancel := context.WithTimeout(ctxCmd, testutil.WaitLong)
+		defer cancel()
 
 		// Open connections to all items in the "dial" array.
 		var (
@@ -289,9 +315,13 @@ func TestPortForward(t *testing.T) {
 			testDial(t, conns[i])
 		}
 
-		cancel()
-		err := <-errC
-		require.ErrorIs(t, err, context.Canceled)
+		cancelCmd()
+		select {
+		case <-time.After(testutil.WaitLong):
+			t.Fatal("timeout canceling port forward")
+		case err := <-errC:
+			require.ErrorIs(t, err, context.Canceled)
+		}
 	})
 }
 
