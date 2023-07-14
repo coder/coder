@@ -53,6 +53,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 		waitEnum       string
 		noWait         bool
 		logDirPath     string
+		remoteForward  string
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -423,6 +424,13 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			Env:           "CODER_SSH_LOG_DIR",
 			FlagShorthand: "l",
 			Value:         clibase.StringOf(&logDirPath),
+		},
+		{
+			Flag:          "remote-forward",
+			Description:   "Enable remote port forwarding.",
+			Env:           "CODER_SSH_REMOTE_FORWARD",
+			FlagShorthand: "R",
+			Value:         clibase.StringOf(&remoteForward),
 		},
 	}
 	return cmd
