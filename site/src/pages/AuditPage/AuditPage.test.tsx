@@ -71,12 +71,10 @@ describe("AuditPage", () => {
   it("renders page 5", async () => {
     // Given
     const page = 5
-    const getAuditLogsSpy = jest
-      .spyOn(API, "getAuditLogs")
-      .mockResolvedValue({
-        audit_logs: [MockAuditLog, MockAuditLog2],
-        count: 2,
-      })
+    const getAuditLogsSpy = jest.spyOn(API, "getAuditLogs").mockResolvedValue({
+      audit_logs: [MockAuditLog, MockAuditLog2],
+      count: 2,
+    })
 
     // When
     await renderPage({ page: page })
