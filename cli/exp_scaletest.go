@@ -848,6 +848,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 	var (
 		tickInterval               time.Duration
 		bytesPerTick               int64
+		ssh                        bool
 		scaletestPrometheusAddress string
 		scaletestPrometheusWait    time.Duration
 
@@ -944,6 +945,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 					TickInterval: tickInterval,
 					ReadMetrics:  metrics.ReadMetrics(ws.OwnerName, ws.Name, agentName),
 					WriteMetrics: metrics.WriteMetrics(ws.OwnerName, ws.Name, agentName),
+					SSH:          ssh,
 				}
 
 				if err := config.Validate(); err != nil {
@@ -999,6 +1001,13 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 			Default:     "100ms",
 			Description: "How often to send traffic.",
 			Value:       clibase.DurationOf(&tickInterval),
+		},
+		{
+			Flag:        "ssh",
+			Env:         "CODER_SCALETEST_WORKSPACE_TRAFFIC_SSH",
+			Default:     "",
+			Description: "Send traffic over SSH.",
+			Value:       clibase.BoolOf(&ssh),
 		},
 		{
 			Flag:        "scaletest-prometheus-address",
