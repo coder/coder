@@ -166,8 +166,6 @@ func TestPortForward(t *testing.T) {
 			defer cancelExpect()
 			pty.ExpectMatchContext(ctxExpect, "Ready!")
 
-			t.Parallel() // Port is reserved, enable parallel execution.
-
 			// Now that we've unpaused for parallel execution, set a new timeout context for this part of the test.
 			ctx, cancel := context.WithTimeout(ctxCmd, testutil.WaitLong)
 			defer cancel()
@@ -184,7 +182,7 @@ func TestPortForward(t *testing.T) {
 			testDial(t, c2)
 			testDial(t, c1)
 
-			cancel()
+			cancelCmd()
 			err = <-errC
 			require.ErrorIs(t, err, context.Canceled)
 		})
