@@ -13,6 +13,8 @@ import { FormFields } from "components/Form/Form"
 import { Loader } from "components/Loader/Loader"
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput"
 import {
+  HelpTooltipLink,
+  HelpTooltipLinksGroup,
   HelpTooltipText,
   HelpTooltipTitle,
 } from "components/Tooltips/HelpTooltip/HelpTooltip"
@@ -75,28 +77,53 @@ export const BuildParametersPopover = ({
           },
         }}
       >
-        <Box
-          sx={{
-            color: (theme) => theme.palette.text.secondary,
-            p: 2.5,
-            borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
-          }}
-        >
-          <HelpTooltipTitle>Build Options</HelpTooltipTitle>
-          <HelpTooltipText>
-            These parameters only apply for a single workspace start.
-          </HelpTooltipText>
-        </Box>
-        <Box sx={{ p: 2.5 }}>
+        <Box>
           {parameters && parameters.buildParameters && ephemeralParameters ? (
-            <Form
-              onSubmit={(buildParameters) => {
-                onSubmit(buildParameters)
-                setIsOpen(false)
-              }}
-              ephemeralParameters={ephemeralParameters}
-              buildParameters={parameters.buildParameters}
-            />
+            ephemeralParameters.length > 0 ? (
+              <>
+                <Box
+                  sx={{
+                    color: (theme) => theme.palette.text.secondary,
+                    p: 2.5,
+                    borderBottom: (theme) =>
+                      `1px solid ${theme.palette.divider}`,
+                  }}
+                >
+                  <HelpTooltipTitle>Build Options</HelpTooltipTitle>
+                  <HelpTooltipText>
+                    These parameters only apply for a single workspace start.
+                  </HelpTooltipText>
+                </Box>
+                <Box sx={{ p: 2.5 }}>
+                  <Form
+                    onSubmit={(buildParameters) => {
+                      onSubmit(buildParameters)
+                      setIsOpen(false)
+                    }}
+                    ephemeralParameters={ephemeralParameters}
+                    buildParameters={parameters.buildParameters}
+                  />
+                </Box>
+              </>
+            ) : (
+              <Box
+                sx={{
+                  color: (theme) => theme.palette.text.secondary,
+                  p: 2.5,
+                  borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
+                }}
+              >
+                <HelpTooltipTitle>Build Options</HelpTooltipTitle>
+                <HelpTooltipText>
+                  This template has no ephemeral build options.
+                </HelpTooltipText>
+                <HelpTooltipLinksGroup>
+                  <HelpTooltipLink href="https://coder.com/docs/v2/latest/templates/parameters#ephemeral-parameters">
+                    Read the docs
+                  </HelpTooltipLink>
+                </HelpTooltipLinksGroup>
+              </Box>
+            )
           ) : (
             <Loader />
           )}
@@ -129,7 +156,7 @@ const Form = ({
   const getFieldHelpers = getFormHelpers(form)
 
   return (
-    <form action="">
+    <form onSubmit={form.handleSubmit}>
       <FormFields>
         {ephemeralParameters.map((parameter, index) => {
           return (
@@ -151,7 +178,12 @@ const Form = ({
         })}
       </FormFields>
       <Box sx={{ py: 3, pb: 1 }}>
-        <Button variant="contained" color="primary" sx={{ width: "100%" }}>
+        <Button
+          type="submit"
+          variant="contained"
+          color="primary"
+          sx={{ width: "100%" }}
+        >
           Build workspace
         </Button>
       </Box>
