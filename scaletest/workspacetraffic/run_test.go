@@ -17,8 +17,6 @@ import (
 	"github.com/coder/coder/testutil"
 
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
-	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -129,53 +127,6 @@ func TestRun(t *testing.T) {
 	// Should not report any errors!
 	assert.NotZero(t, readMetrics.Errors())
 	assert.NotZero(t, writeMetrics.Errors())
-}
-
-// toFloat64 version of Prometheus' testutil.ToFloat64 that integrates with
-// github.com/stretchr/testify/require and handles histograms (somewhat)
-func toFloat64(t testing.TB, c prometheus.Collector) float64 {
-	var (
-		m      prometheus.Metric
-		mCount int
-		mChan  = make(chan prometheus.Metric)
-		done   = make(chan struct{})
-	)
-
-	go func() {
-		for m = range mChan {
-			mCount++
-		}
-		close(done)
-	}()
-
-	c.Collect(mChan)
-	close(mChan)
-	<-done
-
-	require.Equal(t, 1, mCount, "expected exactly 1 metric but got %d", mCount)
-
-	pb := &dto.Metric{}
-	require.NoError(t, m.Write(pb), "unexpected error collecting metrics")
-
-	if pb.Gauge != nil {
-		return pb.Gauge.GetValue()
-	}
-	if pb.Counter != nil {
-		return pb.Counter.GetValue()
-	}
-	if pb.Untyped != nil {
-		return pb.Untyped.GetValue()
-	}
-	if pb.Histogram != nil {
-		// If no samples, just return zero.
-		if pb.Histogram.GetSampleCount() == 0 {
-			return 0
-		}
-		// Average is sufficient for testing purposes.
-		return pb.Histogram.GetSampleSum() / pb.Histogram.GetSampleCountFloat()
-	}
-	require.Fail(t, "collected a non-gauge/counter/untyped/histogram metric: %s", pb)
-	return 0
 }
 
 type testMetrics struct {
