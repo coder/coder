@@ -123,6 +123,8 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				client.SetLogger(logger)
 			}
 
+			// TODO Validate -R and --stdio
+
 			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, codersdk.Me, inv.Args[0])
 			if err != nil {
 				return err
@@ -300,6 +302,8 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				}
 				defer closer.Close()
 			}
+
+			// TODO if sshForwardRemote
 
 			stdoutFile, validOut := inv.Stdout.(*os.File)
 			stdinFile, validIn := inv.Stdin.(*os.File)
