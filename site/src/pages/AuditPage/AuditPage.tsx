@@ -1,4 +1,7 @@
-import { nonInitialPage } from "components/PaginationWidget/utils"
+import {
+  DEFAULT_RECORDS_PER_PAGE,
+  nonInitialPage,
+} from "components/PaginationWidget/utils"
 import { useFeatureVisibility } from "hooks/useFeatureVisibility"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
@@ -49,9 +52,11 @@ const AuditPage: FC = () => {
   const { data, error } = useQuery({
     queryKey: ["auditLogs", filter.query, pagination.page],
     queryFn: () => {
+      const limit = DEFAULT_RECORDS_PER_PAGE
+      const page = pagination.page
       return getAuditLogs({
-        offset: pagination.page,
-        limit: 25,
+        offset: page <= 0 ? 0 : (page - 1) * limit,
+        limit: limit,
         q: filter.query,
       })
     },
