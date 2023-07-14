@@ -45,9 +45,9 @@ export interface WorkspaceProps {
     maxDeadlineIncrease: number
     maxDeadlineDecrease: number
   }
-  handleStart: () => void
+  handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void
   handleStop: () => void
-  handleRestart: () => void
+  handleRestart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void
   handleDelete: () => void
   handleUpdate: () => void
   handleCancel: () => void

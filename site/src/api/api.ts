@@ -481,8 +481,8 @@ export function waitForBuild(build: TypesGen.WorkspaceBuild) {
       let latestJobInfo: TypesGen.ProvisionerJob | undefined = undefined
 
       while (
-        !["succeeded", "canceled"].some((status) =>
-          latestJobInfo?.status.includes(status),
+        !["succeeded", "canceled"].some(
+          (status) => latestJobInfo?.status.includes(status),
         )
       ) {
         const { job } = await getWorkspaceBuildByNumber(
@@ -519,11 +519,13 @@ export const startWorkspace = (
   workspaceId: string,
   templateVersionId: string,
   logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"],
+  buildParameters?: TypesGen.WorkspaceBuildParameter[],
 ) =>
   postWorkspaceBuild(workspaceId, {
     transition: "start",
     template_version_id: templateVersionId,
     log_level: logLevel,
+    rich_parameter_values: buildParameters,
   })
 export const stopWorkspace = (
   workspaceId: string,
@@ -552,7 +554,13 @@ export const cancelWorkspaceBuild = async (
   return response.data
 }
 
-export const restartWorkspace = async (workspace: TypesGen.Workspace) => {
+export const restartWorkspace = async ({
+  workspace,
+  buildParameters,
+}: {
+  workspace: TypesGen.Workspace
+  buildParameters?: TypesGen.WorkspaceBuildParameter[]
+}) => {
   const stopBuild = await stopWorkspace(workspace.id)
   const awaitedStopBuild = await waitForBuild(stopBuild)
 
@@ -564,6 +572,8 @@ export const restartWorkspace = async (workspace: TypesGen.Workspace) => {
   const startBuild = await startWorkspace(
     workspace.id,
     workspace.latest_build.template_version_id,
+    undefined,
+    buildParameters,
   )
   await waitForBuild(startBuild)
 }

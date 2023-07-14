@@ -3,7 +3,7 @@ import Menu from "@mui/material/Menu"
 import { makeStyles } from "@mui/styles"
 import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined"
 import { FC, Fragment, ReactNode, useRef, useState } from "react"
-import { Workspace } from "api/typesGenerated"
+import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated"
 import {
   ActionLoadingButton,
   CancelButton,
@@ -25,9 +25,9 @@ import IconButton from "@mui/material/IconButton"
 
 export interface WorkspaceActionsProps {
   workspace: Workspace
-  handleStart: () => void
+  handleStart: (buildParameters?: WorkspaceBuildParameter[]) => void
   handleStop: () => void
-  handleRestart: () => void
+  handleRestart: (buildParameters?: WorkspaceBuildParameter[]) => void
   handleDelete: () => void
   handleUpdate: () => void
   handleCancel: () => void
@@ -41,7 +41,6 @@ export interface WorkspaceActionsProps {
 
 export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   workspace,
-
   handleStart,
   handleStop,
   handleRestart,
@@ -71,18 +70,24 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
       <UpdateButton loading handleAction={handleUpdate} />
     ),
     [ButtonTypesEnum.start]: (
-      <StartButton handleAction={handleStart} workspace={workspace} />
+      <StartButton workspace={workspace} handleAction={handleStart} />
     ),
     [ButtonTypesEnum.starting]: (
-      <StartButton workspace={workspace} loading handleAction={handleStart} />
+      <StartButton loading workspace={workspace} handleAction={handleStart} />
     ),
     [ButtonTypesEnum.stop]: <StopButton handleAction={handleStop} />,
     [ButtonTypesEnum.stopping]: (
       <StopButton loading handleAction={handleStop} />
     ),
-    [ButtonTypesEnum.restart]: <RestartButton handleAction={handleRestart} />,
+    [ButtonTypesEnum.restart]: (
+      <RestartButton workspace={workspace} handleAction={handleRestart} />
+    ),
     [ButtonTypesEnum.restarting]: (
-      <RestartButton loading handleAction={handleRestart} />
+      <RestartButton
+        loading
+        workspace={workspace}
+        handleAction={handleRestart}
+      />
     ),
     [ButtonTypesEnum.deleting]: <ActionLoadingButton label="Deleting" />,
     [ButtonTypesEnum.canceling]: <DisabledButton label="Canceling..." />,
