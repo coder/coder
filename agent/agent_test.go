@@ -1797,6 +1797,7 @@ func TestAgent_WriteVSCodeConfigs(t *testing.T) {
 }
 
 func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) (*ptytest.PTYCmd, pty.Process) {
+	logger := slogtest.Make(t, nil).Named("testsetup").Leveled(slog.LevelDebug)
 	//nolint:dogsled
 	agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -1807,16 +1808,20 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) (*pt
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
+				logger.Debug(context.Background(), "error listening", slog.Error(err))
 				return
 			}
+			logger.Debug(context.Background(), "got local TCP connection")
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			ssh, err := agentConn.SSH(ctx)
 			cancel()
 			if err != nil {
+				logger.Debug(context.Background(), "failed to connect to agent SSH")
 				_ = conn.Close()
 				return
 			}
+			logger.Debug(context.Background(), "got SSH connection to agent")
 			waitGroup.Add(1)
 			go func() {
 				agentssh.Bicopy(context.Background(), conn, ssh)

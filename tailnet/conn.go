@@ -588,6 +588,7 @@ var unixEpoch = time.Unix(0, 0)
 // the Wireguard layer. It's the callers responsibility to provide  a timeout, otherwise this function will block
 // forever.
 func (c *Conn) AwaitReachable(ctx context.Context, ip netip.Addr) bool {
+	logger := c.logger.With(slog.F("ip", ip))
 	rightAway := make(chan struct{}, 1)
 	rightAway <- struct{}{}
 	tkr := time.NewTicker(50 * time.Millisecond)
@@ -603,7 +604,7 @@ func (c *Conn) AwaitReachable(ctx context.Context, ip netip.Addr) bool {
 
 		nKeys := c.getNodeKeysForIP(ip)
 		if len(nKeys) == 0 {
-			c.logger.Debug(ctx, "missing node(s) for IP", slog.F("ip", ip.String()))
+			logger.Debug(ctx, "missing node(s) for IP", slog.F("ip", ip.String()))
 			continue
 		}
 		s := c.Status()
@@ -613,9 +614,13 @@ func (c *Conn) AwaitReachable(ctx context.Context, ip netip.Addr) bool {
 				c.logger.Debug(ctx, "missing status for node", slog.F("node", nKey.ShortString()))
 				continue
 			}
+			logger.Debug(ctx, "checking peer for handshake",
+				slog.F("peer", ps.PublicKey.ShortString()), slog.F("last_handshake", ps.LastHandshake))
 			// Note that wireguard initializes the last handshake to the Unix Epoch until there is at least one
 			// handshake
 			if ps.LastHandshake.After(unixEpoch) {
+				//nolint: gocritic
+				logger.Debug(ctx, "IP is now reachable", slog.F("peer", ps.PublicKey.ShortString()))
 				return true
 			}
 		}
