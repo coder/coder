@@ -11,12 +11,10 @@ import (
 
 // countReadWriteCloser wraps an io.ReadWriteCloser and counts the number of bytes read and written.
 type countReadWriteCloser struct {
-	ctx context.Context
-	rwc io.ReadWriteCloser
-	//metrics *Metrics
+	ctx          context.Context
+	rwc          io.ReadWriteCloser
 	readMetrics  ConnMetrics
 	writeMetrics ConnMetrics
-	//labels       []string
 }
 
 func (w *countReadWriteCloser) Close() error {
@@ -27,13 +25,10 @@ func (w *countReadWriteCloser) Read(p []byte) (int, error) {
 	start := time.Now()
 	n, err := w.rwc.Read(p)
 	if reportableErr(err) {
-		//w.metrics.ReadErrorsTotal.WithLabelValues(w.labels...).Inc()
 		w.readMetrics.AddError(1)
 	}
-	//w.metrics.ReadLatencySeconds.WithLabelValues(w.labels...).Observe(time.Since(start).Seconds())
 	w.readMetrics.ObserveLatency(time.Since(start).Seconds())
 	if n > 0 {
-		//w.metrics.BytesReadTotal.WithLabelValues(w.labels...).Add(float64(n))
 		w.readMetrics.AddTotal(float64(n))
 	}
 	return n, err
@@ -43,13 +38,10 @@ func (w *countReadWriteCloser) Write(p []byte) (int, error) {
 	start := time.Now()
 	n, err := w.rwc.Write(p)
 	if reportableErr(err) {
-		//w.metrics.WriteErrorsTotal.WithLabelValues(w.labels...).Inc()
 		w.writeMetrics.AddError(1)
 	}
-	//w.metrics.WriteLatencySeconds.WithLabelValues(w.labels...).Observe(time.Since(start).Seconds())
 	w.writeMetrics.ObserveLatency(time.Since(start).Seconds())
 	if n > 0 {
-		//w.metrics.BytesWrittenTotal.WithLabelValues(w.labels...).Add(float64(n))
 		w.writeMetrics.AddTotal(float64(n))
 	}
 	return n, err
