@@ -694,7 +694,6 @@ func StartupLogsNotifyChannel(agentID uuid.UUID) string {
 
 type StartupLogsNotifyMessage struct {
 	CreatedAfter int64 `json:"created_after"`
-	EndOfLogs    bool  `json:"end_of_logs"`
 }
 
 type closeNetConn struct {
