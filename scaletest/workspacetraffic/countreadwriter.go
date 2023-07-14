@@ -3,10 +3,12 @@ package workspacetraffic
 import (
 	"context"
 	"errors"
-	"golang.org/x/xerrors"
 	"io"
-	"nhooyr.io/websocket"
 	"time"
+
+	"golang.org/x/xerrors"
+
+	"nhooyr.io/websocket"
 )
 
 // countReadWriteCloser wraps an io.ReadWriteCloser and counts the number of bytes read and written.

@@ -1,10 +1,11 @@
 package workspacetraffic
 
 import (
-	"cdr.dev/slog"
 	"context"
 	"io"
 	"sync"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/codersdk"
 
@@ -25,7 +26,7 @@ func connectPTY(ctx context.Context, client *codersdk.Client, agentID, reconnect
 		return nil, xerrors.Errorf("connect pty: %w", err)
 	}
 
-	//Wrap the conn in a countReadWriteCloser so we can monitor bytes sent/rcvd.
+	// Wrap the conn in a countReadWriteCloser so we can monitor bytes sent/rcvd.
 	crw := countReadWriteCloser{ctx: ctx, rwc: conn}
 	return &crw, nil
 }
