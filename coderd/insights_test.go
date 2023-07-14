@@ -100,3 +100,91 @@ func TestDeploymentInsights(t *testing.T) {
 	res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
 }
+
+func TestUserLatencyInsights(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon:    true,
+		AgentStatsRefreshInterval:   time.Millisecond * 100,
+		MetricsCacheRefreshInterval: time.Millisecond * 100,
+	})
+
+	user := coderdtest.CreateFirstUser(t, client)
+	authToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.ProvisionComplete,
+		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+	})
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	require.Empty(t, template.BuildTimeStats[codersdk.WorkspaceTransitionStart])
+
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+	agentClient := agentsdk.New(client.URL)
+	agentClient.SetSessionToken(authToken)
+	agentCloser := agent.New(agent.Options{
+		Logger: logger.Named("agent"),
+		Client: agentClient,
+	})
+	defer func() {
+		_ = agentCloser.Close()
+	}()
+	_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	userLatencies, err := client.UserLatencyInsights(ctx)
+	require.NoError(t, err)
+
+	t.Logf("%#v\n", userLatencies)
+}
+
+func TestTemplateInsights(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon:    true,
+		AgentStatsRefreshInterval:   time.Millisecond * 100,
+		MetricsCacheRefreshInterval: time.Millisecond * 100,
+	})
+
+	user := coderdtest.CreateFirstUser(t, client)
+	authToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.ProvisionComplete,
+		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+	})
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	require.Empty(t, template.BuildTimeStats[codersdk.WorkspaceTransitionStart])
+
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+	agentClient := agentsdk.New(client.URL)
+	agentClient.SetSessionToken(authToken)
+	agentCloser := agent.New(agent.Options{
+		Logger: logger.Named("agent"),
+		Client: agentClient,
+	})
+	defer func() {
+		_ = agentCloser.Close()
+	}()
+	_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	templateInsights, err := client.TemplateInsights(ctx)
+	require.NoError(t, err)
+
+	t.Logf("%#v\n", templateInsights)
+}
