@@ -3,6 +3,7 @@ package workspacetraffic_test
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -74,9 +75,6 @@ func TestRun(t *testing.T) {
 	t.Cleanup(func() {
 		_ = agentCloser.Close()
 	})
-	// We actually need to know the full user and not just the UserID / OrgID
-	user, err := client.User(ctx, firstUser.UserID.String())
-	require.NoError(t, err, "get first user")
 
 	// Make sure the agent is connected before we go any further.
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
@@ -94,19 +92,17 @@ func TestRun(t *testing.T) {
 		tickInterval = 1000 * time.Millisecond
 		cancelAfter  = 1500 * time.Millisecond
 		fudgeWrite   = 12 // The ReconnectingPTY payload incurs some overhead
+		readMetrics  = &testMetrics{}
+		writeMetrics = &testMetrics{}
 	)
-	reg := prometheus.NewRegistry()
-	metrics := workspacetraffic.NewMetrics(reg, "username", "workspace_name", "agent_name")
 	runner := workspacetraffic.NewRunner(client, workspacetraffic.Config{
-		AgentID:        agentID,
-		AgentName:      agentName,
-		WorkspaceName:  ws.Name,
-		WorkspaceOwner: ws.OwnerName,
-		BytesPerTick:   int64(bytesPerTick),
-		TickInterval:   tickInterval,
-		Duration:       testutil.WaitLong,
-		Registry:       reg,
-	}, metrics)
+		AgentID:      agentID,
+		BytesPerTick: int64(bytesPerTick),
+		TickInterval: tickInterval,
+		Duration:     testutil.WaitLong,
+		ReadMetrics:  readMetrics,
+		WriteMetrics: writeMetrics,
+	})
 
 	var logs strings.Builder
 	// Stop the test after one 'tick'. This will cause an EOF.
@@ -117,17 +113,22 @@ func TestRun(t *testing.T) {
 	require.NoError(t, runner.Run(ctx, "", &logs), "unexpected error calling Run()")
 
 	// We want to ensure the metrics are somewhat accurate.
-	lvs := []string{user.Username, ws.Name, agentName}
-	assert.InDelta(t, bytesPerTick+fudgeWrite, toFloat64(t, metrics.BytesWrittenTotal.WithLabelValues(lvs...)), 0.1)
+	assert.InDelta(t, bytesPerTick+fudgeWrite, writeMetrics.Total(), 0.1)
 	// Read is highly variable, depending on how far we read before stopping.
 	// Just ensure it's not zero.
-	assert.NotZero(t, bytesPerTick, toFloat64(t, metrics.BytesReadTotal.WithLabelValues(lvs...)))
+	assert.NotZero(t, readMetrics.Total())
 	// Latency should report non-zero values.
-	assert.NotZero(t, toFloat64(t, metrics.ReadLatencySeconds))
-	assert.NotZero(t, toFloat64(t, metrics.WriteLatencySeconds))
+	assert.NotEmpty(t, readMetrics.Latencies())
+	for _, l := range readMetrics.Latencies()[1:] { // skip the first one, which is always zero
+		assert.NotZero(t, l)
+	}
+	for _, l := range writeMetrics.Latencies()[1:] { // skip the first one, which is always zero
+		assert.NotZero(t, l)
+	}
+	assert.NotEmpty(t, writeMetrics.Latencies())
 	// Should not report any errors!
-	assert.Zero(t, toFloat64(t, metrics.ReadErrorsTotal.WithLabelValues(lvs...)))
-	assert.Zero(t, toFloat64(t, metrics.ReadErrorsTotal.WithLabelValues(lvs...)))
+	assert.NotZero(t, readMetrics.Errors())
+	assert.NotZero(t, writeMetrics.Errors())
 }
 
 // toFloat64 version of Prometheus' testutil.ToFloat64 that integrates with
@@ -175,4 +176,49 @@ func toFloat64(t testing.TB, c prometheus.Collector) float64 {
 	}
 	require.Fail(t, "collected a non-gauge/counter/untyped/histogram metric: %s", pb)
 	return 0
+}
+
+type testMetrics struct {
+	sync.Mutex
+	errors    int
+	latencies []float64
+	total     float64
+}
+
+var _ workspacetraffic.ConnMetrics = (*testMetrics)(nil)
+
+func (m *testMetrics) AddError(f float64) {
+	m.Lock()
+	defer m.Unlock()
+	m.errors++
+}
+
+func (m *testMetrics) ObserveLatency(f float64) {
+	m.Lock()
+	defer m.Unlock()
+	m.latencies = append(m.latencies, f)
+}
+
+func (m *testMetrics) AddTotal(f float64) {
+	m.Lock()
+	defer m.Unlock()
+	m.total += f
+}
+
+func (m *testMetrics) Total() float64 {
+	m.Lock()
+	defer m.Unlock()
+	return m.total
+}
+
+func (m *testMetrics) Errors() int {
+	m.Lock()
+	defer m.Unlock()
+	return m.errors
+}
+
+func (m *testMetrics) Latencies() []float64 {
+	m.Lock()
+	defer m.Unlock()
+	return m.latencies
 }

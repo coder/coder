@@ -3,7 +3,6 @@ package workspacetraffic
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
 	"time"
 
@@ -22,9 +21,8 @@ import (
 )
 
 type Runner struct {
-	client  *codersdk.Client
-	cfg     Config
-	metrics *Metrics
+	client *codersdk.Client
+	cfg    Config
 }
 
 var (
@@ -32,11 +30,11 @@ var (
 	_ harness.Cleanable = &Runner{}
 )
 
-func NewRunner(client *codersdk.Client, cfg Config, metrics *Metrics) *Runner {
+// func NewRunner(client *codersdk.Client, cfg Config, metrics *Metrics) *Runner {
+func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 	return &Runner{
-		client:  client,
-		cfg:     cfg,
-		metrics: metrics,
+		client: client,
+		cfg:    cfg,
 	}
 }
 
@@ -51,13 +49,12 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 
 	// Initialize our metrics eagerly. This is mainly so that we can test for the
 	// presence of a zero-valued metric as opposed to the absence of a metric.
-	lvs := []string{r.cfg.WorkspaceOwner, r.cfg.WorkspaceName, r.cfg.AgentName}
-	r.metrics.BytesReadTotal.WithLabelValues(lvs...).Add(0)
-	r.metrics.BytesWrittenTotal.WithLabelValues(lvs...).Add(0)
-	r.metrics.ReadErrorsTotal.WithLabelValues(lvs...).Add(0)
-	r.metrics.WriteErrorsTotal.WithLabelValues(lvs...).Add(0)
-	r.metrics.ReadLatencySeconds.WithLabelValues(lvs...).Observe(0)
-	r.metrics.WriteLatencySeconds.WithLabelValues(lvs...).Observe(0)
+	r.cfg.ReadMetrics.AddError(0)
+	r.cfg.ReadMetrics.AddTotal(0)
+	r.cfg.ReadMetrics.ObserveLatency(0)
+	r.cfg.WriteMetrics.AddError(0)
+	r.cfg.WriteMetrics.AddTotal(0)
+	r.cfg.WriteMetrics.ObserveLatency(0)
 
 	var (
 		agentID             = r.cfg.AgentID
@@ -83,26 +80,20 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	defer cancel()
 	logger.Debug(ctx, "connect to workspace agent", slog.F("agent_id", agentID))
 
-	conn, err := r.client.WorkspaceAgentReconnectingPTY(ctx, codersdk.WorkspaceAgentReconnectingPTYOpts{
-		AgentID:   agentID,
-		Reconnect: reconnect,
-		Height:    height,
-		Width:     width,
-		Command:   "/bin/sh",
-	})
+	conn, err := connectPTY(ctx, r.client, agentID, reconnect)
 	if err != nil {
 		logger.Error(ctx, "connect to workspace agent", slog.F("agent_id", agentID), slog.Error(err))
 		return xerrors.Errorf("connect to workspace: %w", err)
 	}
+
+	conn.readMetrics = r.cfg.ReadMetrics
+	conn.writeMetrics = r.cfg.WriteMetrics
 
 	go func() {
 		<-deadlineCtx.Done()
 		logger.Debug(ctx, "close agent connection", slog.F("agent_id", agentID))
 		_ = conn.Close()
 	}()
-
-	// Wrap the conn in a countReadWriter so we can monitor bytes sent/rcvd.
-	crw := countReadWriter{ReadWriter: conn, metrics: r.metrics, labels: lvs}
 
 	// Create a ticker for sending data to the PTY.
 	tick := time.NewTicker(tickInterval)
@@ -115,13 +106,13 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	go func() {
 		<-deadlineCtx.Done()
 		logger.Debug(ctx, "closing agent connection")
-		conn.Close()
+		_ = conn.Close()
 	}()
 
 	// Read forever in the background.
 	go func() {
 		logger.Debug(ctx, "reading from agent", slog.F("agent_id", agentID))
-		rch <- drain(&crw)
+		rch <- drain(conn)
 		logger.Debug(ctx, "done reading from agent", slog.F("agent_id", agentID))
 		close(rch)
 	}()
@@ -129,7 +120,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	// Write random data to the PTY every tick.
 	go func() {
 		logger.Debug(ctx, "writing to agent", slog.F("agent_id", agentID))
-		wch <- writeRandomData(&crw, bytesPerTick, tick.C)
+		wch <- writeRandomData(conn, bytesPerTick, tick.C)
 		logger.Debug(ctx, "done writing to agent", slog.F("agent_id", agentID))
 		close(wch)
 	}()
@@ -185,39 +176,6 @@ func writeRandomData(dst io.Writer, size int64, tick <-chan time.Time) error {
 	return nil
 }
 
-// countReadWriter wraps an io.ReadWriter and counts the number of bytes read and written.
-type countReadWriter struct {
-	io.ReadWriter
-	metrics *Metrics
-	labels  []string
-}
-
-func (w *countReadWriter) Read(p []byte) (int, error) {
-	start := time.Now()
-	n, err := w.ReadWriter.Read(p)
-	if reportableErr(err) {
-		w.metrics.ReadErrorsTotal.WithLabelValues(w.labels...).Inc()
-	}
-	w.metrics.ReadLatencySeconds.WithLabelValues(w.labels...).Observe(time.Since(start).Seconds())
-	if n > 0 {
-		w.metrics.BytesReadTotal.WithLabelValues(w.labels...).Add(float64(n))
-	}
-	return n, err
-}
-
-func (w *countReadWriter) Write(p []byte) (int, error) {
-	start := time.Now()
-	n, err := w.ReadWriter.Write(p)
-	if reportableErr(err) {
-		w.metrics.WriteErrorsTotal.WithLabelValues(w.labels...).Inc()
-	}
-	w.metrics.WriteLatencySeconds.WithLabelValues(w.labels...).Observe(time.Since(start).Seconds())
-	if n > 0 {
-		w.metrics.BytesWrittenTotal.WithLabelValues(w.labels...).Add(float64(n))
-	}
-	return n, err
-}
-
 func mustRandStr(l int64) string {
 	if l < 1 {
 		l = 1
@@ -227,20 +185,4 @@ func mustRandStr(l int64) string {
 		panic(err)
 	}
 	return randStr
-}
-
-// some errors we want to report in metrics; others we want to ignore
-// such as websocket.StatusNormalClosure or context.Canceled
-func reportableErr(err error) bool {
-	if err == nil {
-		return false
-	}
-	if xerrors.Is(err, context.Canceled) {
-		return false
-	}
-	var wsErr websocket.CloseError
-	if errors.As(err, &wsErr) {
-		return wsErr.Code != websocket.StatusNormalClosure
-	}
-	return false
 }
