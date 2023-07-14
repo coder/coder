@@ -3,6 +3,7 @@ import BlockIcon from "@mui/icons-material/Block"
 import CloudQueueIcon from "@mui/icons-material/CloudQueue"
 import CropSquareIcon from "@mui/icons-material/CropSquare"
 import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline"
+import LockOpenIcon from "@mui/icons-material/LockOpen"
 import ReplayIcon from "@mui/icons-material/Replay"
 import { LoadingButton } from "components/LoadingButton/LoadingButton"
 import { FC } from "react"
@@ -30,6 +31,23 @@ export const UpdateButton: FC<WorkspaceAction> = ({
       onClick={handleAction}
     >
       Update
+    </LoadingButton>
+  )
+}
+
+export const UnlockButton: FC<WorkspaceAction> = ({
+  handleAction,
+  loading,
+}) => {
+  return (
+    <LoadingButton
+      loading={loading}
+      loadingIndicator="Unlocking..."
+      loadingPosition="start"
+      startIcon={<LockOpenIcon />}
+      onClick={handleAction}
+    >
+      Unlock
     </LoadingButton>
   )
 }

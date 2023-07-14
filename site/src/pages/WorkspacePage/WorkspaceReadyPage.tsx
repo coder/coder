@@ -176,6 +176,15 @@ export const WorkspaceReadyPage = ({
         handleChangeVersion={() => {
           setChangeVersionDialogOpen(true)
         }}
+        handleUnlock={() => {
+          updateWorkspaceLock(workspace.id, false)
+            .then(() => {
+              window.location.reload()
+            })
+            .catch((error) => {
+              console.log("ERROR: ", error)
+            })
+        }}
         resources={workspace.latest_build.resources}
         builds={builds}
         canUpdateWorkspace={canUpdateWorkspace}

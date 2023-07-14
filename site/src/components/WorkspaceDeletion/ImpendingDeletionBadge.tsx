@@ -1,10 +1,10 @@
 import { Workspace } from "api/typesGenerated"
-import { displayImpendingDeletion } from "./utils"
+import { displayLockedWorkspace } from "./utils"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
 import { Pill } from "components/Pill/Pill"
-import ErrorIcon from "@mui/icons-material/ErrorOutline"
+import LockIcon from "@mui/icons-material/Lock"
 
-export const ImpendingDeletionBadge = ({
+export const LockedBadge = ({
   workspace,
 }: {
   workspace: Workspace
@@ -18,7 +18,7 @@ export const ImpendingDeletionBadge = ({
   // return null
 
   if (
-    !displayImpendingDeletion(
+    !displayLockedWorkspace(
       workspace,
       allowAdvancedScheduling,
       allowWorkspaceActions,
@@ -27,5 +27,5 @@ export const ImpendingDeletionBadge = ({
     return null
   }
 
-  return <Pill icon={<ErrorIcon />} text="Impending deletion" type="error" />
+  return <Pill icon={<LockIcon />} text="Locked" type="error" />
 }

@@ -15,7 +15,7 @@ import { WorkspaceHelpTooltip } from "components/Tooltips"
 import { WorkspacesTable } from "components/WorkspacesTable/WorkspacesTable"
 import { useLocalStorage } from "hooks"
 import difference from "lodash/difference"
-import { ImpendingDeletionBanner, Count } from "components/WorkspaceDeletion"
+import { LockedWorkspaceBanner, Count } from "components/WorkspaceDeletion"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
 import { WorkspacesFilter } from "./filter/filter"
 import { hasError, isApiValidationError } from "api/errors"
@@ -55,30 +55,25 @@ export const WorkspacesPageView: FC<
 }) => {
   const { saveLocal, getLocal } = useLocalStorage()
 
-  const workspaceIdsWithImpendingDeletions = workspaces
+  const workspacesDeletionScheduled = workspaces
     ?.filter((workspace) => workspace.deleting_at)
     .map((workspace) => workspace.id)
 
-  /**
-   * Returns a boolean indicating if there are workspaces that have been
-   * recently marked for deletion but are not in local storage.
-   * If there are, we want to alert the user so they can potentially take action
-   * before deletion takes place.
-   * @returns {boolean}
-   */
-  const isNewWorkspacesImpendingDeletion = (): boolean => {
-    const dismissedList = getLocal("dismissedWorkspaceList")
-    if (!dismissedList) {
-      return true
+  const hasLockedWorkspace =
+    workspaces?.find((workspace) => workspace.locked_at) != undefined
+
+  const hasLockedFilter = (): boolean => {
+    for (const key in filterProps.filter.values) {
+      if (key == "locked_at") {
+        return true
+      }
     }
-
-    const diff = difference(
-      workspaceIdsWithImpendingDeletions,
-      JSON.parse(dismissedList),
-    )
-
-    return diff && diff.length > 0
+    return false
   }
+
+  const shownWorkspaces = !hasLockedFilter()
+    ? workspaces?.filter((workspace) => !workspace.locked_at)
+    : workspaces
 
   return (
     <Margins>
@@ -104,13 +99,13 @@ export const WorkspacesPageView: FC<
           <ErrorAlert error={error} />
         </Maybe>
         {/* <ImpendingDeletionBanner/> determines its own visibility */}
-        <ImpendingDeletionBanner
-          workspace={workspaces?.find((workspace) => workspace.deleting_at)}
-          shouldRedisplayBanner={isNewWorkspacesImpendingDeletion()}
+        <LockedWorkspaceBanner
+          workspaces={workspaces}
+          shouldRedisplayBanner={hasLockedWorkspace}
           onDismiss={() =>
             saveLocal(
               "dismissedWorkspaceList",
-              JSON.stringify(workspaceIdsWithImpendingDeletions),
+              JSON.stringify(workspacesDeletionScheduled),
             )
           }
           count={Count.Multiple}
@@ -121,13 +116,13 @@ export const WorkspacesPageView: FC<
 
       <PaginationStatus
         isLoading={!workspaces && !error}
-        showing={workspaces?.length ?? 0}
+        showing={shownWorkspaces?.length ?? 0}
         total={count ?? 0}
         label="workspaces"
       />
 
       <WorkspacesTable
-        workspaces={workspaces}
+        workspaces={shownWorkspaces}
         isUsingFilter={filterProps.filter.used}
         onUpdateWorkspace={onUpdateWorkspace}
         error={error}

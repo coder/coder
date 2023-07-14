@@ -3,7 +3,11 @@ import Menu from "@mui/material/Menu"
 import { makeStyles } from "@mui/styles"
 import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined"
 import { FC, Fragment, ReactNode, useRef, useState } from "react"
-import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated"
+import {
+  Workspace,
+  WorkspaceStatus,
+  WorkspaceBuildParameter,
+} from "api/typesGenerated"
 import {
   ActionLoadingButton,
   CancelButton,
@@ -12,6 +16,7 @@ import {
   StopButton,
   RestartButton,
   UpdateButton,
+  UnlockButton,
 } from "./Buttons"
 import {
   ButtonMapping,
@@ -33,6 +38,7 @@ export interface WorkspaceActionsProps {
   handleCancel: () => void
   handleSettings: () => void
   handleChangeVersion: () => void
+  handleUnlock: () => void
   isUpdating: boolean
   isRestarting: boolean
   children?: ReactNode
@@ -49,6 +55,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   handleCancel,
   handleSettings,
   handleChangeVersion,
+  handleUnlock,
   isUpdating,
   isRestarting,
   canChangeVersions,
@@ -93,6 +100,10 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     [ButtonTypesEnum.canceling]: <DisabledButton label="Canceling..." />,
     [ButtonTypesEnum.deleted]: <DisabledButton label="Deleted" />,
     [ButtonTypesEnum.pending]: <ActionLoadingButton label="Pending..." />,
+    [ButtonTypesEnum.unlock]: <UnlockButton handleAction={handleUnlock} />,
+    [ButtonTypesEnum.unlocking]: (
+      <UnlockButton loading handleAction={handleUnlock} />
+    ),
   }
 
   // Returns a function that will execute the action and close the menu

@@ -1,4 +1,4 @@
-import { WorkspaceStatus } from "api/typesGenerated"
+import { Workspace, WorkspaceStatus } from "api/typesGenerated"
 import { ReactNode } from "react"
 
 // the button types we have
@@ -12,6 +12,8 @@ export enum ButtonTypesEnum {
   deleting = "deleting",
   update = "update",
   updating = "updating",
+  unlock = "lock",
+  unlocking = "unlocking",
   // disabled buttons
   canceling = "canceling",
   deleted = "deleted",
@@ -29,8 +31,16 @@ interface WorkspaceAbilities {
 }
 
 export const actionsByWorkspaceStatus = (
+  workspace: Workspace,
   status: WorkspaceStatus,
 ): WorkspaceAbilities => {
+  if (workspace.locked_at) {
+    return {
+      actions: [ButtonTypesEnum.unlock],
+      canCancel: false,
+      canAcceptJobs: false,
+    }
+  }
   return statusToActions[status]
 }
 

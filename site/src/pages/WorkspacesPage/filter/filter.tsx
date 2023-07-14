@@ -28,6 +28,10 @@ const PRESET_FILTERS = [
     query: workspaceFilterQuery.failed,
     name: "Failed workspaces",
   },
+  {
+    query: workspaceFilterQuery.locked,
+    name: "Locked workspaces",
+  },
 ]
 
 export const WorkspacesFilter = ({

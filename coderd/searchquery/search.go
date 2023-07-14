@@ -114,6 +114,7 @@ func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectT
 	filter.Name = parser.String(values, "", "name")
 	filter.Status = string(httpapi.ParseCustom(parser, values, "", "status", httpapi.ParseEnum[database.WorkspaceStatus]))
 	filter.HasAgent = parser.String(values, "", "has-agent")
+	filter.LockedAt = parser.Time(values, time.Time{}, "locked_at", "2006-01-02")
 
 	if _, ok := values["deleting_by"]; ok {
 		postFilter.DeletingBy = ptr.Ref(parser.Time(values, time.Time{}, "deleting_by", "2006-01-02"))

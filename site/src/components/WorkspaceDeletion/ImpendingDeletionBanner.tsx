@@ -11,13 +11,13 @@ export enum Count {
   Multiple,
 }
 
-export const ImpendingDeletionBanner = ({
-  workspace,
+export const LockedWorkspaceBanner = ({
+  workspaces,
   onDismiss,
   shouldRedisplayBanner,
   count = Count.Singular,
 }: {
-  workspace?: Workspace
+  workspaces?: Workspace[]
   onDismiss: () => void
   shouldRedisplayBanner: boolean
   count?: Count
@@ -29,51 +29,78 @@ export const ImpendingDeletionBanner = ({
   // is merged up
   const allowWorkspaceActions = experiments.includes("workspace_actions")
 
+  if (!workspaces) {
+    return null
+  }
+
+  const hasLockedWorkspaces = workspaces.find(
+    (workspace) => workspace.locked_at,
+  )
+
+  const hasDeletionScheduledWorkspaces = workspaces.find(
+    (workspace) => workspace.deleting_at,
+  )
+
   if (
-    !workspace ||
-    !displayImpendingDeletion(
-      workspace,
-      allowAdvancedScheduling,
-      allowWorkspaceActions,
-    ) ||
-    // Banners should be redisplayed after dismissal when additional workspaces are newly scheduled for deletion
-    !shouldRedisplayBanner
+    (!hasLockedWorkspaces ||
+      // Banners should be redisplayed after dismissal when additional workspaces are newly scheduled for deletion
+      !shouldRedisplayBanner) &&
+    // Only show this if the experiment is included.
+    allowWorkspaceActions &&
+    allowAdvancedScheduling
   ) {
     return null
   }
 
-  // if deleting_at is 7 days away or less, display an 'error' banner to convey urgency to user
-  const daysUntilDelete = differenceInDays(
-    Date.parse(workspace.last_used_at),
-    new Date(),
-  )
+  const formatDate = (dateStr: string): string => {
+    const date = new Date(dateStr)
+    return date.toLocaleDateString(undefined, {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    })
+  }
 
-  const plusFourteen = add(new Date(), { days: 14 })
+  const alertText = (): string => {
+    if (workspaces.length == 1) {
+      if (
+        hasDeletionScheduledWorkspaces &&
+        hasDeletionScheduledWorkspaces.deleting_at &&
+        hasDeletionScheduledWorkspaces.locked_at
+      ) {
+        return `This workspace has been locked since ${formatDistanceToNow(
+          Date.parse(hasDeletionScheduledWorkspaces.locked_at),
+        )} and is scheduled to be deleted at ${formatDate(
+          hasDeletionScheduledWorkspaces.deleting_at,
+        )} . To keep it you must unlock the workspace.`
+      } else if (hasLockedWorkspaces && hasLockedWorkspaces.locked_at) {
+        return `This workspace has been locked since ${formatDate(
+          hasLockedWorkspaces.locked_at,
+        )}
+        and cannot be interacted
+		with. Locked workspaces are eligible for
+		permanent deletion. To prevent deletion, unlock
+		the workspace.`
+      }
+    }
+    return ""
+  }
 
   return (
-    <Alert
-      severity={daysUntilDelete <= 7 ? "warning" : "info"}
-      onDismiss={onDismiss}
-      dismissible
-    >
+    <Alert severity="warning" onDismiss={onDismiss} dismissible>
       {count === Count.Singular ? (
-        `This workspace has been unused for ${formatDistanceToNow(
-          Date.parse(workspace.last_used_at),
-        )} and is scheduled for deletion. To keep it, connect via SSH or the web terminal.`
+        alertText()
       ) : (
         <>
           <span>There are</span>{" "}
           <Link
             component={RouterLink}
-            to={`/workspaces?filter=deleting_by:${format(
-              plusFourteen,
-              "y-MM-dd",
-            )}`}
+            to="/workspaces?filter=locked_at:1970-01-01"
           >
             workspaces
           </Link>{" "}
-          that will be deleted soon due to inactivity. To keep these workspaces,
-          connect to them via SSH or the web terminal.
+          that may be deleted soon due to inactivity. Unlock the workspaces you
+          wish to retain.
         </>
       )}
     </Alert>

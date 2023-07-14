@@ -259,6 +259,12 @@ WHERE
 			) > 0
 		ELSE true
 	END
+	-- Filter by locked workspaces.
+	AND CASE
+		WHEN @locked_at :: timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN
+			locked_at IS NOT NULL AND locked_at >= @locked_at
+		ELSE true
+	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ORDER BY
