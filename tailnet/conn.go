@@ -74,6 +74,17 @@ func init() {
 	envknob.Setenv("TS_DEBUG_TRIM_WIREGUARD", "false")
 }
 
+// ConnType identifies the type of tailnet connection.  This determines whether the connection actively establishes
+// the wireguard handshake (client) or passively waits for a handshake (agent).  The reason this matters is that if they
+// both initiate the handshake, the handshakes can cross in the network, and they have to try again with a backoff,
+// which can add significant time to establish the connection
+type ConnType int
+
+const (
+	ConnTypeClient ConnType = iota
+	ConnTypeAgent
+)
+
 type Options struct {
 	Addresses  []netip.Prefix
 	DERPMap    *tailcfg.DERPMap
@@ -87,7 +98,7 @@ type Options struct {
 }
 
 // NewConn constructs a new Wireguard server that will accept connections from the addresses provided.
-func NewConn(options *Options) (conn *Conn, err error) {
+func NewConn(connType ConnType, options *Options) (conn *Conn, err error) {
 	if options == nil {
 		options = &Options{}
 	}
@@ -238,6 +249,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 
 	dialContext, dialCancel := context.WithCancel(context.Background())
 	server := &Conn{
+		connType:                 connType,
 		blockEndpoints:           options.BlockEndpoints,
 		dialContext:              dialContext,
 		dialCancel:               dialCancel,
@@ -346,6 +358,7 @@ func IPFromUUID(uid uuid.UUID) netip.Addr {
 
 // Conn is an actively listening Wireguard connection.
 type Conn struct {
+	connType       ConnType
 	dialContext    context.Context
 	dialCancel     context.CancelFunc
 	mutex          sync.Mutex
@@ -483,7 +496,7 @@ func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 			Endpoints:  node.Endpoints,
 			DERP:       fmt.Sprintf("%s:%d", tailcfg.DerpMagicIP, node.PreferredDERP),
 			Hostinfo:   hostinfo.New().View(),
-			KeepAlive:  true,
+			KeepAlive:  c.connType == ConnTypeClient,
 		}
 		if c.blockEndpoints {
 			peerNode.Endpoints = nil

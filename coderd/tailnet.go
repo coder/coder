@@ -45,7 +45,7 @@ func NewServerTailnet(
 	cache *wsconncache.Cache,
 ) (*ServerTailnet, error) {
 	logger = logger.Named("servertailnet")
-	conn, err := tailnet.NewConn(&tailnet.Options{
+	conn, err := tailnet.NewConn(tailnet.ConnTypeClient, &tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 		DERPMap:   derpMap,
 		Logger:    logger,

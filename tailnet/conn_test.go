@@ -26,7 +26,7 @@ func TestTailnet(t *testing.T) {
 	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
 	t.Run("InstantClose", func(t *testing.T) {
 		t.Parallel()
-		conn, err := tailnet.NewConn(&tailnet.Options{
+		conn, err := tailnet.NewConn(tailnet.ConnTypeAgent, &tailnet.Options{
 			Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 			Logger:    logger.Named("w1"),
 			DERPMap:   derpMap,
@@ -39,15 +39,16 @@ func TestTailnet(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
+		// we make w1 the agent and w2 the client because we call AwaitReachable() from w2
 		w1IP := tailnet.IP()
-		w1, err := tailnet.NewConn(&tailnet.Options{
+		w1, err := tailnet.NewConn(tailnet.ConnTypeAgent, &tailnet.Options{
 			Addresses: []netip.Prefix{netip.PrefixFrom(w1IP, 128)},
 			Logger:    logger.Named("w1"),
 			DERPMap:   derpMap,
 		})
 		require.NoError(t, err)
 
-		w2, err := tailnet.NewConn(&tailnet.Options{
+		w2, err := tailnet.NewConn(tailnet.ConnTypeClient, &tailnet.Options{
 			Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 			Logger:    logger.Named("w2"),
 			DERPMap:   derpMap,
@@ -107,7 +108,7 @@ func TestTailnet(t *testing.T) {
 
 		w1IP := tailnet.IP()
 		derpMap := tailnettest.RunDERPOnlyWebSockets(t)
-		w1, err := tailnet.NewConn(&tailnet.Options{
+		w1, err := tailnet.NewConn(tailnet.ConnTypeAgent, &tailnet.Options{
 			Addresses:      []netip.Prefix{netip.PrefixFrom(w1IP, 128)},
 			Logger:         logger.Named("w1"),
 			DERPMap:        derpMap,
@@ -115,7 +116,7 @@ func TestTailnet(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		w2, err := tailnet.NewConn(&tailnet.Options{
+		w2, err := tailnet.NewConn(tailnet.ConnTypeClient, &tailnet.Options{
 			Addresses:      []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 			Logger:         logger.Named("w2"),
 			DERPMap:        derpMap,
@@ -177,7 +178,7 @@ func TestConn_PreferredDERP(t *testing.T) {
 	defer cancel()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
-	conn, err := tailnet.NewConn(&tailnet.Options{
+	conn, err := tailnet.NewConn(tailnet.ConnTypeAgent, &tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 		Logger:    logger.Named("w1"),
 		DERPMap:   derpMap,

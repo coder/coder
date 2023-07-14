@@ -160,7 +160,7 @@ func setupAgent(t *testing.T, agentAddresses []netip.Prefix) (uuid.UUID, agent.A
 	}, testutil.WaitShort, testutil.IntervalFast)
 
 	cache := wsconncache.New(func(id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
-		conn, err := tailnet.NewConn(&tailnet.Options{
+		conn, err := tailnet.NewConn(tailnet.ConnTypeClient, &tailnet.Options{
 			Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 			DERPMap:   manifest.DERPMap,
 			Logger:    logger.Named("client"),

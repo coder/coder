@@ -1914,7 +1914,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	t.Cleanup(func() {
 		_ = closer.Close()
 	})
-	conn, err := tailnet.NewConn(&tailnet.Options{
+	conn, err := tailnet.NewConn(tailnet.ConnTypeClient, &tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 		DERPMap:   metadata.DERPMap,
 		Logger:    logger.Named("client"),

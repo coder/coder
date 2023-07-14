@@ -178,7 +178,7 @@ func setupAgent(t *testing.T, manifest agentsdk.Manifest, ptyTimeout time.Durati
 	t.Cleanup(func() {
 		_ = closer.Close()
 	})
-	conn, err := tailnet.NewConn(&tailnet.Options{
+	conn, err := tailnet.NewConn(tailnet.ConnTypeClient, &tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 		DERPMap:   manifest.DERPMap,
 		Logger:    slogtest.Make(t, nil).Named("tailnet").Leveled(slog.LevelDebug),

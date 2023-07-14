@@ -65,15 +65,18 @@ func TestDERP(t *testing.T) {
 			},
 		},
 	}
+	// it's a bit arbitrary which is the client and which is the agent,
+	// but, we need one of each because the client initiates the wireguard
+	// connection.
 	w1IP := tailnet.IP()
-	w1, err := tailnet.NewConn(&tailnet.Options{
+	w1, err := tailnet.NewConn(tailnet.ConnTypeClient, &tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(w1IP, 128)},
 		Logger:    logger.Named("w1"),
 		DERPMap:   derpMap,
 	})
 	require.NoError(t, err)
 
-	w2, err := tailnet.NewConn(&tailnet.Options{
+	w2, err := tailnet.NewConn(tailnet.ConnTypeAgent, &tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 		Logger:    logger.Named("w2"),
 		DERPMap:   derpMap,

@@ -734,7 +734,7 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 // See: https://github.com/coder/coder/issues/8218
 func (api *API) _dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
 	clientConn, serverConn := net.Pipe()
-	conn, err := tailnet.NewConn(&tailnet.Options{
+	conn, err := tailnet.NewConn(tailnet.ConnTypeClient, &tailnet.Options{
 		Addresses:      []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 		DERPMap:        api.DERPMap,
 		Logger:         api.Logger.Named("tailnet"),

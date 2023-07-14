@@ -246,7 +246,7 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 	if ok {
 		header = headerTransport.Header()
 	}
-	conn, err := tailnet.NewConn(&tailnet.Options{
+	conn, err := tailnet.NewConn(tailnet.ConnTypeClient, &tailnet.Options{
 		Addresses:      []netip.Prefix{netip.PrefixFrom(ip, 128)},
 		DERPMap:        connInfo.DERPMap,
 		DERPHeader:     &header,
