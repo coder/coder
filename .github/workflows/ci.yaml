@@ -607,10 +607,13 @@ jobs:
         working-directory: ./offlinedocs
       - run: yarn export
         working-directory: ./offlinedocs
-      - uses: actions/upload-artifact@v3
+      - name: Tar files
+        run: tar -cvf docs.tar offlinedocs/out
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
         with:
           name: docs
-          path: offlinedocs/out
+          path: docs.tar
 
   required:
     runs-on: ubuntu-latest
