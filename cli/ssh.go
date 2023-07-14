@@ -11,6 +11,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -40,6 +42,8 @@ import (
 var (
 	workspacePollInterval   = time.Minute
 	autostopNotifyCountdown = []time.Duration{30 * time.Minute}
+
+	remoteForwardRegex = regexp.MustCompile(`^\d+:\w+:\d+$`)
 )
 
 //nolint:gocyclo
@@ -123,7 +127,15 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				client.SetLogger(logger)
 			}
 
-			// TODO Validate -R and --stdio
+			if remoteForward != "" {
+				isValid := remoteForwardRegex.MatchString(remoteForward)
+				if !isValid {
+					return xerrors.Errorf(`invalid format of remote-forward, expected: remote_port:local_address:local_port`)
+				}
+				if isValid && stdio {
+					return xerrors.Errorf(`remote-forward can't be enabled in the stdio mode`)
+				}
+			}
 
 			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, codersdk.Me, inv.Args[0])
 			if err != nil {
@@ -303,7 +315,40 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				defer closer.Close()
 			}
 
-			// TODO if sshForwardRemote
+			if remoteForward != "" {
+				matches := remoteForwardRegex.FindStringSubmatch(remoteForward)
+
+				// Format:
+				// remote_port:local_address:local_port
+				remotePort, err := strconv.Atoi(matches[1])
+				if err != nil {
+					return xerrors.Errorf("remote port is invalid: %w", err)
+				}
+				localAddress, err := net.ResolveIPAddr("ip", matches[2])
+				if err != nil {
+					return xerrors.Errorf("local address is invalid: %w", err)
+				}
+				localPort, err := strconv.Atoi(matches[3])
+				if err != nil {
+					return xerrors.Errorf("local port is invalid: %w", err)
+				}
+
+				localAddr := &net.TCPAddr{
+					IP:   localAddress.IP,
+					Port: localPort,
+				}
+
+				remoteAddr := &net.TCPAddr{
+					IP:   net.ParseIP("127.0.0.1"),
+					Port: remotePort,
+				}
+
+				closer, err := sshRemoteForward(ctx, inv.Stderr, sshClient, localAddr, remoteAddr)
+				if err != nil {
+					return xerrors.Errorf("ssh remote forward: %w", err)
+				}
+				defer closer.Close()
+			}
 
 			stdoutFile, validOut := inv.Stdout.(*os.File)
 			stdinFile, validIn := inv.Stdin.(*os.File)
@@ -765,18 +810,18 @@ func remoteGPGAgentSocket(sshClient *gossh.Client) (string, error) {
 	return string(bytes.TrimSpace(remoteSocket)), nil
 }
 
-// cookieAddr is a special net.Addr accepted by sshForward() which includes a
+// cookieAddr is a special net.Addr accepted by sshRemoteForward() which includes a
 // cookie which is written to the connection before forwarding.
 type cookieAddr struct {
 	net.Addr
 	cookie []byte
 }
 
-// sshForwardRemote starts forwarding connections from a remote listener to a
+// sshRemoteForward starts forwarding connections from a remote listener to a
 // local address via SSH in a goroutine.
 //
 // Accepts a `cookieAddr` as the local address.
-func sshForwardRemote(ctx context.Context, stderr io.Writer, sshClient *gossh.Client, localAddr, remoteAddr net.Addr) (io.Closer, error) {
+func sshRemoteForward(ctx context.Context, stderr io.Writer, sshClient *gossh.Client, localAddr, remoteAddr net.Addr) (io.Closer, error) {
 	listener, err := sshClient.Listen(remoteAddr.Network(), remoteAddr.String())
 	if err != nil {
 		return nil, xerrors.Errorf("listen on remote SSH address %s: %w", remoteAddr.String(), err)
