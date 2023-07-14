@@ -586,21 +586,6 @@ func (q *querier) SoftDeleteTemplateByID(ctx context.Context, id uuid.UUID) erro
 	return deleteQ(q.log, q.auth, q.db.GetTemplateByID, deleteF)(ctx, id)
 }
 
-func (q *querier) GetUsersWithCount(ctx context.Context, arg database.GetUsersParams) ([]database.User, int64, error) {
-	// q.GetUsers only returns authorized users
-	rowUsers, err := q.GetUsers(ctx, arg)
-	if err != nil {
-		return nil, -1, err
-	}
-
-	if len(rowUsers) == 0 {
-		return []database.User{}, 0, nil
-	}
-
-	users := database.ConvertUserRows(rowUsers)
-	return users, rowUsers[0].Count, nil
-}
-
 func (q *querier) SoftDeleteUserByID(ctx context.Context, id uuid.UUID) error {
 	deleteF := func(ctx context.Context, id uuid.UUID) error {
 		return q.db.UpdateUserDeletedByID(ctx, database.UpdateUserDeletedByIDParams{

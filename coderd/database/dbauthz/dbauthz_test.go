@@ -876,11 +876,6 @@ func (s *MethodTestSuite) TestUser() {
 			// Asserts are done in a SQL filter
 			Asserts()
 	}))
-	s.Run("GetUsersWithCount", s.Subtest(func(db database.Store, check *expects) {
-		_ = dbgen.User(s.T(), db, database.User{Username: "GetUsersWithCount-a-user"})
-		_ = dbgen.User(s.T(), db, database.User{Username: "GetUsersWithCount-b-user"})
-		check.Args(database.GetUsersParams{}).Asserts()
-	}))
 	s.Run("InsertUser", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertUserParams{
 			ID:        uuid.New(),
