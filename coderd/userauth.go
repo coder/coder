@@ -1110,6 +1110,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		cookies []*http.Cookie
 	)
 
+	var isConvertLoginType bool
 	err := api.Database.InTx(func(tx database.Store) error {
 		var (
 			link database.UserLink
@@ -1130,6 +1131,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				return err
 			}
 			params.User = user
+			isConvertLoginType = true
 		}
 
 		if user.ID == uuid.Nil && !params.AllowSignups {
@@ -1292,18 +1294,44 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		return nil, database.APIKey{}, xerrors.Errorf("in tx: %w", err)
 	}
 
-	//nolint:gocritic
-	cookie, key, err := api.createAPIKey(dbauthz.AsSystemRestricted(ctx), apikey.CreateParams{
-		UserID:           user.ID,
-		LoginType:        params.LoginType,
-		DeploymentValues: api.DeploymentValues,
-		RemoteAddr:       r.RemoteAddr,
-	})
-	if err != nil {
-		return nil, database.APIKey{}, xerrors.Errorf("create API key: %w", err)
+	var key database.APIKey
+	if oldKey, ok := httpmw.APIKeyOptional(r); ok && isConvertLoginType {
+		// If this is a convert login type, and it succeeds, then delete the old
+		// session. Force the user to log back in.
+		err := api.Database.DeleteAPIKeyByID(r.Context(), oldKey.ID)
+		if err != nil {
+			// Do not block this login if we fail to delete the old API key.
+			// Just delete the cookie and continue.
+			api.Logger.Warn(r.Context(), "failed to delete old API key in convert to oidc",
+				slog.Error(err),
+				slog.F("old_api_key_id", oldKey.ID),
+				slog.F("user_id", user.ID),
+			)
+		}
+		cookies = append(cookies, &http.Cookie{
+			Name:     codersdk.SessionTokenCookie,
+			Path:     "/",
+			MaxAge:   -1,
+			Secure:   api.SecureAuthCookie,
+			HttpOnly: true,
+		})
+		key = oldKey
+	} else {
+		//nolint:gocritic
+		cookie, newKey, err := api.createAPIKey(dbauthz.AsSystemRestricted(ctx), apikey.CreateParams{
+			UserID:           user.ID,
+			LoginType:        params.LoginType,
+			DeploymentValues: api.DeploymentValues,
+			RemoteAddr:       r.RemoteAddr,
+		})
+		if err != nil {
+			return nil, database.APIKey{}, xerrors.Errorf("create API key: %w", err)
+		}
+		cookies = append(cookies, cookie)
+		key = *newKey
 	}
 
-	return append(cookies, cookie), *key, nil
+	return cookies, key, nil
 }
 
 // convertUserToOauth will convert a user from password base loginType to

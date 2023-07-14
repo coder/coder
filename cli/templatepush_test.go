@@ -6,8 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -68,6 +70,90 @@ func TestTemplatePush(t *testing.T) {
 		assert.Len(t, templateVersions, 2)
 		assert.NotEqual(t, template.ActiveVersionID, templateVersions[1].ID)
 		require.Equal(t, "example", templateVersions[1].Name)
+	})
+
+	t.Run("Message less than or equal to 72 chars", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ProvisionComplete,
+		})
+
+		wantMessage := strings.Repeat("a", 72)
+
+		inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example", "--message", wantMessage, "--yes")
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t).Attach(inv)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		defer cancel()
+
+		inv = inv.WithContext(ctx)
+		w := clitest.StartWithWaiter(t, inv)
+
+		pty.ExpectNoMatchBefore(ctx, "Template message is longer than 72 characters", "Updated version at")
+
+		w.RequireSuccess()
+
+		// Assert that the template version changed.
+		templateVersions, err := client.TemplateVersionsByTemplate(ctx, codersdk.TemplateVersionsByTemplateRequest{
+			TemplateID: template.ID,
+		})
+		require.NoError(t, err)
+		assert.Len(t, templateVersions, 2)
+		assert.NotEqual(t, template.ActiveVersionID, templateVersions[1].ID)
+		require.Equal(t, wantMessage, templateVersions[1].Message)
+	})
+
+	t.Run("Message too long, warn but continue", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ProvisionComplete,
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		for i, tt := range []struct {
+			wantMessage string
+			wantMatch   string
+		}{
+			{wantMessage: strings.Repeat("a", 73), wantMatch: "Template message is longer than 72 characters"},
+			{wantMessage: "This is my title\n\nAnd this is my body.", wantMatch: "Template message contains newlines"},
+		} {
+			inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--message", tt.wantMessage, "--yes")
+			clitest.SetupConfig(t, client, root)
+			pty := ptytest.New(t).Attach(inv)
+
+			inv = inv.WithContext(ctx)
+			w := clitest.StartWithWaiter(t, inv)
+
+			pty.ExpectMatchContext(ctx, tt.wantMatch)
+
+			w.RequireSuccess()
+
+			// Assert that the template version changed.
+			templateVersions, err := client.TemplateVersionsByTemplate(ctx, codersdk.TemplateVersionsByTemplateRequest{
+				TemplateID: template.ID,
+			})
+			require.NoError(t, err)
+			assert.Len(t, templateVersions, 2+i)
+			assert.NotEqual(t, template.ActiveVersionID, templateVersions[1+i].ID)
+			require.Equal(t, tt.wantMessage, templateVersions[1+i].Message)
+		}
 	})
 
 	t.Run("NoLockfile", func(t *testing.T) {
@@ -527,6 +613,52 @@ func TestTemplatePush(t *testing.T) {
 			assert.Len(t, templateVariables, 2)
 			require.Equal(t, "second_variable", templateVariables[1].Name)
 			require.Equal(t, "foobar", templateVariables[1].Value)
+		})
+
+		t.Run("CreateTemplate", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+				Parse:          echo.ParseComplete,
+				ProvisionApply: provisionCompleteWithAgent,
+			})
+
+			const templateName = "my-template"
+			args := []string{
+				"templates",
+				"push",
+				templateName,
+				"--directory", source,
+				"--test.provisioner", string(database.ProvisionerTypeEcho),
+				"--create",
+			}
+			inv, root := clitest.New(t, args...)
+			clitest.SetupConfig(t, client, root)
+			pty := ptytest.New(t).Attach(inv)
+
+			waiter := clitest.StartWithWaiter(t, inv)
+
+			matches := []struct {
+				match string
+				write string
+			}{
+				{match: "Upload", write: "yes"},
+				{match: "template has been created"},
+			}
+			for _, m := range matches {
+				pty.ExpectMatch(m.match)
+				if m.write != "" {
+					pty.WriteLine(m.write)
+				}
+			}
+
+			waiter.RequireSuccess()
+
+			template, err := client.TemplateByName(context.Background(), user.OrganizationID, templateName)
+			require.NoError(t, err)
+			require.Equal(t, templateName, template.Name)
+			require.NotEqual(t, uuid.Nil, template.ActiveVersionID)
 		})
 	})
 }

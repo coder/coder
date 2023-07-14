@@ -22,6 +22,7 @@ resource "google_container_cluster" "primary" {
   }
   initial_node_count       = 1
   remove_default_node_pool = true
+
   network_policy {
     enabled = true
   }
@@ -45,6 +46,9 @@ resource "google_container_node_pool" "coder" {
   project    = var.project_id
   cluster    = google_container_cluster.primary.name
   node_count = var.state == "stopped" ? 0 : var.nodepool_size_coder
+  management {
+    auto_upgrade = false
+  }
   node_config {
     oauth_scopes = [
       "https://www.googleapis.com/auth/logging.write",
@@ -75,6 +79,9 @@ resource "google_container_node_pool" "workspaces" {
   project    = var.project_id
   cluster    = google_container_cluster.primary.name
   node_count = var.state == "stopped" ? 0 : var.nodepool_size_workspaces
+  management {
+    auto_upgrade = false
+  }
   node_config {
     oauth_scopes = [
       "https://www.googleapis.com/auth/logging.write",
@@ -105,6 +112,9 @@ resource "google_container_node_pool" "misc" {
   project    = var.project_id
   cluster    = google_container_cluster.primary.name
   node_count = var.state == "stopped" ? 0 : var.nodepool_size_misc
+  management {
+    auto_upgrade = false
+  }
   node_config {
     oauth_scopes = [
       "https://www.googleapis.com/auth/logging.write",

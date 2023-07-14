@@ -201,13 +201,13 @@ func TestRichParameterValidation(t *testing.T) {
 
 		monotonicIncreasingNumberRichParameters := []codersdk.TemplateVersionParameter{
 			{Name: stringParameterName, Type: "string", Mutable: true},
-			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: ptr.Ref(int32(3)), ValidationMax: ptr.Ref(int32(10)), ValidationMonotonic: "increasing"},
+			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: ptr.Ref(int32(3)), ValidationMax: ptr.Ref(int32(100)), ValidationMonotonic: "increasing"},
 			{Name: boolParameterName, Type: "bool", Mutable: true},
 		}
 
 		monotonicDecreasingNumberRichParameters := []codersdk.TemplateVersionParameter{
 			{Name: stringParameterName, Type: "string", Mutable: true},
-			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: ptr.Ref(int32(3)), ValidationMax: ptr.Ref(int32(10)), ValidationMonotonic: "decreasing"},
+			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: ptr.Ref(int32(3)), ValidationMax: ptr.Ref(int32(100)), ValidationMonotonic: "decreasing"},
 			{Name: boolParameterName, Type: "bool", Mutable: true},
 		}
 
@@ -255,10 +255,14 @@ func TestRichParameterValidation(t *testing.T) {
 			{numberParameterName, "6", false, monotonicIncreasingNumberRichParameters},
 			{numberParameterName, "7", true, monotonicIncreasingNumberRichParameters},
 			{numberParameterName, "8", true, monotonicIncreasingNumberRichParameters},
+			{numberParameterName, "11", true, monotonicIncreasingNumberRichParameters},
+			{numberParameterName, "53", true, monotonicIncreasingNumberRichParameters},
 
 			{numberParameterName, "6", true, monotonicDecreasingNumberRichParameters},
 			{numberParameterName, "7", true, monotonicDecreasingNumberRichParameters},
 			{numberParameterName, "8", false, monotonicDecreasingNumberRichParameters},
+			{numberParameterName, "11", false, monotonicDecreasingNumberRichParameters},
+			{numberParameterName, "53", false, monotonicDecreasingNumberRichParameters},
 
 			{stringParameterName, "", true, stringRichParameters},
 			{stringParameterName, "foobar", true, stringRichParameters},

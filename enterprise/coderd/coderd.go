@@ -83,15 +83,20 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		OIDC:   options.OIDCConfig,
 	}
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
-		DB:              options.Database,
-		OAuth2Configs:   oauthConfigs,
-		RedirectToLogin: false,
+		DB:                          options.Database,
+		OAuth2Configs:               oauthConfigs,
+		RedirectToLogin:             false,
+		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
+		Optional:                    false,
+		SessionTokenFunc:            nil, // Default behavior
 	})
 	apiKeyMiddlewareOptional := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
-		DB:              options.Database,
-		OAuth2Configs:   oauthConfigs,
-		RedirectToLogin: false,
-		Optional:        true,
+		DB:                          options.Database,
+		OAuth2Configs:               oauthConfigs,
+		RedirectToLogin:             false,
+		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
+		Optional:                    true,
+		SessionTokenFunc:            nil, // Default behavior
 	})
 
 	deploymentID, err := options.Database.GetDeploymentID(ctx)
@@ -443,10 +448,10 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		coordinator := agpltailnet.NewCoordinator(api.Logger)
 		if enabled {
 			var haCoordinator agpltailnet.Coordinator
-			if api.AGPL.Experiments.Enabled(codersdk.ExperimentTailnetPGCoordinator) {
-				haCoordinator, err = tailnet.NewPGCoord(api.ctx, api.Logger, api.Pubsub, api.Database)
-			} else {
+			if api.AGPL.Experiments.Enabled(codersdk.ExperimentTailnetHACoordinator) {
 				haCoordinator, err = tailnet.NewCoordinator(api.Logger, api.Pubsub)
+			} else {
+				haCoordinator, err = tailnet.NewPGCoord(api.ctx, api.Logger, api.Pubsub, api.Database)
 			}
 			if err != nil {
 				api.Logger.Error(ctx, "unable to set up high availability coordinator", slog.Error(err))

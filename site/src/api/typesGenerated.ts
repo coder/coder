@@ -200,6 +200,7 @@ export interface CreateTemplateVersionDryRunRequest {
 // From codersdk/organizations.go
 export interface CreateTemplateVersionRequest {
   readonly name?: string
+  readonly message?: string
   readonly template_id?: string
   readonly storage_method: ProvisionerStorageMethod
   readonly file_id?: string
@@ -643,6 +644,7 @@ export interface PatchGroupRequest {
 // From codersdk/templateversions.go
 export interface PatchTemplateVersionRequest {
   readonly name: string
+  readonly message?: string
 }
 
 // From codersdk/workspaceproxy.go
@@ -915,6 +917,7 @@ export interface TemplateVersion {
   readonly created_at: string
   readonly updated_at: string
   readonly name: string
+  readonly message: string
   readonly job: ProvisionerJob
   readonly readme: string
   readonly created_by: User
@@ -1429,13 +1432,17 @@ export const Entitlements: Entitlement[] = [
 export type Experiment =
   | "convert-to-oidc"
   | "moons"
-  | "tailnet_pg_coordinator"
+  | "single_tailnet"
+  | "tailnet_ha_coordinator"
   | "workspace_actions"
+  | "workspace_build_logs_ui"
 export const Experiments: Experiment[] = [
   "convert-to-oidc",
   "moons",
-  "tailnet_pg_coordinator",
+  "single_tailnet",
+  "tailnet_ha_coordinator",
   "workspace_actions",
+  "workspace_build_logs_ui",
 ]
 
 // From codersdk/deployment.go

@@ -23,13 +23,11 @@ func TestProvisionerDaemonServe(t *testing.T) {
 	t.Parallel()
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
-		client := coderdenttest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureExternalProvisionerDaemons: 1,
 			},
-		})
+		}})
 		srv, err := client.ServeProvisionerDaemon(context.Background(), user.OrganizationID, []codersdk.ProvisionerType{
 			codersdk.ProvisionerTypeEcho,
 		}, map[string]string{})
@@ -39,8 +37,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 
 	t.Run("NoLicense", func(t *testing.T) {
 		t.Parallel()
-		client := coderdenttest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
+		client, user := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
 		_, err := client.ServeProvisionerDaemon(context.Background(), user.OrganizationID, []codersdk.ProvisionerType{
 			codersdk.ProvisionerTypeEcho,
 		}, map[string]string{})
@@ -52,13 +49,11 @@ func TestProvisionerDaemonServe(t *testing.T) {
 
 	t.Run("Organization", func(t *testing.T) {
 		t.Parallel()
-		client := coderdenttest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureExternalProvisionerDaemons: 1,
 			},
-		})
+		}})
 		another, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOrgAdmin(user.OrganizationID))
 		_, err := another.ServeProvisionerDaemon(context.Background(), user.OrganizationID, []codersdk.ProvisionerType{
 			codersdk.ProvisionerTypeEcho,
@@ -73,13 +68,11 @@ func TestProvisionerDaemonServe(t *testing.T) {
 
 	t.Run("OrganizationNoPerms", func(t *testing.T) {
 		t.Parallel()
-		client := coderdenttest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureExternalProvisionerDaemons: 1,
 			},
-		})
+		}})
 		another, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_, err := another.ServeProvisionerDaemon(context.Background(), user.OrganizationID, []codersdk.ProvisionerType{
 			codersdk.ProvisionerTypeEcho,
@@ -94,13 +87,11 @@ func TestProvisionerDaemonServe(t *testing.T) {
 
 	t.Run("UserLocal", func(t *testing.T) {
 		t.Parallel()
-		client := coderdenttest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureExternalProvisionerDaemons: 1,
 			},
-		})
+		}})
 		closer := coderdtest.NewExternalProvisionerDaemon(t, client, user.OrganizationID, map[string]string{
 			provisionerdserver.TagScope: provisionerdserver.ScopeUser,
 		})

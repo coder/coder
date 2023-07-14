@@ -106,10 +106,15 @@ func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 		TemplateID: templateVersion.TemplateID,
 		UpdatedAt:  database.Now(),
 		Name:       templateVersion.Name,
+		Message:    templateVersion.Message,
 	}
 
 	if params.Name != "" {
 		updateParams.Name = params.Name
+	}
+
+	if params.Message != nil {
+		updateParams.Message = *params.Message
 	}
 
 	errTemplateVersionNameConflict := xerrors.New("template version name must be unique for a template")
@@ -1306,6 +1311,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
 			Name:           req.Name,
+			Message:        req.Message,
 			Readme:         "",
 			JobID:          provisionerJob.ID,
 			CreatedBy:      apiKey.UserID,
@@ -1420,6 +1426,7 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 		CreatedAt:      version.CreatedAt,
 		UpdatedAt:      version.UpdatedAt,
 		Name:           version.Name,
+		Message:        version.Message,
 		Job:            job,
 		Readme:         version.Readme,
 		CreatedBy:      createdBy,

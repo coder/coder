@@ -26,6 +26,14 @@ Use --always-prompt to change the parameter values of the workspace.
 
 Always prompt all parameters. Does not pull parameter values from existing workspace.
 
+### --build-options
+
+|      |                   |
+| ---- | ----------------- |
+| Type | <code>bool</code> |
+
+Prompt for one-time build options defined with ephemeral parameters.
+
 ### --rich-parameter-file
 
 |             |                                         |

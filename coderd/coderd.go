@@ -299,18 +299,19 @@ func New(options *Options) *API {
 		},
 	)
 
-	staticHandler := site.New(&site.Options{
-		BinFS:     binFS,
-		BinHashes: binHashes,
-		Database:  options.Database,
-		SiteFS:    site.FS(),
-	})
-	staticHandler.Experiments.Store(&experiments)
-
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
 		OIDC:   options.OIDCConfig,
 	}
+
+	staticHandler := site.New(&site.Options{
+		BinFS:         binFS,
+		BinHashes:     binHashes,
+		Database:      options.Database,
+		SiteFS:        site.FS(),
+		OAuth2Configs: oauthConfigs,
+	})
+	staticHandler.Experiments.Store(&experiments)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	r := chi.NewRouter()
@@ -363,8 +364,23 @@ func New(options *Options) *API {
 	}
 
 	api.Auditor.Store(&options.Auditor)
-	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
+	if api.Experiments.Enabled(codersdk.ExperimentSingleTailnet) {
+		api.agentProvider, err = NewServerTailnet(api.ctx,
+			options.Logger,
+			options.DERPServer,
+			options.DERPMap,
+			&api.TailnetCoordinator,
+			wsconncache.New(api._dialWorkspaceAgentTailnet, 0),
+		)
+		if err != nil {
+			panic("failed to setup server tailnet: " + err.Error())
+		}
+	} else {
+		api.agentProvider = &wsconncache.AgentProvider{
+			Cache: wsconncache.New(api._dialWorkspaceAgentTailnet, 0),
+		}
+	}
 
 	api.workspaceAppServer = &workspaceapps.Server{
 		Logger: options.Logger.Named("workspaceapps"),
@@ -376,7 +392,7 @@ func New(options *Options) *API {
 		RealIPConfig:  options.RealIPConfig,
 
 		SignedTokenProvider: api.WorkspaceAppsProvider,
-		WorkspaceConnCache:  api.workspaceAgentCache,
+		AgentProvider:       api.agentProvider,
 		AppSecurityKey:      options.AppSecurityKey,
 
 		DisablePathApps:  options.DeploymentValues.DisablePathApps.Value(),
@@ -389,6 +405,7 @@ func New(options *Options) *API {
 		RedirectToLogin:             false,
 		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
 		Optional:                    false,
+		SessionTokenFunc:            nil, // Default behavior
 	})
 	// Same as above but it redirects to the login page.
 	apiKeyMiddlewareRedirect := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
@@ -397,6 +414,7 @@ func New(options *Options) *API {
 		RedirectToLogin:             true,
 		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
 		Optional:                    false,
+		SessionTokenFunc:            nil, // Default behavior
 	})
 	// Same as the first but it's optional.
 	apiKeyMiddlewareOptional := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
@@ -405,6 +423,7 @@ func New(options *Options) *API {
 		RedirectToLogin:             false,
 		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
 		Optional:                    true,
+		SessionTokenFunc:            nil, // Default behavior
 	})
 
 	// API rate limit middleware. The counter is local and not shared between
@@ -631,12 +650,18 @@ func New(options *Options) *API {
 				r.Post("/login", api.postLogin)
 				r.Route("/oauth2", func(r chi.Router) {
 					r.Route("/github", func(r chi.Router) {
-						r.Use(httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient, nil))
+						r.Use(
+							httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient, nil),
+							apiKeyMiddlewareOptional,
+						)
 						r.Get("/callback", api.userOAuth2Github)
 					})
 				})
 				r.Route("/oidc/callback", func(r chi.Router) {
-					r.Use(httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient, oidcAuthURLParams))
+					r.Use(
+						httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient, oidcAuthURLParams),
+						apiKeyMiddlewareOptional,
+					)
 					r.Get("/", api.userOIDC)
 				})
 			})
@@ -911,10 +936,10 @@ type API struct {
 	derpCloseFunc      func()
 
 	metricsCache          *metricscache.Cache
-	workspaceAgentCache   *wsconncache.Cache
 	updateChecker         *updatecheck.Checker
 	WorkspaceAppsProvider workspaceapps.SignedTokenProvider
 	workspaceAppServer    *workspaceapps.Server
+	agentProvider         workspaceapps.AgentProvider
 
 	// Experiments contains the list of experiments currently enabled.
 	// This is used to gate features that are not yet ready for production.
@@ -941,7 +966,8 @@ func (api *API) Close() error {
 	if coordinator != nil {
 		_ = (*coordinator).Close()
 	}
-	return api.workspaceAgentCache.Close()
+	_ = api.agentProvider.Close()
+	return nil
 }
 
 func compressHandler(h http.Handler) http.Handler {

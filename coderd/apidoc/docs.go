@@ -4513,9 +4513,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/agentsdk.StatsResponse"
                         }
                     }
-                },
-                "x-apidocgen": {
-                    "skip": true
                 }
             }
         },
@@ -4594,9 +4591,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
-                "x-apidocgen": {
-                    "skip": true
                 }
             }
         },
@@ -5396,55 +5390,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Filter by owner username",
-                        "name": "owner",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, deleting_by.",
+                        "name": "q",
                         "in": "query"
                     },
                     {
-                        "type": "string",
-                        "description": "Filter by template name",
-                        "name": "template",
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
                         "in": "query"
                     },
                     {
-                        "type": "string",
-                        "description": "Filter with partial-match by workspace name",
-                        "name": "name",
-                        "in": "query"
-                    },
-                    {
-                        "enum": [
-                            "pending",
-                            "running",
-                            "stopping",
-                            "stopped",
-                            "failed",
-                            "canceling",
-                            "canceled",
-                            "deleted",
-                            "deleting"
-                        ],
-                        "type": "string",
-                        "description": "Filter by workspace status",
-                        "name": "status",
-                        "in": "query"
-                    },
-                    {
-                        "enum": [
-                            "connected",
-                            "connecting",
-                            "disconnected",
-                            "timeout"
-                        ],
-                        "type": "string",
-                        "description": "Filter by agent status",
-                        "name": "has_agent",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Filter workspaces scheduled to be deleted by this time",
-                        "name": "deleting_by",
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
                         "in": "query"
                     }
                 ],
@@ -5996,6 +5955,9 @@ const docTemplate = `{
         "agentsdk.Manifest": {
             "type": "object",
             "properties": {
+                "agent_id": {
+                    "type": "string"
+                },
                 "apps": {
                     "type": "array",
                     "items": {
@@ -6273,6 +6235,10 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "required": {
+                    "description": "Required means this value must be set by some means. It requires\n` + "`" + `ValueSource != ValueSourceNone` + "`" + `\nIf ` + "`" + `Default` + "`" + ` is set, then ` + "`" + `Required` + "`" + ` is ignored.",
+                    "type": "boolean"
                 },
                 "use_instead": {
                     "description": "UseInstead is a list of options that should be used instead of this one.\nThe field is used to generate a deprecation warning.",
@@ -7024,6 +6990,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "message": {
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -7643,14 +7612,18 @@ const docTemplate = `{
             "enum": [
                 "moons",
                 "workspace_actions",
-                "tailnet_pg_coordinator",
-                "convert-to-oidc"
+                "tailnet_ha_coordinator",
+                "convert-to-oidc",
+                "single_tailnet",
+                "workspace_build_logs_ui"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
                 "ExperimentWorkspaceActions",
-                "ExperimentTailnetPGCoordinator",
-                "ExperimentConvertToOIDC"
+                "ExperimentTailnetHACoordinator",
+                "ExperimentConvertToOIDC",
+                "ExperimentSingleTailnet",
+                "ExperimentWorkspaceBuildLogsUI"
             ]
         },
         "codersdk.Feature": {
@@ -8249,6 +8222,9 @@ const docTemplate = `{
         "codersdk.PatchTemplateVersionRequest": {
             "type": "object",
             "properties": {
+                "message": {
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
                 }
@@ -9113,6 +9089,9 @@ const docTemplate = `{
                 },
                 "job": {
                     "$ref": "#/definitions/codersdk.ProvisionerJob"
+                },
+                "message": {
+                    "type": "string"
                 },
                 "name": {
                     "type": "string"

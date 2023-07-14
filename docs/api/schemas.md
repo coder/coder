@@ -161,6 +161,7 @@
 
 ```json
 {
+  "agent_id": "string",
   "apps": [
     {
       "command": "string",
@@ -260,6 +261,7 @@
 
 | Name                         | Type                                                                                              | Required | Restrictions | Description                                                                                                                                                |
 | ---------------------------- | ------------------------------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent_id`                   | string                                                                                            | false    |              |                                                                                                                                                            |
 | `apps`                       | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)                                           | false    |              |                                                                                                                                                            |
 | `derpmap`                    | [tailcfg.DERPMap](#tailcfgderpmap)                                                                | false    |              |                                                                                                                                                            |
 | `directory`                  | string                                                                                            | false    |              |                                                                                                                                                            |
@@ -533,6 +535,7 @@
   },
   "hidden": true,
   "name": "string",
+  "required": true,
   "use_instead": [
     {
       "annotations": {
@@ -557,6 +560,7 @@
       },
       "hidden": true,
       "name": "string",
+      "required": true,
       "use_instead": [],
       "value": null,
       "value_source": "",
@@ -571,21 +575,22 @@
 
 ### Properties
 
-| Name             | Type                                       | Required | Restrictions | Description                                                                                                                    |
-| ---------------- | ------------------------------------------ | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| `annotations`    | [clibase.Annotations](#clibaseannotations) | false    |              | Annotations enable extensions to clibase higher up in the stack. It's useful for help formatting and documentation generation. |
-| `default`        | string                                     | false    |              | Default is parsed into Value if set.                                                                                           |
-| `description`    | string                                     | false    |              |                                                                                                                                |
-| `env`            | string                                     | false    |              | Env is the environment variable used to configure this option. If unset, environment configuring is disabled.                  |
-| `flag`           | string                                     | false    |              | Flag is the long name of the flag used to configure this option. If unset, flag configuring is disabled.                       |
-| `flag_shorthand` | string                                     | false    |              | Flag shorthand is the one-character shorthand for the flag. If unset, no shorthand is used.                                    |
-| `group`          | [clibase.Group](#clibasegroup)             | false    |              | Group is a group hierarchy that helps organize this option in help, configs and other documentation.                           |
-| `hidden`         | boolean                                    | false    |              |                                                                                                                                |
-| `name`           | string                                     | false    |              |                                                                                                                                |
-| `use_instead`    | array of [clibase.Option](#clibaseoption)  | false    |              | Use instead is a list of options that should be used instead of this one. The field is used to generate a deprecation warning. |
-| `value`          | any                                        | false    |              | Value includes the types listed in values.go.                                                                                  |
-| `value_source`   | [clibase.ValueSource](#clibasevaluesource) | false    |              |                                                                                                                                |
-| `yaml`           | string                                     | false    |              | Yaml is the YAML key used to configure this option. If unset, YAML configuring is disabled.                                    |
+| Name             | Type                                       | Required | Restrictions | Description                                                                                                                                        |
+| ---------------- | ------------------------------------------ | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `annotations`    | [clibase.Annotations](#clibaseannotations) | false    |              | Annotations enable extensions to clibase higher up in the stack. It's useful for help formatting and documentation generation.                     |
+| `default`        | string                                     | false    |              | Default is parsed into Value if set.                                                                                                               |
+| `description`    | string                                     | false    |              |                                                                                                                                                    |
+| `env`            | string                                     | false    |              | Env is the environment variable used to configure this option. If unset, environment configuring is disabled.                                      |
+| `flag`           | string                                     | false    |              | Flag is the long name of the flag used to configure this option. If unset, flag configuring is disabled.                                           |
+| `flag_shorthand` | string                                     | false    |              | Flag shorthand is the one-character shorthand for the flag. If unset, no shorthand is used.                                                        |
+| `group`          | [clibase.Group](#clibasegroup)             | false    |              | Group is a group hierarchy that helps organize this option in help, configs and other documentation.                                               |
+| `hidden`         | boolean                                    | false    |              |                                                                                                                                                    |
+| `name`           | string                                     | false    |              |                                                                                                                                                    |
+| `required`       | boolean                                    | false    |              | Required means this value must be set by some means. It requires `ValueSource != ValueSourceNone` If `Default` is set, then `Required` is ignored. |
+| `use_instead`    | array of [clibase.Option](#clibaseoption)  | false    |              | Use instead is a list of options that should be used instead of this one. The field is used to generate a deprecation warning.                     |
+| `value`          | any                                        | false    |              | Value includes the types listed in values.go.                                                                                                      |
+| `value_source`   | [clibase.ValueSource](#clibasevaluesource) | false    |              |                                                                                                                                                    |
+| `yaml`           | string                                     | false    |              | Yaml is the YAML key used to configure this option. If unset, YAML configuring is disabled.                                                        |
 
 ## clibase.Struct-array_codersdk_GitAuthConfig
 
@@ -1435,6 +1440,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "example_id": "string",
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+  "message": "string",
   "name": "string",
   "provisioner": "terraform",
   "storage_method": "file",
@@ -1458,6 +1464,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ---------------------- | ---------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------ |
 | `example_id`           | string                                                                 | false    |              |                                                              |
 | `file_id`              | string                                                                 | false    |              |                                                              |
+| `message`              | string                                                                 | false    |              |                                                              |
 | `name`                 | string                                                                 | false    |              |                                                              |
 | `provisioner`          | string                                                                 | true     |              |                                                              |
 | `storage_method`       | [codersdk.ProvisionerStorageMethod](#codersdkprovisionerstoragemethod) | true     |              |                                                              |
@@ -2097,6 +2104,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       },
       "hidden": true,
       "name": "string",
+      "required": true,
       "use_instead": [{}],
       "value": null,
       "value_source": "",
@@ -2531,12 +2539,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value                    |
-| ------------------------ |
-| `moons`                  |
-| `workspace_actions`      |
-| `tailnet_pg_coordinator` |
-| `convert-to-oidc`        |
+| Value                     |
+| ------------------------- |
+| `moons`                   |
+| `workspace_actions`       |
+| `tailnet_ha_coordinator`  |
+| `convert-to-oidc`         |
+| `single_tailnet`          |
+| `workspace_build_logs_ui` |
 
 ## codersdk.Feature
 
@@ -3219,15 +3229,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "message": "string",
   "name": "string"
 }
 ```
 
 ### Properties
 
-| Name   | Type   | Required | Restrictions | Description |
-| ------ | ------ | -------- | ------------ | ----------- |
-| `name` | string | false    |              |             |
+| Name      | Type   | Required | Restrictions | Description |
+| --------- | ------ | -------- | ------------ | ----------- |
+| `message` | string | false    |              |             |
+| `name`    | string | false    |              |             |
 
 ## codersdk.PatchWorkspaceProxy
 
@@ -4148,6 +4160,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     },
     "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
   },
+  "message": "string",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "readme": "string",
@@ -4165,6 +4178,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `created_by`      | [codersdk.User](#codersdkuser)                                              | false    |              |             |
 | `id`              | string                                                                      | false    |              |             |
 | `job`             | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                          | false    |              |             |
+| `message`         | string                                                                      | false    |              |             |
 | `name`            | string                                                                      | false    |              |             |
 | `organization_id` | string                                                                      | false    |              |             |
 | `readme`          | string                                                                      | false    |              |             |

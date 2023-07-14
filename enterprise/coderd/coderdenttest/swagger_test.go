@@ -16,6 +16,7 @@ func TestEnterpriseEndpointsDocumented(t *testing.T) {
 	require.NoError(t, err, "can't parse swagger comments")
 	require.NotEmpty(t, swaggerComments, "swagger comments must be present")
 
-	_, _, api := coderdenttest.NewWithAPI(t, nil)
+	//nolint: dogsled
+	_, _, api, _ := coderdenttest.NewWithAPI(t, nil)
 	coderdtest.VerifySwaggerDefinitions(t, api.AGPL.APIHandler, swaggerComments)
 }

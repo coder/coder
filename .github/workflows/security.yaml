@@ -22,20 +22,22 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  CODER_GO_VERSION: "1.20.5"
+  CODER_GO_VERSION: "1.20.6"
 
 jobs:
   codeql:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v2
         with:
           languages: go, javascript
 
-      - uses: ./.github/actions/setup-go
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
 
       # Workaround to prevent CodeQL from building the dashboard.
       - name: Remove Makefile
@@ -59,11 +61,13 @@ jobs:
   trivy:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
-      - uses: ./.github/actions/setup-go
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
 
       - name: Cache Node
         id: cache-node
@@ -76,9 +80,11 @@ jobs:
           restore-keys: |
             js-${{ runner.os }}-
 
-      - name: Install sqlc
-        run: |
-          curl -sSL https://github.com/kyleconroy/sqlc/releases/download/v1.18.0/sqlc_1.18.0_linux_amd64.tar.gz | sudo tar -C /usr/bin -xz sqlc
+      - name: Setup sqlc
+        uses: sqlc-dev/setup-sqlc@v3
+        with:
+          sqlc-version: "1.18.0"
+
       - name: Install yq
         run: go run github.com/mikefarah/yq/v4@v4.30.6
       - name: Install mockgen

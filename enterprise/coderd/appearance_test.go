@@ -6,9 +6,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/coderd/coderdtest"
@@ -30,9 +29,7 @@ func TestServiceBanners(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		adminClient := coderdenttest.New(t, &coderdenttest.Options{})
-
-		adminUser := coderdtest.CreateFirstUser(t, adminClient)
+		adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
 
 		// Even without a license, the banner should return as disabled.
 		sb, err := adminClient.Appearance(ctx)
@@ -88,12 +85,12 @@ func TestServiceBanners(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		client := coderdenttest.New(t, &coderdenttest.Options{
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
 			},
+			DontAddLicense: true,
 		})
-		user := coderdtest.CreateFirstUser(t, client)
 		license := coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureAppearance: 1,
@@ -164,15 +161,14 @@ func TestCustomSupportLinks(t *testing.T) {
 		Value: supportLinks,
 	}
 
-	client := coderdenttest.New(t, &coderdenttest.Options{
+	client, _ := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			DeploymentValues: cfg,
 		},
-	})
-	coderdtest.CreateFirstUser(t, client)
-	coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-		Features: license.Features{
-			codersdk.FeatureAppearance: 1,
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureAppearance: 1,
+			},
 		},
 	})
 
@@ -187,9 +183,8 @@ func TestCustomSupportLinks(t *testing.T) {
 func TestDefaultSupportLinks(t *testing.T) {
 	t.Parallel()
 
-	client := coderdenttest.New(t, nil)
-	coderdtest.CreateFirstUser(t, client)
 	// Don't need to set the license, as default links are passed without it.
+	client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()

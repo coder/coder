@@ -61,10 +61,11 @@ func init() {
 }
 
 type Options struct {
-	BinFS     http.FileSystem
-	BinHashes map[string]string
-	Database  database.Store
-	SiteFS    fs.FS
+	BinFS         http.FileSystem
+	BinHashes     map[string]string
+	Database      database.Store
+	SiteFS        fs.FS
+	OAuth2Configs *httpmw.OAuth2Configs
 }
 
 func New(opts *Options) *Handler {
@@ -264,7 +265,7 @@ func ShouldCacheFile(reqFile string) bool {
 }
 
 func (h *Handler) serveHTML(resp http.ResponseWriter, request *http.Request, reqPath string, state htmlState) bool {
-	if data, err := h.renderHTMLWithState(resp, request, reqPath, state); err == nil {
+	if data, err := h.renderHTMLWithState(request, reqPath, state); err == nil {
 		if reqPath == "" {
 			// Pass "index.html" to the ServeContent so the ServeContent sets the right content headers.
 			reqPath = "index.html"
@@ -277,7 +278,7 @@ func (h *Handler) serveHTML(resp http.ResponseWriter, request *http.Request, req
 
 // renderWithState will render the file using the given nonce if the file exists
 // as a template. If it does not, it will return an error.
-func (h *Handler) renderHTMLWithState(rw http.ResponseWriter, r *http.Request, filePath string, state htmlState) ([]byte, error) {
+func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state htmlState) ([]byte, error) {
 	var buf bytes.Buffer
 	if filePath == "" {
 		filePath = "index.html"
@@ -289,11 +290,21 @@ func (h *Handler) renderHTMLWithState(rw http.ResponseWriter, r *http.Request, f
 
 	// Cookies are sent when requesting HTML, so we can get the user
 	// and pre-populate the state for the frontend to reduce requests.
-	apiKey, actor, _ := httpmw.ExtractAPIKey(rw, r, httpmw.ExtractAPIKeyConfig{
-		Optional: true,
-		DB:       h.opts.Database,
+	// We use a noop response writer because we don't want to write
+	// anything to the response and break the HTML, an error means we
+	// simply don't pre-populate the state.
+	noopRW := noopResponseWriter{}
+	apiKey, actor, ok := httpmw.ExtractAPIKey(noopRW, r, httpmw.ExtractAPIKeyConfig{
+		Optional:      true,
+		DB:            h.opts.Database,
+		OAuth2Configs: h.opts.OAuth2Configs,
+		// Special case for site, we can always disable refresh here because
+		// the frontend will perform API requests if this fails.
+		DisableSessionExpiryRefresh: true,
+		RedirectToLogin:             false,
+		SessionTokenFunc:            nil,
 	})
-	if apiKey != nil && actor != nil {
+	if ok && apiKey != nil && actor != nil {
 		ctx := dbauthz.As(r.Context(), actor.Actor)
 
 		var eg errgroup.Group
@@ -384,6 +395,13 @@ func (h *Handler) renderHTMLWithState(rw http.ResponseWriter, r *http.Request, f
 	}
 	return buf.Bytes(), nil
 }
+
+// noopResponseWriter is a response writer that does nothing.
+type noopResponseWriter struct{}
+
+func (noopResponseWriter) Header() http.Header         { return http.Header{} }
+func (noopResponseWriter) Write(p []byte) (int, error) { return len(p), nil }
+func (noopResponseWriter) WriteHeader(int)             {}
 
 // secureHeaders is only needed for statically served files. We do not need this for api endpoints.
 // It adds various headers to enforce browser security features.

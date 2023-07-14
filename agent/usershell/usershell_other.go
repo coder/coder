@@ -27,5 +27,8 @@ func Get(username string) (string, error) {
 		}
 		return parts[6], nil
 	}
-	return "", xerrors.Errorf("user %q not found in /etc/passwd", username)
+	if s := os.Getenv("SHELL"); s != "" {
+		return s, nil
+	}
+	return "", xerrors.Errorf("shell for user %q not found in /etc/passwd or $SHELL", username)
 }

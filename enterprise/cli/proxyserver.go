@@ -65,7 +65,7 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 			Flag:        "proxy-session-token",
 			Env:         "CODER_PROXY_SESSION_TOKEN",
 			YAML:        "proxySessionToken",
-			Default:     "",
+			Required:    true,
 			Value:       &proxySessionToken,
 			Group:       &externalProxyOptionGroup,
 			Hidden:      false,
@@ -77,10 +77,15 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 			Flag:        "primary-access-url",
 			Env:         "CODER_PRIMARY_ACCESS_URL",
 			YAML:        "primaryAccessURL",
-			Default:     "",
-			Value:       &primaryAccessURL,
-			Group:       &externalProxyOptionGroup,
-			Hidden:      false,
+			Required:    true,
+			Value: clibase.Validate(&primaryAccessURL, func(value *clibase.URL) error {
+				if !(value.Scheme == "http" || value.Scheme == "https") {
+					return xerrors.Errorf("'--primary-access-url' value must be http or https: url=%s", primaryAccessURL.String())
+				}
+				return nil
+			}),
+			Group:  &externalProxyOptionGroup,
+			Hidden: false,
 		},
 	)
 
@@ -94,10 +99,6 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 			clibase.RequireNArgs(0),
 		),
 		Handler: func(inv *clibase.Invocation) error {
-			if !(primaryAccessURL.Scheme == "http" || primaryAccessURL.Scheme == "https") {
-				return xerrors.Errorf("'--primary-access-url' value must be http or https: url=%s", primaryAccessURL.String())
-			}
-
 			var closers closers
 			// Main command context for managing cancellation of running
 			// services.
@@ -107,7 +108,7 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 
 			go cli.DumpHandler(ctx)
 
-			cli.PrintLogo(inv)
+			cli.PrintLogo(inv, "Coder Workspace Proxy")
 			logger, logCloser, err := cli.BuildLogger(inv, cfg)
 			if err != nil {
 				return xerrors.Errorf("make logger: %w", err)

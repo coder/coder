@@ -262,10 +262,13 @@ const selectByLatency = (
     return undefined
   }
 
-  const proxyMap = proxies.reduce((acc, proxy) => {
-    acc[proxy.id] = proxy
-    return acc
-  }, {} as Record<string, Region>)
+  const proxyMap = proxies.reduce(
+    (acc, proxy) => {
+      acc[proxy.id] = proxy
+      return acc
+    },
+    {} as Record<string, Region>,
+  )
 
   const best = Object.keys(latencies)
     .map((proxyId) => {

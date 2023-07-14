@@ -15,7 +15,12 @@ func RichParameter(inv *clibase.Invocation, templateVersionParameter codersdk.Te
 		label = templateVersionParameter.DisplayName
 	}
 
+	if templateVersionParameter.Ephemeral {
+		label += DefaultStyles.Warn.Render(" (build option)")
+	}
+
 	_, _ = fmt.Fprintln(inv.Stdout, DefaultStyles.Bold.Render(label))
+
 	if templateVersionParameter.DescriptionPlaintext != "" {
 		_, _ = fmt.Fprintln(inv.Stdout, "  "+strings.TrimSpace(strings.Join(strings.Split(templateVersionParameter.DescriptionPlaintext, "\n"), "\n  "))+"\n")
 	}

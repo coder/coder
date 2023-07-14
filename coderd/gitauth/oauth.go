@@ -6,11 +6,13 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"time"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -138,7 +140,9 @@ func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*codersdk.GitAuthDevi
 }
 
 type ExchangeDeviceCodeResponse struct {
-	*oauth2.Token
+	AccessToken      string `json:"access_token"`
+	RefreshToken     string `json:"refresh_token"`
+	ExpiresIn        int    `json:"expires_in"`
 	Error            string `json:"error"`
 	ErrorDescription string `json:"error_description"`
 }
@@ -175,7 +179,11 @@ func (c *DeviceAuth) ExchangeDeviceCode(ctx context.Context, deviceCode string) 
 	if body.Error != "" {
 		return nil, xerrors.New(body.Error)
 	}
-	return body.Token, nil
+	return &oauth2.Token{
+		AccessToken:  body.AccessToken,
+		RefreshToken: body.RefreshToken,
+		Expiry:       database.Now().Add(time.Duration(body.ExpiresIn) * time.Second),
+	}, nil
 }
 
 func (c *DeviceAuth) formatDeviceTokenURL(deviceCode string) (string, error) {

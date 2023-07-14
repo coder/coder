@@ -177,6 +177,12 @@
           "icon_path": "./images/icons/docker.svg"
         },
         {
+          "title": "Devcontainers",
+          "description": "Use devcontainers in workspaces",
+          "path": "./templates/devcontainers.md",
+          "state": "alpha"
+        },
+        {
           "title": "Terraform Modules",
           "description": "Reuse code across Coder templates",
           "path": "./templates/modules.md"
@@ -591,6 +597,11 @@
           "title": "logout",
           "description": "Unauthenticate your local session",
           "path": "cli/logout.md"
+        },
+        {
+          "title": "netcheck",
+          "description": "Print network debug information for DERP and STUN",
+          "path": "cli/netcheck.md"
         },
         {
           "title": "ping",
