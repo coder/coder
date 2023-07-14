@@ -589,6 +589,7 @@ var unixEpoch = time.Unix(0, 0)
 // forever.
 func (c *Conn) AwaitReachable(ctx context.Context, ip netip.Addr) bool {
 	logger := c.logger.With(slog.F("ip", ip))
+	logger.Debug(ctx, "checking reachability")
 	rightAway := make(chan struct{}, 1)
 	rightAway <- struct{}{}
 	tkr := time.NewTicker(50 * time.Millisecond)

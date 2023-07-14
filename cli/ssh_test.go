@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -412,6 +413,28 @@ func TestSSH(t *testing.T) {
 		t.Parallel()
 
 		logDir := t.TempDir()
+		defer func() {
+			// Copy any log files into test logs for debugging
+			ents, err := os.ReadDir(logDir)
+			if err != nil {
+				t.Log("failed to read logDir")
+			}
+			for _, ent := range ents {
+				fn := path.Join(logDir, ent.Name())
+				f, err := os.Open(fn)
+				if err != nil {
+					t.Logf("failed to open logfile %s", fn)
+				}
+				logs, err := io.ReadAll(f)
+				f.Close()
+				if err != nil {
+					t.Logf("failed to read logfile %s", fn)
+					continue
+				}
+				t.Logf("logfile %s:", fn)
+				t.Log(logs)
+			}
+		}()
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 		inv, root := clitest.New(t, "ssh", "-l", logDir, workspace.Name)
@@ -425,7 +448,7 @@ func TestSSH(t *testing.T) {
 		agentClient.SetSessionToken(agentToken)
 		agentCloser := agent.New(agent.Options{
 			Client: agentClient,
-			Logger: slogtest.Make(t, nil).Named("agent"),
+			Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
 		})
 		defer func() {
 			_ = agentCloser.Close()
