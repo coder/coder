@@ -1147,7 +1147,7 @@ func TestAgent_Metadata(t *testing.T) {
 					Script:   echoHello,
 				},
 			},
-		}, 0, func(client *agenttest.Client, opts *agent.Options) {
+		}, 0, func(_ *agenttest.Client, opts *agent.Options) {
 			opts.ReportMetadataInterval = 100 * time.Millisecond
 		})
 
@@ -1180,25 +1180,23 @@ func TestAgent_Metadata(t *testing.T) {
 					Script:   echoHello,
 				},
 			},
-		}, 0, func(client *agenttest.Client, opts *agent.Options) {
-			opts.ReportMetadataInterval = 5 * time.Millisecond
+		}, 0, func(_ *agenttest.Client, opts *agent.Options) {
+			opts.ReportMetadataInterval = testutil.IntervalFast
 		})
 
 		var gotMd map[string]agentsdk.PostMetadataRequest
 		require.Eventually(t, func() bool {
 			gotMd = client.GetMetadata()
 			return len(gotMd) == 1
-		}, testutil.WaitShort, testutil.IntervalMedium)
+		}, testutil.WaitShort, testutil.IntervalFast/2)
 
 		collectedAt1 := gotMd["greeting"].CollectedAt
-		if !assert.Equal(t, "hello", strings.TrimSpace(gotMd["greeting"].Value)) {
-			t.Errorf("got: %+v", gotMd)
-		}
+		require.Equal(t, "hello", strings.TrimSpace(gotMd["greeting"].Value))
 
 		if !assert.Eventually(t, func() bool {
 			gotMd = client.GetMetadata()
 			return gotMd["greeting"].CollectedAt.After(collectedAt1)
-		}, testutil.WaitShort, testutil.IntervalMedium) {
+		}, testutil.WaitShort, testutil.IntervalFast/2) {
 			t.Fatalf("expected metadata to be collected again")
 		}
 	})
@@ -1235,7 +1233,7 @@ func TestAgentMetadata_Timing(t *testing.T) {
 				Script:   "exit 1",
 			},
 		},
-	}, 0, func(client *agenttest.Client, opts *agent.Options) {
+	}, 0, func(_ *agenttest.Client, opts *agent.Options) {
 		opts.ReportMetadataInterval = intervalUnit
 	})
 
