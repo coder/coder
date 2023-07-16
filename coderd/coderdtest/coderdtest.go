@@ -643,9 +643,13 @@ func CreateWorkspaceBuild(
 	client *codersdk.Client,
 	workspace codersdk.Workspace,
 	transition database.WorkspaceTransition,
+	mutators ...func(*codersdk.CreateWorkspaceBuildRequest),
 ) codersdk.WorkspaceBuild {
 	req := codersdk.CreateWorkspaceBuildRequest{
 		Transition: codersdk.WorkspaceTransition(transition),
+	}
+	for _, mut := range mutators {
+		mut(&req)
 	}
 	build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, req)
 	require.NoError(t, err)

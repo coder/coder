@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/tabbed/pqtype"
+	"github.com/sqlc-dev/pqtype"
 	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/exp/maps"
@@ -643,9 +643,6 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 
 	switch jobType := failJob.Type.(type) {
 	case *proto.FailedJob_WorkspaceBuild_:
-		if jobType.WorkspaceBuild.State == nil {
-			break
-		}
 		var input WorkspaceProvisionJob
 		err = json.Unmarshal(job.Input, &input)
 		if err != nil {
@@ -653,21 +650,23 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 		}
 
 		var build database.WorkspaceBuild
-		err := server.Database.InTx(func(db database.Store) error {
-			workspaceBuild, err := db.GetWorkspaceBuildByID(ctx, input.WorkspaceBuildID)
+		err = server.Database.InTx(func(db database.Store) error {
+			build, err = db.GetWorkspaceBuildByID(ctx, input.WorkspaceBuildID)
 			if err != nil {
 				return xerrors.Errorf("get workspace build: %w", err)
 			}
 
-			build, err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
-				ID:               input.WorkspaceBuildID,
-				UpdatedAt:        database.Now(),
-				ProvisionerState: jobType.WorkspaceBuild.State,
-				Deadline:         workspaceBuild.Deadline,
-				MaxDeadline:      workspaceBuild.MaxDeadline,
-			})
-			if err != nil {
-				return xerrors.Errorf("update workspace build state: %w", err)
+			if jobType.WorkspaceBuild.State != nil {
+				_, err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+					ID:               input.WorkspaceBuildID,
+					UpdatedAt:        database.Now(),
+					ProvisionerState: jobType.WorkspaceBuild.State,
+					Deadline:         build.Deadline,
+					MaxDeadline:      build.MaxDeadline,
+				})
+				if err != nil {
+					return xerrors.Errorf("update workspace build state: %w", err)
+				}
 			}
 
 			return nil

@@ -525,6 +525,72 @@ func TestDetectorHungOtherJobTypes(t *testing.T) {
 	detector.Wait()
 }
 
+func TestDetectorHungCanceledJob(t *testing.T) {
+	t.Parallel()
+
+	var (
+		ctx        = testutil.Context(t, testutil.WaitLong)
+		db, pubsub = dbtestutil.NewDB(t)
+		log        = slogtest.Make(t, nil)
+		tickCh     = make(chan time.Time)
+		statsCh    = make(chan unhanger.Stats)
+	)
+
+	var (
+		now       = time.Now()
+		tenMinAgo = now.Add(-time.Minute * 10)
+		sixMinAgo = now.Add(-time.Minute * 6)
+		org       = dbgen.Organization(t, db, database.Organization{})
+		user      = dbgen.User(t, db, database.User{})
+		file      = dbgen.File(t, db, database.File{})
+
+		// Template import job.
+		templateImportJob = dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+			CreatedAt: tenMinAgo,
+			CanceledAt: sql.NullTime{
+				Time:  tenMinAgo,
+				Valid: true,
+			},
+			UpdatedAt: sixMinAgo,
+			StartedAt: sql.NullTime{
+				Time:  tenMinAgo,
+				Valid: true,
+			},
+			OrganizationID: org.ID,
+			InitiatorID:    user.ID,
+			Provisioner:    database.ProvisionerTypeEcho,
+			StorageMethod:  database.ProvisionerStorageMethodFile,
+			FileID:         file.ID,
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			Input:          []byte("{}"),
+		})
+	)
+
+	t.Log("template import job ID: ", templateImportJob.ID)
+
+	detector := unhanger.New(ctx, db, pubsub, log, tickCh).WithStatsChannel(statsCh)
+	detector.Start()
+	tickCh <- now
+
+	stats := <-statsCh
+	require.NoError(t, stats.Error)
+	require.Len(t, stats.TerminatedJobIDs, 1)
+	require.Contains(t, stats.TerminatedJobIDs, templateImportJob.ID)
+
+	// Check that the job was updated.
+	job, err := db.GetProvisionerJobByID(ctx, templateImportJob.ID)
+	require.NoError(t, err)
+	require.WithinDuration(t, now, job.UpdatedAt, 30*time.Second)
+	require.True(t, job.CompletedAt.Valid)
+	require.WithinDuration(t, now, job.CompletedAt.Time, 30*time.Second)
+	require.True(t, job.Error.Valid)
+	require.Contains(t, job.Error.String, "Build has been detected as hung")
+	require.False(t, job.ErrorCode.Valid)
+
+	detector.Close()
+	detector.Wait()
+}
+
 func TestDetectorPushesLogs(t *testing.T) {
 	t.Parallel()
 

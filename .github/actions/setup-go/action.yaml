@@ -17,7 +17,8 @@ runs:
         restore-keys: |
           gotoolchain-${{ runner.os }}-
 
-    - uses: buildjet/setup-go@v4
+    - name: Setup Go
+      uses: buildjet/setup-go@v4
       with:
         # We do our own caching for implementation clarity.
         cache: false
