@@ -539,11 +539,21 @@ func TestFindWeek(t *testing.T) {
 			currentWeek, err := schedule.WeeksSinceEpoch(now)
 			require.NoError(t, err)
 
-			currentWeekMondayExpected := now.AddDate(0, 0, -int(now.Weekday())+1)
+			diffMonday := now.Weekday() - time.Monday
+			if now.Weekday() == time.Sunday {
+				// Sunday is 0, but Monday is the first day of the week in the
+				// code.
+				diffMonday = 6
+			}
+			currentWeekMondayExpected := now.AddDate(0, 0, -int(diffMonday))
+			require.Equal(t, time.Monday, currentWeekMondayExpected.Weekday())
 			y, m, d := currentWeekMondayExpected.Date()
+			// Change to midnight.
 			currentWeekMondayExpected = time.Date(y, m, d, 0, 0, 0, 0, loc)
+
 			currentWeekMonday, err := schedule.GetMondayOfWeek(now.Location(), currentWeek)
 			require.NoError(t, err)
+			require.Equal(t, time.Monday, currentWeekMonday.Weekday())
 			require.Equal(t, currentWeekMondayExpected, currentWeekMonday)
 
 			t.Log("now", now)

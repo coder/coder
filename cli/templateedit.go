@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -90,12 +91,6 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				restartRequirementDaysOfWeek = []string{}
 			}
 
-			// Check that the user didn't specify a value that is not allowed.
-			_, err = codersdk.WeekdaysToBitmap(restartRequirementDaysOfWeek)
-			if err != nil {
-				return xerrors.Errorf("invalid restart requirement days of week: %w", err)
-			}
-
 			// NOTE: coderd will ignore empty fields.
 			req := codersdk.UpdateTemplateMeta{
 				Name:             name,
@@ -160,7 +155,17 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 			Description: "Edit the template restart requirement weekdays - workspaces created from this template must be restarted on the given weekdays. To unset this value for the template (and disable the restart requirement for the template), pass 'none'.",
 			// TODO(@dean): unhide when we delete max_ttl
 			Hidden: true,
-			Value:  clibase.StringArrayOf(&restartRequirementDaysOfWeek),
+			Value: clibase.Validate(clibase.StringArrayOf(&restartRequirementDaysOfWeek), func(value *clibase.StringArray) error {
+				v := value.GetSlice()
+				if len(v) == 1 && v[0] == "none" {
+					return nil
+				}
+				_, err := codersdk.WeekdaysToBitmap(v)
+				if err != nil {
+					return xerrors.Errorf("invalid restart requirement days of week %q: %w", strings.Join(v, ","), err)
+				}
+				return nil
+			}),
 		},
 		{
 			Flag:        "restart-requirement-weeks",

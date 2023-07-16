@@ -13,12 +13,27 @@ const (
 	// restartRequirementLeeway is the duration of time before a restart
 	// requirement where we skip the requirement and fall back to the next
 	// scheduled restart. This avoids workspaces being restarted too soon.
+	//
+	// E.g. If the workspace is started within an hour of the quiet hours, we
+	//      will skip the restart requirement and use the next scheduled restart
+	//      requirement.
 	restartRequirementLeeway = 1 * time.Hour
 
 	// restartRequirementBuffer is the duration of time we subtract from the
 	// time when calculating the next scheduled restart time. This avoids issues
 	// where autostart happens on the hour and the scheduled quiet hours are
 	// also on the hour.
+	//
+	// E.g. If the workspace is started at 12am (perhaps due to scheduled
+	//      autostart) and the quiet hours is also 12am, the workspace will skip
+	//      the day it's supposed to stop and use the next day instead. This is
+	//      because getting the next cron schedule time will never include the
+	//      time fed to the calculation (i.e. it's not inclusive). This happens
+	//      because we always check for the next cron time by rounding down to
+	//      midnight.
+	//
+	//      This resolves that problem by subtracting 15 minutes from midnight
+	//      when we check the next cron time.
 	restartRequirementBuffer = -15 * time.Minute
 )
 
