@@ -178,7 +178,7 @@ resource "coder_agent" "dev" {
 
     # Install and launch filebrowser
     curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
-    filebrowser --noauth --root /home/coder >/tmp/filebrowser.log 2>&1 &
+    filebrowser --noauth --root /home/coder --port 8080 >/tmp/filebrowser.log 2>&1 &
 
     if [ ! -d ${data.coder_parameter.repo_dir.value} ]; then
       mkdir -p ${data.coder_parameter.repo_dir.value}
