@@ -15,20 +15,20 @@ type MockTemplateScheduleStore struct {
 
 var _ TemplateScheduleStore = MockTemplateScheduleStore{}
 
-func (m MockTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context, db database.Store, templateID uuid.UUID) (TemplateScheduleOptions, error) {
+func (m MockTemplateScheduleStore) Get(ctx context.Context, db database.Store, templateID uuid.UUID) (TemplateScheduleOptions, error) {
 	if m.GetFn != nil {
 		return m.GetFn(ctx, db, templateID)
 	}
 
-	return NewAGPLTemplateScheduleStore().GetTemplateScheduleOptions(ctx, db, templateID)
+	return NewAGPLTemplateScheduleStore().Get(ctx, db, templateID)
 }
 
-func (m MockTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, template database.Template, options TemplateScheduleOptions) (database.Template, error) {
+func (m MockTemplateScheduleStore) Set(ctx context.Context, db database.Store, template database.Template, options TemplateScheduleOptions) (database.Template, error) {
 	if m.SetFn != nil {
 		return m.SetFn(ctx, db, template, options)
 	}
 
-	return NewAGPLTemplateScheduleStore().SetTemplateScheduleOptions(ctx, db, template, options)
+	return NewAGPLTemplateScheduleStore().Set(ctx, db, template, options)
 }
 
 type MockUserQuietHoursScheduleStore struct {
@@ -38,18 +38,18 @@ type MockUserQuietHoursScheduleStore struct {
 
 var _ UserQuietHoursScheduleStore = MockUserQuietHoursScheduleStore{}
 
-func (m MockUserQuietHoursScheduleStore) GetUserQuietHoursScheduleOptions(ctx context.Context, db database.Store, userID uuid.UUID) (UserQuietHoursScheduleOptions, error) {
+func (m MockUserQuietHoursScheduleStore) Get(ctx context.Context, db database.Store, userID uuid.UUID) (UserQuietHoursScheduleOptions, error) {
 	if m.GetFn != nil {
 		return m.GetFn(ctx, db, userID)
 	}
 
-	return NewAGPLUserQuietHoursScheduleStore().GetUserQuietHoursScheduleOptions(ctx, db, userID)
+	return NewAGPLUserQuietHoursScheduleStore().Get(ctx, db, userID)
 }
 
-func (m MockUserQuietHoursScheduleStore) SetUserQuietHoursScheduleOptions(ctx context.Context, db database.Store, userID uuid.UUID, schedule string) (UserQuietHoursScheduleOptions, error) {
+func (m MockUserQuietHoursScheduleStore) Set(ctx context.Context, db database.Store, userID uuid.UUID, schedule string) (UserQuietHoursScheduleOptions, error) {
 	if m.SetFn != nil {
 		return m.SetFn(ctx, db, userID, schedule)
 	}
 
-	return NewAGPLUserQuietHoursScheduleStore().SetUserQuietHoursScheduleOptions(ctx, db, userID, schedule)
+	return NewAGPLUserQuietHoursScheduleStore().Set(ctx, db, userID, schedule)
 }

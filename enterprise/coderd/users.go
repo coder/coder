@@ -55,7 +55,7 @@ func (api *API) userQuietHoursSchedule(rw http.ResponseWriter, r *http.Request) 
 		user = httpmw.UserParam(r)
 	)
 
-	opts, err := (*api.UserQuietHoursScheduleStore.Load()).GetUserQuietHoursScheduleOptions(ctx, api.Database, user.ID)
+	opts, err := (*api.UserQuietHoursScheduleStore.Load()).Get(ctx, api.Database, user.ID)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -104,7 +104,7 @@ func (api *API) putUserQuietHoursSchedule(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	opts, err := (*api.UserQuietHoursScheduleStore.Load()).SetUserQuietHoursScheduleOptions(ctx, api.Database, user.ID, params.Schedule)
+	opts, err := (*api.UserQuietHoursScheduleStore.Load()).Set(ctx, api.Database, user.ID, params.Schedule)
 	if err != nil {
 		// TODO(@dean): some of these errors are related to bad syntax, so it
 		// would be nice to 400 instead

@@ -72,7 +72,7 @@ func CalculateAutostop(ctx context.Context, params CalculateAutostopParams) (Aut
 		autostop.Deadline = now.Add(time.Duration(workspace.Ttl.Int64))
 	}
 
-	templateSchedule, err := params.TemplateScheduleStore.GetTemplateScheduleOptions(ctx, db, workspace.TemplateID)
+	templateSchedule, err := params.TemplateScheduleStore.Get(ctx, db, workspace.TemplateID)
 	if err != nil {
 		return autostop, xerrors.Errorf("get template schedule options: %w", err)
 	}
@@ -99,7 +99,7 @@ func CalculateAutostop(ctx context.Context, params CalculateAutostopParams) (Aut
 
 		// First, get the user's quiet hours schedule (this will return the
 		// default if the user has not set their own schedule).
-		userQuietHoursSchedule, err := params.UserQuietHoursScheduleStore.GetUserQuietHoursScheduleOptions(ctx, db, workspace.OwnerID)
+		userQuietHoursSchedule, err := params.UserQuietHoursScheduleStore.Get(ctx, db, workspace.OwnerID)
 		if err != nil {
 			return autostop, xerrors.Errorf("get user quiet hours schedule options: %w", err)
 		}

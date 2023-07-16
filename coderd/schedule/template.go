@@ -120,8 +120,8 @@ type TemplateScheduleOptions struct {
 // TemplateScheduleStore provides an interface for retrieving template
 // scheduling options set by the template/site admin.
 type TemplateScheduleStore interface {
-	GetTemplateScheduleOptions(ctx context.Context, db database.Store, templateID uuid.UUID) (TemplateScheduleOptions, error)
-	SetTemplateScheduleOptions(ctx context.Context, db database.Store, template database.Template, opts TemplateScheduleOptions) (database.Template, error)
+	Get(ctx context.Context, db database.Store, templateID uuid.UUID) (TemplateScheduleOptions, error)
+	Set(ctx context.Context, db database.Store, template database.Template, opts TemplateScheduleOptions) (database.Template, error)
 }
 
 type agplTemplateScheduleStore struct{}
@@ -132,7 +132,7 @@ func NewAGPLTemplateScheduleStore() TemplateScheduleStore {
 	return &agplTemplateScheduleStore{}
 }
 
-func (*agplTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context, db database.Store, templateID uuid.UUID) (TemplateScheduleOptions, error) {
+func (*agplTemplateScheduleStore) Get(ctx context.Context, db database.Store, templateID uuid.UUID) (TemplateScheduleOptions, error) {
 	tpl, err := db.GetTemplateByID(ctx, templateID)
 	if err != nil {
 		return TemplateScheduleOptions{}, err
@@ -158,7 +158,7 @@ func (*agplTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context
 	}, nil
 }
 
-func (*agplTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, tpl database.Template, opts TemplateScheduleOptions) (database.Template, error) {
+func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tpl database.Template, opts TemplateScheduleOptions) (database.Template, error) {
 	if int64(opts.DefaultTTL) == tpl.DefaultTTL {
 		// Avoid updating the UpdatedAt timestamp if nothing will be changed.
 		return tpl, nil

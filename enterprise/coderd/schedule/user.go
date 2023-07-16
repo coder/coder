@@ -70,7 +70,7 @@ func (s *enterpriseUserQuietHoursScheduleStore) parseSchedule(rawSchedule string
 	}, nil
 }
 
-func (s *enterpriseUserQuietHoursScheduleStore) GetUserQuietHoursScheduleOptions(ctx context.Context, db database.Store, userID uuid.UUID) (agpl.UserQuietHoursScheduleOptions, error) {
+func (s *enterpriseUserQuietHoursScheduleStore) Get(ctx context.Context, db database.Store, userID uuid.UUID) (agpl.UserQuietHoursScheduleOptions, error) {
 	user, err := db.GetUserByID(ctx, userID)
 	if err != nil {
 		return agpl.UserQuietHoursScheduleOptions{}, xerrors.Errorf("get user by ID: %w", err)
@@ -79,7 +79,7 @@ func (s *enterpriseUserQuietHoursScheduleStore) GetUserQuietHoursScheduleOptions
 	return s.parseSchedule(user.QuietHoursSchedule)
 }
 
-func (s *enterpriseUserQuietHoursScheduleStore) SetUserQuietHoursScheduleOptions(ctx context.Context, db database.Store, userID uuid.UUID, rawSchedule string) (agpl.UserQuietHoursScheduleOptions, error) {
+func (s *enterpriseUserQuietHoursScheduleStore) Set(ctx context.Context, db database.Store, userID uuid.UUID, rawSchedule string) (agpl.UserQuietHoursScheduleOptions, error) {
 	opts, err := s.parseSchedule(rawSchedule)
 	if err != nil {
 		return opts, err

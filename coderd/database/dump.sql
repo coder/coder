@@ -610,6 +610,8 @@ CREATE TABLE users (
     quiet_hours_schedule text DEFAULT ''::text NOT NULL
 );
 
+COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user''s quiet hours. If empty, the default quiet hours on the instance is used instead.';
+
 CREATE UNLOGGED TABLE workspace_agent_metadata (
     workspace_agent_id uuid NOT NULL,
     display_name character varying(127) NOT NULL,

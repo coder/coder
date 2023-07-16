@@ -27,17 +27,17 @@ type UserQuietHoursScheduleOptions struct {
 }
 
 type UserQuietHoursScheduleStore interface {
-	// GetUserQuietHoursScheduleOptions retrieves the quiet hours schedule for
-	// the given user. If the user has not set a custom schedule, the default
-	// schedule will be returned. If quiet hours schedules are not entitled or
-	// disabled instance-wide, this will return a nil schedule.
-	GetUserQuietHoursScheduleOptions(ctx context.Context, db database.Store, userID uuid.UUID) (UserQuietHoursScheduleOptions, error)
-	// SetUserQuietHoursScheduleOptions sets the quiet hours schedule for the
-	// given user. If the given schedule is an empty string, the user's custom
-	// schedule will be cleared and the default schedule will be used from now
-	// on. If quiet hours schedules are not entitled or disabled instance-wide,
-	// this will do nothing and return a nil schedule.
-	SetUserQuietHoursScheduleOptions(ctx context.Context, db database.Store, userID uuid.UUID, rawSchedule string) (UserQuietHoursScheduleOptions, error)
+	// Get retrieves the quiet hours schedule for the given user. If the user
+	// has not set a custom schedule, the default schedule will be returned. If
+	// quiet hours schedules are not entitled or disabled instance-wide, this
+	// will return a nil schedule.
+	Get(ctx context.Context, db database.Store, userID uuid.UUID) (UserQuietHoursScheduleOptions, error)
+	// Set sets the quiet hours schedule for the given user. If the given
+	// schedule is an empty string, the user's custom schedule will be cleared
+	// and the default schedule will be used from now on. If quiet hours
+	// schedules are not entitled or disabled instance-wide, this will do
+	// nothing and return a nil schedule.
+	Set(ctx context.Context, db database.Store, userID uuid.UUID, rawSchedule string) (UserQuietHoursScheduleOptions, error)
 }
 
 type agplUserQuietHoursScheduleStore struct{}
@@ -48,7 +48,7 @@ func NewAGPLUserQuietHoursScheduleStore() UserQuietHoursScheduleStore {
 	return &agplUserQuietHoursScheduleStore{}
 }
 
-func (*agplUserQuietHoursScheduleStore) GetUserQuietHoursScheduleOptions(_ context.Context, _ database.Store, _ uuid.UUID) (UserQuietHoursScheduleOptions, error) {
+func (*agplUserQuietHoursScheduleStore) Get(_ context.Context, _ database.Store, _ uuid.UUID) (UserQuietHoursScheduleOptions, error) {
 	// User quiet hours windows are not supported in AGPL.
 	return UserQuietHoursScheduleOptions{
 		Schedule: nil,
@@ -57,7 +57,7 @@ func (*agplUserQuietHoursScheduleStore) GetUserQuietHoursScheduleOptions(_ conte
 	}, nil
 }
 
-func (*agplUserQuietHoursScheduleStore) SetUserQuietHoursScheduleOptions(_ context.Context, _ database.Store, _ uuid.UUID, _ string) (UserQuietHoursScheduleOptions, error) {
+func (*agplUserQuietHoursScheduleStore) Set(_ context.Context, _ database.Store, _ uuid.UUID, _ string) (UserQuietHoursScheduleOptions, error) {
 	// User quiet hours windows are not supported in AGPL.
 	return UserQuietHoursScheduleOptions{
 		Schedule: nil,

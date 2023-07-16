@@ -28,8 +28,8 @@ func NewEnterpriseTemplateScheduleStore() *EnterpriseTemplateScheduleStore {
 	return &EnterpriseTemplateScheduleStore{}
 }
 
-// GetTemplateScheduleOptions implements agpl.TemplateScheduleStore.
-func (s *EnterpriseTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context, db database.Store, templateID uuid.UUID) (agpl.TemplateScheduleOptions, error) {
+// Get implements agpl.TemplateScheduleStore.
+func (s *EnterpriseTemplateScheduleStore) Get(ctx context.Context, db database.Store, templateID uuid.UUID) (agpl.TemplateScheduleOptions, error) {
 	tpl, err := db.GetTemplateByID(ctx, templateID)
 	if err != nil {
 		return agpl.TemplateScheduleOptions{}, err
@@ -64,8 +64,8 @@ func (s *EnterpriseTemplateScheduleStore) GetTemplateScheduleOptions(ctx context
 	}, nil
 }
 
-// SetTemplateScheduleOptions implements agpl.TemplateScheduleStore.
-func (*EnterpriseTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, tpl database.Template, opts agpl.TemplateScheduleOptions) (database.Template, error) {
+// Set implements agpl.TemplateScheduleStore.
+func (*EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.Store, tpl database.Template, opts agpl.TemplateScheduleOptions) (database.Template, error) {
 	if int64(opts.DefaultTTL) == tpl.DefaultTTL &&
 		int64(opts.MaxTTL) == tpl.MaxTTL &&
 		int16(opts.RestartRequirement.DaysOfWeek) == tpl.RestartRequirementDaysOfWeek &&
