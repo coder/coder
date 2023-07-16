@@ -176,6 +176,9 @@ resource "coder_agent" "dev" {
     curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.8.3
     /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
 
+    # Install and launch filebrowser
+    curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
+    filebrowser --noauth --root /home/coder >/tmp/filebrowser.log 2>&1 &
 
     if [ ! -d ${data.coder_parameter.repo_dir.value} ]; then
       mkdir -p ${data.coder_parameter.repo_dir.value}
@@ -211,6 +214,16 @@ resource "coder_app" "code-server" {
     interval  = 3
     threshold = 10
   }
+}
+
+resource "coder_app" "filebrowser" {
+  agent_id     = coder_agent.dev.id
+  display_name = "File Browser"
+  slug         = "filebrowser"
+  url          = "http://localhost:8080/"
+  icon         = "https://raw.githubusercontent.com/matifali/logos/main/database.svg"
+  subdomain    = true
+  share        = "owner"
 }
 
 resource "docker_volume" "home_volume" {
