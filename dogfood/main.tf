@@ -197,6 +197,7 @@ resource "coder_agent" "dev" {
     elif [ -f ~/personalize ]; then
       echo "~/personalize is not executable, skipping..." | tee -a ~/.personalize.log
     fi
+    cd ${data.coder_parameter.repo_dir.value}
   EOT
 }
 
