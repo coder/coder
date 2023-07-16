@@ -86,7 +86,7 @@ resource "coder_agent" "dev" {
   arch = "amd64"
   os   = "linux"
 
-  dir = data.coder_parameter.repo_dir.value
+  dir = "/home/coder"
   env = {
     GITHUB_TOKEN : data.coder_git_auth.github.access_token,
     OIDC_TOKEN : data.coder_workspace.me.owner_oidc_access_token,
