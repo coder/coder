@@ -20,6 +20,7 @@ export const WorkspaceStatusBadge: FC<
 > = ({ workspace, className }) => {
   const { text, icon, type } = getDisplayWorkspaceStatus(
     workspace.latest_build.status,
+    workspace.latest_build.job,
   )
   return (
     <ChooseOne>

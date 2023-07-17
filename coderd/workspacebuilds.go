@@ -316,7 +316,8 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	builder := wsbuilder.New(workspace, database.WorkspaceTransition(createBuild.Transition)).
 		Initiator(apiKey.UserID).
 		RichParameterValues(createBuild.RichParameterValues).
-		LogLevel(string(createBuild.LogLevel))
+		LogLevel(string(createBuild.LogLevel)).
+		DeploymentValues(api.Options.DeploymentValues)
 
 	if createBuild.TemplateVersionID != uuid.Nil {
 		builder = builder.VersionID(createBuild.TemplateVersionID)
@@ -350,6 +351,11 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	)
 	var buildErr wsbuilder.BuildError
 	if xerrors.As(err, &buildErr) {
+		var authErr dbauthz.NotAuthorizedError
+		if xerrors.As(err, &authErr) {
+			buildErr.Status = http.StatusUnauthorized
+		}
+
 		if buildErr.Status == http.StatusInternalServerError {
 			api.Logger.Error(ctx, "workspace build error", slog.Error(buildErr.Wrapped))
 		}

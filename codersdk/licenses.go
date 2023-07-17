@@ -11,6 +11,10 @@ import (
 	"golang.org/x/xerrors"
 )
 
+const (
+	LicenseExpiryClaim = "license_expires"
+)
+
 type AddLicenseRequest struct {
 	License string `json:"license" validate:"required"`
 }
@@ -23,11 +27,49 @@ type License struct {
 	// a generic string map to ensure that all data from the server is
 	// parsed verbatim, not just the fields this version of Coder
 	// understands.
-	Claims map[string]interface{} `json:"claims"`
+	Claims map[string]interface{} `json:"claims" table:"claims"`
 }
 
-// Features provides the feature claims in license.
-func (l *License) Features() (map[FeatureName]int64, error) {
+// ExpiresAt returns the expiration time of the license.
+// If the claim is missing or has an unexpected type, an error is returned.
+func (l *License) ExpiresAt() (time.Time, error) {
+	expClaim, ok := l.Claims[LicenseExpiryClaim]
+	if !ok {
+		return time.Time{}, xerrors.New("license_expires claim is missing")
+	}
+
+	// This claim should be a unix timestamp.
+	// Everything is already an interface{}, so we need to do some type
+	// assertions to figure out what we're dealing with.
+	if unix, ok := expClaim.(json.Number); ok {
+		i64, err := unix.Int64()
+		if err != nil {
+			return time.Time{}, xerrors.Errorf("license_expires claim is not a valid unix timestamp: %w", err)
+		}
+		return time.Unix(i64, 0), nil
+	}
+
+	return time.Time{}, xerrors.Errorf("license_expires claim has unexpected type %T", expClaim)
+}
+
+func (l *License) Trial() bool {
+	if trail, ok := l.Claims["trail"].(bool); ok {
+		return trail
+	}
+	return false
+}
+
+func (l *License) AllFeaturesClaim() bool {
+	if all, ok := l.Claims["all_features"].(bool); ok {
+		return all
+	}
+	return false
+}
+
+// FeaturesClaims provides the feature claims in license.
+// This only returns the explicit claims. If checking for actual usage,
+// also check `AllFeaturesClaim`.
+func (l *License) FeaturesClaims() (map[FeatureName]int64, error) {
 	strMap, ok := l.Claims["features"].(map[string]interface{})
 	if !ok {
 		return nil, xerrors.New("features key is unexpected type")

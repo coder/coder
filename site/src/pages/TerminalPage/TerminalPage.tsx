@@ -8,6 +8,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { colors } from "theme/colors"
 import { v4 as uuidv4 } from "uuid"
 import * as XTerm from "xterm"
+import { CanvasAddon } from "xterm-addon-canvas"
 import { FitAddon } from "xterm-addon-fit"
 import { WebLinksAddon } from "xterm-addon-web-links"
 import "xterm/css/xterm.css"
@@ -29,18 +30,11 @@ export const Language = {
   websocketErrorMessagePrefix: "WebSocket failed: ",
 }
 
-const useTerminalWarning = ({
-  agent,
-  fitAddon,
-}: {
-  agent?: WorkspaceAgent
-  fitAddon: FitAddon | null
-}) => {
+const useTerminalWarning = ({ agent }: { agent?: WorkspaceAgent }) => {
   const lifecycleState = agent?.lifecycle_state
   const [startupWarning, setStartupWarning] = useState<
     TerminalPageAlertType | undefined
   >(undefined)
-  const shouldDisplayWarning = startupWarning !== undefined
 
   useEffect(() => {
     if (lifecycleState === "start_error") {
@@ -57,19 +51,16 @@ const useTerminalWarning = ({
     }
   }, [lifecycleState])
 
-  // Resize the terminal when the warning toggles
-  useEffect(() => {
-    if (fitAddon) {
-      fitAddon.fit()
-    }
-  }, [shouldDisplayWarning, fitAddon])
-
   return {
     startupWarning,
   }
 }
 
-const TerminalPage: FC = () => {
+type TerminalPageProps = React.PropsWithChildren<{
+  renderer: "canvas" | "dom"
+}>
+
+const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
   const navigate = useNavigate()
   const styles = useStyles()
   const { proxy } = useProxy()
@@ -127,7 +118,6 @@ const TerminalPage: FC = () => {
     : undefined
   const { startupWarning } = useTerminalWarning({
     agent: workspaceAgent,
-    fitAddon,
   })
 
   // handleWebLink handles opening of URLs in the terminal!
@@ -194,6 +184,10 @@ const TerminalPage: FC = () => {
         background: colors.gray[16],
       },
     })
+    // DOM is the default renderer.
+    if (renderer === "canvas") {
+      terminal.loadAddon(new CanvasAddon())
+    }
     const fitAddon = new FitAddon()
     setFitAddon(fitAddon)
     terminal.loadAddon(fitAddon)
@@ -230,7 +224,7 @@ const TerminalPage: FC = () => {
       window.removeEventListener("resize", listener)
       terminal.dispose()
     }
-  }, [sendEvent, xtermRef, handleWebLink])
+  }, [renderer, sendEvent, xtermRef, handleWebLink])
 
   // Triggers the initial terminal connection using
   // the reconnection token and workspace name found
@@ -343,7 +337,14 @@ const TerminalPage: FC = () => {
         )}
       </div>
       <Box display="flex" flexDirection="column" height="100vh">
-        {startupWarning && <TerminalPageAlert alertType={startupWarning} />}
+        {startupWarning && (
+          <TerminalPageAlert
+            alertType={startupWarning}
+            onDismiss={() => {
+              fitAddon?.fit()
+            }}
+          />
+        )}
         <div
           className={styles.terminal}
           ref={xtermRef}

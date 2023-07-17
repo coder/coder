@@ -121,7 +121,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		opts = &RoleOptions{}
 	}
 
-	var ownerAndAdminExceptions []Object
+	ownerAndAdminExceptions := []Object{ResourceWorkspaceLocked}
 	if opts.NoOwnerWorkspaceExec {
 		ownerAndAdminExceptions = append(ownerAndAdminExceptions,
 			ResourceWorkspaceExecution,
@@ -152,7 +152,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceProvisionerDaemon.Type: {ActionRead},
 		}),
 		Org:  map[string][]Permission{},
-		User: allPermsExcept(),
+		User: allPermsExcept(ResourceWorkspaceLocked),
 	}.withCachedRegoValue()
 
 	auditorRole := Role{
@@ -234,7 +234,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				Site:        []Permission{},
 				Org: map[string][]Permission{
 					// Org admins should not have workspace exec perms.
-					organizationID: allPermsExcept(ResourceWorkspaceExecution),
+					organizationID: allPermsExcept(ResourceWorkspaceExecution, ResourceWorkspaceLocked),
 				},
 				User: []Permission{},
 			}

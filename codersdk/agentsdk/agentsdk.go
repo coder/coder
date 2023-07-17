@@ -84,6 +84,7 @@ func (c *Client) PostMetadata(ctx context.Context, key string, req PostMetadataR
 }
 
 type Manifest struct {
+	AgentID uuid.UUID `json:"agent_id"`
 	// GitAuthConfigs stores the number of Git configurations
 	// the Coder deployment has. If this number is >0, we
 	// set up special configuration in the workspace.
@@ -187,7 +188,7 @@ func (c *Client) DERPMapUpdates(ctx context.Context) (<-chan DERPMapUpdate, io.C
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
-	pingClosed := pingWebSocket(ctx, c.SDK.Logger, conn, "derp map")
+	pingClosed := pingWebSocket(ctx, c.SDK.Logger(), conn, "derp map")
 
 	updates := make(chan DERPMapUpdate)
 	dec := json.NewDecoder(wsNetConn)
@@ -253,7 +254,7 @@ func (c *Client) Listen(ctx context.Context) (net.Conn, error) {
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
-	pingClosed := pingWebSocket(ctx, c.SDK.Logger, conn, "coordinate")
+	pingClosed := pingWebSocket(ctx, c.SDK.Logger(), conn, "coordinate")
 
 	return &closeNetConn{
 		Conn: wsNetConn,
@@ -625,6 +626,24 @@ func (c *Client) PatchStartupLogs(ctx context.Context, req PatchStartupLogs) err
 		return codersdk.ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// GetServiceBanner relays the service banner config.
+func (c *Client) GetServiceBanner(ctx context.Context) (codersdk.ServiceBannerConfig, error) {
+	res, err := c.SDK.Request(ctx, http.MethodGet, "/api/v2/appearance", nil)
+	if err != nil {
+		return codersdk.ServiceBannerConfig{}, err
+	}
+	defer res.Body.Close()
+	// If the route does not exist then Enterprise code is not enabled.
+	if res.StatusCode == http.StatusNotFound {
+		return codersdk.ServiceBannerConfig{}, nil
+	}
+	if res.StatusCode != http.StatusOK {
+		return codersdk.ServiceBannerConfig{}, codersdk.ReadBodyAsError(res)
+	}
+	var cfg codersdk.AppearanceConfig
+	return cfg.ServiceBanner, json.NewDecoder(res.Body).Decode(&cfg)
 }
 
 type GitAuthResponse struct {

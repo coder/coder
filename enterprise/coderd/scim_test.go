@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/enterprise/coderd"
@@ -63,12 +62,13 @@ func TestScim(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			client := coderdenttest.New(t, &coderdenttest.Options{SCIMAPIKey: []byte("hi")})
-			_ = coderdtest.CreateFirstUser(t, client)
-			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-				AccountID: "coolin",
-				Features: license.Features{
-					codersdk.FeatureSCIM: 0,
+			client, _ := coderdenttest.New(t, &coderdenttest.Options{
+				SCIMAPIKey: []byte("hi"),
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					AccountID: "coolin",
+					Features: license.Features{
+						codersdk.FeatureSCIM: 0,
+					},
 				},
 			})
 
@@ -84,12 +84,13 @@ func TestScim(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			client := coderdenttest.New(t, &coderdenttest.Options{SCIMAPIKey: []byte("hi")})
-			_ = coderdtest.CreateFirstUser(t, client)
-			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-				AccountID: "coolin",
-				Features: license.Features{
-					codersdk.FeatureSCIM: 1,
+			client, _ := coderdenttest.New(t, &coderdenttest.Options{
+				SCIMAPIKey: []byte("hi"),
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					AccountID: "coolin",
+					Features: license.Features{
+						codersdk.FeatureSCIM: 1,
+					},
 				},
 			})
 
@@ -106,12 +107,13 @@ func TestScim(t *testing.T) {
 			defer cancel()
 
 			scimAPIKey := []byte("hi")
-			client := coderdenttest.New(t, &coderdenttest.Options{SCIMAPIKey: scimAPIKey})
-			_ = coderdtest.CreateFirstUser(t, client)
-			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-				AccountID: "coolin",
-				Features: license.Features{
-					codersdk.FeatureSCIM: 1,
+			client, _ := coderdenttest.New(t, &coderdenttest.Options{
+				SCIMAPIKey: scimAPIKey,
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					AccountID: "coolin",
+					Features: license.Features{
+						codersdk.FeatureSCIM: 1,
+					},
 				},
 			})
 
@@ -136,12 +138,13 @@ func TestScim(t *testing.T) {
 			defer cancel()
 
 			scimAPIKey := []byte("hi")
-			client := coderdenttest.New(t, &coderdenttest.Options{SCIMAPIKey: scimAPIKey})
-			_ = coderdtest.CreateFirstUser(t, client)
-			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-				AccountID: "coolin",
-				Features: license.Features{
-					codersdk.FeatureSCIM: 1,
+			client, _ := coderdenttest.New(t, &coderdenttest.Options{
+				SCIMAPIKey: scimAPIKey,
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					AccountID: "coolin",
+					Features: license.Features{
+						codersdk.FeatureSCIM: 1,
+					},
 				},
 			})
 
@@ -172,12 +175,13 @@ func TestScim(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			client := coderdenttest.New(t, &coderdenttest.Options{SCIMAPIKey: []byte("hi")})
-			_ = coderdtest.CreateFirstUser(t, client)
-			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-				AccountID: "coolin",
-				Features: license.Features{
-					codersdk.FeatureSCIM: 0,
+			client, _ := coderdenttest.New(t, &coderdenttest.Options{
+				SCIMAPIKey: []byte("hi"),
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					AccountID: "coolin",
+					Features: license.Features{
+						codersdk.FeatureSCIM: 0,
+					},
 				},
 			})
 
@@ -193,12 +197,13 @@ func TestScim(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			client := coderdenttest.New(t, &coderdenttest.Options{SCIMAPIKey: []byte("hi")})
-			_ = coderdtest.CreateFirstUser(t, client)
-			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-				AccountID: "coolin",
-				Features: license.Features{
-					codersdk.FeatureSCIM: 1,
+			client, _ := coderdenttest.New(t, &coderdenttest.Options{
+				SCIMAPIKey: []byte("hi"),
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					AccountID: "coolin",
+					Features: license.Features{
+						codersdk.FeatureSCIM: 1,
+					},
 				},
 			})
 
@@ -215,12 +220,13 @@ func TestScim(t *testing.T) {
 			defer cancel()
 
 			scimAPIKey := []byte("hi")
-			client := coderdenttest.New(t, &coderdenttest.Options{SCIMAPIKey: scimAPIKey})
-			_ = coderdtest.CreateFirstUser(t, client)
-			coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-				AccountID: "coolin",
-				Features: license.Features{
-					codersdk.FeatureSCIM: 1,
+			client, _ := coderdenttest.New(t, &coderdenttest.Options{
+				SCIMAPIKey: scimAPIKey,
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					AccountID: "coolin",
+					Features: license.Features{
+						codersdk.FeatureSCIM: 1,
+					},
 				},
 			})
 

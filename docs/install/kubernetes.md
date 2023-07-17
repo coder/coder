@@ -121,7 +121,9 @@ to log in and manage templates.
        sessionAffinity: None
    ```
 
-### Load balancing considerations
+## Load balancing considerations
+
+### AWS
 
 AWS however recommends a Network load balancer in lieu of the Classic load balancer. Use the following `values.yaml` settings to request a Network load balancer:
 
@@ -169,6 +171,13 @@ coder:
    If you do not have a domain, you should set `CODER_ACCESS_URL`
    to this URL in the Helm chart and upgrade Coder (see below).
    This allows workspaces to connect to the proper Coder URL.
+
+### Azure
+
+In certain enterprise environments, the [Azure Application Gateway](https://learn.microsoft.com/en-us/azure/application-gateway/ingress-controller-overview) was needed. The Application Gateway supports:
+
+- Websocket traffic (required for workspace connections)
+- TLS termination
 
 ## Upgrading Coder via Helm
 

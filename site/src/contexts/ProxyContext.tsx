@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
-import { getWorkspaceProxies } from "api/api"
-import { Region } from "api/typesGenerated"
+import { getWorkspaceProxies, getWorkspaceProxyRegions } from "api/api"
+import { Region, WorkspaceProxy } from "api/typesGenerated"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
 import {
   createContext,
@@ -12,6 +12,7 @@ import {
   useState,
 } from "react"
 import { ProxyLatencyReport, useProxyLatency } from "./useProxyLatency"
+import { usePermissions } from "hooks/usePermissions"
 
 export interface ProxyContextValue {
   // proxy is **always** the workspace proxy that should be used.
@@ -36,7 +37,12 @@ export interface ProxyContextValue {
 
   // proxies is the list of proxies returned by coderd. This is fetched async.
   // isFetched, isLoading, and error are used to track the state of the async call.
-  proxies?: Region[]
+  //
+  // Region[] is returned if the user is a non-admin.
+  // WorkspaceProxy[] is returned if the user is an admin. WorkspaceProxy extends Region with
+  //  more information about the proxy and the status. More information includes the error message if
+  //  the proxy is unhealthy.
+  proxies?: Region[] | WorkspaceProxy[]
   // isFetched is true when the 'proxies' api call is complete.
   isFetched: boolean
   isLoading: boolean
@@ -47,7 +53,7 @@ export interface ProxyContextValue {
   proxyLatencies: Record<string, ProxyLatencyReport>
   // refetchProxyLatencies will trigger refreshing of the proxy latencies. By default the latencies
   // are loaded once.
-  refetchProxyLatencies: () => void
+  refetchProxyLatencies: () => Date
   // setProxy is a function that sets the user's selected proxy. This function should
   // only be called if the user is manually selecting a proxy. This value is stored in local
   // storage and will persist across reloads and tabs.
@@ -103,12 +109,26 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     if (regions) {
       const rawContent = regions.getAttribute("content")
       try {
-        return JSON.parse(rawContent as string)
+        const obj = JSON.parse(rawContent as string)
+        if ("regions" in obj) {
+          return obj.regions as Region[]
+        }
+        return obj as Region[]
       } catch (ex) {
         // Ignore this and fetch as normal!
       }
     }
   })
+
+  const permissions = usePermissions()
+  const query = async (): Promise<Region[]> => {
+    const endpoint = permissions.editWorkspaceProxies
+      ? getWorkspaceProxies
+      : getWorkspaceProxyRegions
+    const resp = await endpoint()
+    return resp.regions
+  }
+
   const {
     data: proxiesResp,
     error: proxiesError,
@@ -116,7 +136,7 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     isFetched: proxiesFetched,
   } = useQuery({
     queryKey,
-    queryFn: getWorkspaceProxies,
+    queryFn: query,
     staleTime: initialData ? Infinity : undefined,
     initialData,
   })
@@ -133,9 +153,12 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
     setUserSavedProxy(loadUserSelectedProxy())
     setProxy(
       getPreferredProxy(
-        proxiesResp?.regions ?? [],
+        proxiesResp ?? [],
         loadUserSelectedProxy(),
         proxyLatencies,
+        // Do not auto select based on latencies, as inconsistent latencies can cause this
+        // to behave poorly.
+        false,
       ),
     )
   }, [proxiesResp, proxyLatencies])
@@ -158,9 +181,9 @@ export const ProxyProvider: FC<PropsWithChildren> = ({ children }) => {
           : {
               // If the experiment is disabled, then call 'getPreferredProxy' with the regions from
               // the api call. The default behavior is to use the `primary` proxy.
-              ...getPreferredProxy(proxiesResp?.regions || []),
+              ...getPreferredProxy(proxiesResp || []),
             },
-        proxies: proxiesResp?.regions,
+        proxies: proxiesResp,
         isLoading: proxiesLoading,
         isFetched: proxiesFetched,
         error: proxiesError,
@@ -208,6 +231,7 @@ export const getPreferredProxy = (
   proxies: Region[],
   selectedProxy?: Region,
   latencies?: Record<string, ProxyLatencyReport>,
+  autoSelectBasedOnLatency = true,
 ): PreferredProxy => {
   // If a proxy is selected, make sure it is in the list of proxies. If it is not
   // we should default to the primary.
@@ -219,35 +243,53 @@ export const getPreferredProxy = (
   if (!selectedProxy || !selectedProxy.healthy) {
     // By default, use the primary proxy.
     selectedProxy = proxies.find((proxy) => proxy.name === "primary")
+
     // If we have latencies, then attempt to use the best proxy by latency instead.
-    if (latencies) {
-      const proxyMap = proxies.reduce((acc, proxy) => {
-        acc[proxy.id] = proxy
-        return acc
-      }, {} as Record<string, Region>)
-
-      const best = Object.keys(latencies)
-        .map((proxyId) => {
-          return {
-            id: proxyId,
-            ...latencies[proxyId],
-          }
-        })
-        // If the proxy is not in our list, or it is unhealthy, ignore it.
-        .filter((latency) => proxyMap[latency.id]?.healthy)
-        .sort((a, b) => a.latencyMS - b.latencyMS)
-        .at(0)
-
-      // Found a new best, use it!
-      if (best) {
-        const bestProxy = proxies.find((proxy) => proxy.id === best.id)
-        // Default to w/e it was before
-        selectedProxy = bestProxy || selectedProxy
-      }
+    const best = selectByLatency(proxies, latencies)
+    if (autoSelectBasedOnLatency && best) {
+      selectedProxy = best
     }
   }
 
   return computeUsableURLS(selectedProxy)
+}
+
+const selectByLatency = (
+  proxies: Region[],
+  latencies?: Record<string, ProxyLatencyReport>,
+): Region | undefined => {
+  if (!latencies) {
+    return undefined
+  }
+
+  const proxyMap = proxies.reduce(
+    (acc, proxy) => {
+      acc[proxy.id] = proxy
+      return acc
+    },
+    {} as Record<string, Region>,
+  )
+
+  const best = Object.keys(latencies)
+    .map((proxyId) => {
+      return {
+        id: proxyId,
+        ...latencies[proxyId],
+      }
+    })
+    // If the proxy is not in our list, or it is unhealthy, ignore it.
+    .filter((latency) => proxyMap[latency.id]?.healthy)
+    .sort((a, b) => a.latencyMS - b.latencyMS)
+    .at(0)
+
+  // Found a new best, use it!
+  if (best) {
+    const bestProxy = proxies.find((proxy) => proxy.id === best.id)
+    // Default to w/e it was before
+    return bestProxy
+  }
+
+  return undefined
 }
 
 const computeUsableURLS = (proxy?: Region): PreferredProxy => {

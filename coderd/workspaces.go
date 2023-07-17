@@ -102,12 +102,9 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces
-// @Param owner query string false "Filter by owner username"
-// @Param template query string false "Filter by template name"
-// @Param name query string false "Filter with partial-match by workspace name"
-// @Param status query string false "Filter by workspace status" Enums(pending,running,stopping,stopped,failed,canceling,canceled,deleted,deleting)
-// @Param has_agent query string false "Filter by agent status" Enums(connected,connecting,disconnected,timeout)
-// @Param deleting_by query string false "Filter workspaces scheduled to be deleted by this time"
+// @Param q query string false "Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, deleting_by."
+// @Param limit query int false "Page limit"
+// @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.WorkspacesResponse
 // @Router /workspaces [get]
 func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
@@ -454,10 +451,6 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}, nil)
 	var bldErr wsbuilder.BuildError
 	if xerrors.As(err, &bldErr) {
-		if bldErr.Status == http.StatusInternalServerError {
-			api.Logger.Error(ctx, "workspace build error", slog.Error(bldErr.Wrapped))
-		}
-
 		httpapi.Write(ctx, rw, bldErr.Status, codersdk.Response{
 			Message: bldErr.Message,
 			Detail:  bldErr.Error(),
@@ -755,6 +748,61 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// @Summary Update workspace lock by id.
+// @ID update-workspace-lock-by-id
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Workspaces
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Param request body codersdk.UpdateWorkspaceLock true "Lock or unlock a workspace"
+// @Success 200 {object} codersdk.Response
+// @Router /workspaces/{workspace}/lock [put]
+func (api *API) putWorkspaceLock(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspace := httpmw.WorkspaceParam(r)
+
+	var req codersdk.UpdateWorkspaceLock
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	code := http.StatusOK
+	resp := codersdk.Response{}
+
+	// If the workspace is already in the desired state do nothing!
+	if workspace.LockedAt.Valid == req.Lock {
+		httpapi.Write(ctx, rw, http.StatusNotModified, codersdk.Response{
+			Message: "Nothing to do!",
+		})
+		return
+	}
+
+	lockedAt := sql.NullTime{
+		Valid: req.Lock,
+	}
+	if req.Lock {
+		lockedAt.Time = database.Now()
+	}
+
+	err := api.Database.UpdateWorkspaceLockedAt(ctx, database.UpdateWorkspaceLockedAtParams{
+		ID:       workspace.ID,
+		LockedAt: lockedAt,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating workspace locked status.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// TODO should we kick off a build to stop the workspace if it's started
+	// from this endpoint? I'm leaning no to keep things simple and kick
+	// the responsibility back to the client.
+	httpapi.Write(ctx, rw, code, resp)
+}
+
 // @Summary Extend workspace deadline by ID
 // @ID extend-workspace-deadline-by-id
 // @Security CoderSessionToken
@@ -908,7 +956,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	cancelWorkspaceSubscribe, err := api.Pubsub.Subscribe(watchWorkspaceChannel(workspace.ID), sendUpdate)
+	cancelWorkspaceSubscribe, err := api.Pubsub.Subscribe(codersdk.WorkspaceNotifyChannel(workspace.ID), sendUpdate)
 	if err != nil {
 		_ = sendEvent(ctx, codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeError,
@@ -1054,10 +1102,25 @@ func convertWorkspace(
 		autostartSchedule = &workspace.AutostartSchedule.String
 	}
 
+	var lockedAt *time.Time
+	if workspace.LockedAt.Valid {
+		lockedAt = &workspace.LockedAt.Time
+	}
+
+	failingAgents := []uuid.UUID{}
+	for _, resource := range workspaceBuild.Resources {
+		for _, agent := range resource.Agents {
+			if !agent.Health.Healthy {
+				failingAgents = append(failingAgents, agent.ID)
+			}
+		}
+	}
+
 	var (
 		ttlMillis  = convertWorkspaceTTLMillis(workspace.Ttl)
 		deletingAt = calculateDeletingAt(workspace, template, workspaceBuild)
 	)
+
 	return codersdk.Workspace{
 		ID:                                   workspace.ID,
 		CreatedAt:                            workspace.CreatedAt,
@@ -1077,6 +1140,11 @@ func convertWorkspace(
 		TTLMillis:                            ttlMillis,
 		LastUsedAt:                           workspace.LastUsedAt,
 		DeletingAt:                           deletingAt,
+		LockedAt:                             lockedAt,
+		Health: codersdk.WorkspaceHealth{
+			Healthy:       len(failingAgents) == 0,
+			FailingAgents: failingAgents,
+		},
 	}
 }
 
@@ -1175,12 +1243,8 @@ func validWorkspaceSchedule(s *string) (sql.NullString, error) {
 	}, nil
 }
 
-func watchWorkspaceChannel(id uuid.UUID) string {
-	return fmt.Sprintf("workspace:%s", id)
-}
-
 func (api *API) publishWorkspaceUpdate(ctx context.Context, workspaceID uuid.UUID) {
-	err := api.Pubsub.Publish(watchWorkspaceChannel(workspaceID), []byte{})
+	err := api.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(workspaceID), []byte{})
 	if err != nil {
 		api.Logger.Warn(ctx, "failed to publish workspace update",
 			slog.F("workspace_id", workspaceID), slog.Error(err))

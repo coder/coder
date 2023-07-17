@@ -4,7 +4,7 @@ import {
   MockUser,
   MockUser2,
 } from "../../testHelpers/entities"
-import { render } from "../../testHelpers/renderHelpers"
+import { renderWithAuth } from "../../testHelpers/renderHelpers"
 import { Language as navLanguage, NavbarView } from "./NavbarView"
 import { ProxyContextValue } from "contexts/ProxyContext"
 import { action } from "@storybook/addon-actions"
@@ -41,7 +41,7 @@ describe("NavbarView", () => {
   })
 
   it("workspaces nav link has the correct href", async () => {
-    render(
+    renderWithAuth(
       <NavbarView
         proxyContextValue={proxyContextValue}
         user={MockUser}
@@ -55,7 +55,7 @@ describe("NavbarView", () => {
   })
 
   it("templates nav link has the correct href", async () => {
-    render(
+    renderWithAuth(
       <NavbarView
         proxyContextValue={proxyContextValue}
         user={MockUser}
@@ -69,7 +69,7 @@ describe("NavbarView", () => {
   })
 
   it("users nav link has the correct href", async () => {
-    render(
+    renderWithAuth(
       <NavbarView
         proxyContextValue={proxyContextValue}
         user={MockUser}
@@ -91,7 +91,7 @@ describe("NavbarView", () => {
     }
 
     // When
-    render(
+    renderWithAuth(
       <NavbarView
         proxyContextValue={proxyContextValue}
         user={mockUser}
@@ -108,7 +108,7 @@ describe("NavbarView", () => {
   })
 
   it("audit nav link has the correct href", async () => {
-    render(
+    renderWithAuth(
       <NavbarView
         proxyContextValue={proxyContextValue}
         user={MockUser}
@@ -122,7 +122,7 @@ describe("NavbarView", () => {
   })
 
   it("audit nav link is hidden for members", async () => {
-    render(
+    renderWithAuth(
       <NavbarView
         proxyContextValue={proxyContextValue}
         user={MockUser2}
@@ -136,7 +136,7 @@ describe("NavbarView", () => {
   })
 
   it("deployment nav link has the correct href", async () => {
-    render(
+    renderWithAuth(
       <NavbarView
         proxyContextValue={proxyContextValue}
         user={MockUser}
@@ -152,7 +152,7 @@ describe("NavbarView", () => {
   })
 
   it("deployment nav link is hidden for members", async () => {
-    render(
+    renderWithAuth(
       <NavbarView
         proxyContextValue={proxyContextValue}
         user={MockUser2}

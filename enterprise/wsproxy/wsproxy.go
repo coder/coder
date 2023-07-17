@@ -246,9 +246,12 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 			SecurityKey:  secKey,
 			Logger:       s.Logger.Named("proxy_token_provider"),
 		},
-		WorkspaceConnCache: wsconncache.New(s.DialWorkspaceAgent, 0),
-		AppSecurityKey:     secKey,
+		AppSecurityKey: secKey,
 
+		// TODO: Convert wsproxy to use coderd.ServerTailnet.
+		AgentProvider: &wsconncache.AgentProvider{
+			Cache: wsconncache.New(s.DialWorkspaceAgent, 0),
+		},
 		DisablePathApps:  opts.DisablePathApps,
 		SecureAuthCookie: opts.SecureAuthCookie,
 	}
@@ -354,6 +357,10 @@ func (s *Server) Close() error {
 	appServerErr := s.AppServer.Close()
 	if appServerErr != nil {
 		err = multierror.Append(err, appServerErr)
+	}
+	agentProviderErr := s.AppServer.AgentProvider.Close()
+	if agentProviderErr != nil {
+		err = multierror.Append(err, agentProviderErr)
 	}
 	s.SDKClient.SDKClient.HTTPClient.CloseIdleConnections()
 	return err

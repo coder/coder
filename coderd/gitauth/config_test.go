@@ -144,13 +144,6 @@ func TestConvertYAML(t *testing.T) {
 		}},
 		Error: "client_id must be provided",
 	}, {
-		Name: "NoClientSecret",
-		Input: []codersdk.GitAuthConfig{{
-			Type:     string(codersdk.GitProviderGitHub),
-			ClientID: "example",
-		}},
-		Error: "client_secret must be provided",
-	}, {
 		Name: "DuplicateType",
 		Input: []codersdk.GitAuthConfig{{
 			Type:         string(codersdk.GitProviderGitHub),
@@ -169,6 +162,15 @@ func TestConvertYAML(t *testing.T) {
 			Regex:        `\K`,
 		}},
 		Error: "compile regex for git auth provider",
+	}, {
+		Name: "NoDeviceURL",
+		Input: []codersdk.GitAuthConfig{{
+			Type:         string(codersdk.GitProviderGitLab),
+			ClientID:     "example",
+			ClientSecret: "example",
+			DeviceFlow:   true,
+		}},
+		Error: "device auth url must be provided",
 	}} {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {

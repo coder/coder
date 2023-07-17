@@ -22,14 +22,11 @@ func TestGroupEdit(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdenttest.New(t, nil)
-		admin := coderdtest.CreateFirstUser(t, client)
-
-		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+		client, admin := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureTemplateRBAC: 1,
 			},
-		})
+		}})
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		_, user1 := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
@@ -74,14 +71,11 @@ func TestGroupEdit(t *testing.T) {
 	t.Run("InvalidUserInput", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdenttest.New(t, nil)
-		admin := coderdtest.CreateFirstUser(t, client)
-
-		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+		client, admin := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureTemplateRBAC: 1,
 			},
-		})
+		}})
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -106,14 +100,11 @@ func TestGroupEdit(t *testing.T) {
 	t.Run("NoArg", func(t *testing.T) {
 		t.Parallel()
 
-		client := coderdenttest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
-
-		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureTemplateRBAC: 1,
 			},
-		})
+		}})
 
 		inv, conf := newCLI(t, "groups", "edit")
 		clitest.SetupConfig(t, client, conf)

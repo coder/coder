@@ -12,7 +12,6 @@ terraform {
 }
 
 provider "coder" {
-  feature_use_managed_variables = true
 }
 
 variable "step1_do_project_id" {

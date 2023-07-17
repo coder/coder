@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"net"
@@ -53,20 +52,22 @@ const (
 )
 
 type Options struct {
-	Filesystem             afero.Fs
-	LogDir                 string
-	TempDir                string
-	ExchangeToken          func(ctx context.Context) (string, error)
-	Client                 Client
-	ReconnectingPTYTimeout time.Duration
-	EnvironmentVariables   map[string]string
-	Logger                 slog.Logger
-	IgnorePorts            map[int]string
-	SSHMaxTimeout          time.Duration
-	TailnetListenPort      uint16
-	Subsystem              codersdk.AgentSubsystem
-
-	PrometheusRegistry *prometheus.Registry
+	Filesystem                   afero.Fs
+	LogDir                       string
+	TempDir                      string
+	ExchangeToken                func(ctx context.Context) (string, error)
+	Client                       Client
+	ReconnectingPTYTimeout       time.Duration
+	EnvironmentVariables         map[string]string
+	Logger                       slog.Logger
+	IgnorePorts                  map[int]string
+	SSHMaxTimeout                time.Duration
+	TailnetListenPort            uint16
+	Subsystem                    codersdk.AgentSubsystem
+	Addresses                    []netip.Prefix
+	PrometheusRegistry           *prometheus.Registry
+	ReportMetadataInterval       time.Duration
+	ServiceBannerRefreshInterval time.Duration
 }
 
 type Client interface {
@@ -79,6 +80,7 @@ type Client interface {
 	PostStartup(ctx context.Context, req agentsdk.PostStartupRequest) error
 	PostMetadata(ctx context.Context, key string, req agentsdk.PostMetadataRequest) error
 	PatchStartupLogs(ctx context.Context, req agentsdk.PatchStartupLogs) error
+	GetServiceBanner(ctx context.Context) (codersdk.ServiceBannerConfig, error)
 }
 
 type Agent interface {
@@ -107,6 +109,12 @@ func New(options Options) Agent {
 			return "", nil
 		}
 	}
+	if options.ReportMetadataInterval == 0 {
+		options.ReportMetadataInterval = 1 * time.Minute
+	}
+	if options.ServiceBannerRefreshInterval == 0 {
+		options.ServiceBannerRefreshInterval = 2 * time.Minute
+	}
 
 	prometheusRegistry := options.PrometheusRegistry
 	if prometheusRegistry == nil {
@@ -115,24 +123,27 @@ func New(options Options) Agent {
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	a := &agent{
-		tailnetListenPort:      options.TailnetListenPort,
-		reconnectingPTYTimeout: options.ReconnectingPTYTimeout,
-		logger:                 options.Logger,
-		closeCancel:            cancelFunc,
-		closed:                 make(chan struct{}),
-		envVars:                options.EnvironmentVariables,
-		client:                 options.Client,
-		exchangeToken:          options.ExchangeToken,
-		filesystem:             options.Filesystem,
-		logDir:                 options.LogDir,
-		tempDir:                options.TempDir,
-		lifecycleUpdate:        make(chan struct{}, 1),
-		lifecycleReported:      make(chan codersdk.WorkspaceAgentLifecycle, 1),
-		lifecycleStates:        []agentsdk.PostLifecycleRequest{{State: codersdk.WorkspaceAgentLifecycleCreated}},
-		ignorePorts:            options.IgnorePorts,
-		connStatsChan:          make(chan *agentsdk.Stats, 1),
-		sshMaxTimeout:          options.SSHMaxTimeout,
-		subsystem:              options.Subsystem,
+		tailnetListenPort:            options.TailnetListenPort,
+		reconnectingPTYTimeout:       options.ReconnectingPTYTimeout,
+		logger:                       options.Logger,
+		closeCancel:                  cancelFunc,
+		closed:                       make(chan struct{}),
+		envVars:                      options.EnvironmentVariables,
+		client:                       options.Client,
+		exchangeToken:                options.ExchangeToken,
+		filesystem:                   options.Filesystem,
+		logDir:                       options.LogDir,
+		tempDir:                      options.TempDir,
+		lifecycleUpdate:              make(chan struct{}, 1),
+		lifecycleReported:            make(chan codersdk.WorkspaceAgentLifecycle, 1),
+		lifecycleStates:              []agentsdk.PostLifecycleRequest{{State: codersdk.WorkspaceAgentLifecycleCreated}},
+		ignorePorts:                  options.IgnorePorts,
+		connStatsChan:                make(chan *agentsdk.Stats, 1),
+		reportMetadataInterval:       options.ReportMetadataInterval,
+		serviceBannerRefreshInterval: options.ServiceBannerRefreshInterval,
+		sshMaxTimeout:                options.SSHMaxTimeout,
+		subsystem:                    options.Subsystem,
+		addresses:                    options.Addresses,
 
 		prometheusRegistry: prometheusRegistry,
 		metrics:            newAgentMetrics(prometheusRegistry),
@@ -164,11 +175,14 @@ type agent struct {
 	closed        chan struct{}
 
 	envVars map[string]string
-	// manifest is atomic because values can change after reconnection.
-	manifest      atomic.Pointer[agentsdk.Manifest]
-	sessionToken  atomic.Pointer[string]
-	sshServer     *agentssh.Server
-	sshMaxTimeout time.Duration
+
+	manifest                     atomic.Pointer[agentsdk.Manifest] // manifest is atomic because values can change after reconnection.
+	reportMetadataInterval       time.Duration
+	serviceBanner                atomic.Pointer[codersdk.ServiceBannerConfig] // serviceBanner is atomic because it is periodically updated.
+	serviceBannerRefreshInterval time.Duration
+	sessionToken                 atomic.Pointer[string]
+	sshServer                    *agentssh.Server
+	sshMaxTimeout                time.Duration
 
 	lifecycleUpdate   chan struct{}
 	lifecycleReported chan codersdk.WorkspaceAgentLifecycle
@@ -176,6 +190,7 @@ type agent struct {
 	lifecycleStates   []agentsdk.PostLifecycleRequest
 
 	network       *tailnet.Conn
+	addresses     []netip.Prefix
 	connStatsChan chan *agentsdk.Stats
 	latestStat    atomic.Pointer[agentsdk.Stats]
 
@@ -193,6 +208,7 @@ func (a *agent) init(ctx context.Context) {
 	sshSrv.Env = a.envVars
 	sshSrv.AgentToken = func() string { return *a.sessionToken.Load() }
 	sshSrv.Manifest = &a.manifest
+	sshSrv.ServiceBanner = &a.serviceBanner
 	a.sshServer = sshSrv
 
 	go a.runLoop(ctx)
@@ -205,6 +221,7 @@ func (a *agent) init(ctx context.Context) {
 func (a *agent) runLoop(ctx context.Context) {
 	go a.reportLifecycleLoop(ctx)
 	go a.reportMetadataLoop(ctx)
+	go a.fetchServiceBannerLoop(ctx)
 
 	for retrier := retry.New(100*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
 		a.logger.Info(ctx, "connecting to coderd")
@@ -277,16 +294,6 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 	return result
 }
 
-func adjustIntervalForTests(i int64) time.Duration {
-	// In tests we want to set shorter intervals because engineers are
-	// impatient.
-	base := time.Second
-	if flag.Lookup("test.v") != nil {
-		base = time.Millisecond * 100
-	}
-	return time.Duration(i) * base
-}
-
 type metadataResultAndKey struct {
 	result *codersdk.WorkspaceAgentMetadataResult
 	key    string
@@ -308,12 +315,10 @@ func (t *trySingleflight) Do(key string, fn func()) {
 }
 
 func (a *agent) reportMetadataLoop(ctx context.Context) {
-	baseInterval := adjustIntervalForTests(1)
-
 	const metadataLimit = 128
 
 	var (
-		baseTicker       = time.NewTicker(baseInterval)
+		baseTicker       = time.NewTicker(a.reportMetadataInterval)
 		lastCollectedAts = make(map[string]time.Time)
 		metadataResults  = make(chan metadataResultAndKey, metadataLimit)
 	)
@@ -384,9 +389,7 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 					continue
 				}
 				// The last collected value isn't quite stale yet, so we skip it.
-				if collectedAt.Add(
-					adjustIntervalForTests(md.Interval),
-				).After(time.Now()) {
+				if collectedAt.Add(a.reportMetadataInterval).After(time.Now()) {
 					continue
 				}
 			}
@@ -493,6 +496,30 @@ func (a *agent) setLifecycle(ctx context.Context, state codersdk.WorkspaceAgentL
 	}
 }
 
+// fetchServiceBannerLoop fetches the service banner on an interval.  It will
+// not be fetched immediately; the expectation is that it is primed elsewhere
+// (and must be done before the session actually starts).
+func (a *agent) fetchServiceBannerLoop(ctx context.Context) {
+	ticker := time.NewTicker(a.serviceBannerRefreshInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			serviceBanner, err := a.client.GetServiceBanner(ctx)
+			if err != nil {
+				if ctx.Err() != nil {
+					return
+				}
+				a.logger.Error(ctx, "failed to update service banner", slog.Error(err))
+				continue
+			}
+			a.serviceBanner.Store(&serviceBanner)
+		}
+	}
+}
+
 func (a *agent) run(ctx context.Context) error {
 	// This allows the agent to refresh it's token if necessary.
 	// For instance identity this is required, since the instance
@@ -503,11 +530,21 @@ func (a *agent) run(ctx context.Context) error {
 	}
 	a.sessionToken.Store(&sessionToken)
 
+	serviceBanner, err := a.client.GetServiceBanner(ctx)
+	if err != nil {
+		return xerrors.Errorf("fetch service banner: %w", err)
+	}
+	a.serviceBanner.Store(&serviceBanner)
+
 	manifest, err := a.client.Manifest(ctx)
 	if err != nil {
 		return xerrors.Errorf("fetch metadata: %w", err)
 	}
 	a.logger.Info(ctx, "fetched manifest", slog.F("manifest", manifest))
+
+	if manifest.AgentID == uuid.Nil {
+		return xerrors.New("nil agentID returned by manifest")
+	}
 
 	// Expand the directory and send it back to coderd so external
 	// applications that rely on the directory can use it.
@@ -594,7 +631,7 @@ func (a *agent) run(ctx context.Context) error {
 	network := a.network
 	a.closeMutex.Unlock()
 	if network == nil {
-		network, err = a.createTailnet(ctx, manifest.DERPMap, manifest.DisableDirectConnections)
+		network, err = a.createTailnet(ctx, manifest.AgentID, manifest.DERPMap, manifest.DisableDirectConnections)
 		if err != nil {
 			return xerrors.Errorf("create tailnet: %w", err)
 		}
@@ -612,6 +649,11 @@ func (a *agent) run(ctx context.Context) error {
 
 		a.startReportingConnectionStats(ctx)
 	} else {
+		// Update the wireguard IPs if the agent ID changed.
+		err := network.SetAddresses(a.wireguardAddresses(manifest.AgentID))
+		if err != nil {
+			a.logger.Error(ctx, "update tailnet addresses", slog.Error(err))
+		}
 		// Update the DERP map and allow/disallow direct connections.
 		network.SetDERPMap(manifest.DERPMap)
 		network.SetBlockEndpoints(manifest.DisableDirectConnections)
@@ -639,6 +681,20 @@ func (a *agent) run(ctx context.Context) error {
 	return eg.Wait()
 }
 
+func (a *agent) wireguardAddresses(agentID uuid.UUID) []netip.Prefix {
+	if len(a.addresses) == 0 {
+		return []netip.Prefix{
+			// This is the IP that should be used primarily.
+			netip.PrefixFrom(tailnet.IPFromUUID(agentID), 128),
+			// We also listen on the legacy codersdk.WorkspaceAgentIP. This
+			// allows for a transition away from wsconncache.
+			netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128),
+		}
+	}
+
+	return a.addresses
+}
+
 func (a *agent) trackConnGoroutine(fn func()) error {
 	a.closeMutex.Lock()
 	defer a.closeMutex.Unlock()
@@ -653,9 +709,9 @@ func (a *agent) trackConnGoroutine(fn func()) error {
 	return nil
 }
 
-func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap, disableDirectConnections bool) (_ *tailnet.Conn, err error) {
+func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *tailcfg.DERPMap, disableDirectConnections bool) (_ *tailnet.Conn, err error) {
 	network, err := tailnet.NewConn(&tailnet.Options{
-		Addresses:      []netip.Prefix{netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128)},
+		Addresses:      a.wireguardAddresses(agentID),
 		DERPMap:        derpMap,
 		Logger:         a.logger.Named("tailnet"),
 		ListenPort:     a.tailnetListenPort,

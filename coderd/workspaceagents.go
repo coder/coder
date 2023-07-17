@@ -161,6 +161,7 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.Manifest{
+		AgentID:                  apiAgent.ID,
 		Apps:                     convertApps(dbApps),
 		DERPMap:                  api.DERPMap(),
 		GitAuthConfigs:           len(api.GitAuthConfigs),
@@ -242,7 +243,6 @@ func (api *API) postWorkspaceAgentStartup(rw http.ResponseWriter, r *http.Reques
 // @Param request body agentsdk.PatchStartupLogs true "Startup logs"
 // @Success 200 {object} codersdk.Response
 // @Router /workspaceagents/me/startup-logs [patch]
-// @x-apidocgen {"skip": true}
 func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
@@ -654,7 +654,7 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	agentConn, release, err := api.workspaceAgentCache.Acquire(workspaceAgent.ID)
+	agentConn, release, err := api.agentProvider.AgentConn(ctx, workspaceAgent.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error dialing workspace agent.",
@@ -729,7 +729,9 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 	httpapi.Write(ctx, rw, http.StatusOK, portsResponse)
 }
 
-func (api *API) dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
+// Deprecated: use api.tailnet.AgentConn instead.
+// See: https://github.com/coder/coder/issues/8218
+func (api *API) _dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
 	clientConn, serverConn := net.Pipe()
 
 	derpMap := api.DERPMap()
@@ -763,11 +765,13 @@ func (api *API) dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.Workspac
 		return conn.UpdateNodes(nodes, true)
 	})
 	conn.SetNodeCallback(sendNodes)
-	go func() {
-		for {
-			ticker := time.NewTicker(5 * time.Second)
-			defer ticker.Stop()
 
+	// Check for updated DERP map every 5 seconds.
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+
+		for {
 			lastDERPMap := derpMap
 			for {
 				select {
@@ -781,18 +785,21 @@ func (api *API) dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.Workspac
 					conn.SetDERPMap(derpMap)
 					lastDERPMap = derpMap
 				}
+				ticker.Reset(5 * time.Second)
 			}
 		}
 	}()
 
-	agentConn := &codersdk.WorkspaceAgentConn{
-		Conn: conn,
-		CloseFunc: func() {
+	agentConn := codersdk.NewWorkspaceAgentConn(conn, codersdk.WorkspaceAgentConnOptions{
+		AgentID: agentID,
+		AgentIP: codersdk.WorkspaceAgentIP,
+		CloseFunc: func() error {
 			cancel()
 			_ = clientConn.Close()
 			_ = serverConn.Close()
+			return nil
 		},
-	}
+	})
 	go func() {
 		err := (*api.TailnetCoordinator.Load()).ServeClient(serverConn, uuid.New(), agentID)
 		if err != nil {
@@ -1335,6 +1342,24 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		workspaceAgent.ReadyAt = &dbAgent.ReadyAt.Time
 	}
 
+	switch {
+	case workspaceAgent.Status != codersdk.WorkspaceAgentConnected && workspaceAgent.LifecycleState == codersdk.WorkspaceAgentLifecycleOff:
+		workspaceAgent.Health.Reason = "agent is not running"
+	case workspaceAgent.Status == codersdk.WorkspaceAgentTimeout:
+		workspaceAgent.Health.Reason = "agent is taking too long to connect"
+	case workspaceAgent.Status == codersdk.WorkspaceAgentDisconnected:
+		workspaceAgent.Health.Reason = "agent has lost connection"
+	// Note: We could also handle codersdk.WorkspaceAgentLifecycleStartTimeout
+	// here, but it's more of a soft issue, so we don't want to mark the agent
+	// as unhealthy.
+	case workspaceAgent.LifecycleState == codersdk.WorkspaceAgentLifecycleStartError:
+		workspaceAgent.Health.Reason = "agent startup script exited with an error"
+	case workspaceAgent.LifecycleState.ShuttingDown():
+		workspaceAgent.Health.Reason = "agent is shutting down"
+	default:
+		workspaceAgent.Health.Healthy = true
+	}
+
 	return workspaceAgent, nil
 }
 
@@ -1347,7 +1372,6 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 // @Param request body agentsdk.Stats true "Stats request"
 // @Success 200 {object} agentsdk.StatsResponse
 // @Router /workspaceagents/me/report-stats [post]
-// @x-apidocgen {"skip": true}
 func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -1975,18 +1999,16 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 			if gitAuthLink.OAuthExpiry.Before(database.Now()) && !gitAuthLink.OAuthExpiry.IsZero() {
 				continue
 			}
-			if gitAuthConfig.ValidateURL != "" {
-				valid, err := gitAuthConfig.ValidateToken(ctx, gitAuthLink.OAuthAccessToken)
-				if err != nil {
-					api.Logger.Warn(ctx, "failed to validate git auth token",
-						slog.F("workspace_owner_id", workspace.OwnerID.String()),
-						slog.F("validate_url", gitAuthConfig.ValidateURL),
-						slog.Error(err),
-					)
-				}
-				if !valid {
-					continue
-				}
+			valid, _, err := gitAuthConfig.ValidateToken(ctx, gitAuthLink.OAuthAccessToken)
+			if err != nil {
+				api.Logger.Warn(ctx, "failed to validate git auth token",
+					slog.F("workspace_owner_id", workspace.OwnerID.String()),
+					slog.F("validate_url", gitAuthConfig.ValidateURL),
+					slog.Error(err),
+				)
+			}
+			if !valid {
+				continue
 			}
 			httpapi.Write(ctx, rw, http.StatusOK, formatGitAuthAccessToken(gitAuthConfig.Type, gitAuthLink.OAuthAccessToken))
 			return
@@ -2061,70 +2083,6 @@ func formatGitAuthAccessToken(typ codersdk.GitProvider, token string) agentsdk.G
 		}
 	}
 	return resp
-}
-
-func (api *API) gitAuthCallback(gitAuthConfig *gitauth.Config) http.HandlerFunc {
-	return func(rw http.ResponseWriter, r *http.Request) {
-		var (
-			ctx    = r.Context()
-			state  = httpmw.OAuth2(r)
-			apiKey = httpmw.APIKey(r)
-		)
-
-		_, err := api.Database.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
-			ProviderID: gitAuthConfig.ID,
-			UserID:     apiKey.UserID,
-		})
-		if err != nil {
-			if !errors.Is(err, sql.ErrNoRows) {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Failed to get git auth link.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-
-			_, err = api.Database.InsertGitAuthLink(ctx, database.InsertGitAuthLinkParams{
-				ProviderID:        gitAuthConfig.ID,
-				UserID:            apiKey.UserID,
-				CreatedAt:         database.Now(),
-				UpdatedAt:         database.Now(),
-				OAuthAccessToken:  state.Token.AccessToken,
-				OAuthRefreshToken: state.Token.RefreshToken,
-				OAuthExpiry:       state.Token.Expiry,
-			})
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Failed to insert git auth link.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-		} else {
-			_, err = api.Database.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
-				ProviderID:        gitAuthConfig.ID,
-				UserID:            apiKey.UserID,
-				UpdatedAt:         database.Now(),
-				OAuthAccessToken:  state.Token.AccessToken,
-				OAuthRefreshToken: state.Token.RefreshToken,
-				OAuthExpiry:       state.Token.Expiry,
-			})
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Failed to update git auth link.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-		}
-
-		redirect := state.Redirect
-		if redirect == "" {
-			// This is a nicely rendered screen on the frontend
-			redirect = "/gitauth"
-		}
-		http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
-	}
 }
 
 // wsNetConn wraps net.Conn created by websocket.NetConn(). Cancel func

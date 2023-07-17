@@ -264,11 +264,11 @@ describe("ProxyContextSelection", () => {
         expUserProxyID: MockHealthyWildWorkspaceProxy.id,
       },
     ],
-    // Latency behavior
+    // Latency behavior is disabled, so the primary should be selected.
     [
       "regions_default_low_latency",
       {
-        expProxyID: MockHealthyWildWorkspaceProxy.id,
+        expProxyID: MockPrimaryWorkspaceProxy.id,
         regions: MockWorkspaceProxies,
         storageProxy: undefined,
         latencies: {
@@ -353,6 +353,14 @@ describe("ProxyContextSelection", () => {
       // Mock the API response
       server.use(
         rest.get("/api/v2/regions", async (req, res, ctx) => {
+          return res(
+            ctx.status(200),
+            ctx.json({
+              regions: regions,
+            }),
+          )
+        }),
+        rest.get("/api/v2/workspaceproxies", async (req, res, ctx) => {
           return res(
             ctx.status(200),
             ctx.json({

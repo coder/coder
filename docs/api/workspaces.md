@@ -48,6 +48,10 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
+  "health": {
+    "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+    "healthy": false
+  },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_used_at": "2019-08-24T14:15:22Z",
   "latest_build": {
@@ -112,6 +116,10 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
             },
             "expanded_directory": "string",
             "first_connected_at": "2019-08-24T14:15:22Z",
+            "health": {
+              "healthy": false,
+              "reason": "agent has lost connection"
+            },
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "instance_id": "string",
             "last_connected_at": "2019-08-24T14:15:22Z",
@@ -174,6 +182,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
     "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
     "workspace_owner_name": "string"
   },
+  "locked_at": "2019-08-24T14:15:22Z",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "outdated": true,
@@ -227,6 +236,10 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
+  "health": {
+    "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+    "healthy": false
+  },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_used_at": "2019-08-24T14:15:22Z",
   "latest_build": {
@@ -291,6 +304,10 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
             },
             "expanded_directory": "string",
             "first_connected_at": "2019-08-24T14:15:22Z",
+            "health": {
+              "healthy": false,
+              "reason": "agent has lost connection"
+            },
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "instance_id": "string",
             "last_connected_at": "2019-08-24T14:15:22Z",
@@ -353,6 +370,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
     "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
     "workspace_owner_name": "string"
   },
+  "locked_at": "2019-08-24T14:15:22Z",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "outdated": true,
@@ -391,32 +409,11 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
 
 ### Parameters
 
-| Name          | In    | Type   | Required | Description                                            |
-| ------------- | ----- | ------ | -------- | ------------------------------------------------------ |
-| `owner`       | query | string | false    | Filter by owner username                               |
-| `template`    | query | string | false    | Filter by template name                                |
-| `name`        | query | string | false    | Filter with partial-match by workspace name            |
-| `status`      | query | string | false    | Filter by workspace status                             |
-| `has_agent`   | query | string | false    | Filter by agent status                                 |
-| `deleting_by` | query | string | false    | Filter workspaces scheduled to be deleted by this time |
-
-#### Enumerated Values
-
-| Parameter   | Value          |
-| ----------- | -------------- |
-| `status`    | `pending`      |
-| `status`    | `running`      |
-| `status`    | `stopping`     |
-| `status`    | `stopped`      |
-| `status`    | `failed`       |
-| `status`    | `canceling`    |
-| `status`    | `canceled`     |
-| `status`    | `deleted`      |
-| `status`    | `deleting`     |
-| `has_agent` | `connected`    |
-| `has_agent` | `connecting`   |
-| `has_agent` | `disconnected` |
-| `has_agent` | `timeout`      |
+| Name     | In    | Type    | Required | Description                                                                                                        |
+| -------- | ----- | ------- | -------- | ------------------------------------------------------------------------------------------------------------------ |
+| `q`      | query | string  | false    | Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, deleting_by. |
+| `limit`  | query | integer | false    | Page limit                                                                                                         |
+| `offset` | query | integer | false    | Page offset                                                                                                        |
 
 ### Example responses
 
@@ -430,6 +427,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
       "autostart_schedule": "string",
       "created_at": "2019-08-24T14:15:22Z",
       "deleting_at": "2019-08-24T14:15:22Z",
+      "health": {
+        "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+        "healthy": false
+      },
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_used_at": "2019-08-24T14:15:22Z",
       "latest_build": {
@@ -490,6 +491,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                 },
                 "expanded_directory": "string",
                 "first_connected_at": "2019-08-24T14:15:22Z",
+                "health": {
+                  "healthy": false,
+                  "reason": "agent has lost connection"
+                },
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "instance_id": "string",
                 "last_connected_at": "2019-08-24T14:15:22Z",
@@ -552,6 +557,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
         "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
         "workspace_owner_name": "string"
       },
+      "locked_at": "2019-08-24T14:15:22Z",
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "outdated": true,
@@ -606,6 +612,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
+  "health": {
+    "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+    "healthy": false
+  },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_used_at": "2019-08-24T14:15:22Z",
   "latest_build": {
@@ -670,6 +680,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
             },
             "expanded_directory": "string",
             "first_connected_at": "2019-08-24T14:15:22Z",
+            "health": {
+              "healthy": false,
+              "reason": "agent has lost connection"
+            },
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "instance_id": "string",
             "last_connected_at": "2019-08-24T14:15:22Z",
@@ -732,6 +746,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
     "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
     "workspace_owner_name": "string"
   },
+  "locked_at": "2019-08-24T14:15:22Z",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "outdated": true,
@@ -855,6 +870,60 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/extend \
 | ----------- | ---- | ---------------------------------------------------------------------------------- | -------- | ------------------------------ |
 | `workspace` | path | string(uuid)                                                                       | true     | Workspace ID                   |
 | `body`      | body | [codersdk.PutExtendWorkspaceRequest](schemas.md#codersdkputextendworkspacerequest) | true     | Extend deadline update request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update workspace lock by id.
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/lock \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /workspaces/{workspace}/lock`
+
+> Body parameter
+
+```json
+{
+  "lock": true
+}
+```
+
+### Parameters
+
+| Name        | In   | Type                                                                   | Required | Description                |
+| ----------- | ---- | ---------------------------------------------------------------------- | -------- | -------------------------- |
+| `workspace` | path | string(uuid)                                                           | true     | Workspace ID               |
+| `body`      | body | [codersdk.UpdateWorkspaceLock](schemas.md#codersdkupdateworkspacelock) | true     | Lock or unlock a workspace |
 
 ### Example responses
 

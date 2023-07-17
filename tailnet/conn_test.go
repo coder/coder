@@ -23,7 +23,7 @@ func TestMain(m *testing.M) {
 func TestTailnet(t *testing.T) {
 	t.Parallel()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	derpMap := tailnettest.RunDERPAndSTUN(t)
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
 	t.Run("InstantClose", func(t *testing.T) {
 		t.Parallel()
 		conn, err := tailnet.NewConn(&tailnet.Options{
@@ -172,7 +172,7 @@ func TestConn_PreferredDERP(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	derpMap := tailnettest.RunDERPAndSTUN(t)
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 		Logger:    logger.Named("w1"),
@@ -202,7 +202,7 @@ func TestConn_UpdateDERP(t *testing.T) {
 	t.Parallel()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
-	derpMap1 := tailnettest.RunDERPAndSTUN(t)
+	derpMap1, _ := tailnettest.RunDERPAndSTUN(t)
 	ip := tailnet.IP()
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:      []netip.Prefix{netip.PrefixFrom(ip, 128)},
@@ -254,7 +254,7 @@ func TestConn_UpdateDERP(t *testing.T) {
 	require.True(t, client1.AwaitReachable(awaitReachableCtx1, ip))
 
 	// Update the DERP map and wait for the preferred DERP server to change.
-	derpMap2 := tailnettest.RunDERPAndSTUN(t)
+	derpMap2, _ := tailnettest.RunDERPAndSTUN(t)
 	// Change the region ID.
 	derpMap2.Regions[2] = derpMap2.Regions[1]
 	delete(derpMap2.Regions, 1)

@@ -49,7 +49,7 @@ func setupWorkspaceForAgent(t *testing.T, mutate func([]*proto.Agent) []*proto.A
 		}
 	}
 	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-	client.Logger = slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug)
+	client.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
 	user := coderdtest.CreateFirstUser(t, client)
 	agentToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{

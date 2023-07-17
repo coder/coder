@@ -4,9 +4,10 @@ description: |
 runs:
   using: "composite"
   steps:
-    - uses: buildjet/setup-node@v3
+    - name: Setup Node
+      uses: buildjet/setup-node@v3
       with:
-        node-version: 16.16.0
+        node-version: 16.20.1
         # See https://github.com/actions/setup-node#caching-global-packages-data
         cache: "yarn"
         cache-dependency-path: "site/yarn.lock"

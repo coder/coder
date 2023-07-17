@@ -33,19 +33,19 @@ func TestResultString(t *testing.T) {
 			Result:   Result{Used: 12.34, Total: nil, Unit: ""},
 		},
 		{
-			Expected: "1.54 kB",
-			Result:   Result{Used: 1536, Total: nil, Unit: "B"},
+			Expected: "1.5 KiB",
+			Result:   Result{Used: 1536, Total: nil, Unit: "B", Prefix: PrefixKibi},
 		},
 		{
 			Expected: "1.23 things",
 			Result:   Result{Used: 1.234, Total: nil, Unit: "things"},
 		},
 		{
-			Expected: "1 B/100 TB (0%)",
-			Result:   Result{Used: 1, Total: ptr.To(1000 * 1000 * 1000 * 1000 * 100.0), Unit: "B"},
+			Expected: "0/100 TiB (0%)",
+			Result:   Result{Used: 1, Total: ptr.To(100.0 * float64(PrefixTebi)), Unit: "B", Prefix: PrefixTebi},
 		},
 		{
-			Expected: "500 mcores/8 cores (6%)",
+			Expected: "0.5/8 cores (6%)",
 			Result:   Result{Used: 0.5, Total: ptr.To(8.0), Unit: "cores"},
 		},
 	} {
@@ -76,7 +76,7 @@ func TestStatter(t *testing.T) {
 
 		t.Run("HostMemory", func(t *testing.T) {
 			t.Parallel()
-			mem, err := s.HostMemory()
+			mem, err := s.HostMemory(PrefixDefault)
 			require.NoError(t, err)
 			assert.NotZero(t, mem.Used)
 			assert.NotZero(t, mem.Total)
@@ -85,7 +85,7 @@ func TestStatter(t *testing.T) {
 
 		t.Run("HostDisk", func(t *testing.T) {
 			t.Parallel()
-			disk, err := s.Disk("") // default to home dir
+			disk, err := s.Disk(PrefixDefault, "") // default to home dir
 			require.NoError(t, err)
 			assert.NotZero(t, disk.Used)
 			assert.NotZero(t, disk.Total)
@@ -149,8 +149,7 @@ func TestStatter(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, cpu)
 			assert.Equal(t, 1.0, cpu.Used)
-			require.NotNil(t, cpu.Total)
-			assert.Equal(t, 2.0, *cpu.Total)
+			require.Nil(t, cpu.Total)
 			assert.Equal(t, "cores", cpu.Unit)
 		})
 
@@ -159,12 +158,25 @@ func TestStatter(t *testing.T) {
 			fs := initFS(t, fsContainerCgroupV1)
 			s, err := New(WithFS(fs), withNoWait)
 			require.NoError(t, err)
-			mem, err := s.ContainerMemory()
+			mem, err := s.ContainerMemory(PrefixDefault)
 			require.NoError(t, err)
 			require.NotNil(t, mem)
 			assert.Equal(t, 268435456.0, mem.Used)
 			assert.NotNil(t, mem.Total)
 			assert.Equal(t, 1073741824.0, *mem.Total)
+			assert.Equal(t, "B", mem.Unit)
+		})
+
+		t.Run("ContainerMemory/NoLimit", func(t *testing.T) {
+			t.Parallel()
+			fs := initFS(t, fsContainerCgroupV1NoLimit)
+			s, err := New(WithFS(fs), withNoWait)
+			require.NoError(t, err)
+			mem, err := s.ContainerMemory(PrefixDefault)
+			require.NoError(t, err)
+			require.NotNil(t, mem)
+			assert.Equal(t, 268435456.0, mem.Used)
+			assert.Nil(t, mem.Total)
 			assert.Equal(t, "B", mem.Unit)
 		})
 	})
@@ -201,22 +213,34 @@ func TestStatter(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, cpu)
 			assert.Equal(t, 1.0, cpu.Used)
-			require.NotNil(t, cpu.Total)
-			assert.Equal(t, 2.0, *cpu.Total)
+			require.Nil(t, cpu.Total)
 			assert.Equal(t, "cores", cpu.Unit)
 		})
 
-		t.Run("ContainerMemory", func(t *testing.T) {
+		t.Run("ContainerMemory/Limit", func(t *testing.T) {
 			t.Parallel()
 			fs := initFS(t, fsContainerCgroupV2)
 			s, err := New(WithFS(fs), withNoWait)
 			require.NoError(t, err)
-			mem, err := s.ContainerMemory()
+			mem, err := s.ContainerMemory(PrefixDefault)
 			require.NoError(t, err)
 			require.NotNil(t, mem)
 			assert.Equal(t, 268435456.0, mem.Used)
 			assert.NotNil(t, mem.Total)
 			assert.Equal(t, 1073741824.0, *mem.Total)
+			assert.Equal(t, "B", mem.Unit)
+		})
+
+		t.Run("ContainerMemory/NoLimit", func(t *testing.T) {
+			t.Parallel()
+			fs := initFS(t, fsContainerCgroupV2NoLimit)
+			s, err := New(WithFS(fs), withNoWait)
+			require.NoError(t, err)
+			mem, err := s.ContainerMemory(PrefixDefault)
+			require.NoError(t, err)
+			require.NotNil(t, mem)
+			assert.Equal(t, 268435456.0, mem.Used)
+			assert.Nil(t, mem.Total)
 			assert.Equal(t, "B", mem.Unit)
 		})
 	})
@@ -316,7 +340,7 @@ proc /proc/sys proc ro,nosuid,nodev,noexec,relatime 0 0`,
 proc /proc/sys proc ro,nosuid,nodev,noexec,relatime 0 0`,
 		cgroupV2CPUMax:           "max 100000",
 		cgroupV2CPUStat:          "usage_usec 0",
-		cgroupV2MemoryMaxBytes:   "1073741824",
+		cgroupV2MemoryMaxBytes:   "max",
 		cgroupV2MemoryUsageBytes: "536870912",
 		cgroupV2MemoryStat:       "inactive_file 268435456",
 	}
@@ -338,7 +362,7 @@ proc /proc/sys proc ro,nosuid,nodev,noexec,relatime 0 0`,
 		cgroupV1CPUAcctUsage:        "0",
 		cgroupV1CFSQuotaUs:          "-1",
 		cgroupV1CFSPeriodUs:         "100000",
-		cgroupV1MemoryMaxUsageBytes: "1073741824",
+		cgroupV1MemoryMaxUsageBytes: "max", // I have never seen this in the wild
 		cgroupV1MemoryUsageBytes:    "536870912",
 		cgroupV1MemoryStat:          "total_inactive_file 268435456",
 	}

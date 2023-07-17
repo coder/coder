@@ -24,6 +24,11 @@ type LogsEvent =
   | {
       type: "BUILD_DONE"
     }
+  | {
+      type: "RESET"
+      buildNumber: string
+      timeCursor: Date
+    }
 
 export const workspaceBuildMachine = createMachine(
   {
@@ -43,6 +48,12 @@ export const workspaceBuildMachine = createMachine(
       },
     },
     initial: "gettingBuild",
+    on: {
+      RESET: {
+        target: "gettingBuild",
+        actions: ["resetContext"],
+      },
+    },
     states: {
       gettingBuild: {
         entry: "clearGetBuildError",
@@ -96,6 +107,11 @@ export const workspaceBuildMachine = createMachine(
   },
   {
     actions: {
+      resetContext: assign({
+        buildNumber: (_, event) => event.buildNumber,
+        timeCursor: (_, event) => event.timeCursor,
+        logs: undefined,
+      }),
       // Build ID
       assignBuildId: assign({
         buildId: (_, event) => event.data.id,
@@ -134,8 +150,8 @@ export const workspaceBuildMachine = createMachine(
         if (!ctx.logs) {
           throw new Error("logs must be set")
         }
-
-        const after = ctx.logs[ctx.logs.length - 1].id
+        const after =
+          ctx.logs.length > 0 ? ctx.logs[ctx.logs.length - 1].id : undefined
         const socket = API.watchBuildLogsByBuildId(ctx.buildId, {
           after,
           onMessage: (log) => {

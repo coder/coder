@@ -24,6 +24,10 @@ updates:
         update-types:
           - version-update:semver-minor
           - version-update:semver-patch
+    groups:
+      github-actions:
+        patterns:
+          - "*"
 
   - package-ecosystem: "gomod"
     directory: "/"
@@ -39,6 +43,14 @@ updates:
       - dependency-name: "*"
         update-types:
           - version-update:semver-patch
+    groups:
+      otel:
+        patterns:
+          - "go.nhat.io/otelsql"
+          - "go.opentelemetry.io/otel*"
+      golang-x:
+        patterns:
+          - "golang.org/x/*"
 
   # Update our Dockerfile.
   - package-ecosystem: "docker"
@@ -54,6 +66,10 @@ updates:
       # We need to coordinate terraform updates with the version hardcoded in
       # our Go code.
       - dependency-name: "terraform"
+    groups:
+      scripts-docker:
+        patterns:
+          - "*"
 
   - package-ecosystem: "npm"
     directory: "/site/"
@@ -76,19 +92,36 @@ updates:
       - dependency-name: "@types/node"
         update-types:
           - version-update:semver-major
-
-  - package-ecosystem: "terraform"
-    directory: "/examples/templates"
-    schedule:
-      interval: "monthly"
-      time: "06:00"
-      timezone: "America/Chicago"
-    commit-message:
-      prefix: "chore"
-    labels: []
-    ignore:
-      # We likely want to update this ourselves.
-      - dependency-name: "coder/coder"
+    groups:
+      react:
+        patterns:
+          - "react*"
+          - "@types/react*"
+      xterm:
+        patterns:
+          - "xterm*"
+      xstate:
+        patterns:
+          - "xstate"
+          - "@xstate*"
+      mui:
+        patterns:
+          - "@mui*"
+      storybook:
+        patterns:
+          - "@storybook*"
+          - "storybook*"
+      eslint:
+        patterns:
+          - "eslint*"
+          - "@eslint*"
+          - "@typescript-eslint/eslint-plugin"
+          - "@typescript-eslint/parser"
+      jest:
+        patterns:
+          - "jest*"
+          - "@swc/jest"
+          - "@types/jest"
 
   # Update dogfood.
   - package-ecosystem: "docker"
@@ -100,6 +133,10 @@ updates:
     commit-message:
       prefix: "chore"
     labels: []
+    groups:
+      dogfood-docker:
+        patterns:
+          - "*"
 
   - package-ecosystem: "terraform"
     directory: "/dogfood/"
@@ -111,4 +148,5 @@ updates:
       prefix: "chore"
     labels: []
     ignore:
+      # We likely want to update this ourselves.
       - dependency-name: "coder/coder"

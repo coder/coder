@@ -156,8 +156,7 @@
           "title": "Agent Metadata",
           "description": "Learn how to expose live agent information to users",
           "path": "./templates/agent-metadata.md",
-          "icon_path": "./images/icons/table-rows.svg",
-          "state": "alpha"
+          "icon_path": "./images/icons/table-rows.svg"
         },
         {
           "title": "Parameters",
@@ -176,6 +175,17 @@
           "description": "Use docker inside containerized templates",
           "path": "./templates/docker-in-workspaces.md",
           "icon_path": "./images/icons/docker.svg"
+        },
+        {
+          "title": "Devcontainers",
+          "description": "Use devcontainers in workspaces",
+          "path": "./templates/devcontainers.md",
+          "state": "alpha"
+        },
+        {
+          "title": "Terraform Modules",
+          "description": "Reuse code across Coder templates",
+          "path": "./templates/modules.md"
         }
       ]
     },
@@ -452,6 +462,10 @@
           "path": "./api/files.md"
         },
         {
+          "title": "Git",
+          "path": "./api/git.md"
+        },
+        {
           "title": "Insights",
           "path": "./api/insights.md"
         },
@@ -585,6 +599,11 @@
           "path": "cli/logout.md"
         },
         {
+          "title": "netcheck",
+          "description": "Print network debug information for DERP and STUN",
+          "path": "cli/netcheck.md"
+        },
+        {
           "title": "ping",
           "description": "Ping a workspace",
           "path": "cli/ping.md"
@@ -623,26 +642,6 @@
           "title": "restart",
           "description": "Restart a workspace",
           "path": "cli/restart.md"
-        },
-        {
-          "title": "scaletest",
-          "description": "Run a scale test against the Coder API",
-          "path": "cli/scaletest.md"
-        },
-        {
-          "title": "scaletest cleanup",
-          "description": "Cleanup scaletest workspaces, then cleanup scaletest users.",
-          "path": "cli/scaletest_cleanup.md"
-        },
-        {
-          "title": "scaletest create-workspaces",
-          "description": "Creates many users, then creates a workspace for each user and waits for them finish building and fully come online. Optionally runs a command inside each workspace, and connects to the workspace over WireGuard.",
-          "path": "cli/scaletest_create-workspaces.md"
-        },
-        {
-          "title": "scaletest workspace-traffic",
-          "description": "Generate traffic to scaletest workspaces through coderd",
-          "path": "cli/scaletest_workspace-traffic.md"
         },
         {
           "title": "schedule",

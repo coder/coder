@@ -16,8 +16,9 @@ import (
 type oauth2StateKey struct{}
 
 type OAuth2State struct {
-	Token    *oauth2.Token
-	Redirect string
+	Token       *oauth2.Token
+	Redirect    string
+	StateString string
 }
 
 // OAuth2Config exposes a subset of *oauth2.Config functions for easier testing.
@@ -67,19 +68,19 @@ func ExtractOAuth2(config OAuth2Config, client *http.Client, authURLOpts map[str
 			// OIDC errors can be returned as query parameters. This can happen
 			// if for example we are providing and invalid scope.
 			// We should terminate the OIDC process if we encounter an error.
-			oidcError := r.URL.Query().Get("error")
+			errorMsg := r.URL.Query().Get("error")
 			errorDescription := r.URL.Query().Get("error_description")
 			errorURI := r.URL.Query().Get("error_uri")
-			if oidcError != "" {
+			if errorMsg != "" {
 				// Combine the errors into a single string if either is provided.
 				if errorDescription == "" && errorURI != "" {
 					errorDescription = fmt.Sprintf("error_uri: %s", errorURI)
 				} else if errorDescription != "" && errorURI != "" {
 					errorDescription = fmt.Sprintf("%s, error_uri: %s", errorDescription, errorURI)
 				}
-				oidcError = fmt.Sprintf("Encountered error in oidc process: %s", oidcError)
+				errorMsg = fmt.Sprintf("Encountered error in oidc process: %s", errorMsg)
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: oidcError,
+					Message: errorMsg,
 					// This message might be blank. This is ok.
 					Detail: errorDescription,
 				})
@@ -91,13 +92,24 @@ func ExtractOAuth2(config OAuth2Config, client *http.Client, authURLOpts map[str
 
 			if code == "" {
 				// If the code isn't provided, we'll redirect!
-				state, err := cryptorand.String(32)
-				if err != nil {
-					httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-						Message: "Internal error generating state string.",
-						Detail:  err.Error(),
-					})
-					return
+				var state string
+				// If this url param is provided, then a user is trying to merge
+				// their account with an OIDC account. Their password would have
+				// been required to get to this point, so we do not need to verify
+				// their password again.
+				oidcMergeState := r.URL.Query().Get("oidc_merge_state")
+				if oidcMergeState != "" {
+					state = oidcMergeState
+				} else {
+					var err error
+					state, err = cryptorand.String(32)
+					if err != nil {
+						httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+							Message: "Internal error generating state string.",
+							Detail:  err.Error(),
+						})
+						return
+					}
 				}
 
 				http.SetCookie(rw, &http.Cookie{
@@ -158,8 +170,9 @@ func ExtractOAuth2(config OAuth2Config, client *http.Client, authURLOpts map[str
 			}
 
 			ctx = context.WithValue(ctx, oauth2StateKey{}, OAuth2State{
-				Token:    oauthToken,
-				Redirect: redirect,
+				Token:       oauthToken,
+				Redirect:    redirect,
+				StateString: state,
 			})
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})

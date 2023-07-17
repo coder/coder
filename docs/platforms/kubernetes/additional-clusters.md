@@ -23,7 +23,7 @@ If you deployed Coder on Kubernetes, you can attach a kubeconfig as a secret.
 This assumes Coder is deployed on the `coder` namespace and your kubeconfig file is in ~/.kube/config.
 
 ```sh
-kubectl create secret generic kubeconfig-secret -n coder--from-file=~/.kube/config
+kubectl create secret generic kubeconfig-secret -n coder --from-file=~/.kube/config
 ```
 
 Modify your helm values to mount the secret:
@@ -41,7 +41,7 @@ coder:
       readOnly: true
 ```
 
-[Upgrade Coder](http://localhost:3000/docs/v2/latest/install/kubernetes#upgrading-coder-via-helm) with these new values.
+[Upgrade Coder](../../install/kubernetes.md#upgrading-coder-via-helm) with these new values.
 
 ### VM control plane
 

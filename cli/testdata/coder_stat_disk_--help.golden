@@ -9,5 +9,8 @@ Show disk usage, in gigabytes.
       --path string (default: /)
           Path for which to check disk usage.
 
+      --prefix Ki|Mi|Gi|Ti (default: Gi)
+          SI Prefix for disk measurement.
+
 ---
 Run `coder --help` for a list of global options.

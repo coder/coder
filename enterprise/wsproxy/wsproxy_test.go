@@ -36,7 +36,7 @@ func TestDERP(t *testing.T) {
 		"*",
 	}
 
-	client, closer, api := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+	client, closer, api, user := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			DeploymentValues:         deploymentValues,
 			AppHostname:              "*.primary.test.coder.com",
@@ -51,16 +51,14 @@ func TestDERP(t *testing.T) {
 				},
 			},
 		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureWorkspaceProxy: 1,
+			},
+		},
 	})
 	t.Cleanup(func() {
 		_ = closer.Close()
-	})
-
-	user := coderdtest.CreateFirstUser(t, client)
-	_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-		Features: license.Features{
-			codersdk.FeatureWorkspaceProxy: 1,
-		},
 	})
 
 	// Create two running external proxies.
@@ -249,7 +247,7 @@ func TestDERPEndToEnd(t *testing.T) {
 		"*",
 	}
 
-	client, closer, api := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+	client, closer, api, user := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			DeploymentValues:         deploymentValues,
 			AppHostname:              "*.primary.test.coder.com",
@@ -264,16 +262,14 @@ func TestDERPEndToEnd(t *testing.T) {
 				},
 			},
 		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureWorkspaceProxy: 1,
+			},
+		},
 	})
 	t.Cleanup(func() {
 		_ = closer.Close()
-	})
-
-	user := coderdtest.CreateFirstUser(t, client)
-	_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-		Features: license.Features{
-			codersdk.FeatureWorkspaceProxy: 1,
-		},
 	})
 
 	coderdenttest.NewWorkspaceProxy(t, api, client, &coderdenttest.ProxyOptions{
@@ -387,7 +383,7 @@ func TestWorkspaceProxyWorkspaceApps(t *testing.T) {
 			"*",
 		}
 
-		client, closer, api := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		client, closer, api, user := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues:         deploymentValues,
 				AppHostname:              "*.primary.test.coder.com",
@@ -402,16 +398,14 @@ func TestWorkspaceProxyWorkspaceApps(t *testing.T) {
 					},
 				},
 			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspaceProxy: 1,
+				},
+			},
 		})
 		t.Cleanup(func() {
 			_ = closer.Close()
-		})
-
-		user := coderdtest.CreateFirstUser(t, client)
-		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureWorkspaceProxy: 1,
-			},
 		})
 
 		// Create the external proxy

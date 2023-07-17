@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/briandowns/spinner"
@@ -21,6 +22,7 @@ import (
 type templateUploadFlags struct {
 	directory      string
 	ignoreLockfile bool
+	message        string
 }
 
 func (pf *templateUploadFlags) options() []clibase.Option {
@@ -35,6 +37,11 @@ func (pf *templateUploadFlags) options() []clibase.Option {
 		Description: "Ignore warnings about not having a .terraform.lock.hcl file present in the template.",
 		Default:     "false",
 		Value:       clibase.BoolOf(&pf.ignoreLockfile),
+	}, {
+		Flag:          "message",
+		FlagShorthand: "m",
+		Description:   "Specify a message describing the changes in this version of the template. Messages longer than 72 characters will be displayed as truncated.",
+		Value:         clibase.StringOf(&pf.message),
 	}}
 }
 
@@ -110,6 +117,20 @@ func (pf *templateUploadFlags) checkForLockfile(inv *clibase.Invocation) error {
 	return nil
 }
 
+func (pf *templateUploadFlags) templateMessage(inv *clibase.Invocation) string {
+	title := strings.SplitN(pf.message, "\n", 2)[0]
+	if len(title) > 72 {
+		cliui.Warn(inv.Stdout, "Template message is longer than 72 characters, it will be displayed as truncated.")
+	}
+	if title != pf.message {
+		cliui.Warn(inv.Stdout, "Template message contains newlines, only the first line will be displayed.")
+	}
+	if pf.message != "" {
+		return pf.message
+	}
+	return "Uploaded from the CLI"
+}
+
 func (pf *templateUploadFlags) templateName(args []string) (string, error) {
 	if pf.stdin() {
 		// Can't infer name from directory if none provided.
@@ -142,6 +163,7 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 		provisionerTags []string
 		uploadFlags     templateUploadFlags
 		activate        bool
+		create          bool
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -164,15 +186,21 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				return err
 			}
 
+			var createTemplate bool
 			template, err := client.TemplateByName(inv.Context(), organization.ID, name)
 			if err != nil {
-				return err
+				if !create {
+					return err
+				}
+				createTemplate = true
 			}
 
 			err = uploadFlags.checkForLockfile(inv)
 			if err != nil {
 				return xerrors.Errorf("check for lockfile: %w", err)
 			}
+
+			message := uploadFlags.templateMessage(inv)
 
 			resp, err := uploadFlags.upload(inv, client)
 			if err != nil {
@@ -184,18 +212,24 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				return err
 			}
 
-			job, err := createValidTemplateVersion(inv, createValidTemplateVersionArgs{
-				Name:            versionName,
+			args := createValidTemplateVersionArgs{
+				Message:         message,
 				Client:          client,
 				Organization:    organization,
 				Provisioner:     database.ProvisionerType(provisioner),
 				FileID:          resp.ID,
+				ProvisionerTags: tags,
 				VariablesFile:   variablesFile,
 				Variables:       variables,
-				Template:        &template,
-				ReuseParameters: !alwaysPrompt,
-				ProvisionerTags: tags,
-			})
+			}
+
+			if !createTemplate {
+				args.Name = versionName
+				args.Template = &template
+				args.ReuseParameters = !alwaysPrompt
+			}
+
+			job, err := createValidTemplateVersion(inv, args)
 			if err != nil {
 				return err
 			}
@@ -204,7 +238,19 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				return xerrors.Errorf("job failed: %s", job.Job.Status)
 			}
 
-			if activate {
+			if createTemplate {
+				_, err = client.CreateTemplate(inv.Context(), organization.ID, codersdk.CreateTemplateRequest{
+					Name:      name,
+					VersionID: job.ID,
+				})
+				if err != nil {
+					return err
+				}
+
+				_, _ = fmt.Fprintln(inv.Stdout, "\n"+cliui.DefaultStyles.Wrap.Render(
+					"The "+cliui.DefaultStyles.Keyword.Render(name)+" template has been created at "+cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp))+"! "+
+						"Developers can provision a workspace with this template using:")+"\n")
+			} else if activate {
 				err = client.UpdateActiveTemplateVersion(inv.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{
 					ID: job.ID,
 				})
@@ -265,6 +311,12 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 			Description: "Whether the new template will be marked active.",
 			Default:     "true",
 			Value:       clibase.BoolOf(&activate),
+		},
+		{
+			Flag:        "create",
+			Description: "Create the template if it does not exist.",
+			Default:     "false",
+			Value:       clibase.BoolOf(&create),
 		},
 		cliui.SkipPromptOption(),
 	}

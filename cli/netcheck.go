@@ -17,9 +17,8 @@ func (r *RootCmd) netcheck() *clibase.Cmd {
 	client := new(codersdk.Client)
 
 	cmd := &clibase.Cmd{
-		Use:    "netcheck",
-		Short:  "Print network debug information for DERP and STUN",
-		Hidden: true,
+		Use:   "netcheck",
+		Short: "Print network debug information for DERP and STUN",
 		Middleware: clibase.Chain(
 			r.InitClient(client),
 		),

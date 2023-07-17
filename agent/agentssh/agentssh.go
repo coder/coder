@@ -29,6 +29,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/agent/usershell"
+	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/pty"
 )
@@ -63,9 +64,10 @@ type Server struct {
 	srv          *ssh.Server
 	x11SocketDir string
 
-	Env        map[string]string
-	AgentToken func() string
-	Manifest   *atomic.Pointer[agentsdk.Manifest]
+	Env           map[string]string
+	AgentToken    func() string
+	Manifest      *atomic.Pointer[agentsdk.Manifest]
+	ServiceBanner *atomic.Pointer[codersdk.ServiceBannerConfig]
 
 	connCountVSCode     atomic.Int64
 	connCountJetBrains  atomic.Int64
@@ -345,10 +347,21 @@ func (s *Server) startPTYSession(session ptySession, magicTypeLabel string, cmd 
 	// See https://github.com/coder/coder/issues/3371.
 	session.DisablePTYEmulation()
 
-	if !isQuietLogin(session.RawCommand()) {
+	if isLoginShell(session.RawCommand()) {
+		serviceBanner := s.ServiceBanner.Load()
+		if serviceBanner != nil {
+			err := showServiceBanner(session, serviceBanner)
+			if err != nil {
+				s.logger.Error(ctx, "agent failed to show service banner", slog.Error(err))
+				s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "service_banner").Add(1)
+			}
+		}
+	}
+
+	if !isQuietLogin(s.fs, session.RawCommand()) {
 		manifest := s.Manifest.Load()
 		if manifest != nil {
-			err := showMOTD(session, manifest.MOTDFile)
+			err := showMOTD(s.fs, session, manifest.MOTDFile)
 			if err != nil {
 				s.logger.Error(ctx, "agent failed to show MOTD", slog.Error(err))
 				s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, "yes", "motd").Add(1)
@@ -743,12 +756,16 @@ func (*Server) Shutdown(_ context.Context) error {
 	return nil
 }
 
+func isLoginShell(rawCommand string) bool {
+	return len(rawCommand) == 0
+}
+
 // isQuietLogin checks if the SSH server should perform a quiet login or not.
 //
 // https://github.com/openssh/openssh-portable/blob/25bd659cc72268f2858c5415740c442ee950049f/session.c#L816
-func isQuietLogin(rawCommand string) bool {
+func isQuietLogin(fs afero.Fs, rawCommand string) bool {
 	// We are always quiet unless this is a login shell.
-	if len(rawCommand) != 0 {
+	if !isLoginShell(rawCommand) {
 		return true
 	}
 
@@ -759,20 +776,32 @@ func isQuietLogin(rawCommand string) bool {
 		return false
 	}
 
-	_, err = os.Stat(filepath.Join(homedir, ".hushlogin"))
+	_, err = fs.Stat(filepath.Join(homedir, ".hushlogin"))
 	return err == nil
+}
+
+// showServiceBanner will write the service banner if enabled and not blank
+// along with a blank line for spacing.
+func showServiceBanner(session io.Writer, banner *codersdk.ServiceBannerConfig) error {
+	if banner.Enabled && banner.Message != "" {
+		// The banner supports Markdown so we might want to parse it but Markdown is
+		// still fairly readable in its raw form.
+		message := strings.TrimSpace(banner.Message) + "\n\n"
+		return writeWithCarriageReturn(strings.NewReader(message), session)
+	}
+	return nil
 }
 
 // showMOTD will output the message of the day from
 // the given filename to dest, if the file exists.
 //
 // https://github.com/openssh/openssh-portable/blob/25bd659cc72268f2858c5415740c442ee950049f/session.c#L784
-func showMOTD(dest io.Writer, filename string) error {
+func showMOTD(fs afero.Fs, dest io.Writer, filename string) error {
 	if filename == "" {
 		return nil
 	}
 
-	f, err := os.Open(filename)
+	f, err := fs.Open(filename)
 	if err != nil {
 		if xerrors.Is(err, os.ErrNotExist) {
 			// This is not an error, there simply isn't a MOTD to show.
@@ -782,19 +811,22 @@ func showMOTD(dest io.Writer, filename string) error {
 	}
 	defer f.Close()
 
-	s := bufio.NewScanner(f)
+	return writeWithCarriageReturn(f, dest)
+}
+
+// writeWithCarriageReturn writes each line with a carriage return to ensure
+// that each line starts at the beginning of the terminal.
+func writeWithCarriageReturn(src io.Reader, dest io.Writer) error {
+	s := bufio.NewScanner(src)
 	for s.Scan() {
-		// Carriage return ensures each line starts
-		// at the beginning of the terminal.
-		_, err = fmt.Fprint(dest, s.Text()+"\r\n")
+		_, err := fmt.Fprint(dest, s.Text()+"\r\n")
 		if err != nil {
-			return xerrors.Errorf("write MOTD: %w", err)
+			return xerrors.Errorf("write line: %w", err)
 		}
 	}
 	if err := s.Err(); err != nil {
-		return xerrors.Errorf("read MOTD: %w", err)
+		return xerrors.Errorf("read line: %w", err)
 	}
-
 	return nil
 }
 

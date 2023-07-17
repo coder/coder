@@ -27,7 +27,21 @@ rules:
     - patch
     - update
     - watch
-
+{{- if .Values.coder.serviceAccount.enableDeployments }}
+  - apiGroups:
+    - apps
+    resources:
+    - deployments
+    verbs:
+    - create
+    - delete
+    - deletecollection
+    - get
+    - list
+    - patch
+    - update
+    - watch
+{{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

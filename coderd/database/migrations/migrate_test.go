@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"golang.org/x/exp/slices"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/coder/coder/coderd/database/migrations"
 	"github.com/coder/coder/coderd/database/postgres"
@@ -45,6 +46,22 @@ func TestMigrate(t *testing.T) {
 
 		err := migrations.Up(db)
 		require.NoError(t, err)
+	})
+
+	t.Run("Parallel", func(t *testing.T) {
+		t.Parallel()
+
+		db := testSQLDB(t)
+		eg := errgroup.Group{}
+
+		eg.Go(func() error {
+			return migrations.Up(db)
+		})
+		eg.Go(func() error {
+			return migrations.Up(db)
+		})
+
+		require.NoError(t, eg.Wait())
 	})
 
 	t.Run("Twice", func(t *testing.T) {
@@ -85,6 +102,13 @@ func testSQLDB(t testing.TB) *sql.DB {
 	db, err := sql.Open("postgres", connection)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
+
+	// postgres.Open automatically runs migrations, but we want to actually test
+	// migration behavior in this package.
+	_, err = db.Exec(`DROP SCHEMA public CASCADE`)
+	require.NoError(t, err)
+	_, err = db.Exec(`CREATE SCHEMA public`)
+	require.NoError(t, err)
 
 	return db
 }

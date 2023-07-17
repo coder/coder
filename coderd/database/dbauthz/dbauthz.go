@@ -143,13 +143,14 @@ var (
 				DisplayName: "Provisioner Daemon",
 				Site: rbac.Permissions(map[string][]rbac.Action{
 					// TODO: Add ProvisionerJob resource type.
-					rbac.ResourceFile.Type:      {rbac.ActionRead},
-					rbac.ResourceSystem.Type:    {rbac.WildcardSymbol},
-					rbac.ResourceTemplate.Type:  {rbac.ActionRead, rbac.ActionUpdate},
-					rbac.ResourceUser.Type:      {rbac.ActionRead},
-					rbac.ResourceWorkspace.Type: {rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
-					rbac.ResourceUserData.Type:  {rbac.ActionRead, rbac.ActionUpdate},
-					rbac.ResourceAPIKey.Type:    {rbac.WildcardSymbol},
+					rbac.ResourceFile.Type:           {rbac.ActionRead},
+					rbac.ResourceSystem.Type:         {rbac.WildcardSymbol},
+					rbac.ResourceTemplate.Type:       {rbac.ActionRead, rbac.ActionUpdate},
+					rbac.ResourceUser.Type:           {rbac.ActionRead},
+					rbac.ResourceWorkspace.Type:      {rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
+					rbac.ResourceWorkspaceBuild.Type: {rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
+					rbac.ResourceUserData.Type:       {rbac.ActionRead, rbac.ActionUpdate},
+					rbac.ResourceAPIKey.Type:         {rbac.WildcardSymbol},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -165,9 +166,10 @@ var (
 				Name:        "autostart",
 				DisplayName: "Autostart Daemon",
 				Site: rbac.Permissions(map[string][]rbac.Action{
-					rbac.ResourceSystem.Type:    {rbac.WildcardSymbol},
-					rbac.ResourceTemplate.Type:  {rbac.ActionRead, rbac.ActionUpdate},
-					rbac.ResourceWorkspace.Type: {rbac.ActionRead, rbac.ActionUpdate},
+					rbac.ResourceSystem.Type:         {rbac.WildcardSymbol},
+					rbac.ResourceTemplate.Type:       {rbac.ActionRead, rbac.ActionUpdate},
+					rbac.ResourceWorkspace.Type:      {rbac.ActionRead, rbac.ActionUpdate},
+					rbac.ResourceWorkspaceBuild.Type: {rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -213,6 +215,7 @@ var (
 					rbac.ResourceUser.Type:               {rbac.ActionCreate, rbac.ActionUpdate, rbac.ActionDelete},
 					rbac.ResourceUserData.Type:           {rbac.ActionCreate, rbac.ActionUpdate},
 					rbac.ResourceWorkspace.Type:          {rbac.ActionUpdate},
+					rbac.ResourceWorkspaceBuild.Type:     {rbac.ActionUpdate},
 					rbac.ResourceWorkspaceExecution.Type: {rbac.ActionCreate},
 					rbac.ResourceWorkspaceProxy.Type:     {rbac.ActionCreate, rbac.ActionUpdate, rbac.ActionDelete},
 				}),
@@ -572,11 +575,6 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID *uuid.UUID, added, r
 	return nil
 }
 
-func (q *querier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, _ rbac.PreparedAuthorized) ([]database.Template, error) {
-	// TODO Delete this function, all GetTemplates should be authorized. For now just call getTemplates on the authz querier.
-	return q.GetTemplatesWithFilter(ctx, arg)
-}
-
 func (q *querier) SoftDeleteTemplateByID(ctx context.Context, id uuid.UUID) error {
 	deleteF := func(ctx context.Context, id uuid.UUID) error {
 		return q.db.UpdateTemplateDeletedByID(ctx, database.UpdateTemplateDeletedByIDParams{
@@ -586,34 +584,6 @@ func (q *querier) SoftDeleteTemplateByID(ctx context.Context, id uuid.UUID) erro
 		})
 	}
 	return deleteQ(q.log, q.auth, q.db.GetTemplateByID, deleteF)(ctx, id)
-}
-
-func (q *querier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateGroup, error) {
-	// An actor is authorized to read template group roles if they are authorized to read the template.
-	template, err := q.db.GetTemplateByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	if err := q.authorizeContext(ctx, rbac.ActionRead, template); err != nil {
-		return nil, err
-	}
-	return q.db.GetTemplateGroupRoles(ctx, id)
-}
-
-func (q *querier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateUser, error) {
-	// An actor is authorized to query template user roles if they are authorized to read the template.
-	template, err := q.db.GetTemplateByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	if err := q.authorizeContext(ctx, rbac.ActionRead, template); err != nil {
-		return nil, err
-	}
-	return q.db.GetTemplateUserRoles(ctx, id)
-}
-
-func (q *querier) GetAuthorizedUserCount(ctx context.Context, arg database.GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
-	return q.db.GetAuthorizedUserCount(ctx, arg, prepared)
 }
 
 func (q *querier) GetUsersWithCount(ctx context.Context, arg database.GetUsersParams) ([]database.User, int64, error) {
@@ -650,11 +620,6 @@ func (q *querier) SoftDeleteUserByID(ctx context.Context, id uuid.UUID) error {
 		})
 	}
 	return deleteQ(q.log, q.auth, q.db.GetUserByID, deleteF)(ctx, id)
-}
-
-func (q *querier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetWorkspacesParams, _ rbac.PreparedAuthorized) ([]database.GetWorkspacesRow, error) {
-	// TODO Delete this function, all GetWorkspaces should be authorized. For now just call GetWorkspaces on the authz querier.
-	return q.GetWorkspaces(ctx, arg)
 }
 
 func (q *querier) SoftDeleteWorkspaceByID(ctx context.Context, id uuid.UUID) error {
@@ -1036,6 +1001,13 @@ func (q *querier) GetLicenses(ctx context.Context) ([]database.License, error) {
 func (q *querier) GetLogoURL(ctx context.Context) (string, error) {
 	// No authz checks
 	return q.db.GetLogoURL(ctx)
+}
+
+func (q *querier) GetOAuthSigningKey(ctx context.Context) (string, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return "", err
+	}
+	return q.db.GetOAuthSigningKey(ctx)
 }
 
 func (q *querier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {
@@ -2005,7 +1977,7 @@ func (q *querier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertW
 		action = rbac.ActionDelete
 	}
 
-	if err = q.authorizeContext(ctx, action, w); err != nil {
+	if err = q.authorizeContext(ctx, action, w.WorkspaceBuildRBAC(arg.Transition)); err != nil {
 		return database.WorkspaceBuild{}, err
 	}
 
@@ -2355,6 +2327,13 @@ func (q *querier) UpdateUserLinkedID(ctx context.Context, arg database.UpdateUse
 	return q.db.UpdateUserLinkedID(ctx, arg)
 }
 
+func (q *querier) UpdateUserLoginType(ctx context.Context, arg database.UpdateUserLoginTypeParams) (database.User, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return database.User{}, err
+	}
+	return q.db.UpdateUserLoginType(ctx, arg)
+}
+
 func (q *querier) UpdateUserProfile(ctx context.Context, arg database.UpdateUserProfileParams) (database.User, error) {
 	u, err := q.db.GetUserByID(ctx, arg.ID)
 	if err != nil {
@@ -2537,6 +2516,13 @@ func (q *querier) UpdateWorkspaceLastUsedAt(ctx context.Context, arg database.Up
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceLastUsedAt)(ctx, arg)
 }
 
+func (q *querier) UpdateWorkspaceLockedAt(ctx context.Context, arg database.UpdateWorkspaceLockedAtParams) error {
+	fetch := func(ctx context.Context, arg database.UpdateWorkspaceLockedAtParams) (database.Workspace, error) {
+		return q.db.GetWorkspaceByID(ctx, arg.ID)
+	}
+	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceLockedAt)(ctx, arg)
+}
+
 func (q *querier) UpdateWorkspaceProxy(ctx context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	fetch := func(ctx context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 		return q.db.GetWorkspaceProxyByID(ctx, arg.ID)
@@ -2591,6 +2577,13 @@ func (q *querier) UpsertLogoURL(ctx context.Context, value string) error {
 	return q.db.UpsertLogoURL(ctx, value)
 }
 
+func (q *querier) UpsertOAuthSigningKey(ctx context.Context, value string) error {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpsertOAuthSigningKey(ctx, value)
+}
+
 func (q *querier) UpsertServiceBanner(ctx context.Context, value string) error {
 	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceDeploymentValues); err != nil {
 		return err
@@ -2617,4 +2610,42 @@ func (q *querier) UpsertTailnetCoordinator(ctx context.Context, id uuid.UUID) (d
 		return database.TailnetCoordinator{}, err
 	}
 	return q.db.UpsertTailnetCoordinator(ctx, id)
+}
+
+func (q *querier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, _ rbac.PreparedAuthorized) ([]database.Template, error) {
+	// TODO Delete this function, all GetTemplates should be authorized. For now just call getTemplates on the authz querier.
+	return q.GetTemplatesWithFilter(ctx, arg)
+}
+
+func (q *querier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateGroup, error) {
+	// An actor is authorized to read template group roles if they are authorized to read the template.
+	template, err := q.db.GetTemplateByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, rbac.ActionRead, template); err != nil {
+		return nil, err
+	}
+	return q.db.GetTemplateGroupRoles(ctx, id)
+}
+
+func (q *querier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateUser, error) {
+	// An actor is authorized to query template user roles if they are authorized to read the template.
+	template, err := q.db.GetTemplateByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, rbac.ActionRead, template); err != nil {
+		return nil, err
+	}
+	return q.db.GetTemplateUserRoles(ctx, id)
+}
+
+func (q *querier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetWorkspacesParams, _ rbac.PreparedAuthorized) ([]database.GetWorkspacesRow, error) {
+	// TODO Delete this function, all GetWorkspaces should be authorized. For now just call GetWorkspaces on the authz querier.
+	return q.GetWorkspaces(ctx, arg)
+}
+
+func (q *querier) GetAuthorizedUserCount(ctx context.Context, arg database.GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
+	return q.db.GetAuthorizedUserCount(ctx, arg, prepared)
 }

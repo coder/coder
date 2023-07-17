@@ -23,7 +23,7 @@ type WebsocketReportOptions struct {
 type WebsocketReport struct {
 	Healthy  bool              `json:"healthy"`
 	Response WebsocketResponse `json:"response"`
-	Error    error             `json:"error"`
+	Error    *string           `json:"error"`
 }
 
 type WebsocketResponse struct {
@@ -37,7 +37,7 @@ func (r *WebsocketReport) Run(ctx context.Context, opts *WebsocketReportOptions)
 
 	u, err := opts.AccessURL.Parse("/api/v2/debug/ws")
 	if err != nil {
-		r.Error = xerrors.Errorf("parse access url: %w", err)
+		r.Error = convertError(xerrors.Errorf("parse access url: %w", err))
 		return
 	}
 	if u.Scheme == "https" {
@@ -66,7 +66,7 @@ func (r *WebsocketReport) Run(ctx context.Context, opts *WebsocketReportOptions)
 		}
 	}
 	if err != nil {
-		r.Error = xerrors.Errorf("websocket dial: %w", err)
+		r.Error = convertError(xerrors.Errorf("websocket dial: %w", err))
 		return
 	}
 	defer c.Close(websocket.StatusGoingAway, "goodbye")
@@ -75,23 +75,23 @@ func (r *WebsocketReport) Run(ctx context.Context, opts *WebsocketReportOptions)
 		msg := strconv.Itoa(i)
 		err := c.Write(ctx, websocket.MessageText, []byte(msg))
 		if err != nil {
-			r.Error = xerrors.Errorf("write message: %w", err)
+			r.Error = convertError(xerrors.Errorf("write message: %w", err))
 			return
 		}
 
 		ty, got, err := c.Read(ctx)
 		if err != nil {
-			r.Error = xerrors.Errorf("read message: %w", err)
+			r.Error = convertError(xerrors.Errorf("read message: %w", err))
 			return
 		}
 
 		if ty != websocket.MessageText {
-			r.Error = xerrors.Errorf("received incorrect message type: %v", ty)
+			r.Error = convertError(xerrors.Errorf("received incorrect message type: %v", ty))
 			return
 		}
 
 		if string(got) != msg {
-			r.Error = xerrors.Errorf("received incorrect message: wanted %q, got %q", msg, string(got))
+			r.Error = convertError(xerrors.Errorf("received incorrect message: wanted %q, got %q", msg, string(got)))
 			return
 		}
 	}

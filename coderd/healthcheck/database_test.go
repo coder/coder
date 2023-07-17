@@ -7,6 +7,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database/dbmock"
@@ -35,7 +36,7 @@ func TestDatabase(t *testing.T) {
 		assert.True(t, report.Healthy)
 		assert.True(t, report.Reachable)
 		assert.Equal(t, ping, report.Latency)
-		assert.NoError(t, report.Error)
+		assert.Nil(t, report.Error)
 	})
 
 	t.Run("Error", func(t *testing.T) {
@@ -56,7 +57,8 @@ func TestDatabase(t *testing.T) {
 		assert.False(t, report.Healthy)
 		assert.False(t, report.Reachable)
 		assert.Zero(t, report.Latency)
-		assert.ErrorIs(t, report.Error, err)
+		require.NotNil(t, report.Error)
+		assert.Contains(t, *report.Error, err.Error())
 	})
 
 	t.Run("Median", func(t *testing.T) {
@@ -80,6 +82,6 @@ func TestDatabase(t *testing.T) {
 		assert.True(t, report.Healthy)
 		assert.True(t, report.Reachable)
 		assert.Equal(t, time.Millisecond, report.Latency)
-		assert.NoError(t, report.Error)
+		assert.Nil(t, report.Error)
 	})
 }

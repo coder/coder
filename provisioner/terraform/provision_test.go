@@ -409,12 +409,12 @@ func TestProvision(t *testing.T) {
 			Request: &proto.Provision_Plan{
 				RichParameterValues: []*proto.RichParameterValue{
 					{
-						Name:  "Sample",
-						Value: "foofoo",
-					},
-					{
 						Name:  "Example",
 						Value: "foobaz",
+					},
+					{
+						Name:  "Sample",
+						Value: "foofoo",
 					},
 				},
 			},
@@ -423,14 +423,14 @@ func TestProvision(t *testing.T) {
 					Complete: &proto.Provision_Complete{
 						Parameters: []*proto.RichParameter{
 							{
-								Name:         "Sample",
-								Type:         "string",
-								DefaultValue: "foobaz",
-							},
-							{
 								Name:         "Example",
 								Type:         "string",
 								DefaultValue: "foobar",
+							},
+							{
+								Name:         "Sample",
+								Type:         "string",
+								DefaultValue: "foobaz",
 							},
 						},
 						Resources: []*proto.Resource{{

@@ -32,10 +32,12 @@ export const PublishTemplateVersionDialog: FC<
   const form = useFormik({
     initialValues: {
       name: defaultName,
+      message: "",
       isActiveVersion: false,
     },
     validationSchema: Yup.object({
       name: Yup.string().required(),
+      message: Yup.string(),
       isActiveVersion: Yup.boolean(),
     }),
     onSubmit: onConfirm,
@@ -68,6 +70,16 @@ export const PublishTemplateVersionDialog: FC<
               label="Version name"
               autoFocus
               disabled={isPublishing}
+            />
+
+            <TextField
+              {...getFieldHelpers("message")}
+              label="Message"
+              placeholder="Write a short message about the changes you made..."
+              autoFocus
+              disabled={isPublishing}
+              multiline
+              rows={5}
             />
 
             <FormControlLabel

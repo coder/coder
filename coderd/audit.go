@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/tabbed/pqtype"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -270,6 +270,10 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 
 	str += fmt.Sprintf(" %s",
 		codersdk.ResourceType(alog.ResourceType).FriendlyString())
+
+	if alog.ResourceType == database.ResourceTypeConvertLogin {
+		str += " to"
+	}
 
 	str += " {target}"
 

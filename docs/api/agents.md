@@ -1,5 +1,25 @@
 # Agents
 
+## Get DERP map updates
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/derpmap \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /derpmap`
+
+### Responses
+
+| Status | Meaning                                                                  | Description         | Schema |
+| ------ | ------------------------------------------------------------------------ | ------------------- | ------ |
+| 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Authenticate agent on AWS instance
 
 ### Code samples
@@ -292,6 +312,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/manifest \
 
 ```json
 {
+  "agent_id": "string",
   "apps": [
     {
       "command": "string",
@@ -395,6 +416,137 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/manifest \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Submit workspace agent stats
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/report-stats \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /workspaceagents/me/report-stats`
+
+> Body parameter
+
+```json
+{
+  "connection_count": 0,
+  "connection_median_latency_ms": 0,
+  "connections_by_proto": {
+    "property1": 0,
+    "property2": 0
+  },
+  "metrics": [
+    {
+      "labels": [
+        {
+          "name": "string",
+          "value": "string"
+        }
+      ],
+      "name": "string",
+      "type": "counter",
+      "value": 0
+    }
+  ],
+  "rx_bytes": 0,
+  "rx_packets": 0,
+  "session_count_jetbrains": 0,
+  "session_count_reconnecting_pty": 0,
+  "session_count_ssh": 0,
+  "session_count_vscode": 0,
+  "tx_bytes": 0,
+  "tx_packets": 0
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                       | Required | Description   |
+| ------ | ---- | ------------------------------------------ | -------- | ------------- |
+| `body` | body | [agentsdk.Stats](schemas.md#agentsdkstats) | true     | Stats request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "report_interval": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                     |
+| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.StatsResponse](schemas.md#agentsdkstatsresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Patch workspace agent startup logs
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/startup-logs \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /workspaceagents/me/startup-logs`
+
+> Body parameter
+
+```json
+{
+  "logs": [
+    {
+      "created_at": "string",
+      "level": "trace",
+      "output": "string"
+    }
+  ]
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                             | Required | Description  |
+| ------ | ---- | ---------------------------------------------------------------- | -------- | ------------ |
+| `body` | body | [agentsdk.PatchStartupLogs](schemas.md#agentsdkpatchstartuplogs) | true     | Startup logs |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get workspace agent by ID
 
 ### Code samples
@@ -450,6 +602,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
   },
   "expanded_directory": "string",
   "first_connected_at": "2019-08-24T14:15:22Z",
+  "health": {
+    "healthy": false,
+    "reason": "agent has lost connection"
+  },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "instance_id": "string",
   "last_connected_at": "2019-08-24T14:15:22Z",

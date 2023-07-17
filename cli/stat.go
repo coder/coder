@@ -75,7 +75,7 @@ func (r *RootCmd) stat() *clibase.Cmd {
 			}
 
 			// Host-level stats
-			ms, err := st.HostMemory()
+			ms, err := st.HostMemory(clistat.PrefixGibi)
 			if err != nil {
 				return err
 			}
@@ -85,7 +85,7 @@ func (r *RootCmd) stat() *clibase.Cmd {
 			if err != nil {
 				return err
 			}
-			ds, err := st.Disk(home)
+			ds, err := st.Disk(clistat.PrefixGibi, home)
 			if err != nil {
 				return err
 			}
@@ -99,7 +99,7 @@ func (r *RootCmd) stat() *clibase.Cmd {
 				}
 				sr.ContainerCPU = cs
 
-				ms, err := st.ContainerMemory()
+				ms, err := st.ContainerMemory(clistat.PrefixGibi)
 				if err != nil {
 					return err
 				}
@@ -120,7 +120,6 @@ func (r *RootCmd) stat() *clibase.Cmd {
 
 func (*RootCmd) statCPU(s *clistat.Statter, fs afero.Fs) *clibase.Cmd {
 	var hostArg bool
-	var prefixArg string
 	formatter := cliui.NewOutputFormatter(cliui.TextFormat(), cliui.JSONFormat())
 	cmd := &clibase.Cmd{
 		Use:   "cpu",
@@ -130,12 +129,6 @@ func (*RootCmd) statCPU(s *clistat.Statter, fs afero.Fs) *clibase.Cmd {
 				Flag:        "host",
 				Value:       clibase.BoolOf(&hostArg),
 				Description: "Force host CPU measurement.",
-			},
-			{
-				Flag:        "prefix",
-				Value:       clibase.StringOf(&prefixArg),
-				Description: "Unit prefix.",
-				Default:     "",
 			},
 		},
 		Handler: func(inv *clibase.Invocation) error {
@@ -164,6 +157,7 @@ func (*RootCmd) statCPU(s *clistat.Statter, fs afero.Fs) *clibase.Cmd {
 
 func (*RootCmd) statMem(s *clistat.Statter, fs afero.Fs) *clibase.Cmd {
 	var hostArg bool
+	var prefixArg string
 	formatter := cliui.NewOutputFormatter(cliui.TextFormat(), cliui.JSONFormat())
 	cmd := &clibase.Cmd{
 		Use:   "mem",
@@ -174,14 +168,26 @@ func (*RootCmd) statMem(s *clistat.Statter, fs afero.Fs) *clibase.Cmd {
 				Value:       clibase.BoolOf(&hostArg),
 				Description: "Force host memory measurement.",
 			},
+			{
+				Description: "SI Prefix for memory measurement.",
+				Default:     clistat.PrefixHumanGibi,
+				Flag:        "prefix",
+				Value: clibase.EnumOf(&prefixArg,
+					clistat.PrefixHumanKibi,
+					clistat.PrefixHumanMebi,
+					clistat.PrefixHumanGibi,
+					clistat.PrefixHumanTebi,
+				),
+			},
 		},
 		Handler: func(inv *clibase.Invocation) error {
+			pfx := clistat.ParsePrefix(prefixArg)
 			var ms *clistat.Result
 			var err error
 			if ok, _ := clistat.IsContainerized(fs); ok && !hostArg {
-				ms, err = s.ContainerMemory()
+				ms, err = s.ContainerMemory(pfx)
 			} else {
-				ms, err = s.HostMemory()
+				ms, err = s.HostMemory(pfx)
 			}
 			if err != nil {
 				return err
@@ -201,6 +207,7 @@ func (*RootCmd) statMem(s *clistat.Statter, fs afero.Fs) *clibase.Cmd {
 
 func (*RootCmd) statDisk(s *clistat.Statter) *clibase.Cmd {
 	var pathArg string
+	var prefixArg string
 	formatter := cliui.NewOutputFormatter(cliui.TextFormat(), cliui.JSONFormat())
 	cmd := &clibase.Cmd{
 		Use:   "disk",
@@ -212,9 +219,21 @@ func (*RootCmd) statDisk(s *clistat.Statter) *clibase.Cmd {
 				Description: "Path for which to check disk usage.",
 				Default:     "/",
 			},
+			{
+				Flag:        "prefix",
+				Default:     clistat.PrefixHumanGibi,
+				Description: "SI Prefix for disk measurement.",
+				Value: clibase.EnumOf(&prefixArg,
+					clistat.PrefixHumanKibi,
+					clistat.PrefixHumanMebi,
+					clistat.PrefixHumanGibi,
+					clistat.PrefixHumanTebi,
+				),
+			},
 		},
 		Handler: func(inv *clibase.Invocation) error {
-			ds, err := s.Disk(pathArg)
+			pfx := clistat.ParsePrefix(prefixArg)
+			ds, err := s.Disk(pfx, pathArg)
 			if err != nil {
 				return err
 			}

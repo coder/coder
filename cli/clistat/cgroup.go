@@ -61,7 +61,6 @@ func (s *Statter) ContainerCPU() (*Result, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("get total cpu: %w", err)
 	}
-
 	used1, err := s.cGroupCPUUsed()
 	if err != nil {
 		return nil, xerrors.Errorf("get cgroup CPU usage: %w", err)
@@ -84,9 +83,13 @@ func (s *Statter) ContainerCPU() (*Result, error) {
 	}
 
 	r := &Result{
-		Unit:  "cores",
-		Used:  used2 - used1,
-		Total: ptr.To(total),
+		Unit:   "cores",
+		Used:   used2 - used1,
+		Prefix: PrefixDefault,
+	}
+
+	if total > 0 {
+		r.Total = ptr.To(total)
 	}
 	return r, nil
 }
@@ -136,8 +139,12 @@ func (s *Statter) cGroupV2CPUTotal() (total float64, err error) {
 
 	quotaUs, err = readInt64SepIdx(s.fs, cgroupV2CPUMax, " ", 0)
 	if err != nil {
-		// Fall back to number of cores
-		quotaUs = int64(s.nproc) * periodUs
+		if xerrors.Is(err, strconv.ErrSyntax) {
+			// If the value is not a valid integer, assume it is the string
+			// 'max' and that there is no limit set.
+			return -1, nil
+		}
+		return 0, xerrors.Errorf("get cpu quota: %w", err)
 	}
 
 	return float64(quotaUs) / float64(periodUs), nil
@@ -155,8 +162,7 @@ func (s *Statter) cGroupV1CPUTotal() (float64, error) {
 	}
 
 	if quotaUs < 0 {
-		// Fall back to the number of cores
-		quotaUs = int64(s.nproc) * periodUs
+		return -1, nil
 	}
 
 	return float64(quotaUs) / float64(periodUs), nil
@@ -184,23 +190,33 @@ func (s *Statter) cGroupV1CPUUsed() (float64, error) {
 
 // ContainerMemory returns the memory usage of the container cgroup.
 // If the system is not containerized, this always returns nil.
-func (s *Statter) ContainerMemory() (*Result, error) {
+func (s *Statter) ContainerMemory(p Prefix) (*Result, error) {
 	if ok, err := IsContainerized(s.fs); err != nil || !ok {
 		return nil, nil //nolint:nilnil
 	}
 
 	if s.isCGroupV2() {
-		return s.cGroupV2Memory()
+		return s.cGroupV2Memory(p)
 	}
 
 	// Fall back to CGroupv1
-	return s.cGroupV1Memory()
+	return s.cGroupV1Memory(p)
 }
 
-func (s *Statter) cGroupV2Memory() (*Result, error) {
+func (s *Statter) cGroupV2Memory(p Prefix) (*Result, error) {
+	r := &Result{
+		Unit:   "B",
+		Prefix: p,
+	}
 	maxUsageBytes, err := readInt64(s.fs, cgroupV2MemoryMaxBytes)
 	if err != nil {
-		return nil, xerrors.Errorf("read memory total: %w", err)
+		if !xerrors.Is(err, strconv.ErrSyntax) {
+			return nil, xerrors.Errorf("read memory total: %w", err)
+		}
+		// If the value is not a valid integer, assume it is the string
+		// 'max' and that there is no limit set.
+	} else {
+		r.Total = ptr.To(float64(maxUsageBytes))
 	}
 
 	currUsageBytes, err := readInt64(s.fs, cgroupV2MemoryUsageBytes)
@@ -213,17 +229,23 @@ func (s *Statter) cGroupV2Memory() (*Result, error) {
 		return nil, xerrors.Errorf("read memory stats: %w", err)
 	}
 
-	return &Result{
-		Total: ptr.To(float64(maxUsageBytes)),
-		Used:  float64(currUsageBytes - inactiveFileBytes),
-		Unit:  "B",
-	}, nil
+	r.Used = float64(currUsageBytes - inactiveFileBytes)
+	return r, nil
 }
 
-func (s *Statter) cGroupV1Memory() (*Result, error) {
+func (s *Statter) cGroupV1Memory(p Prefix) (*Result, error) {
+	r := &Result{
+		Unit:   "B",
+		Prefix: p,
+	}
 	maxUsageBytes, err := readInt64(s.fs, cgroupV1MemoryMaxUsageBytes)
 	if err != nil {
-		return nil, xerrors.Errorf("read memory total: %w", err)
+		if !xerrors.Is(err, strconv.ErrSyntax) {
+			return nil, xerrors.Errorf("read memory total: %w", err)
+		}
+		// I haven't found an instance where this isn't a valid integer.
+		// Nonetheless, if it is not, assume there is no limit set.
+		maxUsageBytes = -1
 	}
 
 	// need a space after total_rss so we don't hit something else
@@ -237,12 +259,15 @@ func (s *Statter) cGroupV1Memory() (*Result, error) {
 		return nil, xerrors.Errorf("read memory stats: %w", err)
 	}
 
+	// If max usage bytes is -1, there is no memory limit set.
+	if maxUsageBytes > 0 {
+		r.Total = ptr.To(float64(maxUsageBytes))
+	}
+
 	// Total memory used is usage - total_inactive_file
-	return &Result{
-		Total: ptr.To(float64(maxUsageBytes)),
-		Used:  float64(usageBytes - totalInactiveFileBytes),
-		Unit:  "B",
-	}, nil
+	r.Used = float64(usageBytes - totalInactiveFileBytes)
+
+	return r, nil
 }
 
 // read an int64 value from path

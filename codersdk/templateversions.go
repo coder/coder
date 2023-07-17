@@ -25,6 +25,7 @@ type TemplateVersion struct {
 	CreatedAt      time.Time      `json:"created_at" format:"date-time"`
 	UpdatedAt      time.Time      `json:"updated_at" format:"date-time"`
 	Name           string         `json:"name"`
+	Message        string         `json:"message"`
 	Job            ProvisionerJob `json:"job"`
 	Readme         string         `json:"readme"`
 	CreatedBy      User           `json:"created_by"`
@@ -63,7 +64,7 @@ type TemplateVersionParameter struct {
 	ValidationMax        *int32                           `json:"validation_max,omitempty"`
 	ValidationMonotonic  ValidationMonotonicOrder         `json:"validation_monotonic,omitempty" enums:"increasing,decreasing"`
 	Required             bool                             `json:"required"`
-	LegacyVariableName   string                           `json:"legacy_variable_name,omitempty"`
+	Ephemeral            bool                             `json:"ephemeral"`
 }
 
 // TemplateVersionParameterOption represents a selectable option for a template parameter.
@@ -86,7 +87,8 @@ type TemplateVersionVariable struct {
 }
 
 type PatchTemplateVersionRequest struct {
-	Name string `json:"name" validate:"omitempty,template_version_name"`
+	Name    string  `json:"name" validate:"omitempty,template_version_name"`
+	Message *string `json:"message,omitempty" validate:"omitempty,lt=1048577"`
 }
 
 // TemplateVersion returns a template version by ID.

@@ -15,6 +15,7 @@ import (
 	"os/user"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -34,7 +35,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
@@ -43,6 +44,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/agent/agentssh"
+	"github.com/coder/coder/agent/agenttest"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
@@ -190,7 +192,7 @@ func TestAgent_Stats_Magic(t *testing.T) {
 
 func TestAgent_SessionExec(t *testing.T) {
 	t.Parallel()
-	session := setupSSHSession(t, agentsdk.Manifest{})
+	session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil)
 
 	command := "echo test"
 	if runtime.GOOS == "windows" {
@@ -203,7 +205,7 @@ func TestAgent_SessionExec(t *testing.T) {
 
 func TestAgent_GitSSH(t *testing.T) {
 	t.Parallel()
-	session := setupSSHSession(t, agentsdk.Manifest{})
+	session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil)
 	command := "sh -c 'echo $GIT_SSH_COMMAND'"
 	if runtime.GOOS == "windows" {
 		command = "cmd.exe /c echo %GIT_SSH_COMMAND%"
@@ -223,7 +225,7 @@ func TestAgent_SessionTTYShell(t *testing.T) {
 		// it seems like it could be either.
 		t.Skip("ConPTY appears to be inconsistent on Windows.")
 	}
-	session := setupSSHSession(t, agentsdk.Manifest{})
+	session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil)
 	command := "sh"
 	if runtime.GOOS == "windows" {
 		command = "cmd.exe"
@@ -246,7 +248,7 @@ func TestAgent_SessionTTYShell(t *testing.T) {
 
 func TestAgent_SessionTTYExitCode(t *testing.T) {
 	t.Parallel()
-	session := setupSSHSession(t, agentsdk.Manifest{})
+	session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil)
 	command := "areallynotrealcommand"
 	err := session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
 	require.NoError(t, err)
@@ -266,8 +268,8 @@ func TestAgent_SessionTTYExitCode(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest // This test sets an environment variable.
 func TestAgent_Session_TTY_MOTD(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		// This might be our implementation, or ConPTY itself.
 		// It's difficult to find extensive tests for it, so
@@ -275,39 +277,191 @@ func TestAgent_Session_TTY_MOTD(t *testing.T) {
 		t.Skip("ConPTY appears to be inconsistent on Windows.")
 	}
 
+	u, err := user.Current()
+	require.NoError(t, err, "get current user")
+
+	name := filepath.Join(u.HomeDir, "motd")
+
 	wantMOTD := "Welcome to your Coder workspace!"
+	wantServiceBanner := "Service banner text goes here"
 
-	tmpdir := t.TempDir()
-	name := filepath.Join(tmpdir, "motd")
-	err := os.WriteFile(name, []byte(wantMOTD), 0o600)
-	require.NoError(t, err, "write motd file")
+	tests := []struct {
+		name       string
+		manifest   agentsdk.Manifest
+		banner     codersdk.ServiceBannerConfig
+		expected   []string
+		unexpected []string
+		expectedRe *regexp.Regexp
+	}{
+		{
+			name:       "WithoutServiceBanner",
+			manifest:   agentsdk.Manifest{MOTDFile: name},
+			banner:     codersdk.ServiceBannerConfig{},
+			expected:   []string{wantMOTD},
+			unexpected: []string{wantServiceBanner},
+		},
+		{
+			name:     "WithServiceBanner",
+			manifest: agentsdk.Manifest{MOTDFile: name},
+			banner: codersdk.ServiceBannerConfig{
+				Enabled: true,
+				Message: wantServiceBanner,
+			},
+			expected: []string{wantMOTD, wantServiceBanner},
+		},
+		{
+			name:     "ServiceBannerDisabled",
+			manifest: agentsdk.Manifest{MOTDFile: name},
+			banner: codersdk.ServiceBannerConfig{
+				Enabled: false,
+				Message: wantServiceBanner,
+			},
+			expected:   []string{wantMOTD},
+			unexpected: []string{wantServiceBanner},
+		},
+		{
+			name:     "ServiceBannerOnly",
+			manifest: agentsdk.Manifest{},
+			banner: codersdk.ServiceBannerConfig{
+				Enabled: true,
+				Message: wantServiceBanner,
+			},
+			expected:   []string{wantServiceBanner},
+			unexpected: []string{wantMOTD},
+		},
+		{
+			name:       "None",
+			manifest:   agentsdk.Manifest{},
+			banner:     codersdk.ServiceBannerConfig{},
+			unexpected: []string{wantServiceBanner, wantMOTD},
+		},
+		{
+			name:     "CarriageReturns",
+			manifest: agentsdk.Manifest{},
+			banner: codersdk.ServiceBannerConfig{
+				Enabled: true,
+				Message: "service\n\nbanner\nhere",
+			},
+			expected:   []string{"service\r\n\r\nbanner\r\nhere\r\n\r\n"},
+			unexpected: []string{},
+		},
+		{
+			name:     "Trim",
+			manifest: agentsdk.Manifest{},
+			banner: codersdk.ServiceBannerConfig{
+				Enabled: true,
+				Message: "\n\n\n\n\n\nbanner\n\n\n\n\n\n",
+			},
+			expectedRe: regexp.MustCompile("([^\n\r]|^)banner\r\n\r\n[^\r\n]"),
+		},
+	}
 
-	// Set HOME so we can ensure no ~/.hushlogin is present.
-	t.Setenv("HOME", tmpdir)
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			session := setupSSHSession(t, test.manifest, test.banner, func(fs afero.Fs) {
+				err := fs.MkdirAll(filepath.Dir(name), 0o700)
+				require.NoError(t, err)
+				err = afero.WriteFile(fs, name, []byte(wantMOTD), 0o600)
+				require.NoError(t, err)
+			})
+			testSessionOutput(t, session, test.expected, test.unexpected, test.expectedRe)
+		})
+	}
+}
 
-	session := setupSSHSession(t, agentsdk.Manifest{
-		MOTDFile: name,
-	})
-	err = session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
-	require.NoError(t, err)
+func TestAgent_Session_TTY_MOTD_Update(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		// This might be our implementation, or ConPTY itself.
+		// It's difficult to find extensive tests for it, so
+		// it seems like it could be either.
+		t.Skip("ConPTY appears to be inconsistent on Windows.")
+	}
 
-	ptty := ptytest.New(t)
-	var stdout bytes.Buffer
-	session.Stdout = &stdout
-	session.Stderr = ptty.Output()
-	session.Stdin = ptty.Input()
-	err = session.Shell()
-	require.NoError(t, err)
+	// Only the banner updates dynamically; the MOTD file does not.
+	wantServiceBanner := "Service banner text goes here"
 
-	ptty.WriteLine("exit 0")
-	err = session.Wait()
-	require.NoError(t, err)
+	tests := []struct {
+		banner     codersdk.ServiceBannerConfig
+		expected   []string
+		unexpected []string
+	}{
+		{
+			banner:     codersdk.ServiceBannerConfig{},
+			expected:   []string{},
+			unexpected: []string{wantServiceBanner},
+		},
+		{
+			banner: codersdk.ServiceBannerConfig{
+				Enabled: true,
+				Message: wantServiceBanner,
+			},
+			expected: []string{wantServiceBanner},
+		},
+		{
+			banner: codersdk.ServiceBannerConfig{
+				Enabled: false,
+				Message: wantServiceBanner,
+			},
+			expected:   []string{},
+			unexpected: []string{wantServiceBanner},
+		},
+		{
+			banner: codersdk.ServiceBannerConfig{
+				Enabled: true,
+				Message: wantServiceBanner,
+			},
+			expected:   []string{wantServiceBanner},
+			unexpected: []string{},
+		},
+		{
+			banner:     codersdk.ServiceBannerConfig{},
+			unexpected: []string{wantServiceBanner},
+		},
+	}
 
-	require.Contains(t, stdout.String(), wantMOTD, "should show motd")
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	setSBInterval := func(_ *agenttest.Client, opts *agent.Options) {
+		opts.ServiceBannerRefreshInterval = 5 * time.Millisecond
+	}
+	//nolint:dogsled // Allow the blank identifiers.
+	conn, client, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, setSBInterval)
+	for _, test := range tests {
+		test := test
+		// Set new banner func and wait for the agent to call it to update the
+		// banner.
+		ready := make(chan struct{}, 2)
+		client.SetServiceBannerFunc(func() (codersdk.ServiceBannerConfig, error) {
+			select {
+			case ready <- struct{}{}:
+			default:
+			}
+			return test.banner, nil
+		})
+		<-ready
+		<-ready // Wait for two updates to ensure the value has propagated.
+
+		sshClient, err := conn.SSHClient(ctx)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = sshClient.Close()
+		})
+		session, err := sshClient.NewSession()
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = session.Close()
+		})
+
+		testSessionOutput(t, session, test.expected, test.unexpected, nil)
+	}
 }
 
 //nolint:paralleltest // This test sets an environment variable.
-func TestAgent_Session_TTY_Hushlogin(t *testing.T) {
+func TestAgent_Session_TTY_QuietLogin(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		// This might be our implementation, or ConPTY itself.
 		// It's difficult to find extensive tests for it, so
@@ -316,40 +470,70 @@ func TestAgent_Session_TTY_Hushlogin(t *testing.T) {
 	}
 
 	wantNotMOTD := "Welcome to your Coder workspace!"
+	wantMaybeServiceBanner := "Service banner text goes here"
 
-	tmpdir := t.TempDir()
-	name := filepath.Join(tmpdir, "motd")
-	err := os.WriteFile(name, []byte(wantNotMOTD), 0o600)
-	require.NoError(t, err, "write motd file")
+	u, err := user.Current()
+	require.NoError(t, err, "get current user")
 
-	// Create hushlogin to silence motd.
-	f, err := os.Create(filepath.Join(tmpdir, ".hushlogin"))
-	require.NoError(t, err, "create .hushlogin file")
-	err = f.Close()
-	require.NoError(t, err, "close .hushlogin file")
+	name := filepath.Join(u.HomeDir, "motd")
 
-	// Set HOME so we can ensure ~/.hushlogin is present.
-	t.Setenv("HOME", tmpdir)
+	// Neither banner nor MOTD should show if not a login shell.
+	t.Run("NotLogin", func(t *testing.T) {
+		session := setupSSHSession(t, agentsdk.Manifest{
+			MOTDFile: name,
+		}, codersdk.ServiceBannerConfig{
+			Enabled: true,
+			Message: wantMaybeServiceBanner,
+		}, func(fs afero.Fs) {
+			err := afero.WriteFile(fs, name, []byte(wantNotMOTD), 0o600)
+			require.NoError(t, err, "write motd file")
+		})
+		err = session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
+		require.NoError(t, err)
 
-	session := setupSSHSession(t, agentsdk.Manifest{
-		MOTDFile: name,
+		wantEcho := "foobar"
+		command := "echo " + wantEcho
+		output, err := session.Output(command)
+		require.NoError(t, err)
+
+		require.Contains(t, string(output), wantEcho, "should show echo")
+		require.NotContains(t, string(output), wantNotMOTD, "should not show motd")
+		require.NotContains(t, string(output), wantMaybeServiceBanner, "should not show service banner")
 	})
-	err = session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
-	require.NoError(t, err)
 
-	ptty := ptytest.New(t)
-	var stdout bytes.Buffer
-	session.Stdout = &stdout
-	session.Stderr = ptty.Output()
-	session.Stdin = ptty.Input()
-	err = session.Shell()
-	require.NoError(t, err)
+	// Only the MOTD should be silenced when hushlogin is present.
+	t.Run("Hushlogin", func(t *testing.T) {
+		session := setupSSHSession(t, agentsdk.Manifest{
+			MOTDFile: name,
+		}, codersdk.ServiceBannerConfig{
+			Enabled: true,
+			Message: wantMaybeServiceBanner,
+		}, func(fs afero.Fs) {
+			err := afero.WriteFile(fs, name, []byte(wantNotMOTD), 0o600)
+			require.NoError(t, err, "write motd file")
 
-	ptty.WriteLine("exit 0")
-	err = session.Wait()
-	require.NoError(t, err)
+			// Create hushlogin to silence motd.
+			err = afero.WriteFile(fs, name, []byte{}, 0o600)
+			require.NoError(t, err, "write hushlogin file")
+		})
+		err = session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
+		require.NoError(t, err)
 
-	require.NotContains(t, stdout.String(), wantNotMOTD, "should not show motd")
+		ptty := ptytest.New(t)
+		var stdout bytes.Buffer
+		session.Stdout = &stdout
+		session.Stderr = ptty.Output()
+		session.Stdin = ptty.Input()
+		err = session.Shell()
+		require.NoError(t, err)
+
+		ptty.WriteLine("exit 0")
+		err = session.Wait()
+		require.NoError(t, err)
+
+		require.NotContains(t, stdout.String(), wantNotMOTD, "should not show motd")
+		require.Contains(t, stdout.String(), wantMaybeServiceBanner, "should show service banner")
+	})
 }
 
 func TestAgent_Session_TTY_FastCommandHasOutput(t *testing.T) {
@@ -796,7 +980,7 @@ func TestAgent_EnvironmentVariables(t *testing.T) {
 		EnvironmentVariables: map[string]string{
 			key: value,
 		},
-	})
+	}, codersdk.ServiceBannerConfig{}, nil)
 	command := "sh -c 'echo $" + key + "'"
 	if runtime.GOOS == "windows" {
 		command = "cmd.exe /c echo %" + key + "%"
@@ -813,7 +997,7 @@ func TestAgent_EnvironmentVariableExpansion(t *testing.T) {
 		EnvironmentVariables: map[string]string{
 			key: "$SOMETHINGNOTSET",
 		},
-	})
+	}, codersdk.ServiceBannerConfig{}, nil)
 	command := "sh -c 'echo $" + key + "'"
 	if runtime.GOOS == "windows" {
 		command = "cmd.exe /c echo %" + key + "%"
@@ -836,7 +1020,7 @@ func TestAgent_CoderEnvVars(t *testing.T) {
 		t.Run(key, func(t *testing.T) {
 			t.Parallel()
 
-			session := setupSSHSession(t, agentsdk.Manifest{})
+			session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil)
 			command := "sh -c 'echo $" + key + "'"
 			if runtime.GOOS == "windows" {
 				command = "cmd.exe /c echo %" + key + "%"
@@ -859,7 +1043,7 @@ func TestAgent_SSHConnectionEnvVars(t *testing.T) {
 		t.Run(key, func(t *testing.T) {
 			t.Parallel()
 
-			session := setupSSHSession(t, agentsdk.Manifest{})
+			session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil)
 			command := "sh -c 'echo $" + key + "'"
 			if runtime.GOOS == "windows" {
 				command = "cmd.exe /c echo %" + key + "%"
@@ -881,16 +1065,15 @@ func TestAgent_StartupScript(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		client := &client{
-			t:       t,
-			agentID: uuid.New(),
-			manifest: agentsdk.Manifest{
+		client := agenttest.NewClient(t,
+			uuid.New(),
+			agentsdk.Manifest{
 				StartupScript: command,
 				DERPMap:       &tailcfg.DERPMap{},
 			},
-			statsChan:   make(chan *agentsdk.Stats),
-			coordinator: tailnet.NewCoordinator(logger),
-		}
+			make(chan *agentsdk.Stats),
+			tailnet.NewCoordinator(logger),
+		)
 		closer := agent.New(agent.Options{
 			Client:                 client,
 			Filesystem:             afero.NewMemMapFs(),
@@ -901,36 +1084,35 @@ func TestAgent_StartupScript(t *testing.T) {
 			_ = closer.Close()
 		})
 		assert.Eventually(t, func() bool {
-			got := client.getLifecycleStates()
+			got := client.GetLifecycleStates()
 			return len(got) > 0 && got[len(got)-1] == codersdk.WorkspaceAgentLifecycleReady
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
-		require.Len(t, client.getStartupLogs(), 1)
-		require.Equal(t, output, client.getStartupLogs()[0].Output)
+		require.Len(t, client.GetStartupLogs(), 1)
+		require.Equal(t, output, client.GetStartupLogs()[0].Output)
 	})
 	// This ensures that even when coderd sends back that the startup
 	// script has written too many lines it will still succeed!
 	t.Run("OverflowsAndSkips", func(t *testing.T) {
 		t.Parallel()
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		client := &client{
-			t:       t,
-			agentID: uuid.New(),
-			manifest: agentsdk.Manifest{
+		client := agenttest.NewClient(t,
+			uuid.New(),
+			agentsdk.Manifest{
 				StartupScript: command,
 				DERPMap:       &tailcfg.DERPMap{},
 			},
-			patchWorkspaceLogs: func() error {
-				resp := httptest.NewRecorder()
-				httpapi.Write(context.Background(), resp, http.StatusRequestEntityTooLarge, codersdk.Response{
-					Message: "Too many lines!",
-				})
-				res := resp.Result()
-				defer res.Body.Close()
-				return codersdk.ReadBodyAsError(res)
-			},
-			statsChan:   make(chan *agentsdk.Stats),
-			coordinator: tailnet.NewCoordinator(logger),
+			make(chan *agentsdk.Stats, 50),
+			tailnet.NewCoordinator(logger),
+		)
+		client.PatchWorkspaceLogs = func() error {
+			resp := httptest.NewRecorder()
+			httpapi.Write(context.Background(), resp, http.StatusRequestEntityTooLarge, codersdk.Response{
+				Message: "Too many lines!",
+			})
+			res := resp.Result()
+			defer res.Body.Close()
+			return codersdk.ReadBodyAsError(res)
 		}
 		closer := agent.New(agent.Options{
 			Client:                 client,
@@ -942,10 +1124,10 @@ func TestAgent_StartupScript(t *testing.T) {
 			_ = closer.Close()
 		})
 		assert.Eventually(t, func() bool {
-			got := client.getLifecycleStates()
+			got := client.GetLifecycleStates()
 			return len(got) > 0 && got[len(got)-1] == codersdk.WorkspaceAgentLifecycleReady
 		}, testutil.WaitShort, testutil.IntervalMedium)
-		require.Len(t, client.getStartupLogs(), 0)
+		require.Len(t, client.GetStartupLogs(), 0)
 	})
 }
 
@@ -965,18 +1147,20 @@ func TestAgent_Metadata(t *testing.T) {
 					Script:   echoHello,
 				},
 			},
-		}, 0)
+		}, 0, func(_ *agenttest.Client, opts *agent.Options) {
+			opts.ReportMetadataInterval = 100 * time.Millisecond
+		})
 
 		var gotMd map[string]agentsdk.PostMetadataRequest
 		require.Eventually(t, func() bool {
-			gotMd = client.getMetadata()
+			gotMd = client.GetMetadata()
 			return len(gotMd) == 1
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
 		collectedAt := gotMd["greeting"].CollectedAt
 
 		require.Never(t, func() bool {
-			gotMd = client.getMetadata()
+			gotMd = client.GetMetadata()
 			if len(gotMd) != 1 {
 				panic("unexpected number of metadata")
 			}
@@ -996,23 +1180,23 @@ func TestAgent_Metadata(t *testing.T) {
 					Script:   echoHello,
 				},
 			},
-		}, 0)
+		}, 0, func(_ *agenttest.Client, opts *agent.Options) {
+			opts.ReportMetadataInterval = testutil.IntervalFast
+		})
 
 		var gotMd map[string]agentsdk.PostMetadataRequest
 		require.Eventually(t, func() bool {
-			gotMd = client.getMetadata()
+			gotMd = client.GetMetadata()
 			return len(gotMd) == 1
-		}, testutil.WaitShort, testutil.IntervalMedium)
+		}, testutil.WaitShort, testutil.IntervalFast/2)
 
 		collectedAt1 := gotMd["greeting"].CollectedAt
-		if !assert.Equal(t, "hello", strings.TrimSpace(gotMd["greeting"].Value)) {
-			t.Errorf("got: %+v", gotMd)
-		}
+		require.Equal(t, "hello", strings.TrimSpace(gotMd["greeting"].Value))
 
 		if !assert.Eventually(t, func() bool {
-			gotMd = client.getMetadata()
+			gotMd = client.GetMetadata()
 			return gotMd["greeting"].CollectedAt.After(collectedAt1)
-		}, testutil.WaitShort, testutil.IntervalMedium) {
+		}, testutil.WaitShort, testutil.IntervalFast/2) {
 			t.Fatalf("expected metadata to be collected again")
 		}
 	})
@@ -1049,14 +1233,16 @@ func TestAgentMetadata_Timing(t *testing.T) {
 				Script:   "exit 1",
 			},
 		},
-	}, 0)
+	}, 0, func(_ *agenttest.Client, opts *agent.Options) {
+		opts.ReportMetadataInterval = intervalUnit
+	})
 
 	require.Eventually(t, func() bool {
-		return len(client.getMetadata()) == 2
+		return len(client.GetMetadata()) == 2
 	}, testutil.WaitShort, testutil.IntervalMedium)
 
 	for start := time.Now(); time.Since(start) < testutil.WaitMedium; time.Sleep(testutil.IntervalMedium) {
-		md := client.getMetadata()
+		md := client.GetMetadata()
 		require.Len(t, md, 2, "got: %+v", md)
 
 		require.Equal(t, "hello\n", md["greeting"].Value)
@@ -1099,7 +1285,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 		t.Parallel()
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
-			StartupScript:        "sleep 5",
+			StartupScript:        "sleep 3",
 			StartupScriptTimeout: time.Nanosecond,
 		}, 0)
 
@@ -1110,11 +1296,11 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 		var got []codersdk.WorkspaceAgentLifecycle
 		assert.Eventually(t, func() bool {
-			got = client.getLifecycleStates()
-			return len(got) > 0 && got[len(got)-1] == want[len(want)-1]
+			got = client.GetLifecycleStates()
+			return slices.Contains(got, want[len(want)-1])
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
-		require.Equal(t, want, got)
+		require.Equal(t, want, got[:len(want)])
 	})
 
 	t.Run("StartError", func(t *testing.T) {
@@ -1132,11 +1318,11 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 		var got []codersdk.WorkspaceAgentLifecycle
 		assert.Eventually(t, func() bool {
-			got = client.getLifecycleStates()
-			return len(got) > 0 && got[len(got)-1] == want[len(want)-1]
+			got = client.GetLifecycleStates()
+			return slices.Contains(got, want[len(want)-1])
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
-		require.Equal(t, want, got)
+		require.Equal(t, want, got[:len(want)])
 	})
 
 	t.Run("Ready", func(t *testing.T) {
@@ -1154,7 +1340,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 		var got []codersdk.WorkspaceAgentLifecycle
 		assert.Eventually(t, func() bool {
-			got = client.getLifecycleStates()
+			got = client.GetLifecycleStates()
 			return len(got) > 0 && got[len(got)-1] == want[len(want)-1]
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
@@ -1165,14 +1351,12 @@ func TestAgent_Lifecycle(t *testing.T) {
 		t.Parallel()
 
 		_, client, _, _, closer := setupAgent(t, agentsdk.Manifest{
-			ShutdownScript:       "sleep 5",
+			ShutdownScript:       "sleep 3",
 			StartupScriptTimeout: 30 * time.Second,
 		}, 0)
 
-		var ready []codersdk.WorkspaceAgentLifecycle
 		assert.Eventually(t, func() bool {
-			ready = client.getLifecycleStates()
-			return len(ready) > 0 && ready[len(ready)-1] == codersdk.WorkspaceAgentLifecycleReady
+			return slices.Contains(client.GetLifecycleStates(), codersdk.WorkspaceAgentLifecycleReady)
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
 		// Start close asynchronously so that we an inspect the state.
@@ -1187,30 +1371,30 @@ func TestAgent_Lifecycle(t *testing.T) {
 		})
 
 		want := []codersdk.WorkspaceAgentLifecycle{
+			codersdk.WorkspaceAgentLifecycleStarting,
+			codersdk.WorkspaceAgentLifecycleReady,
 			codersdk.WorkspaceAgentLifecycleShuttingDown,
 		}
 
 		var got []codersdk.WorkspaceAgentLifecycle
 		assert.Eventually(t, func() bool {
-			got = client.getLifecycleStates()[len(ready):]
-			return len(got) > 0 && got[len(got)-1] == want[len(want)-1]
+			got = client.GetLifecycleStates()
+			return slices.Contains(got, want[len(want)-1])
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
-		require.Equal(t, want, got)
+		require.Equal(t, want, got[:len(want)])
 	})
 
 	t.Run("ShutdownTimeout", func(t *testing.T) {
 		t.Parallel()
 
 		_, client, _, _, closer := setupAgent(t, agentsdk.Manifest{
-			ShutdownScript:        "sleep 5",
+			ShutdownScript:        "sleep 3",
 			ShutdownScriptTimeout: time.Nanosecond,
 		}, 0)
 
-		var ready []codersdk.WorkspaceAgentLifecycle
 		assert.Eventually(t, func() bool {
-			ready = client.getLifecycleStates()
-			return len(ready) > 0 && ready[len(ready)-1] == codersdk.WorkspaceAgentLifecycleReady
+			return slices.Contains(client.GetLifecycleStates(), codersdk.WorkspaceAgentLifecycleReady)
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
 		// Start close asynchronously so that we an inspect the state.
@@ -1225,17 +1409,19 @@ func TestAgent_Lifecycle(t *testing.T) {
 		})
 
 		want := []codersdk.WorkspaceAgentLifecycle{
+			codersdk.WorkspaceAgentLifecycleStarting,
+			codersdk.WorkspaceAgentLifecycleReady,
 			codersdk.WorkspaceAgentLifecycleShuttingDown,
 			codersdk.WorkspaceAgentLifecycleShutdownTimeout,
 		}
 
 		var got []codersdk.WorkspaceAgentLifecycle
 		assert.Eventually(t, func() bool {
-			got = client.getLifecycleStates()[len(ready):]
-			return len(got) > 0 && got[len(got)-1] == want[len(want)-1]
+			got = client.GetLifecycleStates()
+			return slices.Contains(got, want[len(want)-1])
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
-		require.Equal(t, want, got)
+		require.Equal(t, want, got[:len(want)])
 	})
 
 	t.Run("ShutdownError", func(t *testing.T) {
@@ -1246,10 +1432,8 @@ func TestAgent_Lifecycle(t *testing.T) {
 			ShutdownScriptTimeout: 30 * time.Second,
 		}, 0)
 
-		var ready []codersdk.WorkspaceAgentLifecycle
 		assert.Eventually(t, func() bool {
-			ready = client.getLifecycleStates()
-			return len(ready) > 0 && ready[len(ready)-1] == codersdk.WorkspaceAgentLifecycleReady
+			return slices.Contains(client.GetLifecycleStates(), codersdk.WorkspaceAgentLifecycleReady)
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
 		// Start close asynchronously so that we an inspect the state.
@@ -1264,34 +1448,37 @@ func TestAgent_Lifecycle(t *testing.T) {
 		})
 
 		want := []codersdk.WorkspaceAgentLifecycle{
+			codersdk.WorkspaceAgentLifecycleStarting,
+			codersdk.WorkspaceAgentLifecycleReady,
 			codersdk.WorkspaceAgentLifecycleShuttingDown,
 			codersdk.WorkspaceAgentLifecycleShutdownError,
 		}
 
 		var got []codersdk.WorkspaceAgentLifecycle
 		assert.Eventually(t, func() bool {
-			got = client.getLifecycleStates()[len(ready):]
-			return len(got) > 0 && got[len(got)-1] == want[len(want)-1]
+			got = client.GetLifecycleStates()
+			return slices.Contains(got, want[len(want)-1])
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
-		require.Equal(t, want, got)
+		require.Equal(t, want, got[:len(want)])
 	})
 
 	t.Run("ShutdownScriptOnce", func(t *testing.T) {
 		t.Parallel()
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		expected := "this-is-shutdown"
-		client := &client{
-			t:       t,
-			agentID: uuid.New(),
-			manifest: agentsdk.Manifest{
-				DERPMap:        tailnettest.RunDERPAndSTUN(t),
+		derpMap, _ := tailnettest.RunDERPAndSTUN(t)
+
+		client := agenttest.NewClient(t,
+			uuid.New(),
+			agentsdk.Manifest{
+				DERPMap:        derpMap,
 				StartupScript:  "echo 1",
 				ShutdownScript: "echo " + expected,
 			},
-			statsChan:   make(chan *agentsdk.Stats),
-			coordinator: tailnet.NewCoordinator(logger),
-		}
+			make(chan *agentsdk.Stats, 50),
+			tailnet.NewCoordinator(logger),
+		)
 
 		fs := afero.NewMemMapFs()
 		agent := agent.New(agent.Options{
@@ -1343,9 +1530,9 @@ func TestAgent_Startup(t *testing.T) {
 			Directory:            "",
 		}, 0)
 		assert.Eventually(t, func() bool {
-			return client.getStartup().Version != ""
+			return client.GetStartup().Version != ""
 		}, testutil.WaitShort, testutil.IntervalFast)
-		require.Equal(t, "", client.getStartup().ExpandedDirectory)
+		require.Equal(t, "", client.GetStartup().ExpandedDirectory)
 	})
 
 	t.Run("HomeDirectory", func(t *testing.T) {
@@ -1357,11 +1544,11 @@ func TestAgent_Startup(t *testing.T) {
 			Directory:            "~",
 		}, 0)
 		assert.Eventually(t, func() bool {
-			return client.getStartup().Version != ""
+			return client.GetStartup().Version != ""
 		}, testutil.WaitShort, testutil.IntervalFast)
 		homeDir, err := os.UserHomeDir()
 		require.NoError(t, err)
-		require.Equal(t, homeDir, client.getStartup().ExpandedDirectory)
+		require.Equal(t, homeDir, client.GetStartup().ExpandedDirectory)
 	})
 
 	t.Run("NotAbsoluteDirectory", func(t *testing.T) {
@@ -1373,11 +1560,11 @@ func TestAgent_Startup(t *testing.T) {
 			Directory:            "coder/coder",
 		}, 0)
 		assert.Eventually(t, func() bool {
-			return client.getStartup().Version != ""
+			return client.GetStartup().Version != ""
 		}, testutil.WaitShort, testutil.IntervalFast)
 		homeDir, err := os.UserHomeDir()
 		require.NoError(t, err)
-		require.Equal(t, filepath.Join(homeDir, "coder/coder"), client.getStartup().ExpandedDirectory)
+		require.Equal(t, filepath.Join(homeDir, "coder/coder"), client.GetStartup().ExpandedDirectory)
 	})
 
 	t.Run("HomeEnvironmentVariable", func(t *testing.T) {
@@ -1389,11 +1576,11 @@ func TestAgent_Startup(t *testing.T) {
 			Directory:            "$HOME",
 		}, 0)
 		assert.Eventually(t, func() bool {
-			return client.getStartup().Version != ""
+			return client.GetStartup().Version != ""
 		}, testutil.WaitShort, testutil.IntervalFast)
 		homeDir, err := os.UserHomeDir()
 		require.NoError(t, err)
-		require.Equal(t, homeDir, client.getStartup().ExpandedDirectory)
+		require.Equal(t, homeDir, client.GetStartup().ExpandedDirectory)
 	})
 }
 
@@ -1534,10 +1721,9 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
-	derpMap := *tailnettest.RunDERPAndSTUN(t)
-	metadata := agentsdk.Manifest{
-		DERPMap: &derpMap,
-	}
+	originalDerpMap, _ := tailnettest.RunDERPAndSTUN(t)
+	require.NotNil(t, originalDerpMap)
+
 	coordinator := tailnet.NewCoordinator(logger)
 	defer func() {
 		_ = coordinator.Close()
@@ -1545,15 +1731,18 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 	agentID := uuid.New()
 	statsCh := make(chan *agentsdk.Stats, 50)
 	fs := afero.NewMemMapFs()
-	c := &client{
-		t:           t,
-		agentID:     agentID,
-		manifest:    metadata,
-		statsChan:   statsCh,
-		coordinator: coordinator,
-	}
+	client := agenttest.NewClient(t,
+		agentID,
+		agentsdk.Manifest{
+			DERPMap: originalDerpMap,
+			// Force DERP.
+			DisableDirectConnections: true,
+		},
+		statsCh,
+		coordinator,
+	)
 	closer := agent.New(agent.Options{
-		Client:                 c,
+		Client:                 client,
 		Filesystem:             fs,
 		Logger:                 logger.Named("agent"),
 		ReconnectingPTYTimeout: time.Minute,
@@ -1563,10 +1752,10 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 	}()
 
 	// Setup a client connection.
-	newClientConn := func() *codersdk.WorkspaceAgentConn {
+	newClientConn := func(derpMap *tailcfg.DERPMap) *codersdk.WorkspaceAgentConn {
 		conn, err := tailnet.NewConn(&tailnet.Options{
 			Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
-			DERPMap:   metadata.DERPMap,
+			DERPMap:   derpMap,
 			Logger:    logger.Named("client"),
 		})
 		require.NoError(t, err)
@@ -1587,10 +1776,13 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 			return conn.UpdateNodes(nodes, false)
 		})
 		conn.SetNodeCallback(sendNode)
+		// Force DERP.
+		conn.SetBlockEndpoints(true)
 
-		sdkConn := &codersdk.WorkspaceAgentConn{
-			Conn: conn,
-		}
+		sdkConn := codersdk.NewWorkspaceAgentConn(conn, codersdk.WorkspaceAgentConnOptions{
+			AgentID:   agentID,
+			CloseFunc: func() error { return codersdk.ErrSkipClose },
+		})
 		t.Cleanup(func() {
 			_ = sdkConn.Close()
 		})
@@ -1602,25 +1794,34 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 
 		return sdkConn
 	}
-	conn1 := newClientConn()
+	conn1 := newClientConn(originalDerpMap)
 
 	// Change the DERP map.
-	// TODO: fix this test
-	derpMap = *tailnettest.RunDERPAndSTUN(t)
+	newDerpMap, _ := tailnettest.RunDERPAndSTUN(t)
+	require.NotNil(t, newDerpMap)
+
 	// Change the region ID.
-	derpMap.Regions[2] = derpMap.Regions[1]
-	delete(derpMap.Regions, 1)
-	derpMap.Regions[2].RegionID = 2
-	for _, node := range derpMap.Regions[2].Nodes {
+	newDerpMap.Regions[2] = newDerpMap.Regions[1]
+	delete(newDerpMap.Regions, 1)
+	newDerpMap.Regions[2].RegionID = 2
+	for _, node := range newDerpMap.Regions[2].Nodes {
 		node.RegionID = 2
 	}
 
+	// Push a new DERP map to the agent.
+	err := client.PushDERPMapUpdate(agentsdk.DERPMapUpdate{
+		DERPMap: newDerpMap,
+	})
+	require.NoError(t, err)
+
 	// Connect from a second client and make sure it uses the new DERP map.
-	conn2 := newClientConn()
+	conn2 := newClientConn(newDerpMap)
 	require.Equal(t, []int{2}, conn2.DERPMap().RegionIDs())
 
-	// Make sure the first client is still reachable (it received a a DERP map
-	// update when the agent's nodes changed).
+	// If the first client gets a DERP map update, it should be able to
+	// reconnect just fine.
+	conn1.SetDERPMap(newDerpMap)
+	require.Equal(t, []int{2}, conn1.DERPMap().RegionIDs())
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	require.True(t, conn1.AwaitReachable(ctx))
@@ -1631,7 +1832,7 @@ func TestAgent_Speedtest(t *testing.T) {
 	t.Skip("This test is relatively flakey because of Tailscale's speedtest code...")
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
-	derpMap := tailnettest.RunDERPAndSTUN(t)
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
 	//nolint:dogsled
 	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{
 		DERPMap: derpMap,
@@ -1651,17 +1852,16 @@ func TestAgent_Reconnect(t *testing.T) {
 	defer coordinator.Close()
 
 	agentID := uuid.New()
-	statsCh := make(chan *agentsdk.Stats)
-	derpMap := tailnettest.RunDERPAndSTUN(t)
-	client := &client{
-		t:       t,
-		agentID: agentID,
-		manifest: agentsdk.Manifest{
+	statsCh := make(chan *agentsdk.Stats, 50)
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
+	client := agenttest.NewClient(t,
+		agentID,
+		agentsdk.Manifest{
 			DERPMap: derpMap,
 		},
-		statsChan:   statsCh,
-		coordinator: coordinator,
-	}
+		statsCh,
+		coordinator,
+	)
 	initialized := atomic.Int32{}
 	closer := agent.New(agent.Options{
 		ExchangeToken: func(ctx context.Context) (string, error) {
@@ -1676,7 +1876,7 @@ func TestAgent_Reconnect(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return coordinator.Node(agentID) != nil
 	}, testutil.WaitShort, testutil.IntervalFast)
-	client.lastWorkspaceAgent()
+	client.LastWorkspaceAgent()
 	require.Eventually(t, func() bool {
 		return initialized.Load() == 2
 	}, testutil.WaitShort, testutil.IntervalFast)
@@ -1688,16 +1888,15 @@ func TestAgent_WriteVSCodeConfigs(t *testing.T) {
 	coordinator := tailnet.NewCoordinator(logger)
 	defer coordinator.Close()
 
-	client := &client{
-		t:       t,
-		agentID: uuid.New(),
-		manifest: agentsdk.Manifest{
+	client := agenttest.NewClient(t,
+		uuid.New(),
+		agentsdk.Manifest{
 			GitAuthConfigs: 1,
 			DERPMap:        &tailcfg.DERPMap{},
 		},
-		statsChan:   make(chan *agentsdk.Stats),
-		coordinator: coordinator,
-	}
+		make(chan *agentsdk.Stats, 50),
+		coordinator,
+	)
 	filesystem := afero.NewMemMapFs()
 	closer := agent.New(agent.Options{
 		ExchangeToken: func(ctx context.Context) (string, error) {
@@ -1764,11 +1963,23 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) (*pt
 	return ptytest.Start(t, cmd)
 }
 
-func setupSSHSession(t *testing.T, options agentsdk.Manifest) *ssh.Session {
+func setupSSHSession(
+	t *testing.T,
+	manifest agentsdk.Manifest,
+	serviceBanner codersdk.ServiceBannerConfig,
+	prepareFS func(fs afero.Fs),
+) *ssh.Session {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	//nolint:dogsled
-	conn, _, _, _, _ := setupAgent(t, options, 0)
+	conn, _, _, fs, _ := setupAgent(t, manifest, 0, func(c *agenttest.Client, _ *agent.Options) {
+		c.SetServiceBannerFunc(func() (codersdk.ServiceBannerConfig, error) {
+			return serviceBanner, nil
+		})
+	})
+	if prepareFS != nil {
+		prepareFS(fs)
+	}
 	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -1782,37 +1993,27 @@ func setupSSHSession(t *testing.T, options agentsdk.Manifest) *ssh.Session {
 	return session
 }
 
-type closeFunc func() error
-
-func (c closeFunc) Close() error {
-	return c()
-}
-
-func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Duration, opts ...func(agent.Options) agent.Options) (
+func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Duration, opts ...func(*agenttest.Client, *agent.Options)) (
 	*codersdk.WorkspaceAgentConn,
-	*client,
+	*agenttest.Client,
 	<-chan *agentsdk.Stats,
 	afero.Fs,
 	io.Closer,
 ) {
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	if metadata.DERPMap == nil {
-		metadata.DERPMap = tailnettest.RunDERPAndSTUN(t)
+		metadata.DERPMap, _ = tailnettest.RunDERPAndSTUN(t)
+	}
+	if metadata.AgentID == uuid.Nil {
+		metadata.AgentID = uuid.New()
 	}
 	coordinator := tailnet.NewCoordinator(logger)
 	t.Cleanup(func() {
 		_ = coordinator.Close()
 	})
-	agentID := uuid.New()
 	statsCh := make(chan *agentsdk.Stats, 50)
 	fs := afero.NewMemMapFs()
-	c := &client{
-		t:           t,
-		agentID:     agentID,
-		manifest:    metadata,
-		statsChan:   statsCh,
-		coordinator: coordinator,
-	}
+	c := agenttest.NewClient(t, metadata.AgentID, metadata, statsCh, coordinator)
 
 	options := agent.Options{
 		Client:                 c,
@@ -1822,7 +2023,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	}
 
 	for _, opt := range opts {
-		options = opt(options)
+		opt(c, &options)
 	}
 
 	closer := agent.New(options)
@@ -1845,15 +2046,15 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	})
 	go func() {
 		defer close(serveClientDone)
-		coordinator.ServeClient(serverConn, uuid.New(), agentID)
+		coordinator.ServeClient(serverConn, uuid.New(), metadata.AgentID)
 	}()
 	sendNode, _ := tailnet.ServeCoordinator(clientConn, func(nodes []*tailnet.Node) error {
 		return conn.UpdateNodes(nodes, false)
 	})
 	conn.SetNodeCallback(sendNode)
-	agentConn := &codersdk.WorkspaceAgentConn{
-		Conn: conn,
-	}
+	agentConn := codersdk.NewWorkspaceAgentConn(conn, codersdk.WorkspaceAgentConnOptions{
+		AgentID: metadata.AgentID,
+	})
 	t.Cleanup(func() {
 		_ = agentConn.Close()
 	})
@@ -1898,159 +2099,33 @@ func assertWritePayload(t *testing.T, w io.Writer, payload []byte) {
 	assert.Equal(t, len(payload), n, "payload length does not match")
 }
 
-type client struct {
-	t                  *testing.T
-	agentID            uuid.UUID
-	manifest           agentsdk.Manifest
-	metadata           map[string]agentsdk.PostMetadataRequest
-	statsChan          chan *agentsdk.Stats
-	coordinator        tailnet.Coordinator
-	lastWorkspaceAgent func()
-	patchWorkspaceLogs func() error
+func testSessionOutput(t *testing.T, session *ssh.Session, expected, unexpected []string, expectedRe *regexp.Regexp) {
+	t.Helper()
 
-	mu              sync.Mutex // Protects following.
-	lifecycleStates []codersdk.WorkspaceAgentLifecycle
-	startup         agentsdk.PostStartupRequest
-	logs            []agentsdk.StartupLog
+	err := session.RequestPty("xterm", 128, 128, ssh.TerminalModes{})
+	require.NoError(t, err)
 
-	derpMapUpdates chan agentsdk.DERPMapUpdate
-}
+	ptty := ptytest.New(t)
+	var stdout bytes.Buffer
+	session.Stdout = &stdout
+	session.Stderr = ptty.Output()
+	session.Stdin = ptty.Input()
+	err = session.Shell()
+	require.NoError(t, err)
 
-func (c *client) Manifest(_ context.Context) (agentsdk.Manifest, error) {
-	return c.manifest, nil
-}
+	ptty.WriteLine("exit 0")
+	err = session.Wait()
+	require.NoError(t, err)
 
-type closer struct {
-	closeFunc func() error
-}
-
-func (c *closer) Close() error {
-	return c.closeFunc()
-}
-
-func (c *client) DERPMapUpdates(_ context.Context) (<-chan agentsdk.DERPMapUpdate, io.Closer, error) {
-	updates := c.derpMapUpdates
-	if updates == nil {
-		updates = make(chan agentsdk.DERPMapUpdate)
+	for _, unexpected := range unexpected {
+		require.NotContains(t, stdout.String(), unexpected, "should not show output")
 	}
-
-	closed := make(chan struct{})
-	return updates, &closer{
-		closeFunc: func() error {
-			close(closed)
-			return nil
-		},
-	}, nil
-}
-
-func (c *client) Listen(_ context.Context) (net.Conn, error) {
-	clientConn, serverConn := net.Pipe()
-	closed := make(chan struct{})
-	c.lastWorkspaceAgent = func() {
-		_ = serverConn.Close()
-		_ = clientConn.Close()
-		<-closed
+	for _, expect := range expected {
+		require.Contains(t, stdout.String(), expect, "should show output")
 	}
-	c.t.Cleanup(c.lastWorkspaceAgent)
-	go func() {
-		_ = c.coordinator.ServeAgent(serverConn, c.agentID, "")
-		close(closed)
-	}()
-	return clientConn, nil
-}
-
-func (c *client) ReportStats(ctx context.Context, _ slog.Logger, statsChan <-chan *agentsdk.Stats, setInterval func(time.Duration)) (io.Closer, error) {
-	doneCh := make(chan struct{})
-	ctx, cancel := context.WithCancel(ctx)
-
-	go func() {
-		defer close(doneCh)
-
-		setInterval(500 * time.Millisecond)
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case stat := <-statsChan:
-				select {
-				case c.statsChan <- stat:
-				case <-ctx.Done():
-					return
-				default:
-					// We don't want to send old stats.
-					continue
-				}
-			}
-		}
-	}()
-	return closeFunc(func() error {
-		cancel()
-		<-doneCh
-		close(c.statsChan)
-		return nil
-	}), nil
-}
-
-func (c *client) getLifecycleStates() []codersdk.WorkspaceAgentLifecycle {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.lifecycleStates
-}
-
-func (c *client) PostLifecycle(_ context.Context, req agentsdk.PostLifecycleRequest) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.lifecycleStates = append(c.lifecycleStates, req.State)
-	return nil
-}
-
-func (*client) PostAppHealth(_ context.Context, _ agentsdk.PostAppHealthsRequest) error {
-	return nil
-}
-
-func (c *client) getStartup() agentsdk.PostStartupRequest {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.startup
-}
-
-func (c *client) getMetadata() map[string]agentsdk.PostMetadataRequest {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return maps.Clone(c.metadata)
-}
-
-func (c *client) PostMetadata(_ context.Context, key string, req agentsdk.PostMetadataRequest) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.metadata == nil {
-		c.metadata = make(map[string]agentsdk.PostMetadataRequest)
+	if expectedRe != nil {
+		require.Regexp(t, expectedRe, stdout.String())
 	}
-	c.metadata[key] = req
-	return nil
-}
-
-func (c *client) PostStartup(_ context.Context, startup agentsdk.PostStartupRequest) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.startup = startup
-	return nil
-}
-
-func (c *client) getStartupLogs() []agentsdk.StartupLog {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.logs
-}
-
-func (c *client) PatchStartupLogs(_ context.Context, logs agentsdk.PatchStartupLogs) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.patchWorkspaceLogs != nil {
-		return c.patchWorkspaceLogs()
-	}
-	c.logs = append(c.logs, logs.Logs...)
-	return nil
 }
 
 // tempDirUnixSocket returns a temporary directory that can safely hold unix
@@ -2084,9 +2159,8 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 	registry := prometheus.NewRegistry()
 
 	//nolint:dogsled
-	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(o agent.Options) agent.Options {
+	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
 		o.PrometheusRegistry = registry
-		return o
 	})
 
 	sshClient, err := conn.SSHClient(ctx)
