@@ -1,20 +1,24 @@
-import { ComponentMeta, Story } from "@storybook/react"
-import { MockWorkspaceBuildLogs } from "../../testHelpers/entities"
-import {
-  WorkspaceBuildLogs,
-  WorkspaceBuildLogsProps,
-} from "./WorkspaceBuildLogs"
+import { Meta, StoryObj } from "@storybook/react"
+import { WorkspaceBuildLogs } from "./WorkspaceBuildLogs"
+import { MockWorkspaceBuildLogs } from "testHelpers/entities"
 
-export default {
+const meta: Meta<typeof WorkspaceBuildLogs> = {
   title: "components/WorkspaceBuildLogs",
   component: WorkspaceBuildLogs,
-} as ComponentMeta<typeof WorkspaceBuildLogs>
+}
 
-const Template: Story<WorkspaceBuildLogsProps> = (args) => (
-  <WorkspaceBuildLogs {...args} />
-)
+export default meta
 
-export const Example = Template.bind({})
-Example.args = {
-  logs: MockWorkspaceBuildLogs,
+type Story = StoryObj<typeof WorkspaceBuildLogs>
+
+export const InProgress: Story = {
+  args: {
+    logs: MockWorkspaceBuildLogs.slice(0, 20),
+  },
+}
+
+export const Completed: Story = {
+  args: {
+    logs: MockWorkspaceBuildLogs,
+  },
 }
