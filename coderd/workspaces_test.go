@@ -2037,6 +2037,7 @@ func TestWorkspaceExtend(t *testing.T) {
 func TestWorkspaceWatcher(t *testing.T) {
 	t.Parallel()
 	client, closeFunc := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	defer closeFunc.Close()
 	user := coderdtest.CreateFirstUser(t, client)
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
@@ -2120,7 +2121,6 @@ func TestWorkspaceWatcher(t *testing.T) {
 		return w.LatestBuild.Resources[0].Agents[0].Status == codersdk.WorkspaceAgentDisconnected
 	})
 
-	closeFunc.Close()
 	build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart)
 	wait("first is for the workspace build itself", nil)
 	err = client.CancelWorkspaceBuild(ctx, build.ID)
@@ -2133,13 +2133,37 @@ func TestWorkspaceWatcher(t *testing.T) {
 	require.NoError(t, err)
 	wait("update workspace name", nil)
 
+	// Add a new version that will fail.
+	updatedVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:         echo.ParseComplete,
+		ProvisionPlan: echo.ProvisionComplete,
+		ProvisionApply: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Error: "test error",
+				},
+			},
+		}},
+	}, func(req *codersdk.CreateTemplateVersionRequest) {
+		req.TemplateID = template.ID
+	})
+	coderdtest.AwaitTemplateVersionJob(t, client, updatedVersion.ID)
 	err = client.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
-		ID: template.ActiveVersionID,
+		ID: updatedVersion.ID,
 	})
 	require.NoError(t, err)
 	wait("update active template version", nil)
 
-	cancel()
+	// Build with the new template; should end up with a failure state.
+	_ = coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart, func(req *codersdk.CreateWorkspaceBuildRequest) {
+		req.TemplateVersionID = updatedVersion.ID
+	})
+	wait("workspace build pending", func(w codersdk.Workspace) bool {
+		return w.LatestBuild.Status == codersdk.WorkspaceStatusPending
+	})
+	wait("workspace build failed", func(w codersdk.Workspace) bool {
+		return w.LatestBuild.Status == codersdk.WorkspaceStatusFailed
+	})
 }
 
 func mustLocation(t *testing.T, location string) *time.Location {

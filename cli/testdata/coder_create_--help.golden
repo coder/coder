@@ -2,6 +2,10 @@ Usage: coder create [flags] [name]
 
 Create a workspace
 
+- Create a workspace for another user (if you have permission):               
+
+     [40m [0m[91;40m$ coder create <username>/<workspace_name>[0m[40m [0m
+
 [1mOptions[0m
       --build-options bool
           Prompt for one-time build options defined with ephemeral parameters.
