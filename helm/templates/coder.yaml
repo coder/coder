@@ -66,9 +66,7 @@ spec:
             {{- if .Values.coder.workspaceProxy }}
             - wsproxy
             {{- end }}
-            {{- if .Values.coder.enableArgs }}
-            - server
-            {{- end }}
+            {{- toYaml .Values.coder.commandArgs | nindent 12 }}
           resources:
             {{- toYaml .Values.coder.resources | nindent 12 }}
           lifecycle:
