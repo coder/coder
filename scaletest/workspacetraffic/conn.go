@@ -5,8 +5,6 @@ import (
 	"io"
 	"sync"
 
-	"cdr.dev/slog"
-
 	"github.com/coder/coder/codersdk"
 
 	"github.com/google/uuid"
