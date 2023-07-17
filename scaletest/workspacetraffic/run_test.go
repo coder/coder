@@ -27,6 +27,9 @@ func TestRun(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Test not supported on windows.")
 	}
+	if testutil.RaceEnabled() {
+		t.Skip("Race detector enabled, skipping time-sensitive test.")
+	}
 
 	t.Run("PTY", func(t *testing.T) {
 		t.Parallel()
