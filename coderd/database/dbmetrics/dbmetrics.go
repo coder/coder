@@ -578,14 +578,14 @@ func (m metricsStore) GetTemplateAverageBuildTime(ctx context.Context, arg datab
 	return buildTime, err
 }
 
-func (m metricsStore) GetTemplateByID(ctx context.Context, id uuid.UUID) (database.Template, error) {
+func (m metricsStore) GetTemplateByID(ctx context.Context, id uuid.UUID) (database.TemplateWithUser, error) {
 	start := time.Now()
 	template, err := m.s.GetTemplateByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetTemplateByID").Observe(time.Since(start).Seconds())
 	return template, err
 }
 
-func (m metricsStore) GetTemplateByOrganizationAndName(ctx context.Context, arg database.GetTemplateByOrganizationAndNameParams) (database.Template, error) {
+func (m metricsStore) GetTemplateByOrganizationAndName(ctx context.Context, arg database.GetTemplateByOrganizationAndNameParams) (database.TemplateWithUser, error) {
 	start := time.Now()
 	template, err := m.s.GetTemplateByOrganizationAndName(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetTemplateByOrganizationAndName").Observe(time.Since(start).Seconds())
@@ -655,14 +655,14 @@ func (m metricsStore) GetTemplateVersionsCreatedAfter(ctx context.Context, creat
 	return versions, err
 }
 
-func (m metricsStore) GetTemplates(ctx context.Context) ([]database.Template, error) {
+func (m metricsStore) GetTemplates(ctx context.Context) ([]database.TemplateWithUser, error) {
 	start := time.Now()
 	templates, err := m.s.GetTemplates(ctx)
 	m.queryLatencies.WithLabelValues("GetTemplates").Observe(time.Since(start).Seconds())
 	return templates, err
 }
 
-func (m metricsStore) GetTemplatesWithFilter(ctx context.Context, arg database.GetTemplatesWithFilterParams) ([]database.Template, error) {
+func (m metricsStore) GetTemplatesWithFilter(ctx context.Context, arg database.GetTemplatesWithFilterParams) ([]database.TemplateWithUser, error) {
 	start := time.Now()
 	templates, err := m.s.GetTemplatesWithFilter(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetTemplatesWithFilter").Observe(time.Since(start).Seconds())
@@ -1103,7 +1103,7 @@ func (m metricsStore) InsertReplica(ctx context.Context, arg database.InsertRepl
 	return replica, err
 }
 
-func (m metricsStore) InsertTemplate(ctx context.Context, arg database.InsertTemplateParams) (database.Template, error) {
+func (m metricsStore) InsertTemplate(ctx context.Context, arg database.InsertTemplateParams) (error, error) {
 	start := time.Now()
 	template, err := m.s.InsertTemplate(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertTemplate").Observe(time.Since(start).Seconds())
@@ -1306,7 +1306,7 @@ func (m metricsStore) UpdateReplica(ctx context.Context, arg database.UpdateRepl
 	return replica, err
 }
 
-func (m metricsStore) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) (database.Template, error) {
+func (m metricsStore) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) (error, error) {
 	start := time.Now()
 	template, err := m.s.UpdateTemplateACLByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateTemplateACLByID").Observe(time.Since(start).Seconds())
@@ -1327,14 +1327,14 @@ func (m metricsStore) UpdateTemplateDeletedByID(ctx context.Context, arg databas
 	return err
 }
 
-func (m metricsStore) UpdateTemplateMetaByID(ctx context.Context, arg database.UpdateTemplateMetaByIDParams) (database.Template, error) {
+func (m metricsStore) UpdateTemplateMetaByID(ctx context.Context, arg database.UpdateTemplateMetaByIDParams) (error, error) {
 	start := time.Now()
 	template, err := m.s.UpdateTemplateMetaByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateTemplateMetaByID").Observe(time.Since(start).Seconds())
 	return template, err
 }
 
-func (m metricsStore) UpdateTemplateScheduleByID(ctx context.Context, arg database.UpdateTemplateScheduleByIDParams) (database.Template, error) {
+func (m metricsStore) UpdateTemplateScheduleByID(ctx context.Context, arg database.UpdateTemplateScheduleByIDParams) (error, error) {
 	start := time.Now()
 	template, err := m.s.UpdateTemplateScheduleByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateTemplateScheduleByID").Observe(time.Since(start).Seconds())

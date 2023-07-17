@@ -14,8 +14,8 @@ import (
 type templateParamContextKey struct{}
 
 // TemplateParam returns the template from the ExtractTemplateParam handler.
-func TemplateParam(r *http.Request) database.Template {
-	template, ok := r.Context().Value(templateParamContextKey{}).(database.Template)
+func TemplateParam(r *http.Request) database.TemplateWithUser {
+	template, ok := r.Context().Value(templateParamContextKey{}).(database.TemplateWithUser)
 	if !ok {
 		panic("developer error: template param middleware not provided")
 	}

@@ -21,12 +21,22 @@ overrides:
       - column: "templates.group_acl"
         go_type:
           type: "TemplateACL"
+      - column: "template_with_users.user_acl"
+        go_type:
+          type: "TemplateACL"
+      - column: "template_with_users.group_acl"
+        go_type:
+          type: "TemplateACL"
+      - column: "template_with_users.created_by_avatar_url"
+        go_type:
+          type: "string"
     rename:
       api_key: APIKey
       api_key_scope: APIKeyScope
       api_key_scope_all: APIKeyScopeAll
       api_key_scope_application_connect: APIKeyScopeApplicationConnect
       avatar_url: AvatarURL
+      created_by_avatar_url: CreatedByAvatarURL
       session_count_vscode: SessionCountVSCode
       session_count_jetbrains: SessionCountJetBrains
       session_count_reconnecting_pty: SessionCountReconnectingPTY

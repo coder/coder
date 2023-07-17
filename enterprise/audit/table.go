@@ -57,7 +57,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"private_key": ActionSecret, // We don't want to expose private keys in diffs.
 		"public_key":  ActionTrack,  // Public keys are ok to expose in a diff.
 	},
-	&database.Template{}: {
+	&database.TemplateWithUser{}: {
 		"id":                               ActionTrack,
 		"created_at":                       ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
 		"updated_at":                       ActionIgnore, // Changes, but is implicit and not helpful in a diff.
@@ -71,6 +71,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"icon":                             ActionTrack,
 		"default_ttl":                      ActionTrack,
 		"created_by":                       ActionTrack,
+		"created_by_username":              ActionTrack,
+		"created_by_avatar_url":            ActionIgnore,
 		"group_acl":                        ActionTrack,
 		"user_acl":                         ActionTrack,
 		"allow_user_autostart":             ActionTrack,

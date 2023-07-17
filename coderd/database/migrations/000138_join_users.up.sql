@@ -15,8 +15,8 @@ CREATE VIEW
 AS
     SELECT
         templates.*,
-        visible_users.username AS created_by_username,
-        visible_users.avatar_url AS created_by_avatar_url
+		coalesce(visible_users.avatar_url, '') AS created_by_avatar_url,
+		coalesce(visible_users.username, '') AS created_by_username
     FROM
         templates
     LEFT JOIN

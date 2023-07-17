@@ -2,7 +2,7 @@
 SELECT
 	*
 FROM
-	templates
+	template_with_users AS templates
 WHERE
 	id = $1
 LIMIT
@@ -12,7 +12,7 @@ LIMIT
 SELECT
 	*
 FROM
-	templates
+	template_with_users AS templates
 WHERE
 	-- Optionally include deleted templates
 	templates.deleted = @deleted
@@ -43,7 +43,7 @@ ORDER BY (name, id) ASC
 SELECT
 	*
 FROM
-	templates
+	template_with_users AS templates
 WHERE
 	organization_id = @organization_id
 	AND deleted = @deleted
@@ -52,11 +52,11 @@ LIMIT
 	1;
 
 -- name: GetTemplates :many
-SELECT * FROM templates
+SELECT * FROM template_with_users AS templates
 ORDER BY (name, id) ASC
 ;
 
--- name: InsertTemplate :one
+-- name: InsertTemplate :exec
 INSERT INTO
 	templates (
 		id,
@@ -75,7 +75,7 @@ INSERT INTO
 		allow_user_cancel_workspace_jobs
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14);
 
 -- name: UpdateTemplateActiveVersionByID :exec
 UPDATE
@@ -95,7 +95,7 @@ SET
 WHERE
 	id = $1;
 
--- name: UpdateTemplateMetaByID :one
+-- name: UpdateTemplateMetaByID :exec
 UPDATE
 	templates
 SET
@@ -110,7 +110,7 @@ WHERE
 RETURNING
 	*;
 
--- name: UpdateTemplateScheduleByID :one
+-- name: UpdateTemplateScheduleByID :exec
 UPDATE
 	templates
 SET
@@ -127,7 +127,7 @@ WHERE
 RETURNING
 	*;
 
--- name: UpdateTemplateACLByID :one
+-- name: UpdateTemplateACLByID :exec
 UPDATE
 	templates
 SET

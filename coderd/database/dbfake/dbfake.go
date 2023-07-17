@@ -1844,14 +1844,14 @@ func (q *FakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg datab
 	return row, nil
 }
 
-func (q *FakeQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (database.Template, error) {
+func (q *FakeQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (database.TemplateWithUser, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	return q.getTemplateByIDNoLock(ctx, id)
 }
 
-func (q *FakeQuerier) GetTemplateByOrganizationAndName(_ context.Context, arg database.GetTemplateByOrganizationAndNameParams) (database.Template, error) {
+func (q *FakeQuerier) GetTemplateByOrganizationAndName(_ context.Context, arg database.GetTemplateByOrganizationAndNameParams) (database.TemplateWithUser, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.Template{}, err
 	}
@@ -2087,7 +2087,7 @@ func (q *FakeQuerier) GetTemplateVersionsCreatedAfter(_ context.Context, after t
 	return versions, nil
 }
 
-func (q *FakeQuerier) GetTemplates(_ context.Context) ([]database.Template, error) {
+func (q *FakeQuerier) GetTemplates(_ context.Context) ([]database.TemplateWithUser, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2105,7 +2105,7 @@ func (q *FakeQuerier) GetTemplates(_ context.Context) ([]database.Template, erro
 	return templates, nil
 }
 
-func (q *FakeQuerier) GetTemplatesWithFilter(ctx context.Context, arg database.GetTemplatesWithFilterParams) ([]database.Template, error) {
+func (q *FakeQuerier) GetTemplatesWithFilter(ctx context.Context, arg database.GetTemplatesWithFilterParams) ([]database.TemplateWithUser, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return nil, err
 	}
@@ -3436,7 +3436,7 @@ func (q *FakeQuerier) InsertReplica(_ context.Context, arg database.InsertReplic
 	return replica, nil
 }
 
-func (q *FakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTemplateParams) (database.Template, error) {
+func (q *FakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTemplateParams) (error, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.Template{}, err
 	}
@@ -4172,7 +4172,7 @@ func (q *FakeQuerier) UpdateReplica(_ context.Context, arg database.UpdateReplic
 	return database.Replica{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateTemplateACLByID(_ context.Context, arg database.UpdateTemplateACLByIDParams) (database.Template, error) {
+func (q *FakeQuerier) UpdateTemplateACLByID(_ context.Context, arg database.UpdateTemplateACLByIDParams) (error, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.Template{}, err
 	}
@@ -4233,7 +4233,7 @@ func (q *FakeQuerier) UpdateTemplateDeletedByID(_ context.Context, arg database.
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.UpdateTemplateMetaByIDParams) (database.Template, error) {
+func (q *FakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.UpdateTemplateMetaByIDParams) (error, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.Template{}, err
 	}
@@ -4257,7 +4257,7 @@ func (q *FakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 	return database.Template{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database.UpdateTemplateScheduleByIDParams) (database.Template, error) {
+func (q *FakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database.UpdateTemplateScheduleByIDParams) (error, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.Template{}, err
 	}
