@@ -1531,6 +1531,10 @@ func setup(t *testing.T, ignoreLogErrors bool) *provisionerdserver.Server {
 		UserQuietHoursScheduleStore: testUserQuietHoursScheduleStore(),
 		Tracer:                      trace.NewNoopTracerProvider().Tracer("noop"),
 		DeploymentValues:            &codersdk.DeploymentValues{},
+
+		// Negative values cause the debounce to never kick in. Tests that want
+		// to test debounce can override this value.
+		AcquireJobDebounce: -time.Minute,
 	}
 }
 
