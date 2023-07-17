@@ -83,7 +83,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	var conn *countReadWriteCloser
 	var err error
 	if r.cfg.SSH {
-		conn, err = connectSSH(ctx, r.client, agentID, logger.Named("ssh"))
+		conn, err = connectSSH(ctx, r.client, agentID)
 		if err != nil {
 			logger.Error(ctx, "connect to workspace agent via ssh", slog.F("agent_id", agentID), slog.Error(err))
 			return xerrors.Errorf("connect to workspace via ssh: %w", err)
@@ -104,11 +104,11 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 		_ = conn.Close()
 	}()
 
-	// Create a ticker for sending data to the PTY.
+	// Create a ticker for sending data to the conn.
 	tick := time.NewTicker(tickInterval)
 	defer tick.Stop()
 
-	// Now we begin writing random data to the pty.
+	// Now we begin writing random data to the conn.
 	rch := make(chan error, 1)
 	wch := make(chan error, 1)
 
@@ -126,10 +126,14 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 		close(rch)
 	}()
 
-	// Write random data to the PTY every tick.
+	// Write random data to the conn every tick.
 	go func() {
 		logger.Debug(ctx, "writing to agent", slog.F("agent_id", agentID))
-		wch <- writeRandomData(conn, bytesPerTick, tick.C, r.cfg.SSH)
+		if r.cfg.SSH {
+			wch <- writeRandomDataSSH(conn, bytesPerTick, tick.C)
+		} else {
+			wch <- writeRandomDataPTY(conn, bytesPerTick, tick.C)
+		}
 		logger.Debug(ctx, "done writing to agent", slog.F("agent_id", agentID))
 		close(wch)
 	}()
@@ -177,22 +181,35 @@ func drain(src io.Reader) error {
 	return nil
 }
 
-func writeRandomData(dst io.Writer, size int64, tick <-chan time.Time, ssh bool) error {
+func writeRandomDataPTY(dst io.Writer, size int64, tick <-chan time.Time) error {
 	var (
 		enc    = json.NewEncoder(dst)
 		ptyReq = codersdk.ReconnectingPTYRequest{}
 	)
 	for range tick {
 		payload := "#" + mustRandStr(size-1)
-		var err error
-		if ssh {
-			_, err = dst.Write([]byte(payload + "\r\n"))
-		} else {
-			ptyReq.Data = payload
-			err = enc.Encode(ptyReq)
-		}
+		ptyReq.Data = payload
 
-		if err != nil {
+		if err := enc.Encode(ptyReq); err != nil {
+			if xerrors.Is(err, context.Canceled) {
+				return nil
+			}
+			if xerrors.Is(err, context.DeadlineExceeded) {
+				return nil
+			}
+			if xerrors.As(err, &websocket.CloseError{}) {
+				return nil
+			}
+			return err
+		}
+	}
+	return nil
+}
+
+func writeRandomDataSSH(dst io.Writer, size int64, tick <-chan time.Time) error {
+	for range tick {
+		payload := "#" + mustRandStr(size-1)
+		if _, err := dst.Write([]byte(payload + "\r\n")); err != nil {
 			if xerrors.Is(err, context.Canceled) {
 				return nil
 			}

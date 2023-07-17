@@ -31,7 +31,7 @@ func connectPTY(ctx context.Context, client *codersdk.Client, agentID, reconnect
 	return &crw, nil
 }
 
-func connectSSH(ctx context.Context, client *codersdk.Client, agentID uuid.UUID, logger slog.Logger) (*countReadWriteCloser, error) {
+func connectSSH(ctx context.Context, client *codersdk.Client, agentID uuid.UUID) (*countReadWriteCloser, error) {
 	agentConn, err := client.DialWorkspaceAgent(ctx, agentID, &codersdk.DialWorkspaceAgentOptions{})
 	if err != nil {
 		return nil, xerrors.Errorf("dial workspace agent: %w", err)
