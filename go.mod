@@ -42,7 +42,10 @@ replace tailscale.com => github.com/coder/tailscale v0.0.0-20230522123520-747122
 // https://github.com/coder/coder/issues/7388
 // The basis for this fork is: gvisor.dev/gvisor v0.0.0-20230504175454-7b0a1988a28f
 // This is the same version as used by Tailscale `main`:
-// https://github.com/tailscale/tailscale/blob/c19b5bfbc391637b11c2acb3c725909a0046d849/go.mod
+// https://github.com/tailscale/tailscale/blob/c19b5bfbc391637b11c2acb3c725909a0046d849/go.mod#L88
+//
+// Latest gvisor otherwise has refactored packages and is currently incompatible with
+// Tailscale, to remove our tempfork this needs to be addressed.
 replace gvisor.dev/gvisor => github.com/coder/gvisor v0.0.0-20230714132058-be2e4ac102c3
 
 // Switch to our fork that imports fixes from http://github.com/tailscale/ssh.
