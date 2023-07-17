@@ -145,12 +145,18 @@ func validationEnabled(param TemplateVersionParameter) bool {
 // correctly validates.
 // @typescript-ignore ParameterResolver
 type ParameterResolver struct {
-	Rich []WorkspaceBuildParameter
+	Rich       []WorkspaceBuildParameter
+	Transition WorkspaceTransition
 }
 
 // ValidateResolve checks the provided value, v, against the parameter, p, and the previous build.  If v is nil, it also
 // resolves the correct value.  It returns the value of the parameter, if valid, and an error if invalid.
 func (r *ParameterResolver) ValidateResolve(p TemplateVersionParameter, v *WorkspaceBuildParameter) (value string, err error) {
+	// Assume value for required, ephemeral parameter for stopped/deleted workspace
+	if p.Ephemeral && r.Transition != "" && r.Transition != WorkspaceTransitionStart {
+		return "", nil
+	}
+
 	prevV := r.findLastValue(p)
 	if !p.Mutable && v != nil && prevV != nil {
 		return "", xerrors.Errorf("Parameter %q is not mutable, so it can't be updated after creating a workspace.", p.Name)
@@ -171,6 +177,7 @@ func (r *ParameterResolver) ValidateResolve(p TemplateVersionParameter, v *Works
 			Value: p.DefaultValue,
 		}
 	}
+
 	err = ValidateWorkspaceBuildParameter(p, resolvedValue, prevV)
 	if err != nil {
 		return "", err

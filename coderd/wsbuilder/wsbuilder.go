@@ -495,8 +495,10 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 	if err != nil {
 		return nil, nil, BuildError{http.StatusBadRequest, "Unable to build workspace with unsupported parameters", err}
 	}
+
 	resolver := codersdk.ParameterResolver{
-		Rich: db2sdk.WorkspaceBuildParameters(lastBuildParameters),
+		Rich:       db2sdk.WorkspaceBuildParameters(lastBuildParameters),
+		Transition: codersdk.WorkspaceTransition(b.trans),
 	}
 	for _, templateVersionParameter := range templateVersionParameters {
 		tvp, err := db2sdk.TemplateVersionParameter(templateVersionParameter)

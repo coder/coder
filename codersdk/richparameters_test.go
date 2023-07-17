@@ -379,7 +379,9 @@ func TestParameterResolver_ValidateResolve_Ephemeral_UseEmptyDefault(t *testing.
 
 func TestParameterResolver_ValidateResolve_Ephemeral_RequiredButMissing(t *testing.T) {
 	t.Parallel()
-	uut := codersdk.ParameterResolver{}
+	uut := codersdk.ParameterResolver{
+		Transition: codersdk.WorkspaceTransitionStart,
+	}
 	p := codersdk.TemplateVersionParameter{
 		Name:      "n",
 		Type:      "number",
@@ -392,5 +394,22 @@ func TestParameterResolver_ValidateResolve_Ephemeral_RequiredButMissing(t *testi
 	// consecutive workspace builds.
 	v, err := uut.ValidateResolve(p, nil)
 	require.Error(t, err) // Parameter is required, but not provided.
+	require.Equal(t, "", v)
+}
+
+func TestParameterResolver_ValidateResolve_Ephemeral_RequiredButMissing_StoppedWorkspace(t *testing.T) {
+	t.Parallel()
+	uut := codersdk.ParameterResolver{
+		Transition: codersdk.WorkspaceTransitionStop,
+	}
+	p := codersdk.TemplateVersionParameter{
+		Name:      "n",
+		Type:      "number",
+		Mutable:   true,
+		Required:  true,
+		Ephemeral: true,
+	}
+	v, err := uut.ValidateResolve(p, nil)
+	require.NoError(t, err) // Parameter is not provided, but resolver assumes an empty value.
 	require.Equal(t, "", v)
 }
