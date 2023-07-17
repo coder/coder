@@ -130,7 +130,7 @@ func (t Template) DeepCopy() Template {
 	return cpy
 }
 
-func (TemplateVersion) RBACObject(template Template) rbac.Object {
+func (TemplateVersion) RBACObject(template TemplateWithUser) rbac.Object {
 	// Just use the parent template resource for controlling versions
 	return template.RBACObject()
 }

@@ -1103,11 +1103,11 @@ func (m metricsStore) InsertReplica(ctx context.Context, arg database.InsertRepl
 	return replica, err
 }
 
-func (m metricsStore) InsertTemplate(ctx context.Context, arg database.InsertTemplateParams) (error, error) {
+func (m metricsStore) InsertTemplate(ctx context.Context, arg database.InsertTemplateParams) error {
 	start := time.Now()
-	template, err := m.s.InsertTemplate(ctx, arg)
+	err := m.s.InsertTemplate(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertTemplate").Observe(time.Since(start).Seconds())
-	return template, err
+	return err
 }
 
 func (m metricsStore) InsertTemplateVersion(ctx context.Context, arg database.InsertTemplateVersionParams) (database.TemplateVersion, error) {
@@ -1306,11 +1306,11 @@ func (m metricsStore) UpdateReplica(ctx context.Context, arg database.UpdateRepl
 	return replica, err
 }
 
-func (m metricsStore) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) (error, error) {
+func (m metricsStore) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) error {
 	start := time.Now()
-	template, err := m.s.UpdateTemplateACLByID(ctx, arg)
+	err := m.s.UpdateTemplateACLByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateTemplateACLByID").Observe(time.Since(start).Seconds())
-	return template, err
+	return err
 }
 
 func (m metricsStore) UpdateTemplateActiveVersionByID(ctx context.Context, arg database.UpdateTemplateActiveVersionByIDParams) error {
@@ -1327,18 +1327,18 @@ func (m metricsStore) UpdateTemplateDeletedByID(ctx context.Context, arg databas
 	return err
 }
 
-func (m metricsStore) UpdateTemplateMetaByID(ctx context.Context, arg database.UpdateTemplateMetaByIDParams) (error, error) {
+func (m metricsStore) UpdateTemplateMetaByID(ctx context.Context, arg database.UpdateTemplateMetaByIDParams) error {
 	start := time.Now()
-	template, err := m.s.UpdateTemplateMetaByID(ctx, arg)
+	err := m.s.UpdateTemplateMetaByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateTemplateMetaByID").Observe(time.Since(start).Seconds())
-	return template, err
+	return err
 }
 
-func (m metricsStore) UpdateTemplateScheduleByID(ctx context.Context, arg database.UpdateTemplateScheduleByIDParams) (error, error) {
+func (m metricsStore) UpdateTemplateScheduleByID(ctx context.Context, arg database.UpdateTemplateScheduleByIDParams) error {
 	start := time.Now()
-	template, err := m.s.UpdateTemplateScheduleByID(ctx, arg)
+	err := m.s.UpdateTemplateScheduleByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateTemplateScheduleByID").Observe(time.Since(start).Seconds())
-	return template, err
+	return err
 }
 
 func (m metricsStore) UpdateTemplateVersionByID(ctx context.Context, arg database.UpdateTemplateVersionByIDParams) (database.TemplateVersion, error) {
@@ -1604,7 +1604,7 @@ func (m metricsStore) UpsertTailnetCoordinator(ctx context.Context, id uuid.UUID
 	return m.s.UpsertTailnetCoordinator(ctx, id)
 }
 
-func (m metricsStore) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.Template, error) {
+func (m metricsStore) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.TemplateWithUser, error) {
 	start := time.Now()
 	templates, err := m.s.GetAuthorizedTemplates(ctx, arg, prepared)
 	m.queryLatencies.WithLabelValues("GetAuthorizedTemplates").Observe(time.Since(start).Seconds())

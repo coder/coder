@@ -443,13 +443,38 @@ func (q *FakeQuerier) getLatestWorkspaceBuildByWorkspaceIDNoLock(_ context.Conte
 	return row, nil
 }
 
-func (q *FakeQuerier) getTemplateByIDNoLock(_ context.Context, id uuid.UUID) (database.Template, error) {
+func (q *FakeQuerier) getTemplateByIDNoLock(_ context.Context, id uuid.UUID) (database.TemplateWithUser, error) {
 	for _, template := range q.templates {
 		if template.ID == id {
-			return template.DeepCopy(), nil
+			return q.templateWithUser(template), nil
 		}
 	}
-	return database.Template{}, sql.ErrNoRows
+	return database.TemplateWithUser{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) templatesWithUser(tpl []database.Template) []database.TemplateWithUser {
+	cpy := make([]database.TemplateWithUser, 0, len(tpl))
+	for _, t := range tpl {
+		cpy = append(cpy, q.templateWithUser(t))
+	}
+	return cpy
+}
+
+func (q *FakeQuerier) templateWithUser(tpl database.Template) database.TemplateWithUser {
+	var user database.User
+	for _, _user := range q.users {
+		if _user.ID == tpl.CreatedBy {
+			user = _user
+			break
+		}
+	}
+	var withUser database.TemplateWithUser
+	// This is a cheeky way to copy the fields over without explictly listing them all.
+	d, _ := json.Marshal(tpl)
+	_ = json.Unmarshal(d, &withUser)
+	withUser.CreatedByUsername = user.Username
+	withUser.CreatedByAvatarURL = user.AvatarURL.String
+	return withUser
 }
 
 func (q *FakeQuerier) getTemplateVersionByIDNoLock(_ context.Context, templateVersionID uuid.UUID) (database.TemplateVersion, error) {
@@ -1853,7 +1878,7 @@ func (q *FakeQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (databa
 
 func (q *FakeQuerier) GetTemplateByOrganizationAndName(_ context.Context, arg database.GetTemplateByOrganizationAndNameParams) (database.TemplateWithUser, error) {
 	if err := validateDatabaseType(arg); err != nil {
-		return database.Template{}, err
+		return database.TemplateWithUser{}, err
 	}
 
 	q.mutex.RLock()
@@ -1869,9 +1894,9 @@ func (q *FakeQuerier) GetTemplateByOrganizationAndName(_ context.Context, arg da
 		if template.Deleted != arg.Deleted {
 			continue
 		}
-		return template.DeepCopy(), nil
+		return q.templateWithUser(template), nil
 	}
-	return database.Template{}, sql.ErrNoRows
+	return database.TemplateWithUser{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetTemplateDAUs(_ context.Context, arg database.GetTemplateDAUsParams) ([]database.GetTemplateDAUsRow, error) {
@@ -2102,7 +2127,7 @@ func (q *FakeQuerier) GetTemplates(_ context.Context) ([]database.TemplateWithUs
 		return i.ID.String() < j.ID.String()
 	})
 
-	return templates, nil
+	return q.templatesWithUser(templates), nil
 }
 
 func (q *FakeQuerier) GetTemplatesWithFilter(ctx context.Context, arg database.GetTemplatesWithFilterParams) ([]database.TemplateWithUser, error) {
@@ -3436,9 +3461,9 @@ func (q *FakeQuerier) InsertReplica(_ context.Context, arg database.InsertReplic
 	return replica, nil
 }
 
-func (q *FakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTemplateParams) (error, error) {
+func (q *FakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTemplateParams) error {
 	if err := validateDatabaseType(arg); err != nil {
-		return database.Template{}, err
+		return err
 	}
 
 	q.mutex.Lock()
@@ -3464,7 +3489,7 @@ func (q *FakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 		AllowUserAutostop:            true,
 	}
 	q.templates = append(q.templates, template)
-	return template.DeepCopy(), nil
+	return nil
 }
 
 func (q *FakeQuerier) InsertTemplateVersion(_ context.Context, arg database.InsertTemplateVersionParams) (database.TemplateVersion, error) {
@@ -4172,9 +4197,9 @@ func (q *FakeQuerier) UpdateReplica(_ context.Context, arg database.UpdateReplic
 	return database.Replica{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateTemplateACLByID(_ context.Context, arg database.UpdateTemplateACLByIDParams) (error, error) {
+func (q *FakeQuerier) UpdateTemplateACLByID(_ context.Context, arg database.UpdateTemplateACLByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
-		return database.Template{}, err
+		return err
 	}
 
 	q.mutex.Lock()
@@ -4186,11 +4211,11 @@ func (q *FakeQuerier) UpdateTemplateACLByID(_ context.Context, arg database.Upda
 			template.UserACL = arg.UserACL
 
 			q.templates[i] = template
-			return template.DeepCopy(), nil
+			return nil
 		}
 	}
 
-	return database.Template{}, sql.ErrNoRows
+	return sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateTemplateActiveVersionByID(_ context.Context, arg database.UpdateTemplateActiveVersionByIDParams) error {
@@ -4233,9 +4258,9 @@ func (q *FakeQuerier) UpdateTemplateDeletedByID(_ context.Context, arg database.
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.UpdateTemplateMetaByIDParams) (error, error) {
+func (q *FakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.UpdateTemplateMetaByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
-		return database.Template{}, err
+		return err
 	}
 
 	q.mutex.Lock()
@@ -4251,15 +4276,15 @@ func (q *FakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 		tpl.Description = arg.Description
 		tpl.Icon = arg.Icon
 		q.templates[idx] = tpl
-		return tpl.DeepCopy(), nil
+		return nil
 	}
 
-	return database.Template{}, sql.ErrNoRows
+	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database.UpdateTemplateScheduleByIDParams) (error, error) {
+func (q *FakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database.UpdateTemplateScheduleByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
-		return database.Template{}, err
+		return err
 	}
 
 	q.mutex.Lock()
@@ -4278,10 +4303,10 @@ func (q *FakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 		tpl.InactivityTTL = arg.InactivityTTL
 		tpl.LockedTTL = arg.LockedTTL
 		q.templates[idx] = tpl
-		return tpl.DeepCopy(), nil
+		return nil
 	}
 
-	return database.Template{}, sql.ErrNoRows
+	return sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateTemplateVersionByID(_ context.Context, arg database.UpdateTemplateVersionByIDParams) (database.TemplateVersion, error) {
@@ -4967,7 +4992,7 @@ func (*FakeQuerier) UpsertTailnetCoordinator(context.Context, uuid.UUID) (databa
 	return database.TailnetCoordinator{}, ErrUnimplemented
 }
 
-func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.Template, error) {
+func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.TemplateWithUser, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return nil, err
 	}
@@ -5021,7 +5046,7 @@ func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.G
 			}
 			return i.ID.String() < j.ID.String()
 		})
-		return templates, nil
+		return q.templatesWithUser(templates), nil
 	}
 
 	return nil, sql.ErrNoRows

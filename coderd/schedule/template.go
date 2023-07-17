@@ -30,7 +30,7 @@ type TemplateScheduleOptions struct {
 // scheduling options set by the template/site admin.
 type TemplateScheduleStore interface {
 	GetTemplateScheduleOptions(ctx context.Context, db database.Store, templateID uuid.UUID) (TemplateScheduleOptions, error)
-	SetTemplateScheduleOptions(ctx context.Context, db database.Store, template database.Template, opts TemplateScheduleOptions) (database.Template, error)
+	SetTemplateScheduleOptions(ctx context.Context, db database.Store, template database.TemplateWithUser, opts TemplateScheduleOptions) (database.TemplateWithUser, error)
 }
 
 type agplTemplateScheduleStore struct{}
@@ -62,23 +62,38 @@ func (*agplTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context
 	}, nil
 }
 
-func (*agplTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, tpl database.Template, opts TemplateScheduleOptions) (database.Template, error) {
+func (*agplTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, tpl database.TemplateWithUser, opts TemplateScheduleOptions) (database.TemplateWithUser, error) {
 	if int64(opts.DefaultTTL) == tpl.DefaultTTL {
 		// Avoid updating the UpdatedAt timestamp if nothing will be changed.
 		return tpl, nil
 	}
 
-	return db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
-		ID:         tpl.ID,
-		UpdatedAt:  database.Now(),
-		DefaultTTL: int64(opts.DefaultTTL),
-		// Don't allow changing it, but keep the value in the DB (to avoid
-		// clearing settings if the license has an issue).
-		AllowUserAutostart: tpl.AllowUserAutostart,
-		AllowUserAutostop:  tpl.AllowUserAutostop,
-		MaxTTL:             tpl.MaxTTL,
-		FailureTTL:         tpl.FailureTTL,
-		InactivityTTL:      tpl.InactivityTTL,
-		LockedTTL:          tpl.LockedTTL,
-	})
+	var template database.TemplateWithUser
+	err := db.InTx(func(db database.Store) error {
+		err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+			ID:         tpl.ID,
+			UpdatedAt:  database.Now(),
+			DefaultTTL: int64(opts.DefaultTTL),
+			// Don't allow changing it, but keep the value in the DB (to avoid
+			// clearing settings if the license has an issue).
+			AllowUserAutostart: tpl.AllowUserAutostart,
+			AllowUserAutostop:  tpl.AllowUserAutostop,
+			MaxTTL:             tpl.MaxTTL,
+			FailureTTL:         tpl.FailureTTL,
+			InactivityTTL:      tpl.InactivityTTL,
+			LockedTTL:          tpl.LockedTTL,
+		})
+		if err != nil {
+			return err
+		}
+
+		template, err = db.GetTemplateByID(ctx, tpl.ID)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}, nil)
+
+	return template, err
 }

@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -40,16 +39,7 @@ func (api *API) template(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)
 
-	createdByNameMap, err := getCreatedByNamesByTemplateIDs(ctx, api.Database, []database.Template{template})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching creator name.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(template, createdByNameMap[template.ID.String()]))
+	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(template))
 }
 
 // @Summary Delete template by ID
@@ -65,7 +55,7 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 		ctx               = r.Context()
 		template          = httpmw.TemplateParam(r)
 		auditor           = *api.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.TemplateWithUser](rw, &audit.RequestParams{
 			Audit:   auditor,
 			Log:     api.Logger,
 			Request: r,
@@ -131,7 +121,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		organization                       = httpmw.OrganizationParam(r)
 		apiKey                             = httpmw.APIKey(r)
 		auditor                            = *api.Auditor.Load()
-		templateAudit, commitTemplateAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
+		templateAudit, commitTemplateAudit = audit.InitRequest[database.TemplateWithUser](rw, &audit.RequestParams{
 			Audit:   auditor,
 			Log:     api.Logger,
 			Request: r,
@@ -154,7 +144,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	// Make a temporary struct to represent the template. This is used for
 	// auditing if any of the following checks fail. It will be overwritten when
 	// the template is inserted into the db.
-	templateAudit.New = database.Template{
+	templateAudit.New = database.TemplateWithUser{
 		OrganizationID: organization.ID,
 		Name:           createTemplate.Name,
 		Description:    createTemplate.Description,
@@ -274,7 +264,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	}
 
 	var (
-		dbTemplate database.Template
+		dbTemplate database.TemplateWithUser
 		template   codersdk.Template
 
 		allowUserCancelWorkspaceJobs = ptr.NilToDefault(createTemplate.AllowUserCancelWorkspaceJobs, false)
@@ -290,7 +280,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	}
 	err = api.Database.InTx(func(tx database.Store) error {
 		now := database.Now()
-		dbTemplate, err = tx.InsertTemplate(ctx, database.InsertTemplateParams{
+		err = tx.InsertTemplate(ctx, database.InsertTemplateParams{
 			ID:                           uuid.New(),
 			CreatedAt:                    now,
 			UpdatedAt:                    now,
@@ -308,6 +298,11 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		})
 		if err != nil {
 			return xerrors.Errorf("insert template: %s", err)
+		}
+
+		dbTemplate, err = tx.GetTemplateByID(ctx, dbTemplate.ID)
+		if err != nil {
+			return xerrors.Errorf("get template by id: %s", err)
 		}
 
 		dbTemplate, err = (*api.TemplateScheduleStore.Load()).SetTemplateScheduleOptions(ctx, tx, dbTemplate, schedule.TemplateScheduleOptions{
@@ -348,12 +343,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		}
 		templateVersionAudit.New = newTemplateVersion
 
-		createdByNameMap, err := getCreatedByNamesByTemplateIDs(ctx, tx, []database.Template{dbTemplate})
-		if err != nil {
-			return xerrors.Errorf("get creator name: %w", err)
-		}
-
-		template = api.convertTemplate(dbTemplate, createdByNameMap[dbTemplate.ID.String()])
+		template = api.convertTemplate(dbTemplate)
 		return nil
 	}, nil)
 	if err != nil {
@@ -409,16 +399,7 @@ func (api *API) templatesByOrganization(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	createdByNameMap, err := getCreatedByNamesByTemplateIDs(ctx, api.Database, templates)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching creator names.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplates(templates, createdByNameMap))
+	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplates(templates))
 }
 
 // @Summary Get templates by organization and template name
@@ -451,16 +432,7 @@ func (api *API) templateByOrganizationAndName(rw http.ResponseWriter, r *http.Re
 		return
 	}
 
-	createdByNameMap, err := getCreatedByNamesByTemplateIDs(ctx, api.Database, []database.Template{template})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching creator name.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(template, createdByNameMap[template.ID.String()]))
+	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(template))
 }
 
 // @Summary Update template metadata by ID
@@ -476,7 +448,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		ctx               = r.Context()
 		template          = httpmw.TemplateParam(r)
 		auditor           = *api.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.TemplateWithUser](rw, &audit.RequestParams{
 			Audit:   auditor,
 			Log:     api.Logger,
 			Request: r,
@@ -522,7 +494,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var updated database.Template
+	var updated database.TemplateWithUser
 	err := api.Database.InTx(func(tx database.Store) error {
 		if req.Name == template.Name &&
 			req.Description == template.Description &&
@@ -546,7 +518,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		var err error
-		updated, err = tx.UpdateTemplateMetaByID(ctx, database.UpdateTemplateMetaByIDParams{
+		err = tx.UpdateTemplateMetaByID(ctx, database.UpdateTemplateMetaByIDParams{
 			ID:                           template.ID,
 			UpdatedAt:                    database.Now(),
 			Name:                         name,
@@ -557,6 +529,11 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			return xerrors.Errorf("update template metadata: %w", err)
+		}
+
+		updated, err = tx.GetTemplateByID(ctx, template.ID)
+		if err != nil {
+			return xerrors.Errorf("fetch updated template metadata: %w", err)
 		}
 
 		defaultTTL := time.Duration(req.DefaultTTLMillis) * time.Millisecond
@@ -603,16 +580,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq.New = updated
 
-	createdByNameMap, err := getCreatedByNamesByTemplateIDs(ctx, api.Database, []database.Template{updated})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching creator name.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(updated, createdByNameMap[updated.ID.String()]))
+	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(updated))
 }
 
 // @Summary Get template DAUs by ID
@@ -680,23 +648,11 @@ func (api *API) templateExamples(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, ex)
 }
 
-func getCreatedByNamesByTemplateIDs(ctx context.Context, db database.Store, templates []database.Template) (map[string]string, error) {
-	creators := make(map[string]string, len(templates))
-	for _, template := range templates {
-		creator, err := db.GetUserByID(ctx, template.CreatedBy)
-		if err != nil {
-			return map[string]string{}, err
-		}
-		creators[template.ID.String()] = creator.Username
-	}
-	return creators, nil
-}
-
-func (api *API) convertTemplates(templates []database.Template, createdByNameMap map[string]string) []codersdk.Template {
+func (api *API) convertTemplates(templates []database.TemplateWithUser) []codersdk.Template {
 	apiTemplates := make([]codersdk.Template, 0, len(templates))
 
 	for _, template := range templates {
-		apiTemplates = append(apiTemplates, api.convertTemplate(template, createdByNameMap[template.ID.String()]))
+		apiTemplates = append(apiTemplates, api.convertTemplate(template))
 	}
 
 	// Sort templates by ActiveUserCount DESC
@@ -708,7 +664,7 @@ func (api *API) convertTemplates(templates []database.Template, createdByNameMap
 }
 
 func (api *API) convertTemplate(
-	template database.Template, createdByName string,
+	template database.TemplateWithUser,
 ) codersdk.Template {
 	activeCount, _ := api.metricsCache.TemplateUniqueUsers(template.ID)
 
@@ -730,7 +686,7 @@ func (api *API) convertTemplate(
 		DefaultTTLMillis:             time.Duration(template.DefaultTTL).Milliseconds(),
 		MaxTTLMillis:                 time.Duration(template.MaxTTL).Milliseconds(),
 		CreatedByID:                  template.CreatedBy,
-		CreatedByName:                createdByName,
+		CreatedByName:                template.CreatedByUsername,
 		AllowUserAutostart:           template.AllowUserAutostart,
 		AllowUserAutostop:            template.AllowUserAutostop,
 		AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,

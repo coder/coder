@@ -1000,7 +1000,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 }
 
 type workspaceData struct {
-	templates []database.Template
+	templates []database.TemplateWithUser
 	builds    []codersdk.WorkspaceBuild
 	users     []database.User
 }
@@ -1057,7 +1057,7 @@ func convertWorkspaces(workspaces []database.Workspace, data workspaceData) ([]c
 	for _, workspaceBuild := range data.builds {
 		buildByWorkspaceID[workspaceBuild.WorkspaceID] = workspaceBuild
 	}
-	templateByID := map[uuid.UUID]database.Template{}
+	templateByID := map[uuid.UUID]database.TemplateWithUser{}
 	for _, template := range data.templates {
 		templateByID[template.ID] = template
 	}
@@ -1094,7 +1094,7 @@ func convertWorkspaces(workspaces []database.Workspace, data workspaceData) ([]c
 func convertWorkspace(
 	workspace database.Workspace,
 	workspaceBuild codersdk.WorkspaceBuild,
-	template database.Template,
+	template database.TemplateWithUser,
 	owner *database.User,
 ) codersdk.Workspace {
 	var autostartSchedule *string
@@ -1159,7 +1159,7 @@ func convertWorkspaceTTLMillis(i sql.NullInt64) *int64 {
 
 // Calculate the time of the upcoming workspace deletion, if applicable; otherwise, return nil.
 // Workspaces may have impending deletions if InactivityTTL feature is turned on and the workspace is inactive.
-func calculateDeletingAt(workspace database.Workspace, template database.Template, build codersdk.WorkspaceBuild) *time.Time {
+func calculateDeletingAt(workspace database.Workspace, template database.TemplateWithUser, build codersdk.WorkspaceBuild) *time.Time {
 	inactiveStatuses := []codersdk.WorkspaceStatus{codersdk.WorkspaceStatusStopped, codersdk.WorkspaceStatusCanceled, codersdk.WorkspaceStatusFailed, codersdk.WorkspaceStatusDeleted}
 	isInactive := slices.Contains(inactiveStatuses, build.Status)
 	// If InactivityTTL is turned off (set to 0) or if the workspace is active, there is no impending deletion

@@ -331,7 +331,7 @@ func (*EnterpriseTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.C
 	}, nil
 }
 
-func (*EnterpriseTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, tpl database.Template, opts schedule.TemplateScheduleOptions) (database.Template, error) {
+func (*EnterpriseTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, tpl database.TemplateWithUser, opts schedule.TemplateScheduleOptions) (database.TemplateWithUser, error) {
 	if int64(opts.DefaultTTL) == tpl.DefaultTTL &&
 		int64(opts.MaxTTL) == tpl.MaxTTL &&
 		int64(opts.FailureTTL) == tpl.FailureTTL &&
@@ -343,19 +343,32 @@ func (*EnterpriseTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.C
 		return tpl, nil
 	}
 
-	template, err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
-		ID:                 tpl.ID,
-		UpdatedAt:          database.Now(),
-		AllowUserAutostart: opts.UserAutostartEnabled,
-		AllowUserAutostop:  opts.UserAutostopEnabled,
-		DefaultTTL:         int64(opts.DefaultTTL),
-		MaxTTL:             int64(opts.MaxTTL),
-		FailureTTL:         int64(opts.FailureTTL),
-		InactivityTTL:      int64(opts.InactivityTTL),
-		LockedTTL:          int64(opts.LockedTTL),
-	})
+	var template database.TemplateWithUser
+	err := db.InTx(func(db database.Store) error {
+		err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+			ID:                 tpl.ID,
+			UpdatedAt:          database.Now(),
+			AllowUserAutostart: opts.UserAutostartEnabled,
+			AllowUserAutostop:  opts.UserAutostopEnabled,
+			DefaultTTL:         int64(opts.DefaultTTL),
+			MaxTTL:             int64(opts.MaxTTL),
+			FailureTTL:         int64(opts.FailureTTL),
+			InactivityTTL:      int64(opts.InactivityTTL),
+			LockedTTL:          int64(opts.LockedTTL),
+		})
+		if err != nil {
+			return xerrors.Errorf("update template schedule: %w", err)
+		}
+
+		template, err = db.GetTemplateByID(ctx, tpl.ID)
+		if err != nil {
+			return xerrors.Errorf("get updated template schedule: %w", err)
+		}
+
+		return nil
+	}, nil)
 	if err != nil {
-		return database.Template{}, xerrors.Errorf("update template schedule: %w", err)
+		return database.TemplateWithUser{}, err
 	}
 
 	// Update all workspaces using the template to set the user defined schedule
@@ -374,7 +387,7 @@ func (*EnterpriseTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.C
 			TemplateMaxTTL: int64(opts.MaxTTL),
 		})
 		if err != nil {
-			return database.Template{}, xerrors.Errorf("update TTL of all workspaces on template to be within new template max TTL: %w", err)
+			return database.TemplateWithUser{}, xerrors.Errorf("update TTL of all workspaces on template to be within new template max TTL: %w", err)
 		}
 	}
 

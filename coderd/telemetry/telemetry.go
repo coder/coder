@@ -629,7 +629,7 @@ func ConvertUser(dbUser database.User) User {
 }
 
 // ConvertTemplate anonymizes a template.
-func ConvertTemplate(dbTemplate database.Template) Template {
+func ConvertTemplate(dbTemplate database.TemplateWithUser) Template {
 	return Template{
 		ID:              dbTemplate.ID,
 		CreatedBy:       dbTemplate.CreatedBy,

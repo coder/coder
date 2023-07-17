@@ -50,7 +50,7 @@ type Builder struct {
 	store database.Store
 
 	// cache of objects, so we only fetch once
-	template                  *database.Template
+	template                  *database.TemplateWithUser
 	templateVersion           *database.TemplateVersion
 	templateVersionJob        *database.ProvisionerJob
 	templateVersionParameters *[]database.TemplateVersionParameter
@@ -368,7 +368,7 @@ func (b *Builder) buildTx(authFunc func(action rbac.Action, object rbac.Objecter
 	return &workspaceBuild, &provisionerJob, nil
 }
 
-func (b *Builder) getTemplate() (*database.Template, error) {
+func (b *Builder) getTemplate() (*database.TemplateWithUser, error) {
 	if b.template != nil {
 		return b.template, nil
 	}

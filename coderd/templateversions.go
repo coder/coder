@@ -1043,7 +1043,7 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 		ctx               = r.Context()
 		template          = httpmw.TemplateParam(r)
 		auditor           = *api.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.TemplateWithUser](rw, &audit.RequestParams{
 			Audit:   auditor,
 			Log:     api.Logger,
 			Request: r,

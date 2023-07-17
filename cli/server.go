@@ -607,7 +607,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.Pubsub = pubsub.NewInMemory()
 			} else {
 				sqlDB, err := connectToPostgres(ctx, logger, sqlDriver, cfg.PostgresURL.String())
-
 				if err != nil {
 					return xerrors.Errorf("connect to postgres: %w", err)
 				}
