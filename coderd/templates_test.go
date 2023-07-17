@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"database/sql"
 	"net/http"
 	"sync/atomic"
 	"testing"
@@ -29,7 +30,10 @@ func TestTemplate(t *testing.T) {
 
 	t.Run("Get", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		db, _ := sql.Open("postgres", "postgresql://postgres:postgres@localhost:5432?sslmode=disable")
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: database.New(db),
+		})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
