@@ -2,6 +2,7 @@ package workspacetraffic_test
 
 import (
 	"context"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -23,6 +24,9 @@ import (
 
 func TestRun(t *testing.T) {
 	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("Test not supported on windows.")
+	}
 
 	t.Run("PTY", func(t *testing.T) {
 		t.Parallel()
