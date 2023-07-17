@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -24,7 +25,7 @@ type workspaceListRow struct {
 	WorkspaceName string `json:"-" table:"workspace,default_sort"`
 	Template      string `json:"-" table:"template"`
 	Status        string `json:"-" table:"status"`
-	Healthy       bool   `json:"-" table:"healthy"`
+	Healthy       string `json:"-" table:"healthy"`
 	LastBuilt     string `json:"-" table:"last built"`
 	Outdated      bool   `json:"-" table:"outdated"`
 	StartsAt      string `json:"-" table:"starts at"`
@@ -52,13 +53,17 @@ func workspaceListRowFromWorkspace(now time.Time, usersByID map[uuid.UUID]coders
 		}
 	}
 
+	healthy := ""
+	if status == "Starting" || status == "Started" {
+		healthy = strconv.FormatBool(workspace.Health.Healthy)
+	}
 	user := usersByID[workspace.OwnerID]
 	return workspaceListRow{
 		Workspace:     workspace,
 		WorkspaceName: user.Username + "/" + workspace.Name,
 		Template:      workspace.TemplateName,
 		Status:        status,
-		Healthy:       workspace.Health.Healthy,
+		Healthy:       healthy,
 		LastBuilt:     durationDisplay(lastBuilt),
 		Outdated:      workspace.Outdated,
 		StartsAt:      autostartDisplay,
