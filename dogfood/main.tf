@@ -200,7 +200,7 @@ resource "coder_agent" "dev" {
       echo "~/personalize is not executable, skipping..." | tee -a ~/.personalize.log
     fi
 
-    # chnage back to repo_dir
+    # change back to repo_dir
     cd ${data.coder_parameter.repo_dir.value}
 
   EOT
