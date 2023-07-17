@@ -2036,6 +2036,9 @@ func TestWorkspaceExtend(t *testing.T) {
 
 func TestWorkspaceWatcher(t *testing.T) {
 	t.Parallel()
+	if testutil.RaceEnabled() {
+		t.Skip("Race detector enabled, skipping time-sensitive test")
+	}
 	client, closeFunc := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 	defer closeFunc.Close()
 	user := coderdtest.CreateFirstUser(t, client)
