@@ -79,6 +79,63 @@ func TestCreate(t *testing.T) {
 		}
 	})
 
+	t.Run("CreateForOtherUser", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: provisionCompleteWithAgent,
+			ProvisionPlan:  provisionCompleteWithAgent,
+		})
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		_, user := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		args := []string{
+			"create",
+			user.Username + "/their-workspace",
+			"--template", template.Name,
+			"--start-at", "9:30AM Mon-Fri US/Central",
+			"--stop-after", "8h",
+		}
+
+		inv, root := clitest.New(t, args...)
+		clitest.SetupConfig(t, client, root)
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t).Attach(inv)
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+		matches := []struct {
+			match string
+			write string
+		}{
+			{match: "compute.main"},
+			{match: "smith (linux, i386)"},
+			{match: "Confirm create", write: "yes"},
+		}
+		for _, m := range matches {
+			pty.ExpectMatch(m.match)
+			if len(m.write) > 0 {
+				pty.WriteLine(m.write)
+			}
+		}
+		<-doneChan
+
+		ws, err := client.WorkspaceByOwnerAndName(context.Background(), user.Username, "their-workspace", codersdk.WorkspaceOptions{})
+		if assert.NoError(t, err, "expected workspace to be created") {
+			assert.Equal(t, ws.TemplateName, template.Name)
+			if assert.NotNil(t, ws.AutostartSchedule) {
+				assert.Equal(t, *ws.AutostartSchedule, "CRON_TZ=US/Central 30 9 * * Mon-Fri")
+			}
+			if assert.NotNil(t, ws.TTLMillis) {
+				assert.Equal(t, *ws.TTLMillis, 8*time.Hour.Milliseconds())
+			}
+		}
+	})
+
 	t.Run("InheritStopAfterFromTemplate", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})

@@ -1,6 +1,6 @@
 # Workspace Proxies
 
-> Workspace proxies are in an [experimental state](../contributing/feature-stages.md#experimental-features) and the behavior is subject to change. Use [GitHub issues](https://github.com/coder/coder) to leave feedback. This experiment must be specifically enabled with the `--experiments="moons"` option on both coderd and the workspace proxy.
+> Workspace proxies are in an [experimental state](../contributing/feature-stages.md#experimental-features) and the behavior is subject to change. Use [GitHub issues](https://github.com/coder/coder) to leave feedback. This experiment must be specifically enabled with the `--experiments="moons"` option on both coderd and the workspace proxy. If you have all experiements enabled, you have to add moons as well. `--experiments="*,moons"`
 
 Workspace proxies provide low-latency experiences for geo-distributed teams.
 
@@ -83,6 +83,46 @@ CODER_TLS_KEY_FILE="<key_file_location>"
 # Additional configuration options are available.
 ```
 
+### Running on Kubernetes
+
+Make a `values-wsproxy.yaml` with the workspace proxy configuration:
+
+> Notice the `workspaceProxy` configuration which is `false` by default in the coder Helm chart.
+
+```yaml
+coder:
+  env:
+    - name: CODER_PRIMARY_ACCESS_URL
+      value: "https://<url_of_coderd_dashboard>"
+    - name: CODER_PROXY_SESSION_TOKEN
+      value: "<session_token_from_proxy_create>"
+    # Example: https://east.coderd.example.com
+    - name: CODER_ACCESS_URL
+      value: "https://<access_url_of_proxy>"
+    # Example: *.east.coderd.example.com
+    - name: CODER_WILDCARD_ACCESS_URL
+      value: "*.<app_hostname_of_proxy>"
+
+    # enables new paid features that are in alpha state
+    - name: CODER_EXPERIMENTS
+      value: "*,moons"
+
+  tls:
+    secretNames:
+      - kubernetes-wsproxy-secret
+
+  # enable workspace proxy
+  workspaceProxy: true
+```
+
+Using Helm, install the workspace proxy chart
+
+```bash
+helm install coder coder-v2/coder --namespace <your workspace proxy namespace> -f ./values-wsproxy.yaml
+```
+
+Test that the workspace proxy is reachable with `curl -vvv`. If for some reason, the Coder dashboard still shows the workspace proxy is `UNHEALTHY`, scale down and up the deployment's replicas.
+
 ### Running on a VM
 
 ```bash
@@ -118,6 +158,6 @@ ENTRYPOINT ["/opt/coder", "wsproxy", "server"]
 
 ### Selecting a proxy
 
-Users can navigate to their account settings to select a workspace proxy. Workspace proxy preferences are cached by the web browser. If a proxy goes offline, the session will fall back to the primary proxy. This could take up to 60 seconds.
+Users can select a workspace proxy at the top-right of the browser-based Coder dashboard. Workspace proxy preferences are cached by the web browser. If a proxy goes offline, the session will fall back to the primary proxy. This could take up to 60 seconds.
 
 ![Workspace proxy picker](../images/admin/workspace-proxy-picker.png)
