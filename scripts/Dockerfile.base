@@ -7,17 +7,18 @@ FROM alpine:3.18.2
 # NOTE: Keep the Terraform version in sync with minTerraformVersion and
 # maxTerraformVersion in provisioner/terraform/install.go.
 RUN apk add --no-cache \
-		curl \
-		wget \
-		bash \
-		git \
-		openssh-client && \
+	curl \
+	wget \
+	bash \
+	jq \
+	git \
+	openssh-client &&
 	# Use the edge repo, since Terraform doesn't seem to be backported to 3.18.
 	apk add --no-cache --repository=https://dl-cdn.alpinelinux.org/alpine/edge/community \
-		terraform=~1.5 && \
+		terraform=~1.5 &&
 	addgroup \
 		-g 1000 \
-		coder && \
+		coder &&
 	adduser \
 		-D \
 		-s /bin/bash \
