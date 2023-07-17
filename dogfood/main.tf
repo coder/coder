@@ -85,8 +85,7 @@ data "coder_workspace" "me" {}
 resource "coder_agent" "dev" {
   arch = "amd64"
   os   = "linux"
-
-  dir = "/home/coder"
+  dir = "${data.coder_parameter.repo_dir.value}"
   env = {
     GITHUB_TOKEN : data.coder_git_auth.github.access_token,
     OIDC_TOKEN : data.coder_workspace.me.owner_oidc_access_token,
@@ -172,6 +171,9 @@ resource "coder_agent" "dev" {
   startup_script         = <<-EOT
     set -eux -o pipefail
 
+    # change to home
+    cd /home/coder
+
     # install and start code-server
     curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.8.3
     /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
@@ -197,7 +199,10 @@ resource "coder_agent" "dev" {
     elif [ -f ~/personalize ]; then
       echo "~/personalize is not executable, skipping..." | tee -a ~/.personalize.log
     fi
+
+    # chnage back to repo_dir
     cd ${data.coder_parameter.repo_dir.value}
+
   EOT
 }
 
@@ -221,7 +226,7 @@ resource "coder_app" "filebrowser" {
   agent_id     = coder_agent.dev.id
   display_name = "File Browser"
   slug         = "filebrowser"
-  url          = "http://localhost:8080/"
+  url          = "http://localhost:8080"
   icon         = "https://raw.githubusercontent.com/matifali/logos/main/database.svg"
   subdomain    = true
   share        = "owner"
