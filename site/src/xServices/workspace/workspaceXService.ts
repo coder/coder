@@ -71,8 +71,6 @@ export interface WorkspaceContext {
   sshPrefix?: string
   // Change version
   templateVersionIdToChange?: TypesGen.TemplateVersion["id"]
-  // One time build parameters
-  oneTimeBuildParameters?: TypesGen.WorkspaceBuildParameter[]
 }
 
 export type WorkspaceEvent =
