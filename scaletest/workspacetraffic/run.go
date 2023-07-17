@@ -140,19 +140,19 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 
 	// Write until the context is canceled.
 	if wErr := <-wch; wErr != nil {
-		return xerrors.Errorf("write to pty: %w", wErr)
+		return xerrors.Errorf("write to agent: %w", wErr)
 	}
 	// Read for up to one more second.
-	ctx, cancel = context.WithTimeout(ctx, time.Second)
-	defer cancel()
+	readCtx, readCancel := context.WithTimeout(ctx, time.Second)
+	defer readCancel()
 	select {
-	case <-ctx.Done():
-		logger.Warn(ctx, "timed out reading from agent", slog.F("agent_id", agentID))
+	case <-readCtx.Done():
+		logger.Warn(readCtx, "timed out reading from agent", slog.F("agent_id", agentID))
 	default:
 		rErr := <-rch
-		logger.Debug(ctx, "done reading from agent", slog.F("agent_id", agentID))
+		logger.Debug(readCtx, "done reading from agent", slog.F("agent_id", agentID))
 		if rErr != nil {
-			return xerrors.Errorf("read from pty: %w", rErr)
+			return xerrors.Errorf("read from agent: %w", rErr)
 		}
 	}
 
