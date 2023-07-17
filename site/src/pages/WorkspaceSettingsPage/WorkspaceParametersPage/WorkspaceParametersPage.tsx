@@ -16,7 +16,6 @@ import {
 import { useNavigate } from "react-router-dom"
 import { makeStyles } from "@mui/styles"
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
-import { displaySuccess } from "components/GlobalSnackbar/utils"
 import { FC } from "react"
 import { isApiValidationError } from "api/errors"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
@@ -47,10 +46,7 @@ const WorkspaceParametersPage = () => {
         rich_parameter_values: formValues.rich_parameter_values,
       }),
     onSuccess: () => {
-      displaySuccess(
-        "Parameters updated successfully",
-        "A new build was started to apply the new parameters",
-      )
+      navigate(`/${workspace.owner_name}/${workspace.name}`)
     },
   })
 
