@@ -3940,8 +3940,6 @@ SET
 	user_acl = $2
 WHERE
 	id = $3
-RETURNING
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl, locked_ttl
 `
 
 type UpdateTemplateACLByIDParams struct {
@@ -4009,8 +4007,6 @@ SET
 	allow_user_cancel_workspace_jobs = $7
 WHERE
 	id = $1
-RETURNING
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl, locked_ttl
 `
 
 type UpdateTemplateMetaByIDParams struct {
@@ -4050,8 +4046,6 @@ SET
 	locked_ttl = $9
 WHERE
 	id = $1
-RETURNING
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl, locked_ttl
 `
 
 type UpdateTemplateScheduleByIDParams struct {

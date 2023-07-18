@@ -10,6 +10,7 @@ FROM
 
 COMMENT ON VIEW visible_users IS 'Visible fields of users are allowed to be joined with other tables for including context of other resources.';
 
+-- If you need to update this view, put 'DROP VIEW template_with_users;' before this.
 CREATE VIEW
     template_with_users
 AS
