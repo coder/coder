@@ -163,6 +163,7 @@ data "coder_parameter" "force_rebuild" {
   type         = "bool"
   description  = "Rebuild the Docker image rather than use the cached one."
   mutable      = true
+  default      = false
   ephemeral    = true
 }
 ```
