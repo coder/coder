@@ -120,9 +120,19 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 
 	// Read forever in the background.
 	go func() {
-		logger.Debug(ctx, "reading from agent", slog.F("agent_id", agentID))
-		rch <- drain(conn)
-		logger.Debug(ctx, "done reading from agent", slog.F("agent_id", agentID))
+		select {
+		case <-ctx.Done():
+			logger.Debug(ctx, "done reading from agent", slog.F("agent_id", agentID))
+		default:
+			logger.Debug(ctx, "reading from agent", slog.F("agent_id", agentID))
+			rch <- drain(conn)
+		}
+	}()
+
+	// To avoid hanging, close the conn when ctx is done
+	go func() {
+		<-ctx.Done()
+		_ = conn.Close()
 		close(rch)
 	}()
 
@@ -142,15 +152,12 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	if wErr := <-wch; wErr != nil {
 		return xerrors.Errorf("write to agent: %w", wErr)
 	}
-	// Read for up to one more second.
-	readCtx, readCancel := context.WithTimeout(ctx, time.Second)
-	defer readCancel()
+
 	select {
-	case <-readCtx.Done():
-		logger.Warn(readCtx, "timed out reading from agent", slog.F("agent_id", agentID))
-	default:
-		rErr := <-rch
-		logger.Debug(readCtx, "done reading from agent", slog.F("agent_id", agentID))
+	case <-ctx.Done():
+		logger.Warn(ctx, "timed out reading from agent", slog.F("agent_id", agentID))
+	case rErr := <-rch:
+		logger.Debug(ctx, "done reading from agent", slog.F("agent_id", agentID))
 		if rErr != nil {
 			return xerrors.Errorf("read from agent: %w", rErr)
 		}
