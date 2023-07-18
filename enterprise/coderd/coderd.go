@@ -125,6 +125,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Use(apiKeyMiddleware)
 			r.Post("/", api.reconnectingPTYSignedToken)
 		})
+
+		r.With(
+			apiKeyMiddlewareOptional,
+			httpmw.ExtractWorkspaceProxy(httpmw.ExtractWorkspaceProxyConfig{
+				DB:       options.Database,
+				Optional: true,
+			}),
+			httpmw.RequireAPIKeyOrWorkspaceProxyAuth(),
+		).Get("/workspaceagents/{workspaceagent}/legacy", api.agentIsLegacy)
 		r.Route("/workspaceproxies", func(r chi.Router) {
 			r.Use(
 				api.moonsEnabledMW,
@@ -143,6 +152,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 						Optional: false,
 					}),
 				)
+				r.Get("/coordinate", api.workspaceProxyCoordinate)
 				r.Post("/issue-signed-app-token", api.workspaceProxyIssueSignedAppToken)
 				r.Post("/register", api.workspaceProxyRegister)
 				r.Post("/goingaway", api.workspaceProxyGoingAway)
@@ -395,19 +405,23 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		return nil
 	}
 
-	featureChanged := func(featureName codersdk.FeatureName) (changed bool, enabled bool) {
+	featureChanged := func(featureName codersdk.FeatureName) (initial, changed, enabled bool) {
 		if api.entitlements.Features == nil {
-			return true, entitlements.Features[featureName].Enabled
+			return true, false, entitlements.Features[featureName].Enabled
 		}
 		oldFeature := api.entitlements.Features[featureName]
 		newFeature := entitlements.Features[featureName]
 		if oldFeature.Enabled != newFeature.Enabled {
-			return true, newFeature.Enabled
+			return false, true, newFeature.Enabled
 		}
-		return false, newFeature.Enabled
+		return false, false, newFeature.Enabled
 	}
 
-	if changed, enabled := featureChanged(codersdk.FeatureAuditLog); changed {
+	shouldUpdate := func(initial, changed, enabled bool) bool {
+		return changed || (initial && enabled)
+	}
+
+	if initial, changed, enabled := featureChanged(codersdk.FeatureAuditLog); shouldUpdate(initial, changed, enabled) {
 		auditor := agplaudit.NewNop()
 		if enabled {
 			auditor = api.AGPL.Options.Auditor
@@ -415,7 +429,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		api.AGPL.Auditor.Store(&auditor)
 	}
 
-	if changed, enabled := featureChanged(codersdk.FeatureBrowserOnly); changed {
+	if initial, changed, enabled := featureChanged(codersdk.FeatureBrowserOnly); shouldUpdate(initial, changed, enabled) {
 		var handler func(rw http.ResponseWriter) bool
 		if enabled {
 			handler = api.shouldBlockNonBrowserConnections
@@ -423,7 +437,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		api.AGPL.WorkspaceClientCoordinateOverride.Store(&handler)
 	}
 
-	if changed, enabled := featureChanged(codersdk.FeatureTemplateRBAC); changed {
+	if initial, changed, enabled := featureChanged(codersdk.FeatureTemplateRBAC); shouldUpdate(initial, changed, enabled) {
 		if enabled {
 			committer := committer{Database: api.Database}
 			ptr := proto.QuotaCommitter(&committer)
@@ -433,7 +447,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		}
 	}
 
-	if changed, enabled := featureChanged(codersdk.FeatureAdvancedTemplateScheduling); changed {
+	if initial, changed, enabled := featureChanged(codersdk.FeatureAdvancedTemplateScheduling); shouldUpdate(initial, changed, enabled) {
 		if enabled {
 			store := &EnterpriseTemplateScheduleStore{}
 			ptr := schedule.TemplateScheduleStore(store)
@@ -444,8 +458,8 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		}
 	}
 
-	if changed, enabled := featureChanged(codersdk.FeatureHighAvailability); changed {
-		coordinator := agpltailnet.NewCoordinator(api.Logger)
+	if initial, changed, enabled := featureChanged(codersdk.FeatureHighAvailability); shouldUpdate(initial, changed, enabled) {
+		var coordinator agpltailnet.Coordinator
 		if enabled {
 			var haCoordinator agpltailnet.Coordinator
 			if api.AGPL.Experiments.Enabled(codersdk.ExperimentTailnetHACoordinator) {
@@ -457,9 +471,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				api.Logger.Error(ctx, "unable to set up high availability coordinator", slog.Error(err))
 				// If we try to setup the HA coordinator and it fails, nothing
 				// is actually changing.
-				changed = false
 			} else {
-				_ = coordinator.Close()
 				coordinator = haCoordinator
 			}
 
@@ -472,6 +484,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				_ = api.updateEntitlements(ctx)
 			})
 		} else {
+			coordinator = agpltailnet.NewCoordinator(api.Logger)
 			api.derpMesh.SetAddresses([]string{}, false)
 			api.replicaManager.SetCallback(func() {
 				// If the amount of replicas change, so should our entitlements.
@@ -481,7 +494,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		}
 
 		// Recheck changed in case the HA coordinator failed to set up.
-		if changed {
+		if coordinator != nil {
 			oldCoordinator := *api.AGPL.TailnetCoordinator.Swap(&coordinator)
 			err := oldCoordinator.Close()
 			if err != nil {

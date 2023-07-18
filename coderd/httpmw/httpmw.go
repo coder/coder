@@ -11,8 +11,8 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-// parseUUID consumes a url parameter and parses it as a UUID.
-func parseUUID(rw http.ResponseWriter, r *http.Request, param string) (uuid.UUID, bool) {
+// ParseUUIDParam consumes a url parameter and parses it as a UUID.
+func ParseUUIDParam(rw http.ResponseWriter, r *http.Request, param string) (uuid.UUID, bool) {
 	rawID := chi.URLParam(r, param)
 	if rawID == "" {
 		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{

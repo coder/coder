@@ -13,17 +13,14 @@ import (
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 	"tailscale.com/tailcfg"
 
-	"github.com/coder/retry"
-
 	"cdr.dev/slog"
-
-	"github.com/google/uuid"
-
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/retry"
 )
 
 // New returns a client that is used to interact with the
