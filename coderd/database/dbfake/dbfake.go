@@ -58,7 +58,7 @@ func New() database.Store {
 			workspaceResourceMetadata: make([]database.WorkspaceResourceMetadatum, 0),
 			provisionerJobs:           make([]database.ProvisionerJob, 0),
 			templateVersions:          make([]database.TemplateVersion, 0),
-			templates:                 make([]database.Template, 0),
+			templates:                 make([]database.TemplateTable, 0),
 			workspaceAgentStats:       make([]database.WorkspaceAgentStat, 0),
 			workspaceAgentLogs:        make([]database.WorkspaceAgentStartupLog, 0),
 			workspaceBuilds:           make([]database.WorkspaceBuild, 0),
@@ -130,7 +130,7 @@ type data struct {
 	templateVersions          []database.TemplateVersion
 	templateVersionParameters []database.TemplateVersionParameter
 	templateVersionVariables  []database.TemplateVersionVariable
-	templates                 []database.Template
+	templates                 []database.TemplateTable
 	workspaceAgents           []database.WorkspaceAgent
 	workspaceAgentMetadata    []database.WorkspaceAgentMetadatum
 	workspaceAgentLogs        []database.WorkspaceAgentStartupLog
@@ -452,7 +452,7 @@ func (q *FakeQuerier) getTemplateByIDNoLock(_ context.Context, id uuid.UUID) (da
 	return database.Template{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) templatesWithUser(tpl []database.Template) []database.Template {
+func (q *FakeQuerier) templatesWithUser(tpl []database.TemplateTable) []database.Template {
 	cpy := make([]database.Template, 0, len(tpl))
 	for _, t := range tpl {
 		cpy = append(cpy, q.templateWithUser(t))
@@ -460,7 +460,7 @@ func (q *FakeQuerier) templatesWithUser(tpl []database.Template) []database.Temp
 	return cpy
 }
 
-func (q *FakeQuerier) templateWithUser(tpl database.Template) database.Template {
+func (q *FakeQuerier) templateWithUser(tpl database.TemplateTable) database.Template {
 	var user database.User
 	for _, _user := range q.users {
 		if _user.ID == tpl.CreatedBy {
@@ -2118,9 +2118,9 @@ func (q *FakeQuerier) GetTemplates(_ context.Context) ([]database.Template, erro
 
 	templates := slices.Clone(q.templates)
 	for i := range templates {
-		templates[i] = templates[i].DeepCopy()
+		templates[i] = templates[i]
 	}
-	slices.SortFunc(templates, func(i, j database.Template) bool {
+	slices.SortFunc(templates, func(i, j database.TemplateTable) bool {
 		if i.Name != j.Name {
 			return i.Name < j.Name
 		}
@@ -3470,7 +3470,7 @@ func (q *FakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 	defer q.mutex.Unlock()
 
 	//nolint:gosimple
-	template := database.Template{
+	template := database.TemplateTable{
 		ID:                           arg.ID,
 		CreatedAt:                    arg.CreatedAt,
 		UpdatedAt:                    arg.UpdatedAt,
@@ -5009,7 +5009,8 @@ func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.G
 	}
 
 	var templates []database.Template
-	for _, template := range q.templates {
+	for _, templateTable := range q.templates {
+		template := q.templateWithUser(templateTable)
 		if prepared != nil && prepared.Authorize(ctx, template.RBACObject()) != nil {
 			continue
 		}
@@ -5037,7 +5038,7 @@ func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.G
 				continue
 			}
 		}
-		templates = append(templates, template.DeepCopy())
+		templates = append(templates)
 	}
 	if len(templates) > 0 {
 		slices.SortFunc(templates, func(i, j database.Template) bool {
@@ -5046,7 +5047,7 @@ func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.G
 			}
 			return i.ID.String() < j.ID.String()
 		})
-		return q.templatesWithUser(templates), nil
+		return templates, nil
 	}
 
 	return nil, sql.ErrNoRows
@@ -5056,7 +5057,7 @@ func (q *FakeQuerier) GetTemplateGroupRoles(_ context.Context, id uuid.UUID) ([]
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	var template database.Template
+	var template database.TemplateTable
 	for _, t := range q.templates {
 		if t.ID == id {
 			template = t
@@ -5093,7 +5094,7 @@ func (q *FakeQuerier) GetTemplateUserRoles(_ context.Context, id uuid.UUID) ([]d
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	var template database.Template
+	var template database.TemplateTable
 	for _, t := range q.templates {
 		if t.ID == id {
 			template = t
