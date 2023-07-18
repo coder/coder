@@ -65,10 +65,7 @@ jobs:
 
       - name: Get latest commit title
         id: message
-        run: |
-          pr_title=$(git log --format=%s -n 1 ${{ github.sha }})
-          pr_title=${pr_title#*: } # remove prefix
-          echo "pr_title=$pr_title" >> $GITHUB_OUTPUT
+        run: echo "pr_title=$(git log --format=%s -n 1 ${{ github.sha }})" >> $GITHUB_OUTPUT
 
       - name: "Get latest Coder binary from the server"
         run: |
