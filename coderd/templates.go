@@ -280,8 +280,9 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	}
 	err = api.Database.InTx(func(tx database.Store) error {
 		now := database.Now()
+		id := uuid.New()
 		err = tx.InsertTemplate(ctx, database.InsertTemplateParams{
-			ID:                           uuid.New(),
+			ID:                           id,
 			CreatedAt:                    now,
 			UpdatedAt:                    now,
 			OrganizationID:               organization.ID,
@@ -300,7 +301,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			return xerrors.Errorf("insert template: %s", err)
 		}
 
-		dbTemplate, err = tx.GetTemplateByID(ctx, dbTemplate.ID)
+		dbTemplate, err = tx.GetTemplateByID(ctx, id)
 		if err != nil {
 			return xerrors.Errorf("get template by id: %s", err)
 		}
