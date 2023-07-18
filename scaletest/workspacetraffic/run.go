@@ -128,6 +128,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 		default:
 			logger.Debug(ctx, "reading from agent", slog.F("agent_id", agentID))
 			rch <- drain(conn)
+			close(rch)
 		}
 	}()
 
@@ -135,7 +136,6 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	go func() {
 		<-ctx.Done()
 		_ = conn.Close()
-		close(rch)
 	}()
 
 	// Write random data to the conn every tick.
