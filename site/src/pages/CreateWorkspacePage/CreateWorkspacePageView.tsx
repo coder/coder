@@ -28,6 +28,7 @@ import {
   MutableTemplateParametersSection,
 } from "components/TemplateParameters/TemplateParameters"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
+import { paramUsedToCreateWorkspace } from "utils/workspace"
 
 export enum CreateWorkspaceErrors {
   GET_TEMPLATES_ERROR = "getTemplatesError",
@@ -59,8 +60,11 @@ export interface CreateWorkspacePageViewProps {
 export const CreateWorkspacePageView: FC<
   React.PropsWithChildren<CreateWorkspacePageViewProps>
 > = (props) => {
+  const templateParameters = props.templateParameters?.filter(
+    paramUsedToCreateWorkspace,
+  )
   const initialRichParameterValues = selectInitialRichParametersValues(
-    props.templateParameters,
+    templateParameters,
     props.defaultParameterValues,
   )
   const [gitAuthErrors, setGitAuthErrors] = useState<Record<string, string>>({})
@@ -72,20 +76,16 @@ export const CreateWorkspacePageView: FC<
     // to disappear.
     setGitAuthErrors({})
   }, [props.templateGitAuth])
-
   const workspaceErrors =
     props.createWorkspaceErrors[CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]
-
   // Scroll to top of page if errors are present
   useEffect(() => {
     if (props.hasTemplateErrors || Boolean(workspaceErrors)) {
       window.scrollTo(0, 0)
     }
   }, [props.hasTemplateErrors, workspaceErrors])
-
   const { t } = useTranslation("createWorkspacePage")
   const styles = useStyles()
-
   const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
     useFormik<TypesGen.CreateWorkspaceRequest>({
       initialValues: {
@@ -97,7 +97,7 @@ export const CreateWorkspacePageView: FC<
         name: nameValidator(t("nameLabel", { ns: "createWorkspacePage" })),
         rich_parameter_values: useValidationSchemaForRichParameters(
           "createWorkspacePage",
-          props.templateParameters,
+          templateParameters,
         ),
       }),
       enableReinitialize: true,
@@ -240,10 +240,10 @@ export const CreateWorkspacePageView: FC<
           </FormSection>
         )}
 
-        {props.templateParameters && (
+        {templateParameters && (
           <>
             <MutableTemplateParametersSection
-              templateParameters={props.templateParameters}
+              templateParameters={templateParameters}
               getInputProps={(parameter, index) => {
                 return {
                   ...getFieldHelpers(
@@ -264,7 +264,7 @@ export const CreateWorkspacePageView: FC<
               }}
             />
             <ImmutableTemplateParametersSection
-              templateParameters={props.templateParameters}
+              templateParameters={templateParameters}
               classes={{ root: styles.warningSection }}
               getInputProps={(parameter, index) => {
                 return {

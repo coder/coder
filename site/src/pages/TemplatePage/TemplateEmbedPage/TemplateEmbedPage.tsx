@@ -21,6 +21,7 @@ import {
   selectInitialRichParametersValues,
   workspaceBuildParameterValue,
 } from "utils/richParameters"
+import { paramUsedToCreateWorkspace } from "utils/workspace"
 
 type ButtonValues = Record<string, string>
 
@@ -38,7 +39,9 @@ const TemplateEmbedPage = () => {
       </Helmet>
       <TemplateEmbedPageView
         template={template}
-        templateParameters={templateParameters}
+        templateParameters={templateParameters?.filter(
+          paramUsedToCreateWorkspace,
+        )}
       />
     </>
   )

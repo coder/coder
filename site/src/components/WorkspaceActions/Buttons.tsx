@@ -42,6 +42,7 @@ export const StartButton: FC<
 > = ({ handleAction, workspace, loading }) => {
   return (
     <ButtonGroup
+      key="start"
       variant="outlined"
       sx={{
         // Workaround to make the border transitions smmothly on button groups
@@ -90,6 +91,7 @@ export const RestartButton: FC<
 > = ({ handleAction, loading, workspace }) => {
   return (
     <ButtonGroup
+      key="restart"
       variant="outlined"
       sx={{
         // Workaround to make the border transitions smmothly on button groups
