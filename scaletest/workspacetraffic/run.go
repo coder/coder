@@ -83,12 +83,14 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 	var conn *countReadWriteCloser
 	var err error
 	if r.cfg.SSH {
+		logger.Info(ctx, "connecting to workspace agent", slog.F("agent_id", agentID), slog.F("method", "ssh"))
 		conn, err = connectSSH(ctx, r.client, agentID)
 		if err != nil {
 			logger.Error(ctx, "connect to workspace agent via ssh", slog.F("agent_id", agentID), slog.Error(err))
 			return xerrors.Errorf("connect to workspace via ssh: %w", err)
 		}
 	} else {
+		logger.Info(ctx, "connecting to workspace agent", slog.F("agent_id", agentID), slog.F("method", "reconnectingpty"))
 		conn, err = connectPTY(ctx, r.client, agentID, reconnect)
 		if err != nil {
 			logger.Error(ctx, "connect to workspace agent via reconnectingpty", slog.F("agent_id", agentID), slog.Error(err))
