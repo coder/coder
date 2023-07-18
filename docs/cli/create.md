@@ -20,14 +20,6 @@ coder create [flags] [name]
 
 ## Options
 
-### --build-options
-
-|      |                   |
-| ---- | ----------------- |
-| Type | <code>bool</code> |
-
-Prompt for one-time build options defined with ephemeral parameters.
-
 ### --rich-parameter-file
 
 |             |                                         |
