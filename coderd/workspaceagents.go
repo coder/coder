@@ -280,81 +280,61 @@ func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.R
 		level = append(level, parsedLevel)
 	}
 
-	var logs []database.WorkspaceAgentStartupLog
-	// Ensure logs are not written after script ended.
-	scriptEndedError := xerrors.New("startup script has ended")
-	err := api.Database.InTx(func(db database.Store) error {
-		state, err := db.GetWorkspaceAgentLifecycleStateByID(ctx, workspaceAgent.ID)
-		if err != nil {
-			return xerrors.Errorf("workspace agent startup script status: %w", err)
-		}
-
-		if state.ReadyAt.Valid {
-			// The agent startup script has already ended, so we don't want to
-			// process any more logs.
-			return scriptEndedError
-		}
-
-		logs, err = db.InsertWorkspaceAgentStartupLogs(ctx, database.InsertWorkspaceAgentStartupLogsParams{
-			AgentID:      workspaceAgent.ID,
-			CreatedAt:    createdAt,
-			Output:       output,
-			Level:        level,
-			OutputLength: int32(outputLength),
-		})
-		return err
-	}, nil)
+	logs, err := api.Database.InsertWorkspaceAgentStartupLogs(ctx, database.InsertWorkspaceAgentStartupLogsParams{
+		AgentID:      workspaceAgent.ID,
+		CreatedAt:    createdAt,
+		Output:       output,
+		Level:        level,
+		OutputLength: int32(outputLength),
+	})
 	if err != nil {
-		if errors.Is(err, scriptEndedError) {
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Failed to upload logs, startup script has already ended.",
+		if !database.IsStartupLogsLimitError(err) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to upload startup logs",
 				Detail:  err.Error(),
 			})
 			return
 		}
-		if database.IsStartupLogsLimitError(err) {
-			if !workspaceAgent.StartupLogsOverflowed {
-				err := api.Database.UpdateWorkspaceAgentStartupLogOverflowByID(ctx, database.UpdateWorkspaceAgentStartupLogOverflowByIDParams{
-					ID:                    workspaceAgent.ID,
-					StartupLogsOverflowed: true,
-				})
-				if err != nil {
-					// We don't want to return here, because the agent will retry
-					// on failure and this isn't a huge deal. The overflow state
-					// is just a hint to the user that the logs are incomplete.
-					api.Logger.Warn(ctx, "failed to update workspace agent startup log overflow", slog.Error(err))
-				}
-
-				resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
-				if err != nil {
-					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-						Message: "Failed to get workspace resource.",
-						Detail:  err.Error(),
-					})
-					return
-				}
-
-				build, err := api.Database.GetWorkspaceBuildByJobID(ctx, resource.JobID)
-				if err != nil {
-					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-						Message: "Internal error fetching workspace build job.",
-						Detail:  err.Error(),
-					})
-					return
-				}
-
-				api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
-			}
-
+		if workspaceAgent.StartupLogsOverflowed {
 			httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
 				Message: "Startup logs limit exceeded",
 				Detail:  err.Error(),
 			})
 			return
 		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to upload startup logs",
-			Detail:  err.Error(),
+		err := api.Database.UpdateWorkspaceAgentStartupLogOverflowByID(ctx, database.UpdateWorkspaceAgentStartupLogOverflowByIDParams{
+			ID:                    workspaceAgent.ID,
+			StartupLogsOverflowed: true,
+		})
+		if err != nil {
+			// We don't want to return here, because the agent will retry
+			// on failure and this isn't a huge deal. The overflow state
+			// is just a hint to the user that the logs are incomplete.
+			api.Logger.Warn(ctx, "failed to update workspace agent startup log overflow", slog.Error(err))
+		}
+
+		resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Failed to get workspace resource.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		build, err := api.Database.GetWorkspaceBuildByJobID(ctx, resource.JobID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Internal error fetching workspace build job.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
+
+		httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
+			Message: "Startup logs limit exceeded",
 		})
 		return
 	}
@@ -497,18 +477,6 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if workspaceAgent.ReadyAt.Valid {
-		// Fast path, the startup script has finished running, so we can close
-		// the connection.
-		return
-	}
-	if !codersdk.WorkspaceAgentLifecycle(workspaceAgent.LifecycleState).Starting() {
-		// Backwards compatibility: Avoid waiting forever in case this agent is
-		// older than the current release and has already reported the ready
-		// state.
-		return
-	}
-
 	lastSentLogID := after
 	if len(logs) > 0 {
 		lastSentLogID = logs[len(logs)-1].ID
@@ -543,11 +511,9 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 	t := time.NewTicker(recheckInterval)
 	defer t.Stop()
 
-	var state database.GetWorkspaceAgentLifecycleStateByIDRow
 	go func() {
 		defer close(bufferedLogs)
 
-		var err error
 		for {
 			select {
 			case <-ctx.Done():
@@ -555,17 +521,6 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 			case <-t.C:
 			case <-notifyCh:
 				t.Reset(recheckInterval)
-			}
-
-			if !state.ReadyAt.Valid {
-				state, err = api.Database.GetWorkspaceAgentLifecycleStateByID(ctx, workspaceAgent.ID)
-				if err != nil {
-					if xerrors.Is(err, context.Canceled) {
-						return
-					}
-					logger.Warn(ctx, "failed to get workspace agent lifecycle state", slog.Error(err))
-					continue
-				}
 			}
 
 			logs, err := api.Database.GetWorkspaceAgentStartupLogsAfter(ctx, database.GetWorkspaceAgentStartupLogsAfterParams{
@@ -580,9 +535,7 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 				continue
 			}
 			if len(logs) == 0 {
-				if state.ReadyAt.Valid {
-					return
-				}
+				// Just keep listening - more logs might come in the future!
 				continue
 			}
 
@@ -1687,12 +1640,6 @@ func (api *API) workspaceAgentReportLifecycle(rw http.ResponseWriter, r *http.Re
 		logger.Error(ctx, "failed to update lifecycle state", slog.Error(err))
 		httpapi.InternalServerError(rw, err)
 		return
-	}
-
-	if readyAt.Valid {
-		api.publishWorkspaceAgentStartupLogsUpdate(ctx, workspaceAgent.ID, agentsdk.StartupLogsNotifyMessage{
-			EndOfLogs: true,
-		})
 	}
 
 	api.publishWorkspaceUpdate(ctx, workspace.ID)

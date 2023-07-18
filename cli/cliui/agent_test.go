@@ -46,7 +46,6 @@ func TestAgent(t *testing.T) {
 				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentStartupLog) error {
 					agent.Status = codersdk.WorkspaceAgentConnected
 					agent.FirstConnectedAt = ptr.Ref(time.Now())
-					close(logs)
 					return nil
 				},
 			},
@@ -79,7 +78,6 @@ func TestAgent(t *testing.T) {
 					agent.FirstConnectedAt = ptr.Ref(time.Now())
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleReady
 					agent.ReadyAt = ptr.Ref(time.Now())
-					close(logs)
 					return nil
 				},
 			},
@@ -111,10 +109,6 @@ func TestAgent(t *testing.T) {
 				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentStartupLog) error {
 					agent.Status = codersdk.WorkspaceAgentConnected
 					agent.LastConnectedAt = ptr.Ref(time.Now())
-					return nil
-				},
-				func(_ context.Context, _ *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentStartupLog) error {
-					close(logs)
 					return nil
 				},
 			},
@@ -154,7 +148,6 @@ func TestAgent(t *testing.T) {
 							Output:    "Bye now",
 						},
 					}
-					close(logs)
 					return nil
 				},
 			},
@@ -184,7 +177,6 @@ func TestAgent(t *testing.T) {
 							Output:    "Hello world",
 						},
 					}
-					close(logs)
 					return nil
 				},
 			},
@@ -205,7 +197,6 @@ func TestAgent(t *testing.T) {
 				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentStartupLog) error {
 					agent.Status = codersdk.WorkspaceAgentDisconnected
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleOff
-					close(logs)
 					return nil
 				},
 			},
@@ -234,7 +225,6 @@ func TestAgent(t *testing.T) {
 				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentStartupLog) error {
 					agent.ReadyAt = ptr.Ref(time.Now())
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleShuttingDown
-					close(logs)
 					return nil
 				},
 			},
@@ -316,8 +306,21 @@ func TestAgent(t *testing.T) {
 						}
 						return agent, err
 					}
-					tc.opts.FetchLogs = func(_ context.Context, _ uuid.UUID, _ int64, _ bool) (<-chan []codersdk.WorkspaceAgentStartupLog, io.Closer, error) {
-						return logs, closeFunc(func() error { return nil }), nil
+					tc.opts.FetchLogs = func(ctx context.Context, _ uuid.UUID, _ int64, follow bool) (<-chan []codersdk.WorkspaceAgentStartupLog, io.Closer, error) {
+						if follow {
+							return logs, closeFunc(func() error { return nil }), nil
+						}
+
+						fetchLogs := make(chan []codersdk.WorkspaceAgentStartupLog, 1)
+						select {
+						case <-ctx.Done():
+							return nil, nil, ctx.Err()
+						case l := <-logs:
+							fetchLogs <- l
+						default:
+						}
+						close(fetchLogs)
+						return fetchLogs, closeFunc(func() error { return nil }), nil
 					}
 					err := cliui.Agent(inv.Context(), &buf, uuid.Nil, tc.opts)
 					return err
