@@ -275,7 +275,7 @@ coder:
   # coder.command -- The command to use when running the Coder container. Used
   # for customizing the location of the `coder` binary in your image.
   command:
-    - /opt/coder server
+    - /opt/coder
 
   # coder.commandArgs -- Set arguments for the entrypoint command of the Coder pod.
   commandArgs: []
