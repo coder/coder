@@ -45,10 +45,19 @@ func connectSSH(ctx context.Context, client *codersdk.Client, agentID uuid.UUID)
 		return nil, xerrors.Errorf("new ssh session: %w", err)
 	}
 	wrappedConn := &wrappedSSHConn{ctx: ctx}
-	wrappedConn.stdout, sshSession.Stdout = io.Pipe()
-	sshSession.Stdin, wrappedConn.stdin = io.Pipe()
+	// Do some plumbing to hook up the wrappedConn
+	pr1, pw1 := io.Pipe()
+	wrappedConn.stdout = pr1
+	sshSession.Stdout = pw1
+	pr2, pw2 := io.Pipe()
+	sshSession.Stdin = pr2
+	wrappedConn.stdin = pw2
 	err = sshSession.RequestPty("xterm", 25, 80, gossh.TerminalModes{})
 	if err != nil {
+		_ = pr1.Close()
+		_ = pr2.Close()
+		_ = pw1.Close()
+		_ = pw2.Close()
 		_ = sshSession.Close()
 		_ = agentConn.Close()
 		return nil, xerrors.Errorf("request pty: %w", err)
