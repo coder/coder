@@ -31,6 +31,8 @@ overrides:
         go_type:
           type: "string"
     rename:
+      template: TemplateTable
+      template_with_user: Template
       api_key: APIKey
       api_key_scope: APIKeyScope
       api_key_scope_all: APIKeyScopeAll
@@ -81,3 +83,6 @@ sql:
         emit_db_tags: true
         emit_enum_valid_method: true
         emit_all_enum_values: true
+        omit_unused_structs: true
+        rename:
+          template_with_users: TemplateTest

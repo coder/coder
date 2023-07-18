@@ -10,7 +10,7 @@ import (
 
 type MockTemplateScheduleStore struct {
 	GetFn func(ctx context.Context, db database.Store, templateID uuid.UUID) (TemplateScheduleOptions, error)
-	SetFn func(ctx context.Context, db database.Store, template database.TemplateWithUser, options TemplateScheduleOptions) (database.TemplateWithUser, error)
+	SetFn func(ctx context.Context, db database.Store, template database.Template, options TemplateScheduleOptions) (database.Template, error)
 }
 
 var _ TemplateScheduleStore = MockTemplateScheduleStore{}
@@ -23,7 +23,7 @@ func (m MockTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Contex
 	return NewAGPLTemplateScheduleStore().GetTemplateScheduleOptions(ctx, db, templateID)
 }
 
-func (m MockTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, template database.TemplateWithUser, options TemplateScheduleOptions) (database.TemplateWithUser, error) {
+func (m MockTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, template database.Template, options TemplateScheduleOptions) (database.Template, error) {
 	if m.SetFn != nil {
 		return m.SetFn(ctx, db, template, options)
 	}

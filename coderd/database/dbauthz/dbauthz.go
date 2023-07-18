@@ -1157,11 +1157,11 @@ func (q *querier) GetTemplateAverageBuildTime(ctx context.Context, arg database.
 	return q.db.GetTemplateAverageBuildTime(ctx, arg)
 }
 
-func (q *querier) GetTemplateByID(ctx context.Context, id uuid.UUID) (database.TemplateWithUser, error) {
+func (q *querier) GetTemplateByID(ctx context.Context, id uuid.UUID) (database.Template, error) {
 	return fetch(q.log, q.auth, q.db.GetTemplateByID)(ctx, id)
 }
 
-func (q *querier) GetTemplateByOrganizationAndName(ctx context.Context, arg database.GetTemplateByOrganizationAndNameParams) (database.TemplateWithUser, error) {
+func (q *querier) GetTemplateByOrganizationAndName(ctx context.Context, arg database.GetTemplateByOrganizationAndNameParams) (database.Template, error) {
 	return fetch(q.log, q.auth, q.db.GetTemplateByOrganizationAndName)(ctx, arg)
 }
 
@@ -1302,14 +1302,14 @@ func (q *querier) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt
 	return q.db.GetTemplateVersionsCreatedAfter(ctx, createdAt)
 }
 
-func (q *querier) GetTemplates(ctx context.Context) ([]database.TemplateWithUser, error) {
+func (q *querier) GetTemplates(ctx context.Context) ([]database.Template, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
 	return q.db.GetTemplates(ctx)
 }
 
-func (q *querier) GetTemplatesWithFilter(ctx context.Context, arg database.GetTemplatesWithFilterParams) ([]database.TemplateWithUser, error) {
+func (q *querier) GetTemplatesWithFilter(ctx context.Context, arg database.GetTemplatesWithFilterParams) ([]database.Template, error) {
 	prep, err := prepareSQLFilter(ctx, q.auth, rbac.ActionRead, rbac.ResourceTemplate.Type)
 	if err != nil {
 		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
@@ -2138,7 +2138,7 @@ func (q *querier) UpdateReplica(ctx context.Context, arg database.UpdateReplicaP
 }
 
 func (q *querier) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) error {
-	fetch := func(ctx context.Context, arg database.UpdateTemplateACLByIDParams) (database.TemplateWithUser, error) {
+	fetch := func(ctx context.Context, arg database.UpdateTemplateACLByIDParams) (database.Template, error) {
 		return q.db.GetTemplateByID(ctx, arg.ID)
 	}
 	// UpdateTemplateACL uses the ActionCreate action. Only users that can create the template
@@ -2147,7 +2147,7 @@ func (q *querier) UpdateTemplateACLByID(ctx context.Context, arg database.Update
 }
 
 func (q *querier) UpdateTemplateActiveVersionByID(ctx context.Context, arg database.UpdateTemplateActiveVersionByIDParams) error {
-	fetch := func(ctx context.Context, arg database.UpdateTemplateActiveVersionByIDParams) (database.TemplateWithUser, error) {
+	fetch := func(ctx context.Context, arg database.UpdateTemplateActiveVersionByIDParams) (database.Template, error) {
 		return q.db.GetTemplateByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateTemplateActiveVersionByID)(ctx, arg)
@@ -2159,14 +2159,14 @@ func (q *querier) UpdateTemplateDeletedByID(ctx context.Context, arg database.Up
 }
 
 func (q *querier) UpdateTemplateMetaByID(ctx context.Context, arg database.UpdateTemplateMetaByIDParams) error {
-	fetch := func(ctx context.Context, arg database.UpdateTemplateMetaByIDParams) (database.TemplateWithUser, error) {
+	fetch := func(ctx context.Context, arg database.UpdateTemplateMetaByIDParams) (database.Template, error) {
 		return q.db.GetTemplateByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateTemplateMetaByID)(ctx, arg)
 }
 
 func (q *querier) UpdateTemplateScheduleByID(ctx context.Context, arg database.UpdateTemplateScheduleByIDParams) error {
-	fetch := func(ctx context.Context, arg database.UpdateTemplateScheduleByIDParams) (database.TemplateWithUser, error) {
+	fetch := func(ctx context.Context, arg database.UpdateTemplateScheduleByIDParams) (database.Template, error) {
 		return q.db.GetTemplateByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateTemplateScheduleByID)(ctx, arg)
@@ -2510,7 +2510,7 @@ func (q *querier) UpdateWorkspaceTTL(ctx context.Context, arg database.UpdateWor
 }
 
 func (q *querier) UpdateWorkspaceTTLToBeWithinTemplateMax(ctx context.Context, arg database.UpdateWorkspaceTTLToBeWithinTemplateMaxParams) error {
-	fetch := func(ctx context.Context, arg database.UpdateWorkspaceTTLToBeWithinTemplateMaxParams) (database.TemplateWithUser, error) {
+	fetch := func(ctx context.Context, arg database.UpdateWorkspaceTTLToBeWithinTemplateMaxParams) (database.Template, error) {
 		return q.db.GetTemplateByID(ctx, arg.TemplateID)
 	}
 	return fetchAndExec(q.log, q.auth, rbac.ActionUpdate, fetch, q.db.UpdateWorkspaceTTLToBeWithinTemplateMax)(ctx, arg)
@@ -2577,7 +2577,7 @@ func (q *querier) UpsertTailnetCoordinator(ctx context.Context, id uuid.UUID) (d
 	return q.db.UpsertTailnetCoordinator(ctx, id)
 }
 
-func (q *querier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, _ rbac.PreparedAuthorized) ([]database.TemplateWithUser, error) {
+func (q *querier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, _ rbac.PreparedAuthorized) ([]database.Template, error) {
 	// TODO Delete this function, all GetTemplates should be authorized. For now just call getTemplates on the authz querier.
 	return q.GetTemplatesWithFilter(ctx, arg)
 }

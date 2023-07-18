@@ -27,12 +27,12 @@ type customQuerier interface {
 }
 
 type templateQuerier interface {
-	GetAuthorizedTemplates(ctx context.Context, arg GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]TemplateWithUser, error)
+	GetAuthorizedTemplates(ctx context.Context, arg GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]Template, error)
 	GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([]TemplateGroup, error)
 	GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]TemplateUser, error)
 }
 
-func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]TemplateWithUser, error) {
+func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]Template, error) {
 	authorizedFilter, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
 		VariableConverter: regosql.TemplateConverter(),
 	})
@@ -57,9 +57,9 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 		return nil, err
 	}
 	defer rows.Close()
-	var items []TemplateWithUser
+	var items []Template
 	for rows.Next() {
-		var i TemplateWithUser
+		var i Template
 		if err := rows.Scan(
 			&i.ID,
 			&i.CreatedAt,

@@ -55,7 +55,7 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 		ctx               = r.Context()
 		template          = httpmw.TemplateParam(r)
 		auditor           = *api.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.TemplateWithUser](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
 			Audit:   auditor,
 			Log:     api.Logger,
 			Request: r,
@@ -121,7 +121,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		organization                       = httpmw.OrganizationParam(r)
 		apiKey                             = httpmw.APIKey(r)
 		auditor                            = *api.Auditor.Load()
-		templateAudit, commitTemplateAudit = audit.InitRequest[database.TemplateWithUser](rw, &audit.RequestParams{
+		templateAudit, commitTemplateAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
 			Audit:   auditor,
 			Log:     api.Logger,
 			Request: r,
@@ -144,7 +144,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	// Make a temporary struct to represent the template. This is used for
 	// auditing if any of the following checks fail. It will be overwritten when
 	// the template is inserted into the db.
-	templateAudit.New = database.TemplateWithUser{
+	templateAudit.New = database.Template{
 		OrganizationID: organization.ID,
 		Name:           createTemplate.Name,
 		Description:    createTemplate.Description,
@@ -264,7 +264,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	}
 
 	var (
-		dbTemplate database.TemplateWithUser
+		dbTemplate database.Template
 		template   codersdk.Template
 
 		allowUserCancelWorkspaceJobs = ptr.NilToDefault(createTemplate.AllowUserCancelWorkspaceJobs, false)
@@ -448,7 +448,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		ctx               = r.Context()
 		template          = httpmw.TemplateParam(r)
 		auditor           = *api.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.TemplateWithUser](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
 			Audit:   auditor,
 			Log:     api.Logger,
 			Request: r,
@@ -494,7 +494,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var updated database.TemplateWithUser
+	var updated database.Template
 	err := api.Database.InTx(func(tx database.Store) error {
 		if req.Name == template.Name &&
 			req.Description == template.Description &&
@@ -648,7 +648,7 @@ func (api *API) templateExamples(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, ex)
 }
 
-func (api *API) convertTemplates(templates []database.TemplateWithUser) []codersdk.Template {
+func (api *API) convertTemplates(templates []database.Template) []codersdk.Template {
 	apiTemplates := make([]codersdk.Template, 0, len(templates))
 
 	for _, template := range templates {
@@ -664,7 +664,7 @@ func (api *API) convertTemplates(templates []database.TemplateWithUser) []coders
 }
 
 func (api *API) convertTemplate(
-	template database.TemplateWithUser,
+	template database.Template,
 ) codersdk.Template {
 	activeCount, _ := api.metricsCache.TemplateUniqueUsers(template.ID)
 

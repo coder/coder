@@ -2,7 +2,7 @@
 SELECT
 	*
 FROM
-	template_with_users AS templates
+	template_with_users
 WHERE
 	id = $1
 LIMIT

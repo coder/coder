@@ -578,14 +578,14 @@ func (m metricsStore) GetTemplateAverageBuildTime(ctx context.Context, arg datab
 	return buildTime, err
 }
 
-func (m metricsStore) GetTemplateByID(ctx context.Context, id uuid.UUID) (database.TemplateWithUser, error) {
+func (m metricsStore) GetTemplateByID(ctx context.Context, id uuid.UUID) (database.Template, error) {
 	start := time.Now()
 	template, err := m.s.GetTemplateByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetTemplateByID").Observe(time.Since(start).Seconds())
 	return template, err
 }
 
-func (m metricsStore) GetTemplateByOrganizationAndName(ctx context.Context, arg database.GetTemplateByOrganizationAndNameParams) (database.TemplateWithUser, error) {
+func (m metricsStore) GetTemplateByOrganizationAndName(ctx context.Context, arg database.GetTemplateByOrganizationAndNameParams) (database.Template, error) {
 	start := time.Now()
 	template, err := m.s.GetTemplateByOrganizationAndName(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetTemplateByOrganizationAndName").Observe(time.Since(start).Seconds())
@@ -655,14 +655,14 @@ func (m metricsStore) GetTemplateVersionsCreatedAfter(ctx context.Context, creat
 	return versions, err
 }
 
-func (m metricsStore) GetTemplates(ctx context.Context) ([]database.TemplateWithUser, error) {
+func (m metricsStore) GetTemplates(ctx context.Context) ([]database.Template, error) {
 	start := time.Now()
 	templates, err := m.s.GetTemplates(ctx)
 	m.queryLatencies.WithLabelValues("GetTemplates").Observe(time.Since(start).Seconds())
 	return templates, err
 }
 
-func (m metricsStore) GetTemplatesWithFilter(ctx context.Context, arg database.GetTemplatesWithFilterParams) ([]database.TemplateWithUser, error) {
+func (m metricsStore) GetTemplatesWithFilter(ctx context.Context, arg database.GetTemplatesWithFilterParams) ([]database.Template, error) {
 	start := time.Now()
 	templates, err := m.s.GetTemplatesWithFilter(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetTemplatesWithFilter").Observe(time.Since(start).Seconds())
@@ -1604,7 +1604,7 @@ func (m metricsStore) UpsertTailnetCoordinator(ctx context.Context, id uuid.UUID
 	return m.s.UpsertTailnetCoordinator(ctx, id)
 }
 
-func (m metricsStore) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.TemplateWithUser, error) {
+func (m metricsStore) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.Template, error) {
 	start := time.Now()
 	templates, err := m.s.GetAuthorizedTemplates(ctx, arg, prepared)
 	m.queryLatencies.WithLabelValues("GetAuthorizedTemplates").Observe(time.Since(start).Seconds())

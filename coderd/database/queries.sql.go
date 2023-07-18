@@ -3639,16 +3639,16 @@ const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT
 	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl, locked_ttl, created_by_avatar_url, created_by_username
 FROM
-	template_with_users AS templates
+	template_with_users
 WHERE
 	id = $1
 LIMIT
 	1
 `
 
-func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (TemplateWithUser, error) {
+func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Template, error) {
 	row := q.db.QueryRowContext(ctx, getTemplateByID, id)
-	var i TemplateWithUser
+	var i Template
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,
@@ -3697,9 +3697,9 @@ type GetTemplateByOrganizationAndNameParams struct {
 	Name           string    `db:"name" json:"name"`
 }
 
-func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg GetTemplateByOrganizationAndNameParams) (TemplateWithUser, error) {
+func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg GetTemplateByOrganizationAndNameParams) (Template, error) {
 	row := q.db.QueryRowContext(ctx, getTemplateByOrganizationAndName, arg.OrganizationID, arg.Deleted, arg.Name)
-	var i TemplateWithUser
+	var i Template
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,
@@ -3734,15 +3734,15 @@ SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, 
 ORDER BY (name, id) ASC
 `
 
-func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]TemplateWithUser, error) {
+func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 	rows, err := q.db.QueryContext(ctx, getTemplates)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []TemplateWithUser
+	var items []Template
 	for rows.Next() {
-		var i TemplateWithUser
+		var i Template
 		if err := rows.Scan(
 			&i.ID,
 			&i.CreatedAt,
@@ -3820,7 +3820,7 @@ type GetTemplatesWithFilterParams struct {
 	IDs            []uuid.UUID `db:"ids" json:"ids"`
 }
 
-func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplatesWithFilterParams) ([]TemplateWithUser, error) {
+func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplatesWithFilterParams) ([]Template, error) {
 	rows, err := q.db.QueryContext(ctx, getTemplatesWithFilter,
 		arg.Deleted,
 		arg.OrganizationID,
@@ -3831,9 +3831,9 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 		return nil, err
 	}
 	defer rows.Close()
-	var items []TemplateWithUser
+	var items []Template
 	for rows.Next() {
-		var i TemplateWithUser
+		var i Template
 		if err := rows.Scan(
 			&i.ID,
 			&i.CreatedAt,

@@ -443,24 +443,24 @@ func (q *FakeQuerier) getLatestWorkspaceBuildByWorkspaceIDNoLock(_ context.Conte
 	return row, nil
 }
 
-func (q *FakeQuerier) getTemplateByIDNoLock(_ context.Context, id uuid.UUID) (database.TemplateWithUser, error) {
+func (q *FakeQuerier) getTemplateByIDNoLock(_ context.Context, id uuid.UUID) (database.Template, error) {
 	for _, template := range q.templates {
 		if template.ID == id {
 			return q.templateWithUser(template), nil
 		}
 	}
-	return database.TemplateWithUser{}, sql.ErrNoRows
+	return database.Template{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) templatesWithUser(tpl []database.Template) []database.TemplateWithUser {
-	cpy := make([]database.TemplateWithUser, 0, len(tpl))
+func (q *FakeQuerier) templatesWithUser(tpl []database.Template) []database.Template {
+	cpy := make([]database.Template, 0, len(tpl))
 	for _, t := range tpl {
 		cpy = append(cpy, q.templateWithUser(t))
 	}
 	return cpy
 }
 
-func (q *FakeQuerier) templateWithUser(tpl database.Template) database.TemplateWithUser {
+func (q *FakeQuerier) templateWithUser(tpl database.Template) database.Template {
 	var user database.User
 	for _, _user := range q.users {
 		if _user.ID == tpl.CreatedBy {
@@ -468,7 +468,7 @@ func (q *FakeQuerier) templateWithUser(tpl database.Template) database.TemplateW
 			break
 		}
 	}
-	var withUser database.TemplateWithUser
+	var withUser database.Template
 	// This is a cheeky way to copy the fields over without explictly listing them all.
 	d, _ := json.Marshal(tpl)
 	_ = json.Unmarshal(d, &withUser)
@@ -1869,16 +1869,16 @@ func (q *FakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg datab
 	return row, nil
 }
 
-func (q *FakeQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (database.TemplateWithUser, error) {
+func (q *FakeQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (database.Template, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	return q.getTemplateByIDNoLock(ctx, id)
 }
 
-func (q *FakeQuerier) GetTemplateByOrganizationAndName(_ context.Context, arg database.GetTemplateByOrganizationAndNameParams) (database.TemplateWithUser, error) {
+func (q *FakeQuerier) GetTemplateByOrganizationAndName(_ context.Context, arg database.GetTemplateByOrganizationAndNameParams) (database.Template, error) {
 	if err := validateDatabaseType(arg); err != nil {
-		return database.TemplateWithUser{}, err
+		return database.Template{}, err
 	}
 
 	q.mutex.RLock()
@@ -1896,7 +1896,7 @@ func (q *FakeQuerier) GetTemplateByOrganizationAndName(_ context.Context, arg da
 		}
 		return q.templateWithUser(template), nil
 	}
-	return database.TemplateWithUser{}, sql.ErrNoRows
+	return database.Template{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetTemplateDAUs(_ context.Context, arg database.GetTemplateDAUsParams) ([]database.GetTemplateDAUsRow, error) {
@@ -2112,7 +2112,7 @@ func (q *FakeQuerier) GetTemplateVersionsCreatedAfter(_ context.Context, after t
 	return versions, nil
 }
 
-func (q *FakeQuerier) GetTemplates(_ context.Context) ([]database.TemplateWithUser, error) {
+func (q *FakeQuerier) GetTemplates(_ context.Context) ([]database.Template, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -2130,7 +2130,7 @@ func (q *FakeQuerier) GetTemplates(_ context.Context) ([]database.TemplateWithUs
 	return q.templatesWithUser(templates), nil
 }
 
-func (q *FakeQuerier) GetTemplatesWithFilter(ctx context.Context, arg database.GetTemplatesWithFilterParams) ([]database.TemplateWithUser, error) {
+func (q *FakeQuerier) GetTemplatesWithFilter(ctx context.Context, arg database.GetTemplatesWithFilterParams) ([]database.Template, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return nil, err
 	}
@@ -4992,7 +4992,7 @@ func (*FakeQuerier) UpsertTailnetCoordinator(context.Context, uuid.UUID) (databa
 	return database.TailnetCoordinator{}, ErrUnimplemented
 }
 
-func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.TemplateWithUser, error) {
+func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.Template, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return nil, err
 	}

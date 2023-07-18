@@ -1567,7 +1567,35 @@ type TailnetCoordinator struct {
 	HeartbeatAt time.Time `db:"heartbeat_at" json:"heartbeat_at"`
 }
 
+// Joins in the username + avatar url of the created by user.
 type Template struct {
+	ID                           uuid.UUID       `db:"id" json:"id"`
+	CreatedAt                    time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt                    time.Time       `db:"updated_at" json:"updated_at"`
+	OrganizationID               uuid.UUID       `db:"organization_id" json:"organization_id"`
+	Deleted                      bool            `db:"deleted" json:"deleted"`
+	Name                         string          `db:"name" json:"name"`
+	Provisioner                  ProvisionerType `db:"provisioner" json:"provisioner"`
+	ActiveVersionID              uuid.UUID       `db:"active_version_id" json:"active_version_id"`
+	Description                  string          `db:"description" json:"description"`
+	DefaultTTL                   int64           `db:"default_ttl" json:"default_ttl"`
+	CreatedBy                    uuid.UUID       `db:"created_by" json:"created_by"`
+	Icon                         string          `db:"icon" json:"icon"`
+	UserACL                      TemplateACL     `db:"user_acl" json:"user_acl"`
+	GroupACL                     TemplateACL     `db:"group_acl" json:"group_acl"`
+	DisplayName                  string          `db:"display_name" json:"display_name"`
+	AllowUserCancelWorkspaceJobs bool            `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
+	MaxTTL                       int64           `db:"max_ttl" json:"max_ttl"`
+	AllowUserAutostart           bool            `db:"allow_user_autostart" json:"allow_user_autostart"`
+	AllowUserAutostop            bool            `db:"allow_user_autostop" json:"allow_user_autostop"`
+	FailureTTL                   int64           `db:"failure_ttl" json:"failure_ttl"`
+	InactivityTTL                int64           `db:"inactivity_ttl" json:"inactivity_ttl"`
+	LockedTTL                    int64           `db:"locked_ttl" json:"locked_ttl"`
+	CreatedByAvatarURL           string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
+	CreatedByUsername            string          `db:"created_by_username" json:"created_by_username"`
+}
+
+type TemplateTable struct {
 	ID              uuid.UUID       `db:"id" json:"id"`
 	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
 	UpdatedAt       time.Time       `db:"updated_at" json:"updated_at"`
@@ -1665,34 +1693,6 @@ type TemplateVersionVariable struct {
 	Required bool `db:"required" json:"required"`
 	// Sensitive variables have their values redacted in logs or site UI
 	Sensitive bool `db:"sensitive" json:"sensitive"`
-}
-
-// Joins in the username + avatar url of the created by user.
-type TemplateWithUser struct {
-	ID                           uuid.UUID       `db:"id" json:"id"`
-	CreatedAt                    time.Time       `db:"created_at" json:"created_at"`
-	UpdatedAt                    time.Time       `db:"updated_at" json:"updated_at"`
-	OrganizationID               uuid.UUID       `db:"organization_id" json:"organization_id"`
-	Deleted                      bool            `db:"deleted" json:"deleted"`
-	Name                         string          `db:"name" json:"name"`
-	Provisioner                  ProvisionerType `db:"provisioner" json:"provisioner"`
-	ActiveVersionID              uuid.UUID       `db:"active_version_id" json:"active_version_id"`
-	Description                  string          `db:"description" json:"description"`
-	DefaultTTL                   int64           `db:"default_ttl" json:"default_ttl"`
-	CreatedBy                    uuid.UUID       `db:"created_by" json:"created_by"`
-	Icon                         string          `db:"icon" json:"icon"`
-	UserACL                      TemplateACL     `db:"user_acl" json:"user_acl"`
-	GroupACL                     TemplateACL     `db:"group_acl" json:"group_acl"`
-	DisplayName                  string          `db:"display_name" json:"display_name"`
-	AllowUserCancelWorkspaceJobs bool            `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
-	MaxTTL                       int64           `db:"max_ttl" json:"max_ttl"`
-	AllowUserAutostart           bool            `db:"allow_user_autostart" json:"allow_user_autostart"`
-	AllowUserAutostop            bool            `db:"allow_user_autostop" json:"allow_user_autostop"`
-	FailureTTL                   int64           `db:"failure_ttl" json:"failure_ttl"`
-	InactivityTTL                int64           `db:"inactivity_ttl" json:"inactivity_ttl"`
-	LockedTTL                    int64           `db:"locked_ttl" json:"locked_ttl"`
-	CreatedByAvatarURL           string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
-	CreatedByUsername            string          `db:"created_by_username" json:"created_by_username"`
 }
 
 type User struct {

@@ -30,7 +30,7 @@ type TemplateScheduleOptions struct {
 // scheduling options set by the template/site admin.
 type TemplateScheduleStore interface {
 	GetTemplateScheduleOptions(ctx context.Context, db database.Store, templateID uuid.UUID) (TemplateScheduleOptions, error)
-	SetTemplateScheduleOptions(ctx context.Context, db database.Store, template database.TemplateWithUser, opts TemplateScheduleOptions) (database.TemplateWithUser, error)
+	SetTemplateScheduleOptions(ctx context.Context, db database.Store, template database.Template, opts TemplateScheduleOptions) (database.Template, error)
 }
 
 type agplTemplateScheduleStore struct{}
@@ -62,13 +62,13 @@ func (*agplTemplateScheduleStore) GetTemplateScheduleOptions(ctx context.Context
 	}, nil
 }
 
-func (*agplTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, tpl database.TemplateWithUser, opts TemplateScheduleOptions) (database.TemplateWithUser, error) {
+func (*agplTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context, db database.Store, tpl database.Template, opts TemplateScheduleOptions) (database.Template, error) {
 	if int64(opts.DefaultTTL) == tpl.DefaultTTL {
 		// Avoid updating the UpdatedAt timestamp if nothing will be changed.
 		return tpl, nil
 	}
 
-	var template database.TemplateWithUser
+	var template database.Template
 	err := db.InTx(func(db database.Store) error {
 		err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 			ID:         tpl.ID,

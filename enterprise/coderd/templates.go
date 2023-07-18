@@ -105,7 +105,7 @@ func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 		ctx               = r.Context()
 		template          = httpmw.TemplateParam(r)
 		auditor           = api.AGPL.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.TemplateWithUser](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
 			Audit:   *auditor,
 			Log:     api.Logger,
 			Request: r,

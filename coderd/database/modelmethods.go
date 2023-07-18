@@ -109,7 +109,7 @@ func (t Template) RBACObject() rbac.Object {
 		WithGroupACL(t.GroupACL)
 }
 
-func (t TemplateWithUser) RBACObject() rbac.Object {
+func (t Template) RBACObject() rbac.Object {
 	return rbac.ResourceTemplate.WithID(t.ID).
 		InOrg(t.OrganizationID).
 		WithACLUserList(t.UserACL).
@@ -130,7 +130,7 @@ func (t Template) DeepCopy() Template {
 	return cpy
 }
 
-func (TemplateVersion) RBACObject(template TemplateWithUser) rbac.Object {
+func (TemplateVersion) RBACObject(template Template) rbac.Object {
 	// Just use the parent template resource for controlling versions
 	return template.RBACObject()
 }
