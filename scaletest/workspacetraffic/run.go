@@ -196,9 +196,7 @@ func writeRandomDataPTY(dst io.Writer, size int64, tick <-chan time.Time) error 
 		ptyReq = codersdk.ReconnectingPTYRequest{}
 	)
 	for range tick {
-		payload := "#" + mustRandStr(size-1)
-		ptyReq.Data = payload
-
+		ptyReq.Data = mustRandomComment(size - 1)
 		if err := enc.Encode(ptyReq); err != nil {
 			if xerrors.Is(err, context.Canceled) {
 				return nil
@@ -217,7 +215,7 @@ func writeRandomDataPTY(dst io.Writer, size int64, tick <-chan time.Time) error 
 
 func writeRandomDataSSH(dst io.Writer, size int64, tick <-chan time.Time) error {
 	for range tick {
-		payload := "#" + mustRandStr(size-1)
+		payload := mustRandomComment(size - 1)
 		if _, err := dst.Write([]byte(payload + "\r\n")); err != nil {
 			if xerrors.Is(err, context.Canceled) {
 				return nil
@@ -234,7 +232,10 @@ func writeRandomDataSSH(dst io.Writer, size int64, tick <-chan time.Time) error 
 	return nil
 }
 
-func mustRandStr(l int64) string {
+// mustRandomComment returns a random string prefixed by a #.
+// This allows us to send data both to and from a workspace agent
+// while placing minimal load upon the workspace itself.
+func mustRandomComment(l int64) string {
 	if l < 1 {
 		l = 1
 	}
@@ -242,5 +243,6 @@ func mustRandStr(l int64) string {
 	if err != nil {
 		panic(err)
 	}
-	return randStr
+	// THIS IS A LOAD-BEARING OCTOTHORPE. DO NOT REMOVE.
+	return "#" + randStr
 }
