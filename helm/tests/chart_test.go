@@ -52,6 +52,10 @@ var TestCases = []TestCase{
 		name:          "command",
 		expectedError: "",
 	},
+	{
+		name:          "command_args",
+		expectedError: "",
+	},
 }
 
 type TestCase struct {
