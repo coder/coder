@@ -57,17 +57,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        
+      - name: Get short commit SHA
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+      
+      - name: Get Latest Commit Title
+        id: message
+        run: echo "pr_title==$(git log --format=%s -n 1 ${{ github.sha }})" >> $GITHUB_OUTPUT
 
       - name: "Get latest Coder binary from the server"
         run: |
           curl -fsSL "https://dev.coder.com/bin/coder-linux-amd64" -o "./coder"
           chmod +x "./coder"
-      
-      - name: Get Latest Commit Title
-        id: message
-        run: |
-          pr_title=$(git log --format=%s -n 1 ${{ github.sha }})
-          echo "PR title=$pr_title" >> $GITHUB_OUTPUT
 
       - name: "Push template"
         run: |
