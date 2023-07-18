@@ -35,7 +35,7 @@ export const UpdateButton: FC<WorkspaceAction> = ({
 }
 
 export const StartButton: FC<
-  WorkspaceAction & {
+  Omit<WorkspaceAction, "handleAction"> & {
     workspace: Workspace
     handleAction: (buildParameters?: WorkspaceBuildParameter[]) => void
   }
@@ -55,7 +55,7 @@ export const StartButton: FC<
         loadingIndicator="Starting..."
         loadingPosition="start"
         startIcon={<PlayCircleOutlineIcon />}
-        onClick={handleAction}
+        onClick={() => handleAction()}
       >
         Start
       </LoadingButton>
@@ -83,7 +83,7 @@ export const StopButton: FC<WorkspaceAction> = ({ handleAction, loading }) => {
 }
 
 export const RestartButton: FC<
-  WorkspaceAction & {
+  Omit<WorkspaceAction, "handleAction"> & {
     workspace: Workspace
     handleAction: (buildParameters?: WorkspaceBuildParameter[]) => void
   }
@@ -103,7 +103,7 @@ export const RestartButton: FC<
         loadingIndicator="Restarting..."
         loadingPosition="start"
         startIcon={<ReplayIcon />}
-        onClick={handleAction}
+        onClick={() => handleAction()}
         data-testid="workspace-restart-button"
       >
         Restart
