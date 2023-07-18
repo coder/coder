@@ -26,10 +26,11 @@ func (w *countReadWriteCloser) Close() error {
 func (w *countReadWriteCloser) Read(p []byte) (int, error) {
 	start := time.Now()
 	n, err := w.rwc.Read(p)
+	took := time.Since(start).Seconds()
 	if reportableErr(err) {
 		w.readMetrics.AddError(1)
 	}
-	w.readMetrics.ObserveLatency(time.Since(start).Seconds())
+	w.readMetrics.ObserveLatency(took)
 	if n > 0 {
 		w.readMetrics.AddTotal(float64(n))
 	}
@@ -39,10 +40,11 @@ func (w *countReadWriteCloser) Read(p []byte) (int, error) {
 func (w *countReadWriteCloser) Write(p []byte) (int, error) {
 	start := time.Now()
 	n, err := w.rwc.Write(p)
+	took := time.Since(start).Seconds()
 	if reportableErr(err) {
 		w.writeMetrics.AddError(1)
 	}
-	w.writeMetrics.ObserveLatency(time.Since(start).Seconds())
+	w.writeMetrics.ObserveLatency(took)
 	if n > 0 {
 		w.writeMetrics.AddTotal(float64(n))
 	}
