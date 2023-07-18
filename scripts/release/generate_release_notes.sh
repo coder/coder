@@ -149,7 +149,7 @@ image_tag="$(execrelative ../image_tag.sh --version "$new_version")"
 echo -e "## Changelog
 $changelog
 
-Compare: [\`$old_version...$new_version\`](https://github.com/coder/coder/compare/$old_version...$new_version)
+Compare: [\`$old_version...v$new_version\`](https://github.com/coder/coder/compare/$old_version...v$new_version)
 
 ## Container image
 
