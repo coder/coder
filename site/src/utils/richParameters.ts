@@ -32,6 +32,10 @@ export const selectInitialRichParametersValues = (
       return
     }
 
+    if (parameter.ephemeral) {
+      parameterValue = parameter.default_value
+    }
+
     if (defaultValuesFromQuery && defaultValuesFromQuery[parameter.name]) {
       parameterValue = defaultValuesFromQuery[parameter.name]
     }
@@ -191,7 +195,7 @@ export const getInitialParameterValues = (
     const buildParameter = buildParameters.find(
       (p) => p.name === parameter.name,
     )
-    if (!buildParameter) {
+    if (!buildParameter || parameter.ephemeral) {
       return {
         name: parameter.name,
         value: parameter.default_value,
