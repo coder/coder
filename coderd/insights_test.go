@@ -294,10 +294,11 @@ func TestTemplateInsights(t *testing.T) {
 
 	// Start an rpty session to generate rpty usage stats.
 	rpty, err := client.WorkspaceAgentReconnectingPTY(ctx, codersdk.WorkspaceAgentReconnectingPTYOpts{
-		AgentID:   resources[0].Agents[0].ID,
-		Reconnect: uuid.New(),
-		Width:     80,
-		Height:    24,
+		AgentID:     resources[0].Agents[0].ID,
+		Reconnect:   uuid.New(),
+		Width:       80,
+		Height:      24,
+		BackendType: codersdk.ReconnectingPTYBackendTypeBuffered,
 	})
 	require.NoError(t, err)
 	defer rpty.Close()

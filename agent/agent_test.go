@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"net/netip"
 	"os"
+	"os/exec"
 	"os/user"
 	"path"
 	"path/filepath"
@@ -102,7 +103,7 @@ func TestAgent_Stats_ReconnectingPTY(t *testing.T) {
 	//nolint:dogsled
 	conn, _, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 
-	ptyConn, err := conn.ReconnectingPTY(ctx, uuid.New(), 128, 128, "/bin/bash")
+	ptyConn, err := conn.ReconnectingPTY(ctx, uuid.New(), 128, 128, "bash", codersdk.ReconnectingPTYBackendTypeBuffered)
 	require.NoError(t, err)
 	defer ptyConn.Close()
 
@@ -1587,6 +1588,10 @@ func TestAgent_Startup(t *testing.T) {
 	})
 }
 
+const ansi = "[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))"
+
+var re = regexp.MustCompile(ansi)
+
 func TestAgent_ReconnectingPTY(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {
@@ -1596,61 +1601,117 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 		t.Skip("ConPTY appears to be inconsistent on Windows.")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	backends := []codersdk.ReconnectingPTYBackendType{
+		codersdk.ReconnectingPTYBackendTypeBuffered,
+		codersdk.ReconnectingPTYBackendTypeScreen,
+	}
 
-	//nolint:dogsled
-	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
-	id := uuid.New()
-	netConn, err := conn.ReconnectingPTY(ctx, id, 100, 100, "/bin/bash")
-	require.NoError(t, err)
-	defer netConn.Close()
-
-	bufRead := bufio.NewReader(netConn)
-
-	// Brief pause to reduce the likelihood that we send keystrokes while
-	// the shell is simultaneously sending a prompt.
-	time.Sleep(100 * time.Millisecond)
-
-	data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
-		Data: "echo test\r\n",
-	})
-	require.NoError(t, err)
-	_, err = netConn.Write(data)
-	require.NoError(t, err)
-
-	expectLine := func(matcher func(string) bool) {
-		for {
-			line, err := bufRead.ReadString('\n')
-			require.NoError(t, err)
-			if matcher(line) {
-				break
+	for _, backendType := range backends {
+		backendType := backendType
+		t.Run(string(backendType), func(t *testing.T) {
+			t.Parallel()
+			if runtime.GOOS == "darwin" {
+				t.Skip("`screen` is flaky on darwin")
+			} else if backendType == codersdk.ReconnectingPTYBackendTypeScreen {
+				_, err := exec.LookPath("screen")
+				if err != nil {
+					t.Skip("`screen` not found")
+				}
 			}
-		}
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			//nolint:dogsled
+			conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+			id := uuid.New()
+			netConn1, err := conn.ReconnectingPTY(ctx, id, 100, 100, "bash", backendType)
+			require.NoError(t, err)
+			defer netConn1.Close()
+
+			scanner1 := bufio.NewScanner(netConn1)
+
+			// A second simultaneous connection.
+			netConn2, err := conn.ReconnectingPTY(ctx, id, 100, 100, "bash", backendType)
+			require.NoError(t, err)
+			defer netConn2.Close()
+			scanner2 := bufio.NewScanner(netConn2)
+
+			// Brief pause to reduce the likelihood that we send keystrokes while
+			// the shell is simultaneously sending a prompt.
+			time.Sleep(100 * time.Millisecond)
+
+			data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
+				Data: "echo test\r\n",
+			})
+			require.NoError(t, err)
+			_, err = netConn1.Write(data)
+			require.NoError(t, err)
+
+			hasLine := func(scanner *bufio.Scanner, matcher func(string) bool) bool {
+				for scanner.Scan() {
+					line := scanner.Text()
+					t.Logf("bash tty stdout = %s", re.ReplaceAllString(line, ""))
+					if matcher(line) {
+						return true
+					}
+				}
+				return false
+			}
+
+			matchEchoCommand := func(line string) bool {
+				return strings.Contains(line, "echo test")
+			}
+			matchEchoOutput := func(line string) bool {
+				return strings.Contains(line, "test") && !strings.Contains(line, "echo")
+			}
+			matchExitCommand := func(line string) bool {
+				return strings.Contains(line, "exit")
+			}
+			matchExitOutput := func(line string) bool {
+				return strings.Contains(line, "exit") || strings.Contains(line, "logout")
+			}
+
+			// Once for typing the command...
+			require.True(t, hasLine(scanner1, matchEchoCommand), "find echo command")
+			// And another time for the actual output.
+			require.True(t, hasLine(scanner1, matchEchoOutput), "find echo output")
+
+			// Same for the other connection.
+			require.True(t, hasLine(scanner2, matchEchoCommand), "find echo command")
+			require.True(t, hasLine(scanner2, matchEchoOutput), "find echo output")
+
+			_ = netConn1.Close()
+			_ = netConn2.Close()
+			netConn3, err := conn.ReconnectingPTY(ctx, id, 100, 100, "bash", backendType)
+			require.NoError(t, err)
+			defer netConn3.Close()
+
+			scanner3 := bufio.NewScanner(netConn3)
+
+			// Same output again!
+			require.True(t, hasLine(scanner3, matchEchoCommand), "find echo command")
+			require.True(t, hasLine(scanner3, matchEchoOutput), "find echo output")
+
+			// Exit should cause the connection to close.
+			data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
+				Data: "exit\r\n",
+			})
+			require.NoError(t, err)
+			_, err = netConn3.Write(data)
+			require.NoError(t, err)
+
+			// Once for the input and again for the output.
+			require.True(t, hasLine(scanner3, matchExitCommand), "find exit command")
+			require.True(t, hasLine(scanner3, matchExitOutput), "find exit output")
+
+			// Wait for the connection to close.
+			for scanner3.Scan() {
+				line := scanner3.Text()
+				t.Logf("bash tty stdout = %s", re.ReplaceAllString(line, ""))
+			}
+		})
 	}
-
-	matchEchoCommand := func(line string) bool {
-		return strings.Contains(line, "echo test")
-	}
-	matchEchoOutput := func(line string) bool {
-		return strings.Contains(line, "test") && !strings.Contains(line, "echo")
-	}
-
-	// Once for typing the command...
-	expectLine(matchEchoCommand)
-	// And another time for the actual output.
-	expectLine(matchEchoOutput)
-
-	_ = netConn.Close()
-	netConn, err = conn.ReconnectingPTY(ctx, id, 100, 100, "/bin/bash")
-	require.NoError(t, err)
-	defer netConn.Close()
-
-	bufRead = bufio.NewReader(netConn)
-
-	// Same output again!
-	expectLine(matchEchoCommand)
-	expectLine(matchEchoOutput)
 }
 
 func TestAgent_Dial(t *testing.T) {

@@ -15,11 +15,12 @@ import (
 
 func connectPTY(ctx context.Context, client *codersdk.Client, agentID, reconnect uuid.UUID) (*countReadWriteCloser, error) {
 	conn, err := client.WorkspaceAgentReconnectingPTY(ctx, codersdk.WorkspaceAgentReconnectingPTYOpts{
-		AgentID:   agentID,
-		Reconnect: reconnect,
-		Height:    25,
-		Width:     80,
-		Command:   "/bin/sh",
+		AgentID:     agentID,
+		Reconnect:   reconnect,
+		Height:      25,
+		Width:       80,
+		Command:     "sh",
+		BackendType: codersdk.ReconnectingPTYBackendTypeBuffered,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("connect pty: %w", err)

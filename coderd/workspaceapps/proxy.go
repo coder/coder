@@ -632,6 +632,7 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	reconnect := parser.Required("reconnect").UUID(values, uuid.New(), "reconnect")
 	height := parser.UInt(values, 80, "height")
 	width := parser.UInt(values, 80, "width")
+	backendType := httpapi.ParseCustom(parser, values, codersdk.ReconnectingPTYBackendTypeAuto, "backend", httpapi.ParseEnum[codersdk.ReconnectingPTYBackendType])
 	if len(parser.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid query parameters.",
@@ -671,7 +672,7 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	defer release()
 	defer agentConn.Close()
 	log.Debug(ctx, "dialed workspace agent")
-	ptNetConn, err := agentConn.ReconnectingPTY(ctx, reconnect, uint16(height), uint16(width), r.URL.Query().Get("command"))
+	ptNetConn, err := agentConn.ReconnectingPTY(ctx, reconnect, uint16(height), uint16(width), r.URL.Query().Get("command"), backendType)
 	if err != nil {
 		log.Debug(ctx, "dial reconnecting pty server in workspace agent", slog.Error(err))
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial: %s", err))

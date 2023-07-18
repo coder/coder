@@ -34,7 +34,8 @@ func Test_Runner(t *testing.T) {
 			AgentID: agentID,
 			Init: codersdk.WorkspaceAgentReconnectingPTYInit{
 				// Use ; here because it's powershell compatible (vs &&).
-				Command: "echo 'hello world'; sleep 1",
+				Command:     "echo 'hello world'; sleep 1",
+				BackendType: codersdk.ReconnectingPTYBackendTypeBuffered,
 			},
 			LogOutput: true,
 		})
@@ -62,7 +63,8 @@ func Test_Runner(t *testing.T) {
 		runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 			AgentID: agentID,
 			Init: codersdk.WorkspaceAgentReconnectingPTYInit{
-				Command: "echo 'hello world'",
+				Command:     "echo 'hello world'",
+				BackendType: codersdk.ReconnectingPTYBackendTypeBuffered,
 			},
 			LogOutput: false,
 		})
@@ -90,7 +92,8 @@ func Test_Runner(t *testing.T) {
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
 				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
-					Command: "echo 'hello world'",
+					Command:     "echo 'hello world'",
+					BackendType: codersdk.ReconnectingPTYBackendTypeBuffered,
 				},
 				Timeout:   httpapi.Duration(2 * testutil.WaitSuperLong),
 				LogOutput: true,
@@ -114,7 +117,8 @@ func Test_Runner(t *testing.T) {
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
 				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
-					Command: "sleep 120",
+					Command:     "sleep 120",
+					BackendType: codersdk.ReconnectingPTYBackendTypeBuffered,
 				},
 				Timeout:   httpapi.Duration(2 * time.Second),
 				LogOutput: true,
@@ -143,7 +147,8 @@ func Test_Runner(t *testing.T) {
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
 				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
-					Command: "sleep 120",
+					Command:     "sleep 120",
+					BackendType: codersdk.ReconnectingPTYBackendTypeBuffered,
 				},
 				Timeout:       httpapi.Duration(2 * time.Second),
 				ExpectTimeout: true,
@@ -168,7 +173,8 @@ func Test_Runner(t *testing.T) {
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
 				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
-					Command: "echo 'hello world'",
+					Command:     "echo 'hello world'",
+					BackendType: codersdk.ReconnectingPTYBackendTypeBuffered,
 				},
 				Timeout:       httpapi.Duration(2 * testutil.WaitSuperLong),
 				ExpectTimeout: true,
@@ -198,7 +204,8 @@ func Test_Runner(t *testing.T) {
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
 				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
-					Command: "echo 'hello world'; sleep 1",
+					Command:     "echo 'hello world'; sleep 1",
+					BackendType: codersdk.ReconnectingPTYBackendTypeBuffered,
 				},
 				ExpectOutput: "hello world",
 				LogOutput:    false,
@@ -222,7 +229,8 @@ func Test_Runner(t *testing.T) {
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
 				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
-					Command: "echo 'hello world'; sleep 1",
+					Command:     "echo 'hello world'; sleep 1",
+					BackendType: codersdk.ReconnectingPTYBackendTypeBuffered,
 				},
 				ExpectOutput: "bello borld",
 				LogOutput:    false,
