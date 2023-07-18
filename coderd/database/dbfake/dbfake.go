@@ -5038,7 +5038,7 @@ func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.G
 				continue
 			}
 		}
-		templates = append(templates)
+		templates = append(templates, template)
 	}
 	if len(templates) > 0 {
 		slices.SortFunc(templates, func(i, j database.Template) bool {
