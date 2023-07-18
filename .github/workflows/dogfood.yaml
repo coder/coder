@@ -63,9 +63,9 @@ jobs:
         id: vars
         run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
-      - name: Get Latest Commit Title
+      - name: Get latest commit title
         id: message
-        run: echo "pr_title==$(git log --format=%s -n 1 ${{ github.sha }})" >> $GITHUB_OUTPUT
+        run: echo "pr_title=$(git log --format=%s -n 1 ${{ github.sha }})" >> $GITHUB_OUTPUT
 
       - name: "Get latest Coder binary from the server"
         run: |
