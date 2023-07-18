@@ -469,7 +469,7 @@ func (q *FakeQuerier) templateWithUser(tpl database.TemplateTable) database.Temp
 		}
 	}
 	var withUser database.Template
-	// This is a cheeky way to copy the fields over without explictly listing them all.
+	// This is a cheeky way to copy the fields over without explicitly listing them all.
 	d, _ := json.Marshal(tpl)
 	_ = json.Unmarshal(d, &withUser)
 	withUser.CreatedByUsername = user.Username
