@@ -9,6 +9,7 @@ import { useFormik } from "formik"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
 import {
+  getInitialParameterValues,
   useValidationSchemaForRichParameters,
   workspaceBuildParameterValue,
 } from "utils/richParameters"
@@ -48,18 +49,10 @@ export const WorkspaceParametersForm: FC<{
   const form = useFormik<WorkspaceParametersFormValues>({
     onSubmit,
     initialValues: {
-      rich_parameter_values: mutableParameters.map((parameter) => {
-        const buildParameter = buildParameters.find(
-          (p) => p.name === parameter.name,
-        )
-        if (!buildParameter) {
-          return {
-            name: parameter.name,
-            value: parameter.default_value,
-          }
-        }
-        return buildParameter
-      }),
+      rich_parameter_values: getInitialParameterValues(
+        mutableParameters,
+        buildParameters,
+      ),
     },
     validationSchema: Yup.object({
       rich_parameter_values: useValidationSchemaForRichParameters(
@@ -72,36 +65,80 @@ export const WorkspaceParametersForm: FC<{
     form,
     error,
   )
+  const hasEphemeralParameters = mutableParameters.some(
+    (parameter) => parameter.ephemeral,
+  )
+  const hasNonEphemeralParameters = mutableParameters.some(
+    (parameter) => !parameter.ephemeral,
+  )
 
   return (
     <HorizontalForm onSubmit={form.handleSubmit} data-testid="form">
-      {mutableParameters.length > 0 && (
+      {hasNonEphemeralParameters && (
         <FormSection
           title={t("parameters").toString()}
           description={t("parametersDescription").toString()}
         >
           <FormFields>
-            {mutableParameters.map((parameter, index) => (
-              <RichParameterInput
-                {...getFieldHelpers(
-                  "rich_parameter_values[" + index + "].value",
-                )}
-                disabled={isSubmitting}
-                index={index}
-                key={parameter.name}
-                onChange={async (value) => {
-                  await form.setFieldValue("rich_parameter_values." + index, {
-                    name: parameter.name,
-                    value: value,
-                  })
-                }}
-                parameter={parameter}
-                initialValue={workspaceBuildParameterValue(
-                  buildParameters,
-                  parameter,
-                )}
-              />
-            ))}
+            {mutableParameters.map((parameter, index) =>
+              // Since we are adding the values to the form based on the index
+              // we can't filter them to not loose the right index position
+              parameter.ephemeral ? null : (
+                <RichParameterInput
+                  {...getFieldHelpers(
+                    "rich_parameter_values[" + index + "].value",
+                  )}
+                  disabled={isSubmitting}
+                  index={index}
+                  key={parameter.name}
+                  onChange={async (value) => {
+                    await form.setFieldValue("rich_parameter_values." + index, {
+                      name: parameter.name,
+                      value: value,
+                    })
+                  }}
+                  parameter={parameter}
+                  initialValue={workspaceBuildParameterValue(
+                    buildParameters,
+                    parameter,
+                  )}
+                />
+              ),
+            )}
+          </FormFields>
+        </FormSection>
+      )}
+      {hasEphemeralParameters && (
+        <FormSection
+          title="Ephemeral Parameters"
+          description="These parameters only apply for a single workspace start."
+        >
+          <FormFields>
+            {mutableParameters.map((parameter, index) =>
+              // Since we are adding the values to the form based on the index
+              // we can't filter them to not loose the right index position
+              parameter.ephemeral ? (
+                <RichParameterInput
+                  {...getFieldHelpers(
+                    "rich_parameter_values[" + index + "].value",
+                  )}
+                  disabled={isSubmitting}
+                  index={index}
+                  key={parameter.name}
+                  onChange={async (value) => {
+                    await form.setFieldValue("rich_parameter_values." + index, {
+                      name: parameter.name,
+                      value: value,
+                    })
+                  }}
+                  parameter={parameter}
+                  initialValue={workspaceBuildParameterValue(
+                    buildParameters,
+                    parameter,
+                  )}
+                />
+              ) : null,
+            )}
           </FormFields>
         </FormSection>
       )}

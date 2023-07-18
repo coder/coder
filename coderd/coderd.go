@@ -727,7 +727,14 @@ func New(options *Options) *API {
 			r.Post("/azure-instance-identity", api.postWorkspaceAuthAzureInstanceIdentity)
 			r.Post("/aws-instance-identity", api.postWorkspaceAuthAWSInstanceIdentity)
 			r.Post("/google-instance-identity", api.postWorkspaceAuthGoogleInstanceIdentity)
-			r.Get("/connection", api.workspaceAgentConnectionGeneric)
+			r.With(
+				apiKeyMiddlewareOptional,
+				httpmw.ExtractWorkspaceProxy(httpmw.ExtractWorkspaceProxyConfig{
+					DB:       options.Database,
+					Optional: true,
+				}),
+				httpmw.RequireAPIKeyOrWorkspaceProxyAuth(),
+			).Get("/connection", api.workspaceAgentConnectionGeneric)
 			r.Route("/me", func(r chi.Router) {
 				r.Use(httpmw.ExtractWorkspaceAgent(httpmw.ExtractWorkspaceAgentConfig{
 					DB:       options.Database,

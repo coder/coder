@@ -12,17 +12,21 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import gfm from "remark-gfm"
 import { colors } from "theme/colors"
 import { darcula } from "react-syntax-highlighter/dist/cjs/styles/prism"
+import { combineClasses } from "utils/combineClasses"
 
 export interface MarkdownProps {
   children: string
 }
 
-export const Markdown: FC<{ children: string }> = ({ children }) => {
+export const Markdown: FC<{ children: string; className?: string }> = ({
+  children,
+  className,
+}) => {
   const styles = useStyles()
 
   return (
     <ReactMarkdown
-      className={styles.markdown}
+      className={combineClasses([styles.markdown, className])}
       remarkPlugins={[gfm]}
       components={{
         a: ({ href, target, children }) => (

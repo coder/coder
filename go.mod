@@ -38,6 +38,16 @@ replace github.com/dlclark/regexp2 => github.com/dlclark/regexp2 v1.7.0
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
 replace tailscale.com => github.com/coder/tailscale v0.0.0-20230522123520-74712221d00f
 
+// Use our tempfork of gvisor that includes a fix for TCP connection stalls:
+// https://github.com/coder/coder/issues/7388
+// The basis for this fork is: gvisor.dev/gvisor v0.0.0-20230504175454-7b0a1988a28f
+// This is the same version as used by Tailscale `main`:
+// https://github.com/tailscale/tailscale/blob/c19b5bfbc391637b11c2acb3c725909a0046d849/go.mod#L88
+//
+// Latest gvisor otherwise has refactored packages and is currently incompatible with
+// Tailscale, to remove our tempfork this needs to be addressed.
+replace gvisor.dev/gvisor => github.com/coder/gvisor v0.0.0-20230714132058-be2e4ac102c3
+
 // Switch to our fork that imports fixes from http://github.com/tailscale/ssh.
 // See: https://github.com/coder/coder/issues/3371
 //
@@ -75,7 +85,7 @@ require (
 	github.com/codeclysm/extract/v3 v3.1.1
 	github.com/coder/flog v1.1.0
 	github.com/coder/retry v1.4.0
-	github.com/coder/terraform-provider-coder v0.11.0
+	github.com/coder/terraform-provider-coder v0.11.1
 	github.com/coder/wgtunnel v0.1.5
 	github.com/coreos/go-oidc/v3 v3.6.0
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
