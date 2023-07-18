@@ -213,6 +213,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			}
 			defer conn.Close()
 			conn.AwaitReachable(ctx)
+
 			stopPolling := tryPollWorkspaceAutostop(ctx, client, workspace)
 			defer stopPolling()
 
@@ -625,8 +626,15 @@ func getWorkspaceAndAgent(ctx context.Context, inv *clibase.Invocation, client *
 // of the CLI running simultaneously.
 func tryPollWorkspaceAutostop(ctx context.Context, client *codersdk.Client, workspace codersdk.Workspace) (stop func()) {
 	lock := flock.New(filepath.Join(os.TempDir(), "coder-autostop-notify-"+workspace.ID.String()))
-	condition := notifyCondition(ctx, client, workspace.ID, lock)
-	return notify.Notify(condition, workspacePollInterval, autostopNotifyCountdown...)
+	conditionCtx, cancelCondition := context.WithCancel(ctx)
+	condition := notifyCondition(conditionCtx, client, workspace.ID, lock)
+	stopFunc := notify.Notify(condition, workspacePollInterval, autostopNotifyCountdown...)
+	return func() {
+		// With many "ssh" processes running, `lock.TryLockContext` can be hanging until the context canceled.
+		// Without this cancellation, a CLI process with failed remote-forward could be hanging indefinitely.
+		cancelCondition()
+		stopFunc()
+	}
 }
 
 // Notify the user if the workspace is due to shutdown.
