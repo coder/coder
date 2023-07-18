@@ -172,7 +172,7 @@ resource "coder_agent" "dev" {
     set -eux -o pipefail
 
     # change to home
-    cd /home/coder
+    cd "$HOME"
 
     # install and start code-server
     curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.8.3
@@ -180,7 +180,7 @@ resource "coder_agent" "dev" {
 
     # Install and launch filebrowser
     curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
-    filebrowser --noauth --root /home/coder --port 8080 >/tmp/filebrowser.log 2>&1 &
+    filebrowser --noauth --root /home/coder --port 13338 >/tmp/filebrowser.log 2>&1 &
 
     if [ ! -d ${data.coder_parameter.repo_dir.value} ]; then
       mkdir -p ${data.coder_parameter.repo_dir.value}
@@ -199,10 +199,6 @@ resource "coder_agent" "dev" {
     elif [ -f ~/personalize ]; then
       echo "~/personalize is not executable, skipping..." | tee -a ~/.personalize.log
     fi
-
-    # change back to repo_dir
-    cd ${data.coder_parameter.repo_dir.value}
-
   EOT
 }
 
@@ -226,7 +222,7 @@ resource "coder_app" "filebrowser" {
   agent_id     = coder_agent.dev.id
   display_name = "File Browser"
   slug         = "filebrowser"
-  url          = "http://localhost:8080"
+  url          = "http://localhost:13338"
   icon         = "https://raw.githubusercontent.com/matifali/logos/main/database.svg"
   subdomain    = true
   share        = "owner"
