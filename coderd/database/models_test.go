@@ -11,6 +11,7 @@ import (
 
 // TestViewSubsetTemplate ensures TemplateTable is a subset of Template
 func TestViewSubsetTemplate(t *testing.T) {
+	t.Parallel()
 	table := reflect.TypeOf(database.TemplateTable{})
 	joined := reflect.TypeOf(database.Template{})
 

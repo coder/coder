@@ -2117,9 +2117,6 @@ func (q *FakeQuerier) GetTemplates(_ context.Context) ([]database.Template, erro
 	defer q.mutex.RUnlock()
 
 	templates := slices.Clone(q.templates)
-	for i := range templates {
-		templates[i] = templates[i]
-	}
 	slices.SortFunc(templates, func(i, j database.TemplateTable) bool {
 		if i.Name != j.Name {
 			return i.Name < j.Name
