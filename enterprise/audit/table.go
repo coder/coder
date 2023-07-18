@@ -72,7 +72,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"default_ttl":                      ActionTrack,
 		"created_by":                       ActionTrack,
 		"created_by_username":              ActionTrack,
-		"created_by_avatar_url":            ActionIgnore,
+		"created_by_avatar_url":            ActionTrack,
 		"group_acl":                        ActionTrack,
 		"user_acl":                         ActionTrack,
 		"allow_user_autostart":             ActionTrack,

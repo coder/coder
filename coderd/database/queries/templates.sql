@@ -107,8 +107,7 @@ SET
 	allow_user_cancel_workspace_jobs = $7
 WHERE
 	id = $1
-RETURNING
-	*;
+;
 
 -- name: UpdateTemplateScheduleByID :exec
 UPDATE
@@ -124,8 +123,7 @@ SET
 	locked_ttl = $9
 WHERE
 	id = $1
-RETURNING
-	*;
+;
 
 -- name: UpdateTemplateACLByID :exec
 UPDATE
@@ -135,8 +133,7 @@ SET
 	user_acl = $2
 WHERE
 	id = $3
-RETURNING
-	*;
+;
 
 -- name: GetTemplateAverageBuildTime :one
 WITH build_times AS (
