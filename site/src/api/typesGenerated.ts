@@ -1145,8 +1145,8 @@ export interface User {
 export interface UserLatency {
   readonly template_ids: string[]
   readonly user_id: string
-  readonly name: string
-  readonly latency_ms: ConnectionLatency
+  readonly username: string
+  readonly latency_ms?: ConnectionLatency
 }
 
 // From codersdk/insights.go

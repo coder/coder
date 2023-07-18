@@ -79,7 +79,7 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	// return ALL workspaces. Not just workspaces the user can view.
 	// nolint:gocritic
 	workspaces, err := api.Database.GetWorkspaces(dbauthz.AsSystemRestricted(ctx), database.GetWorkspacesParams{
-		TemplateIds: []uuid.UUID{template.ID},
+		TemplateIDs: []uuid.UUID{template.ID},
 	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

@@ -8767,9 +8767,6 @@
         "latency_ms": {
           "$ref": "#/definitions/codersdk.ConnectionLatency"
         },
-        "name": {
-          "type": "string"
-        },
         "template_ids": {
           "type": "array",
           "items": {
@@ -8780,6 +8777,9 @@
         "user_id": {
           "type": "string",
           "format": "uuid"
+        },
+        "username": {
+          "type": "string"
         }
       }
     },

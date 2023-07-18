@@ -4811,9 +4811,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "p50": 31.312,
     "p95": 119.832
   },
-  "name": "string",
   "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+  "username": "string"
 }
 ```
 
@@ -4822,9 +4822,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name           | Type                                                     | Required | Restrictions | Description |
 | -------------- | -------------------------------------------------------- | -------- | ------------ | ----------- |
 | `latency_ms`   | [codersdk.ConnectionLatency](#codersdkconnectionlatency) | false    |              |             |
-| `name`         | string                                                   | false    |              |             |
 | `template_ids` | array of string                                          | false    |              |             |
 | `user_id`      | string                                                   | false    |              |             |
+| `username`     | string                                                   | false    |              |             |
 
 ## codersdk.UserLatencyInsightsReport
 
@@ -4839,9 +4839,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "p50": 31.312,
         "p95": 119.832
       },
-      "name": "string",
       "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+      "username": "string"
     }
   ]
 }
@@ -4870,9 +4870,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "p50": 31.312,
           "p95": 119.832
         },
-        "name": "string",
         "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-        "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+        "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+        "username": "string"
       }
     ]
   }

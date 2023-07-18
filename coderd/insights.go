@@ -6,7 +6,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/exp/slices"
 
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
@@ -62,6 +64,12 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// TODO(mafredri): Client or deployment timezone?
+	// Example:
+	// - I want data from Monday - Friday
+	// - I'm UTC+3 and the deployment is UTC+0
+	// - Do we select Monday - Friday in UTC+0 or UTC+3?
+	// - Considering users can be in different timezones, perhaps this should be per-user (but we don't keep track of user timezones).
 	p := httpapi.NewQueryParamParser().
 		Required("start_time").
 		Required("end_time")
@@ -80,24 +88,80 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO(mafredri) Verify template IDs.
-	_ = templateIDs
+	// Should we verify all template IDs exist, or just return no rows?
+	// _, err := api.Database.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
+	// 	IDs: templateIDs,
+	// })
+
+	rows, err := api.Database.GetTemplateUserLatencyStats(ctx, database.GetTemplateUserLatencyStatsParams{
+		StartTime:   startTime,
+		EndTime:     endTime,
+		TemplateIDs: templateIDs,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	// Fetch all users so that we can still include users that have no
+	// latency data.
+	users, err := api.Database.GetUsers(ctx, database.GetUsersParams{})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	templateIDSet := make(map[uuid.UUID]struct{})
+	usersWithLatencyByID := make(map[uuid.UUID]codersdk.UserLatency)
+	for _, row := range rows {
+		for _, templateID := range row.TemplateIDs {
+			templateIDSet[templateID] = struct{}{}
+		}
+		usersWithLatencyByID[row.UserID] = codersdk.UserLatency{
+			TemplateIDs: row.TemplateIDs,
+			UserID:      row.UserID,
+			Username:    row.Username,
+			LatencyMS: &codersdk.ConnectionLatency{
+				P50: row.WorkspaceConnectionLatency50,
+				P95: row.WorkspaceConnectionLatency95,
+			},
+		}
+	}
+	userLatencies := []codersdk.UserLatency{}
+	for _, user := range users {
+		userLatency, ok := usersWithLatencyByID[user.ID]
+		if !ok {
+			// TODO(mafredri): Other cases?
+			// We only include deleted/inactive users if they were
+			// active as part of the requested timeframe.
+			if user.Deleted || user.Status != database.UserStatusActive {
+				continue
+			}
+
+			userLatency = codersdk.UserLatency{
+				TemplateIDs: []uuid.UUID{},
+				UserID:      user.ID,
+				Username:    user.Username,
+			}
+		}
+		userLatencies = append(userLatencies, userLatency)
+	}
+
+	// TemplateIDs that contributed to the data.
+	seenTemplateIDs := make([]uuid.UUID, 0, len(templateIDSet))
+	for templateID := range templateIDSet {
+		seenTemplateIDs = append(seenTemplateIDs, templateID)
+	}
+	slices.SortFunc(seenTemplateIDs, func(a, b uuid.UUID) bool {
+		return a.String() < b.String()
+	})
 
 	resp := codersdk.UserLatencyInsightsResponse{
 		Report: codersdk.UserLatencyInsightsReport{
 			StartTime:   startTime,
 			EndTime:     endTime,
-			TemplateIDs: []uuid.UUID{},
-			Users: []codersdk.UserLatency{
-				{
-					UserID: uuid.New(),
-					Name:   "Some User",
-					LatencyMS: codersdk.ConnectionLatency{
-						P50: 14.45,
-						P95: 32.16,
-					},
-				},
-			},
+			TemplateIDs: seenTemplateIDs,
+			Users:       userLatencies,
 		},
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)

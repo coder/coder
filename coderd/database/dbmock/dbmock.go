@@ -1211,6 +1211,21 @@ func (mr *MockStoreMockRecorder) GetTemplateGroupRoles(arg0, arg1 interface{}) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateGroupRoles", reflect.TypeOf((*MockStore)(nil).GetTemplateGroupRoles), arg0, arg1)
 }
 
+// GetTemplateUserLatencyStats mocks base method.
+func (m *MockStore) GetTemplateUserLatencyStats(arg0 context.Context, arg1 database.GetTemplateUserLatencyStatsParams) ([]database.GetTemplateUserLatencyStatsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTemplateUserLatencyStats", arg0, arg1)
+	ret0, _ := ret[0].([]database.GetTemplateUserLatencyStatsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTemplateUserLatencyStats indicates an expected call of GetTemplateUserLatencyStats.
+func (mr *MockStoreMockRecorder) GetTemplateUserLatencyStats(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateUserLatencyStats", reflect.TypeOf((*MockStore)(nil).GetTemplateUserLatencyStats), arg0, arg1)
+}
+
 // GetTemplateUserRoles mocks base method.
 func (m *MockStore) GetTemplateUserRoles(arg0 context.Context, arg1 uuid.UUID) ([]database.TemplateUser, error) {
 	m.ctrl.T.Helper()

@@ -6655,6 +6655,67 @@ func (q *sqlQuerier) GetTemplateDAUs(ctx context.Context, arg GetTemplateDAUsPar
 	return items, nil
 }
 
+const getTemplateUserLatencyStats = `-- name: GetTemplateUserLatencyStats :many
+SELECT
+	workspace_agent_stats.user_id,
+	users.username,
+	array_agg(DISTINCT template_id)::uuid[] AS template_ids,
+	coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_50,
+	coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
+FROM workspace_agent_stats
+JOIN users ON (users.id = workspace_agent_stats.user_id)
+WHERE
+	workspace_agent_stats.created_at >= $1
+	AND workspace_agent_stats.created_at < $2
+	AND workspace_agent_stats.connection_median_latency_ms > 0
+	AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN template_id = ANY($3::uuid[]) ELSE TRUE END
+GROUP BY workspace_agent_stats.user_id, users.username
+ORDER BY user_id ASC
+`
+
+type GetTemplateUserLatencyStatsParams struct {
+	StartTime   time.Time   `db:"start_time" json:"start_time"`
+	EndTime     time.Time   `db:"end_time" json:"end_time"`
+	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
+}
+
+type GetTemplateUserLatencyStatsRow struct {
+	UserID                       uuid.UUID   `db:"user_id" json:"user_id"`
+	Username                     string      `db:"username" json:"username"`
+	TemplateIDs                  []uuid.UUID `db:"template_ids" json:"template_ids"`
+	WorkspaceConnectionLatency50 float64     `db:"workspace_connection_latency_50" json:"workspace_connection_latency_50"`
+	WorkspaceConnectionLatency95 float64     `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
+}
+
+func (q *sqlQuerier) GetTemplateUserLatencyStats(ctx context.Context, arg GetTemplateUserLatencyStatsParams) ([]GetTemplateUserLatencyStatsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateUserLatencyStats, arg.StartTime, arg.EndTime, pq.Array(arg.TemplateIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTemplateUserLatencyStatsRow
+	for rows.Next() {
+		var i GetTemplateUserLatencyStatsRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.Username,
+			pq.Array(&i.TemplateIDs),
+			&i.WorkspaceConnectionLatency50,
+			&i.WorkspaceConnectionLatency95,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaceAgentStats = `-- name: GetWorkspaceAgentStats :many
 WITH agent_stats AS (
 	SELECT
@@ -8568,7 +8629,7 @@ type GetWorkspacesParams struct {
 	OwnerID                               uuid.UUID   `db:"owner_id" json:"owner_id"`
 	OwnerUsername                         string      `db:"owner_username" json:"owner_username"`
 	TemplateName                          string      `db:"template_name" json:"template_name"`
-	TemplateIds                           []uuid.UUID `db:"template_ids" json:"template_ids"`
+	TemplateIDs                           []uuid.UUID `db:"template_ids" json:"template_ids"`
 	Name                                  string      `db:"name" json:"name"`
 	HasAgent                              string      `db:"has_agent" json:"has_agent"`
 	AgentInactiveDisconnectTimeoutSeconds int64       `db:"agent_inactive_disconnect_timeout_seconds" json:"agent_inactive_disconnect_timeout_seconds"`
@@ -8602,7 +8663,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		arg.OwnerID,
 		arg.OwnerUsername,
 		arg.TemplateName,
-		pq.Array(arg.TemplateIds),
+		pq.Array(arg.TemplateIDs),
 		arg.Name,
 		arg.HasAgent,
 		arg.AgentInactiveDisconnectTimeoutSeconds,

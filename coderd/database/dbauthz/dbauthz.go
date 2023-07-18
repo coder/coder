@@ -1173,6 +1173,13 @@ func (q *querier) GetTemplateDAUs(ctx context.Context, arg database.GetTemplateD
 	return q.db.GetTemplateDAUs(ctx, arg)
 }
 
+func (q *querier) GetTemplateUserLatencyStats(ctx context.Context, arg database.GetTemplateUserLatencyStatsParams) ([]database.GetTemplateUserLatencyStatsRow, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetTemplateUserLatencyStats(ctx, arg)
+}
+
 func (q *querier) GetTemplateVersionByID(ctx context.Context, tvid uuid.UUID) (database.TemplateVersion, error) {
 	tv, err := q.db.GetTemplateVersionByID(ctx, tvid)
 	if err != nil {

@@ -1917,6 +1917,15 @@ func (q *FakeQuerier) GetTemplateDAUs(_ context.Context, arg database.GetTemplat
 	return rs, nil
 }
 
+func (q *FakeQuerier) GetTemplateUserLatencyStats(ctx context.Context, arg database.GetTemplateUserLatencyStatsParams) ([]database.GetTemplateUserLatencyStatsRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) GetTemplateVersionByID(ctx context.Context, templateVersionID uuid.UUID) (database.TemplateVersion, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -5263,9 +5272,9 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 			}
 		}
 
-		if len(arg.TemplateIds) > 0 {
+		if len(arg.TemplateIDs) > 0 {
 			match := false
-			for _, id := range arg.TemplateIds {
+			for _, id := range arg.TemplateIDs {
 				if workspace.TemplateID == id {
 					match = true
 					break

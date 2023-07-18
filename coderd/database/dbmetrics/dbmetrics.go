@@ -599,6 +599,13 @@ func (m metricsStore) GetTemplateDAUs(ctx context.Context, arg database.GetTempl
 	return daus, err
 }
 
+func (m metricsStore) GetTemplateUserLatencyStats(ctx context.Context, arg database.GetTemplateUserLatencyStatsParams) ([]database.GetTemplateUserLatencyStatsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateUserLatencyStats(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetTemplateUserLatencyStats").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (database.TemplateVersion, error) {
 	start := time.Now()
 	version, err := m.s.GetTemplateVersionByID(ctx, id)

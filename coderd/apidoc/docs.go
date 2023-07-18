@@ -9699,9 +9699,6 @@ const docTemplate = `{
                 "latency_ms": {
                     "$ref": "#/definitions/codersdk.ConnectionLatency"
                 },
-                "name": {
-                    "type": "string"
-                },
                 "template_ids": {
                     "type": "array",
                     "items": {
@@ -9712,6 +9709,9 @@ const docTemplate = `{
                 "user_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "username": {
+                    "type": "string"
                 }
             }
         },

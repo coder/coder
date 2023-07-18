@@ -121,9 +121,9 @@ curl -X GET http://coder-server:8080/api/v2/insights/user-latency \
           "p50": 31.312,
           "p95": 119.832
         },
-        "name": "string",
         "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-        "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+        "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+        "username": "string"
       }
     ]
   }
