@@ -8,6 +8,7 @@ import (
 	"github.com/coder/coder/codersdk"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/go-multierror"
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
 )
@@ -70,13 +71,14 @@ func connectSSH(ctx context.Context, client *codersdk.Client, agentID uuid.UUID)
 	}
 
 	closeFn := func() error {
+		var merr error
 		if err := sshSession.Close(); err != nil {
-			return xerrors.Errorf("close ssh session: %w", err)
+			merr = multierror.Append(merr, err)
 		}
 		if err := agentConn.Close(); err != nil {
-			return xerrors.Errorf("close agent connection: %w", err)
+			merr = multierror.Append(merr, err)
 		}
-		return nil
+		return merr
 	}
 	wrappedConn.close = closeFn
 
