@@ -29,6 +29,7 @@ func TestWorkspaceResources(t *testing.T) {
 					LifecycleState:  codersdk.WorkspaceAgentLifecycleCreated,
 					Architecture:    "amd64",
 					OperatingSystem: "linux",
+					Health:          codersdk.WorkspaceAgentHealth{Healthy: true},
 				}},
 			}}, cliui.WorkspaceResourcesOptions{
 				WorkspaceName: "example",
@@ -65,6 +66,7 @@ func TestWorkspaceResources(t *testing.T) {
 					Name:            "dev",
 					OperatingSystem: "linux",
 					Architecture:    "amd64",
+					Health:          codersdk.WorkspaceAgentHealth{Healthy: true},
 				}},
 			}, {
 				Transition: codersdk.WorkspaceTransitionStart,
@@ -76,6 +78,7 @@ func TestWorkspaceResources(t *testing.T) {
 					Name:            "go",
 					Architecture:    "amd64",
 					OperatingSystem: "linux",
+					Health:          codersdk.WorkspaceAgentHealth{Healthy: true},
 				}, {
 					DisconnectedAt:  &disconnected,
 					Status:          codersdk.WorkspaceAgentDisconnected,
@@ -83,6 +86,10 @@ func TestWorkspaceResources(t *testing.T) {
 					Name:            "postgres",
 					Architecture:    "amd64",
 					OperatingSystem: "linux",
+					Health: codersdk.WorkspaceAgentHealth{
+						Healthy: false,
+						Reason:  "agent has lost connection",
+					},
 				}},
 			}}, cliui.WorkspaceResourcesOptions{
 				WorkspaceName:  "dev",
@@ -94,6 +101,12 @@ func TestWorkspaceResources(t *testing.T) {
 		}()
 		ptty.ExpectMatch("google_compute_disk.root")
 		ptty.ExpectMatch("google_compute_instance.dev")
+		ptty.ExpectMatch("healthy")
+		ptty.ExpectMatch("coder ssh dev.dev")
+		ptty.ExpectMatch("kubernetes_pod.dev")
+		ptty.ExpectMatch("healthy")
+		ptty.ExpectMatch("coder ssh dev.go")
+		ptty.ExpectMatch("agent has lost connection")
 		ptty.ExpectMatch("coder ssh dev.postgres")
 		<-done
 	})

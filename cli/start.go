@@ -11,7 +11,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-// workspaceParameterFlags are used by "start", "restart", "create", and "update".
+// workspaceParameterFlags are used by "start", "restart", and "update".
 type workspaceParameterFlags struct {
 	buildOptions bool
 }
