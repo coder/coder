@@ -57,18 +57,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-        
+
       - name: "Get latest Coder binary from the server"
         run: |
           curl -fsSL "https://dev.coder.com/bin/coder-linux-amd64" -o "./coder"
           chmod +x "./coder"
-          
+
       - name: Get Latest Commit Title
         id: message
         run: |
           pr_title=$(git log --format=%s -n 1 ${{ github.sha }})
           echo "PR title=$pr_title" >> $GITHUB_OUTPUT
-  
+
       - name: "Push template"
         run: |
           ./coder templates push $CODER_TEMPLATE_NAME --directory $CODER_TEMPLATE_DIR --yes --name=$CODER_TEMPLATE_VERSION --message=$CODER_TEMPLATE_MESSAGE
