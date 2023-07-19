@@ -13,5 +13,5 @@ runs:
         cache-dependency-path: "site/yarn.lock"
     - name: Install node_modules
       shell: bash
-      run: ./scripts/yarn_install.sh
+      run: ../scripts/yarn_install.sh
       working-directory: site
