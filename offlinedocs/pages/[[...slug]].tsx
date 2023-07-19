@@ -239,16 +239,15 @@ const SidebarNavItem: React.FC<{ item: NavItem; nav: Nav }> = ({
   nav,
 }) => {
   const router = useRouter()
-  let isActive = router.asPath.startsWith(`/docs/${item.path}`)
+  let isActive = router.asPath.startsWith(`/${item.path}`)
 
   // Special case to handle the home path
   if (item.path === "") {
-    isActive = router.asPath === "/docs/"
+    isActive = router.asPath === "/"
 
     // Special case to handle the home path children
     const homeNav = nav.find((navItem) => navItem.path === "") as NavItem
-    const homeNavPaths =
-      homeNav.children?.map((item) => `/docs/${item.path}/`) ?? []
+    const homeNavPaths = homeNav.children?.map((item) => `/${item.path}/`) ?? []
     if (homeNavPaths.includes(router.asPath)) {
       isActive = true
     }
@@ -256,7 +255,7 @@ const SidebarNavItem: React.FC<{ item: NavItem; nav: Nav }> = ({
 
   return (
     <Box>
-      <NextLink href={"/docs/" + item.path} passHref>
+      <NextLink href={"/" + item.path} passHref>
         <Link
           fontWeight={isActive ? 600 : 400}
           color={isActive ? "gray.900" : "gray.700"}
