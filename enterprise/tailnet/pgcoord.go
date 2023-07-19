@@ -424,7 +424,7 @@ func (b *binder) writeOne(bnd binding) error {
 	default:
 		panic("unhittable")
 	}
-	if err != nil && !pqErrIsCanceled(err) {
+	if err != nil && !database.IsQueryCanceledError(err) {
 		b.logger.Error(b.ctx, "failed to write binding to database",
 			slog.F("client_id", bnd.client),
 			slog.F("agent_id", bnd.agent),
@@ -432,12 +432,6 @@ func (b *binder) writeOne(bnd binding) error {
 			slog.Error(err))
 	}
 	return err
-}
-
-// This is returned when the context is canceled on a running query. pq does not
-// export an error for this.
-func pqErrIsCanceled(err error) bool {
-	return err.Error() == "pq: canceling statement due to user request"
 }
 
 // storeBinding stores the latest binding, where we interpret node == nil as removing the binding. This keeps the map
