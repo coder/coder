@@ -66,6 +66,7 @@ type Options struct {
 	Database      database.Store
 	SiteFS        fs.FS
 	OAuth2Configs *httpmw.OAuth2Configs
+	DocsURL       string
 }
 
 func New(opts *Options) *Handler {
@@ -167,6 +168,7 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		// Token is the CSRF token for the given request
 		CSRF:      csrfState{Token: nosurf.Token(r)},
 		BuildInfo: h.buildInfoJSON,
+		DocsURL:   h.opts.DocsURL,
 	}
 
 	// First check if it's a file we have in our templates
@@ -236,6 +238,7 @@ type htmlState struct {
 	Appearance   string
 	Experiments  string
 	Regions      string
+	DocsURL      string
 }
 
 type csrfState struct {
