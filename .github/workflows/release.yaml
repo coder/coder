@@ -259,6 +259,11 @@ jobs:
         env:
           CODER_BASE_IMAGE_TAG: ${{ steps.image-base-tag.outputs.tag }}
 
+      - name: Generate offline docs
+        run: |
+          version="$(./scripts/version.sh)"
+          make -j build/coder_docs_"$version".tgz
+
       - name: ls build
         run: ls -lh build
 
@@ -414,28 +419,3 @@ jobs:
           # For gh CLI. We need a real token since we're commenting on a PR in a
           # different repo.
           GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
-
-  offline-docs:
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-        with:
-          # Required by Chromatic for build-over-build history, otherwise we
-          # only get 1 commit on shallow checkout.
-          fetch-depth: 0
-      - name: Setup Node
-        uses: actions/setup-node@v3
-        with:
-          node-version: 16.20.1
-      - run: yarn install
-        working-directory: ./offlinedocs
-      - run: yarn export
-        working-directory: ./offlinedocs
-      - name: Tar files
-        run: tar -cvf docs.tar -C offlinedocs/out .
-      - name: Upload docs artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: docs
-          path: docs.tar
