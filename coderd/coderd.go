@@ -310,6 +310,7 @@ func New(options *Options) *API {
 		Database:      options.Database,
 		SiteFS:        site.FS(),
 		OAuth2Configs: oauthConfigs,
+		DocsURL:       options.DeploymentValues.DocsURL.String(),
 	})
 	staticHandler.Experiments.Store(&experiments)
 
