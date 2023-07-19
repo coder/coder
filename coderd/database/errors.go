@@ -40,7 +40,7 @@ func IsUniqueViolation(err error, uniqueConstraints ...UniqueConstraint) bool {
 func IsQueryCanceledError(err error) bool {
 	var pqErr *pq.Error
 	if errors.As(err, &pqErr) {
-		return pqErr.Code.Name() == "query_canceled"
+		return pqErr.Code == "57014" // query_canceled
 	}
 
 	return false
