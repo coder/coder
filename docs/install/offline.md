@@ -185,3 +185,12 @@ coder:
       value: ""
 # ...
 ```
+
+## Offline docs
+
+Coder also provides offline documentation in case you want to host it on your own server. The docs are exported as static files that you can host on any web server, as demonstrated in the example below:
+
+- Go to the release page. In this case, we want to use the [latest version](https://github.com/coder/coder/releases/latest).
+- In the "Assets" section, you will find the file `coder_docs_<version>.tgz`. Download it.
+- Extract the file and move it to your server folder.
+- If you are using NodeJS, you can execute the following command: `cd docs && npx http-server .`
