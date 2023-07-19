@@ -256,24 +256,24 @@ type OAuth2GithubConfig struct {
 }
 
 type OIDCConfig struct {
-	AllowSignups        clibase.Bool                      `json:"allow_signups" typescript:",notnull"`
-	ClientID            clibase.String                    `json:"client_id" typescript:",notnull"`
-	ClientSecret        clibase.String                    `json:"client_secret" typescript:",notnull"`
-	EmailDomain         clibase.StringArray               `json:"email_domain" typescript:",notnull"`
-	IssuerURL           clibase.String                    `json:"issuer_url" typescript:",notnull"`
-	Scopes              clibase.StringArray               `json:"scopes" typescript:",notnull"`
-	IgnoreEmailVerified clibase.Bool                      `json:"ignore_email_verified" typescript:",notnull"`
-	UsernameField       clibase.String                    `json:"username_field" typescript:",notnull"`
-	EmailField          clibase.String                    `json:"email_field" typescript:",notnull"`
-	AuthURLParams       clibase.Struct[map[string]string] `json:"auth_url_params" typescript:",notnull"`
-	IgnoreUserInfo      clibase.Bool                      `json:"ignore_user_info" typescript:",notnull"`
-	GroupField          clibase.String                    `json:"groups_field" typescript:",notnull"`
-	GroupMapping        clibase.Struct[map[string]string] `json:"group_mapping" typescript:",notnull"`
-	UserRoleField       clibase.String                    `json:"user_role_field" typescript:",notnull"`
-	UserRoleMapping     clibase.Struct[map[string]string] `json:"user_role_mapping" typescript:",notnull"`
-	UserRolesDefault    clibase.StringArray               `json:"user_roles_default" typescript:",notnull"`
-	SignInText          clibase.String                    `json:"sign_in_text" typescript:",notnull"`
-	IconURL             clibase.URL                       `json:"icon_url" typescript:",notnull"`
+	AllowSignups        clibase.Bool                        `json:"allow_signups" typescript:",notnull"`
+	ClientID            clibase.String                      `json:"client_id" typescript:",notnull"`
+	ClientSecret        clibase.String                      `json:"client_secret" typescript:",notnull"`
+	EmailDomain         clibase.StringArray                 `json:"email_domain" typescript:",notnull"`
+	IssuerURL           clibase.String                      `json:"issuer_url" typescript:",notnull"`
+	Scopes              clibase.StringArray                 `json:"scopes" typescript:",notnull"`
+	IgnoreEmailVerified clibase.Bool                        `json:"ignore_email_verified" typescript:",notnull"`
+	UsernameField       clibase.String                      `json:"username_field" typescript:",notnull"`
+	EmailField          clibase.String                      `json:"email_field" typescript:",notnull"`
+	AuthURLParams       clibase.Struct[map[string]string]   `json:"auth_url_params" typescript:",notnull"`
+	IgnoreUserInfo      clibase.Bool                        `json:"ignore_user_info" typescript:",notnull"`
+	GroupField          clibase.String                      `json:"groups_field" typescript:",notnull"`
+	GroupMapping        clibase.Struct[map[string]string]   `json:"group_mapping" typescript:",notnull"`
+	UserRoleField       clibase.String                      `json:"user_role_field" typescript:",notnull"`
+	UserRoleMapping     clibase.Struct[map[string][]string] `json:"user_role_mapping" typescript:",notnull"`
+	UserRolesDefault    clibase.StringArray                 `json:"user_roles_default" typescript:",notnull"`
+	SignInText          clibase.String                      `json:"sign_in_text" typescript:",notnull"`
+	IconURL             clibase.URL                         `json:"icon_url" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
@@ -1046,7 +1046,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "OIDC User Role Mapping",
-			Description: "A map of the OIDC passed in user roles and the groups in Coder it should map to. This is useful if the group names do not match.",
+			Description: "A map of the OIDC passed in user roles and the groups in Coder it should map to. This is useful if the group names do not match. If mapped to the empty string, the role will ignored.",
 			Flag:        "oidc-user-role-mapping",
 			Env:         "CODER_OIDC_USER_ROLE_MAPPING",
 			Default:     "{}",

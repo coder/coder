@@ -909,7 +909,7 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updatedUser, err := api.UpdateSiteUserRoles(ctx, database.UpdateUserRolesParams{
+	updatedUser, err := UpdateSiteUserRoles(ctx, api.Database, database.UpdateUserRolesParams{
 		GrantedRoles: params.Roles,
 		ID:           user.ID,
 	})
@@ -939,7 +939,7 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 
 // UpdateSiteUserRoles will ensure only site wide roles are passed in as arguments.
 // If an organization role is included, an error is returned.
-func (api *API) UpdateSiteUserRoles(ctx context.Context, args database.UpdateUserRolesParams) (database.User, error) {
+func UpdateSiteUserRoles(ctx context.Context, db database.Store, args database.UpdateUserRolesParams) (database.User, error) {
 	// Enforce only site wide roles.
 	for _, r := range args.GrantedRoles {
 		if _, ok := rbac.IsOrgRole(r); ok {
@@ -951,7 +951,7 @@ func (api *API) UpdateSiteUserRoles(ctx context.Context, args database.UpdateUse
 		}
 	}
 
-	updatedUser, err := api.Database.UpdateUserRoles(ctx, args)
+	updatedUser, err := db.UpdateUserRoles(ctx, args)
 	if err != nil {
 		return database.User{}, xerrors.Errorf("update site roles: %w", err)
 	}

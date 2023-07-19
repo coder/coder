@@ -3,6 +3,8 @@ package coderd
 import (
 	"context"
 
+	"github.com/coder/coder/coderd"
+
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -54,12 +56,12 @@ func (api *API) setUserGroups(ctx context.Context, db database.Store, userID uui
 func (api *API) setUserSiteRoles(ctx context.Context, db database.Store, userID uuid.UUID, roles []string) error {
 	// Should this be feature protected?
 	return db.InTx(func(tx database.Store) error {
-		_, err := api.AGPL.UpdateSiteUserRoles(ctx, database.UpdateUserRolesParams{
+		_, err := coderd.UpdateSiteUserRoles(ctx, db, database.UpdateUserRolesParams{
 			GrantedRoles: roles,
 			ID:           userID,
 		})
 		if err != nil {
-			return xerrors.Errorf("set user roles: %w", err)
+			return xerrors.Errorf("set user roles(%s): %w", userID.String(), err)
 		}
 
 		return nil

@@ -605,6 +605,12 @@ export interface OIDCConfig {
   // Named type "github.com/coder/coder/cli/clibase.Struct[map[string]string]" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly group_mapping: any
+  readonly user_role_field: string
+  // Named type "github.com/coder/coder/cli/clibase.Struct[map[string][]string]" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
+  readonly user_role_mapping: any
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
+  readonly user_roles_default: string[]
   readonly sign_in_text: string
   readonly icon_url: string
 }

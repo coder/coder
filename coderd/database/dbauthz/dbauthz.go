@@ -207,7 +207,7 @@ var (
 					rbac.ResourceWildcard.Type:           {rbac.ActionRead},
 					rbac.ResourceAPIKey.Type:             {rbac.ActionCreate, rbac.ActionUpdate, rbac.ActionDelete},
 					rbac.ResourceGroup.Type:              {rbac.ActionCreate, rbac.ActionUpdate},
-					rbac.ResourceRoleAssignment.Type:     {rbac.ActionCreate},
+					rbac.ResourceRoleAssignment.Type:     {rbac.ActionCreate, rbac.ActionDelete},
 					rbac.ResourceSystem.Type:             {rbac.WildcardSymbol},
 					rbac.ResourceOrganization.Type:       {rbac.ActionCreate},
 					rbac.ResourceOrganizationMember.Type: {rbac.ActionCreate},
