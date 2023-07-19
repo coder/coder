@@ -372,7 +372,7 @@ func (*EnterpriseTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.C
 		// This limitation is displayed to the user while editing the template.
 		if opts.MaxTTL > 0 {
 			err = db.UpdateWorkspaceTTLToBeWithinTemplateMax(ctx, database.UpdateWorkspaceTTLToBeWithinTemplateMaxParams{
-				TemplateID:     template.ID,
+				TemplateID:     tpl.ID,
 				TemplateMaxTTL: int64(opts.MaxTTL),
 			})
 			if err != nil {
