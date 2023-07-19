@@ -24,7 +24,6 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/workspaceapps"
@@ -172,7 +171,7 @@ func TestDialCoordinator(t *testing.T) {
 			nc := websocket.NetConn(r.Context(), conn, websocket.MessageText)
 			defer serverMultiAgent.Close()
 
-			err = tailnet.ServeWorkspaceProxy(nc, serverMultiAgent)
+			err = tailnet.ServeWorkspaceProxy(ctx, nc, serverMultiAgent)
 			if !xerrors.Is(err, io.EOF) {
 				assert.NoError(t, err)
 			}

@@ -71,7 +71,7 @@ func (api *API) workspaceProxyCoordinate(rw http.ResponseWriter, r *http.Request
 	nc := websocket.NetConn(ctx, conn, websocket.MessageText)
 	defer nc.Close()
 
-	err = tailnet.ServeWorkspaceProxy(nc, sub)
+	err = tailnet.ServeWorkspaceProxy(ctx, nc, sub)
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 	}

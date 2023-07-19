@@ -13,14 +13,11 @@ import (
 	agpl "github.com/coder/coder/tailnet"
 )
 
-func ServeWorkspaceProxy(conn net.Conn, ma agpl.MultiAgentConn) error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
+func ServeWorkspaceProxy(ctx context.Context, conn net.Conn, ma agpl.MultiAgentConn) error {
 	go func() {
 		err := forwardNodesToWorkspaceProxy(ctx, conn, ma)
 		if err != nil {
-			cancel()
+			_ = conn.Close()
 		}
 	}()
 
