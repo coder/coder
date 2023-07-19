@@ -11,6 +11,7 @@ import {
 import { UseFilterMenuOptions, useFilterMenu } from "components/Filter/menu"
 import { BaseOption } from "components/Filter/options"
 import capitalize from "lodash/capitalize"
+import { docs } from "utils/docs"
 
 const PRESET_FILTERS = [
   {
@@ -44,7 +45,7 @@ export const AuditFilter = ({
 }) => {
   return (
     <Filter
-      learnMoreLink="https://coder.com/docs/v2/latest/admin/audit-logs#filtering-logs"
+      learnMoreLink={docs("/admin/audit-logs#filtering-logs")}
       presets={PRESET_FILTERS}
       isLoading={menus.user.isInitializing}
       filter={filter}

@@ -13,6 +13,7 @@ import { pageTitle } from "utils/page"
 import { templateACLMachine } from "xServices/template/templateACLXService"
 import { useTemplateSettingsContext } from "../TemplateSettingsLayout"
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView"
+import { docs } from "utils/docs"
 
 export const TemplatePermissionsPage: FC<
   React.PropsWithChildren<unknown>
@@ -38,7 +39,7 @@ export const TemplatePermissionsPage: FC<
             cta={
               <Stack direction="row" alignItems="center">
                 <Link
-                  href="https://coder.com/docs/coder-oss/latest/admin/upgrade"
+                  href={docs("/admin/upgrade")}
                   target="_blank"
                   rel="noreferrer"
                 >
@@ -50,7 +51,7 @@ export const TemplatePermissionsPage: FC<
                   </Button>
                 </Link>
                 <Link
-                  href="https://coder.com/docs/coder-oss/latest/admin/rbac"
+                  href={docs("/admin/rbac")}
                   target="_blank"
                   rel="noreferrer"
                 >
