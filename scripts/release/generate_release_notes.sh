@@ -54,6 +54,9 @@ fi
 if [[ -z $new_version ]]; then
 	error "No new version specified"
 fi
+if [[ $new_version != v* ]]; then
+	error "New version must start with a v"
+fi
 if [[ -z $ref ]]; then
 	error "No ref specified"
 fi
@@ -149,7 +152,7 @@ image_tag="$(execrelative ../image_tag.sh --version "$new_version")"
 echo -e "## Changelog
 $changelog
 
-Compare: [\`$old_version...v$new_version\`](https://github.com/coder/coder/compare/$old_version...v$new_version)
+Compare: [\`$old_version...$new_version\`](https://github.com/coder/coder/compare/$old_version...$new_version)
 
 ## Container image
 

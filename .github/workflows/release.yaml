@@ -76,7 +76,7 @@ jobs:
           set -euo pipefail
           ref=HEAD
           old_version="$(git describe --abbrev=0 "$ref^1")"
-          version="$(./scripts/version.sh)"
+          version="v$(./scripts/version.sh)"
 
           # Generate notes.
           release_notes_file="$(mktemp -t release_notes.XXXXXX)"
