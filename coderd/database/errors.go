@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"errors"
 
 	"github.com/lib/pq"
@@ -41,6 +42,8 @@ func IsQueryCanceledError(err error) bool {
 	var pqErr *pq.Error
 	if errors.As(err, &pqErr) {
 		return pqErr.Code == "57014" // query_canceled
+	} else if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return true
 	}
 
 	return false
