@@ -128,6 +128,9 @@ Use a YAML configuration file when your server launch become unwieldy.
       --access-url url, $CODER_ACCESS_URL
           The URL that users will use to access the Coder deployment.
 
+      --docs-url url, $CODER_DOCS_URL
+          Specifies the custom docs URL.
+
       --proxy-trusted-headers string-array, $CODER_PROXY_TRUSTED_HEADERS
           Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip,
           True-Client-Ip, X-Forwarded-For.
