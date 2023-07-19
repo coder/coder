@@ -590,31 +590,6 @@ jobs:
           projectToken: 695c25b6cb65
           workingDir: "./site"
 
-  offlinedocs:
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-        with:
-          # Required by Chromatic for build-over-build history, otherwise we
-          # only get 1 commit on shallow checkout.
-          fetch-depth: 0
-      - name: Setup Node
-        uses: actions/setup-node@v3
-        with:
-          node-version: 16.20.1
-      - run: yarn install
-        working-directory: ./offlinedocs
-      - run: yarn export
-        working-directory: ./offlinedocs
-      - name: Tar files
-        run: tar -cvf docs.tar -C offlinedocs/out .
-      - name: Upload docs artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: docs
-          path: docs.tar
-
   required:
     runs-on: ubuntu-latest
     needs: [fmt, lint, gen, test-go, test-go-pg, test-go-race, test-js]
