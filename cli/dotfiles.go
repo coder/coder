@@ -43,8 +43,8 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 				installScriptSet = []string{
 					"install.sh",
 					"install",
-					// "bootstrap.sh",
-					// "bootstrap",
+					"bootstrap.sh",
+					"bootstrap",
 					"script/bootstrap",
 					"setup.sh",
 					"setup",
