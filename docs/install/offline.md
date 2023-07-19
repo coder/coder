@@ -196,5 +196,4 @@ Coder also provides offline documentation in case you want to host it on your ow
 4. If you are using NodeJS, you can execute the following command: `cd docs && npx http-server .`
 5. Set the `CODER_DOCS_URL` environment variable to use the URL of your hosted docs. This way, the Coder UI will reference the documentation from your specified URL.
 
-
 With these steps, you'll have the Coder documentation hosted on your server and accessible for your team to use.
