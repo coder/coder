@@ -378,7 +378,3 @@ userQuietHoursSchedule:
   # values are not supported).
   # (default: <unset>, type: string)
   defaultQuietHoursSchedule: ""
-  # The duration of quiet hours windows when triggered by cron. Workspaces can only
-  # be stopped due to max TTL during this window. Must be at least 1 hour.
-  # (default: 4h0m0s, type: duration)
-  quietHoursWindowDuration: 4h0m0s

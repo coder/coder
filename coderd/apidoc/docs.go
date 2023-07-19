@@ -9660,19 +9660,12 @@ const docTemplate = `{
             "properties": {
                 "default_schedule": {
                     "type": "string"
-                },
-                "window_duration": {
-                    "type": "integer"
                 }
             }
         },
         "codersdk.UserQuietHoursScheduleResponse": {
             "type": "object",
             "properties": {
-                "duration": {
-                    "description": "Duration is the duration of the quiet hours window.",
-                    "type": "integer"
-                },
                 "next": {
                     "description": "Next is the next time that the quiet hours window will start.",
                     "type": "string",

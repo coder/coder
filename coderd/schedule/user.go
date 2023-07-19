@@ -2,7 +2,6 @@ package schedule
 
 import (
 	"context"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -20,10 +19,6 @@ type UserQuietHoursScheduleOptions struct {
 	// quiet hours windows should not be used.
 	Schedule *Schedule
 	UserSet  bool
-	// Duration is the duration of the quiet hours window starting when the cron
-	// triggers. Workspaces can be stopped for maintenance or due to template
-	// restart requirements during this window.
-	Duration time.Duration
 }
 
 type UserQuietHoursScheduleStore interface {
@@ -53,7 +48,6 @@ func (*agplUserQuietHoursScheduleStore) Get(_ context.Context, _ database.Store,
 	return UserQuietHoursScheduleOptions{
 		Schedule: nil,
 		UserSet:  false,
-		Duration: 0,
 	}, nil
 }
 
@@ -62,6 +56,5 @@ func (*agplUserQuietHoursScheduleStore) Set(_ context.Context, _ database.Store,
 	return UserQuietHoursScheduleOptions{
 		Schedule: nil,
 		UserSet:  false,
-		Duration: 0,
 	}, nil
 }

@@ -286,6 +286,8 @@ func GetMondayOfWeek(loc *time.Location, n int64) (time.Time, error) {
 	y, m, d := monday.Date()
 	monday = time.Date(y, m, d, 0, 0, 0, 0, loc)
 	if monday.Weekday() != time.Monday {
+		// This condition should never be hit, but we have a check for it just
+		// in case.
 		return time.Time{}, xerrors.Errorf("calculated incorrect Monday for week %v since epoch (actual weekday %q)", n, monday.Weekday())
 	}
 	return monday, nil
@@ -313,7 +315,8 @@ func GetNextApplicableMondayOfNWeeks(now time.Time, n int64) (time.Time, error) 
 		return now, nil
 	}
 
-	// Loop until we find a week that doesn't fail.
+	// Loop until we find a week that doesn't fail. This should never loop, but
+	// we account for failures just in case.
 	var lastErr error
 	for i := int64(0); i < 3; i++ {
 		monday, err := GetMondayOfWeek(now.Location(), week+i)

@@ -1148,7 +1148,6 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/quiet-hours \
 ```json
 [
   {
-    "duration": 0,
     "next": "2019-08-24T14:15:22Z",
     "raw_schedule": "string",
     "time": "string",
@@ -1171,7 +1170,6 @@ Status Code **200**
 | Name             | Type              | Required | Restrictions | Description                                                                                                            |
 | ---------------- | ----------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------- |
 | `[array item]`   | array             | false    |              |                                                                                                                        |
-| `» duration`     | integer           | false    |              | Duration is the duration of the quiet hours window.                                                                    |
 | `» next`         | string(date-time) | false    |              | Next is the next time that the quiet hours window will start.                                                          |
 | `» raw_schedule` | string            | false    |              |                                                                                                                        |
 | `» time`         | string            | false    |              | Time is the time of day that the quiet hours window starts in the given Timezone each day.                             |
@@ -1216,7 +1214,6 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/quiet-hours \
 ```json
 [
   {
-    "duration": 0,
     "next": "2019-08-24T14:15:22Z",
     "raw_schedule": "string",
     "time": "string",
@@ -1239,7 +1236,6 @@ Status Code **200**
 | Name             | Type              | Required | Restrictions | Description                                                                                                            |
 | ---------------- | ----------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------- |
 | `[array item]`   | array             | false    |              |                                                                                                                        |
-| `» duration`     | integer           | false    |              | Duration is the duration of the quiet hours window.                                                                    |
 | `» next`         | string(date-time) | false    |              | Next is the next time that the quiet hours window will start.                                                          |
 | `» raw_schedule` | string            | false    |              |                                                                                                                        |
 | `» time`         | string            | false    |              | Time is the time of day that the quiet hours window starts in the given Timezone each day.                             |

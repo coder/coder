@@ -659,17 +659,6 @@ Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip, True-Client
 
 Origin addresses to respect "proxy-trusted-headers". e.g. 192.168.1.0/24.
 
-### --quiet-hours-window-duration
-
-|             |                                                              |
-| ----------- | ------------------------------------------------------------ |
-| Type        | <code>duration</code>                                        |
-| Environment | <code>$CODER_QUIET_HOURS_WINDOW_DURATION</code>              |
-| YAML        | <code>userQuietHoursSchedule.quietHoursWindowDuration</code> |
-| Default     | <code>4h0m0s</code>                                          |
-
-The duration of quiet hours windows when triggered by cron. Workspaces can only be stopped due to max TTL during this window. Must be at least 1 hour.
-
 ### --redirect-to-access-url
 
 |             |                                             |

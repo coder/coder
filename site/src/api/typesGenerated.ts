@@ -1123,7 +1123,6 @@ export interface UserLoginType {
 // From codersdk/deployment.go
 export interface UserQuietHoursScheduleConfig {
   readonly default_schedule: string
-  readonly window_duration: number
 }
 
 // From codersdk/users.go
@@ -1132,8 +1131,6 @@ export interface UserQuietHoursScheduleResponse {
   readonly user_set: boolean
   readonly time: string
   readonly timezone: string
-  // This is likely an enum in an external package ("time.Duration")
-  readonly duration: number
   readonly next: string
 }
 

@@ -2069,8 +2069,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     },
     "update_check": true,
     "user_quiet_hours_schedule": {
-      "default_schedule": "string",
-      "window_duration": 0
+      "default_schedule": "string"
     },
     "verbose": true,
     "wgtunnel_host": "string",
@@ -2410,8 +2409,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "update_check": true,
   "user_quiet_hours_schedule": {
-    "default_schedule": "string",
-    "window_duration": 0
+    "default_schedule": "string"
   },
   "verbose": true,
   "wgtunnel_host": "string",
@@ -4688,23 +4686,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "default_schedule": "string",
-  "window_duration": 0
+  "default_schedule": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type    | Required | Restrictions | Description |
-| ------------------ | ------- | -------- | ------------ | ----------- |
-| `default_schedule` | string  | false    |              |             |
-| `window_duration`  | integer | false    |              |             |
+| Name               | Type   | Required | Restrictions | Description |
+| ------------------ | ------ | -------- | ------------ | ----------- |
+| `default_schedule` | string | false    |              |             |
 
 ## codersdk.UserQuietHoursScheduleResponse
 
 ```json
 {
-  "duration": 0,
   "next": "2019-08-24T14:15:22Z",
   "raw_schedule": "string",
   "time": "string",
@@ -4717,7 +4712,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name           | Type    | Required | Restrictions | Description                                                                                                            |
 | -------------- | ------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------- |
-| `duration`     | integer | false    |              | Duration is the duration of the quiet hours window.                                                                    |
 | `next`         | string  | false    |              | Next is the next time that the quiet hours window will start.                                                          |
 | `raw_schedule` | string  | false    |              |                                                                                                                        |
 | `time`         | string  | false    |              | Time is the time of day that the quiet hours window starts in the given Timezone each day.                             |

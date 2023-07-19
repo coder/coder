@@ -388,11 +388,6 @@ workspaces stopping during the day due to template max TTL.
           one hour and minute can be specified (ranges or comma separated values
           are not supported).
 
-      --quiet-hours-window-duration duration, $CODER_QUIET_HOURS_WINDOW_DURATION (default: 4h0m0s)
-          The duration of quiet hours windows when triggered by cron. Workspaces
-          can only be stopped due to max TTL during this window. Must be at
-          least 1 hour.
-
 [1m⚠️ Dangerous Options[0m 
       --dangerous-allow-path-app-sharing bool, $CODER_DANGEROUS_ALLOW_PATH_APP_SHARING
           Allow workspace apps that are not served from subdomains to be shared.

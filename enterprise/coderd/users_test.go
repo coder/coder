@@ -35,7 +35,6 @@ func TestUserQuietHours(t *testing.T) {
 
 		dv := coderdtest.DeploymentValues(t)
 		dv.UserQuietHoursSchedule.DefaultSchedule.Set(defaultQuietHoursSchedule)
-		dv.UserQuietHoursSchedule.WindowDuration.Set("8h") // default is 4h
 		dv.Experiments.Set(string(codersdk.ExperimentTemplateRestartRequirement))
 
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
@@ -58,7 +57,6 @@ func TestUserQuietHours(t *testing.T) {
 		require.False(t, sched1.UserSet)
 		require.Equal(t, defaultScheduleParsed.Time(), sched1.Time)
 		require.Equal(t, defaultScheduleParsed.Location().String(), sched1.Timezone)
-		require.Equal(t, dv.UserQuietHoursSchedule.WindowDuration.Value(), sched1.Duration)
 		require.WithinDuration(t, defaultScheduleParsed.Next(time.Now()), sched1.Next, 15*time.Second)
 
 		// Set their quiet hours.
@@ -82,7 +80,6 @@ func TestUserQuietHours(t *testing.T) {
 		require.True(t, sched2.UserSet)
 		require.Equal(t, customScheduleParsed.Time(), sched2.Time)
 		require.Equal(t, customScheduleParsed.Location().String(), sched2.Timezone)
-		require.Equal(t, dv.UserQuietHoursSchedule.WindowDuration.Value(), sched2.Duration)
 		require.WithinDuration(t, customScheduleParsed.Next(time.Now()), sched2.Next, 15*time.Second)
 
 		// Get quiet hours for a user that has them set.
@@ -92,7 +89,6 @@ func TestUserQuietHours(t *testing.T) {
 		require.True(t, sched3.UserSet)
 		require.Equal(t, customScheduleParsed.Time(), sched3.Time)
 		require.Equal(t, customScheduleParsed.Location().String(), sched3.Timezone)
-		require.Equal(t, dv.UserQuietHoursSchedule.WindowDuration.Value(), sched3.Duration)
 		require.WithinDuration(t, customScheduleParsed.Next(time.Now()), sched3.Next, 15*time.Second)
 
 		// Try setting a garbage schedule.

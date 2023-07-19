@@ -66,7 +66,6 @@ func (r *RootCmd) server() *clibase.Cmd {
 			DERPServerRegionID:        int(options.DeploymentValues.DERP.Server.RegionID.Value()),
 			ProxyHealthInterval:       options.DeploymentValues.ProxyHealthStatusInterval.Value(),
 			DefaultQuietHoursSchedule: options.DeploymentValues.UserQuietHoursSchedule.DefaultSchedule.Value(),
-			QuietHoursWindowDuration:  options.DeploymentValues.UserQuietHoursSchedule.WindowDuration.Value(),
 		}
 
 		api, err := coderd.New(ctx, o)

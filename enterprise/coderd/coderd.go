@@ -53,9 +53,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if options.Options.Authorizer == nil {
 		options.Options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
 	}
-	if options.QuietHoursWindowDuration < time.Hour {
-		return nil, xerrors.Errorf("quiet hours window duration (%v) must be at least 1 hour", options.QuietHoursWindowDuration)
-	}
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 	api := &API{
@@ -340,8 +337,7 @@ type Options struct {
 	DERPServerRegionID     int
 
 	// Used for user quiet hours schedules.
-	DefaultQuietHoursSchedule string        // cron schedule, if empty user quiet hours schedules are disabled
-	QuietHoursWindowDuration  time.Duration // how long each window should last
+	DefaultQuietHoursSchedule string // cron schedule, if empty user quiet hours schedules are disabled
 
 	EntitlementsUpdateInterval time.Duration
 	ProxyHealthInterval        time.Duration
@@ -487,7 +483,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			}
 			enterpriseTemplateStore.UseRestartRequirement.Store(true)
 
-			quietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(api.DefaultQuietHoursSchedule, api.QuietHoursWindowDuration)
+			quietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(api.DefaultQuietHoursSchedule)
 			if err != nil {
 				api.Logger.Error(ctx, "unable to set up enterprise user quiet hours schedule store, template restart requirements will not be applied to workspace builds", slog.Error(err))
 			} else {

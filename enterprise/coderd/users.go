@@ -70,7 +70,6 @@ func (api *API) userQuietHoursSchedule(rw http.ResponseWriter, r *http.Request) 
 		UserSet:     opts.UserSet,
 		Time:        opts.Schedule.Time(),
 		Timezone:    opts.Schedule.Location().String(),
-		Duration:    opts.Duration,
 		Next:        opts.Schedule.Next(time.Now().In(opts.Schedule.Location())),
 	})
 }
@@ -117,7 +116,6 @@ func (api *API) putUserQuietHoursSchedule(rw http.ResponseWriter, r *http.Reques
 		UserSet:     opts.UserSet,
 		Time:        opts.Schedule.Time(),
 		Timezone:    opts.Schedule.Location().String(),
-		Duration:    opts.Duration,
 		Next:        opts.Schedule.Next(time.Now().In(opts.Schedule.Location())),
 	})
 }

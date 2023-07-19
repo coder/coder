@@ -93,8 +93,6 @@ type UserQuietHoursScheduleResponse struct {
 	// Timezone each day.
 	Time     string `json:"time"`     // HH:mm (24-hour)
 	Timezone string `json:"timezone"` // raw format from the cron expression, UTC if unspecified
-	// Duration is the duration of the quiet hours window.
-	Duration time.Duration `json:"duration"`
 	// Next is the next time that the quiet hours window will start.
 	Next time.Time `json:"next" format:"date-time"`
 }

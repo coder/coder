@@ -3,7 +3,6 @@ package schedule
 import (
 	"context"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -17,22 +16,17 @@ import (
 // enterprise customers.
 type enterpriseUserQuietHoursScheduleStore struct {
 	defaultSchedule string
-	windowDuration  time.Duration
 }
 
 var _ agpl.UserQuietHoursScheduleStore = &enterpriseUserQuietHoursScheduleStore{}
 
-func NewEnterpriseUserQuietHoursScheduleStore(defaultSchedule string, windowDuration time.Duration) (agpl.UserQuietHoursScheduleStore, error) {
+func NewEnterpriseUserQuietHoursScheduleStore(defaultSchedule string) (agpl.UserQuietHoursScheduleStore, error) {
 	if defaultSchedule == "" {
 		return nil, xerrors.Errorf("default schedule must be set")
-	}
-	if windowDuration < 1*time.Hour {
-		return nil, xerrors.Errorf("window duration must be greater than 1 hour")
 	}
 
 	s := &enterpriseUserQuietHoursScheduleStore{
 		defaultSchedule: defaultSchedule,
-		windowDuration:  windowDuration,
 	}
 
 	_, err := s.parseSchedule(defaultSchedule)
@@ -66,7 +60,6 @@ func (s *enterpriseUserQuietHoursScheduleStore) parseSchedule(rawSchedule string
 	return agpl.UserQuietHoursScheduleOptions{
 		Schedule: sched,
 		UserSet:  userSet,
-		Duration: s.windowDuration,
 	}, nil
 }
 

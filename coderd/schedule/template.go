@@ -52,17 +52,6 @@ type TemplateRestartRequirement struct {
 	Weeks int64
 }
 
-// Days returns the days of the week that the workspace must be restarted.
-func (r TemplateRestartRequirement) Days() []time.Weekday {
-	days := make([]time.Weekday, 0, 7)
-	for i, day := range DaysOfWeek {
-		if r.DaysOfWeek&(1<<uint(i)) != 0 {
-			days = append(days, day)
-		}
-	}
-	return days
-}
-
 // DaysMap returns a map of the days of the week that the workspace must be
 // restarted.
 func (r TemplateRestartRequirement) DaysMap() map[time.Weekday]bool {

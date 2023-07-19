@@ -358,8 +358,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     },
     "update_check": true,
     "user_quiet_hours_schedule": {
-      "default_schedule": "string",
-      "window_duration": 0
+      "default_schedule": "string"
     },
     "verbose": true,
     "wgtunnel_host": "string",

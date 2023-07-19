@@ -346,8 +346,10 @@ type DangerousConfig struct {
 }
 
 type UserQuietHoursScheduleConfig struct {
-	DefaultSchedule clibase.String   `json:"default_schedule" typescript:",notnull"`
-	WindowDuration  clibase.Duration `json:"window_duration" typescript:",notnull"`
+	DefaultSchedule clibase.String `json:"default_schedule" typescript:",notnull"`
+	// TODO: add WindowDuration and the ability to postpone max_deadline by this
+	// amount
+	// WindowDuration  clibase.Duration `json:"window_duration" typescript:",notnull"`
 }
 
 const (
@@ -1591,16 +1593,6 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.UserQuietHoursSchedule.DefaultSchedule,
 			Group:       &deploymentGroupUserQuietHoursSchedule,
 			YAML:        "defaultQuietHoursSchedule",
-		},
-		{
-			Name:        "Quiet Hours Window Duration",
-			Description: "The duration of quiet hours windows when triggered by cron. Workspaces can only be stopped due to max TTL during this window. Must be at least 1 hour.",
-			Flag:        "quiet-hours-window-duration",
-			Env:         "CODER_QUIET_HOURS_WINDOW_DURATION",
-			Default:     (4 * time.Hour).String(),
-			Value:       &c.UserQuietHoursSchedule.WindowDuration,
-			Group:       &deploymentGroupUserQuietHoursSchedule,
-			YAML:        "quietHoursWindowDuration",
 		},
 	}
 	return opts

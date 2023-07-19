@@ -1261,7 +1261,6 @@ func TestCompleteJob(t *testing.T) {
 						return schedule.UserQuietHoursScheduleOptions{
 							Schedule: sched,
 							UserSet:  false,
-							Duration: 4 * time.Hour,
 						}, nil
 					},
 				}
