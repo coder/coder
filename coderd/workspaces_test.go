@@ -1837,13 +1837,13 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 		},
 		{
 			name:          "maximum ttl",
-			ttlMillis:     ptr.Ref((24 * 7 * time.Hour).Milliseconds()),
+			ttlMillis:     ptr.Ref((24 * 30 * time.Hour).Milliseconds()),
 			expectedError: "",
 		},
 		{
 			name:          "above maximum ttl",
-			ttlMillis:     ptr.Ref((24*7*time.Hour + time.Minute).Milliseconds()),
-			expectedError: "time until shutdown must be less than 7 days",
+			ttlMillis:     ptr.Ref((24*30*time.Hour + time.Minute).Milliseconds()),
+			expectedError: "time until shutdown must be less than 30 days",
 		},
 	}
 

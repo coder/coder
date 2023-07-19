@@ -418,6 +418,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	}
 
 	shouldUpdate := func(initial, changed, enabled bool) bool {
+		// Avoid an initial tick on startup unless the feature is enabled.
 		return changed || (initial && enabled)
 	}
 

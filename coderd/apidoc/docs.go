@@ -7499,6 +7499,9 @@ const docTemplate = `{
                 "disable_session_expiry_refresh": {
                     "type": "boolean"
                 },
+                "docs_url": {
+                    "$ref": "#/definitions/clibase.URL"
+                },
                 "enable_terraform_debug_mode": {
                     "type": "boolean"
                 },

@@ -153,6 +153,24 @@ func TestStatter(t *testing.T) {
 			assert.Equal(t, "cores", cpu.Unit)
 		})
 
+		t.Run("ContainerCPU/AltPath", func(t *testing.T) {
+			t.Parallel()
+			fs := initFS(t, fsContainerCgroupV1AltPath)
+			fakeWait := func(time.Duration) {
+				// Fake 1 second in ns of usage
+				mungeFS(t, fs, "/sys/fs/cgroup/cpuacct/cpuacct.usage", "100000000")
+			}
+			s, err := New(WithFS(fs), withNproc(2), withWait(fakeWait))
+			require.NoError(t, err)
+			cpu, err := s.ContainerCPU()
+			require.NoError(t, err)
+			require.NotNil(t, cpu)
+			assert.Equal(t, 1.0, cpu.Used)
+			require.NotNil(t, cpu.Total)
+			assert.Equal(t, 2.5, *cpu.Total)
+			assert.Equal(t, "cores", cpu.Unit)
+		})
+
 		t.Run("ContainerMemory", func(t *testing.T) {
 			t.Parallel()
 			fs := initFS(t, fsContainerCgroupV1)
@@ -365,5 +383,16 @@ proc /proc/sys proc ro,nosuid,nodev,noexec,relatime 0 0`,
 		cgroupV1MemoryMaxUsageBytes: "max", // I have never seen this in the wild
 		cgroupV1MemoryUsageBytes:    "536870912",
 		cgroupV1MemoryStat:          "total_inactive_file 268435456",
+	}
+	fsContainerCgroupV1AltPath = map[string]string{
+		procOneCgroup: "0::/docker/aa86ac98959eeedeae0ecb6e0c9ddd8ae8b97a9d0fdccccf7ea7a474f4e0bb1f",
+		procMounts: `overlay / overlay rw,relatime,lowerdir=/some/path:/some/path,upperdir=/some/path:/some/path,workdir=/some/path:/some/path 0 0
+proc /proc/sys proc ro,nosuid,nodev,noexec,relatime 0 0`,
+		"/sys/fs/cgroup/cpuacct/cpuacct.usage": "0",
+		"/sys/fs/cgroup/cpu/cpu.cfs_quota_us":  "250000",
+		"/sys/fs/cgroup/cpu/cpu.cfs_period_us": "100000",
+		cgroupV1MemoryMaxUsageBytes:            "1073741824",
+		cgroupV1MemoryUsageBytes:               "536870912",
+		cgroupV1MemoryStat:                     "total_inactive_file 268435456",
 	}
 )
