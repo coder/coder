@@ -28,7 +28,7 @@ Start a shell into a workspace
           DEPRECATED: Use --wait instead.
 
   -R, --remote-forward string, $CODER_SSH_REMOTE_FORWARD
-          Enable remote port forwarding.
+          Enable remote port forwarding (remote_port:local_address:local_port).
 
       --stdio bool, $CODER_SSH_STDIO
           Specifies whether to emit SSH output over stdin/stdout.

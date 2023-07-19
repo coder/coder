@@ -64,7 +64,7 @@ Enter workspace immediately after the agent has connected. This is the default i
 | Type        | <code>string</code>                    |
 | Environment | <code>$CODER_SSH_REMOTE_FORWARD</code> |
 
-Enable remote port forwarding.
+Enable remote port forwarding (remote_port:local_address:local_port).
 
 ### --stdio
 

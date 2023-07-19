@@ -449,7 +449,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 		},
 		{
 			Flag:          "remote-forward",
-			Description:   "Enable remote port forwarding.",
+			Description:   "Enable remote port forwarding (remote_port:local_address:local_port).",
 			Env:           "CODER_SSH_REMOTE_FORWARD",
 			FlagShorthand: "R",
 			Value:         clibase.StringOf(&remoteForward),
