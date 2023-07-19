@@ -968,7 +968,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			rolesRow = []string{}
 		}
 
-		// Convert the []interface{} we get to a []string.
 		rolesInterface, ok := rolesRow.([]interface{})
 		if !ok {
 			api.Logger.Error(ctx, "oidc claim user roles field was an unknown type",
