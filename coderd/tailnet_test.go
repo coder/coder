@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"net/netip"
 	"net/url"
-	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
@@ -133,9 +132,7 @@ func setupAgent(t *testing.T, agentAddresses []netip.Prefix) (uuid.UUID, agent.A
 		DERPMap: derpMap,
 	}
 
-	var coordPtr atomic.Pointer[tailnet.Coordinator]
 	coord := tailnet.NewCoordinator(logger)
-	coordPtr.Store(&coord)
 	t.Cleanup(func() {
 		_ = coord.Close()
 	})
@@ -194,7 +191,7 @@ func setupAgent(t *testing.T, agentAddresses []netip.Prefix) (uuid.UUID, agent.A
 		logger,
 		derpServer,
 		manifest.DERPMap,
-		&coordPtr,
+		func(context.Context) (tailnet.MultiAgentConn, error) { return coord.ServeMultiAgent(uuid.New()), nil },
 		cache,
 	)
 	require.NoError(t, err)

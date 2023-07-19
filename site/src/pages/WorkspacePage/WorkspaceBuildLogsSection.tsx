@@ -47,7 +47,11 @@ export const WorkspaceBuildLogsSection = ({
         })}
       >
         {logs ? (
-          <WorkspaceBuildLogs logs={logs} sx={{ border: 0, borderRadius: 0 }} />
+          <WorkspaceBuildLogs
+            sticky
+            logs={logs}
+            sx={{ border: 0, borderRadius: 0 }}
+          />
         ) : (
           <Box
             sx={{

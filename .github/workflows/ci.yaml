@@ -36,9 +36,11 @@ jobs:
       k8s: ${{ steps.filter.outputs.k8s }}
       ci: ${{ steps.filter.outputs.ci }}
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
       # For pull requests it's not necessary to checkout the code
-      - uses: dorny/paths-filter@v2
+      - name: check changed files
+        uses: dorny/paths-filter@v2
         id: filter
         with:
           filters: |
@@ -101,9 +103,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - uses: ./.github/actions/setup-go
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
 
-      - uses: ./.github/actions/setup-node
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
 
       - name: Get golangci-lint cache dir
         run: |
@@ -122,7 +126,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@v1.16.0
+        uses: crate-ci/typos@v1.16.1
         with:
           config: .github/workflows/typos.toml
 
@@ -149,14 +153,19 @@ jobs:
     needs: changes
     if: needs.changes.outputs.docs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
 
-      - uses: ./.github/actions/setup-node
-      - uses: ./.github/actions/setup-go
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
 
-      - name: Install sqlc
-        run: |
-          curl -sSL https://github.com/kyleconroy/sqlc/releases/download/v1.18.0/sqlc_1.18.0_linux_amd64.tar.gz | sudo tar -C /usr/bin -xz sqlc
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Setup sqlc
+        uses: sqlc-dev/setup-sqlc@v3
+        with:
+          sqlc-version: "1.19.1"
 
       - name: go install tools
         run: |
@@ -192,9 +201,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - uses: ./.github/actions/setup-node
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
 
-      - uses: buildjet/setup-go@v4
+      - name: Setup Go
+        uses: buildjet/setup-go@v4
         with:
           # This doesn't need caching. It's super fast anyways!
           cache: false
@@ -235,10 +246,14 @@ jobs:
           - macos-latest
           - windows-2019
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
 
-      - uses: ./.github/actions/setup-go
-      - uses: ./.github/actions/setup-tf
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Setup Terraform
+        uses: ./.github/actions/setup-tf
 
       - name: Test with Mock Database
         id: test
@@ -269,12 +284,14 @@ jobs:
           # so we need to print the test stats to the log.
           go run ./scripts/ci-report/main.go gotests.json | tee gotests_stats.json
 
-      - uses: ./.github/actions/upload-datadog
+      - name: Upload test stats to Datadog
+        uses: ./.github/actions/upload-datadog
         if: success() || failure()
         with:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
-      - uses: codecov/codecov-action@v3
+      - name: Check code coverage
+        uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
         # the `fail_ci_if_error` option that defaults to `false`, but
         # that is no guarantee, see:
@@ -296,10 +313,14 @@ jobs:
     # even if some of the preceding steps are slow.
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
 
-      - uses: ./.github/actions/setup-go
-      - uses: ./.github/actions/setup-tf
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Setup Terraform
+        uses: ./.github/actions/setup-tf
 
       - name: Test with PostgreSQL Database
         run: |
@@ -313,12 +334,14 @@ jobs:
           # so we need to print the test stats to the log.
           go run ./scripts/ci-report/main.go gotests.json | tee gotests_stats.json
 
-      - uses: ./.github/actions/upload-datadog
+      - name: Upload test stats to Datadog
+        uses: ./.github/actions/upload-datadog
         if: success() || failure()
         with:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
-      - uses: codecov/codecov-action@v3
+      - name: Check code coverage
+        uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
         # the `fail_ci_if_error` option that defaults to `false`, but
         # that is no guarantee, see:
@@ -336,16 +359,21 @@ jobs:
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
 
-      - uses: ./.github/actions/setup-go
-      - uses: ./.github/actions/setup-tf
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Setup Terraform
+        uses: ./.github/actions/setup-tf
 
       - name: Run Tests
         run: |
           gotestsum --junitfile="gotests.xml" -- -race ./...
 
-      - uses: ./.github/actions/upload-datadog
+      - name: Upload test stats to Datadog
+        uses: ./.github/actions/upload-datadog
         if: always()
         with:
           api-key: ${{ secrets.DATADOG_API_KEY }}
@@ -362,7 +390,8 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
@@ -375,8 +404,11 @@ jobs:
       - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
 
-      - uses: ./.github/actions/setup-go
-      - uses: ./.github/actions/setup-node
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
 
       - name: Install goimports
         run: go install golang.org/x/tools/cmd/goimports@latest
@@ -430,7 +462,8 @@ jobs:
             echo "::endgroup::"
           done
 
-      - uses: actions/upload-artifact@v3
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
         with:
           name: coder
           path: |
@@ -445,14 +478,17 @@ jobs:
     if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
 
-      - uses: ./.github/actions/setup-node
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
 
       - run: yarn test:ci --max-workers $(nproc)
         working-directory: site
 
-      - uses: codecov/codecov-action@v3
+      - name: Check code coverage
+        uses: codecov/codecov-action@v3
         # This action has a tendency to error out unexpectedly, it has
         # the `fail_ci_if_error` option that defaults to `false`, but
         # that is no guarantee, see:
@@ -470,11 +506,17 @@ jobs:
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
 
-      - uses: ./.github/actions/setup-node
-      - uses: ./.github/actions/setup-go
-      - uses: ./.github/actions/setup-tf
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Setup Terraform
+        uses: ./.github/actions/setup-tf
 
       - name: Build
         run: |
@@ -503,13 +545,15 @@ jobs:
     needs: changes
     if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
         with:
           # Required by Chromatic for build-over-build history, otherwise we
           # only get 1 commit on shallow checkout.
           fetch-depth: 0
 
-      - uses: ./.github/actions/setup-node
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
 
       # This step is not meant for mainline because any detected changes to
       # storybook snapshots will require manual approval/review in order for

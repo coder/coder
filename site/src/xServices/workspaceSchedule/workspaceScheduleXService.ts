@@ -39,7 +39,7 @@ const permissionsToCheck = (workspace: TypesGen.Workspace) =>
       },
       action: "update",
     },
-  } as const)
+  }) as const
 
 export type WorkspaceScheduleEvent =
   | {

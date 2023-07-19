@@ -13,17 +13,14 @@ import (
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 	"tailscale.com/tailcfg"
 
-	"github.com/coder/retry"
-
 	"cdr.dev/slog"
-
-	"github.com/google/uuid"
-
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/retry"
 )
 
 // New returns a client that is used to interact with the
@@ -694,7 +691,6 @@ func StartupLogsNotifyChannel(agentID uuid.UUID) string {
 
 type StartupLogsNotifyMessage struct {
 	CreatedAfter int64 `json:"created_after"`
-	EndOfLogs    bool  `json:"end_of_logs"`
 }
 
 type closeNetConn struct {

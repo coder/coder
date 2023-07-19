@@ -9,7 +9,7 @@ import { useNavigate } from "react-router-dom"
 import { getDisplayWorkspaceTemplateName } from "utils/workspace"
 import { LastUsed } from "../LastUsed/LastUsed"
 import { Workspace } from "api/typesGenerated"
-import { OutdatedHelpTooltip } from "components/Tooltips/OutdatedHelpTooltip"
+import { WorkspaceOutdatedTooltip } from "components/Tooltips/WorkspaceOutdatedTooltip"
 import { Avatar } from "components/Avatar/Avatar"
 import { Stack } from "components/Stack/Stack"
 import { useClickableTableRow } from "hooks/useClickableTableRow"
@@ -42,7 +42,9 @@ export const WorkspacesRow: FC<{
             <Stack direction="row" spacing={0} alignItems="center">
               {workspace.name}
               {workspace.outdated && (
-                <OutdatedHelpTooltip
+                <WorkspaceOutdatedTooltip
+                  templateName={workspace.template_name}
+                  templateId={workspace.template_id}
                   onUpdateVersion={() => {
                     onUpdateWorkspace(workspace)
                   }}

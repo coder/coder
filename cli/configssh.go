@@ -198,6 +198,7 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 		dryRun              bool
 		skipProxyCommand    bool
 		forceUnixSeparators bool
+		coderCliPath        string
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -233,10 +234,16 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 				// that it's possible to capture the diff.
 				out = inv.Stderr
 			}
-			coderBinary, err := currentBinPath(out)
-			if err != nil {
-				return err
+
+			var err error
+			coderBinary := coderCliPath
+			if coderBinary == "" {
+				coderBinary, err = currentBinPath(out)
+				if err != nil {
+					return err
+				}
 			}
+
 			escapedCoderBinary, err := sshConfigExecEscape(coderBinary, forceUnixSeparators)
 			if err != nil {
 				return xerrors.Errorf("escape coder binary for ssh failed: %w", err)
@@ -500,6 +507,24 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 			Default:     sshDefaultConfigFileName,
 			Description: "Specifies the path to an SSH config.",
 			Value:       clibase.StringOf(&sshConfigFile),
+		},
+		{
+			Flag:    "coder-binary-path",
+			Env:     "CODER_SSH_CONFIG_BINARY_PATH",
+			Default: "",
+			Description: "Optionally specify the absolute path to the coder binary used in ProxyCommand. " +
+				"By default, the binary invoking this command ('config ssh') is used.",
+			Value: clibase.Validate(clibase.StringOf(&coderCliPath), func(value *clibase.String) error {
+				if runtime.GOOS == goosWindows {
+					// For some reason filepath.IsAbs() does not work on windows.
+					return nil
+				}
+				absolute := filepath.IsAbs(value.String())
+				if !absolute {
+					return xerrors.Errorf("coder cli path must be an absolute path")
+				}
+				return nil
+			}),
 		},
 		{
 			Flag:          "ssh-option",

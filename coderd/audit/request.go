@@ -10,7 +10,7 @@ import (
 	"strconv"
 
 	"github.com/google/uuid"
-	"github.com/tabbed/pqtype"
+	"github.com/sqlc-dev/pqtype"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/database"

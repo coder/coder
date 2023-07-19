@@ -32,10 +32,10 @@ import (
 
 var (
 	ttlMin = time.Minute //nolint:revive // min here means 'minimum' not 'minutes'
-	ttlMax = 7 * 24 * time.Hour
+	ttlMax = 30 * 24 * time.Hour
 
 	errTTLMin              = xerrors.New("time until shutdown must be at least one minute")
-	errTTLMax              = xerrors.New("time until shutdown must be less than 7 days")
+	errTTLMax              = xerrors.New("time until shutdown must be less than 30 days")
 	errDeadlineTooSoon     = xerrors.New("new deadline must be at least 30 minutes in the future")
 	errDeadlineBeforeStart = xerrors.New("new deadline must be before workspace start time")
 )
@@ -956,7 +956,7 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	cancelWorkspaceSubscribe, err := api.Pubsub.Subscribe(watchWorkspaceChannel(workspace.ID), sendUpdate)
+	cancelWorkspaceSubscribe, err := api.Pubsub.Subscribe(codersdk.WorkspaceNotifyChannel(workspace.ID), sendUpdate)
 	if err != nil {
 		_ = sendEvent(ctx, codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeError,
@@ -1243,12 +1243,8 @@ func validWorkspaceSchedule(s *string) (sql.NullString, error) {
 	}, nil
 }
 
-func watchWorkspaceChannel(id uuid.UUID) string {
-	return fmt.Sprintf("workspace:%s", id)
-}
-
 func (api *API) publishWorkspaceUpdate(ctx context.Context, workspaceID uuid.UUID) {
-	err := api.Pubsub.Publish(watchWorkspaceChannel(workspaceID), []byte{})
+	err := api.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(workspaceID), []byte{})
 	if err != nil {
 		api.Logger.Warn(ctx, "failed to publish workspace update",
 			slog.F("workspace_id", workspaceID), slog.Error(err))

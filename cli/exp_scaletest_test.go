@@ -69,6 +69,7 @@ func TestScaleTestWorkspaceTraffic(t *testing.T) {
 		"--tick-interval", "100ms",
 		"--scaletest-prometheus-address", "127.0.0.1:0",
 		"--scaletest-prometheus-wait", "0s",
+		"--ssh",
 	)
 	clitest.SetupConfig(t, client, root)
 	var stdout, stderr bytes.Buffer

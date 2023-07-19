@@ -424,8 +424,12 @@ func TestAgent_Session_TTY_MOTD_Update(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
+
+	setSBInterval := func(_ *agenttest.Client, opts *agent.Options) {
+		opts.ServiceBannerRefreshInterval = 5 * time.Millisecond
+	}
 	//nolint:dogsled // Allow the blank identifiers.
-	conn, client, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+	conn, client, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, setSBInterval)
 	for _, test := range tests {
 		test := test
 		// Set new banner func and wait for the agent to call it to update the
@@ -1143,7 +1147,9 @@ func TestAgent_Metadata(t *testing.T) {
 					Script:   echoHello,
 				},
 			},
-		}, 0)
+		}, 0, func(_ *agenttest.Client, opts *agent.Options) {
+			opts.ReportMetadataInterval = 100 * time.Millisecond
+		})
 
 		var gotMd map[string]agentsdk.PostMetadataRequest
 		require.Eventually(t, func() bool {
@@ -1174,23 +1180,23 @@ func TestAgent_Metadata(t *testing.T) {
 					Script:   echoHello,
 				},
 			},
-		}, 0)
+		}, 0, func(_ *agenttest.Client, opts *agent.Options) {
+			opts.ReportMetadataInterval = testutil.IntervalFast
+		})
 
 		var gotMd map[string]agentsdk.PostMetadataRequest
 		require.Eventually(t, func() bool {
 			gotMd = client.GetMetadata()
 			return len(gotMd) == 1
-		}, testutil.WaitShort, testutil.IntervalMedium)
+		}, testutil.WaitShort, testutil.IntervalFast/2)
 
 		collectedAt1 := gotMd["greeting"].CollectedAt
-		if !assert.Equal(t, "hello", strings.TrimSpace(gotMd["greeting"].Value)) {
-			t.Errorf("got: %+v", gotMd)
-		}
+		require.Equal(t, "hello", strings.TrimSpace(gotMd["greeting"].Value))
 
 		if !assert.Eventually(t, func() bool {
 			gotMd = client.GetMetadata()
 			return gotMd["greeting"].CollectedAt.After(collectedAt1)
-		}, testutil.WaitShort, testutil.IntervalMedium) {
+		}, testutil.WaitShort, testutil.IntervalFast/2) {
 			t.Fatalf("expected metadata to be collected again")
 		}
 	})
@@ -1227,7 +1233,9 @@ func TestAgentMetadata_Timing(t *testing.T) {
 				Script:   "exit 1",
 			},
 		},
-	}, 0)
+	}, 0, func(_ *agenttest.Client, opts *agent.Options) {
+		opts.ReportMetadataInterval = intervalUnit
+	})
 
 	require.Eventually(t, func() bool {
 		return len(client.GetMetadata()) == 2
@@ -1849,14 +1857,14 @@ func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) (*pt
 
 func setupSSHSession(
 	t *testing.T,
-	options agentsdk.Manifest,
+	manifest agentsdk.Manifest,
 	serviceBanner codersdk.ServiceBannerConfig,
 	prepareFS func(fs afero.Fs),
 ) *ssh.Session {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	//nolint:dogsled
-	conn, _, _, fs, _ := setupAgent(t, options, 0, func(c *agenttest.Client, _ *agent.Options) {
+	conn, _, _, fs, _ := setupAgent(t, manifest, 0, func(c *agenttest.Client, _ *agent.Options) {
 		c.SetServiceBannerFunc(func() (codersdk.ServiceBannerConfig, error) {
 			return serviceBanner, nil
 		})

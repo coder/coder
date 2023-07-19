@@ -100,13 +100,11 @@ export const WorkspaceReadyPage = ({
       ["canceling", "deleting", "pending", "starting", "stopping"].includes(
         workspace.latest_build.status,
       ))
-
   const {
     mutate: restartWorkspace,
     error: restartBuildError,
     isLoading: isRestarting,
   } = useRestartWorkspace()
-
   // keep banner machine in sync with workspace
   useEffect(() => {
     bannerSend({ type: "REFRESH_WORKSPACE", workspace })
@@ -151,12 +149,14 @@ export const WorkspaceReadyPage = ({
         isUpdating={workspaceState.matches("ready.build.requestingUpdate")}
         isRestarting={isRestarting}
         workspace={workspace}
-        handleStart={() => workspaceSend({ type: "START" })}
+        handleStart={(buildParameters) =>
+          workspaceSend({ type: "START", buildParameters })
+        }
         handleStop={() => workspaceSend({ type: "STOP" })}
         handleDelete={() => workspaceSend({ type: "ASK_DELETE" })}
-        handleRestart={() => {
+        handleRestart={(buildParameters) => {
           if (isWarningIgnored("restart")) {
-            restartWorkspace(workspace)
+            restartWorkspace({ workspace, buildParameters })
           } else {
             setIsConfirmingRestart(true)
           }
@@ -260,7 +260,7 @@ export const WorkspaceReadyPage = ({
           if (shouldIgnore) {
             ignoreWarning("restart")
           }
-          restartWorkspace(workspace)
+          restartWorkspace({ workspace })
           setIsConfirmingRestart(false)
         }}
         onClose={() => setIsConfirmingRestart(false)}

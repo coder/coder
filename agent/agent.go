@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"net"
@@ -52,21 +51,22 @@ const (
 )
 
 type Options struct {
-	Filesystem             afero.Fs
-	LogDir                 string
-	TempDir                string
-	ExchangeToken          func(ctx context.Context) (string, error)
-	Client                 Client
-	ReconnectingPTYTimeout time.Duration
-	EnvironmentVariables   map[string]string
-	Logger                 slog.Logger
-	IgnorePorts            map[int]string
-	SSHMaxTimeout          time.Duration
-	TailnetListenPort      uint16
-	Subsystem              codersdk.AgentSubsystem
-	Addresses              []netip.Prefix
-
-	PrometheusRegistry *prometheus.Registry
+	Filesystem                   afero.Fs
+	LogDir                       string
+	TempDir                      string
+	ExchangeToken                func(ctx context.Context) (string, error)
+	Client                       Client
+	ReconnectingPTYTimeout       time.Duration
+	EnvironmentVariables         map[string]string
+	Logger                       slog.Logger
+	IgnorePorts                  map[int]string
+	SSHMaxTimeout                time.Duration
+	TailnetListenPort            uint16
+	Subsystem                    codersdk.AgentSubsystem
+	Addresses                    []netip.Prefix
+	PrometheusRegistry           *prometheus.Registry
+	ReportMetadataInterval       time.Duration
+	ServiceBannerRefreshInterval time.Duration
 }
 
 type Client interface {
@@ -107,6 +107,12 @@ func New(options Options) Agent {
 			return "", nil
 		}
 	}
+	if options.ReportMetadataInterval == 0 {
+		options.ReportMetadataInterval = 1 * time.Minute
+	}
+	if options.ServiceBannerRefreshInterval == 0 {
+		options.ServiceBannerRefreshInterval = 2 * time.Minute
+	}
 
 	prometheusRegistry := options.PrometheusRegistry
 	if prometheusRegistry == nil {
@@ -115,25 +121,27 @@ func New(options Options) Agent {
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	a := &agent{
-		tailnetListenPort:      options.TailnetListenPort,
-		reconnectingPTYTimeout: options.ReconnectingPTYTimeout,
-		logger:                 options.Logger,
-		closeCancel:            cancelFunc,
-		closed:                 make(chan struct{}),
-		envVars:                options.EnvironmentVariables,
-		client:                 options.Client,
-		exchangeToken:          options.ExchangeToken,
-		filesystem:             options.Filesystem,
-		logDir:                 options.LogDir,
-		tempDir:                options.TempDir,
-		lifecycleUpdate:        make(chan struct{}, 1),
-		lifecycleReported:      make(chan codersdk.WorkspaceAgentLifecycle, 1),
-		lifecycleStates:        []agentsdk.PostLifecycleRequest{{State: codersdk.WorkspaceAgentLifecycleCreated}},
-		ignorePorts:            options.IgnorePorts,
-		connStatsChan:          make(chan *agentsdk.Stats, 1),
-		sshMaxTimeout:          options.SSHMaxTimeout,
-		subsystem:              options.Subsystem,
-		addresses:              options.Addresses,
+		tailnetListenPort:            options.TailnetListenPort,
+		reconnectingPTYTimeout:       options.ReconnectingPTYTimeout,
+		logger:                       options.Logger,
+		closeCancel:                  cancelFunc,
+		closed:                       make(chan struct{}),
+		envVars:                      options.EnvironmentVariables,
+		client:                       options.Client,
+		exchangeToken:                options.ExchangeToken,
+		filesystem:                   options.Filesystem,
+		logDir:                       options.LogDir,
+		tempDir:                      options.TempDir,
+		lifecycleUpdate:              make(chan struct{}, 1),
+		lifecycleReported:            make(chan codersdk.WorkspaceAgentLifecycle, 1),
+		lifecycleStates:              []agentsdk.PostLifecycleRequest{{State: codersdk.WorkspaceAgentLifecycleCreated}},
+		ignorePorts:                  options.IgnorePorts,
+		connStatsChan:                make(chan *agentsdk.Stats, 1),
+		reportMetadataInterval:       options.ReportMetadataInterval,
+		serviceBannerRefreshInterval: options.ServiceBannerRefreshInterval,
+		sshMaxTimeout:                options.SSHMaxTimeout,
+		subsystem:                    options.Subsystem,
+		addresses:                    options.Addresses,
 
 		prometheusRegistry: prometheusRegistry,
 		metrics:            newAgentMetrics(prometheusRegistry),
@@ -165,13 +173,14 @@ type agent struct {
 	closed        chan struct{}
 
 	envVars map[string]string
-	// manifest is atomic because values can change after reconnection.
-	manifest atomic.Pointer[agentsdk.Manifest]
-	// serviceBanner is atomic because it can change.
-	serviceBanner atomic.Pointer[codersdk.ServiceBannerConfig]
-	sessionToken  atomic.Pointer[string]
-	sshServer     *agentssh.Server
-	sshMaxTimeout time.Duration
+
+	manifest                     atomic.Pointer[agentsdk.Manifest] // manifest is atomic because values can change after reconnection.
+	reportMetadataInterval       time.Duration
+	serviceBanner                atomic.Pointer[codersdk.ServiceBannerConfig] // serviceBanner is atomic because it is periodically updated.
+	serviceBannerRefreshInterval time.Duration
+	sessionToken                 atomic.Pointer[string]
+	sshServer                    *agentssh.Server
+	sshMaxTimeout                time.Duration
 
 	lifecycleUpdate   chan struct{}
 	lifecycleReported chan codersdk.WorkspaceAgentLifecycle
@@ -283,17 +292,6 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 	return result
 }
 
-// adjustIntervalForTests returns a duration of testInterval milliseconds long
-// for tests and interval seconds long otherwise.
-func adjustIntervalForTests(interval time.Duration, testInterval time.Duration) time.Duration {
-	// In tests we want to set shorter intervals because engineers are
-	// impatient.
-	if flag.Lookup("test.v") != nil {
-		return testInterval
-	}
-	return interval
-}
-
 type metadataResultAndKey struct {
 	result *codersdk.WorkspaceAgentMetadataResult
 	key    string
@@ -315,12 +313,10 @@ func (t *trySingleflight) Do(key string, fn func()) {
 }
 
 func (a *agent) reportMetadataLoop(ctx context.Context) {
-	baseInterval := adjustIntervalForTests(time.Second, time.Millisecond*100)
-
 	const metadataLimit = 128
 
 	var (
-		baseTicker       = time.NewTicker(baseInterval)
+		baseTicker       = time.NewTicker(a.reportMetadataInterval)
 		lastCollectedAts = make(map[string]time.Time)
 		metadataResults  = make(chan metadataResultAndKey, metadataLimit)
 	)
@@ -391,11 +387,7 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 					continue
 				}
 				// The last collected value isn't quite stale yet, so we skip it.
-				if collectedAt.Add(
-					adjustIntervalForTests(
-						time.Duration(md.Interval)*time.Second,
-						time.Duration(md.Interval)*time.Millisecond*100),
-				).After(time.Now()) {
+				if collectedAt.Add(a.reportMetadataInterval).After(time.Now()) {
 					continue
 				}
 			}
@@ -506,7 +498,7 @@ func (a *agent) setLifecycle(ctx context.Context, state codersdk.WorkspaceAgentL
 // not be fetched immediately; the expectation is that it is primed elsewhere
 // (and must be done before the session actually starts).
 func (a *agent) fetchServiceBannerLoop(ctx context.Context) {
-	ticker := time.NewTicker(adjustIntervalForTests(2*time.Minute, time.Millisecond*5))
+	ticker := time.NewTicker(a.serviceBannerRefreshInterval)
 	defer ticker.Stop()
 	for {
 		select {

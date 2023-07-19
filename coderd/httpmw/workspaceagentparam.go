@@ -29,7 +29,7 @@ func ExtractWorkspaceAgentParam(db database.Store) func(http.Handler) http.Handl
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			agentUUID, parsed := parseUUID(rw, r, "workspaceagent")
+			agentUUID, parsed := ParseUUIDParam(rw, r, "workspaceagent")
 			if !parsed {
 				return
 			}

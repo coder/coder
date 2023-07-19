@@ -1223,6 +1223,71 @@ func TestTemplateVersionPatch(t *testing.T) {
 		assert.NotEqual(t, updatedVersion.Name, version.Name)
 	})
 
+	t.Run("Update the message", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil, func(req *codersdk.CreateTemplateVersionRequest) {
+			req.Message = "Example message"
+		})
+		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		wantMessage := "Updated message"
+		updatedVersion, err := client.UpdateTemplateVersion(ctx, version.ID, codersdk.PatchTemplateVersionRequest{
+			Message: &wantMessage,
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, wantMessage, updatedVersion.Message)
+	})
+
+	t.Run("Remove the message", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil, func(req *codersdk.CreateTemplateVersionRequest) {
+			req.Message = "Example message"
+		})
+		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		wantMessage := ""
+		updatedVersion, err := client.UpdateTemplateVersion(ctx, version.ID, codersdk.PatchTemplateVersionRequest{
+			Message: &wantMessage,
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, wantMessage, updatedVersion.Message)
+	})
+
+	t.Run("Keep the message", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		wantMessage := "Example message"
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil, func(req *codersdk.CreateTemplateVersionRequest) {
+			req.Message = wantMessage
+		})
+		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		t.Log(version.Message)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		updatedVersion, err := client.UpdateTemplateVersion(ctx, version.ID, codersdk.PatchTemplateVersionRequest{
+			Message: nil,
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, wantMessage, updatedVersion.Message)
+	})
+
 	t.Run("Use the same name if a new name is not passed", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)

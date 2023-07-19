@@ -159,10 +159,19 @@ describe("TemplateSchedulePage", () => {
     expect(validate).not.toThrowError()
   })
 
-  it("disallows a default ttl of 7 days + 1 hour", () => {
+  it("allows a default ttl of 30 days", () => {
     const values: UpdateTemplateMeta = {
       ...validFormValues,
-      default_ttl_ms: 24 * 7 + 1,
+      default_ttl_ms: 24 * 30,
+    }
+    const validate = () => getValidationSchema().validateSync(values)
+    expect(validate).not.toThrowError()
+  })
+
+  it("disallows a default ttl of 30 days + 1 hour", () => {
+    const values: UpdateTemplateMeta = {
+      ...validFormValues,
+      default_ttl_ms: 24 * 30 + 1,
     }
     const validate = () => getValidationSchema().validateSync(values)
     expect(validate).toThrowError(

@@ -64,9 +64,29 @@ WithLongDiffRow.args = {
   defaultIsDiffOpen: true,
 }
 
-export const WithWorkspaceBuild = Template.bind({})
-WithWorkspaceBuild.args = {
-  auditLog: MockAuditLogWithWorkspaceBuild,
+export const WithStoppedWorkspaceBuild = Template.bind({})
+WithStoppedWorkspaceBuild.args = {
+  auditLog: {
+    ...MockAuditLogWithWorkspaceBuild,
+    action: "stop",
+  },
+}
+
+export const WithStartedWorkspaceBuild = Template.bind({})
+WithStartedWorkspaceBuild.args = {
+  auditLog: {
+    ...MockAuditLogWithWorkspaceBuild,
+    action: "start",
+  },
+}
+
+export const WithDeletedWorkspaceBuild = Template.bind({})
+WithDeletedWorkspaceBuild.args = {
+  auditLog: {
+    ...MockAuditLogWithWorkspaceBuild,
+    action: "delete",
+    is_deleted: true,
+  },
 }
 
 export const DeletedResource = Template.bind({})

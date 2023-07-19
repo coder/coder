@@ -220,7 +220,9 @@ func orderAndStubDatabaseFunctions(filePath, receiver, structName string, stub f
 
 	for _, fn := range funcs {
 		var bodyStmts []dst.Stmt
-		if len(fn.Func.Params.List) == 2 && fn.Func.Params.List[1].Names[0].Name == "arg" {
+
+		// Add input validation, only relevant for dbfake.
+		if strings.Contains(filePath, "dbfake") && len(fn.Func.Params.List) == 2 && fn.Func.Params.List[1].Names[0].Name == "arg" {
 			/*
 				err := validateDatabaseType(arg)
 				if err != nil {
@@ -418,21 +420,44 @@ type querierFunction struct {
 
 // readQuerierFunctions reads the functions from coderd/database/querier.go
 func readQuerierFunctions() ([]querierFunction, error) {
+	f, err := parseDBFile("querier.go")
+	if err != nil {
+		return nil, xerrors.Errorf("parse querier.go: %w", err)
+	}
+	funcs, err := loadInterfaceFuncs(f, "sqlcQuerier")
+	if err != nil {
+		return nil, xerrors.Errorf("load interface %s funcs: %w", "sqlcQuerier", err)
+	}
+
+	customFile, err := parseDBFile("modelqueries.go")
+	if err != nil {
+		return nil, xerrors.Errorf("parse modelqueriers.go: %w", err)
+	}
+	// Custom funcs should be appended after the regular functions
+	customFuncs, err := loadInterfaceFuncs(customFile, "customQuerier")
+	if err != nil {
+		return nil, xerrors.Errorf("load interface %s funcs: %w", "customQuerier", err)
+	}
+
+	return append(funcs, customFuncs...), nil
+}
+
+func parseDBFile(filename string) (*dst.File, error) {
 	localPath, err := localFilePath()
 	if err != nil {
 		return nil, err
 	}
-	querierPath := filepath.Join(localPath, "..", "..", "..", "coderd", "database", "querier.go")
 
+	querierPath := filepath.Join(localPath, "..", "..", "..", "coderd", "database", filename)
 	querierData, err := os.ReadFile(querierPath)
 	if err != nil {
-		return nil, xerrors.Errorf("read querier: %w", err)
+		return nil, xerrors.Errorf("read %s: %w", filename, err)
 	}
 	f, err := decorator.Parse(querierData)
-	if err != nil {
-		return nil, err
-	}
+	return f, err
+}
 
+func loadInterfaceFuncs(f *dst.File, interfaceName string) ([]querierFunction, error) {
 	var querier *dst.InterfaceType
 	for _, decl := range f.Decls {
 		genDecl, ok := decl.(*dst.GenDecl)
@@ -447,7 +472,7 @@ func readQuerierFunctions() ([]querierFunction, error) {
 			}
 			// This is the name of the interface. If that ever changes,
 			// this will need to be updated.
-			if typeSpec.Name.Name != "sqlcQuerier" {
+			if typeSpec.Name.Name != interfaceName {
 				continue
 			}
 			querier, ok = typeSpec.Type.(*dst.InterfaceType)
@@ -461,7 +486,8 @@ func readQuerierFunctions() ([]querierFunction, error) {
 		return nil, xerrors.Errorf("querier not found")
 	}
 	funcs := []querierFunction{}
-	for _, method := range querier.Methods.List {
+	allMethods := interfaceMethods(querier)
+	for _, method := range allMethods {
 		funcType, ok := method.Type.(*dst.FuncType)
 		if !ok {
 			continue
@@ -539,4 +565,31 @@ func nameFromSnakeCase(s string) string {
 		}
 	}
 	return ret
+}
+
+// interfaceMethods returns all embedded methods of an interface.
+func interfaceMethods(i *dst.InterfaceType) []*dst.Field {
+	var allMethods []*dst.Field
+	for _, field := range i.Methods.List {
+		switch fieldType := field.Type.(type) {
+		case *dst.FuncType:
+			allMethods = append(allMethods, field)
+		case *dst.InterfaceType:
+			allMethods = append(allMethods, interfaceMethods(fieldType)...)
+		case *dst.Ident:
+			// Embedded interfaces are Idents -> TypeSpec -> InterfaceType
+			// If the embedded interface is not in the parsed file, then
+			// the Obj will be nil.
+			if fieldType.Obj != nil {
+				objDecl, ok := fieldType.Obj.Decl.(*dst.TypeSpec)
+				if ok {
+					isInterface, ok := objDecl.Type.(*dst.InterfaceType)
+					if ok {
+						allMethods = append(allMethods, interfaceMethods(isInterface)...)
+					}
+				}
+			}
+		}
+	}
+	return allMethods
 }

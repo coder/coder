@@ -32,6 +32,10 @@ export const selectInitialRichParametersValues = (
       return
     }
 
+    if (parameter.ephemeral) {
+      parameterValue = parameter.default_value
+    }
+
     if (defaultValuesFromQuery && defaultValuesFromQuery[parameter.name]) {
       parameterValue = defaultValuesFromQuery[parameter.name]
     }
@@ -181,4 +185,22 @@ export const workspaceBuildParameterValue = (
     return buildParameter.name === parameter.name
   })
   return (buildParameter && buildParameter.value) || ""
+}
+
+export const getInitialParameterValues = (
+  templateParameters: TemplateVersionParameter[],
+  buildParameters: WorkspaceBuildParameter[],
+) => {
+  return templateParameters.map((parameter) => {
+    const buildParameter = buildParameters.find(
+      (p) => p.name === parameter.name,
+    )
+    if (!buildParameter || parameter.ephemeral) {
+      return {
+        name: parameter.name,
+        value: parameter.default_value,
+      }
+    }
+    return buildParameter
+  })
 }

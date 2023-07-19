@@ -25,7 +25,8 @@ import (
 )
 
 type ProxyOptions struct {
-	Name string
+	Name        string
+	Experiments codersdk.Experiments
 
 	TLSCertificates []tls.Certificate
 	AppHostname     string
@@ -118,6 +119,7 @@ func NewWorkspaceProxy(t *testing.T, coderdAPI *coderd.API, owner *codersdk.Clie
 
 	wssrv, err := wsproxy.New(ctx, &wsproxy.Options{
 		Logger:            slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+		Experiments:       options.Experiments,
 		DashboardURL:      coderdAPI.AccessURL,
 		AccessURL:         accessURL,
 		AppHostname:       options.AppHostname,

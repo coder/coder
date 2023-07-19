@@ -332,6 +332,7 @@ export interface DeploymentValues {
   readonly verbose?: boolean
   readonly access_url?: string
   readonly wildcard_access_url?: string
+  readonly docs_url?: string
   readonly redirect_to_access_url?: boolean
   readonly http_address?: string
   readonly autobuild_poll_interval?: number
@@ -644,6 +645,7 @@ export interface PatchGroupRequest {
 // From codersdk/templateversions.go
 export interface PatchTemplateVersionRequest {
   readonly name: string
+  readonly message?: string
 }
 
 // From codersdk/workspaceproxy.go
