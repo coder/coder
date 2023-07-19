@@ -215,6 +215,8 @@ type ServerTailnet struct {
 	transport *http.Transport
 }
 
+// insureTLSConfig returns a tls config that does not verify
+// the server's certificate chain.
 func insecureTLSConfig() *tls.Config {
 	return &tls.Config{
 		MinVersion:         tls.VersionTLS12,

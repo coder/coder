@@ -62,66 +62,103 @@ func TestServerTailnet_AgentConn_Legacy(t *testing.T) {
 	assert.True(t, conn.AwaitReachable(ctx))
 }
 
-func TestServerTailnet_ReverseProxy_OK(t *testing.T) {
+func TestServerTailnet_ReverseProxy(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	t.Run("OK", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
 
-	// Force a connection through wsconncache using the legacy hardcoded ip.
-	agentID, _, serverTailnet := setupAgent(t, nil)
+		agentID, _, serverTailnet := setupAgent(t, nil)
 
-	u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", codersdk.WorkspaceAgentHTTPAPIServerPort))
-	require.NoError(t, err)
+		u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", codersdk.WorkspaceAgentHTTPAPIServerPort))
+		require.NoError(t, err)
 
-	rp, release, err := serverTailnet.ReverseProxy(u, u, agentID)
-	require.NoError(t, err)
-	defer release()
+		rp, release, err := serverTailnet.ReverseProxy(u, u, agentID)
+		require.NoError(t, err)
+		defer release()
 
-	rw := httptest.NewRecorder()
-	req := httptest.NewRequest(
-		http.MethodGet,
-		u.String(),
-		nil,
-	).WithContext(ctx)
+		rw := httptest.NewRecorder()
+		req := httptest.NewRequest(
+			http.MethodGet,
+			u.String(),
+			nil,
+		).WithContext(ctx)
 
-	rp.ServeHTTP(rw, req)
-	res := rw.Result()
-	defer res.Body.Close()
+		rp.ServeHTTP(rw, req)
+		res := rw.Result()
+		defer res.Body.Close()
 
-	assert.Equal(t, http.StatusOK, res.StatusCode)
-}
-
-func TestServerTailnet_ReverseProxy_Legacy(t *testing.T) {
-	t.Parallel()
-
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-
-	// Force a connection through wsconncache using the legacy hardcoded ip.
-	agentID, _, serverTailnet := setupAgent(t, []netip.Prefix{
-		netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128),
+		assert.Equal(t, http.StatusOK, res.StatusCode)
 	})
 
-	u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", codersdk.WorkspaceAgentHTTPAPIServerPort))
-	require.NoError(t, err)
+	t.Run("HTTPSProxy", func(t *testing.T) {
+		t.Parallel()
 
-	rp, release, err := serverTailnet.ReverseProxy(u, u, agentID)
-	require.NoError(t, err)
-	defer release()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
 
-	rw := httptest.NewRecorder()
-	req := httptest.NewRequest(
-		http.MethodGet,
-		u.String(),
-		nil,
-	).WithContext(ctx)
+		agentID, _, serverTailnet := setupAgent(t, nil)
 
-	rp.ServeHTTP(rw, req)
-	res := rw.Result()
-	defer res.Body.Close()
+		const expectedResponseCode = 209
+		// Test that we can proxy HTTPS traffic.
+		s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(expectedResponseCode)
+		}))
+		defer s.Close()
 
-	assert.Equal(t, http.StatusOK, res.StatusCode)
+		uri, err := url.Parse(s.URL)
+		require.NoError(t, err)
+
+		rp, release, err := serverTailnet.ReverseProxy(uri, uri, agentID)
+		require.NoError(t, err)
+		defer release()
+
+		rw := httptest.NewRecorder()
+		req := httptest.NewRequest(
+			http.MethodGet,
+			uri.String(),
+			nil,
+		).WithContext(ctx)
+
+		rp.ServeHTTP(rw, req)
+		res := rw.Result()
+		defer res.Body.Close()
+
+		assert.Equal(t, expectedResponseCode, res.StatusCode)
+	})
+
+	t.Run("Legacy", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Force a connection through wsconncache using the legacy hardcoded ip.
+		agentID, _, serverTailnet := setupAgent(t, []netip.Prefix{
+			netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128),
+		})
+
+		u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", codersdk.WorkspaceAgentHTTPAPIServerPort))
+		require.NoError(t, err)
+
+		rp, release, err := serverTailnet.ReverseProxy(u, u, agentID)
+		require.NoError(t, err)
+		defer release()
+
+		rw := httptest.NewRecorder()
+		req := httptest.NewRequest(
+			http.MethodGet,
+			u.String(),
+			nil,
+		).WithContext(ctx)
+
+		rp.ServeHTTP(rw, req)
+		res := rw.Result()
+		defer res.Body.Close()
+
+		assert.Equal(t, http.StatusOK, res.StatusCode)
+	})
 }
 
 func setupAgent(t *testing.T, agentAddresses []netip.Prefix) (uuid.UUID, agent.Agent, *coderd.ServerTailnet) {
