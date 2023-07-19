@@ -6919,6 +6919,22 @@ _None_
 | `username_or_id`       | string                                                   | false    |              | For the following fields, if the AccessMethod is AccessMethodTerminal, then only AgentNameOrID may be set and it must be a UUID. The other fields must be left blank.                 |
 | `workspace_name_or_id` | string                                                   | false    |              |                                                                                                                                                                                       |
 
+## wsproxysdk.AgentIsLegacyResponse
+
+```json
+{
+  "found": true,
+  "legacy": true
+}
+```
+
+### Properties
+
+| Name     | Type    | Required | Restrictions | Description |
+| -------- | ------- | -------- | ------------ | ----------- |
+| `found`  | boolean | false    |              |             |
+| `legacy` | boolean | false    |              |             |
+
 ## wsproxysdk.IssueSignedAppTokenResponse
 
 ```json
