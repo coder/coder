@@ -227,7 +227,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
                   {workspace.health.failing_agents.length > 1
                     ? `${workspace.health.failing_agents.length} agents are unhealthy`
                     : `1 agent is unhealthy`}
-                  .
+                  . Try restarting your workspace.
                 </AlertDetail>
               </Alert>
             )}
