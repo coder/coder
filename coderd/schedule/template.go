@@ -86,7 +86,7 @@ func (*agplTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context
 			LockedTTL:          tpl.LockedTTL,
 		})
 		if err != nil {
-			return err
+			return xerrors.Errorf("update template schedule: %w", err)
 		}
 
 		template, err = db.GetTemplateByID(ctx, tpl.ID)

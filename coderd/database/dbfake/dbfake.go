@@ -446,21 +446,21 @@ func (q *FakeQuerier) getLatestWorkspaceBuildByWorkspaceIDNoLock(_ context.Conte
 func (q *FakeQuerier) getTemplateByIDNoLock(_ context.Context, id uuid.UUID) (database.Template, error) {
 	for _, template := range q.templates {
 		if template.ID == id {
-			return q.templateWithUser(template), nil
+			return q.templateWithUserNoLock(template), nil
 		}
 	}
 	return database.Template{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) templatesWithUser(tpl []database.TemplateTable) []database.Template {
+func (q *FakeQuerier) templatesWithUserNoLock(tpl []database.TemplateTable) []database.Template {
 	cpy := make([]database.Template, 0, len(tpl))
 	for _, t := range tpl {
-		cpy = append(cpy, q.templateWithUser(t))
+		cpy = append(cpy, q.templateWithUserNoLock(t))
 	}
 	return cpy
 }
 
-func (q *FakeQuerier) templateWithUser(tpl database.TemplateTable) database.Template {
+func (q *FakeQuerier) templateWithUserNoLock(tpl database.TemplateTable) database.Template {
 	var user database.User
 	for _, _user := range q.users {
 		if _user.ID == tpl.CreatedBy {
@@ -1894,7 +1894,7 @@ func (q *FakeQuerier) GetTemplateByOrganizationAndName(_ context.Context, arg da
 		if template.Deleted != arg.Deleted {
 			continue
 		}
-		return q.templateWithUser(template), nil
+		return q.templateWithUserNoLock(template), nil
 	}
 	return database.Template{}, sql.ErrNoRows
 }
@@ -2124,7 +2124,7 @@ func (q *FakeQuerier) GetTemplates(_ context.Context) ([]database.Template, erro
 		return i.ID.String() < j.ID.String()
 	})
 
-	return q.templatesWithUser(templates), nil
+	return q.templatesWithUserNoLock(templates), nil
 }
 
 func (q *FakeQuerier) GetTemplatesWithFilter(ctx context.Context, arg database.GetTemplatesWithFilterParams) ([]database.Template, error) {
@@ -5007,7 +5007,7 @@ func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.G
 
 	var templates []database.Template
 	for _, templateTable := range q.templates {
-		template := q.templateWithUser(templateTable)
+		template := q.templateWithUserNoLock(templateTable)
 		if prepared != nil && prepared.Authorize(ctx, template.RBACObject()) != nil {
 			continue
 		}
