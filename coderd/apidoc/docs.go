@@ -8164,6 +8164,18 @@ const docTemplate = `{
                 "sign_in_text": {
                     "type": "string"
                 },
+                "user_role_field": {
+                    "type": "string"
+                },
+                "user_role_mapping": {
+                    "type": "object"
+                },
+                "user_roles_default": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "username_field": {
                     "type": "string"
                 }
@@ -9036,6 +9048,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "login_type": {
+                    "$ref": "#/definitions/codersdk.LoginType"
+                },
                 "organization_ids": {
                     "type": "array",
                     "items": {
@@ -9476,6 +9491,9 @@ const docTemplate = `{
                 "last_seen_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "login_type": {
+                    "$ref": "#/definitions/codersdk.LoginType"
                 },
                 "organization_ids": {
                     "type": "array",

@@ -1105,6 +1105,7 @@ export interface User {
   readonly organization_ids: string[]
   readonly roles: Role[]
   readonly avatar_url: string
+  readonly login_type: LoginType
 }
 
 // From codersdk/users.go
