@@ -277,6 +277,9 @@ coder:
   command:
     - /opt/coder
 
+  # coder.commandArgs -- Set arguments for the entrypoint command of the Coder pod.
+  commandArgs: []
+
 # extraTemplates -- Array of extra objects to deploy with the release. Strings
 # are evaluated as a template and can use template expansions and functions. All
 # other objects are used as yaml.
