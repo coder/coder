@@ -16,6 +16,9 @@ import { TableRowMenu } from "../TableRowMenu/TableRowMenu"
 import { EditRolesButton } from "components/EditRolesButton/EditRolesButton"
 import { Stack } from "components/Stack/Stack"
 import { EnterpriseBadge } from "components/DeploySettingsLayout/Badges"
+import { usePermissions } from "hooks"
+import { deploymentConfigMachine } from "xServices/deploymentConfig/deploymentConfigMachine"
+import { useMachine } from "@xstate/react"
 
 const isOwnerRole = (role: TypesGen.Role): boolean => {
   return role.name === "owner"
@@ -72,6 +75,16 @@ export const UsersTableBody: FC<
   const styles = useStyles()
   const { t } = useTranslation("usersPage")
 
+  const permissions = usePermissions()
+  const canViewDeployment = Boolean(permissions.viewDeploymentValues)
+  const [state] = useMachine(deploymentConfigMachine)
+  const { deploymentValues } = state.context
+
+  // Indicates if oidc roles are synced from the oidc idp.
+  // Assign 'false' if unknown.
+  const oidcRoleSync =
+    canViewDeployment && deploymentValues?.config.oidc?.user_role_field !== ""
+
   return (
     <ChooseOne>
       <Cond condition={Boolean(isLoading)}>
@@ -127,6 +140,8 @@ export const UsersTableBody: FC<
                           roles={roles ? sortRoles(roles) : []}
                           selectedRoles={userRoles}
                           isLoading={Boolean(isUpdatingUserRoles)}
+                          userLoginType={user.login_type}
+                          oidcRoleSync={oidcRoleSync}
                           onChange={(roles) => {
                             // Remove the fallback role because it is only for the UI
                             const rolesWithoutFallback = roles.filter(
