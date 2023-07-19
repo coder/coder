@@ -1025,7 +1025,7 @@ func TestCompleteJob(t *testing.T) {
 					Name:        "template",
 					Provisioner: database.ProvisionerTypeEcho,
 				})
-				template, err := srv.Database.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+				err := srv.Database.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 					ID:                 template.ID,
 					UpdatedAt:          database.Now(),
 					AllowUserAutostart: c.templateAllowAutostop,

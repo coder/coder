@@ -57,4 +57,6 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 	go run golang.org/x/tools/cmd/goimports@latest -w queries.sql.go
 
 	go run ../../scripts/dbgen/main.go
+	# This will error if a view is broken.
+	go test -run=TestViewSubset
 )

@@ -191,7 +191,7 @@ type sqlcQuerier interface {
 	InsertProvisionerJob(ctx context.Context, arg InsertProvisionerJobParams) (ProvisionerJob, error)
 	InsertProvisionerJobLogs(ctx context.Context, arg InsertProvisionerJobLogsParams) ([]ProvisionerJobLog, error)
 	InsertReplica(ctx context.Context, arg InsertReplicaParams) (Replica, error)
-	InsertTemplate(ctx context.Context, arg InsertTemplateParams) (Template, error)
+	InsertTemplate(ctx context.Context, arg InsertTemplateParams) error
 	InsertTemplateVersion(ctx context.Context, arg InsertTemplateVersionParams) (TemplateVersion, error)
 	InsertTemplateVersionParameter(ctx context.Context, arg InsertTemplateVersionParameterParams) (TemplateVersionParameter, error)
 	InsertTemplateVersionVariable(ctx context.Context, arg InsertTemplateVersionVariableParams) (TemplateVersionVariable, error)
@@ -225,11 +225,11 @@ type sqlcQuerier interface {
 	UpdateProvisionerJobWithCancelByID(ctx context.Context, arg UpdateProvisionerJobWithCancelByIDParams) error
 	UpdateProvisionerJobWithCompleteByID(ctx context.Context, arg UpdateProvisionerJobWithCompleteByIDParams) error
 	UpdateReplica(ctx context.Context, arg UpdateReplicaParams) (Replica, error)
-	UpdateTemplateACLByID(ctx context.Context, arg UpdateTemplateACLByIDParams) (Template, error)
+	UpdateTemplateACLByID(ctx context.Context, arg UpdateTemplateACLByIDParams) error
 	UpdateTemplateActiveVersionByID(ctx context.Context, arg UpdateTemplateActiveVersionByIDParams) error
 	UpdateTemplateDeletedByID(ctx context.Context, arg UpdateTemplateDeletedByIDParams) error
-	UpdateTemplateMetaByID(ctx context.Context, arg UpdateTemplateMetaByIDParams) (Template, error)
-	UpdateTemplateScheduleByID(ctx context.Context, arg UpdateTemplateScheduleByIDParams) (Template, error)
+	UpdateTemplateMetaByID(ctx context.Context, arg UpdateTemplateMetaByIDParams) error
+	UpdateTemplateScheduleByID(ctx context.Context, arg UpdateTemplateScheduleByIDParams) error
 	UpdateTemplateVersionByID(ctx context.Context, arg UpdateTemplateVersionByIDParams) (TemplateVersion, error)
 	UpdateTemplateVersionDescriptionByJobID(ctx context.Context, arg UpdateTemplateVersionDescriptionByJobIDParams) error
 	UpdateTemplateVersionGitAuthProvidersByJobID(ctx context.Context, arg UpdateTemplateVersionGitAuthProvidersByJobIDParams) error

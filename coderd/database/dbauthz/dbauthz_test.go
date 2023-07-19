@@ -772,7 +772,7 @@ func (s *MethodTestSuite) TestTemplate() {
 		t1 := dbgen.Template(s.T(), db, database.Template{})
 		check.Args(database.UpdateTemplateACLByIDParams{
 			ID: t1.ID,
-		}).Asserts(t1, rbac.ActionCreate).Returns(t1)
+		}).Asserts(t1, rbac.ActionCreate)
 	}))
 	s.Run("UpdateTemplateActiveVersionByID", s.Subtest(func(db database.Store, check *expects) {
 		t1 := dbgen.Template(s.T(), db, database.Template{

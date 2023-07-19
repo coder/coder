@@ -343,39 +343,52 @@ func (*EnterpriseTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.C
 		return tpl, nil
 	}
 
-	template, err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
-		ID:                 tpl.ID,
-		UpdatedAt:          database.Now(),
-		AllowUserAutostart: opts.UserAutostartEnabled,
-		AllowUserAutostop:  opts.UserAutostopEnabled,
-		DefaultTTL:         int64(opts.DefaultTTL),
-		MaxTTL:             int64(opts.MaxTTL),
-		FailureTTL:         int64(opts.FailureTTL),
-		InactivityTTL:      int64(opts.InactivityTTL),
-		LockedTTL:          int64(opts.LockedTTL),
-	})
-	if err != nil {
-		return database.Template{}, xerrors.Errorf("update template schedule: %w", err)
-	}
-
-	// Update all workspaces using the template to set the user defined schedule
-	// to be within the new bounds. This essentially does the following for each
-	// workspace using the template.
-	//   if (template.ttl != NULL) {
-	//     workspace.ttl = min(workspace.ttl, template.ttl)
-	//   }
-	//
-	// NOTE: this does not apply to currently running workspaces as their
-	// schedule information is committed to the workspace_build during start.
-	// This limitation is displayed to the user while editing the template.
-	if opts.MaxTTL > 0 {
-		err = db.UpdateWorkspaceTTLToBeWithinTemplateMax(ctx, database.UpdateWorkspaceTTLToBeWithinTemplateMaxParams{
-			TemplateID:     template.ID,
-			TemplateMaxTTL: int64(opts.MaxTTL),
+	var template database.Template
+	err := db.InTx(func(db database.Store) error {
+		err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+			ID:                 tpl.ID,
+			UpdatedAt:          database.Now(),
+			AllowUserAutostart: opts.UserAutostartEnabled,
+			AllowUserAutostop:  opts.UserAutostopEnabled,
+			DefaultTTL:         int64(opts.DefaultTTL),
+			MaxTTL:             int64(opts.MaxTTL),
+			FailureTTL:         int64(opts.FailureTTL),
+			InactivityTTL:      int64(opts.InactivityTTL),
+			LockedTTL:          int64(opts.LockedTTL),
 		})
 		if err != nil {
-			return database.Template{}, xerrors.Errorf("update TTL of all workspaces on template to be within new template max TTL: %w", err)
+			return xerrors.Errorf("update template schedule: %w", err)
 		}
+
+		// Update all workspaces using the template to set the user defined schedule
+		// to be within the new bounds. This essentially does the following for each
+		// workspace using the template.
+		//   if (template.ttl != NULL) {
+		//     workspace.ttl = min(workspace.ttl, template.ttl)
+		//   }
+		//
+		// NOTE: this does not apply to currently running workspaces as their
+		// schedule information is committed to the workspace_build during start.
+		// This limitation is displayed to the user while editing the template.
+		if opts.MaxTTL > 0 {
+			err = db.UpdateWorkspaceTTLToBeWithinTemplateMax(ctx, database.UpdateWorkspaceTTLToBeWithinTemplateMaxParams{
+				TemplateID:     tpl.ID,
+				TemplateMaxTTL: int64(opts.MaxTTL),
+			})
+			if err != nil {
+				return xerrors.Errorf("update TTL of all workspaces on template to be within new template max TTL: %w", err)
+			}
+		}
+
+		template, err = db.GetTemplateByID(ctx, tpl.ID)
+		if err != nil {
+			return xerrors.Errorf("get updated template schedule: %w", err)
+		}
+
+		return nil
+	}, nil)
+	if err != nil {
+		return database.Template{}, err
 	}
 
 	return template, nil
