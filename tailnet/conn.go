@@ -496,7 +496,7 @@ func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 			Endpoints:  node.Endpoints,
 			DERP:       fmt.Sprintf("%s:%d", tailcfg.DerpMagicIP, node.PreferredDERP),
 			Hostinfo:   hostinfo.New().View(),
-			KeepAlive:  c.connType == ConnTypeClient,
+			KeepAlive:  c.connType == ConnTypeAgent,
 		}
 		if c.blockEndpoints {
 			peerNode.Endpoints = nil

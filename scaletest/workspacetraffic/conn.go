@@ -5,12 +5,12 @@ import (
 	"io"
 	"sync"
 
-	"github.com/coder/coder/codersdk"
-
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/codersdk"
 )
 
 func connectPTY(ctx context.Context, client *codersdk.Client, agentID, reconnect uuid.UUID) (*countReadWriteCloser, error) {
