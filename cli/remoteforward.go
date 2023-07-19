@@ -21,6 +21,8 @@ type cookieAddr struct {
 	cookie []byte
 }
 
+// Format:
+// remote_port:local_address:local_port
 var remoteForwardRegex = regexp.MustCompile(`^(\d+):(.+):(\d+)$`)
 
 func validateRemoteForward(flag string) bool {
@@ -30,8 +32,6 @@ func validateRemoteForward(flag string) bool {
 func parseRemoteForward(flag string) (net.Addr, net.Addr, error) {
 	matches := remoteForwardRegex.FindStringSubmatch(flag)
 
-	// Format:
-	// remote_port:local_address:local_port
 	remotePort, err := strconv.Atoi(matches[1])
 	if err != nil {
 		return nil, nil, xerrors.Errorf("remote port is invalid: %w", err)
