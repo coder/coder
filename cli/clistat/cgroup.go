@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 	"tailscale.com/types/ptr"
@@ -15,11 +16,10 @@ import (
 // Ref: https://www.kernel.org/doc/Documentation/cgroup-v1/cpuacct.txt
 const (
 	// CPU usage of all tasks in cgroup in nanoseconds.
-	cgroupV1CPUAcctUsage = "/sys/fs/cgroup/cpu/cpuacct.usage"
-	// Alternate path
-	cgroupV1CPUAcctUsageAlt = "/sys/fs/cgroup/cpu,cpuacct/cpuacct.usage"
+	cgroupV1CPUAcctUsage = "/sys/fs/cgroup/cpu,cpuacct/cpuacct.usage"
 	// CFS quota and period for cgroup in MICROseconds
-	cgroupV1CFSQuotaUs  = "/sys/fs/cgroup/cpu,cpuacct/cpu.cfs_quota_us"
+	cgroupV1CFSQuotaUs = "/sys/fs/cgroup/cpu,cpuacct/cpu.cfs_quota_us"
+	// CFS period for cgroup in MICROseconds
 	cgroupV1CFSPeriodUs = "/sys/fs/cgroup/cpu,cpuacct/cpu.cfs_period_us"
 	// Maximum memory usable by cgroup in bytes
 	cgroupV1MemoryMaxUsageBytes = "/sys/fs/cgroup/memory/memory.max_usage_in_bytes"
@@ -153,12 +153,26 @@ func (s *Statter) cGroupV2CPUTotal() (total float64, err error) {
 func (s *Statter) cGroupV1CPUTotal() (float64, error) {
 	periodUs, err := readInt64(s.fs, cgroupV1CFSPeriodUs)
 	if err != nil {
-		return 0, xerrors.Errorf("read cpu period: %w", err)
+		// Try alternate path under /sys/fs/cpu
+		var merr error
+		merr = multierror.Append(merr, xerrors.Errorf("get cpu period: %w", err))
+		periodUs, err = readInt64(s.fs, strings.Replace(cgroupV1CFSPeriodUs, "cpu,cpuacct", "cpu", 1))
+		if err != nil {
+			merr = multierror.Append(merr, xerrors.Errorf("get cpu period: %w", err))
+			return 0, merr
+		}
 	}
 
 	quotaUs, err := readInt64(s.fs, cgroupV1CFSQuotaUs)
 	if err != nil {
-		return 0, xerrors.Errorf("read cpu quota: %w", err)
+		// Try alternate path under /sys/fs/cpu
+		var merr error
+		merr = multierror.Append(merr, xerrors.Errorf("get cpu quota: %w", err))
+		quotaUs, err = readInt64(s.fs, strings.Replace(cgroupV1CFSQuotaUs, "cpu,cpuacct", "cpu", 1))
+		if err != nil {
+			merr = multierror.Append(merr, xerrors.Errorf("get cpu quota: %w", err))
+			return 0, merr
+		}
 	}
 
 	if quotaUs < 0 {
@@ -171,10 +185,13 @@ func (s *Statter) cGroupV1CPUTotal() (float64, error) {
 func (s *Statter) cGroupV1CPUUsed() (float64, error) {
 	usageNs, err := readInt64(s.fs, cgroupV1CPUAcctUsage)
 	if err != nil {
-		// try alternate path
-		usageNs, err = readInt64(s.fs, cgroupV1CPUAcctUsageAlt)
+		// Try alternate path under /sys/fs/cgroup/cpuacct
+		var merr error
+		merr = multierror.Append(merr, xerrors.Errorf("read cpu used: %w", err))
+		usageNs, err = readInt64(s.fs, strings.Replace(cgroupV1CPUAcctUsage, "cpu,cpuacct", "cpuacct", 1))
 		if err != nil {
-			return 0, xerrors.Errorf("read cpu used: %w", err)
+			merr = multierror.Append(merr, xerrors.Errorf("read cpu used: %w", err))
+			return 0, merr
 		}
 	}
 
@@ -182,7 +199,14 @@ func (s *Statter) cGroupV1CPUUsed() (float64, error) {
 	usageNs /= 1000
 	periodUs, err := readInt64(s.fs, cgroupV1CFSPeriodUs)
 	if err != nil {
-		return 0, xerrors.Errorf("get cpu period: %w", err)
+		// Try alternate path under /sys/fs/cpu
+		var merr error
+		merr = multierror.Append(merr, xerrors.Errorf("get cpu period: %w", err))
+		periodUs, err = readInt64(s.fs, strings.Replace(cgroupV1CFSPeriodUs, "cpu,cpuacct", "cpu", 1))
+		if err != nil {
+			merr = multierror.Append(merr, xerrors.Errorf("get cpu period: %w", err))
+			return 0, merr
+		}
 	}
 
 	return float64(usageNs) / float64(periodUs), nil

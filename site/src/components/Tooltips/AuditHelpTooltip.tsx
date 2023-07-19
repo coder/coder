@@ -6,6 +6,7 @@ import {
   HelpTooltipText,
   HelpTooltipTitle,
 } from "./HelpTooltip"
+import { docs } from "utils/docs"
 
 export const Language = {
   title: "What is an audit log?",
@@ -19,7 +20,7 @@ export const AuditHelpTooltip: FC = () => {
       <HelpTooltipTitle>{Language.title}</HelpTooltipTitle>
       <HelpTooltipText>{Language.body}</HelpTooltipText>
       <HelpTooltipLinksGroup>
-        <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/admin/audit-logs">
+        <HelpTooltipLink href={docs("/admin/audit-logs")}>
           {Language.docs}
         </HelpTooltipLink>
       </HelpTooltipLinksGroup>

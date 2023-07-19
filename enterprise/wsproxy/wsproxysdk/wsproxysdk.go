@@ -3,16 +3,25 @@ package wsproxysdk
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
+	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+	"nhooyr.io/websocket"
+	"tailscale.com/util/singleflight"
 
+	"cdr.dev/slog"
+	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/codersdk"
+	agpl "github.com/coder/coder/tailnet"
 )
 
 // Client is a HTTP client for a subset of Coder API routes that external
@@ -185,4 +194,207 @@ func (c *Client) WorkspaceProxyGoingAway(ctx context.Context) error {
 		return codersdk.ReadBodyAsError(res)
 	}
 	return nil
+}
+
+type CoordinateMessageType int
+
+const (
+	CoordinateMessageTypeSubscribe CoordinateMessageType = 1 + iota
+	CoordinateMessageTypeUnsubscribe
+	CoordinateMessageTypeNodeUpdate
+)
+
+type CoordinateMessage struct {
+	Type    CoordinateMessageType `json:"type"`
+	AgentID uuid.UUID             `json:"agent_id"`
+	Node    *agpl.Node            `json:"node"`
+}
+
+type CoordinateNodes struct {
+	Nodes []*agpl.Node
+}
+
+func (c *Client) DialCoordinator(ctx context.Context) (agpl.MultiAgentConn, error) {
+	ctx, cancel := context.WithCancel(ctx)
+
+	coordinateURL, err := c.SDKClient.URL.Parse("/api/v2/workspaceproxies/me/coordinate")
+	if err != nil {
+		cancel()
+		return nil, xerrors.Errorf("parse url: %w", err)
+	}
+	coordinateHeaders := make(http.Header)
+	tokenHeader := codersdk.SessionTokenHeader
+	if c.SDKClient.SessionTokenHeader != "" {
+		tokenHeader = c.SDKClient.SessionTokenHeader
+	}
+	coordinateHeaders.Set(tokenHeader, c.SessionToken())
+
+	//nolint:bodyclose
+	conn, _, err := websocket.Dial(ctx, coordinateURL.String(), &websocket.DialOptions{
+		HTTPClient: c.SDKClient.HTTPClient,
+		HTTPHeader: coordinateHeaders,
+	})
+	if err != nil {
+		cancel()
+		return nil, xerrors.Errorf("dial coordinate websocket: %w", err)
+	}
+
+	go httpapi.HeartbeatClose(ctx, cancel, conn)
+
+	nc := websocket.NetConn(ctx, conn, websocket.MessageText)
+	rma := remoteMultiAgentHandler{
+		sdk:              c,
+		nc:               nc,
+		legacyAgentCache: map[uuid.UUID]bool{},
+	}
+
+	ma := (&agpl.MultiAgent{
+		ID:                uuid.New(),
+		AgentIsLegacyFunc: rma.AgentIsLegacy,
+		OnSubscribe:       rma.OnSubscribe,
+		OnUnsubscribe:     rma.OnUnsubscribe,
+		OnNodeUpdate:      rma.OnNodeUpdate,
+		OnRemove:          func(uuid.UUID) { conn.Close(websocket.StatusGoingAway, "closed") },
+	}).Init()
+
+	go func() {
+		defer cancel()
+		dec := json.NewDecoder(nc)
+		for {
+			var msg CoordinateNodes
+			err := dec.Decode(&msg)
+			if err != nil {
+				if xerrors.Is(err, io.EOF) {
+					return
+				}
+
+				c.SDKClient.Logger().Error(ctx, "failed to decode coordinator nodes", slog.Error(err))
+				return
+			}
+
+			err = ma.Enqueue(msg.Nodes)
+			if err != nil {
+				c.SDKClient.Logger().Error(ctx, "enqueue nodes from coordinator", slog.Error(err))
+				continue
+			}
+		}
+	}()
+
+	return ma, nil
+}
+
+type remoteMultiAgentHandler struct {
+	sdk *Client
+	nc  net.Conn
+
+	legacyMu           sync.RWMutex
+	legacyAgentCache   map[uuid.UUID]bool
+	legacySingleflight singleflight.Group[uuid.UUID, AgentIsLegacyResponse]
+}
+
+func (a *remoteMultiAgentHandler) writeJSON(v interface{}) error {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return xerrors.Errorf("json marshal message: %w", err)
+	}
+
+	// Set a deadline so that hung connections don't put back pressure on the system.
+	// Node updates are tiny, so even the dinkiest connection can handle them if it's not hung.
+	err = a.nc.SetWriteDeadline(time.Now().Add(agpl.WriteTimeout))
+	if err != nil {
+		return xerrors.Errorf("set write deadline: %w", err)
+	}
+	_, err = a.nc.Write(data)
+	if err != nil {
+		return xerrors.Errorf("write message: %w", err)
+	}
+
+	// nhooyr.io/websocket has a bugged implementation of deadlines on a websocket net.Conn.  What they are
+	// *supposed* to do is set a deadline for any subsequent writes to complete, otherwise the call to Write()
+	// fails.  What nhooyr.io/websocket does is set a timer, after which it expires the websocket write context.
+	// If this timer fires, then the next write will fail *even if we set a new write deadline*.  So, after
+	// our successful write, it is important that we reset the deadline before it fires.
+	err = a.nc.SetWriteDeadline(time.Time{})
+	if err != nil {
+		return xerrors.Errorf("clear write deadline: %w", err)
+	}
+
+	return nil
+}
+
+func (a *remoteMultiAgentHandler) OnNodeUpdate(_ uuid.UUID, node *agpl.Node) error {
+	return a.writeJSON(CoordinateMessage{
+		Type: CoordinateMessageTypeNodeUpdate,
+		Node: node,
+	})
+}
+
+func (a *remoteMultiAgentHandler) OnSubscribe(_ agpl.Queue, agentID uuid.UUID) (*agpl.Node, error) {
+	return nil, a.writeJSON(CoordinateMessage{
+		Type:    CoordinateMessageTypeSubscribe,
+		AgentID: agentID,
+	})
+}
+
+func (a *remoteMultiAgentHandler) OnUnsubscribe(_ agpl.Queue, agentID uuid.UUID) error {
+	return a.writeJSON(CoordinateMessage{
+		Type:    CoordinateMessageTypeUnsubscribe,
+		AgentID: agentID,
+	})
+}
+
+func (a *remoteMultiAgentHandler) AgentIsLegacy(agentID uuid.UUID) bool {
+	a.legacyMu.RLock()
+	if isLegacy, ok := a.legacyAgentCache[agentID]; ok {
+		a.legacyMu.RUnlock()
+		return isLegacy
+	}
+	a.legacyMu.RUnlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err, _ := a.legacySingleflight.Do(agentID, func() (AgentIsLegacyResponse, error) {
+		return a.sdk.AgentIsLegacy(ctx, agentID)
+	})
+	if err != nil {
+		a.sdk.SDKClient.Logger().Error(ctx, "failed to check agent legacy status", slog.Error(err))
+
+		// Assume that the agent is legacy since this failed, while less
+		// efficient it will always work.
+		return true
+	}
+	// Assume legacy since the agent didn't exist.
+	if !resp.Found {
+		return true
+	}
+
+	a.legacyMu.Lock()
+	a.legacyAgentCache[agentID] = resp.Legacy
+	a.legacyMu.Unlock()
+
+	return resp.Legacy
+}
+
+type AgentIsLegacyResponse struct {
+	Found  bool `json:"found"`
+	Legacy bool `json:"legacy"`
+}
+
+func (c *Client) AgentIsLegacy(ctx context.Context, agentID uuid.UUID) (AgentIsLegacyResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/workspaceagents/%s/legacy", agentID.String()),
+		nil,
+	)
+	if err != nil {
+		return AgentIsLegacyResponse{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return AgentIsLegacyResponse{}, codersdk.ReadBodyAsError(res)
+	}
+
+	var resp AgentIsLegacyResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }

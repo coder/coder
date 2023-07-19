@@ -199,7 +199,7 @@ func New(options *Options) *API {
 		options.Authorizer,
 		options.Logger.Named("authz_querier"),
 	)
-	experiments := initExperiments(
+	experiments := ReadExperiments(
 		options.Logger, options.DeploymentValues.Experiments.Value(),
 	)
 	if options.AppHostname != "" && options.AppHostnameRegex == nil || options.AppHostname == "" && options.AppHostnameRegex != nil {
@@ -310,6 +310,7 @@ func New(options *Options) *API {
 		Database:      options.Database,
 		SiteFS:        site.FS(),
 		OAuth2Configs: oauthConfigs,
+		DocsURL:       options.DeploymentValues.DocsURL.String(),
 	})
 	staticHandler.Experiments.Store(&experiments)
 
@@ -370,7 +371,9 @@ func New(options *Options) *API {
 			options.Logger,
 			options.DERPServer,
 			options.DERPMap,
-			&api.TailnetCoordinator,
+			func(context.Context) (tailnet.MultiAgentConn, error) {
+				return (*api.TailnetCoordinator.Load()).ServeMultiAgent(uuid.New()), nil
+			},
 			wsconncache.New(api._dialWorkspaceAgentTailnet, 0),
 		)
 		if err != nil {
@@ -1081,7 +1084,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 }
 
 // nolint:revive
-func initExperiments(log slog.Logger, raw []string) codersdk.Experiments {
+func ReadExperiments(log slog.Logger, raw []string) codersdk.Experiments {
 	exps := make([]codersdk.Experiment, 0, len(raw))
 	for _, v := range raw {
 		switch v {

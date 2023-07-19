@@ -158,10 +158,19 @@ describe("validationSchema", () => {
     expect(validate).not.toThrowError()
   })
 
-  it("disallows a ttl of 7 days + 1 hour", () => {
+  it("allows a ttl of 30 days", () => {
     const values: WorkspaceScheduleFormValues = {
       ...valid,
-      ttl: 24 * 7 + 1,
+      ttl: 24 * 30,
+    }
+    const validate = () => validationSchema.validateSync(values)
+    expect(validate).not.toThrowError()
+  })
+
+  it("disallows a ttl of 30 days + 1 hour", () => {
+    const values: WorkspaceScheduleFormValues = {
+      ...valid,
+      ttl: 24 * 30 + 1,
     }
     const validate = () => validationSchema.validateSync(values)
     expect(validate).toThrowError(Language.errorTtlMax)

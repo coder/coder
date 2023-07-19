@@ -6,6 +6,7 @@ import { Header } from "components/DeploySettingsLayout/Header"
 import OptionsTable from "components/DeploySettingsLayout/OptionsTable"
 import { Stack } from "components/Stack/Stack"
 import { useDeploymentOptions } from "utils/deployOptions"
+import { docs } from "utils/docs"
 
 export type GeneralSettingsPageViewProps = {
   deploymentOptions: DeploymentOption[]
@@ -22,7 +23,7 @@ export const GeneralSettingsPageView = ({
       <Header
         title="General"
         description="Information about your Coder deployment."
-        docsHref="https://coder.com/docs/coder-oss/latest/admin/configure"
+        docsHref={docs("/admin/configure")}
       />
       <Stack spacing={4}>
         {Boolean(getDeploymentDAUsError) && (
