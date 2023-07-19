@@ -101,7 +101,11 @@ const useStyles = makeStyles<
     borderRadius: theme.shape.borderRadius,
     overflowX: "auto",
     background: theme.palette.background.default,
-    borderBottom: `1px solid ${theme.palette.divider}`,
+
+    "&:not(:last-child)": {
+      borderBottom: `1px solid ${theme.palette.divider}`,
+      borderRadius: 0,
+    },
   },
   scrollWrapper: {
     minWidth: "fit-content",
