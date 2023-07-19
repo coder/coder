@@ -2,7 +2,9 @@ package workspacetraffic_test
 
 import (
 	"context"
+	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,162 +18,287 @@ import (
 	"github.com/coder/coder/testutil"
 
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
-	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRun(t *testing.T) {
 	t.Parallel()
-
-	// We need to stand up an in-memory coderd and run a fake workspace.
-	var (
-		client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		firstUser = coderdtest.CreateFirstUser(t, client)
-		authToken = uuid.NewString()
-		agentName = "agent"
-		version   = coderdtest.CreateTemplateVersion(t, client, firstUser.OrganizationID, &echo.Responses{
-			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.ProvisionComplete,
-			ProvisionApply: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Resources: []*proto.Resource{{
-							Name: "example",
-							Type: "aws_instance",
-							Agents: []*proto.Agent{{
-								// Agent ID gets generated no matter what we say ¯\_(ツ)_/¯
-								Name: agentName,
-								Auth: &proto.Agent_Token{
-									Token: authToken,
-								},
-								Apps: []*proto.App{},
-							}},
-						}},
-					},
-				},
-			}},
-		})
-		template = coderdtest.CreateTemplate(t, client, firstUser.OrganizationID, version.ID)
-		_        = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		// In order to be picked up as a scaletest workspace, the workspace must be named specifically
-		ws = coderdtest.CreateWorkspace(t, client, firstUser.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
-			cwr.Name = "scaletest-test"
-		})
-		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
-	)
-
-	// We also need a running agent to run this test.
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(authToken)
-	agentCloser := agent.New(agent.Options{
-		Client: agentClient,
-	})
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	t.Cleanup(func() {
-		_ = agentCloser.Close()
-	})
-	// We actually need to know the full user and not just the UserID / OrgID
-	user, err := client.User(ctx, firstUser.UserID.String())
-	require.NoError(t, err, "get first user")
-
-	// Make sure the agent is connected before we go any further.
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
-	var agentID uuid.UUID
-	for _, res := range resources {
-		for _, agt := range res.Agents {
-			agentID = agt.ID
-		}
+	if runtime.GOOS == "windows" {
+		t.Skip("Test not supported on windows.")
 	}
-	require.NotEqual(t, uuid.Nil, agentID, "did not expect agentID to be nil")
+	if testutil.RaceEnabled() {
+		t.Skip("Race detector enabled, skipping time-sensitive test.")
+	}
 
-	// Now we can start the runner.
-	var (
-		bytesPerTick = 1024
-		tickInterval = 1000 * time.Millisecond
-		cancelAfter  = 1500 * time.Millisecond
-		fudgeWrite   = 12 // The ReconnectingPTY payload incurs some overhead
-	)
-	reg := prometheus.NewRegistry()
-	metrics := workspacetraffic.NewMetrics(reg, "username", "workspace_name", "agent_name")
-	runner := workspacetraffic.NewRunner(client, workspacetraffic.Config{
-		AgentID:        agentID,
-		AgentName:      agentName,
-		WorkspaceName:  ws.Name,
-		WorkspaceOwner: ws.OwnerName,
-		BytesPerTick:   int64(bytesPerTick),
-		TickInterval:   tickInterval,
-		Duration:       testutil.WaitLong,
-		Registry:       reg,
-	}, metrics)
+	t.Run("PTY", func(t *testing.T) {
+		t.Parallel()
+		// We need to stand up an in-memory coderd and run a fake workspace.
+		var (
+			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			firstUser = coderdtest.CreateFirstUser(t, client)
+			authToken = uuid.NewString()
+			agentName = "agent"
+			version   = coderdtest.CreateTemplateVersion(t, client, firstUser.OrganizationID, &echo.Responses{
+				Parse:         echo.ParseComplete,
+				ProvisionPlan: echo.ProvisionComplete,
+				ProvisionApply: []*proto.Provision_Response{{
+					Type: &proto.Provision_Response_Complete{
+						Complete: &proto.Provision_Complete{
+							Resources: []*proto.Resource{{
+								Name: "example",
+								Type: "aws_instance",
+								Agents: []*proto.Agent{{
+									// Agent ID gets generated no matter what we say ¯\_(ツ)_/¯
+									Name: agentName,
+									Auth: &proto.Agent_Token{
+										Token: authToken,
+									},
+									Apps: []*proto.App{},
+								}},
+							}},
+						},
+					},
+				}},
+			})
+			template = coderdtest.CreateTemplate(t, client, firstUser.OrganizationID, version.ID)
+			_        = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			// In order to be picked up as a scaletest workspace, the workspace must be named specifically
+			ws = coderdtest.CreateWorkspace(t, client, firstUser.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+				cwr.Name = "scaletest-test"
+			})
+			_ = coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
+		)
 
-	var logs strings.Builder
-	// Stop the test after one 'tick'. This will cause an EOF.
-	go func() {
-		<-time.After(cancelAfter)
-		cancel()
-	}()
-	require.NoError(t, runner.Run(ctx, "", &logs), "unexpected error calling Run()")
+		// We also need a running agent to run this test.
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(authToken)
+		agentCloser := agent.New(agent.Options{
+			Client: agentClient,
+		})
 
-	// We want to ensure the metrics are somewhat accurate.
-	lvs := []string{user.Username, ws.Name, agentName}
-	assert.InDelta(t, bytesPerTick+fudgeWrite, toFloat64(t, metrics.BytesWrittenTotal.WithLabelValues(lvs...)), 0.1)
-	// Read is highly variable, depending on how far we read before stopping.
-	// Just ensure it's not zero.
-	assert.NotZero(t, bytesPerTick, toFloat64(t, metrics.BytesReadTotal.WithLabelValues(lvs...)))
-	// Latency should report non-zero values.
-	assert.NotZero(t, toFloat64(t, metrics.ReadLatencySeconds))
-	assert.NotZero(t, toFloat64(t, metrics.WriteLatencySeconds))
-	// Should not report any errors!
-	assert.Zero(t, toFloat64(t, metrics.ReadErrorsTotal.WithLabelValues(lvs...)))
-	assert.Zero(t, toFloat64(t, metrics.ReadErrorsTotal.WithLabelValues(lvs...)))
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		t.Cleanup(func() {
+			_ = agentCloser.Close()
+		})
+
+		// Make sure the agent is connected before we go any further.
+		resources := coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
+		var agentID uuid.UUID
+		for _, res := range resources {
+			for _, agt := range res.Agents {
+				agentID = agt.ID
+			}
+		}
+		require.NotEqual(t, uuid.Nil, agentID, "did not expect agentID to be nil")
+
+		// Now we can start the runner.
+		var (
+			bytesPerTick = 1024
+			tickInterval = 1000 * time.Millisecond
+			cancelAfter  = 1500 * time.Millisecond
+			fudgeWrite   = 12 // The ReconnectingPTY payload incurs some overhead
+			readMetrics  = &testMetrics{}
+			writeMetrics = &testMetrics{}
+		)
+		runner := workspacetraffic.NewRunner(client, workspacetraffic.Config{
+			AgentID:      agentID,
+			BytesPerTick: int64(bytesPerTick),
+			TickInterval: tickInterval,
+			Duration:     testutil.WaitLong,
+			ReadMetrics:  readMetrics,
+			WriteMetrics: writeMetrics,
+			SSH:          false,
+		})
+
+		var logs strings.Builder
+		// Stop the test after one 'tick'. This will cause an EOF.
+		go func() {
+			<-time.After(cancelAfter)
+			cancel()
+		}()
+		require.NoError(t, runner.Run(ctx, "", &logs), "unexpected error calling Run()")
+
+		t.Logf("read errors: %.0f\n", readMetrics.Errors())
+		t.Logf("write errors: %.0f\n", writeMetrics.Errors())
+		t.Logf("bytes read total: %.0f\n", readMetrics.Total())
+		t.Logf("bytes written total: %.0f\n", writeMetrics.Total())
+
+		// We want to ensure the metrics are somewhat accurate.
+		assert.InDelta(t, bytesPerTick+fudgeWrite, writeMetrics.Total(), 0.1)
+		// Read is highly variable, depending on how far we read before stopping.
+		// Just ensure it's not zero.
+		assert.NotZero(t, readMetrics.Total())
+		// Latency should report non-zero values.
+		assert.NotEmpty(t, readMetrics.Latencies())
+		for _, l := range readMetrics.Latencies()[1:] { // skip the first one, which is always zero
+			assert.NotZero(t, l)
+		}
+		for _, l := range writeMetrics.Latencies()[1:] { // skip the first one, which is always zero
+			assert.NotZero(t, l)
+		}
+		assert.NotEmpty(t, writeMetrics.Latencies())
+		// Should not report any errors!
+		assert.Zero(t, readMetrics.Errors())
+		assert.Zero(t, writeMetrics.Errors())
+	})
+
+	t.Run("SSH", func(t *testing.T) {
+		t.Parallel()
+		// We need to stand up an in-memory coderd and run a fake workspace.
+		var (
+			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			firstUser = coderdtest.CreateFirstUser(t, client)
+			authToken = uuid.NewString()
+			agentName = "agent"
+			version   = coderdtest.CreateTemplateVersion(t, client, firstUser.OrganizationID, &echo.Responses{
+				Parse:         echo.ParseComplete,
+				ProvisionPlan: echo.ProvisionComplete,
+				ProvisionApply: []*proto.Provision_Response{{
+					Type: &proto.Provision_Response_Complete{
+						Complete: &proto.Provision_Complete{
+							Resources: []*proto.Resource{{
+								Name: "example",
+								Type: "aws_instance",
+								Agents: []*proto.Agent{{
+									// Agent ID gets generated no matter what we say ¯\_(ツ)_/¯
+									Name: agentName,
+									Auth: &proto.Agent_Token{
+										Token: authToken,
+									},
+									Apps: []*proto.App{},
+								}},
+							}},
+						},
+					},
+				}},
+			})
+			template = coderdtest.CreateTemplate(t, client, firstUser.OrganizationID, version.ID)
+			_        = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			// In order to be picked up as a scaletest workspace, the workspace must be named specifically
+			ws = coderdtest.CreateWorkspace(t, client, firstUser.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+				cwr.Name = "scaletest-test"
+			})
+			_ = coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
+		)
+
+		// We also need a running agent to run this test.
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(authToken)
+		agentCloser := agent.New(agent.Options{
+			Client: agentClient,
+		})
+
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(func() {
+			cancel()
+			_ = agentCloser.Close()
+		})
+
+		// Make sure the agent is connected before we go any further.
+		resources := coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
+		var agentID uuid.UUID
+		for _, res := range resources {
+			for _, agt := range res.Agents {
+				agentID = agt.ID
+			}
+		}
+		require.NotEqual(t, uuid.Nil, agentID, "did not expect agentID to be nil")
+
+		// Now we can start the runner.
+		var (
+			bytesPerTick = 1024
+			tickInterval = 1000 * time.Millisecond
+			cancelAfter  = 1500 * time.Millisecond
+			fudgeWrite   = 2 // We send \r\n, which is two bytes
+			readMetrics  = &testMetrics{}
+			writeMetrics = &testMetrics{}
+		)
+		runner := workspacetraffic.NewRunner(client, workspacetraffic.Config{
+			AgentID:      agentID,
+			BytesPerTick: int64(bytesPerTick),
+			TickInterval: tickInterval,
+			Duration:     testutil.WaitLong,
+			ReadMetrics:  readMetrics,
+			WriteMetrics: writeMetrics,
+			SSH:          true,
+		})
+
+		var logs strings.Builder
+		// Stop the test after one 'tick'. This will cause an EOF.
+		go func() {
+			<-time.After(cancelAfter)
+			cancel()
+		}()
+		require.NoError(t, runner.Run(ctx, "", &logs), "unexpected error calling Run()")
+
+		t.Logf("read errors: %.0f\n", readMetrics.Errors())
+		t.Logf("write errors: %.0f\n", writeMetrics.Errors())
+		t.Logf("bytes read total: %.0f\n", readMetrics.Total())
+		t.Logf("bytes written total: %.0f\n", writeMetrics.Total())
+
+		// We want to ensure the metrics are somewhat accurate.
+		assert.InDelta(t, bytesPerTick+fudgeWrite, writeMetrics.Total(), 0.1)
+		// Read is highly variable, depending on how far we read before stopping.
+		// Just ensure it's not zero.
+		assert.NotZero(t, readMetrics.Total())
+		// Latency should report non-zero values.
+		assert.NotEmpty(t, readMetrics.Latencies())
+		for _, l := range readMetrics.Latencies()[1:] { // skip the first one, which is always zero
+			assert.NotZero(t, l)
+		}
+		for _, l := range writeMetrics.Latencies()[1:] { // skip the first one, which is always zero
+			assert.NotZero(t, l)
+		}
+		assert.NotEmpty(t, writeMetrics.Latencies())
+		// Should not report any errors!
+		assert.Zero(t, readMetrics.Errors())
+		assert.Zero(t, writeMetrics.Errors())
+	})
 }
 
-// toFloat64 version of Prometheus' testutil.ToFloat64 that integrates with
-// github.com/stretchr/testify/require and handles histograms (somewhat)
-func toFloat64(t testing.TB, c prometheus.Collector) float64 {
-	var (
-		m      prometheus.Metric
-		mCount int
-		mChan  = make(chan prometheus.Metric)
-		done   = make(chan struct{})
-	)
+type testMetrics struct {
+	sync.Mutex
+	errors    float64
+	latencies []float64
+	total     float64
+}
 
-	go func() {
-		for m = range mChan {
-			mCount++
-		}
-		close(done)
-	}()
+var _ workspacetraffic.ConnMetrics = (*testMetrics)(nil)
 
-	c.Collect(mChan)
-	close(mChan)
-	<-done
+func (m *testMetrics) AddError(f float64) {
+	m.Lock()
+	defer m.Unlock()
+	m.errors += f
+}
 
-	require.Equal(t, 1, mCount, "expected exactly 1 metric but got %d", mCount)
+func (m *testMetrics) ObserveLatency(f float64) {
+	m.Lock()
+	defer m.Unlock()
+	m.latencies = append(m.latencies, f)
+}
 
-	pb := &dto.Metric{}
-	require.NoError(t, m.Write(pb), "unexpected error collecting metrics")
+func (m *testMetrics) AddTotal(f float64) {
+	m.Lock()
+	defer m.Unlock()
+	m.total += f
+}
 
-	if pb.Gauge != nil {
-		return pb.Gauge.GetValue()
-	}
-	if pb.Counter != nil {
-		return pb.Counter.GetValue()
-	}
-	if pb.Untyped != nil {
-		return pb.Untyped.GetValue()
-	}
-	if pb.Histogram != nil {
-		// If no samples, just return zero.
-		if pb.Histogram.GetSampleCount() == 0 {
-			return 0
-		}
-		// Average is sufficient for testing purposes.
-		return pb.Histogram.GetSampleSum() / pb.Histogram.GetSampleCountFloat()
-	}
-	require.Fail(t, "collected a non-gauge/counter/untyped/histogram metric: %s", pb)
-	return 0
+func (m *testMetrics) Total() float64 {
+	m.Lock()
+	defer m.Unlock()
+	return m.total
+}
+
+func (m *testMetrics) Errors() float64 {
+	m.Lock()
+	defer m.Unlock()
+	return m.errors
+}
+
+func (m *testMetrics) Latencies() []float64 {
+	m.Lock()
+	defer m.Unlock()
+	return m.latencies
 }

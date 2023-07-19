@@ -120,6 +120,7 @@ type DeploymentValues struct {
 	Verbose             clibase.Bool `json:"verbose,omitempty"`
 	AccessURL           clibase.URL  `json:"access_url,omitempty"`
 	WildcardAccessURL   clibase.URL  `json:"wildcard_access_url,omitempty"`
+	DocsURL             clibase.URL  `json:"docs_url,omitempty"`
 	RedirectToAccessURL clibase.Bool `json:"redirect_to_access_url,omitempty"`
 	// HTTPAddress is a string because it may be set to zero to disable.
 	HTTPAddress                     clibase.String                  `json:"http_address,omitempty" typescript:",notnull"`
@@ -165,6 +166,7 @@ type DeploymentValues struct {
 	WgtunnelHost                    clibase.String                  `json:"wgtunnel_host,omitempty" typescript:",notnull"`
 	DisableOwnerWorkspaceExec       clibase.Bool                    `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
 	ProxyHealthStatusInterval       clibase.Duration                `json:"proxy_health_status_interval,omitempty" typescript:",notnull"`
+	EnableTerraformDebugMode        clibase.Bool                    `json:"enable_terraform_debug_mode,omitempty" typescript:",notnull"`
 
 	Config      clibase.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig clibase.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -297,16 +299,20 @@ type TraceConfig struct {
 }
 
 type GitAuthConfig struct {
-	ID           string   `json:"id"`
-	Type         string   `json:"type"`
-	ClientID     string   `json:"client_id"`
-	ClientSecret string   `json:"-" yaml:"client_secret"`
-	AuthURL      string   `json:"auth_url"`
-	TokenURL     string   `json:"token_url"`
-	ValidateURL  string   `json:"validate_url"`
-	Regex        string   `json:"regex"`
-	NoRefresh    bool     `json:"no_refresh"`
-	Scopes       []string `json:"scopes"`
+	ID                  string   `json:"id"`
+	Type                string   `json:"type"`
+	ClientID            string   `json:"client_id"`
+	ClientSecret        string   `json:"-" yaml:"client_secret"`
+	AuthURL             string   `json:"auth_url"`
+	TokenURL            string   `json:"token_url"`
+	ValidateURL         string   `json:"validate_url"`
+	AppInstallURL       string   `json:"app_install_url"`
+	AppInstallationsURL string   `json:"app_installations_url"`
+	Regex               string   `json:"regex"`
+	NoRefresh           bool     `json:"no_refresh"`
+	Scopes              []string `json:"scopes"`
+	DeviceFlow          bool     `json:"device_flow"`
+	DeviceCodeURL       string   `json:"device_code_url"`
 }
 
 type ProvisionerConfig struct {
@@ -527,6 +533,16 @@ when required by your organization's security policy.`,
 			Value:       &c.WildcardAccessURL,
 			Group:       &deploymentGroupNetworking,
 			YAML:        "wildcardAccessURL",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+		},
+		{
+			Name:        "Docs URL",
+			Description: "Specifies the custom docs URL.",
+			Value:       &c.DocsURL,
+			Flag:        "docs-url",
+			Env:         "CODER_DOCS_URL",
+			Group:       &deploymentGroupNetworking,
+			YAML:        "docsURL",
 			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		redirectToAccessURL,
@@ -1215,10 +1231,20 @@ when required by your organization's security policy.`,
 			YAML:        "stackdriverPath",
 			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
+		{
+			Name:        "Enable Terraform debug mode",
+			Description: "Allow administrators to enable Terraform debug output.",
+			Flag:        "enable-terraform-debug-mode",
+			Env:         "CODER_ENABLE_TERRAFORM_DEBUG_MODE",
+			Default:     "false",
+			Value:       &c.EnableTerraformDebugMode,
+			Group:       &deploymentGroupIntrospectionLogging,
+			YAML:        "enableTerraformDebugMode",
+		},
 		// ☢️ Dangerous settings
 		{
-			Name:        "DANGEROUS: Allow all CORs requests",
-			Description: "For security reasons, CORs requests are blocked except between workspace apps owned by the same user. If external requests are required, setting this to true will set all cors headers as '*'. This should never be used in production.",
+			Name:        "DANGEROUS: Allow all CORS requests",
+			Description: "For security reasons, CORS requests are blocked except between workspace apps owned by the same user. If external requests are required, setting this to true will set all cors headers as '*'. This should never be used in production.",
 			Flag:        "dangerous-allow-cors-requests",
 			Env:         "CODER_DANGEROUS_ALLOW_CORS_REQUESTS",
 			Hidden:      true, // Hidden, should only be used by yarn dev server
@@ -1740,10 +1766,22 @@ const (
 	// https://github.com/coder/coder/milestone/19
 	ExperimentWorkspaceActions Experiment = "workspace_actions"
 
-	// ExperimentTailnetPGCoordinator enables the PGCoord in favor of the pubsub-
-	// only Coordinator
-	ExperimentTailnetPGCoordinator Experiment = "tailnet_pg_coordinator"
+	// ExperimentTailnetHACoordinator downgrades to the haCoordinator instead
+	// of PGCoord.  Should only be used if we see issues in prod with PGCoord
+	// which is now the default.
+	ExperimentTailnetHACoordinator Experiment = "tailnet_ha_coordinator"
 
+	// ExperimentConvertToOIDC enables users to convert from password to
+	// oidc.
+	ExperimentConvertToOIDC Experiment = "convert-to-oidc"
+
+	// ExperimentSingleTailnet replaces workspace connections inside coderd to
+	// all use a single tailnet, instead of the previous behavior of creating a
+	// single tailnet for each agent.
+	// WARNING: This cannot be enabled when using HA.
+	ExperimentSingleTailnet Experiment = "single_tailnet"
+
+	ExperimentWorkspaceBuildLogsUI Experiment = "workspace_build_logs_ui"
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"
 )
@@ -1752,7 +1790,9 @@ const (
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsAll = Experiments{}
+var ExperimentsAll = Experiments{
+	ExperimentWorkspaceBuildLogsUI,
+}
 
 // Experiments is a list of experiments that are enabled for the deployment.
 // Multiple experiments may be enabled at the same time.

@@ -64,7 +64,6 @@ export interface RichParameter {
   validationMax?: number | undefined
   validationMonotonic: string
   required: boolean
-  legacyVariableName: string
   displayName: string
 }
 
@@ -353,9 +352,6 @@ export const RichParameter = {
     }
     if (message.required === true) {
       writer.uint32(104).bool(message.required)
-    }
-    if (message.legacyVariableName !== "") {
-      writer.uint32(114).string(message.legacyVariableName)
     }
     if (message.displayName !== "") {
       writer.uint32(122).string(message.displayName)

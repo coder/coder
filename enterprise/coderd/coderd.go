@@ -18,6 +18,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd"
 	agplaudit "github.com/coder/coder/coderd/audit"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
@@ -67,16 +68,35 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 
 	api.AGPL.Options.SetUserGroups = api.setUserGroups
 	api.AGPL.SiteHandler.AppearanceFetcher = api.fetchAppearanceConfig
-	api.AGPL.SiteHandler.RegionsFetcher = api.fetchRegions
+	api.AGPL.SiteHandler.RegionsFetcher = func(ctx context.Context) (any, error) {
+		// If the user can read the workspace proxy resource, return that.
+		// If not, always default to the regions.
+		actor, ok := dbauthz.ActorFromContext(ctx)
+		if ok && api.Authorizer.Authorize(ctx, actor, rbac.ActionRead, rbac.ResourceWorkspaceProxy) == nil {
+			return api.fetchWorkspaceProxies(ctx)
+		}
+		return api.fetchRegions(ctx)
+	}
 
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
 		OIDC:   options.OIDCConfig,
 	}
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
-		DB:              options.Database,
-		OAuth2Configs:   oauthConfigs,
-		RedirectToLogin: false,
+		DB:                          options.Database,
+		OAuth2Configs:               oauthConfigs,
+		RedirectToLogin:             false,
+		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
+		Optional:                    false,
+		SessionTokenFunc:            nil, // Default behavior
+	})
+	apiKeyMiddlewareOptional := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+		DB:                          options.Database,
+		OAuth2Configs:               oauthConfigs,
+		RedirectToLogin:             false,
+		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
+		Optional:                    true,
+		SessionTokenFunc:            nil, // Default behavior
 	})
 
 	deploymentID, err := options.Database.GetDeploymentID(ctx)
@@ -192,11 +212,23 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			})
 		})
 		r.Route("/appearance", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-			)
-			r.Get("/", api.appearance)
-			r.Put("/", api.putAppearance)
+			r.Group(func(r chi.Router) {
+				r.Use(
+					apiKeyMiddlewareOptional,
+					httpmw.ExtractWorkspaceAgent(httpmw.ExtractWorkspaceAgentConfig{
+						DB:       options.Database,
+						Optional: true,
+					}),
+					httpmw.RequireAPIKeyOrWorkspaceAgent(),
+				)
+				r.Get("/", api.appearance)
+			})
+			r.Group(func(r chi.Router) {
+				r.Use(
+					apiKeyMiddleware,
+				)
+				r.Put("/", api.putAppearance)
+			})
 		})
 	})
 
@@ -416,10 +448,10 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		coordinator := agpltailnet.NewCoordinator(api.Logger)
 		if enabled {
 			var haCoordinator agpltailnet.Coordinator
-			if api.AGPL.Experiments.Enabled(codersdk.ExperimentTailnetPGCoordinator) {
-				haCoordinator, err = tailnet.NewPGCoord(api.ctx, api.Logger, api.Pubsub, api.Database)
-			} else {
+			if api.AGPL.Experiments.Enabled(codersdk.ExperimentTailnetHACoordinator) {
 				haCoordinator, err = tailnet.NewCoordinator(api.Logger, api.Pubsub)
+			} else {
+				haCoordinator, err = tailnet.NewPGCoord(api.ctx, api.Logger, api.Pubsub, api.Database)
 			}
 			if err != nil {
 				api.Logger.Error(ctx, "unable to set up high availability coordinator", slog.Error(err))

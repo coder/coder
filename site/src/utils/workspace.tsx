@@ -281,3 +281,11 @@ const getPendingWorkspaceStatusText = (
 const LoadingIcon = () => {
   return <CircularProgress size={10} style={{ color: "#FFF" }} />
 }
+
+export const hasJobError = (workspace: TypesGen.Workspace) => {
+  return workspace.latest_build.job.error !== undefined
+}
+
+export const paramUsedToCreateWorkspace = (
+  param: TypesGen.TemplateVersionParameter,
+) => !param.ephemeral

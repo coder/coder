@@ -8,8 +8,8 @@ import {
   onChangeTrimmed,
 } from "../../utils/formUtils"
 import { LoadingButton } from "../LoadingButton/LoadingButton"
-import { Stack } from "../Stack/Stack"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
+import { Form, FormFields } from "components/Form/Form"
 
 export interface AccountFormValues {
   username: string
@@ -18,7 +18,7 @@ export interface AccountFormValues {
 export const Language = {
   usernameLabel: "Username",
   emailLabel: "Email",
-  updateSettings: "Update settings",
+  updateSettings: "Update account",
 }
 
 const validationSchema = Yup.object({
@@ -59,8 +59,8 @@ export const AccountForm: FC<React.PropsWithChildren<AccountFormProps>> = ({
 
   return (
     <>
-      <form onSubmit={form.handleSubmit}>
-        <Stack>
+      <Form onSubmit={form.handleSubmit}>
+        <FormFields>
           {Boolean(updateProfileError) && (
             <ErrorAlert error={updateProfileError} />
           )}
@@ -91,8 +91,8 @@ export const AccountForm: FC<React.PropsWithChildren<AccountFormProps>> = ({
               {isLoading ? "" : Language.updateSettings}
             </LoadingButton>
           </div>
-        </Stack>
-      </form>
+        </FormFields>
+      </Form>
     </>
   )
 }

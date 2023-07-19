@@ -164,10 +164,16 @@ type WorkspaceAgent struct {
 	ConnectionTimeoutSeconds int32                 `json:"connection_timeout_seconds"`
 	TroubleshootingURL       string                `json:"troubleshooting_url"`
 	// Deprecated: Use StartupScriptBehavior instead.
-	LoginBeforeReady             bool           `json:"login_before_ready"`
-	ShutdownScript               string         `json:"shutdown_script,omitempty"`
-	ShutdownScriptTimeoutSeconds int32          `json:"shutdown_script_timeout_seconds"`
-	Subsystem                    AgentSubsystem `json:"subsystem"`
+	LoginBeforeReady             bool                 `json:"login_before_ready"`
+	ShutdownScript               string               `json:"shutdown_script,omitempty"`
+	ShutdownScriptTimeoutSeconds int32                `json:"shutdown_script_timeout_seconds"`
+	Subsystem                    AgentSubsystem       `json:"subsystem"`
+	Health                       WorkspaceAgentHealth `json:"health"` // Health reports the health of the agent.
+}
+
+type WorkspaceAgentHealth struct {
+	Healthy bool   `json:"healthy" example:"false"`                              // Healthy is true if the agent is healthy.
+	Reason  string `json:"reason,omitempty" example:"agent has lost connection"` // Reason is a human-readable explanation of the agent's health. It is empty if Healthy is true.
 }
 
 type DERPRegion struct {
@@ -301,8 +307,8 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 				options.Logger.Debug(ctx, "failed to dial", slog.Error(err))
 				continue
 			}
-			sendNode, errChan := tailnet.ServeCoordinator(websocket.NetConn(ctx, ws, websocket.MessageBinary), func(node []*tailnet.Node) error {
-				return conn.UpdateNodes(node, false)
+			sendNode, errChan := tailnet.ServeCoordinator(websocket.NetConn(ctx, ws, websocket.MessageBinary), func(nodes []*tailnet.Node) error {
+				return conn.UpdateNodes(nodes, false)
 			})
 			conn.SetNodeCallback(sendNode)
 			options.Logger.Debug(ctx, "serving coordinator")
@@ -324,13 +330,15 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 		return nil, err
 	}
 
-	agentConn = &WorkspaceAgentConn{
-		Conn: conn,
-		CloseFunc: func() {
+	agentConn = NewWorkspaceAgentConn(conn, WorkspaceAgentConnOptions{
+		AgentID: agentID,
+		CloseFunc: func() error {
 			cancel()
 			<-closed
+			return conn.Close()
 		},
-	}
+	})
+
 	if !agentConn.AwaitReachable(ctx) {
 		_ = agentConn.Close()
 		return nil, xerrors.Errorf("timed out waiting for agent to become reachable: %w", ctx.Err())

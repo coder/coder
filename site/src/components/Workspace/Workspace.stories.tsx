@@ -8,6 +8,7 @@ import { withReactContext } from "storybook-react-context"
 import EventSource from "eventsourcemock"
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext"
 import { DashboardProviderContext } from "components/Dashboard/DashboardProvider"
+import { WorkspaceBuildLogsSection } from "pages/WorkspacePage/WorkspaceBuildLogsSection"
 
 const MockedAppearance = {
   config: Mocks.MockAppearance,
@@ -42,8 +43,8 @@ const meta: Meta<typeof Workspace> = {
             setProxy: () => {
               return
             },
-            refetchProxyLatencies: () => {
-              return
+            refetchProxyLatencies: (): Date => {
+              return new Date()
             },
           }}
         >
@@ -152,7 +153,26 @@ export const FailedWithLogs: Story = {
         },
       },
     },
-    failedBuildLogs: makeFailedBuildLogs(),
+    buildLogs: <WorkspaceBuildLogsSection logs={makeFailedBuildLogs()} />,
+  },
+}
+
+export const FailedWithRetry: Story = {
+  args: {
+    ...Running.args,
+    workspace: {
+      ...Mocks.MockFailedWorkspace,
+      latest_build: {
+        ...Mocks.MockFailedWorkspace.latest_build,
+        job: {
+          ...Mocks.MockFailedWorkspace.latest_build.job,
+          error:
+            "recv workspace provision: plan terraform: terraform plan: exit status 1",
+        },
+      },
+    },
+    canRetryDebugMode: true,
+    buildLogs: <WorkspaceBuildLogsSection logs={makeFailedBuildLogs()} />,
   },
 }
 
@@ -209,6 +229,21 @@ export const CancellationError: Story = {
       [WorkspaceErrors.CANCELLATION_ERROR]: Mocks.mockApiError({
         message: "Job could not be canceled.",
       }),
+    },
+    buildLogs: <WorkspaceBuildLogsSection logs={makeFailedBuildLogs()} />,
+  },
+}
+
+export const Unhealthy: Story = {
+  args: {
+    ...Running.args,
+    workspace: {
+      ...Mocks.MockWorkspace,
+      latest_build: { ...Mocks.MockWorkspace.latest_build, status: "running" },
+      health: {
+        healthy: false,
+        failing_agents: [],
+      },
     },
   },
 }

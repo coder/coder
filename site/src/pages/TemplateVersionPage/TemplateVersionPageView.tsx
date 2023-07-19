@@ -6,6 +6,7 @@ import { Margins } from "components/Margins/Margins"
 import {
   PageHeader,
   PageHeaderCaption,
+  PageHeaderSubtitle,
   PageHeaderTitle,
 } from "components/PageHeader/PageHeader"
 import { Stack } from "components/Stack/Stack"
@@ -52,6 +53,11 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
       >
         <PageHeaderCaption>{t("header.caption")}</PageHeaderCaption>
         <PageHeaderTitle>{versionName}</PageHeaderTitle>
+        {currentVersion &&
+          currentVersion.message &&
+          currentVersion.message !== "" && (
+            <PageHeaderSubtitle>{currentVersion.message}</PageHeaderSubtitle>
+          )}
       </PageHeader>
 
       {!currentFiles && !error && <Loader />}

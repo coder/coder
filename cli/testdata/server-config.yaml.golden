@@ -6,6 +6,9 @@ networking:
   # "*.example.com".
   # (default: <unset>, type: url)
   wildcardAccessURL:
+  # Specifies the custom docs URL.
+  # (default: <unset>, type: url)
+  docsURL:
   # Specifies whether to redirect requests that do not match the access URL host.
   # (default: <unset>, type: bool)
   redirectToAccessURL: false
@@ -197,6 +200,9 @@ introspection:
     # Output Stackdriver compatible logs to a given file.
     # (default: <unset>, type: string)
     stackdriverPath: ""
+    # Allow administrators to enable Terraform debug output.
+    # (default: false, type: bool)
+    enableTerraformDebugMode: false
 oauth2:
   github:
     # Client ID for Login with GitHub.

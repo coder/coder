@@ -3,6 +3,7 @@ import { Stack } from "components/Stack/Stack"
 import { PropsWithChildren, FC } from "react"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 import { combineClasses } from "utils/combineClasses"
+import Tooltip from "@mui/material/Tooltip"
 
 export const EnabledBadge: FC = () => {
   const styles = useStyles()
@@ -37,6 +38,28 @@ export const NotHealthyBadge: FC = () => {
     <span className={combineClasses([styles.badge, styles.errorBadge])}>
       Unhealthy
     </span>
+  )
+}
+
+export const NotRegisteredBadge: FC = () => {
+  const styles = useStyles()
+  return (
+    <Tooltip title="Workspace Proxy has never come online and needs to be started.">
+      <span className={combineClasses([styles.badge, styles.warnBadge])}>
+        Never Seen
+      </span>
+    </Tooltip>
+  )
+}
+
+export const NotReachableBadge: FC = () => {
+  const styles = useStyles()
+  return (
+    <Tooltip title="Workspace Proxy not responding to http(s) requests.">
+      <span className={combineClasses([styles.badge, styles.warnBadge])}>
+        Not Dialable
+      </span>
+    </Tooltip>
   )
 }
 
@@ -88,6 +111,7 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     alignItems: "center",
     width: "fit-content",
+    whiteSpace: "nowrap",
   },
 
   enterpriseBadge: {
@@ -113,6 +137,11 @@ const useStyles = makeStyles((theme) => ({
   errorBadge: {
     border: `1px solid ${theme.palette.error.light}`,
     backgroundColor: theme.palette.error.dark,
+  },
+
+  warnBadge: {
+    border: `1px solid ${theme.palette.warning.light}`,
+    backgroundColor: theme.palette.warning.dark,
   },
 
   disabledBadge: {

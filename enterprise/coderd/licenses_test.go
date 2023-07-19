@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/enterprise/coderd/license"
@@ -21,8 +20,7 @@ func TestPostLicense(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
-		client := coderdenttest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
 		respLic := coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
 			AccountType: license.AccountTypeSalesforce,
 			AccountID:   "testing",
@@ -33,14 +31,15 @@ func TestPostLicense(t *testing.T) {
 		assert.GreaterOrEqual(t, respLic.ID, int32(0))
 		// just a couple spot checks for sanity
 		assert.Equal(t, "testing", respLic.Claims["account_id"])
-		features, err := respLic.Features()
+		features, err := respLic.FeaturesClaims()
 		require.NoError(t, err)
 		assert.EqualValues(t, 1, features[codersdk.FeatureAuditLog])
 	})
 
 	t.Run("Unauthorized", func(t *testing.T) {
 		t.Parallel()
-		client := coderdenttest.New(t, nil)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
+		client.SetSessionToken("")
 		_, err := client.AddLicense(context.Background(), codersdk.AddLicenseRequest{
 			License: "content",
 		})
@@ -54,8 +53,7 @@ func TestPostLicense(t *testing.T) {
 
 	t.Run("Corrupted", func(t *testing.T) {
 		t.Parallel()
-		client := coderdenttest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{})
 		_, err := client.AddLicense(context.Background(), codersdk.AddLicenseRequest{
 			License: "invalid",
@@ -73,8 +71,7 @@ func TestGetLicense(t *testing.T) {
 	t.Parallel()
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
-		client := coderdenttest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
@@ -105,7 +102,7 @@ func TestGetLicense(t *testing.T) {
 		assert.Equal(t, int32(1), licenses[0].ID)
 		assert.Equal(t, "testing", licenses[0].Claims["account_id"])
 
-		features, err := licenses[0].Features()
+		features, err := licenses[0].FeaturesClaims()
 		require.NoError(t, err)
 		assert.Equal(t, map[codersdk.FeatureName]int64{
 			codersdk.FeatureAuditLog:     1,
@@ -117,7 +114,7 @@ func TestGetLicense(t *testing.T) {
 		assert.Equal(t, "testing2", licenses[1].Claims["account_id"])
 		assert.Equal(t, true, licenses[1].Claims["trial"])
 
-		features, err = licenses[1].Features()
+		features, err = licenses[1].FeaturesClaims()
 		require.NoError(t, err)
 		assert.Equal(t, map[codersdk.FeatureName]int64{
 			codersdk.FeatureUserLimit:   200,
@@ -132,8 +129,7 @@ func TestDeleteLicense(t *testing.T) {
 	t.Parallel()
 	t.Run("Empty", func(t *testing.T) {
 		t.Parallel()
-		client := coderdenttest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
@@ -148,8 +144,7 @@ func TestDeleteLicense(t *testing.T) {
 
 	t.Run("BadID", func(t *testing.T) {
 		t.Parallel()
-		client := coderdenttest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
@@ -161,8 +156,7 @@ func TestDeleteLicense(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
-		client := coderdenttest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 

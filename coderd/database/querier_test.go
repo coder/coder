@@ -400,7 +400,7 @@ func TestUserLastSeenFilter(t *testing.T) {
 		require.NoError(t, err)
 		db := database.New(sqlDB)
 		ctx := context.Background()
-		now := time.Now()
+		now := database.Now()
 
 		yesterday := dbgen.User(t, db, database.User{
 			LastSeenAt: now.Add(time.Hour * -25),
@@ -439,6 +439,53 @@ func TestUserLastSeenFilter(t *testing.T) {
 		require.NoError(t, err)
 		requireUsersMatch(t, []database.User{today, yesterday}, allAfterLastWeek, "after last week")
 	})
+}
+
+func TestUserChangeLoginType(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+	ctx := context.Background()
+
+	alice := dbgen.User(t, db, database.User{
+		LoginType: database.LoginTypePassword,
+	})
+	bob := dbgen.User(t, db, database.User{
+		LoginType: database.LoginTypePassword,
+	})
+	bobExpPass := bob.HashedPassword
+	require.NotEmpty(t, alice.HashedPassword, "hashed password should not start empty")
+	require.NotEmpty(t, bob.HashedPassword, "hashed password should not start empty")
+
+	alice, err = db.UpdateUserLoginType(ctx, database.UpdateUserLoginTypeParams{
+		NewLoginType: database.LoginTypeOIDC,
+		UserID:       alice.ID,
+	})
+	require.NoError(t, err)
+
+	require.Empty(t, alice.HashedPassword, "hashed password should be empty")
+
+	// First check other users are not affected
+	bob, err = db.GetUserByID(ctx, bob.ID)
+	require.NoError(t, err)
+	require.Equal(t, bobExpPass, bob.HashedPassword, "hashed password should not change")
+
+	// Then check password -> password is a noop
+	bob, err = db.UpdateUserLoginType(ctx, database.UpdateUserLoginTypeParams{
+		NewLoginType: database.LoginTypePassword,
+		UserID:       bob.ID,
+	})
+	require.NoError(t, err)
+
+	bob, err = db.GetUserByID(ctx, bob.ID)
+	require.NoError(t, err)
+	require.Equal(t, bobExpPass, bob.HashedPassword, "hashed password should not change")
 }
 
 func requireUsersMatch(t testing.TB, expected []database.User, found []database.GetUsersRow, msg string) {

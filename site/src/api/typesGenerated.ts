@@ -104,6 +104,7 @@ export interface AuthMethod {
 
 // From codersdk/users.go
 export interface AuthMethods {
+  readonly convert_to_oidc_enabled: boolean
   readonly password: AuthMethod
   readonly github: AuthMethod
   readonly oidc: OIDCAuthMethod
@@ -137,6 +138,12 @@ export interface BuildInfoResponse {
   readonly version: string
   readonly dashboard_url: string
   readonly workspace_proxy: boolean
+}
+
+// From codersdk/users.go
+export interface ConvertLoginRequest {
+  readonly to_type: LoginType
+  readonly password: string
 }
 
 // From codersdk/users.go
@@ -193,6 +200,7 @@ export interface CreateTemplateVersionDryRunRequest {
 // From codersdk/organizations.go
 export interface CreateTemplateVersionRequest {
   readonly name?: string
+  readonly message?: string
   readonly template_id?: string
   readonly storage_method: ProvisionerStorageMethod
   readonly file_id?: string
@@ -324,6 +332,7 @@ export interface DeploymentValues {
   readonly verbose?: boolean
   readonly access_url?: string
   readonly wildcard_access_url?: string
+  readonly docs_url?: string
   readonly redirect_to_access_url?: boolean
   readonly http_address?: string
   readonly autobuild_poll_interval?: number
@@ -374,6 +383,7 @@ export interface DeploymentValues {
   readonly wgtunnel_host?: string
   readonly disable_owner_workspace_exec?: boolean
   readonly proxy_health_status_interval?: number
+  readonly enable_terraform_debug_mode?: boolean
   // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.YAMLConfigPath")
   readonly config?: string
   readonly write_config?: boolean
@@ -414,6 +424,24 @@ export interface GetUsersResponse {
   readonly count: number
 }
 
+// From codersdk/gitauth.go
+export interface GitAuth {
+  readonly authenticated: boolean
+  readonly device: boolean
+  readonly type: string
+  readonly user?: GitAuthUser
+  readonly app_installable: boolean
+  readonly installations: GitAuthAppInstallation[]
+  readonly app_install_url: string
+}
+
+// From codersdk/gitauth.go
+export interface GitAuthAppInstallation {
+  readonly id: number
+  readonly account: GitAuthUser
+  readonly configure_url: string
+}
+
 // From codersdk/deployment.go
 export interface GitAuthConfig {
   readonly id: string
@@ -422,9 +450,35 @@ export interface GitAuthConfig {
   readonly auth_url: string
   readonly token_url: string
   readonly validate_url: string
+  readonly app_install_url: string
+  readonly app_installations_url: string
   readonly regex: string
   readonly no_refresh: boolean
   readonly scopes: string[]
+  readonly device_flow: boolean
+  readonly device_code_url: string
+}
+
+// From codersdk/gitauth.go
+export interface GitAuthDevice {
+  readonly device_code: string
+  readonly user_code: string
+  readonly verification_uri: string
+  readonly expires_in: number
+  readonly interval: number
+}
+
+// From codersdk/gitauth.go
+export interface GitAuthDeviceExchange {
+  readonly device_code: string
+}
+
+// From codersdk/gitauth.go
+export interface GitAuthUser {
+  readonly login: string
+  readonly avatar_url: string
+  readonly profile_url: string
+  readonly name: string
 }
 
 // From codersdk/gitsshkey.go
@@ -517,6 +571,14 @@ export interface OAuth2GithubConfig {
 }
 
 // From codersdk/users.go
+export interface OAuthConversionResponse {
+  readonly state_string: string
+  readonly expires_at: string
+  readonly to_type: LoginType
+  readonly user_id: string
+}
+
+// From codersdk/users.go
 export interface OIDCAuthMethod extends AuthMethod {
   readonly signInText: string
   readonly iconUrl: string
@@ -583,6 +645,7 @@ export interface PatchGroupRequest {
 // From codersdk/templateversions.go
 export interface PatchTemplateVersionRequest {
   readonly name: string
+  readonly message?: string
 }
 
 // From codersdk/workspaceproxy.go
@@ -687,8 +750,8 @@ export interface Region {
 }
 
 // From codersdk/workspaceproxy.go
-export interface RegionsResponse {
-  readonly regions: Region[]
+export interface RegionsResponse<R extends RegionTypes> {
+  readonly regions: R[]
 }
 
 // From codersdk/replicas.go
@@ -855,6 +918,7 @@ export interface TemplateVersion {
   readonly created_at: string
   readonly updated_at: string
   readonly name: string
+  readonly message: string
   readonly job: ProvisionerJob
   readonly readme: string
   readonly created_by: User
@@ -886,7 +950,7 @@ export interface TemplateVersionParameter {
   readonly validation_max?: number
   readonly validation_monotonic?: ValidationMonotonicOrder
   readonly required: boolean
-  readonly legacy_variable_name?: string
+  readonly ephemeral: boolean
 }
 
 // From codersdk/templateversions.go
@@ -1038,6 +1102,11 @@ export interface User {
 }
 
 // From codersdk/users.go
+export interface UserLoginType {
+  readonly login_type: LoginType
+}
+
+// From codersdk/users.go
 export interface UserRoles {
   readonly roles: string[]
   readonly organization_roles: Record<string, string[]>
@@ -1081,6 +1150,7 @@ export interface Workspace {
   readonly last_used_at: string
   readonly deleting_at?: string
   readonly locked_at?: string
+  readonly health: WorkspaceHealth
 }
 
 // From codersdk/workspaceagents.go
@@ -1117,6 +1187,13 @@ export interface WorkspaceAgent {
   readonly shutdown_script?: string
   readonly shutdown_script_timeout_seconds: number
   readonly subsystem: AgentSubsystem
+  readonly health: WorkspaceAgentHealth
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentHealth {
+  readonly healthy: boolean
+  readonly reason?: string
 }
 
 // From codersdk/workspaceagentconn.go
@@ -1237,22 +1314,22 @@ export interface WorkspaceFilter {
 }
 
 // From codersdk/workspaces.go
+export interface WorkspaceHealth {
+  readonly healthy: boolean
+  readonly failing_agents: string[]
+}
+
+// From codersdk/workspaces.go
 export interface WorkspaceOptions {
   readonly include_deleted?: boolean
 }
 
 // From codersdk/workspaceproxy.go
-export interface WorkspaceProxy {
-  readonly id: string
-  readonly name: string
-  readonly display_name: string
-  readonly icon: string
-  readonly url: string
-  readonly wildcard_hostname: string
+export interface WorkspaceProxy extends Region {
+  readonly status?: WorkspaceProxyStatus
   readonly created_at: string
   readonly updated_at: string
   readonly deleted: boolean
-  readonly status?: WorkspaceProxyStatus
 }
 
 // From codersdk/deployment.go
@@ -1354,13 +1431,19 @@ export const Entitlements: Entitlement[] = [
 
 // From codersdk/deployment.go
 export type Experiment =
+  | "convert-to-oidc"
   | "moons"
-  | "tailnet_pg_coordinator"
+  | "single_tailnet"
+  | "tailnet_ha_coordinator"
   | "workspace_actions"
+  | "workspace_build_logs_ui"
 export const Experiments: Experiment[] = [
+  "convert-to-oidc",
   "moons",
-  "tailnet_pg_coordinator",
+  "single_tailnet",
+  "tailnet_ha_coordinator",
   "workspace_actions",
+  "workspace_build_logs_ui",
 ]
 
 // From codersdk/deployment.go
@@ -1520,6 +1603,7 @@ export const RBACResources: RBACResource[] = [
 // From codersdk/audit.go
 export type ResourceType =
   | "api_key"
+  | "convert_login"
   | "git_ssh_key"
   | "group"
   | "license"
@@ -1530,6 +1614,7 @@ export type ResourceType =
   | "workspace_build"
 export const ResourceTypes: ResourceType[] = [
   "api_key",
+  "convert_login",
   "git_ssh_key",
   "group",
   "license",
@@ -1663,3 +1748,6 @@ export const WorkspaceTransitions: WorkspaceTransition[] = [
   "start",
   "stop",
 ]
+
+// From codersdk/workspaceproxy.go
+export type RegionTypes = Region | WorkspaceProxy

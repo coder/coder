@@ -1,5 +1,4 @@
-import { useActor } from "@xstate/react"
-import { ProvisionerJobLog } from "api/typesGenerated"
+import { useActor, useMachine } from "@xstate/react"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
 import dayjs from "dayjs"
 import { useFeatureVisibility } from "hooks/useFeatureVisibility"
@@ -21,7 +20,7 @@ import {
   WorkspaceErrors,
 } from "../../components/Workspace/Workspace"
 import { pageTitle } from "../../utils/page"
-import { getFaviconByStatus } from "../../utils/workspace"
+import { getFaviconByStatus, hasJobError } from "../../utils/workspace"
 import {
   WorkspaceEvent,
   workspaceMachine,
@@ -38,18 +37,19 @@ import {
 import { useMe } from "hooks/useMe"
 import Checkbox from "@mui/material/Checkbox"
 import FormControlLabel from "@mui/material/FormControlLabel"
+import { workspaceBuildMachine } from "xServices/workspaceBuild/workspaceBuildXService"
+import * as TypesGen from "api/typesGenerated"
+import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection"
 
 interface WorkspaceReadyPageProps {
   workspaceState: StateFrom<typeof workspaceMachine>
   quotaState: StateFrom<typeof quotaMachine>
   workspaceSend: (event: WorkspaceEvent) => void
-  failedBuildLogs: ProvisionerJobLog[] | undefined
 }
 
 export const WorkspaceReadyPage = ({
   workspaceState,
   quotaState,
-  failedBuildLogs,
   workspaceSend,
 }: WorkspaceReadyPageProps): JSX.Element => {
   const [_, bannerSend] = useActor(
@@ -61,6 +61,7 @@ export const WorkspaceReadyPage = ({
     workspace,
     template,
     templateVersion,
+    deploymentValues,
     builds,
     getBuildsError,
     buildError,
@@ -75,6 +76,9 @@ export const WorkspaceReadyPage = ({
   const deadline = getDeadline(workspace)
   const canUpdateWorkspace = Boolean(permissions?.updateWorkspace)
   const canUpdateTemplate = Boolean(permissions?.updateTemplate)
+  const canRetryDebugMode =
+    Boolean(permissions?.viewDeploymentValues) &&
+    Boolean(deploymentValues?.enable_terraform_debug_mode)
   const { t } = useTranslation("workspacePage")
   const favicon = getFaviconByStatus(workspace.latest_build)
   const navigate = useNavigate()
@@ -88,13 +92,19 @@ export const WorkspaceReadyPage = ({
   const [isConfirmingRestart, setIsConfirmingRestart] = useState(false)
   const user = useMe()
   const { isWarningIgnored, ignoreWarning } = useIgnoreWarnings(user.id)
-
+  const buildLogs = useBuildLogs(workspace)
+  const dashboard = useDashboard()
+  const shouldDisplayBuildLogs =
+    hasJobError(workspace) ||
+    (dashboard.experiments.includes("workspace_build_logs_ui") &&
+      ["canceling", "deleting", "pending", "starting", "stopping"].includes(
+        workspace.latest_build.status,
+      ))
   const {
     mutate: restartWorkspace,
     error: restartBuildError,
     isLoading: isRestarting,
   } = useRestartWorkspace()
-
   // keep banner machine in sync with workspace
   useEffect(() => {
     bannerSend({ type: "REFRESH_WORKSPACE", workspace })
@@ -117,7 +127,6 @@ export const WorkspaceReadyPage = ({
       </Helmet>
 
       <Workspace
-        failedBuildLogs={failedBuildLogs}
         scheduleProps={{
           onDeadlineMinus: (hours: number) => {
             bannerSend({
@@ -140,12 +149,14 @@ export const WorkspaceReadyPage = ({
         isUpdating={workspaceState.matches("ready.build.requestingUpdate")}
         isRestarting={isRestarting}
         workspace={workspace}
-        handleStart={() => workspaceSend({ type: "START" })}
+        handleStart={(buildParameters) =>
+          workspaceSend({ type: "START", buildParameters })
+        }
         handleStop={() => workspaceSend({ type: "STOP" })}
         handleDelete={() => workspaceSend({ type: "ASK_DELETE" })}
-        handleRestart={() => {
+        handleRestart={(buildParameters) => {
           if (isWarningIgnored("restart")) {
-            restartWorkspace(workspace)
+            restartWorkspace({ workspace, buildParameters })
           } else {
             setIsConfirmingRestart(true)
           }
@@ -166,7 +177,7 @@ export const WorkspaceReadyPage = ({
         resources={workspace.latest_build.resources}
         builds={builds}
         canUpdateWorkspace={canUpdateWorkspace}
-        canUpdateTemplate={canUpdateTemplate}
+        canRetryDebugMode={canRetryDebugMode}
         canChangeVersions={canUpdateTemplate}
         hideSSHButton={featureVisibility["browser_only"]}
         hideVSCodeDesktopButton={featureVisibility["browser_only"]}
@@ -180,6 +191,11 @@ export const WorkspaceReadyPage = ({
         template={template}
         quota_budget={quotaState.context.quota?.budget}
         templateWarnings={templateVersion?.warnings}
+        buildLogs={
+          shouldDisplayBuildLogs && (
+            <WorkspaceBuildLogsSection logs={buildLogs} />
+          )
+        }
       />
       <DeleteDialog
         entity="workspace"
@@ -244,7 +260,7 @@ export const WorkspaceReadyPage = ({
           if (shouldIgnore) {
             ignoreWarning("restart")
           }
-          restartWorkspace(workspace)
+          restartWorkspace({ workspace })
           setIsConfirmingRestart(false)
         }}
         onClose={() => setIsConfirmingRestart(false)}
@@ -326,4 +342,23 @@ const WarningDialog: FC<
       }
     />
   )
+}
+
+const useBuildLogs = (workspace: TypesGen.Workspace) => {
+  const buildNumber = workspace.latest_build.build_number.toString()
+  const [buildState, buildSend] = useMachine(workspaceBuildMachine, {
+    context: {
+      buildNumber,
+      username: workspace.owner_name,
+      workspaceName: workspace.name,
+      timeCursor: new Date(),
+    },
+  })
+  const { logs } = buildState.context
+
+  useEffect(() => {
+    buildSend({ type: "RESET", buildNumber, timeCursor: new Date() })
+  }, [buildNumber, buildSend])
+
+  return logs
 }

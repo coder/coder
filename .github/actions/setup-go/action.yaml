@@ -4,7 +4,7 @@ description: |
 inputs:
   version:
     description: "The Go version to use."
-    default: "1.20.5"
+    default: "1.20.6"
 runs:
   using: "composite"
   steps:
@@ -17,7 +17,8 @@ runs:
         restore-keys: |
           gotoolchain-${{ runner.os }}-
 
-    - uses: buildjet/setup-go@v4
+    - name: Setup Go
+      uses: buildjet/setup-go@v4
       with:
         # We do our own caching for implementation clarity.
         cache: false

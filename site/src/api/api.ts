@@ -108,6 +108,14 @@ export const login = async (
   return response.data
 }
 
+export const convertToOAUTH = async (request: TypesGen.ConvertLoginRequest) => {
+  const response = await axios.post<TypesGen.OAuthConversionResponse>(
+    "/api/v2/users/me/convert-login",
+    request,
+  )
+  return response.data
+}
+
 export const logout = async (): Promise<void> => {
   await axios.post("/api/v2/users/logout")
 }
@@ -130,6 +138,13 @@ export const getAuthenticatedUser = async (): Promise<
 export const getAuthMethods = async (): Promise<TypesGen.AuthMethods> => {
   const response = await axios.get<TypesGen.AuthMethods>(
     "/api/v2/users/authmethods",
+  )
+  return response.data
+}
+
+export const getUserLoginType = async (): Promise<TypesGen.UserLoginType> => {
+  const response = await axios.get<TypesGen.UserLoginType>(
+    "/api/v2/users/me/login-type",
   )
   return response.data
 }
@@ -466,8 +481,8 @@ export function waitForBuild(build: TypesGen.WorkspaceBuild) {
       let latestJobInfo: TypesGen.ProvisionerJob | undefined = undefined
 
       while (
-        !["succeeded", "canceled"].some((status) =>
-          latestJobInfo?.status.includes(status),
+        !["succeeded", "canceled"].some(
+          (status) => latestJobInfo?.status.includes(status),
         )
       ) {
         const { job } = await getWorkspaceBuildByNumber(
@@ -504,11 +519,13 @@ export const startWorkspace = (
   workspaceId: string,
   templateVersionId: string,
   logLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"],
+  buildParameters?: TypesGen.WorkspaceBuildParameter[],
 ) =>
   postWorkspaceBuild(workspaceId, {
     transition: "start",
     template_version_id: templateVersionId,
     log_level: logLevel,
+    rich_parameter_values: buildParameters,
   })
 export const stopWorkspace = (
   workspaceId: string,
@@ -537,7 +554,13 @@ export const cancelWorkspaceBuild = async (
   return response.data
 }
 
-export const restartWorkspace = async (workspace: TypesGen.Workspace) => {
+export const restartWorkspace = async ({
+  workspace,
+  buildParameters,
+}: {
+  workspace: TypesGen.Workspace
+  buildParameters?: TypesGen.WorkspaceBuildParameter[]
+}) => {
   const stopBuild = await stopWorkspace(workspace.id)
   const awaitedStopBuild = await waitForBuild(stopBuild)
 
@@ -549,6 +572,8 @@ export const restartWorkspace = async (workspace: TypesGen.Workspace) => {
   const startBuild = await startWorkspace(
     workspace.id,
     workspace.latest_build.template_version_id,
+    undefined,
+    buildParameters,
   )
   await waitForBuild(startBuild)
 }
@@ -799,6 +824,28 @@ export const getExperiments = async (): Promise<TypesGen.Experiment[]> => {
   }
 }
 
+export const getGitAuthProvider = async (
+  provider: string,
+): Promise<TypesGen.GitAuth> => {
+  const resp = await axios.get(`/api/v2/gitauth/${provider}`)
+  return resp.data
+}
+
+export const getGitAuthDevice = async (
+  provider: string,
+): Promise<TypesGen.GitAuthDevice> => {
+  const resp = await axios.get(`/api/v2/gitauth/${provider}/device`)
+  return resp.data
+}
+
+export const exchangeGitAuthDevice = async (
+  provider: string,
+  req: TypesGen.GitAuthDeviceExchange,
+): Promise<void> => {
+  const resp = await axios.post(`/api/v2/gitauth/${provider}/device`, req)
+  return resp.data
+}
+
 export const getAuditLogs = async (
   options: TypesGen.AuditLogsRequest,
 ): Promise<TypesGen.AuditLogResponse> => {
@@ -929,13 +976,23 @@ export const getFile = async (fileId: string): Promise<ArrayBuffer> => {
   return response.data
 }
 
-export const getWorkspaceProxies =
-  async (): Promise<TypesGen.RegionsResponse> => {
-    const response = await axios.get<TypesGen.RegionsResponse>(
-      `/api/v2/regions`,
-    )
-    return response.data
-  }
+export const getWorkspaceProxyRegions = async (): Promise<
+  TypesGen.RegionsResponse<TypesGen.Region>
+> => {
+  const response = await axios.get<TypesGen.RegionsResponse<TypesGen.Region>>(
+    `/api/v2/regions`,
+  )
+  return response.data
+}
+
+export const getWorkspaceProxies = async (): Promise<
+  TypesGen.RegionsResponse<TypesGen.WorkspaceProxy>
+> => {
+  const response = await axios.get<
+    TypesGen.RegionsResponse<TypesGen.WorkspaceProxy>
+  >(`/api/v2/workspaceproxies`)
+  return response.data
+}
 
 export const getAppearance = async (): Promise<TypesGen.AppearanceConfig> => {
   try {
@@ -1128,17 +1185,11 @@ const getMissingParameters = (
   const requiredParameters: TypesGen.TemplateVersionParameter[] = []
 
   templateParameters.forEach((p) => {
-    // Legacy parameters should not be required. Backend can just migrate them.
-    const isLegacy = p.legacy_variable_name !== undefined
     // It is mutable and required. Mutable values can be changed after so we
     // don't need to ask them if they are not required.
     const isMutableAndRequired = p.mutable && p.required
     // Is immutable, so we can check if it is its first time on the build
     const isImmutable = !p.mutable
-
-    if (isLegacy) {
-      return
-    }
 
     if (isMutableAndRequired || isImmutable) {
       requiredParameters.push(p)
@@ -1304,4 +1355,16 @@ export const issueReconnectingPTYSignedToken = async (
     params,
   )
   return response.data
+}
+
+export const getWorkspaceParameters = async (workspace: TypesGen.Workspace) => {
+  const latestBuild = workspace.latest_build
+  const [templateVersionRichParameters, buildParameters] = await Promise.all([
+    getTemplateVersionRichParameters(latestBuild.template_version_id),
+    getWorkspaceBuildParameters(latestBuild.id),
+  ])
+  return {
+    templateVersionRichParameters,
+    buildParameters,
+  }
 }

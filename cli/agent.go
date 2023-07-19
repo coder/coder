@@ -167,7 +167,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				slog.F("version", version),
 			)
 			client := agentsdk.New(r.agentURL)
-			client.SDK.Logger = logger
+			client.SDK.SetLogger(logger)
 			// Set a reasonable timeout so requests can't hang forever!
 			// The timeout needs to be reasonably long, because requests
 			// with large payloads can take a bit. e.g. startup scripts

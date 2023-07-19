@@ -302,7 +302,7 @@ func TestAgents(t *testing.T) {
 	coordinator := tailnet.NewCoordinator(slogtest.Make(t, nil).Leveled(slog.LevelDebug))
 	coordinatorPtr := atomic.Pointer[tailnet.Coordinator]{}
 	coordinatorPtr.Store(&coordinator)
-	derpMap := tailnettest.RunDERPAndSTUN(t)
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
 	agentInactiveDisconnectTimeout := 1 * time.Hour // don't need to focus on this value in tests
 	registry := prometheus.NewRegistry()
 
@@ -312,7 +312,7 @@ func TestAgents(t *testing.T) {
 	// when
 	closeFunc, err := prometheusmetrics.Agents(ctx, slogtest.Make(t, &slogtest.Options{
 		IgnoreErrors: true,
-	}), registry, db, &coordinatorPtr, derpMap, agentInactiveDisconnectTimeout, time.Millisecond)
+	}), registry, db, &coordinatorPtr, derpMap, agentInactiveDisconnectTimeout, 50*time.Millisecond)
 	require.NoError(t, err)
 	t.Cleanup(closeFunc)
 
@@ -332,8 +332,10 @@ func TestAgents(t *testing.T) {
 		for _, metric := range metrics {
 			switch metric.GetName() {
 			case "coderd_agents_up":
-				assert.Equal(t, "testuser", metric.Metric[0].Label[0].GetValue())     // Username
-				assert.Equal(t, workspace.Name, metric.Metric[0].Label[1].GetValue()) // Workspace name
+				assert.Equal(t, template.Name, metric.Metric[0].Label[0].GetValue())  // Template name
+				assert.Equal(t, version.Name, metric.Metric[0].Label[1].GetValue())   // Template version name
+				assert.Equal(t, "testuser", metric.Metric[0].Label[2].GetValue())     // Username
+				assert.Equal(t, workspace.Name, metric.Metric[0].Label[3].GetValue()) // Workspace name
 				assert.Equal(t, 1, int(metric.Metric[0].Gauge.GetValue()))            // Metric value
 				agentsUp = true
 			case "coderd_agents_connections":

@@ -55,6 +55,7 @@ export interface WorkspaceContext {
   template?: TypesGen.Template
   permissions?: Permissions
   templateVersion?: TypesGen.TemplateVersion
+  deploymentValues?: TypesGen.DeploymentValues
   build?: TypesGen.WorkspaceBuild
   // Builds
   builds?: TypesGen.WorkspaceBuild[]
@@ -74,7 +75,7 @@ export interface WorkspaceContext {
 
 export type WorkspaceEvent =
   | { type: "REFRESH_WORKSPACE"; data: TypesGen.ServerSentEvent["data"] }
-  | { type: "START" }
+  | { type: "START"; buildParameters?: TypesGen.WorkspaceBuildParameter[] }
   | { type: "STOP" }
   | { type: "ASK_DELETE" }
   | { type: "DELETE" }
@@ -100,6 +101,7 @@ export const checks = {
   readWorkspace: "readWorkspace",
   updateWorkspace: "updateWorkspace",
   updateTemplate: "updateTemplate",
+  viewDeploymentValues: "viewDeploymentValues",
 } as const
 
 const permissionsToCheck = (
@@ -130,7 +132,13 @@ const permissionsToCheck = (
       },
       action: "update",
     },
-  } as const)
+    [checks.viewDeploymentValues]: {
+      object: {
+        resource_type: "deployment_config",
+      },
+      action: "read",
+    },
+  }) as const
 
 export const workspaceMachine = createMachine(
   {
@@ -143,9 +151,6 @@ export const workspaceMachine = createMachine(
       services: {} as {
         loadInitialWorkspaceData: {
           data: Awaited<ReturnType<typeof loadInitialWorkspaceData>>
-        }
-        getTemplateParameters: {
-          data: TypesGen.TemplateVersionParameter[]
         }
         updateWorkspace: {
           data: TypesGen.WorkspaceBuild
@@ -488,6 +493,7 @@ export const workspaceMachine = createMachine(
         template: (_, event) => event.data.template,
         templateVersion: (_, event) => event.data.templateVersion,
         permissions: (_, event) => event.data.permissions as Permissions,
+        deploymentValues: (_, event) => event.data.deploymentValues,
       }),
       assignError: assign({
         error: (_, event) => event.data,
@@ -620,12 +626,13 @@ export const workspaceMachine = createMachine(
           send({ type: "REFRESH_TIMELINE" })
           return build
         },
-      startWorkspace: (context) => async (send) => {
+      startWorkspace: (context, data) => async (send) => {
         if (context.workspace) {
           const startWorkspacePromise = await API.startWorkspace(
             context.workspace.id,
             context.workspace.latest_build.template_version_id,
             context.createBuildLogLevel,
+            "buildParameters" in data ? data.buildParameters : undefined,
           )
           send({ type: "REFRESH_TIMELINE" })
           return startWorkspacePromise
@@ -740,10 +747,17 @@ async function loadInitialWorkspaceData({
     }),
   ])
 
+  const canViewDeploymentValues = Boolean(
+    (permissions as Permissions)?.viewDeploymentValues,
+  )
+  const deploymentValues = canViewDeploymentValues
+    ? (await API.getDeploymentValues())?.config
+    : undefined
   return {
     workspace,
     template,
     templateVersion,
     permissions,
+    deploymentValues,
   }
 }

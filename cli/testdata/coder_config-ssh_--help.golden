@@ -12,6 +12,11 @@ Add an SSH Host entry for your workspaces "ssh coder.workspace"
      [40m [0m[91;40m$ coder config-ssh --dry-run[0m[40m [0m
 
 [1mOptions[0m
+      --coder-binary-path string, $CODER_SSH_CONFIG_BINARY_PATH
+          Optionally specify the absolute path to the coder binary used in
+          ProxyCommand. By default, the binary invoking this command ('config
+          ssh') is used.
+
   -n, --dry-run bool, $CODER_SSH_DRY_RUN
           Perform a trial run with no changes made, showing a diff at the end.
 

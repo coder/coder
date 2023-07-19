@@ -149,6 +149,25 @@ data "coder_parameter" "region" {
 It is allowed to modify the mutability state anytime. In case of emergency, template authors can temporarily allow for changing immutable parameters to fix an operational issue, but it is not
 advised to overuse this opportunity.
 
+## Ephemeral parameters
+
+Ephemeral parameters are introduced to users in the form of "build options." This functionality can be used to model
+specific behaviors within a Coder workspace, such as reverting to a previous image, restoring from a volume snapshot, or
+building a project without utilizing cache.
+
+As these parameters are ephemeral in nature, subsequent builds will proceed in the standard manner.
+
+```hcl
+data "coder_parameter" "force_rebuild" {
+  name         = "force_rebuild"
+  type         = "bool"
+  description  = "Rebuild the Docker image rather than use the cached one."
+  mutable      = true
+  default      = false
+  ephemeral    = true
+}
+```
+
 ## Validation
 
 Rich parameters support multiple validation modes - min, max, monotonic numbers, and regular expressions.
@@ -248,12 +267,14 @@ data "coder_parameter" "cpu" {
 
 As a template improvement, the template author can consider making some of the new `coder_parameter` resources `mutable`.
 
-## Managed Terraform variables
+## Terraform template-wide variables
+
+> ⚠️ Flag `feature_use_managed_variables` is available until v0.25.0 (Jul 2023) release. After this release, template-wide Terraform variables will be enabled by default.
 
 As parameters are intended to be used only for workspace customization purposes, Terraform variables can be freely managed by the template author to build templates. Workspace users are not able to modify
 template variables.
 
-The template author can enable managed Terraform variables mode by specifying the following flag:
+The template author can enable Terraform template-wide variables mode by specifying the following flag:
 
 ```hcl
 provider "coder" {

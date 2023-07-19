@@ -42,7 +42,8 @@ type OrganizationMember struct {
 
 // CreateTemplateVersionRequest enables callers to create a new Template Version.
 type CreateTemplateVersionRequest struct {
-	Name string `json:"name,omitempty" validate:"omitempty,template_version_name"`
+	Name    string `json:"name,omitempty" validate:"omitempty,template_version_name"`
+	Message string `json:"message,omitempty" validate:"lt=1048577"`
 	// TemplateID optionally associates a version with a template.
 	TemplateID      uuid.UUID                `json:"template_id,omitempty" format:"uuid"`
 	StorageMethod   ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required" enums:"file"`
@@ -108,9 +109,9 @@ type CreateTemplateRequest struct {
 	// InactivityTTLMillis allows optionally specifying the max lifetime before Coder
 	// locks inactive workspaces created from this template.
 	InactivityTTLMillis *int64 `json:"inactivity_ttl_ms,omitempty"`
-	// LockedTTL allows optionally specifying the max lifetime before Coder
+	// LockedTTLMillis allows optionally specifying the max lifetime before Coder
 	// permanently deletes locked workspaces created from this template.
-	LockedTTL *int64 `json:"locked_ttl_ms,omitempty"`
+	LockedTTLMillis *int64 `json:"locked_ttl_ms,omitempty"`
 
 	// DisableEveryoneGroupAccess allows optionally disabling the default
 	// behavior of granting the 'everyone' group access to use the template.

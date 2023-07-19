@@ -75,7 +75,7 @@ func TemplateVersionParameter(param database.TemplateVersionParameter) (codersdk
 		ValidationError:      param.ValidationError,
 		ValidationMonotonic:  codersdk.ValidationMonotonicOrder(param.ValidationMonotonic),
 		Required:             param.Required,
-		LegacyVariableName:   param.LegacyVariableName,
+		Ephemeral:            param.Ephemeral,
 	}, nil
 }
 

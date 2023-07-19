@@ -193,7 +193,7 @@ export const AppRouter: FC = () => {
             <Route element={<DashboardLayout />}>
               <Route index element={<IndexPage />} />
 
-              <Route path="gitauth" element={<GitAuthPage />} />
+              <Route path="gitauth/:provider" element={<GitAuthPage />} />
 
               <Route path="workspaces" element={<WorkspacesPage />} />
 
@@ -276,6 +276,10 @@ export const AppRouter: FC = () => {
                 <Route path="network" element={<NetworkSettingsPage />} />
                 <Route path="userauth" element={<UserAuthSettingsPage />} />
                 <Route path="gitauth" element={<GitAuthSettingsPage />} />
+                <Route
+                  path="workspace-proxies"
+                  element={<WorkspaceProxyPage />}
+                />
               </Route>
 
               <Route path="settings" element={<SettingsLayout />}>
@@ -286,10 +290,6 @@ export const AppRouter: FC = () => {
                   <Route index element={<TokensPage />} />
                   <Route path="new" element={<CreateTokenPage />} />
                 </Route>
-                <Route
-                  path="workspace-proxies"
-                  element={<WorkspaceProxyPage />}
-                />
               </Route>
 
               <Route path="/:username">

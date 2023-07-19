@@ -29,15 +29,14 @@ func Test_ProxyCRUD(t *testing.T) {
 			"*",
 		}
 
-		client := coderdenttest.New(t, &coderdenttest.Options{
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
 			},
-		})
-		_ = coderdtest.CreateFirstUser(t, client)
-		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureWorkspaceProxy: 1,
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspaceProxy: 1,
+				},
 			},
 		})
 
@@ -83,9 +82,9 @@ func Test_ProxyCRUD(t *testing.T) {
 		proxies, err := client.WorkspaceProxies(ctx)
 		require.NoError(t, err, "failed to get workspace proxies")
 		// Include primary
-		require.Len(t, proxies, 2, "expected 1 proxy")
+		require.Len(t, proxies.Regions, 2, "expected 1 proxy")
 		found := false
-		for _, proxy := range proxies {
+		for _, proxy := range proxies.Regions {
 			if proxy.Name == expectedName {
 				found = true
 			}
@@ -102,15 +101,14 @@ func Test_ProxyCRUD(t *testing.T) {
 			"*",
 		}
 
-		client := coderdenttest.New(t, &coderdenttest.Options{
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
 			},
-		})
-		_ = coderdtest.CreateFirstUser(t, client)
-		_ = coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureWorkspaceProxy: 1,
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspaceProxy: 1,
+				},
 			},
 		})
 
@@ -125,7 +123,7 @@ func Test_ProxyCRUD(t *testing.T) {
 
 		inv, conf := newCLI(
 			t,
-			"wsproxy", "delete", expectedName,
+			"wsproxy", "delete", "-y", expectedName,
 		)
 
 		pty := ptytest.New(t)
@@ -137,6 +135,6 @@ func Test_ProxyCRUD(t *testing.T) {
 
 		proxies, err := client.WorkspaceProxies(ctx)
 		require.NoError(t, err, "failed to get workspace proxies")
-		require.Len(t, proxies, 1, "expected only primary proxy")
+		require.Len(t, proxies.Regions, 1, "expected only primary proxy")
 	})
 }

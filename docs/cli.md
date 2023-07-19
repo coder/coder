@@ -35,6 +35,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>list</code>](./cli/list.md)                     | List workspaces                                                        |
 | [<code>login</code>](./cli/login.md)                   | Authenticate with Coder deployment                                     |
 | [<code>logout</code>](./cli/logout.md)                 | Unauthenticate your local session                                      |
+| [<code>netcheck</code>](./cli/netcheck.md)             | Print network debug information for DERP and STUN                      |
 | [<code>ping</code>](./cli/ping.md)                     | Ping a workspace                                                       |
 | [<code>port-forward</code>](./cli/port-forward.md)     | Forward ports from machine to a workspace                              |
 | [<code>provisionerd</code>](./cli/provisionerd.md)     | Manage provisioner daemons                                             |
@@ -42,7 +43,6 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>rename</code>](./cli/rename.md)                 | Rename a workspace                                                     |
 | [<code>reset-password</code>](./cli/reset-password.md) | Directly connect to the database to reset a user's password            |
 | [<code>restart</code>](./cli/restart.md)               | Restart a workspace                                                    |
-| [<code>scaletest</code>](./cli/scaletest.md)           | Run a scale test against the Coder API                                 |
 | [<code>schedule</code>](./cli/schedule.md)             | Schedule automated start and stop times for workspaces                 |
 | [<code>server</code>](./cli/server.md)                 | Start a Coder server                                                   |
 | [<code>show</code>](./cli/show.md)                     | Display details of a workspace's resources and agents                  |

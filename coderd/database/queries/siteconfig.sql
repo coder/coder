@@ -17,7 +17,6 @@ SELECT
 	COALESCE((SELECT value FROM site_configs WHERE key = 'default_proxy_icon_url'), '/emojis/1f3e1.png') :: text AS icon_url
 ;
 
-
 -- name: InsertDeploymentID :exec
 INSERT INTO site_configs (key, value) VALUES ('deployment_id', $1);
 
@@ -57,3 +56,10 @@ SELECT value FROM site_configs WHERE key = 'app_signing_key';
 -- name: UpsertAppSecurityKey :exec
 INSERT INTO site_configs (key, value) VALUES ('app_signing_key', $1)
 ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'app_signing_key';
+
+-- name: GetOAuthSigningKey :one
+SELECT value FROM site_configs WHERE key = 'oauth_signing_key';
+
+-- name: UpsertOAuthSigningKey :exec
+INSERT INTO site_configs (key, value) VALUES ('oauth_signing_key', $1)
+ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'oauth_signing_key';

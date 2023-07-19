@@ -23,6 +23,10 @@ const (
 type Option struct {
 	Name        string `json:"name,omitempty"`
 	Description string `json:"description,omitempty"`
+	// Required means this value must be set by some means. It requires
+	// `ValueSource != ValueSourceNone`
+	// If `Default` is set, then `Required` is ignored.
+	Required bool `json:"required,omitempty"`
 
 	// Flag is the long name of the flag used to configure this option. If unset,
 	// flag configuring is disabled.

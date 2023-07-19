@@ -132,6 +132,11 @@ type Options struct {
 	HealthcheckTimeout time.Duration
 	HealthcheckRefresh time.Duration
 
+	// OAuthSigningKey is the crypto key used to sign and encrypt state strings
+	// related to OAuth. This is a symmetric secret key using hmac to sign payloads.
+	// So this secret should **never** be exposed to the client.
+	OAuthSigningKey [32]byte
+
 	// APIRateLimit is the minutely throughput rate limit per user or ip.
 	// Setting a rate limit <0 will disable the rate limiter across the entire
 	// app. Some specific routes have their own configurable rate limits.
@@ -294,24 +299,32 @@ func New(options *Options) *API {
 		},
 	)
 
-	staticHandler := site.New(&site.Options{
-		BinFS:     binFS,
-		BinHashes: binHashes,
-		Database:  options.Database,
-		SiteFS:    site.FS(),
-	})
-	staticHandler.Experiments.Store(&experiments)
-
 	oauthConfigs := &httpmw.OAuth2Configs{
 		Github: options.GithubOAuth2Config,
 		OIDC:   options.OIDCConfig,
 	}
 
+	staticHandler := site.New(&site.Options{
+		BinFS:         binFS,
+		BinHashes:     binHashes,
+		Database:      options.Database,
+		SiteFS:        site.FS(),
+		OAuth2Configs: oauthConfigs,
+	})
+	staticHandler.Experiments.Store(&experiments)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	r := chi.NewRouter()
+
+	// nolint:gocritic // Load deployment ID. This never changes
+	depID, err := options.Database.GetDeploymentID(dbauthz.AsSystemRestricted(ctx))
+	if err != nil {
+		panic(xerrors.Errorf("get deployment ID: %w", err))
+	}
 	api := &API{
-		ctx:    ctx,
-		cancel: cancel,
+		ctx:          ctx,
+		cancel:       cancel,
+		DeploymentID: depID,
 
 		ID:          uuid.New(),
 		Options:     options,
@@ -351,8 +364,23 @@ func New(options *Options) *API {
 	}
 
 	api.Auditor.Store(&options.Auditor)
-	api.workspaceAgentCache = wsconncache.New(api.dialWorkspaceAgentTailnet, 0)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
+	if api.Experiments.Enabled(codersdk.ExperimentSingleTailnet) {
+		api.agentProvider, err = NewServerTailnet(api.ctx,
+			options.Logger,
+			options.DERPServer,
+			options.DERPMap,
+			&api.TailnetCoordinator,
+			wsconncache.New(api._dialWorkspaceAgentTailnet, 0),
+		)
+		if err != nil {
+			panic("failed to setup server tailnet: " + err.Error())
+		}
+	} else {
+		api.agentProvider = &wsconncache.AgentProvider{
+			Cache: wsconncache.New(api._dialWorkspaceAgentTailnet, 0),
+		}
+	}
 
 	api.workspaceAppServer = &workspaceapps.Server{
 		Logger: options.Logger.Named("workspaceapps"),
@@ -364,7 +392,7 @@ func New(options *Options) *API {
 		RealIPConfig:  options.RealIPConfig,
 
 		SignedTokenProvider: api.WorkspaceAppsProvider,
-		WorkspaceConnCache:  api.workspaceAgentCache,
+		AgentProvider:       api.agentProvider,
 		AppSecurityKey:      options.AppSecurityKey,
 
 		DisablePathApps:  options.DeploymentValues.DisablePathApps.Value(),
@@ -377,6 +405,7 @@ func New(options *Options) *API {
 		RedirectToLogin:             false,
 		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
 		Optional:                    false,
+		SessionTokenFunc:            nil, // Default behavior
 	})
 	// Same as above but it redirects to the login page.
 	apiKeyMiddlewareRedirect := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
@@ -385,6 +414,7 @@ func New(options *Options) *API {
 		RedirectToLogin:             true,
 		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
 		Optional:                    false,
+		SessionTokenFunc:            nil, // Default behavior
 	})
 	// Same as the first but it's optional.
 	apiKeyMiddlewareOptional := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
@@ -393,6 +423,7 @@ func New(options *Options) *API {
 		RedirectToLogin:             false,
 		DisableSessionExpiryRefresh: options.DeploymentValues.DisableSessionExpiryRefresh.Value(),
 		Optional:                    true,
+		SessionTokenFunc:            nil, // Default behavior
 	})
 
 	// API rate limit middleware. The counter is local and not shared between
@@ -455,17 +486,23 @@ func New(options *Options) *API {
 		})
 	})
 
+	// Register callback handlers for each OAuth2 provider.
 	r.Route("/gitauth", func(r chi.Router) {
 		for _, gitAuthConfig := range options.GitAuthConfigs {
-			r.Route(fmt.Sprintf("/%s", gitAuthConfig.ID), func(r chi.Router) {
+			// We don't need to register a callback handler for device auth.
+			if gitAuthConfig.DeviceAuth != nil {
+				continue
+			}
+			r.Route(fmt.Sprintf("/%s/callback", gitAuthConfig.ID), func(r chi.Router) {
 				r.Use(
-					httpmw.ExtractOAuth2(gitAuthConfig, options.HTTPClient, nil),
 					apiKeyMiddlewareRedirect,
+					httpmw.ExtractOAuth2(gitAuthConfig, options.HTTPClient, nil),
 				)
-				r.Get("/callback", api.gitAuthCallback(gitAuthConfig))
+				r.Get("/", api.gitAuthCallback(gitAuthConfig))
 			})
 		}
 	})
+
 	r.Route("/api/v2", func(r chi.Router) {
 		api.APIHandler = r
 
@@ -512,6 +549,15 @@ func New(options *Options) *API {
 			)
 			r.Get("/{fileID}", api.fileByID)
 			r.Post("/", api.postFile)
+		})
+		r.Route("/gitauth/{gitauth}", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractGitAuthParam(options.GitAuthConfigs),
+			)
+			r.Get("/", api.gitAuthByID)
+			r.Post("/device", api.postGitAuthDeviceByID)
+			r.Get("/device", api.gitAuthDeviceByID)
 		})
 		r.Route("/organizations", func(r chi.Router) {
 			r.Use(
@@ -593,6 +639,7 @@ func New(options *Options) *API {
 			r.Get("/first", api.firstUser)
 			r.Post("/first", api.postFirstUser)
 			r.Get("/authmethods", api.userAuthMethods)
+
 			r.Group(func(r chi.Router) {
 				// We use a tight limit for password login to protect against
 				// audit-log write DoS, pbkdf2 DoS, and simple brute-force
@@ -603,12 +650,18 @@ func New(options *Options) *API {
 				r.Post("/login", api.postLogin)
 				r.Route("/oauth2", func(r chi.Router) {
 					r.Route("/github", func(r chi.Router) {
-						r.Use(httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient, nil))
+						r.Use(
+							httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient, nil),
+							apiKeyMiddlewareOptional,
+						)
 						r.Get("/callback", api.userOAuth2Github)
 					})
 				})
 				r.Route("/oidc/callback", func(r chi.Router) {
-					r.Use(httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient, oidcAuthURLParams))
+					r.Use(
+						httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient, oidcAuthURLParams),
+						apiKeyMiddlewareOptional,
+					)
 					r.Get("/", api.userOIDC)
 				})
 			})
@@ -625,8 +678,10 @@ func New(options *Options) *API {
 				})
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database, false))
+					r.Post("/convert-login", api.postConvertLoginType)
 					r.Delete("/", api.deleteUser)
 					r.Get("/", api.userByName)
+					r.Get("/login-type", api.userLoginType)
 					r.Put("/profile", api.putUserProfile)
 					r.Route("/status", func(r chi.Router) {
 						r.Put("/suspend", api.putSuspendUserAccount())
@@ -672,9 +727,19 @@ func New(options *Options) *API {
 			r.Post("/azure-instance-identity", api.postWorkspaceAuthAzureInstanceIdentity)
 			r.Post("/aws-instance-identity", api.postWorkspaceAuthAWSInstanceIdentity)
 			r.Post("/google-instance-identity", api.postWorkspaceAuthGoogleInstanceIdentity)
-			r.Get("/connection", api.workspaceAgentConnectionGeneric)
+			r.With(
+				apiKeyMiddlewareOptional,
+				httpmw.ExtractWorkspaceProxy(httpmw.ExtractWorkspaceProxyConfig{
+					DB:       options.Database,
+					Optional: true,
+				}),
+				httpmw.RequireAPIKeyOrWorkspaceProxyAuth(),
+			).Get("/connection", api.workspaceAgentConnectionGeneric)
 			r.Route("/me", func(r chi.Router) {
-				r.Use(httpmw.ExtractWorkspaceAgent(options.Database))
+				r.Use(httpmw.ExtractWorkspaceAgent(httpmw.ExtractWorkspaceAgentConfig{
+					DB:       options.Database,
+					Optional: false,
+				}))
 				r.Get("/manifest", api.workspaceAgentManifest)
 				// This route is deprecated and will be removed in a future release.
 				// New agents will use /me/manifest instead.
@@ -843,6 +908,9 @@ type API struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
+	// DeploymentID is loaded from the database on startup.
+	DeploymentID string
+
 	*Options
 	// ID is a uniquely generated ID on initialization.
 	// This is used to associate objects with a specific
@@ -875,10 +943,10 @@ type API struct {
 	derpCloseFunc      func()
 
 	metricsCache          *metricscache.Cache
-	workspaceAgentCache   *wsconncache.Cache
 	updateChecker         *updatecheck.Checker
 	WorkspaceAppsProvider workspaceapps.SignedTokenProvider
 	workspaceAppServer    *workspaceapps.Server
+	agentProvider         workspaceapps.AgentProvider
 
 	// Experiments contains the list of experiments currently enabled.
 	// This is used to gate features that are not yet ready for production.
@@ -905,7 +973,8 @@ func (api *API) Close() error {
 	if coordinator != nil {
 		_ = (*coordinator).Close()
 	}
-	return api.workspaceAgentCache.Close()
+	_ = api.agentProvider.Close()
+	return nil
 }
 
 func compressHandler(h http.Handler) http.Handler {

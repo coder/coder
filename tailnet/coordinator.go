@@ -1,7 +1,6 @@
 package tailnet
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,10 +10,7 @@ import (
 	"net/http"
 	"net/netip"
 	"sync"
-	"sync/atomic"
 	"time"
-
-	"cdr.dev/slog"
 
 	"github.com/google/uuid"
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -22,6 +18,8 @@ import (
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
+
+	"cdr.dev/slog"
 )
 
 // Coordinator exchanges nodes with agents to establish connections.
@@ -44,6 +42,8 @@ type Coordinator interface {
 	ServeAgent(conn net.Conn, id uuid.UUID, name string) error
 	// Close closes the coordinator.
 	Close() error
+
+	ServeMultiAgent(id uuid.UUID) MultiAgentConn
 }
 
 // Node represents a node in the network.
@@ -54,10 +54,11 @@ type Node struct {
 	AsOf time.Time `json:"as_of"`
 	// Key is the Wireguard public key of the node.
 	Key key.NodePublic `json:"key"`
-	// DiscoKey is used for discovery messages over DERP to establish peer-to-peer connections.
+	// DiscoKey is used for discovery messages over DERP to establish
+	// peer-to-peer connections.
 	DiscoKey key.DiscoPublic `json:"disco"`
-	// PreferredDERP is the DERP server that peered connections
-	// should meet at to establish.
+	// PreferredDERP is the DERP server that peered connections should meet at
+	// to establish.
 	PreferredDERP int `json:"preferred_derp"`
 	// DERPLatency is the latency in seconds to each DERP server.
 	DERPLatency map[string]float64 `json:"derp_latency"`
@@ -68,8 +69,8 @@ type Node struct {
 	DERPForcedWebsocket map[int]string `json:"derp_forced_websockets"`
 	// Addresses are the IP address ranges this connection exposes.
 	Addresses []netip.Prefix `json:"addresses"`
-	// AllowedIPs specify what addresses can dial the connection.
-	// We allow all by default.
+	// AllowedIPs specify what addresses can dial the connection. We allow all
+	// by default.
 	AllowedIPs []netip.Prefix `json:"allowed_ips"`
 	// Endpoints are ip:port combinations that can be used to establish
 	// peer-to-peer connections.
@@ -130,10 +131,31 @@ func NewCoordinator(logger slog.Logger) Coordinator {
 // ┌──────────────────┐   ┌────────────────────┐   ┌───────────────────┐   ┌──────────────────┐
 // │tailnet.Coordinate├──►│tailnet.AcceptClient│◄─►│tailnet.AcceptAgent│◄──┤tailnet.Coordinate│
 // └──────────────────┘   └────────────────────┘   └───────────────────┘   └──────────────────┘
-// This coordinator is incompatible with multiple Coder
-// replicas as all node data is in-memory.
+// This coordinator is incompatible with multiple Coder replicas as all node
+// data is in-memory.
 type coordinator struct {
 	core *core
+}
+
+func (c *coordinator) ServeMultiAgent(id uuid.UUID) MultiAgentConn {
+	m := (&MultiAgent{
+		ID:                id,
+		Logger:            c.core.logger,
+		AgentIsLegacyFunc: c.core.agentIsLegacy,
+		OnSubscribe:       c.core.clientSubscribeToAgent,
+		OnUnsubscribe:     c.core.clientUnsubscribeFromAgent,
+		OnNodeUpdate:      c.core.clientNodeUpdate,
+		OnRemove:          c.core.clientDisconnected,
+	}).Init()
+	c.core.addClient(id, m)
+	return m
+}
+
+func (c *core) addClient(id uuid.UUID, ma Queue) {
+	c.mutex.Lock()
+	c.clients[id] = ma
+	c.clientsToAgents[id] = map[uuid.UUID]Queue{}
+	c.mutex.Unlock()
 }
 
 // core is an in-memory structure of Node and TrackedConn mappings.  Its methods may be called from multiple goroutines;
@@ -146,14 +168,38 @@ type core struct {
 	// nodes maps agent and connection IDs their respective node.
 	nodes map[uuid.UUID]*Node
 	// agentSockets maps agent IDs to their open websocket.
-	agentSockets map[uuid.UUID]*TrackedConn
+	agentSockets map[uuid.UUID]Queue
 	// agentToConnectionSockets maps agent IDs to connection IDs of conns that
 	// are subscribed to updates for that agent.
-	agentToConnectionSockets map[uuid.UUID]map[uuid.UUID]*TrackedConn
+	agentToConnectionSockets map[uuid.UUID]map[uuid.UUID]Queue
+
+	// clients holds a map of all clients connected to the coordinator. This is
+	// necessary because a client may not be subscribed into any agents.
+	clients map[uuid.UUID]Queue
+	// clientsToAgents is an index of clients to all of their subscribed agents.
+	clientsToAgents map[uuid.UUID]map[uuid.UUID]Queue
 
 	// agentNameCache holds a cache of agent names. If one of them disappears,
 	// it's helpful to have a name cached for debugging.
 	agentNameCache *lru.Cache[uuid.UUID, string]
+
+	// legacyAgents holda a mapping of all agents detected as legacy, meaning
+	// they only listen on codersdk.WorkspaceAgentIP. They aren't compatible
+	// with the new ServerTailnet, so they must be connected through
+	// wsconncache.
+	legacyAgents map[uuid.UUID]struct{}
+}
+
+type Queue interface {
+	UniqueID() uuid.UUID
+	Enqueue(n []*Node) error
+	Name() string
+	Stats() (start, lastWrite int64)
+	Overwrites() int64
+	// CoordinatorClose is used by the coordinator when closing a Queue. It
+	// should skip removing itself from the coordinator.
+	CoordinatorClose() error
+	Close() error
 }
 
 func newCore(logger slog.Logger) *core {
@@ -165,127 +211,17 @@ func newCore(logger slog.Logger) *core {
 	return &core{
 		logger:                   logger,
 		closed:                   false,
-		nodes:                    make(map[uuid.UUID]*Node),
-		agentSockets:             map[uuid.UUID]*TrackedConn{},
-		agentToConnectionSockets: map[uuid.UUID]map[uuid.UUID]*TrackedConn{},
+		nodes:                    map[uuid.UUID]*Node{},
+		agentSockets:             map[uuid.UUID]Queue{},
+		agentToConnectionSockets: map[uuid.UUID]map[uuid.UUID]Queue{},
 		agentNameCache:           nameCache,
+		legacyAgents:             map[uuid.UUID]struct{}{},
+		clients:                  map[uuid.UUID]Queue{},
+		clientsToAgents:          map[uuid.UUID]map[uuid.UUID]Queue{},
 	}
 }
 
 var ErrWouldBlock = xerrors.New("would block")
-
-type TrackedConn struct {
-	ctx      context.Context
-	cancel   func()
-	conn     net.Conn
-	updates  chan []*Node
-	logger   slog.Logger
-	lastData []byte
-
-	// ID is an ephemeral UUID used to uniquely identify the owner of the
-	// connection.
-	ID uuid.UUID
-
-	Name       string
-	Start      int64
-	LastWrite  int64
-	Overwrites int64
-}
-
-func (t *TrackedConn) Enqueue(n []*Node) (err error) {
-	atomic.StoreInt64(&t.LastWrite, time.Now().Unix())
-	select {
-	case t.updates <- n:
-		return nil
-	default:
-		return ErrWouldBlock
-	}
-}
-
-// Close the connection and cancel the context for reading node updates from the queue
-func (t *TrackedConn) Close() error {
-	t.cancel()
-	return t.conn.Close()
-}
-
-// WriteTimeout is the amount of time we wait to write a node update to a connection before we declare it hung.
-// It is exported so that tests can use it.
-const WriteTimeout = time.Second * 5
-
-// SendUpdates reads node updates and writes them to the connection.  Ends when writes hit an error or context is
-// canceled.
-func (t *TrackedConn) SendUpdates() {
-	for {
-		select {
-		case <-t.ctx.Done():
-			t.logger.Debug(t.ctx, "done sending updates")
-			return
-		case nodes := <-t.updates:
-			data, err := json.Marshal(nodes)
-			if err != nil {
-				t.logger.Error(t.ctx, "unable to marshal nodes update", slog.Error(err), slog.F("nodes", nodes))
-				return
-			}
-			if bytes.Equal(t.lastData, data) {
-				t.logger.Debug(t.ctx, "skipping duplicate update", slog.F("nodes", string(data)))
-				continue
-			}
-
-			// Set a deadline so that hung connections don't put back pressure on the system.
-			// Node updates are tiny, so even the dinkiest connection can handle them if it's not hung.
-			err = t.conn.SetWriteDeadline(time.Now().Add(WriteTimeout))
-			if err != nil {
-				// often, this is just because the connection is closed/broken, so only log at debug.
-				t.logger.Debug(t.ctx, "unable to set write deadline", slog.Error(err))
-				_ = t.Close()
-				return
-			}
-			_, err = t.conn.Write(data)
-			if err != nil {
-				// often, this is just because the connection is closed/broken, so only log at debug.
-				t.logger.Debug(t.ctx, "could not write nodes to connection",
-					slog.Error(err), slog.F("nodes", string(data)))
-				_ = t.Close()
-				return
-			}
-			t.logger.Debug(t.ctx, "wrote nodes", slog.F("nodes", string(data)))
-
-			// nhooyr.io/websocket has a bugged implementation of deadlines on a websocket net.Conn.  What they are
-			// *supposed* to do is set a deadline for any subsequent writes to complete, otherwise the call to Write()
-			// fails.  What nhooyr.io/websocket does is set a timer, after which it expires the websocket write context.
-			// If this timer fires, then the next write will fail *even if we set a new write deadline*.  So, after
-			// our successful write, it is important that we reset the deadline before it fires.
-			err = t.conn.SetWriteDeadline(time.Time{})
-			if err != nil {
-				// often, this is just because the connection is closed/broken, so only log at debug.
-				t.logger.Debug(t.ctx, "unable to extend write deadline", slog.Error(err))
-				_ = t.Close()
-				return
-			}
-			t.lastData = data
-		}
-	}
-}
-
-func NewTrackedConn(ctx context.Context, cancel func(), conn net.Conn, id uuid.UUID, logger slog.Logger, overwrites int64) *TrackedConn {
-	// buffer updates so they don't block, since we hold the
-	// coordinator mutex while queuing.  Node updates don't
-	// come quickly, so 512 should be plenty for all but
-	// the most pathological cases.
-	updates := make(chan []*Node, 512)
-	now := time.Now().Unix()
-	return &TrackedConn{
-		ctx:        ctx,
-		conn:       conn,
-		cancel:     cancel,
-		updates:    updates,
-		logger:     logger,
-		ID:         id,
-		Start:      now,
-		LastWrite:  now,
-		Overwrites: overwrites,
-	}
-}
 
 // Node returns an in-memory node by ID.
 // If the node does not exist, nil is returned.
@@ -321,16 +257,29 @@ func (c *core) agentCount() int {
 
 // ServeClient accepts a WebSocket connection that wants to connect to an agent
 // with the specified ID.
-func (c *coordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) error {
+func (c *coordinator) ServeClient(conn net.Conn, id, agentID uuid.UUID) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	logger := c.core.clientLogger(id, agent)
+	logger := c.core.clientLogger(id, agentID)
 	logger.Debug(ctx, "coordinating client")
-	tc, err := c.core.initAndTrackClient(ctx, cancel, conn, id, agent)
+
+	tc := NewTrackedConn(ctx, cancel, conn, id, logger, 0)
+	defer tc.Close()
+
+	c.core.addClient(id, tc)
+	defer c.core.clientDisconnected(id)
+
+	agentNode, err := c.core.clientSubscribeToAgent(tc, agentID)
 	if err != nil {
-		return err
+		return xerrors.Errorf("subscribe agent: %w", err)
 	}
-	defer c.core.clientDisconnected(id, agent)
+
+	if agentNode != nil {
+		err := tc.Enqueue([]*Node{agentNode})
+		if err != nil {
+			logger.Debug(ctx, "enqueue initial node", slog.Error(err))
+		}
+	}
 
 	// On this goroutine, we read updates from the client and publish them.  We start a second goroutine
 	// to write updates back to the client.
@@ -338,7 +287,7 @@ func (c *coordinator) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) 
 
 	decoder := json.NewDecoder(conn)
 	for {
-		err := c.handleNextClientMessage(id, agent, decoder)
+		err := c.handleNextClientMessage(id, decoder)
 		if err != nil {
 			logger.Debug(ctx, "unable to read client update, connection may be closed", slog.Error(err))
 			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) || errors.Is(err, context.Canceled) {
@@ -353,99 +302,133 @@ func (c *core) clientLogger(id, agent uuid.UUID) slog.Logger {
 	return c.logger.With(slog.F("client_id", id), slog.F("agent_id", agent))
 }
 
-// initAndTrackClient creates a TrackedConn for the client, and sends any initial Node updates if we have any.  It is
-// one function that does two things because it is critical that we hold the mutex for both things, lest we miss some
-// updates.
-func (c *core) initAndTrackClient(
-	ctx context.Context, cancel func(), conn net.Conn, id, agent uuid.UUID,
-) (
-	*TrackedConn, error,
-) {
-	logger := c.clientLogger(id, agent)
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-	if c.closed {
-		return nil, xerrors.New("coordinator is closed")
-	}
-	tc := NewTrackedConn(ctx, cancel, conn, id, logger, 0)
-
-	// When a new connection is requested, we update it with the latest
-	// node of the agent. This allows the connection to establish.
-	node, ok := c.nodes[agent]
-	if ok {
-		err := tc.Enqueue([]*Node{node})
-		// this should never error since we're still the only goroutine that
-		// knows about the TrackedConn.  If we hit an error something really
-		// wrong is happening
-		if err != nil {
-			logger.Critical(ctx, "unable to queue initial node", slog.Error(err))
-			return nil, err
-		}
-	}
-
-	// Insert this connection into a map so the agent
-	// can publish node updates.
-	connectionSockets, ok := c.agentToConnectionSockets[agent]
+func (c *core) initOrSetAgentConnectionSocketLocked(agentID uuid.UUID, enq Queue) {
+	connectionSockets, ok := c.agentToConnectionSockets[agentID]
 	if !ok {
-		connectionSockets = map[uuid.UUID]*TrackedConn{}
-		c.agentToConnectionSockets[agent] = connectionSockets
+		connectionSockets = map[uuid.UUID]Queue{}
+		c.agentToConnectionSockets[agentID] = connectionSockets
 	}
-	connectionSockets[id] = tc
-	logger.Debug(ctx, "added tracked connection")
-	return tc, nil
+	connectionSockets[enq.UniqueID()] = enq
+
+	c.clientsToAgents[enq.UniqueID()][agentID] = c.agentSockets[agentID]
 }
 
-func (c *core) clientDisconnected(id, agent uuid.UUID) {
-	logger := c.clientLogger(id, agent)
+func (c *core) clientDisconnected(id uuid.UUID) {
+	logger := c.clientLogger(id, uuid.Nil)
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	// Clean all traces of this connection from the map.
 	delete(c.nodes, id)
 	logger.Debug(context.Background(), "deleted client node")
-	connectionSockets, ok := c.agentToConnectionSockets[agent]
-	if !ok {
-		return
+
+	for agentID := range c.clientsToAgents[id] {
+		connectionSockets, ok := c.agentToConnectionSockets[agentID]
+		if !ok {
+			continue
+		}
+		delete(connectionSockets, id)
+		logger.Debug(context.Background(), "deleted client connectionSocket from map", slog.F("agent_id", agentID))
+
+		if len(connectionSockets) == 0 {
+			delete(c.agentToConnectionSockets, agentID)
+			logger.Debug(context.Background(), "deleted last client connectionSocket from map", slog.F("agent_id", agentID))
+		}
 	}
-	delete(connectionSockets, id)
-	logger.Debug(context.Background(), "deleted client connectionSocket from map")
-	if len(connectionSockets) != 0 {
-		return
-	}
-	delete(c.agentToConnectionSockets, agent)
-	logger.Debug(context.Background(), "deleted last client connectionSocket from map")
+
+	delete(c.clients, id)
+	delete(c.clientsToAgents, id)
+	logger.Debug(context.Background(), "deleted client agents")
 }
 
-func (c *coordinator) handleNextClientMessage(id, agent uuid.UUID, decoder *json.Decoder) error {
-	logger := c.core.clientLogger(id, agent)
+func (c *coordinator) handleNextClientMessage(id uuid.UUID, decoder *json.Decoder) error {
+	logger := c.core.clientLogger(id, uuid.Nil)
+
 	var node Node
 	err := decoder.Decode(&node)
 	if err != nil {
 		return xerrors.Errorf("read json: %w", err)
 	}
+
 	logger.Debug(context.Background(), "got client node update", slog.F("node", node))
-	return c.core.clientNodeUpdate(id, agent, &node)
+	return c.core.clientNodeUpdate(id, &node)
 }
 
-func (c *core) clientNodeUpdate(id, agent uuid.UUID, node *Node) error {
-	logger := c.clientLogger(id, agent)
+func (c *core) clientNodeUpdate(id uuid.UUID, node *Node) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+
 	// Update the node of this client in our in-memory map. If an agent entirely
 	// shuts down and reconnects, it needs to be aware of all clients attempting
 	// to establish connections.
 	c.nodes[id] = node
 
-	agentSocket, ok := c.agentSockets[agent]
-	if !ok {
-		logger.Debug(context.Background(), "no agent socket, unable to send node")
-		return nil
+	return c.clientNodeUpdateLocked(id, node)
+}
+
+func (c *core) clientNodeUpdateLocked(id uuid.UUID, node *Node) error {
+	logger := c.clientLogger(id, uuid.Nil)
+
+	agents := []uuid.UUID{}
+	for agentID, agentSocket := range c.clientsToAgents[id] {
+		if agentSocket == nil {
+			logger.Debug(context.Background(), "enqueue node to agent; socket is nil", slog.F("agent_id", agentID))
+			continue
+		}
+
+		err := agentSocket.Enqueue([]*Node{node})
+		if err != nil {
+			logger.Debug(context.Background(), "unable to Enqueue node to agent", slog.Error(err), slog.F("agent_id", agentID))
+			continue
+		}
+		agents = append(agents, agentID)
 	}
 
-	err := agentSocket.Enqueue([]*Node{node})
-	if err != nil {
-		return xerrors.Errorf("Enqueue node: %w", err)
+	logger.Debug(context.Background(), "enqueued node to agents", slog.F("agent_ids", agents))
+	return nil
+}
+
+func (c *core) clientSubscribeToAgent(enq Queue, agentID uuid.UUID) (*Node, error) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	logger := c.clientLogger(enq.UniqueID(), agentID)
+
+	c.initOrSetAgentConnectionSocketLocked(agentID, enq)
+
+	node, ok := c.nodes[enq.UniqueID()]
+	if ok {
+		// If we have the client node, send it to the agent. If not, it will be
+		// sent async.
+		agentSocket, ok := c.agentSockets[agentID]
+		if !ok {
+			logger.Debug(context.Background(), "subscribe to agent; socket is nil")
+		} else {
+			err := agentSocket.Enqueue([]*Node{node})
+			if err != nil {
+				return nil, xerrors.Errorf("enqueue client to agent: %w", err)
+			}
+		}
+	} else {
+		logger.Debug(context.Background(), "multiagent node doesn't exist")
 	}
-	logger.Debug(context.Background(), "enqueued node to agent")
+
+	agentNode, ok := c.nodes[agentID]
+	if !ok {
+		// This is ok, once the agent connects the node will be sent over.
+		logger.Debug(context.Background(), "agent node doesn't exist", slog.F("agent_id", agentID))
+	}
+
+	// Send the subscribed agent back to the multi agent.
+	return agentNode, nil
+}
+
+func (c *core) clientUnsubscribeFromAgent(enq Queue, agentID uuid.UUID) error {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	delete(c.clientsToAgents[enq.UniqueID()], agentID)
+	delete(c.agentToConnectionSockets[agentID], enq.UniqueID())
+
 	return nil
 }
 
@@ -493,10 +476,13 @@ func (c *core) agentDisconnected(id, unique uuid.UUID) {
 
 	// Only delete the connection if it's ours. It could have been
 	// overwritten.
-	if idConn, ok := c.agentSockets[id]; ok && idConn.ID == unique {
+	if idConn, ok := c.agentSockets[id]; ok && idConn.UniqueID() == unique {
 		delete(c.agentSockets, id)
 		delete(c.nodes, id)
 		logger.Debug(context.Background(), "deleted agent socket and node")
+	}
+	for clientID := range c.agentToConnectionSockets[id] {
+		c.clientsToAgents[clientID][id] = nil
 	}
 }
 
@@ -519,7 +505,7 @@ func (c *core) initAndTrackAgent(ctx context.Context, cancel func(), conn net.Co
 	// dead.
 	oldAgentSocket, ok := c.agentSockets[id]
 	if ok {
-		overwrites = oldAgentSocket.Overwrites + 1
+		overwrites = oldAgentSocket.Overwrites() + 1
 		_ = oldAgentSocket.Close()
 	}
 	tc := NewTrackedConn(ctx, cancel, conn, unique, logger, overwrites)
@@ -549,6 +535,10 @@ func (c *core) initAndTrackAgent(ctx context.Context, cancel func(), conn net.Co
 	}
 
 	c.agentSockets[id] = tc
+	for clientID := range c.agentToConnectionSockets[id] {
+		c.clientsToAgents[clientID][id] = tc
+	}
+
 	logger.Debug(ctx, "added agent socket")
 	return tc, nil
 }
@@ -564,11 +554,31 @@ func (c *coordinator) handleNextAgentMessage(id uuid.UUID, decoder *json.Decoder
 	return c.core.agentNodeUpdate(id, &node)
 }
 
+// This is copied from codersdk because importing it here would cause an import
+// cycle. This is just temporary until wsconncache is phased out.
+var legacyAgentIP = netip.MustParseAddr("fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4")
+
+// This is temporary until we no longer need to detect for agent backwards
+// compatibility.
+// See: https://github.com/coder/coder/issues/8218
+func (c *core) agentIsLegacy(agentID uuid.UUID) bool {
+	c.mutex.RLock()
+	_, ok := c.legacyAgents[agentID]
+	c.mutex.RUnlock()
+	return ok
+}
+
 func (c *core) agentNodeUpdate(id uuid.UUID, node *Node) error {
 	logger := c.agentLogger(id)
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	c.nodes[id] = node
+
+	// Keep a cache of all legacy agents.
+	if len(node.Addresses) > 0 && node.Addresses[0].Addr() == legacyAgentIP {
+		c.legacyAgents[id] = struct{}{}
+	}
+
 	connectionSockets, ok := c.agentToConnectionSockets[id]
 	if !ok {
 		logger.Debug(context.Background(), "no client sockets; unable to send node")
@@ -588,6 +598,7 @@ func (c *core) agentNodeUpdate(id uuid.UUID, node *Node) error {
 				slog.F("client_id", clientID), slog.Error(err))
 		}
 	}
+
 	return nil
 }
 
@@ -611,20 +622,18 @@ func (c *core) close() error {
 	for _, socket := range c.agentSockets {
 		socket := socket
 		go func() {
-			_ = socket.Close()
+			_ = socket.CoordinatorClose()
 			wg.Done()
 		}()
 	}
 
-	for _, connMap := range c.agentToConnectionSockets {
-		wg.Add(len(connMap))
-		for _, socket := range connMap {
-			socket := socket
-			go func() {
-				_ = socket.Close()
-				wg.Done()
-			}()
-		}
+	wg.Add(len(c.clients))
+	for _, client := range c.clients {
+		client := client
+		go func() {
+			_ = client.CoordinatorClose()
+			wg.Done()
+		}()
 	}
 
 	c.mutex.Unlock()
@@ -649,8 +658,8 @@ func (c *core) serveHTTPDebug(w http.ResponseWriter, r *http.Request) {
 }
 
 func CoordinatorHTTPDebug(
-	agentSocketsMap map[uuid.UUID]*TrackedConn,
-	agentToConnectionSocketsMap map[uuid.UUID]map[uuid.UUID]*TrackedConn,
+	agentSocketsMap map[uuid.UUID]Queue,
+	agentToConnectionSocketsMap map[uuid.UUID]map[uuid.UUID]Queue,
 	agentNameCache *lru.Cache[uuid.UUID, string],
 ) func(w http.ResponseWriter, _ *http.Request) {
 	return func(w http.ResponseWriter, _ *http.Request) {
@@ -658,7 +667,7 @@ func CoordinatorHTTPDebug(
 
 		type idConn struct {
 			id   uuid.UUID
-			conn *TrackedConn
+			conn Queue
 		}
 
 		{
@@ -671,16 +680,17 @@ func CoordinatorHTTPDebug(
 			}
 
 			slices.SortFunc(agentSockets, func(a, b idConn) bool {
-				return a.conn.Name < b.conn.Name
+				return a.conn.Name() < b.conn.Name()
 			})
 
 			for _, agent := range agentSockets {
+				start, lastWrite := agent.conn.Stats()
 				_, _ = fmt.Fprintf(w, "<li style=\"margin-top:4px\"><b>%s</b> (<code>%s</code>): created %v ago, write %v ago, overwrites %d </li>\n",
-					agent.conn.Name,
+					agent.conn.Name(),
 					agent.id.String(),
-					now.Sub(time.Unix(agent.conn.Start, 0)).Round(time.Second),
-					now.Sub(time.Unix(agent.conn.LastWrite, 0)).Round(time.Second),
-					agent.conn.Overwrites,
+					now.Sub(time.Unix(start, 0)).Round(time.Second),
+					now.Sub(time.Unix(lastWrite, 0)).Round(time.Second),
+					agent.conn.Overwrites(),
 				)
 
 				if conns := agentToConnectionSocketsMap[agent.id]; len(conns) > 0 {
@@ -696,11 +706,12 @@ func CoordinatorHTTPDebug(
 
 					_, _ = fmt.Fprintln(w, "<ul>")
 					for _, connSocket := range connSockets {
+						start, lastWrite := connSocket.conn.Stats()
 						_, _ = fmt.Fprintf(w, "<li><b>%s</b> (<code>%s</code>): created %v ago, write %v ago </li>\n",
-							connSocket.conn.Name,
+							connSocket.conn.Name(),
 							connSocket.id.String(),
-							now.Sub(time.Unix(connSocket.conn.Start, 0)).Round(time.Second),
-							now.Sub(time.Unix(connSocket.conn.LastWrite, 0)).Round(time.Second),
+							now.Sub(time.Unix(start, 0)).Round(time.Second),
+							now.Sub(time.Unix(lastWrite, 0)).Round(time.Second),
 						)
 					}
 					_, _ = fmt.Fprintln(w, "</ul>")
@@ -755,11 +766,12 @@ func CoordinatorHTTPDebug(
 				_, _ = fmt.Fprintf(w, "<h3 style=\"margin:0px;font-size:16px;font-weight:400\">connections: total %d</h3>\n", len(agentConns.conns))
 				_, _ = fmt.Fprintln(w, "<ul>")
 				for _, agentConn := range agentConns.conns {
+					start, lastWrite := agentConn.conn.Stats()
 					_, _ = fmt.Fprintf(w, "<li><b>%s</b> (<code>%s</code>): created %v ago, write %v ago </li>\n",
-						agentConn.conn.Name,
+						agentConn.conn.Name(),
 						agentConn.id.String(),
-						now.Sub(time.Unix(agentConn.conn.Start, 0)).Round(time.Second),
-						now.Sub(time.Unix(agentConn.conn.LastWrite, 0)).Round(time.Second),
+						now.Sub(time.Unix(start, 0)).Round(time.Second),
+						now.Sub(time.Unix(lastWrite, 0)).Round(time.Second),
 					)
 				}
 				_, _ = fmt.Fprintln(w, "</ul>")

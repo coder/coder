@@ -658,6 +658,103 @@ const docTemplate = `{
                 }
             }
         },
+        "/gitauth/{gitauth}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Git"
+                ],
+                "summary": "Get git auth by ID",
+                "operationId": "get-git-auth-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "string",
+                        "description": "Git Provider ID",
+                        "name": "gitauth",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GitAuth"
+                        }
+                    }
+                }
+            }
+        },
+        "/gitauth/{gitauth}/device": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Git"
+                ],
+                "summary": "Get git auth device by ID.",
+                "operationId": "get-git-auth-device-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "string",
+                        "description": "Git Provider ID",
+                        "name": "gitauth",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GitAuthDevice"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Git"
+                ],
+                "summary": "Post git auth device by ID",
+                "operationId": "post-git-auth-device-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "string",
+                        "description": "Git Provider ID",
+                        "name": "gitauth",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/groups/{group}": {
             "get": {
                 "security": [
@@ -1614,7 +1711,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.RegionsResponse"
+                            "$ref": "#/definitions/codersdk.RegionsResponse-codersdk_Region"
                         }
                     }
                 }
@@ -3155,6 +3252,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/{user}/convert-login": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authorization"
+                ],
+                "summary": "Convert user from password to oauth authentication",
+                "operationId": "convert-user-from-password-to-oauth-authentication",
+                "parameters": [
+                    {
+                        "description": "Convert request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ConvertLoginRequest"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OAuthConversionResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/users/{user}/gitsshkey": {
             "get": {
                 "security": [
@@ -3484,6 +3627,40 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/users/{user}/login-type": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get user login type",
+                "operationId": "get-user-login-type",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserLoginType"
+                        }
                     }
                 }
             }
@@ -4336,9 +4513,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/agentsdk.StatsResponse"
                         }
                     }
-                },
-                "x-apidocgen": {
-                    "skip": true
                 }
             }
         },
@@ -4417,9 +4591,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
-                "x-apidocgen": {
-                    "skip": true
                 }
             }
         },
@@ -4932,7 +5103,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.WorkspaceProxy"
+                                "$ref": "#/definitions/codersdk.RegionsResponse-codersdk_WorkspaceProxy"
                             }
                         }
                     }
@@ -5219,55 +5390,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Filter by owner username",
-                        "name": "owner",
+                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: owner, template, name, status, has-agent, deleting_by.",
+                        "name": "q",
                         "in": "query"
                     },
                     {
-                        "type": "string",
-                        "description": "Filter by template name",
-                        "name": "template",
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
                         "in": "query"
                     },
                     {
-                        "type": "string",
-                        "description": "Filter with partial-match by workspace name",
-                        "name": "name",
-                        "in": "query"
-                    },
-                    {
-                        "enum": [
-                            "pending",
-                            "running",
-                            "stopping",
-                            "stopped",
-                            "failed",
-                            "canceling",
-                            "canceled",
-                            "deleted",
-                            "deleting"
-                        ],
-                        "type": "string",
-                        "description": "Filter by workspace status",
-                        "name": "status",
-                        "in": "query"
-                    },
-                    {
-                        "enum": [
-                            "connected",
-                            "connecting",
-                            "disconnected",
-                            "timeout"
-                        ],
-                        "type": "string",
-                        "description": "Filter by agent status",
-                        "name": "has_agent",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Filter workspaces scheduled to be deleted by this time",
-                        "name": "deleting_by",
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
                         "in": "query"
                     }
                 ],
@@ -5819,6 +5955,9 @@ const docTemplate = `{
         "agentsdk.Manifest": {
             "type": "object",
             "properties": {
+                "agent_id": {
+                    "type": "string"
+                },
                 "apps": {
                     "type": "array",
                     "items": {
@@ -6096,6 +6235,10 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "required": {
+                    "description": "Required means this value must be set by some means. It requires\n` + "`" + `ValueSource != ValueSourceNone` + "`" + `\nIf ` + "`" + `Default` + "`" + ` is set, then ` + "`" + `Required` + "`" + ` is ignored.",
+                    "type": "boolean"
                 },
                 "use_instead": {
                     "description": "UseInstead is a list of options that should be used instead of this one.\nThe field is used to generate a deprecation warning.",
@@ -6553,6 +6696,9 @@ const docTemplate = `{
         "codersdk.AuthMethods": {
             "type": "object",
             "properties": {
+                "convert_to_oidc_enabled": {
+                    "type": "boolean"
+                },
                 "github": {
                     "$ref": "#/definitions/codersdk.AuthMethod"
                 },
@@ -6664,6 +6810,26 @@ const docTemplate = `{
                 "BuildReasonAutostop"
             ]
         },
+        "codersdk.ConvertLoginRequest": {
+            "type": "object",
+            "required": [
+                "password",
+                "to_type"
+            ],
+            "properties": {
+                "password": {
+                    "type": "string"
+                },
+                "to_type": {
+                    "description": "ToType is the login type to convert to.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.LoginType"
+                        }
+                    ]
+                }
+            }
+        },
         "codersdk.CreateFirstUserRequest": {
             "type": "object",
             "required": [
@@ -6772,7 +6938,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "locked_ttl_ms": {
-                    "description": "LockedTTL allows optionally specifying the max lifetime before Coder\npermanently deletes locked workspaces created from this template.",
+                    "description": "LockedTTLMillis allows optionally specifying the max lifetime before Coder\npermanently deletes locked workspaces created from this template.",
                     "type": "integer"
                 },
                 "max_ttl_ms": {
@@ -6823,6 +6989,9 @@ const docTemplate = `{
                 "file_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "message": {
+                    "type": "string"
                 },
                 "name": {
                     "type": "string"
@@ -7270,6 +7439,12 @@ const docTemplate = `{
                 "disable_session_expiry_refresh": {
                     "type": "boolean"
                 },
+                "docs_url": {
+                    "$ref": "#/definitions/clibase.URL"
+                },
+                "enable_terraform_debug_mode": {
+                    "type": "boolean"
+                },
                 "experiments": {
                     "type": "array",
                     "items": {
@@ -7440,12 +7615,18 @@ const docTemplate = `{
             "enum": [
                 "moons",
                 "workspace_actions",
-                "tailnet_pg_coordinator"
+                "tailnet_ha_coordinator",
+                "convert-to-oidc",
+                "single_tailnet",
+                "workspace_build_logs_ui"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
                 "ExperimentWorkspaceActions",
-                "ExperimentTailnetPGCoordinator"
+                "ExperimentTailnetHACoordinator",
+                "ExperimentConvertToOIDC",
+                "ExperimentSingleTailnet",
+                "ExperimentWorkspaceBuildLogsUI"
             ]
         },
         "codersdk.Feature": {
@@ -7487,14 +7668,77 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.GitAuth": {
+            "type": "object",
+            "properties": {
+                "app_install_url": {
+                    "description": "AppInstallURL is the URL to install the app.",
+                    "type": "string"
+                },
+                "app_installable": {
+                    "description": "AppInstallable is true if the request for app installs was successful.",
+                    "type": "boolean"
+                },
+                "authenticated": {
+                    "type": "boolean"
+                },
+                "device": {
+                    "type": "boolean"
+                },
+                "installations": {
+                    "description": "AppInstallations are the installations that the user has access to.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.GitAuthAppInstallation"
+                    }
+                },
+                "type": {
+                    "type": "string"
+                },
+                "user": {
+                    "description": "User is the user that authenticated with the provider.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.GitAuthUser"
+                        }
+                    ]
+                }
+            }
+        },
+        "codersdk.GitAuthAppInstallation": {
+            "type": "object",
+            "properties": {
+                "account": {
+                    "$ref": "#/definitions/codersdk.GitAuthUser"
+                },
+                "configure_url": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.GitAuthConfig": {
             "type": "object",
             "properties": {
+                "app_install_url": {
+                    "type": "string"
+                },
+                "app_installations_url": {
+                    "type": "string"
+                },
                 "auth_url": {
                     "type": "string"
                 },
                 "client_id": {
                     "type": "string"
+                },
+                "device_code_url": {
+                    "type": "string"
+                },
+                "device_flow": {
+                    "type": "boolean"
                 },
                 "id": {
                     "type": "string"
@@ -7518,6 +7762,43 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "validate_url": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.GitAuthDevice": {
+            "type": "object",
+            "properties": {
+                "device_code": {
+                    "type": "string"
+                },
+                "expires_in": {
+                    "type": "integer"
+                },
+                "interval": {
+                    "type": "integer"
+                },
+                "user_code": {
+                    "type": "string"
+                },
+                "verification_uri": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.GitAuthUser": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "login": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "profile_url": {
                     "type": "string"
                 }
             }
@@ -7799,6 +8080,25 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OAuthConversionResponse": {
+            "type": "object",
+            "properties": {
+                "expires_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "state_string": {
+                    "type": "string"
+                },
+                "to_type": {
+                    "$ref": "#/definitions/codersdk.LoginType"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "codersdk.OIDCAuthMethod": {
             "type": "object",
             "properties": {
@@ -7925,6 +8225,9 @@ const docTemplate = `{
         "codersdk.PatchTemplateVersionRequest": {
             "type": "object",
             "properties": {
+                "message": {
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
                 }
@@ -8324,13 +8627,24 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.RegionsResponse": {
+        "codersdk.RegionsResponse-codersdk_Region": {
             "type": "object",
             "properties": {
                 "regions": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.Region"
+                    }
+                }
+            }
+        },
+        "codersdk.RegionsResponse-codersdk_WorkspaceProxy": {
+            "type": "object",
+            "properties": {
+                "regions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceProxy"
                     }
                 }
             }
@@ -8381,7 +8695,8 @@ const docTemplate = `{
                 "git_ssh_key",
                 "api_key",
                 "group",
-                "license"
+                "license",
+                "convert_login"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -8392,7 +8707,8 @@ const docTemplate = `{
                 "ResourceTypeGitSSHKey",
                 "ResourceTypeAPIKey",
                 "ResourceTypeGroup",
-                "ResourceTypeLicense"
+                "ResourceTypeLicense",
+                "ResourceTypeConvertLogin"
             ]
         },
         "codersdk.Response": {
@@ -8777,6 +9093,9 @@ const docTemplate = `{
                 "job": {
                     "$ref": "#/definitions/codersdk.ProvisionerJob"
                 },
+                "message": {
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -8838,10 +9157,10 @@ const docTemplate = `{
                 "display_name": {
                     "type": "string"
                 },
-                "icon": {
-                    "type": "string"
+                "ephemeral": {
+                    "type": "boolean"
                 },
-                "legacy_variable_name": {
+                "icon": {
                     "type": "string"
                 },
                 "mutable": {
@@ -9040,15 +9359,25 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "group_perms": {
+                    "description": "GroupPerms should be a mapping of group id to role.",
                     "type": "object",
                     "additionalProperties": {
                         "$ref": "#/definitions/codersdk.TemplateRole"
+                    },
+                    "example": {
+                        "8bd26b20-f3e8-48be-a903-46bb920cf671": "use",
+                        "\u003cuser_id\u003e\u003e": "admin"
                     }
                 },
                 "user_perms": {
+                    "description": "UserPerms should be a mapping of user id to role. The user id must be the\nuuid of the user, not a username or email address.",
                     "type": "object",
                     "additionalProperties": {
                         "$ref": "#/definitions/codersdk.TemplateRole"
+                    },
+                    "example": {
+                        "4df59e74-c027-470b-ab4d-cbba8963a5e9": "use",
+                        "\u003cgroup_id\u003e": "admin"
                     }
                 }
             }
@@ -9177,6 +9506,14 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UserLoginType": {
+            "type": "object",
+            "properties": {
+                "login_type": {
+                    "$ref": "#/definitions/codersdk.LoginType"
+                }
+            }
+        },
         "codersdk.UserStatus": {
             "type": "string",
             "enum": [
@@ -9239,6 +9576,14 @@ const docTemplate = `{
                     "description": "DeletingAt indicates the time of the upcoming workspace deletion, if applicable; otherwise it is nil.\nWorkspaces may have impending deletions if Template.InactivityTTL feature is turned on and the workspace is inactive.",
                     "type": "string",
                     "format": "date-time"
+                },
+                "health": {
+                    "description": "Health shows the health of the workspace and information about\nwhat is causing an unhealthy status.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceHealth"
+                        }
+                    ]
                 },
                 "id": {
                     "type": "string",
@@ -9337,6 +9682,14 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "health": {
+                    "description": "Health reports the health of the agent.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentHealth"
+                        }
+                    ]
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -9428,6 +9781,21 @@ const docTemplate = `{
                 },
                 "disable_direct_connections": {
                     "type": "boolean"
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentHealth": {
+            "type": "object",
+            "properties": {
+                "healthy": {
+                    "description": "Healthy is true if the agent is healthy.",
+                    "type": "boolean",
+                    "example": false
+                },
+                "reason": {
+                    "description": "Reason is a human-readable explanation of the agent's health. It is empty if Healthy is true.",
+                    "type": "string",
+                    "example": "agent has lost connection"
                 }
             }
         },
@@ -9797,6 +10165,24 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.WorkspaceHealth": {
+            "type": "object",
+            "properties": {
+                "failing_agents": {
+                    "description": "FailingAgents lists the IDs of the agents that are failing, if any.",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "healthy": {
+                    "description": "Healthy is true if the workspace is healthy.",
+                    "type": "boolean",
+                    "example": false
+                }
+            }
+        },
         "codersdk.WorkspaceProxy": {
             "type": "object",
             "properties": {
@@ -9810,7 +10196,10 @@ const docTemplate = `{
                 "display_name": {
                     "type": "string"
                 },
-                "icon": {
+                "healthy": {
+                    "type": "boolean"
+                },
+                "icon_url": {
                     "type": "string"
                 },
                 "id": {
@@ -9818,6 +10207,10 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "name": {
+                    "type": "string"
+                },
+                "path_app_url": {
+                    "description": "PathAppURL is the URL to the base path for path apps. Optional\nunless wildcard_hostname is set.\nE.g. https://us.example.com",
                     "type": "string"
                 },
                 "status": {
@@ -9832,12 +10225,8 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
-                "url": {
-                    "description": "Full url including scheme of the proxy api url: https://us.example.com",
-                    "type": "string"
-                },
                 "wildcard_hostname": {
-                    "description": "WildcardHostname with the wildcard for subdomain based app hosting: *.us.example.com",
+                    "description": "WildcardHostname is the wildcard hostname for subdomain apps.\nE.g. *.us.example.com\nE.g. *--suffix.au.example.com\nOptional. Does not need to be on the same domain as PathAppURL.",
                     "type": "string"
                 }
             }

@@ -14,7 +14,7 @@ func TestMain(m *testing.M) {
 
 func TestRunDERPAndSTUN(t *testing.T) {
 	t.Parallel()
-	_ = tailnettest.RunDERPAndSTUN(t)
+	_, _ = tailnettest.RunDERPAndSTUN(t)
 }
 
 func TestRunDERPOnlyWebSockets(t *testing.T) {

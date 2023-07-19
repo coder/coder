@@ -15,13 +15,16 @@ var errAgentShuttingDown = xerrors.New("agent is shutting down")
 
 type AgentOptions struct {
 	FetchInterval time.Duration
-	Fetch         func(context.Context) (codersdk.WorkspaceAgent, error)
+	Fetch         func(ctx context.Context, agentID uuid.UUID) (codersdk.WorkspaceAgent, error)
 	FetchLogs     func(ctx context.Context, agentID uuid.UUID, after int64, follow bool) (<-chan []codersdk.WorkspaceAgentStartupLog, io.Closer, error)
 	Wait          bool // If true, wait for the agent to be ready (startup script).
 }
 
 // Agent displays a spinning indicator that waits for a workspace agent to connect.
-func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
+func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentOptions) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	if opts.FetchInterval == 0 {
 		opts.FetchInterval = 500 * time.Millisecond
 	}
@@ -47,7 +50,7 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 			case <-ctx.Done():
 				return
 			case <-t.C:
-				agent, err := opts.Fetch(ctx)
+				agent, err := opts.Fetch(ctx, agentID)
 				select {
 				case <-fetchedAgent:
 				default:
@@ -134,26 +137,44 @@ func Agent(ctx context.Context, writer io.Writer, opts AgentOptions) error {
 				}
 				defer logsCloser.Close()
 
+				var lastLog codersdk.WorkspaceAgentStartupLog
+				fetchedAgentWhileFollowing := fetchedAgent
+				if !follow {
+					fetchedAgentWhileFollowing = nil
+				}
 				for {
 					// This select is essentially and inline `fetch()`.
 					select {
 					case <-ctx.Done():
 						return ctx.Err()
-					case f := <-fetchedAgent:
+					case f := <-fetchedAgentWhileFollowing:
 						if f.err != nil {
 							return xerrors.Errorf("fetch: %w", f.err)
 						}
-						// We could handle changes in the agent status here, like
-						// if the agent becomes disconnected, we may want to stop.
-						// But for now, we'll just keep going, hopefully the agent
-						// will reconnect and update its status.
 						agent = f.agent
+
+						// If the agent is no longer starting, stop following
+						// logs because FetchLogs will keep streaming forever.
+						// We do one last non-follow request to ensure we have
+						// fetched all logs.
+						if !agent.LifecycleState.Starting() {
+							_ = logsCloser.Close()
+							fetchedAgentWhileFollowing = nil
+
+							logStream, logsCloser, err = opts.FetchLogs(ctx, agent.ID, lastLog.ID, false)
+							if err != nil {
+								return xerrors.Errorf("fetch workspace agent startup logs: %w", err)
+							}
+							// Logs are already primed, so we can call close.
+							_ = logsCloser.Close()
+						}
 					case logs, ok := <-logStream:
 						if !ok {
 							return nil
 						}
 						for _, log := range logs {
 							sw.Log(log.CreatedAt, log.Level, log.Output)
+							lastLog = log
 						}
 					}
 				}

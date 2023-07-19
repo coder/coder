@@ -25,7 +25,10 @@ CREATE TYPE audit_action AS ENUM (
 CREATE TYPE build_reason AS ENUM (
     'initiator',
     'autostart',
-    'autostop'
+    'autostop',
+    'autolock',
+    'failedstop',
+    'autodelete'
 );
 
 CREATE TYPE log_level AS ENUM (
@@ -99,7 +102,8 @@ CREATE TYPE resource_type AS ENUM (
     'group',
     'workspace_build',
     'license',
-    'workspace_proxy'
+    'workspace_proxy',
+    'convert_login'
 );
 
 CREATE TYPE startup_script_behavior AS ENUM (
@@ -459,8 +463,9 @@ CREATE TABLE template_version_parameters (
     validation_error text DEFAULT ''::text NOT NULL,
     validation_monotonic text DEFAULT ''::text NOT NULL,
     required boolean DEFAULT true NOT NULL,
-    legacy_variable_name text DEFAULT ''::text NOT NULL,
     display_name text DEFAULT ''::text NOT NULL,
+    display_order integer DEFAULT 0 NOT NULL,
+    ephemeral boolean DEFAULT false NOT NULL,
     CONSTRAINT validation_monotonic_order CHECK ((validation_monotonic = ANY (ARRAY['increasing'::text, 'decreasing'::text, ''::text])))
 );
 
@@ -490,9 +495,11 @@ COMMENT ON COLUMN template_version_parameters.validation_monotonic IS 'Validatio
 
 COMMENT ON COLUMN template_version_parameters.required IS 'Is parameter required?';
 
-COMMENT ON COLUMN template_version_parameters.legacy_variable_name IS 'Name of the legacy variable for migration purposes';
-
 COMMENT ON COLUMN template_version_parameters.display_name IS 'Display name of the rich parameter';
+
+COMMENT ON COLUMN template_version_parameters.display_order IS 'Specifies the order in which to display parameters in user interfaces.';
+
+COMMENT ON COLUMN template_version_parameters.ephemeral IS 'The value of an ephemeral parameter will not be preserved between consecutive workspace builds.';
 
 CREATE TABLE template_version_variables (
     template_version_id uuid NOT NULL,
@@ -529,10 +536,13 @@ CREATE TABLE template_versions (
     readme character varying(1048576) NOT NULL,
     job_id uuid NOT NULL,
     created_by uuid NOT NULL,
-    git_auth_providers text[]
+    git_auth_providers text[],
+    message character varying(1048576) DEFAULT ''::character varying NOT NULL
 );
 
 COMMENT ON COLUMN template_versions.git_auth_providers IS 'IDs of Git auth providers for a specific template version';
+
+COMMENT ON COLUMN template_versions.message IS 'Message describing the changes in this version of the template, similar to a Git commit message. Like a commit message, this should be a short, high-level description of the changes in this version of the template. This message is immutable and should not be updated after the fact.';
 
 CREATE TABLE templates (
     id uuid NOT NULL,

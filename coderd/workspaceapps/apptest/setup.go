@@ -240,7 +240,7 @@ func appServer(t *testing.T, headers http.Header) uint16 {
 		ln      net.Listener
 		tcpAddr *net.TCPAddr
 	)
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 32; i++ {
 		var err error
 		// #nosec
 		ln, err = net.Listen("tcp", ":0")
@@ -251,10 +251,12 @@ func appServer(t *testing.T, headers http.Header) uint16 {
 		require.True(t, ok)
 		if tcpAddr.Port < codersdk.WorkspaceAgentMinimumListeningPort {
 			_ = ln.Close()
+			ln = nil
 			time.Sleep(20 * time.Millisecond)
 			continue
 		}
 	}
+	require.NotNil(t, ln, "failed to find a free port greater than the minimum app port")
 
 	server := http.Server{
 		ReadHeaderTimeout: time.Minute,
@@ -399,7 +401,8 @@ func doWithRetries(t require.TestingT, client *codersdk.Client, req *http.Reques
 	return resp, err
 }
 
-func requestWithRetries(ctx context.Context, t require.TestingT, client *codersdk.Client, method, urlOrPath string, body interface{}, opts ...codersdk.RequestOption) (*http.Response, error) {
+func requestWithRetries(ctx context.Context, t testing.TB, client *codersdk.Client, method, urlOrPath string, body interface{}, opts ...codersdk.RequestOption) (*http.Response, error) {
+	t.Helper()
 	var resp *http.Response
 	var err error
 	require.Eventually(t, func() bool {

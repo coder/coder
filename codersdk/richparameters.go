@@ -1,6 +1,8 @@
 package codersdk
 
 import (
+	"strconv"
+
 	"golang.org/x/xerrors"
 
 	"github.com/coder/terraform-provider-coder/provider"
@@ -47,14 +49,24 @@ func ValidateWorkspaceBuildParameter(richParameter TemplateVersionParameter, bui
 	}
 
 	if lastBuildParameter != nil && richParameter.Type == "number" && len(richParameter.ValidationMonotonic) > 0 {
+		prev, err := strconv.Atoi(lastBuildParameter.Value)
+		if err != nil {
+			return xerrors.Errorf("Previous parameter value is not a number: %s", lastBuildParameter.Value)
+		}
+
+		current, err := strconv.Atoi(buildParameter.Value)
+		if err != nil {
+			return xerrors.Errorf("Current parameter value is not a number: %s", buildParameter.Value)
+		}
+
 		switch richParameter.ValidationMonotonic {
 		case MonotonicOrderIncreasing:
-			if lastBuildParameter.Value > buildParameter.Value {
-				return xerrors.Errorf("Parameter value must be equal or greater than previous value: %s", lastBuildParameter.Value)
+			if prev > current {
+				return xerrors.Errorf("Parameter value must be equal or greater than previous value: %d", prev)
 			}
 		case MonotonicOrderDecreasing:
-			if lastBuildParameter.Value < buildParameter.Value {
-				return xerrors.Errorf("Parameter value must be equal or lower than previous value: %s", lastBuildParameter.Value)
+			if prev < current {
+				return xerrors.Errorf("Parameter value must be equal or lower than previous value: %d", prev)
 			}
 		}
 	}
@@ -148,8 +160,8 @@ func (r *ParameterResolver) ValidateResolve(p TemplateVersionParameter, v *Works
 	}
 	// First, the provided value
 	resolvedValue := v
-	// Second, previous value
-	if resolvedValue == nil {
+	// Second, previous value if not ephemeral
+	if resolvedValue == nil && !p.Ephemeral {
 		resolvedValue = prevV
 	}
 	// Last, default value

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/go-multierror"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
 	"tailscale.com/ipn/ipnstate"
@@ -27,7 +28,13 @@ import (
 // WorkspaceAgentIP is a static IPv6 address with the Tailscale prefix that is used to route
 // connections from clients to this node. A dynamic address is not required because a Tailnet
 // client only dials a single agent at a time.
+//
+// Deprecated: use tailnet.IP() instead. This is kept for backwards
+// compatibility with wsconncache.
+// See: https://github.com/coder/coder/issues/8218
 var WorkspaceAgentIP = netip.MustParseAddr("fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4")
+
+var ErrSkipClose = xerrors.New("skip tailnet close")
 
 const (
 	WorkspaceAgentSSHPort             = tailnet.WorkspaceAgentSSHPort
@@ -120,11 +127,38 @@ func init() {
 	}
 }
 
+// NewWorkspaceAgentConn creates a new WorkspaceAgentConn. `conn` may be unique
+// to the WorkspaceAgentConn, or it may be shared in the case of coderd. If the
+// conn is shared and closing it is undesirable, you may return ErrNoClose from
+// opts.CloseFunc. This will ensure the underlying conn is not closed.
+func NewWorkspaceAgentConn(conn *tailnet.Conn, opts WorkspaceAgentConnOptions) *WorkspaceAgentConn {
+	return &WorkspaceAgentConn{
+		Conn: conn,
+		opts: opts,
+	}
+}
+
 // WorkspaceAgentConn represents a connection to a workspace agent.
 // @typescript-ignore WorkspaceAgentConn
 type WorkspaceAgentConn struct {
 	*tailnet.Conn
-	CloseFunc func()
+	opts WorkspaceAgentConnOptions
+}
+
+// @typescript-ignore WorkspaceAgentConnOptions
+type WorkspaceAgentConnOptions struct {
+	AgentID   uuid.UUID
+	AgentIP   netip.Addr
+	CloseFunc func() error
+}
+
+func (c *WorkspaceAgentConn) agentAddress() netip.Addr {
+	var emptyIP netip.Addr
+	if cmp := c.opts.AgentIP.Compare(emptyIP); cmp != 0 {
+		return c.opts.AgentIP
+	}
+
+	return tailnet.IPFromUUID(c.opts.AgentID)
 }
 
 // AwaitReachable waits for the agent to be reachable.
@@ -132,7 +166,7 @@ func (c *WorkspaceAgentConn) AwaitReachable(ctx context.Context) bool {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	return c.Conn.AwaitReachable(ctx, WorkspaceAgentIP)
+	return c.Conn.AwaitReachable(ctx, c.agentAddress())
 }
 
 // Ping pings the agent and returns the round-trip time.
@@ -141,13 +175,20 @@ func (c *WorkspaceAgentConn) Ping(ctx context.Context) (time.Duration, bool, *ip
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	return c.Conn.Ping(ctx, WorkspaceAgentIP)
+	return c.Conn.Ping(ctx, c.agentAddress())
 }
 
 // Close ends the connection to the workspace agent.
 func (c *WorkspaceAgentConn) Close() error {
-	if c.CloseFunc != nil {
-		c.CloseFunc()
+	var cerr error
+	if c.opts.CloseFunc != nil {
+		cerr = c.opts.CloseFunc()
+		if xerrors.Is(cerr, ErrSkipClose) {
+			return nil
+		}
+	}
+	if cerr != nil {
+		return multierror.Append(cerr, c.Conn.Close())
 	}
 	return c.Conn.Close()
 }
@@ -176,10 +217,12 @@ type ReconnectingPTYRequest struct {
 func (c *WorkspaceAgentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, height, width uint16, command string) (net.Conn, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
+
 	if !c.AwaitReachable(ctx) {
 		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
 	}
-	conn, err := c.DialContextTCP(ctx, netip.AddrPortFrom(WorkspaceAgentIP, WorkspaceAgentReconnectingPTYPort))
+
+	conn, err := c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), WorkspaceAgentReconnectingPTYPort))
 	if err != nil {
 		return nil, err
 	}
@@ -209,10 +252,12 @@ func (c *WorkspaceAgentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, 
 func (c *WorkspaceAgentConn) SSH(ctx context.Context) (net.Conn, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
+
 	if !c.AwaitReachable(ctx) {
 		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
 	}
-	return c.DialContextTCP(ctx, netip.AddrPortFrom(WorkspaceAgentIP, WorkspaceAgentSSHPort))
+
+	return c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), WorkspaceAgentSSHPort))
 }
 
 // SSHClient calls SSH to create a client that uses a weak cipher
@@ -220,10 +265,12 @@ func (c *WorkspaceAgentConn) SSH(ctx context.Context) (net.Conn, error) {
 func (c *WorkspaceAgentConn) SSHClient(ctx context.Context) (*ssh.Client, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
+
 	netConn, err := c.SSH(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("ssh: %w", err)
 	}
+
 	sshConn, channels, requests, err := ssh.NewClientConn(netConn, "localhost:22", &ssh.ClientConfig{
 		// SSH host validation isn't helpful, because obtaining a peer
 		// connection already signifies user-intent to dial a workspace.
@@ -233,6 +280,7 @@ func (c *WorkspaceAgentConn) SSHClient(ctx context.Context) (*ssh.Client, error)
 	if err != nil {
 		return nil, xerrors.Errorf("ssh conn: %w", err)
 	}
+
 	return ssh.NewClient(sshConn, channels, requests), nil
 }
 
@@ -240,17 +288,21 @@ func (c *WorkspaceAgentConn) SSHClient(ctx context.Context) (*ssh.Client, error)
 func (c *WorkspaceAgentConn) Speedtest(ctx context.Context, direction speedtest.Direction, duration time.Duration) ([]speedtest.Result, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
+
 	if !c.AwaitReachable(ctx) {
 		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
 	}
-	speedConn, err := c.DialContextTCP(ctx, netip.AddrPortFrom(WorkspaceAgentIP, WorkspaceAgentSpeedtestPort))
+
+	speedConn, err := c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), WorkspaceAgentSpeedtestPort))
 	if err != nil {
 		return nil, xerrors.Errorf("dial speedtest: %w", err)
 	}
+
 	results, err := speedtest.RunClientWithConn(direction, duration, speedConn)
 	if err != nil {
 		return nil, xerrors.Errorf("run speedtest: %w", err)
 	}
+
 	return results, err
 }
 
@@ -259,19 +311,23 @@ func (c *WorkspaceAgentConn) Speedtest(ctx context.Context, direction speedtest.
 func (c *WorkspaceAgentConn) DialContext(ctx context.Context, network string, addr string) (net.Conn, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	if network == "unix" {
-		return nil, xerrors.New("network must be tcp or udp")
-	}
-	_, rawPort, _ := net.SplitHostPort(addr)
-	port, _ := strconv.ParseUint(rawPort, 10, 16)
-	ipp := netip.AddrPortFrom(WorkspaceAgentIP, uint16(port))
+
 	if !c.AwaitReachable(ctx) {
 		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
 	}
-	if network == "udp" {
+
+	_, rawPort, _ := net.SplitHostPort(addr)
+	port, _ := strconv.ParseUint(rawPort, 10, 16)
+	ipp := netip.AddrPortFrom(c.agentAddress(), uint16(port))
+
+	switch network {
+	case "tcp":
+		return c.Conn.DialContextTCP(ctx, ipp)
+	case "udp":
 		return c.Conn.DialContextUDP(ctx, ipp)
+	default:
+		return nil, xerrors.Errorf("unknown network %q", network)
 	}
-	return c.Conn.DialContextTCP(ctx, ipp)
 }
 
 type WorkspaceAgentListeningPortsResponse struct {
@@ -309,7 +365,8 @@ func (c *WorkspaceAgentConn) ListeningPorts(ctx context.Context) (WorkspaceAgent
 func (c *WorkspaceAgentConn) apiRequest(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	host := net.JoinHostPort(WorkspaceAgentIP.String(), strconv.Itoa(WorkspaceAgentHTTPAPIServerPort))
+
+	host := net.JoinHostPort(c.agentAddress().String(), strconv.Itoa(WorkspaceAgentHTTPAPIServerPort))
 	url := fmt.Sprintf("http://%s%s", host, path)
 
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
@@ -332,13 +389,14 @@ func (c *WorkspaceAgentConn) apiClient() *http.Client {
 				if network != "tcp" {
 					return nil, xerrors.Errorf("network must be tcp")
 				}
+
 				host, port, err := net.SplitHostPort(addr)
 				if err != nil {
 					return nil, xerrors.Errorf("split host port %q: %w", addr, err)
 				}
-				// Verify that host is TailnetIP and port is
-				// TailnetStatisticsPort.
-				if host != WorkspaceAgentIP.String() || port != strconv.Itoa(WorkspaceAgentHTTPAPIServerPort) {
+
+				// Verify that the port is TailnetStatisticsPort.
+				if port != strconv.Itoa(WorkspaceAgentHTTPAPIServerPort) {
 					return nil, xerrors.Errorf("request %q does not appear to be for http api", addr)
 				}
 
@@ -346,7 +404,12 @@ func (c *WorkspaceAgentConn) apiClient() *http.Client {
 					return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
 				}
 
-				conn, err := c.DialContextTCP(ctx, netip.AddrPortFrom(WorkspaceAgentIP, WorkspaceAgentHTTPAPIServerPort))
+				ipAddr, err := netip.ParseAddr(host)
+				if err != nil {
+					return nil, xerrors.Errorf("parse host addr: %w", err)
+				}
+
+				conn, err := c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(ipAddr, WorkspaceAgentHTTPAPIServerPort))
 				if err != nil {
 					return nil, xerrors.Errorf("dial http api: %w", err)
 				}

@@ -119,7 +119,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				}
 
 				// log HTTP requests
-				client.Logger = logger
+				client.SetLogger(logger)
 			}
 
 			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, codersdk.Me, inv.Args[0])
@@ -175,10 +175,8 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 
 			// OpenSSH passes stderr directly to the calling TTY.
 			// This is required in "stdio" mode so a connecting indicator can be displayed.
-			err = cliui.Agent(ctx, inv.Stderr, cliui.AgentOptions{
-				Fetch: func(ctx context.Context) (codersdk.WorkspaceAgent, error) {
-					return client.WorkspaceAgent(ctx, workspaceAgent.ID)
-				},
+			err = cliui.Agent(ctx, inv.Stderr, workspaceAgent.ID, cliui.AgentOptions{
+				Fetch:     client.WorkspaceAgent,
 				FetchLogs: client.WorkspaceAgentStartupLogsAfter,
 				Wait:      wait,
 			})

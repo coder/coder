@@ -13,7 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
-	"github.com/tabbed/pqtype"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -106,10 +106,15 @@ func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 		TemplateID: templateVersion.TemplateID,
 		UpdatedAt:  database.Now(),
 		Name:       templateVersion.Name,
+		Message:    templateVersion.Message,
 	}
 
 	if params.Name != "" {
 		updateParams.Name = params.Name
+	}
+
+	if params.Message != nil {
+		updateParams.Message = *params.Message
 	}
 
 	errTemplateVersionNameConflict := xerrors.New("template version name must be unique for a template")
@@ -320,14 +325,6 @@ func (api *API) templateVersionGitAuth(rw http.ResponseWriter, r *http.Request) 
 			})
 			return
 		}
-		query := redirectURL.Query()
-		// The frontend uses a BroadcastChannel to notify listening pages for
-		// Git auth updates if the "notify" query parameter is set.
-		//
-		// It's important we do this in the backend, because the same endpoint
-		// is used for CLI authentication.
-		query.Add("redirect", "/gitauth?notify")
-		redirectURL.RawQuery = query.Encode()
 
 		provider := codersdk.TemplateVersionGitAuth{
 			ID:              config.ID,
@@ -1314,6 +1311,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			CreatedAt:      database.Now(),
 			UpdatedAt:      database.Now(),
 			Name:           req.Name,
+			Message:        req.Message,
 			Readme:         "",
 			JobID:          provisionerJob.ID,
 			CreatedBy:      apiKey.UserID,
@@ -1428,6 +1426,7 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 		CreatedAt:      version.CreatedAt,
 		UpdatedAt:      version.UpdatedAt,
 		Name:           version.Name,
+		Message:        version.Message,
 		Job:            job,
 		Readme:         version.Readme,
 		CreatedBy:      createdBy,
@@ -1492,7 +1491,7 @@ func convertTemplateVersionParameter(param database.TemplateVersionParameter) (c
 		ValidationError:      param.ValidationError,
 		ValidationMonotonic:  codersdk.ValidationMonotonicOrder(param.ValidationMonotonic),
 		Required:             param.Required,
-		LegacyVariableName:   param.LegacyVariableName,
+		Ephemeral:            param.Ephemeral,
 	}, nil
 }
 

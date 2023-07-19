@@ -29,6 +29,15 @@ Whether the new template will be marked active.
 
 Always prompt all parameters. Does not pull parameter values from active template version.
 
+### --create
+
+|         |                    |
+| ------- | ------------------ |
+| Type    | <code>bool</code>  |
+| Default | <code>false</code> |
+
+Create the template if it does not exist.
+
 ### -d, --directory
 
 |         |                     |
@@ -46,6 +55,14 @@ Specify the directory to create from, use '-' to read tar from stdin.
 | Default | <code>false</code> |
 
 Ignore warnings about not having a .terraform.lock.hcl file present in the template.
+
+### -m, --message
+
+|      |                     |
+| ---- | ------------------- |
+| Type | <code>string</code> |
+
+Specify a message describing the changes in this version of the template. Messages longer than 72 characters will be displayed as truncated.
 
 ### --name
 
