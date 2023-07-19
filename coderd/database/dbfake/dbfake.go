@@ -1917,10 +1917,19 @@ func (q *FakeQuerier) GetTemplateDAUs(_ context.Context, arg database.GetTemplat
 	return rs, nil
 }
 
-func (q *FakeQuerier) GetTemplateUserLatencyStats(ctx context.Context, arg database.GetTemplateUserLatencyStatsParams) ([]database.GetTemplateUserLatencyStatsRow, error) {
+func (q *FakeQuerier) GetTemplateDailyInsights(ctx context.Context, arg database.GetTemplateDailyInsightsParams) ([]database.GetTemplateDailyInsightsRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
+	}
+
+	panic("not implemented")
+}
+
+func (q *FakeQuerier) GetTemplateInsights(ctx context.Context, arg database.GetTemplateInsightsParams) (database.GetTemplateInsightsRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.GetTemplateInsightsRow{}, err
 	}
 
 	panic("not implemented")
@@ -2171,6 +2180,15 @@ func (q *FakeQuerier) GetUserCount(_ context.Context) (int64, error) {
 		}
 	}
 	return existing, nil
+}
+
+func (q *FakeQuerier) GetUserLatencyInsights(ctx context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	panic("not implemented")
 }
 
 func (q *FakeQuerier) GetUserLinkByLinkedID(_ context.Context, id string) (database.UserLink, error) {

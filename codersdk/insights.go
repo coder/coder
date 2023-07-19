@@ -18,7 +18,8 @@ type InsightsReportInterval string
 
 // InsightsReportInterval enums.
 const (
-	InsightsReportIntervalDay InsightsReportInterval = "day"
+	InsightsReportIntervalNone InsightsReportInterval = "none"
+	InsightsReportIntervalDay  InsightsReportInterval = "day"
 )
 
 // UserLatencyInsightsResponse is the response from the user latency insights
@@ -81,7 +82,7 @@ type TemplateInsightsReport struct {
 	StartTime   time.Time          `json:"start_time" format:"date-time"`
 	EndTime     time.Time          `json:"end_time" format:"date-time"`
 	TemplateIDs []uuid.UUID        `json:"template_ids" format:"uuid"`
-	ActiveUsers int                `json:"active_users" example:"22"`
+	ActiveUsers int64              `json:"active_users" example:"22"`
 	AppsUsage   []TemplateAppUsage `json:"apps_usage"`
 	// TODO(mafredri): To be introduced in a future pull request.
 	// TemplateParametersUsage []TemplateParameterUsage `json:"parameters_usage"`
@@ -94,7 +95,7 @@ type TemplateInsightsIntervalReport struct {
 	EndTime     time.Time              `json:"end_time" format:"date-time"`
 	TemplateIDs []uuid.UUID            `json:"template_ids" format:"uuid"`
 	Interval    InsightsReportInterval `json:"interval"`
-	ActiveUsers int                    `json:"active_users" example:"14"`
+	ActiveUsers int64                  `json:"active_users" example:"14"`
 }
 
 // TemplateAppsType defines the type of app reported.
@@ -114,7 +115,7 @@ type TemplateAppUsage struct {
 	DisplayName string           `json:"display_name" example:"Visual Studio Code"`
 	Slug        string           `json:"slug" example:"vscode"`
 	Icon        string           `json:"icon"`
-	Seconds     int              `json:"seconds" example:"80500"`
+	Seconds     int64            `json:"seconds" example:"80500"`
 }
 
 // TODO(mafredri): To be introduced in a future pull request.

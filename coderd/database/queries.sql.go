@@ -1374,6 +1374,207 @@ func (q *sqlQuerier) UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDPar
 	return i, err
 }
 
+const getTemplateDailyInsights = `-- name: GetTemplateDailyInsights :many
+WITH d AS (
+	SELECT generate_series($1::timestamptz, $2::timestamptz, '1 day'::interval) AS d
+), ts AS (
+	SELECT
+		d::timestamptz AS from_,
+		(d + '1 day'::interval)::timestamptz AS to_
+	FROM d
+), usage_by_day AS (
+	SELECT
+		ts.from_, ts.to_,
+		was.user_id,
+		array_agg(was.template_id) AS template_ids
+	FROM ts
+	LEFT JOIN workspace_agent_stats was ON (was.created_at >= ts.from_ AND was.created_at < ts.to_)
+	WHERE
+		was.connection_count > 0
+		AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN was.template_id = ANY($3::uuid[]) ELSE TRUE END
+	GROUP BY ts.from_, ts.to_, was.user_id
+)
+
+SELECT
+	from_ AS start_time,
+	to_ AS end_time,
+	COUNT(DISTINCT user_id) AS active_users,
+	array_agg(DISTINCT template_id)::uuid[] AS template_ids
+FROM usage_by_day, unnest(template_ids) as template_id
+GROUP BY from_, to_
+`
+
+type GetTemplateDailyInsightsParams struct {
+	StartTime   time.Time   `db:"start_time" json:"start_time"`
+	EndTime     time.Time   `db:"end_time" json:"end_time"`
+	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
+}
+
+type GetTemplateDailyInsightsRow struct {
+	StartTime   time.Time   `db:"start_time" json:"start_time"`
+	EndTime     time.Time   `db:"end_time" json:"end_time"`
+	ActiveUsers int64       `db:"active_users" json:"active_users"`
+	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
+}
+
+func (q *sqlQuerier) GetTemplateDailyInsights(ctx context.Context, arg GetTemplateDailyInsightsParams) ([]GetTemplateDailyInsightsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateDailyInsights, arg.StartTime, arg.EndTime, pq.Array(arg.TemplateIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTemplateDailyInsightsRow
+	for rows.Next() {
+		var i GetTemplateDailyInsightsRow
+		if err := rows.Scan(
+			&i.StartTime,
+			&i.EndTime,
+			&i.ActiveUsers,
+			pq.Array(&i.TemplateIDs),
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTemplateInsights = `-- name: GetTemplateInsights :one
+WITH d AS (
+	SELECT generate_series($1::timestamptz, $2::timestamptz, '5 minute'::interval) AS d
+), ts AS (
+	SELECT
+		d::timestamptz AS from_,
+		(d + '5 minute'::interval)::timestamptz AS to_,
+		EXTRACT(epoch FROM '5 minute'::interval) AS seconds
+	FROM d
+), usage_by_user AS (
+	SELECT
+		ts.from_,
+		ts.to_,
+		was.user_id,
+		array_agg(was.template_id) AS template_ids,
+		CASE WHEN SUM(was.session_count_vscode) > 0 THEN ts.seconds ELSE 0 END AS usage_vscode_seconds,
+		CASE WHEN SUM(was.session_count_jetbrains) > 0 THEN ts.seconds ELSE 0 END AS usage_jetbrains_seconds,
+		CASE WHEN SUM(was.session_count_reconnecting_pty) > 0 THEN ts.seconds ELSE 0 END AS usage_reconnecting_pty_seconds,
+		CASE WHEN SUM(was.session_count_ssh) > 0 THEN ts.seconds ELSE 0 END AS usage_ssh_seconds
+	FROM ts
+	JOIN workspace_agent_stats was ON (was.created_at >= ts.from_ AND was.created_at < ts.to_)
+	WHERE
+		was.connection_count > 0
+		AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN was.template_id = ANY($3::uuid[]) ELSE TRUE END
+	GROUP BY ts.from_, ts.to_, ts.seconds, was.user_id
+)
+
+SELECT
+	COUNT(DISTINCT user_id) AS active_users,
+	array_agg(DISTINCT template_id)::uuid[] AS template_ids,
+	SUM(usage_vscode_seconds) AS usage_vscode_seconds,
+	SUM(usage_jetbrains_seconds) AS usage_jetbrains_seconds,
+	SUM(usage_reconnecting_pty_seconds) AS usage_reconnecting_pty_seconds,
+	SUM(usage_ssh_seconds) AS usage_ssh_seconds
+FROM usage_by_user, unnest(template_ids) as template_id
+`
+
+type GetTemplateInsightsParams struct {
+	StartTime   time.Time   `db:"start_time" json:"start_time"`
+	EndTime     time.Time   `db:"end_time" json:"end_time"`
+	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
+}
+
+type GetTemplateInsightsRow struct {
+	ActiveUsers                 int64       `db:"active_users" json:"active_users"`
+	TemplateIDs                 []uuid.UUID `db:"template_ids" json:"template_ids"`
+	UsageVscodeSeconds          int64       `db:"usage_vscode_seconds" json:"usage_vscode_seconds"`
+	UsageJetbrainsSeconds       int64       `db:"usage_jetbrains_seconds" json:"usage_jetbrains_seconds"`
+	UsageReconnectingPtySeconds int64       `db:"usage_reconnecting_pty_seconds" json:"usage_reconnecting_pty_seconds"`
+	UsageSshSeconds             int64       `db:"usage_ssh_seconds" json:"usage_ssh_seconds"`
+}
+
+// GetTemplateInsights has a garnularity of 5 minutes where if a session/app was
+// in use, we will add 5 minutes to the total usage for that session (per user).
+func (q *sqlQuerier) GetTemplateInsights(ctx context.Context, arg GetTemplateInsightsParams) (GetTemplateInsightsRow, error) {
+	row := q.db.QueryRowContext(ctx, getTemplateInsights, arg.StartTime, arg.EndTime, pq.Array(arg.TemplateIDs))
+	var i GetTemplateInsightsRow
+	err := row.Scan(
+		&i.ActiveUsers,
+		pq.Array(&i.TemplateIDs),
+		&i.UsageVscodeSeconds,
+		&i.UsageJetbrainsSeconds,
+		&i.UsageReconnectingPtySeconds,
+		&i.UsageSshSeconds,
+	)
+	return i, err
+}
+
+const getUserLatencyInsights = `-- name: GetUserLatencyInsights :many
+SELECT
+	workspace_agent_stats.user_id,
+	users.username,
+	array_agg(DISTINCT template_id)::uuid[] AS template_ids,
+	coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_50,
+	coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
+FROM workspace_agent_stats
+JOIN users ON (users.id = workspace_agent_stats.user_id)
+WHERE
+	workspace_agent_stats.created_at >= $1
+	AND workspace_agent_stats.created_at < $2
+	AND workspace_agent_stats.connection_median_latency_ms > 0
+	AND workspace_agent_stats.connection_count > 0
+	AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN template_id = ANY($3::uuid[]) ELSE TRUE END
+GROUP BY workspace_agent_stats.user_id, users.username
+ORDER BY user_id ASC
+`
+
+type GetUserLatencyInsightsParams struct {
+	StartTime   time.Time   `db:"start_time" json:"start_time"`
+	EndTime     time.Time   `db:"end_time" json:"end_time"`
+	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
+}
+
+type GetUserLatencyInsightsRow struct {
+	UserID                       uuid.UUID   `db:"user_id" json:"user_id"`
+	Username                     string      `db:"username" json:"username"`
+	TemplateIDs                  []uuid.UUID `db:"template_ids" json:"template_ids"`
+	WorkspaceConnectionLatency50 float64     `db:"workspace_connection_latency_50" json:"workspace_connection_latency_50"`
+	WorkspaceConnectionLatency95 float64     `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
+}
+
+func (q *sqlQuerier) GetUserLatencyInsights(ctx context.Context, arg GetUserLatencyInsightsParams) ([]GetUserLatencyInsightsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getUserLatencyInsights, arg.StartTime, arg.EndTime, pq.Array(arg.TemplateIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUserLatencyInsightsRow
+	for rows.Next() {
+		var i GetUserLatencyInsightsRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.Username,
+			pq.Array(&i.TemplateIDs),
+			&i.WorkspaceConnectionLatency50,
+			&i.WorkspaceConnectionLatency95,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const deleteLicense = `-- name: DeleteLicense :one
 DELETE
 FROM licenses
@@ -6642,67 +6843,6 @@ func (q *sqlQuerier) GetTemplateDAUs(ctx context.Context, arg GetTemplateDAUsPar
 	for rows.Next() {
 		var i GetTemplateDAUsRow
 		if err := rows.Scan(&i.Date, &i.UserID); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getTemplateUserLatencyStats = `-- name: GetTemplateUserLatencyStats :many
-SELECT
-	workspace_agent_stats.user_id,
-	users.username,
-	array_agg(DISTINCT template_id)::uuid[] AS template_ids,
-	coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_50,
-	coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
-FROM workspace_agent_stats
-JOIN users ON (users.id = workspace_agent_stats.user_id)
-WHERE
-	workspace_agent_stats.created_at >= $1
-	AND workspace_agent_stats.created_at < $2
-	AND workspace_agent_stats.connection_median_latency_ms > 0
-	AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN template_id = ANY($3::uuid[]) ELSE TRUE END
-GROUP BY workspace_agent_stats.user_id, users.username
-ORDER BY user_id ASC
-`
-
-type GetTemplateUserLatencyStatsParams struct {
-	StartTime   time.Time   `db:"start_time" json:"start_time"`
-	EndTime     time.Time   `db:"end_time" json:"end_time"`
-	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
-}
-
-type GetTemplateUserLatencyStatsRow struct {
-	UserID                       uuid.UUID   `db:"user_id" json:"user_id"`
-	Username                     string      `db:"username" json:"username"`
-	TemplateIDs                  []uuid.UUID `db:"template_ids" json:"template_ids"`
-	WorkspaceConnectionLatency50 float64     `db:"workspace_connection_latency_50" json:"workspace_connection_latency_50"`
-	WorkspaceConnectionLatency95 float64     `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
-}
-
-func (q *sqlQuerier) GetTemplateUserLatencyStats(ctx context.Context, arg GetTemplateUserLatencyStatsParams) ([]GetTemplateUserLatencyStatsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTemplateUserLatencyStats, arg.StartTime, arg.EndTime, pq.Array(arg.TemplateIDs))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetTemplateUserLatencyStatsRow
-	for rows.Next() {
-		var i GetTemplateUserLatencyStatsRow
-		if err := rows.Scan(
-			&i.UserID,
-			&i.Username,
-			pq.Array(&i.TemplateIDs),
-			&i.WorkspaceConnectionLatency50,
-			&i.WorkspaceConnectionLatency95,
-		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

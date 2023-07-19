@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/exp/slices"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
@@ -93,7 +94,7 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 	// 	IDs: templateIDs,
 	// })
 
-	rows, err := api.Database.GetTemplateUserLatencyStats(ctx, database.GetTemplateUserLatencyStatsParams{
+	rows, err := api.Database.GetUserLatencyInsights(ctx, database.GetUserLatencyInsightsParams{
 		StartTime:   startTime,
 		EndTime:     endTime,
 		TemplateIDs: templateIDs,
@@ -188,7 +189,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	var (
 		startTime      = p.Time3339Nano(vals, time.Time{}, "start_time")
 		endTime        = p.Time3339Nano(vals, time.Time{}, "end_time")
-		intervalString = p.String(vals, "day", "interval")
+		intervalString = p.String(vals, string(codersdk.InsightsReportIntervalNone), "interval")
 		templateIDs    = p.UUIDs(vals, []uuid.UUID{}, "template_ids")
 	)
 	p.ErrorExcessParams(vals)
@@ -200,12 +201,14 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO(mafredri) Verify template IDs.
-	_ = templateIDs
+	// Should we verify all template IDs exist, or just return no rows?
+	// _, err := api.Database.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
+	// 	IDs: templateIDs,
+	// })
 
 	var interval codersdk.InsightsReportInterval
 	switch v := codersdk.InsightsReportInterval(intervalString); v {
-	case codersdk.InsightsReportIntervalDay:
+	case codersdk.InsightsReportIntervalDay, codersdk.InsightsReportIntervalNone:
 		interval = v
 	default:
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -213,44 +216,96 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 			Validations: []codersdk.ValidationError{
 				{
 					Field:  "interval",
-					Detail: fmt.Sprintf("must be %q", codersdk.InsightsReportIntervalDay),
+					Detail: fmt.Sprintf("must be one of %v", []codersdk.InsightsReportInterval{codersdk.InsightsReportIntervalNone, codersdk.InsightsReportIntervalDay}),
 				},
 			},
 		})
 		return
 	}
 
-	intervalReports := []codersdk.TemplateInsightsIntervalReport{}
-	if interval != "" {
-		intervalStart := startTime
-		intervalEnd := startTime.Add(time.Hour * 24)
-		for !intervalEnd.After(endTime) {
-			intervalReports = append(intervalReports, codersdk.TemplateInsightsIntervalReport{
-				StartTime:   intervalStart,
-				EndTime:     intervalEnd,
-				Interval:    interval,
-				TemplateIDs: []uuid.UUID{},
-				ActiveUsers: 10,
+	var usage database.GetTemplateInsightsRow
+	var dailyUsage []database.GetTemplateDailyInsightsRow
+	// Use a transaction to ensure that we get consistent data between
+	// the full and interval report.
+	err := api.Database.InTx(func(db database.Store) error {
+		var err error
+
+		if interval != codersdk.InsightsReportIntervalNone {
+			dailyUsage, err = db.GetTemplateDailyInsights(ctx, database.GetTemplateDailyInsightsParams{
+				StartTime:   startTime,
+				EndTime:     endTime,
+				TemplateIDs: templateIDs,
 			})
-			intervalStart = intervalEnd
-			intervalEnd = intervalEnd.Add(time.Hour * 24)
+			if err != nil {
+				return xerrors.Errorf("get template daily insights: %w", err)
+			}
 		}
+
+		usage, err = db.GetTemplateInsights(ctx, database.GetTemplateInsightsParams{
+			StartTime:   startTime,
+			EndTime:     endTime,
+			TemplateIDs: templateIDs,
+		})
+		if err != nil {
+			return xerrors.Errorf("get template insights: %w", err)
+		}
+
+		return nil
+	}, nil)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	intervalReports := []codersdk.TemplateInsightsIntervalReport{}
+	for _, row := range dailyUsage {
+		intervalReports = append(intervalReports, codersdk.TemplateInsightsIntervalReport{
+			StartTime:   row.StartTime,
+			EndTime:     row.EndTime,
+			Interval:    interval,
+			TemplateIDs: row.TemplateIDs,
+			ActiveUsers: row.ActiveUsers,
+		})
 	}
 
 	resp := codersdk.TemplateInsightsResponse{
 		Report: codersdk.TemplateInsightsReport{
 			StartTime:   startTime,
 			EndTime:     endTime,
-			TemplateIDs: []uuid.UUID{},
-			ActiveUsers: 10,
+			TemplateIDs: usage.TemplateIDs,
+			ActiveUsers: usage.ActiveUsers,
 			AppsUsage: []codersdk.TemplateAppUsage{
 				{
-					TemplateIDs: []uuid.UUID{},
+					TemplateIDs: usage.TemplateIDs, // TODO(mafredri): Update query to return template IDs/app?
 					Type:        codersdk.TemplateAppsTypeBuiltin,
 					DisplayName: "Visual Studio Code",
 					Slug:        "vscode",
-					Icon:        "/icons/vscode.svg",
-					Seconds:     80500,
+					Icon:        "/icons/code.svg",
+					Seconds:     usage.UsageVscodeSeconds,
+				},
+				{
+					TemplateIDs: usage.TemplateIDs, // TODO(mafredri): Update query to return template IDs/app?
+					Type:        codersdk.TemplateAppsTypeBuiltin,
+					DisplayName: "JetBrains",
+					Slug:        "jetbrains",
+					Icon:        "/icons/intellij.svg",
+					Seconds:     usage.UsageJetbrainsSeconds,
+				},
+				{
+					TemplateIDs: usage.TemplateIDs, // TODO(mafredri): Update query to return template IDs/app?
+					Type:        codersdk.TemplateAppsTypeBuiltin,
+					DisplayName: "Web Terminal",
+					Slug:        "reconnecting-pty",
+					Icon:        "/icons/terminal.svg",
+					Seconds:     usage.UsageReconnectingPtySeconds,
+				},
+				{
+					TemplateIDs: usage.TemplateIDs, // TODO(mafredri): Update query to return template IDs/app?
+					Type:        codersdk.TemplateAppsTypeBuiltin,
+					DisplayName: "SSH",
+					Slug:        "ssh",
+					Icon:        "/icons/terminal.svg",
+					Seconds:     usage.UsageSshSeconds,
 				},
 			},
 		},
