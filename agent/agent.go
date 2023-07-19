@@ -316,9 +316,10 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 	const metadataLimit = 128
 
 	var (
-		baseTicker       = time.NewTicker(a.reportMetadataInterval)
-		lastCollectedAts = make(map[string]time.Time)
-		metadataResults  = make(chan metadataResultAndKey, metadataLimit)
+		baseTicker        = time.NewTicker(a.reportMetadataInterval)
+		lastCollectedAtMu sync.RWMutex
+		lastCollectedAts  = make(map[string]time.Time)
+		metadataResults   = make(chan metadataResultAndKey, metadataLimit)
 	)
 	defer baseTicker.Stop()
 
@@ -367,6 +368,7 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 		// If the manifest changes (e.g. on agent reconnect) we need to
 		// purge old cache values to prevent lastCollectedAt from growing
 		// boundlessly.
+		lastCollectedAtMu.Lock()
 		for key := range lastCollectedAts {
 			if slices.IndexFunc(manifest.Metadata, func(md codersdk.WorkspaceAgentMetadataDescription) bool {
 				return md.Key == key
@@ -374,36 +376,45 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 				delete(lastCollectedAts, key)
 			}
 		}
+		lastCollectedAtMu.Unlock()
 
 		// Spawn a goroutine for each metadata collection, and use a
 		// channel to synchronize the results and avoid both messy
 		// mutex logic and overloading the API.
 		for _, md := range manifest.Metadata {
-			collectedAt, ok := lastCollectedAts[md.Key]
-			if ok {
-				// If the interval is zero, we assume the user just wants
-				// a single collection at startup, not a spinning loop.
-				if md.Interval == 0 {
-					continue
-				}
-				// The last collected value isn't quite stale yet, so we skip it.
-				if collectedAt.Add(a.reportMetadataInterval).After(time.Now()) {
-					continue
-				}
-			}
-
 			md := md
 			// We send the result to the channel in the goroutine to avoid
 			// sending the same result multiple times. So, we don't care about
 			// the return values.
 			go flight.Do(md.Key, func() {
+				lastCollectedAtMu.RLock()
+				collectedAt, ok := lastCollectedAts[md.Key]
+				lastCollectedAtMu.RUnlock()
+				if ok {
+					// If the interval is zero, we assume the user just wants
+					// a single collection at startup, not a spinning loop.
+					if md.Interval == 0 {
+						return
+					}
+					// The last collected value isn't quite stale yet, so we skip it.
+					if collectedAt.Add(a.reportMetadataInterval).After(time.Now()) {
+						return
+					}
+				}
+
 				timeout := md.Timeout
 				if timeout == 0 {
-					timeout = md.Interval
+					if md.Interval != 0 {
+						timeout = md.Interval
+					} else if interval := int64(a.reportMetadataInterval.Seconds()); interval != 0 {
+						// Fallback to the report interval
+						timeout = interval
+					} else {
+						// If the interval is still 0, default to 5.
+						timeout = 5
+					}
 				}
-				ctx, cancel := context.WithTimeout(ctx,
-					time.Duration(timeout)*time.Second,
-				)
+				ctx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 				defer cancel()
 
 				select {
