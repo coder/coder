@@ -3,6 +3,7 @@ package coderd
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -214,7 +215,22 @@ type ServerTailnet struct {
 	transport *http.Transport
 }
 
+func insecureTLSConfig() *tls.Config {
+	return &tls.Config{
+		MinVersion:         tls.VersionTLS12,
+		InsecureSkipVerify: true,
+	}
+}
+
 func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID) (_ *httputil.ReverseProxy, release func(), _ error) {
+	transport := s.transport
+
+	// We don't verify certificates for localhost applications.
+	if targetURL.Scheme == "https" {
+		transport = transport.Clone()
+		transport.TLSClientConfig = insecureTLSConfig()
+	}
+
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		site.RenderStaticErrorPage(w, r, site.ErrorPageData{
@@ -226,7 +242,7 @@ func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID u
 		})
 	}
 	proxy.Director = s.director(agentID, proxy.Director)
-	proxy.Transport = s.transport
+	proxy.Transport = transport
 
 	return proxy, func() {}, nil
 }

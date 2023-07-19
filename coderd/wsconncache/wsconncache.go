@@ -4,6 +4,7 @@ package wsconncache
 
 import (
 	"context"
+	"crypto/tls"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -49,8 +50,15 @@ func (a *AgentProvider) ReverseProxy(targetURL *url.URL, dashboardURL *url.URL, 
 		return nil, nil, xerrors.Errorf("acquire agent connection: %w", err)
 	}
 
-	proxy.Transport = conn.HTTPTransport()
+	transport := conn.HTTPTransport()
+	// We don't verify certificates for localhost applications.
+	if targetURL.Scheme == "https" {
+		trans := transport.Clone()
+		trans.TLSClientConfig = insecureTLSConfig()
 
+	}
+
+	proxy.Transport = transport
 	return proxy, release, nil
 }
 
@@ -210,4 +218,11 @@ func (c *Cache) Close() error {
 	close(c.closed)
 	c.closeGroup.Wait()
 	return nil
+}
+
+func insecureTLSConfig() *tls.Config {
+	return &tls.Config{
+		MinVersion:         tls.VersionTLS12,
+		InsecureSkipVerify: true,
+	}
 }
