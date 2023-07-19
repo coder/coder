@@ -77,6 +77,8 @@ export const UsersTableBody: FC<
 
   const permissions = usePermissions()
   const canViewDeployment = Boolean(permissions.viewDeploymentValues)
+  // Ideally this only runs if 'canViewDeployment' is true.
+  // TODO: Prevent api call if the user does not have the perms.
   const [state] = useMachine(deploymentConfigMachine)
   const { deploymentValues } = state.context
 
