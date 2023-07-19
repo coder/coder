@@ -209,28 +209,15 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	if !verifyInsightsStartAndEndTime(ctx, rw, startTime, endTime) {
 		return
 	}
+	interval, ok := verifyInsightsInterval(ctx, rw, intervalString)
+	if !ok {
+		return
+	}
 
 	// Should we verify all template IDs exist, or just return no rows?
 	// _, err := api.Database.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
 	// 	IDs: templateIDs,
 	// })
-
-	var interval codersdk.InsightsReportInterval
-	switch v := codersdk.InsightsReportInterval(intervalString); v {
-	case codersdk.InsightsReportIntervalDay, codersdk.InsightsReportIntervalNone:
-		interval = v
-	default:
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Query parameter has invalid value.",
-			Validations: []codersdk.ValidationError{
-				{
-					Field:  "interval",
-					Detail: fmt.Sprintf("must be one of %v", []codersdk.InsightsReportInterval{codersdk.InsightsReportIntervalNone, codersdk.InsightsReportIntervalDay}),
-				},
-			},
-		})
-		return
-	}
 
 	var usage database.GetTemplateInsightsRow
 	var dailyUsage []database.GetTemplateDailyInsightsRow
@@ -371,4 +358,22 @@ func verifyInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, 
 	}
 
 	return true
+}
+
+func verifyInsightsInterval(ctx context.Context, rw http.ResponseWriter, intervalString string) (codersdk.InsightsReportInterval, bool) {
+	switch v := codersdk.InsightsReportInterval(intervalString); v {
+	case codersdk.InsightsReportIntervalDay, codersdk.InsightsReportIntervalNone:
+		return v, true
+	default:
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Query parameter has invalid value.",
+			Validations: []codersdk.ValidationError{
+				{
+					Field:  "interval",
+					Detail: fmt.Sprintf("must be one of %v", []codersdk.InsightsReportInterval{codersdk.InsightsReportIntervalNone, codersdk.InsightsReportIntervalDay}),
+				},
+			},
+		})
+		return "", false
+	}
 }
