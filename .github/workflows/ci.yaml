@@ -608,8 +608,8 @@ jobs:
       - run: yarn export
         working-directory: ./offlinedocs
       - name: Tar files
-        run: tar -cvf docs.tar offlinedocs/out
-      - name: Upload Artifact
+        run: tar -cvf docs.tar -C offlinedocs/out .
+      - name: Upload docs artifact
         uses: actions/upload-artifact@v3
         with:
           name: docs
