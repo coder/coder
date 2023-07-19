@@ -54,3 +54,43 @@ func NewMetrics(reg prometheus.Registerer, labelNames ...string) *Metrics {
 	reg.MustRegister(m.WriteLatencySeconds)
 	return m
 }
+
+func (m *Metrics) ReadMetrics(lvs ...string) ConnMetrics {
+	return &connMetrics{
+		addError:       m.ReadErrorsTotal.WithLabelValues(lvs...).Add,
+		observeLatency: m.ReadLatencySeconds.WithLabelValues(lvs...).Observe,
+		addTotal:       m.BytesReadTotal.WithLabelValues(lvs...).Add,
+	}
+}
+
+func (m *Metrics) WriteMetrics(lvs ...string) ConnMetrics {
+	return &connMetrics{
+		addError:       m.WriteErrorsTotal.WithLabelValues(lvs...).Add,
+		observeLatency: m.WriteLatencySeconds.WithLabelValues(lvs...).Observe,
+		addTotal:       m.BytesWrittenTotal.WithLabelValues(lvs...).Add,
+	}
+}
+
+type ConnMetrics interface {
+	AddError(float64)
+	ObserveLatency(float64)
+	AddTotal(float64)
+}
+
+type connMetrics struct {
+	addError       func(float64)
+	observeLatency func(float64)
+	addTotal       func(float64)
+}
+
+func (c *connMetrics) AddError(f float64) {
+	c.addError(f)
+}
+
+func (c *connMetrics) ObserveLatency(f float64) {
+	c.observeLatency(f)
+}
+
+func (c *connMetrics) AddTotal(f float64) {
+	c.addTotal(f)
+}

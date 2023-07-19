@@ -220,7 +220,9 @@ func orderAndStubDatabaseFunctions(filePath, receiver, structName string, stub f
 
 	for _, fn := range funcs {
 		var bodyStmts []dst.Stmt
-		if len(fn.Func.Params.List) == 2 && fn.Func.Params.List[1].Names[0].Name == "arg" {
+
+		// Add input validation, only relevant for dbfake.
+		if strings.Contains(filePath, "dbfake") && len(fn.Func.Params.List) == 2 && fn.Func.Params.List[1].Names[0].Name == "arg" {
 			/*
 				err := validateDatabaseType(arg)
 				if err != nil {

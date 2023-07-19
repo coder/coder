@@ -848,6 +848,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 	var (
 		tickInterval               time.Duration
 		bytesPerTick               int64
+		ssh                        bool
 		scaletestPrometheusAddress string
 		scaletestPrometheusWait    time.Duration
 
@@ -938,20 +939,19 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 
 				// Setup our workspace agent connection.
 				config := workspacetraffic.Config{
-					AgentID:        agentID,
-					AgentName:      agentName,
-					BytesPerTick:   bytesPerTick,
-					Duration:       strategy.timeout,
-					TickInterval:   tickInterval,
-					WorkspaceName:  ws.Name,
-					WorkspaceOwner: ws.OwnerName,
-					Registry:       reg,
+					AgentID:      agentID,
+					BytesPerTick: bytesPerTick,
+					Duration:     strategy.timeout,
+					TickInterval: tickInterval,
+					ReadMetrics:  metrics.ReadMetrics(ws.OwnerName, ws.Name, agentName),
+					WriteMetrics: metrics.WriteMetrics(ws.OwnerName, ws.Name, agentName),
+					SSH:          ssh,
 				}
 
 				if err := config.Validate(); err != nil {
 					return xerrors.Errorf("validate config: %w", err)
 				}
-				var runner harness.Runnable = workspacetraffic.NewRunner(client, config, metrics)
+				var runner harness.Runnable = workspacetraffic.NewRunner(client, config)
 				if tracingEnabled {
 					runner = &runnableTraceWrapper{
 						tracer:   tracer,
@@ -1001,6 +1001,13 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 			Default:     "100ms",
 			Description: "How often to send traffic.",
 			Value:       clibase.DurationOf(&tickInterval),
+		},
+		{
+			Flag:        "ssh",
+			Env:         "CODER_SCALETEST_WORKSPACE_TRAFFIC_SSH",
+			Default:     "",
+			Description: "Send traffic over SSH.",
+			Value:       clibase.BoolOf(&ssh),
 		},
 		{
 			Flag:        "scaletest-prometheus-address",

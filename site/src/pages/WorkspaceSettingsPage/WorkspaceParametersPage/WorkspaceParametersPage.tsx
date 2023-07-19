@@ -1,9 +1,4 @@
-import {
-  getTemplateVersionRichParameters,
-  getWorkspaceBuildParameters,
-  postWorkspaceBuild,
-} from "api/api"
-import { Workspace } from "api/typesGenerated"
+import { getWorkspaceParameters, postWorkspaceBuild } from "api/api"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "utils/page"
 import { useWorkspaceSettingsContext } from "../WorkspaceSettingsLayout"
@@ -20,22 +15,10 @@ import { FC } from "react"
 import { isApiValidationError } from "api/errors"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
 
-const getWorkspaceParameters = async (workspace: Workspace) => {
-  const latestBuild = workspace.latest_build
-  const [templateVersionRichParameters, buildParameters] = await Promise.all([
-    getTemplateVersionRichParameters(latestBuild.template_version_id),
-    getWorkspaceBuildParameters(latestBuild.id),
-  ])
-  return {
-    templateVersionRichParameters,
-    buildParameters,
-  }
-}
-
 const WorkspaceParametersPage = () => {
   const { workspace } = useWorkspaceSettingsContext()
   const query = useQuery({
-    queryKey: ["workspaceSettings", workspace.id],
+    queryKey: ["workspace", workspace.id, "parameters"],
     queryFn: () => getWorkspaceParameters(workspace),
   })
   const navigate = useNavigate()
