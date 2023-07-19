@@ -124,6 +124,7 @@ type Options struct {
 	DERPMap               *tailcfg.DERPMap
 	SwaggerEndpoint       bool
 	SetUserGroups         func(ctx context.Context, tx database.Store, userID uuid.UUID, groupNames []string) error
+	SetUserSiteRoles      func(ctx context.Context, tx database.Store, userID uuid.UUID, roles []string) error
 	TemplateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
 	// AppSecurityKey is the crypto key used to sign and encrypt tokens related to
 	// workspace applications. It consists of both a signing and encryption key.
@@ -253,6 +254,14 @@ func New(options *Options) *API {
 		options.SetUserGroups = func(ctx context.Context, _ database.Store, userID uuid.UUID, groups []string) error {
 			options.Logger.Warn(ctx, "attempted to assign OIDC groups without enterprise license",
 				slog.F("user_id", userID), slog.F("groups", groups),
+			)
+			return nil
+		}
+	}
+	if options.SetUserSiteRoles == nil {
+		options.SetUserSiteRoles = func(ctx context.Context, _ database.Store, userID uuid.UUID, roles []string) error {
+			options.Logger.Warn(ctx, "attempted to assign OIDC user roles without enterprise license",
+				slog.F("user_id", userID), slog.F("roles", roles),
 			)
 			return nil
 		}

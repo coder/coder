@@ -269,6 +269,9 @@ type OIDCConfig struct {
 	IgnoreUserInfo      clibase.Bool                      `json:"ignore_user_info" typescript:",notnull"`
 	GroupField          clibase.String                    `json:"groups_field" typescript:",notnull"`
 	GroupMapping        clibase.Struct[map[string]string] `json:"group_mapping" typescript:",notnull"`
+	UserRoleField       clibase.String                    `json:"user_role_field" typescript:",notnull"`
+	UserRoleMapping     clibase.Struct[map[string]string] `json:"user_role_mapping" typescript:",notnull"`
+	UserRolesDefault    clibase.StringArray               `json:"user_roles_default" typescript:",notnull"`
 	SignInText          clibase.String                    `json:"sign_in_text" typescript:",notnull"`
 	IconURL             clibase.URL                       `json:"icon_url" typescript:",notnull"`
 }
@@ -1028,6 +1031,38 @@ when required by your organization's security policy.`,
 			Value:       &c.OIDC.GroupMapping,
 			Group:       &deploymentGroupOIDC,
 			YAML:        "groupMapping",
+		},
+		{
+			Name:        "OIDC User Role Field",
+			Description: "This field must be set if using the user roles sync feature. Set this to the name of the claim used to store the user's role. The roles should be sent as an array of strings.",
+			Flag:        "oidc-user-role-field",
+			Env:         "CODER_OIDC_USER_ROLE_FIELD",
+			// This value is intentionally blank. If this is empty, then OIDC user role
+			// sync behavior is disabled.
+			Default: "",
+			Value:   &c.OIDC.UserRoleField,
+			Group:   &deploymentGroupOIDC,
+			YAML:    "userRoleField",
+		},
+		{
+			Name:        "OIDC User Role Mapping",
+			Description: "A map of the OIDC passed in user roles and the groups in Coder it should map to. This is useful if the group names do not match.",
+			Flag:        "oidc-user-role-mapping",
+			Env:         "CODER_OIDC_USER_ROLE_MAPPING",
+			Default:     "{}",
+			Value:       &c.OIDC.UserRoleMapping,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "userRoleMapping",
+		},
+		{
+			Name:        "OIDC User Role Default",
+			Description: "If user role sync is enabled, these roles are always included for all authenticated users. The 'member' role is always assigned.",
+			Flag:        "oidc-user-role-default",
+			Env:         "CODER_OIDC_USER_ROLE_DEFAULT",
+			Default:     strings.Join([]string{}, ","),
+			Value:       &c.OIDC.UserRolesDefault,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "userRoleDefault",
 		},
 		{
 			Name:        "OpenID Connect sign in text",

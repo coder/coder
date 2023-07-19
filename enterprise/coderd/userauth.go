@@ -50,3 +50,18 @@ func (api *API) setUserGroups(ctx context.Context, db database.Store, userID uui
 		return nil
 	}, nil)
 }
+
+func (api *API) setUserSiteRoles(ctx context.Context, db database.Store, userID uuid.UUID, roles []string) error {
+	// Should this be feature protected?
+	return db.InTx(func(tx database.Store) error {
+		_, err := api.AGPL.UpdateSiteUserRoles(ctx, database.UpdateUserRolesParams{
+			GrantedRoles: roles,
+			ID:           userID,
+		})
+		if err != nil {
+			return xerrors.Errorf("set user roles: %w", err)
+		}
+
+		return nil
+	}, nil)
+}

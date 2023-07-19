@@ -684,10 +684,25 @@ type OIDCConfig struct {
 	// to groups within Coder.
 	// map[oidcGroupName]coderGroupName
 	GroupMapping map[string]string
+	// UserRoleField selects the claim field to be used as the created user's
+	// roles. If the field is the empty string, then no role updates
+	// will ever come from the OIDC provider.
+	UserRoleField string
+	// UserRoleMapping controls how groups returned by the OIDC provider get mapped
+	// to roles within Coder.
+	// map[oidcRoleName]coderRoleName
+	UserRoleMapping map[string]string
+	// UserRolesDefault is the default set of roles to assign to a user if role sync
+	// is enabled.
+	UserRolesDefault []string
 	// SignInText is the text to display on the OIDC login button
 	SignInText string
 	// IconURL points to the URL of an icon to display on the OIDC login button
 	IconURL string
+}
+
+func (cfg OIDCConfig) RoleSyncEnabled() bool {
+	return cfg.UserRoleField != ""
 }
 
 // @Summary OpenID Connect Callback
@@ -890,6 +905,55 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	roles := api.OIDCConfig.UserRolesDefault
+	if api.OIDCConfig.RoleSyncEnabled() {
+		rolesRow, ok := claims[api.OIDCConfig.UserRoleField]
+		if !ok {
+			logger.Error(ctx, "oidc user roles are missing from claim")
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Login disabled until OIDC config is fixed, contact your administrator. Missing OIDC user roles in claim.",
+				Detail:  "If role sync is enabled, then the OIDC user roles must be present in the claim. Disabling role sync will allow login to proceed.",
+			})
+			return
+		}
+
+		// Convert the []interface{} we get to a []string.
+		rolesInterface, ok := rolesRow.([]interface{})
+		if !ok {
+			api.Logger.Error(ctx, "oidc claim user roles field was an unknown type",
+				slog.F("type", fmt.Sprintf("%T", rolesRow)),
+			)
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Login disabled until OIDC config is fixed, contact your administrator. Missing OIDC user roles in claim.",
+				Detail:  fmt.Sprintf("Roles claim must be an array of strings, type found: %T. Disabling role sync will allow login to proceed.", rolesRow),
+			})
+			return
+		}
+
+		api.Logger.Debug(ctx, "roles returned in oidc claims",
+			slog.F("len", len(rolesInterface)),
+			slog.F("roles", rolesInterface),
+		)
+		for _, roleInterface := range rolesInterface {
+			role, ok := roleInterface.(string)
+			if !ok {
+				api.Logger.Error(ctx, "invalid oidc user role type",
+					slog.F("type", fmt.Sprintf("%T", rolesRow)),
+				)
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: fmt.Sprintf("Invalid user role type. Expected string, got: %T", roleInterface),
+				})
+				return
+			}
+
+			if mappedRole, ok := api.OIDCConfig.UserRoleMapping[role]; ok {
+				role = mappedRole
+			}
+
+			roles = append(roles, role)
+		}
+	}
+
 	// This conditional is purely to warn the user they might have misconfigured their OIDC
 	// configuration.
 	if _, groupClaimExists := claims["groups"]; !usingGroups && groupClaimExists {
@@ -959,6 +1023,8 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		Username:     username,
 		AvatarURL:    picture,
 		UsingGroups:  usingGroups,
+		UsingRoles:   api.OIDCConfig.RoleSyncEnabled(),
+		Roles:        roles,
 		Groups:       groups,
 	}).SetInitAuditRequest(func(params *audit.RequestParams) (*audit.Request[database.User], func()) {
 		return audit.InitRequest[database.User](rw, params)
@@ -1045,6 +1111,10 @@ type oauthLoginParams struct {
 	// to the Groups provided.
 	UsingGroups bool
 	Groups      []string
+	// Is UsingRoles is true, then the user will be assigned
+	// the roles provided.
+	UsingRoles bool
+	Roles      []string
 
 	commitLock       sync.Mutex
 	initAuditRequest func(params *audit.RequestParams) *audit.Request[database.User]
@@ -1243,6 +1313,15 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		if params.UsingGroups {
 			//nolint:gocritic
 			err := api.Options.SetUserGroups(dbauthz.AsSystemRestricted(ctx), tx, user.ID, params.Groups)
+			if err != nil {
+				return xerrors.Errorf("set user groups: %w", err)
+			}
+		}
+
+		// Ensure roles are correct.
+		if params.UsingRoles {
+			//nolint:gocritic
+			err := api.Options.SetUserSiteRoles(dbauthz.AsSystemRestricted(ctx), tx, user.ID, params.Roles)
 			if err != nil {
 				return xerrors.Errorf("set user groups: %w", err)
 			}
