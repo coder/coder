@@ -360,12 +360,12 @@ site/out/index.html: site/package.json $(shell find ./site $(FIND_EXCLUSIONS) -t
 	../scripts/yarn_install.sh
 	yarn build
 
-offlinedocs/out/docs/index.html: $(shell find ./offlinedocs $(FIND_EXCLUSIONS) -type f) $(shell find ./docs $(FIND_EXCLUSIONS) -type f | sed 's: :\\ :g')
+offlinedocs/out/index.html: $(shell find ./offlinedocs $(FIND_EXCLUSIONS) -type f) $(shell find ./docs $(FIND_EXCLUSIONS) -type f | sed 's: :\\ :g')
 	cd offlinedocs
 	../scripts/yarn_install.sh
 	yarn export
 
-build/coder_docs_$(VERSION).tgz: offlinedocs/out/docs/index.html
+build/coder_docs_$(VERSION).tgz: offlinedocs/out/index.html
 	tar -czf "$@" -C offlinedocs/out .
 
 install: build/coder_$(VERSION)_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT)
