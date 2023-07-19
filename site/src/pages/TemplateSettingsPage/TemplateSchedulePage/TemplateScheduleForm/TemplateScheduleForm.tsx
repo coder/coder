@@ -20,6 +20,7 @@ import { InactivityDialog } from "./InactivityDialog"
 import { useWorkspacesToBeDeleted } from "./useWorkspacesToBeDeleted"
 import { TemplateScheduleFormValues, getValidationSchema } from "./formHelpers"
 import { TTLHelperText } from "./TTLHelperText"
+import { docs } from "utils/docs"
 
 const MS_HOUR_CONVERSION = 3600000
 const MS_DAY_CONVERSION = 86400000
@@ -222,9 +223,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
               ) : (
                 <>
                   {commonT("licenseFieldTextHelper")}{" "}
-                  <Link href="https://coder.com/docs/v2/latest/enterprise">
-                    {commonT("learnMore")}
-                  </Link>
+                  <Link href={docs("/enterprise")}>{commonT("learnMore")}</Link>
                   .
                 </>
               ),

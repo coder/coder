@@ -15,6 +15,7 @@ import Link from "@mui/material/Link"
 import Box from "@mui/material/Box"
 import InfoOutlined from "@mui/icons-material/InfoOutlined"
 import Button from "@mui/material/Button"
+import { docs } from "utils/docs"
 
 export const DashboardLayout: FC = () => {
   const styles = useStyles()
@@ -79,9 +80,7 @@ export const DashboardLayout: FC = () => {
               <Box>
                 Coder {updateCheck?.version} is now available. View the{" "}
                 <Link href={updateCheck?.url}>release notes</Link> and{" "}
-                <Link href="https://coder.com/docs/coder-oss/latest/admin/upgrade">
-                  upgrade instructions
-                </Link>{" "}
+                <Link href={docs("/admin/upgrade")}>upgrade instructions</Link>{" "}
                 for more information.
               </Box>
             </Box>

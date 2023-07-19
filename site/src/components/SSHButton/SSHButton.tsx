@@ -9,6 +9,7 @@ import {
   HelpTooltipLinksGroup,
   HelpTooltipText,
 } from "../Tooltips/HelpTooltip"
+import { docs } from "utils/docs"
 
 export interface SSHButtonProps {
   workspaceName: string
@@ -85,16 +86,16 @@ export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
         </Stack>
 
         <HelpTooltipLinksGroup>
-          <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/install">
+          <HelpTooltipLink href={docs("/install")}>
             Install Coder CLI
           </HelpTooltipLink>
-          <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/ides#vs-code-remote">
+          <HelpTooltipLink href={docs("/ides#vs-code-remote")}>
             Connect via VS Code Remote SSH
           </HelpTooltipLink>
-          <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/ides#jetbrains-gateway">
+          <HelpTooltipLink href={docs("/ides#jetbrains-gateway")}>
             Connect via JetBrains Gateway
           </HelpTooltipLink>
-          <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/ides#ssh-configuration">
+          <HelpTooltipLink href={docs("/ides#ssh-configuration")}>
             SSH configuration
           </HelpTooltipLink>
         </HelpTooltipLinksGroup>
