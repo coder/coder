@@ -6,6 +6,8 @@
 printWidth: 80
 semi: false
 trailingComma: all
+useTabs: false
+tabWidth: 2
 overrides:
   - files:
       - ../README.md
