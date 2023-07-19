@@ -1,4 +1,6 @@
 coder:
   image:
     tag: latest
-  commandArgs: []
+  commandArgs:
+    - arg1
+    - arg2

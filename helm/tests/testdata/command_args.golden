@@ -137,7 +137,8 @@ spec:
           command:
             - /opt/coder
           args:
-            - server
+            - arg1
+            - arg2
           resources:
             {}
           lifecycle:
