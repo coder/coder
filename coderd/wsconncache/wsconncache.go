@@ -51,12 +51,6 @@ func (a *AgentProvider) ReverseProxy(targetURL *url.URL, dashboardURL *url.URL, 
 	}
 
 	transport := conn.HTTPTransport()
-	// We don't verify certificates for localhost applications.
-	if targetURL.Scheme == "https" {
-		trans := transport.Clone()
-		trans.TLSClientConfig = insecureTLSConfig()
-
-	}
 
 	proxy.Transport = transport
 	return proxy, release, nil
@@ -162,6 +156,18 @@ func (c *Cache) Acquire(id uuid.UUID) (*Conn, func(), error) {
 			}
 			transport := defaultTransport.Clone()
 			transport.DialContext = agentConn.DialContext
+
+			// // We intentionally don't verify the certificate chain here.
+			// // The connection to the workspace is already established and most
+			// // apps are already going to be accessed over plain HTTP, this config
+			// // simply allows apps being run over HTTPS to be accessed without error --
+			// // many of which may be using self-signed certs.
+			transport.TLSClientConfig = &tls.Config{
+				MinVersion: tls.VersionTLS12,
+				//nolint:gosec
+				InsecureSkipVerify: true,
+			}
+
 			conn := &Conn{
 				WorkspaceAgentConn: agentConn,
 				timeoutCancel:      timeoutCancelFunc,
@@ -218,11 +224,4 @@ func (c *Cache) Close() error {
 	close(c.closed)
 	c.closeGroup.Wait()
 	return nil
-}
-
-func insecureTLSConfig() *tls.Config {
-	return &tls.Config{
-		MinVersion:         tls.VersionTLS12,
-		InsecureSkipVerify: true,
-	}
 }

@@ -105,7 +105,7 @@ func TestServerTailnet_ReverseProxy(t *testing.T) {
 		s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(expectedResponseCode)
 		}))
-		defer s.Close()
+		t.Cleanup(s.Close)
 
 		uri, err := url.Parse(s.URL)
 		require.NoError(t, err)

@@ -71,6 +71,17 @@ func NewServerTailnet(
 	tn.transport.DialContext = tn.dialContext
 	tn.transport.MaxIdleConnsPerHost = 10
 	tn.transport.MaxIdleConns = 0
+	// We intentionally don't verify the certificate chain here.
+	// The connection to the workspace is already established and most
+	// apps are already going to be accessed over plain HTTP, this config
+	// simply allows apps being run over HTTPS to be accessed without error --
+	// many of which may be using self-signed certs.
+	tn.transport.TLSClientConfig = &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		//nolint:gosec
+		InsecureSkipVerify: true,
+	}
+
 	agentConn, err := getMultiAgent(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("get initial multi agent: %w", err)
@@ -215,24 +226,7 @@ type ServerTailnet struct {
 	transport *http.Transport
 }
 
-// insureTLSConfig returns a tls config that does not verify
-// the server's certificate chain.
-func insecureTLSConfig() *tls.Config {
-	return &tls.Config{
-		MinVersion:         tls.VersionTLS12,
-		InsecureSkipVerify: true,
-	}
-}
-
 func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID) (_ *httputil.ReverseProxy, release func(), _ error) {
-	transport := s.transport
-
-	// We don't verify certificates for localhost applications.
-	if targetURL.Scheme == "https" {
-		transport = transport.Clone()
-		transport.TLSClientConfig = insecureTLSConfig()
-	}
-
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		site.RenderStaticErrorPage(w, r, site.ErrorPageData{
@@ -244,7 +238,7 @@ func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID u
 		})
 	}
 	proxy.Director = s.director(agentID, proxy.Director)
-	proxy.Transport = transport
+	proxy.Transport = s.transport
 
 	return proxy, func() {}, nil
 }
