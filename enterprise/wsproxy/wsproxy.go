@@ -178,7 +178,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	var agentProvider workspaceapps.AgentProvider
 	if opts.Experiments.Enabled(codersdk.ExperimentSingleTailnet) {
 		stn, err := coderd.NewServerTailnet(ctx,
-			s.Logger.Named("server_tailnet"),
+			s.Logger,
 			nil,
 			connInfo.DERPMap,
 			s.DialCoordinator,
