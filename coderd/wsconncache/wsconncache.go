@@ -157,11 +157,11 @@ func (c *Cache) Acquire(id uuid.UUID) (*Conn, func(), error) {
 			transport := defaultTransport.Clone()
 			transport.DialContext = agentConn.DialContext
 
-			// // We intentionally don't verify the certificate chain here.
-			// // The connection to the workspace is already established and most
-			// // apps are already going to be accessed over plain HTTP, this config
-			// // simply allows apps being run over HTTPS to be accessed without error --
-			// // many of which may be using self-signed certs.
+			// We intentionally don't verify the certificate chain here.
+			// The connection to the workspace is already established and most
+			// apps are already going to be accessed over plain HTTP, this config
+			// simply allows apps being run over HTTPS to be accessed without error --
+			// many of which may be using self-signed certs.
 			transport.TLSClientConfig = &tls.Config{
 				MinVersion: tls.VersionTLS12,
 				//nolint:gosec
