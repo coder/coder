@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"golang.org/x/xerrors"
+
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/coderd/database"
@@ -89,11 +91,14 @@ func (*agplTemplateScheduleStore) SetTemplateScheduleOptions(ctx context.Context
 
 		template, err = db.GetTemplateByID(ctx, tpl.ID)
 		if err != nil {
-			return err
+			return xerrors.Errorf("fetch updated template: %w", err)
 		}
 
 		return nil
 	}, nil)
+	if err != nil {
+		return database.Template{}, err
+	}
 
 	return template, err
 }
