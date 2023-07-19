@@ -3,11 +3,10 @@ package coderd
 import (
 	"context"
 
-	"github.com/coder/coder/coderd"
-
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 )
