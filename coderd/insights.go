@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -86,6 +87,10 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 			Message:     "Query parameters have invalid values.",
 			Validations: p.Errors,
 		})
+		return
+	}
+
+	if !verifyInsightsStartAndEndTime(ctx, rw, startTime, endTime) {
 		return
 	}
 
@@ -201,6 +206,10 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !verifyInsightsStartAndEndTime(ctx, rw, startTime, endTime) {
+		return
+	}
+
 	// Should we verify all template IDs exist, or just return no rows?
 	// _, err := api.Database.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
 	// 	IDs: templateIDs,
@@ -312,4 +321,54 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		IntervalReports: intervalReports,
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+func verifyInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, startTime, endTime time.Time) bool {
+	for _, v := range []struct {
+		name string
+		t    time.Time
+	}{
+		{"start_time", startTime},
+		{"end_time", endTime},
+	} {
+		if v.t.IsZero() {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Query parameter has invalid value.",
+				Validations: []codersdk.ValidationError{
+					{
+						Field:  v.name,
+						Detail: "must be not be zero",
+					},
+				},
+			})
+			return false
+		}
+		h, m, s := v.t.Clock()
+		if h != 0 || m != 0 || s != 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Query parameter has invalid value.",
+				Validations: []codersdk.ValidationError{
+					{
+						Field:  v.name,
+						Detail: "clock must be 00:00:00",
+					},
+				},
+			})
+			return false
+		}
+	}
+	if endTime.Before(startTime) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Query parameter has invalid value.",
+			Validations: []codersdk.ValidationError{
+				{
+					Field:  "end_time",
+					Detail: "must be after start_time",
+				},
+			},
+		})
+		return false
+	}
+
+	return true
 }
