@@ -2121,12 +2121,6 @@ func TestWorkspaceWatcher(t *testing.T) {
 		return w.LatestBuild.Resources[0].Agents[0].Status == codersdk.WorkspaceAgentDisconnected
 	})
 
-	build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart)
-	wait("first is for the workspace build itself", nil)
-	err = client.CancelWorkspaceBuild(ctx, build.ID)
-	require.NoError(t, err)
-	wait("second is for the build cancel", nil)
-
 	err = client.UpdateWorkspace(ctx, workspace.ID, codersdk.UpdateWorkspaceRequest{
 		Name: "another",
 	})
@@ -2134,7 +2128,7 @@ func TestWorkspaceWatcher(t *testing.T) {
 	wait("update workspace name", nil)
 
 	// Add a new version that will fail.
-	updatedVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+	badVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:         echo.ParseComplete,
 		ProvisionPlan: echo.ProvisionComplete,
 		ProvisionApply: []*proto.Provision_Response{{
@@ -2147,16 +2141,16 @@ func TestWorkspaceWatcher(t *testing.T) {
 	}, func(req *codersdk.CreateTemplateVersionRequest) {
 		req.TemplateID = template.ID
 	})
-	coderdtest.AwaitTemplateVersionJob(t, client, updatedVersion.ID)
+	coderdtest.AwaitTemplateVersionJob(t, client, badVersion.ID)
 	err = client.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
-		ID: updatedVersion.ID,
+		ID: badVersion.ID,
 	})
 	require.NoError(t, err)
 	wait("update active template version", nil)
 
 	// Build with the new template; should end up with a failure state.
 	_ = coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart, func(req *codersdk.CreateWorkspaceBuildRequest) {
-		req.TemplateVersionID = updatedVersion.ID
+		req.TemplateVersionID = badVersion.ID
 	})
 	// We want to verify pending state here, but it's possible that we reach
 	// failed state fast enough that we never see pending.
@@ -2166,6 +2160,13 @@ func TestWorkspaceWatcher(t *testing.T) {
 	wait("workspace build failed", func(w codersdk.Workspace) bool {
 		return w.LatestBuild.Status == codersdk.WorkspaceStatusFailed
 	})
+
+	closeFunc.Close()
+	build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart)
+	wait("first is for the workspace build itself", nil)
+	err = client.CancelWorkspaceBuild(ctx, build.ID)
+	require.NoError(t, err)
+	wait("second is for the build cancel", nil)
 }
 
 func mustLocation(t *testing.T, location string) *time.Location {
