@@ -196,6 +196,13 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 				// it is safe to use a variable command here because it's from
 				// a filtered list of pre-approved install scripts
 				// nolint:gosec
+
+				// making selected script executable
+				err = os.Chmod(filepath.Join(dotfilesDir, script), 0o755)
+				if err != nil {
+					return xerrors.Errorf("chmod %s: %w", script, err)
+				}
+
 				scriptCmd := exec.CommandContext(inv.Context(), filepath.Join(dotfilesDir, script))
 				scriptCmd.Dir = dotfilesDir
 				scriptCmd.Stdout = inv.Stdout
