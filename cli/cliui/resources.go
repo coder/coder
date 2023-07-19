@@ -50,6 +50,7 @@ func WorkspaceResources(writer io.Writer, resources []codersdk.WorkspaceResource
 	row := table.Row{"Resource"}
 	if !options.HideAgentState {
 		row = append(row, "Status")
+		row = append(row, "Health")
 		row = append(row, "Version")
 	}
 	if !options.HideAccess {
@@ -81,6 +82,7 @@ func WorkspaceResources(writer io.Writer, resources []codersdk.WorkspaceResource
 			DefaultStyles.Bold.Render(resourceAddress),
 			"",
 			"",
+			"",
 		})
 		// Display all agents associated with the resource.
 		for index, agent := range resource.Agents {
@@ -93,13 +95,13 @@ func WorkspaceResources(writer io.Writer, resources []codersdk.WorkspaceResource
 				fmt.Sprintf("%s─ %s (%s, %s)", pipe, agent.Name, agent.OperatingSystem, agent.Architecture),
 			}
 			if !options.HideAgentState {
-				var agentStatus string
-				var agentVersion string
+				var agentStatus, agentHealth, agentVersion string
 				if !options.HideAgentState {
 					agentStatus = renderAgentStatus(agent)
+					agentHealth = renderAgentHealth(agent)
 					agentVersion = renderAgentVersion(agent.Version, options.ServerVersion)
 				}
-				row = append(row, agentStatus, agentVersion)
+				row = append(row, agentStatus, agentHealth, agentVersion)
 			}
 			if !options.HideAccess {
 				sshCommand := "coder ssh " + options.WorkspaceName
@@ -139,6 +141,13 @@ func renderAgentStatus(agent codersdk.WorkspaceAgent) string {
 	default:
 		return DefaultStyles.Warn.Render("○ unknown")
 	}
+}
+
+func renderAgentHealth(agent codersdk.WorkspaceAgent) string {
+	if agent.Health.Healthy {
+		return DefaultStyles.Keyword.Render("✔ healthy")
+	}
+	return DefaultStyles.Error.Render("✘ " + agent.Health.Reason)
 }
 
 func renderAgentVersion(agentVersion, serverVersion string) string {

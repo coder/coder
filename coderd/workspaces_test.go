@@ -2158,8 +2158,10 @@ func TestWorkspaceWatcher(t *testing.T) {
 	_ = coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart, func(req *codersdk.CreateWorkspaceBuildRequest) {
 		req.TemplateVersionID = updatedVersion.ID
 	})
-	wait("workspace build pending", func(w codersdk.Workspace) bool {
-		return w.LatestBuild.Status == codersdk.WorkspaceStatusPending
+	// We want to verify pending state here, but it's possible that we reach
+	// failed state fast enough that we never see pending.
+	wait("workspace build pending or failed", func(w codersdk.Workspace) bool {
+		return w.LatestBuild.Status == codersdk.WorkspaceStatusPending || w.LatestBuild.Status == codersdk.WorkspaceStatusFailed
 	})
 	wait("workspace build failed", func(w codersdk.Workspace) bool {
 		return w.LatestBuild.Status == codersdk.WorkspaceStatusFailed

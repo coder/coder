@@ -63,10 +63,14 @@ spec:
           command:
             {{- toYaml .Values.coder.command | nindent 12 }}
           args:
-            {{- if .Values.coder.workspaceProxy }}
+            {{- if .Values.coder.commandArgs }}
+            {{- toYaml .Values.coder.commandArgs | nindent 12 }}
+            {{- else }}
+              {{- if .Values.coder.workspaceProxy }}
             - wsproxy
-            {{- end }}
+              {{- end }}
             - server
+            {{- end }}
           resources:
             {{- toYaml .Values.coder.resources | nindent 12 }}
           lifecycle:
