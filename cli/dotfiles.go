@@ -43,8 +43,8 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 				installScriptSet = []string{
 					"install.sh",
 					"install",
-					"bootstrap.sh",
-					"bootstrap",
+					// "bootstrap.sh",
+					// "bootstrap",
 					"script/bootstrap",
 					"setup.sh",
 					"setup",
@@ -193,16 +193,21 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 				}
 
 				_, _ = fmt.Fprintf(inv.Stdout, "Running %s...\n", script)
+
+				// Check if the script is executable and notify on error
+				scriptPath := filepath.Join(dotfilesDir, script)
+				fi, err := os.Stat(scriptPath)
+				if err != nil {
+					return xerrors.Errorf("stat %s: %w", scriptPath, err)
+				}
+
+				if fi.Mode()&0o111 == 0 {
+					return xerrors.Errorf("%s script is not executable.\nTo solve this :-\n - Clone your dotfiles repo.\n - chmod +x %s\n - git add %s and git commit -m \"Make %s executable\"\n - git push\n", script, script, script, script)
+				}
+
 				// it is safe to use a variable command here because it's from
 				// a filtered list of pre-approved install scripts
 				// nolint:gosec
-
-				// making selected script executable
-				err = os.Chmod(filepath.Join(dotfilesDir, script), 0o755)
-				if err != nil {
-					return xerrors.Errorf("chmod %s: %w", script, err)
-				}
-
 				scriptCmd := exec.CommandContext(inv.Context(), filepath.Join(dotfilesDir, script))
 				scriptCmd.Dir = dotfilesDir
 				scriptCmd.Stdout = inv.Stdout
