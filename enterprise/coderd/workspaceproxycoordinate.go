@@ -13,6 +13,15 @@ import (
 	"github.com/coder/coder/enterprise/wsproxy/wsproxysdk"
 )
 
+// @Summary Agent is legacy
+// @ID agent-is-legacy
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param workspaceagent path string true "Workspace Agent ID" format(uuid)
+// @Success 200 {object} wsproxysdk.AgentIsLegacyResponse
+// @Router /workspaceagents/{workspaceagent}/legacy [get]
+// @x-apidocgen {"skip": true}
 func (api *API) agentIsLegacy(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -33,6 +42,13 @@ func (api *API) agentIsLegacy(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary Workspace Proxy Coordinate
+// @ID workspace-proxy-coordinate
+// @Security CoderSessionToken
+// @Tags Enterprise
+// @Success 101
+// @Router /workspaceproxies/me/coordinate [get]
+// @x-apidocgen {"skip": true}
 func (api *API) workspaceProxyCoordinate(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
