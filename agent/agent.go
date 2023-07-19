@@ -410,7 +410,9 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 						// Fallback to the report interval
 						timeout = interval
 					} else {
-						// If the interval is still 0, default to 5.
+						// If the interval is still 0 (possible if the interval
+						// is less than a second), default to 5. This was
+						// randomly picked.
 						timeout = 5
 					}
 				}
