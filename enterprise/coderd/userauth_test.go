@@ -28,7 +28,7 @@ func TestUserOIDC(t *testing.T) {
 	t.Run("Roles", func(t *testing.T) {
 		t.Parallel()
 
-		t.Run("NewUser", func(t *testing.T) {
+		t.Run("NewUserAndRemoveRoles", func(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
