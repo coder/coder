@@ -40,6 +40,7 @@ const (
 	FeatureBrowserOnly                FeatureName = "browser_only"
 	FeatureSCIM                       FeatureName = "scim"
 	FeatureTemplateRBAC               FeatureName = "template_rbac"
+	FeatureUserRoleManagement         FeatureName = "user_role_management"
 	FeatureHighAvailability           FeatureName = "high_availability"
 	FeatureMultipleGitAuth            FeatureName = "multiple_git_auth"
 	FeatureExternalProvisionerDaemons FeatureName = "external_provisioner_daemons"
@@ -61,6 +62,7 @@ var FeatureNames = []FeatureName{
 	FeatureAppearance,
 	FeatureAdvancedTemplateScheduling,
 	FeatureWorkspaceProxy,
+	FeatureUserRoleManagement,
 }
 
 // Humanize returns the feature name in a human-readable format.
