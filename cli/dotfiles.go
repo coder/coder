@@ -202,7 +202,7 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 				}
 
 				if fi.Mode()&0o111 == 0 {
-					return xerrors.Errorf("%s script is not executable.\nTo solve this :-\n - Clone your dotfiles repo.\n - chmod +x %s\n - git add %s and git commit -m \"Make %s executable\"\n - git push\n", script, script, script, script)
+					return xerrors.Errorf("%[1]q script is not executable. You can solve this by making it executable in your dotfiles repo:\n  chmod +x %[1]q && git add %[1]q && git commit -m \"Make %[1]s executable\" && git push", script)
 				}
 
 				// it is safe to use a variable command here because it's from
