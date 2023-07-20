@@ -340,8 +340,6 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 	var flight = trySingleflight{m: map[string]struct{}{}}
 
 	for {
-		var delay time.Duration
-
 		select {
 		case <-ctx.Done():
 			return
@@ -352,11 +350,8 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 				a.logger.Error(ctx, "agent failed to report metadata", slog.Error(err))
 			}
 			continue
-		case t := <-baseTicker.C:
-			delay = time.Since(t)
+		case <-baseTicker.C:
 		}
-
-		logger.Debug(ctx, "report metadata ticking", slog.F("delay", delay.String()))
 
 		if len(metadataResults) > 0 {
 			// The inner collection loop expects the channel is empty before spinning up
@@ -413,12 +408,10 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 					// If the interval is zero, we assume the user just wants
 					// a single collection at startup, not a spinning loop.
 					if md.Interval == 0 {
-						logger.Debug(ctx, "skipping metadata, interval 0 and already collected once")
 						return
 					}
 					// The last collected value isn't quite stale yet, so we skip it.
 					if collectedAt.Add(a.reportMetadataInterval).After(time.Now()) {
-						logger.Debug(ctx, "skipping metadata, ")
 						return
 					}
 				}
@@ -429,7 +422,7 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 						timeout = md.Interval
 					} else if interval := int64(a.reportMetadataInterval.Seconds()); interval != 0 {
 						// Fallback to the report interval
-						timeout = interval
+						timeout = interval * 3
 					} else {
 						// If the interval is still 0 (possible if the interval
 						// is less than a second), default to 5. This was
@@ -444,12 +437,11 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 				now := time.Now()
 				select {
 				case <-ctx.Done():
-					logger.Debug(ctx, "metadata collection timed out", slog.F("timeout", ctxTimeout))
+					logger.Warn(ctx, "metadata collection timed out", slog.F("timeout", ctxTimeout))
 				case metadataResults <- metadataResultAndKey{
 					key:    md.Key,
 					result: a.collectMetadata(ctx, md, now),
 				}:
-					logger.Debug(ctx, "sent metadata", slog.F("took", time.Since(now).String()))
 					lastCollectedAtMu.Lock()
 					lastCollectedAts[md.Key] = now
 					lastCollectedAtMu.Unlock()
