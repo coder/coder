@@ -129,7 +129,6 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 	for _, user := range users {
 		userLatency, ok := usersWithLatencyByID[user.ID]
 		if !ok {
-			// TODO(mafredri): Other cases?
 			// We only include deleted/inactive users if they were
 			// active as part of the requested timeframe.
 			if user.Deleted || user.Status != database.UserStatusActive {
@@ -262,7 +261,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 			ActiveUsers: usage.ActiveUsers,
 			AppsUsage: []codersdk.TemplateAppUsage{
 				{
-					TemplateIDs: usage.TemplateIDs, // TODO(mafredri): Update query to return template IDs/app?
+					TemplateIDs: usage.TemplateIDs,
 					Type:        codersdk.TemplateAppsTypeBuiltin,
 					DisplayName: "Visual Studio Code",
 					Slug:        "vscode",
@@ -270,7 +269,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 					Seconds:     usage.UsageVscodeSeconds,
 				},
 				{
-					TemplateIDs: usage.TemplateIDs, // TODO(mafredri): Update query to return template IDs/app?
+					TemplateIDs: usage.TemplateIDs,
 					Type:        codersdk.TemplateAppsTypeBuiltin,
 					DisplayName: "JetBrains",
 					Slug:        "jetbrains",
@@ -278,7 +277,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 					Seconds:     usage.UsageJetbrainsSeconds,
 				},
 				{
-					TemplateIDs: usage.TemplateIDs, // TODO(mafredri): Update query to return template IDs/app?
+					TemplateIDs: usage.TemplateIDs,
 					Type:        codersdk.TemplateAppsTypeBuiltin,
 					DisplayName: "Web Terminal",
 					Slug:        "reconnecting-pty",
@@ -286,7 +285,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 					Seconds:     usage.UsageReconnectingPtySeconds,
 				},
 				{
-					TemplateIDs: usage.TemplateIDs, // TODO(mafredri): Update query to return template IDs/app?
+					TemplateIDs: usage.TemplateIDs,
 					Type:        codersdk.TemplateAppsTypeBuiltin,
 					DisplayName: "SSH",
 					Slug:        "ssh",

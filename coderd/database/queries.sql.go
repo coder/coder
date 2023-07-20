@@ -1389,18 +1389,24 @@ WITH d AS (
 		was.user_id,
 		array_agg(was.template_id) AS template_ids
 	FROM ts
-	LEFT JOIN workspace_agent_stats was ON (was.created_at >= ts.from_ AND was.created_at < ts.to_)
-	WHERE
-		was.connection_count > 0
+	LEFT JOIN workspace_agent_stats was ON (
+		was.created_at >= ts.from_
+		AND was.created_at < ts.to_
+		AND was.connection_count > 0
 		AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN was.template_id = ANY($3::uuid[]) ELSE TRUE END
+	)
 	GROUP BY ts.from_, ts.to_, was.user_id
+), template_ids AS (
+	SELECT array_agg(DISTINCT template_id) AS ids
+	FROM usage_by_day, unnest(template_ids) template_id
+	WHERE template_id IS NOT NULL
 )
 
 SELECT
 	from_ AS start_time,
 	to_ AS end_time,
-	COUNT(DISTINCT user_id) AS active_users,
-	array_agg(DISTINCT template_id)::uuid[] AS template_ids
+	COALESCE((SELECT ids FROM template_ids), '{}')::uuid[] AS template_ids,
+	COUNT(DISTINCT user_id) AS active_users
 FROM usage_by_day, unnest(template_ids) as template_id
 GROUP BY from_, to_
 `
@@ -1414,8 +1420,8 @@ type GetTemplateDailyInsightsParams struct {
 type GetTemplateDailyInsightsRow struct {
 	StartTime   time.Time   `db:"start_time" json:"start_time"`
 	EndTime     time.Time   `db:"end_time" json:"end_time"`
-	ActiveUsers int64       `db:"active_users" json:"active_users"`
 	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
+	ActiveUsers int64       `db:"active_users" json:"active_users"`
 }
 
 func (q *sqlQuerier) GetTemplateDailyInsights(ctx context.Context, arg GetTemplateDailyInsightsParams) ([]GetTemplateDailyInsightsRow, error) {
@@ -1430,8 +1436,8 @@ func (q *sqlQuerier) GetTemplateDailyInsights(ctx context.Context, arg GetTempla
 		if err := rows.Scan(
 			&i.StartTime,
 			&i.EndTime,
-			&i.ActiveUsers,
 			pq.Array(&i.TemplateIDs),
+			&i.ActiveUsers,
 		); err != nil {
 			return nil, err
 		}
@@ -1466,21 +1472,27 @@ WITH d AS (
 		CASE WHEN SUM(was.session_count_reconnecting_pty) > 0 THEN ts.seconds ELSE 0 END AS usage_reconnecting_pty_seconds,
 		CASE WHEN SUM(was.session_count_ssh) > 0 THEN ts.seconds ELSE 0 END AS usage_ssh_seconds
 	FROM ts
-	JOIN workspace_agent_stats was ON (was.created_at >= ts.from_ AND was.created_at < ts.to_)
-	WHERE
-		was.connection_count > 0
+	JOIN workspace_agent_stats was ON (
+		was.created_at >= ts.from_
+		AND was.created_at < ts.to_
+		AND was.connection_count > 0
 		AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN was.template_id = ANY($3::uuid[]) ELSE TRUE END
+	)
 	GROUP BY ts.from_, ts.to_, ts.seconds, was.user_id
+), template_ids AS (
+	SELECT array_agg(DISTINCT template_id) AS ids
+	FROM usage_by_user, unnest(template_ids) template_id
+	WHERE template_id IS NOT NULL
 )
 
 SELECT
+	COALESCE((SELECT ids FROM template_ids), '{}')::uuid[] AS template_ids,
 	COUNT(DISTINCT user_id) AS active_users,
-	COALESCE(array_agg(DISTINCT template_id), '{}')::uuid[] AS template_ids,
 	COALESCE(SUM(usage_vscode_seconds), 0)::bigint AS usage_vscode_seconds,
 	COALESCE(SUM(usage_jetbrains_seconds), 0)::bigint AS usage_jetbrains_seconds,
 	COALESCE(SUM(usage_reconnecting_pty_seconds), 0)::bigint AS usage_reconnecting_pty_seconds,
 	COALESCE(SUM(usage_ssh_seconds), 0)::bigint AS usage_ssh_seconds
-FROM usage_by_user, unnest(template_ids) as template_id
+FROM usage_by_user
 `
 
 type GetTemplateInsightsParams struct {
@@ -1490,8 +1502,8 @@ type GetTemplateInsightsParams struct {
 }
 
 type GetTemplateInsightsRow struct {
-	ActiveUsers                 int64       `db:"active_users" json:"active_users"`
 	TemplateIDs                 []uuid.UUID `db:"template_ids" json:"template_ids"`
+	ActiveUsers                 int64       `db:"active_users" json:"active_users"`
 	UsageVscodeSeconds          int64       `db:"usage_vscode_seconds" json:"usage_vscode_seconds"`
 	UsageJetbrainsSeconds       int64       `db:"usage_jetbrains_seconds" json:"usage_jetbrains_seconds"`
 	UsageReconnectingPtySeconds int64       `db:"usage_reconnecting_pty_seconds" json:"usage_reconnecting_pty_seconds"`
@@ -1504,8 +1516,8 @@ func (q *sqlQuerier) GetTemplateInsights(ctx context.Context, arg GetTemplateIns
 	row := q.db.QueryRowContext(ctx, getTemplateInsights, arg.StartTime, arg.EndTime, pq.Array(arg.TemplateIDs))
 	var i GetTemplateInsightsRow
 	err := row.Scan(
-		&i.ActiveUsers,
 		pq.Array(&i.TemplateIDs),
+		&i.ActiveUsers,
 		&i.UsageVscodeSeconds,
 		&i.UsageJetbrainsSeconds,
 		&i.UsageReconnectingPtySeconds,

@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
@@ -106,9 +107,8 @@ func TestUserLatencyInsights(t *testing.T) {
 
 	logger := slogtest.Make(t, nil)
 	client := coderdtest.New(t, &coderdtest.Options{
-		IncludeProvisionerDaemon:    true,
-		AgentStatsRefreshInterval:   time.Millisecond * 100,
-		MetricsCacheRefreshInterval: time.Millisecond * 100,
+		IncludeProvisionerDaemon:  true,
+		AgentStatsRefreshInterval: time.Millisecond * 100,
 	})
 
 	user := coderdtest.CreateFirstUser(t, client)
@@ -179,21 +179,21 @@ func TestUserLatencyInsights(t *testing.T) {
 		return userLatencies.Report.Users[0].LatencyMS != nil
 	}, testutil.WaitShort, testutil.IntervalFast, "user latency is missing")
 
-	require.Len(t, userLatencies.Report.Users, 2, "only 2 users should be included")
-	assert.Greater(t, userLatencies.Report.Users[0].LatencyMS.P50, float64(0), "expected p50 to be greater than 0")
-	assert.Greater(t, userLatencies.Report.Users[0].LatencyMS.P95, float64(0), "expected p95 to be greater than 0")
-	assert.Nil(t, userLatencies.Report.Users[1].LatencyMS, "user 2 should have no latency")
+	require.Len(t, userLatencies.Report.Users, 2, "want only 2 users")
+	assert.Greater(t, userLatencies.Report.Users[0].LatencyMS.P50, float64(0), "want p50 to be greater than 0")
+	assert.Greater(t, userLatencies.Report.Users[0].LatencyMS.P95, float64(0), "want p95 to be greater than 0")
+	assert.Nil(t, userLatencies.Report.Users[1].LatencyMS, "want user 2 to have no latency")
 }
 
 func TestTemplateInsights(t *testing.T) {
 	t.Parallel()
 
 	logger := slogtest.Make(t, nil)
-	client := coderdtest.New(t, &coderdtest.Options{
-		IncludeProvisionerDaemon:    true,
-		AgentStatsRefreshInterval:   time.Millisecond * 100,
-		MetricsCacheRefreshInterval: time.Millisecond * 100,
-	})
+	opts := &coderdtest.Options{
+		IncludeProvisionerDaemon:  true,
+		AgentStatsRefreshInterval: time.Millisecond * 100,
+	}
+	client := coderdtest.New(t, opts)
 
 	user := coderdtest.CreateFirstUser(t, client)
 	authToken := uuid.NewString()
@@ -218,17 +218,83 @@ func TestTemplateInsights(t *testing.T) {
 	defer func() {
 		_ = agentCloser.Close()
 	}()
-	_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+	y, m, d := time.Now().Date()
+	today := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	templateInsights, err := client.TemplateInsights(ctx, codersdk.TemplateInsightsRequest{
-		StartTime: time.Now().Add(-time.Hour),
-		EndTime:   time.Now(),
-		Interval:  codersdk.InsightsReportIntervalDay,
+	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
+		Logger: logger.Named("client"),
 	})
 	require.NoError(t, err)
+	defer conn.Close()
 
-	t.Logf("%#v\n", templateInsights)
+	sshConn, err := conn.SSHClient(ctx)
+	require.NoError(t, err)
+	defer sshConn.Close()
+
+	sess, err := sshConn.NewSession()
+	require.NoError(t, err)
+	defer sess.Close()
+
+	// Keep SSH session open for long enough to generate insights.
+	err = sess.Start("sleep 5")
+	require.NoError(t, err)
+
+	rpty, err := client.WorkspaceAgentReconnectingPTY(ctx, codersdk.WorkspaceAgentReconnectingPTYOpts{
+		AgentID:   resources[0].Agents[0].ID,
+		Reconnect: uuid.New(),
+		Width:     80,
+		Height:    24,
+	})
+	require.NoError(t, err)
+	defer rpty.Close()
+
+	var resp codersdk.TemplateInsightsResponse
+	var req codersdk.TemplateInsightsRequest
+	waitForAppSeconds := func(slug string) func() bool {
+		return func() bool {
+			req = codersdk.TemplateInsightsRequest{
+				StartTime: today,
+				EndTime:   time.Now().Truncate(time.Hour).Add(time.Hour),
+				Interval:  codersdk.InsightsReportIntervalDay,
+			}
+			resp, err = client.TemplateInsights(ctx, req)
+			if !assert.NoError(t, err) {
+				return false
+			}
+
+			if slices.IndexFunc(resp.Report.AppsUsage, func(au codersdk.TemplateAppUsage) bool {
+				return au.Slug == slug && au.Seconds > 0
+			}) != -1 {
+				return true
+			}
+			return false
+		}
+	}
+	require.Eventually(t, waitForAppSeconds("reconnecting-pty"), testutil.WaitShort, testutil.IntervalFast, "reconnecting-pty seconds missing")
+	require.Eventually(t, waitForAppSeconds("ssh"), testutil.WaitShort, testutil.IntervalFast, "ssh seconds missing")
+
+	_ = rpty.Close()
+	_ = sess.Close()
+	_ = sshConn.Close()
+
+	assert.WithinDuration(t, req.StartTime, resp.Report.StartTime, 0)
+	assert.WithinDuration(t, req.EndTime, resp.Report.EndTime, 0)
+	assert.Equal(t, resp.Report.ActiveUsers, int64(1), "want one active user")
+	for _, app := range resp.Report.AppsUsage {
+		if slices.Contains([]string{"reconnecting-pty", "ssh"}, app.Slug) {
+			assert.Equal(t, app.Seconds, int64(300), "want app %q to have 5 minutes of usage", app.Slug)
+		} else {
+			assert.Equal(t, app.Seconds, int64(0), "want app %q to have 0 minutes of usage", app.Slug)
+		}
+	}
+	// The full timeframe is <= 24h, so the interval matches exactly.
+	assert.Len(t, resp.IntervalReports, 1, "want one interval report")
+	assert.WithinDuration(t, req.StartTime, resp.IntervalReports[0].StartTime, 0)
+	assert.WithinDuration(t, req.EndTime, resp.IntervalReports[0].EndTime, 0)
+	assert.Equal(t, resp.IntervalReports[0].ActiveUsers, int64(1), "want one active user in the interval report")
 }

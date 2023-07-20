@@ -1917,22 +1917,127 @@ func (q *FakeQuerier) GetTemplateDAUs(_ context.Context, arg database.GetTemplat
 	return rs, nil
 }
 
-func (q *FakeQuerier) GetTemplateDailyInsights(ctx context.Context, arg database.GetTemplateDailyInsightsParams) ([]database.GetTemplateDailyInsightsRow, error) {
+func (q *FakeQuerier) GetTemplateDailyInsights(_ context.Context, arg database.GetTemplateDailyInsightsParams) ([]database.GetTemplateDailyInsightsRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
 	}
 
-	panic("not implemented")
+	type dailyStat struct {
+		startTime, endTime time.Time
+		userSet            map[uuid.UUID]struct{}
+		templateIDSet      map[uuid.UUID]struct{}
+	}
+	dailyStats := []dailyStat{{arg.StartTime, arg.StartTime.AddDate(0, 0, 1), make(map[uuid.UUID]struct{}), make(map[uuid.UUID]struct{})}}
+	for dailyStats[len(dailyStats)-1].endTime.Before(arg.EndTime) {
+		dailyStats = append(dailyStats, dailyStat{dailyStats[len(dailyStats)-1].endTime, dailyStats[len(dailyStats)-1].endTime.AddDate(0, 0, 1), make(map[uuid.UUID]struct{}), make(map[uuid.UUID]struct{})})
+	}
+	if dailyStats[len(dailyStats)-1].endTime.After(arg.EndTime) {
+		dailyStats[len(dailyStats)-1].endTime = arg.EndTime
+	}
+
+	for _, s := range q.workspaceAgentStats {
+		if s.CreatedAt.Before(arg.StartTime) || s.CreatedAt.Equal(arg.EndTime) || s.CreatedAt.After(arg.EndTime) {
+			continue
+		}
+		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, s.TemplateID) {
+			continue
+		}
+		if s.ConnectionCount == 0 {
+			continue
+		}
+
+		for _, ds := range dailyStats {
+			if s.CreatedAt.Before(ds.startTime) || s.CreatedAt.Equal(ds.endTime) || s.CreatedAt.After(ds.endTime) {
+				continue
+			}
+			ds.userSet[s.UserID] = struct{}{}
+			ds.templateIDSet[s.TemplateID] = struct{}{}
+			break
+		}
+	}
+
+	var result []database.GetTemplateDailyInsightsRow
+	for _, ds := range dailyStats {
+		templateIDs := make([]uuid.UUID, 0, len(ds.templateIDSet))
+		for templateID := range ds.templateIDSet {
+			templateIDs = append(templateIDs, templateID)
+		}
+		slices.SortFunc(templateIDs, func(a, b uuid.UUID) bool {
+			return a.String() < b.String()
+		})
+		result = append(result, database.GetTemplateDailyInsightsRow{
+			StartTime:   ds.startTime,
+			EndTime:     ds.endTime,
+			TemplateIDs: templateIDs,
+			ActiveUsers: int64(len(ds.userSet)),
+		})
+	}
+	return result, nil
 }
 
-func (q *FakeQuerier) GetTemplateInsights(ctx context.Context, arg database.GetTemplateInsightsParams) (database.GetTemplateInsightsRow, error) {
+func (q *FakeQuerier) GetTemplateInsights(_ context.Context, arg database.GetTemplateInsightsParams) (database.GetTemplateInsightsRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return database.GetTemplateInsightsRow{}, err
 	}
 
-	panic("not implemented")
+	templateIDSet := make(map[uuid.UUID]struct{})
+	appUsageIntervalsByUser := make(map[uuid.UUID]map[time.Time]*database.GetTemplateInsightsRow)
+	for _, s := range q.workspaceAgentStats {
+		if s.CreatedAt.Before(arg.StartTime) || s.CreatedAt.Equal(arg.EndTime) || s.CreatedAt.After(arg.EndTime) {
+			continue
+		}
+		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, s.TemplateID) {
+			continue
+		}
+		if s.ConnectionCount == 0 {
+			continue
+		}
+
+		templateIDSet[s.TemplateID] = struct{}{}
+		if appUsageIntervalsByUser[s.UserID] == nil {
+			appUsageIntervalsByUser[s.UserID] = make(map[time.Time]*database.GetTemplateInsightsRow)
+		}
+		t := s.CreatedAt.Truncate(5 * time.Minute)
+		if _, ok := appUsageIntervalsByUser[s.UserID][t]; !ok {
+			appUsageIntervalsByUser[s.UserID][t] = &database.GetTemplateInsightsRow{}
+		}
+
+		if s.SessionCountJetBrains > 0 {
+			appUsageIntervalsByUser[s.UserID][t].UsageJetbrainsSeconds = 300
+		}
+		if s.SessionCountVSCode > 0 {
+			appUsageIntervalsByUser[s.UserID][t].UsageVscodeSeconds = 300
+		}
+		if s.SessionCountReconnectingPTY > 0 {
+			appUsageIntervalsByUser[s.UserID][t].UsageReconnectingPtySeconds = 300
+		}
+		if s.SessionCountSSH > 0 {
+			appUsageIntervalsByUser[s.UserID][t].UsageSshSeconds = 300
+		}
+	}
+
+	templateIDs := make([]uuid.UUID, 0, len(templateIDSet))
+	for templateID := range templateIDSet {
+		templateIDs = append(templateIDs, templateID)
+	}
+	slices.SortFunc(templateIDs, func(a, b uuid.UUID) bool {
+		return a.String() < b.String()
+	})
+	result := database.GetTemplateInsightsRow{
+		TemplateIDs: templateIDs,
+		ActiveUsers: int64(len(appUsageIntervalsByUser)),
+	}
+	for _, intervals := range appUsageIntervalsByUser {
+		for _, interval := range intervals {
+			result.UsageJetbrainsSeconds += interval.UsageJetbrainsSeconds
+			result.UsageVscodeSeconds += interval.UsageVscodeSeconds
+			result.UsageReconnectingPtySeconds += interval.UsageReconnectingPtySeconds
+			result.UsageSshSeconds += interval.UsageSshSeconds
+		}
+	}
+	return result, nil
 }
 
 func (q *FakeQuerier) GetTemplateVersionByID(ctx context.Context, templateVersionID uuid.UUID) (database.TemplateVersion, error) {
@@ -2182,7 +2287,7 @@ func (q *FakeQuerier) GetUserCount(_ context.Context) (int64, error) {
 	return existing, nil
 }
 
-func (q *FakeQuerier) GetUserLatencyInsights(ctx context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {
+func (q *FakeQuerier) GetUserLatencyInsights(_ context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
@@ -2222,9 +2327,9 @@ func (q *FakeQuerier) GetUserLatencyInsights(ctx context.Context, arg database.G
 	var rows []database.GetUserLatencyInsightsRow
 	for userID, latencies := range latenciesByUserID {
 		sort.Float64s(latencies)
-		templateSet := seenTemplatesByUserID[userID]
-		templateIDs := make([]uuid.UUID, 0, len(templateSet))
-		for templateID := range templateSet {
+		templateIDSet := seenTemplatesByUserID[userID]
+		templateIDs := make([]uuid.UUID, 0, len(templateIDSet))
+		for templateID := range templateIDSet {
 			templateIDs = append(templateIDs, templateID)
 		}
 		slices.SortFunc(templateIDs, func(a, b uuid.UUID) bool {
