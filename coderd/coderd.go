@@ -124,7 +124,7 @@ type Options struct {
 	DERPMap                     *tailcfg.DERPMap
 	SwaggerEndpoint             bool
 	SetUserGroups               func(ctx context.Context, tx database.Store, userID uuid.UUID, groupNames []string) error
-	SetUserSiteRoles      func(ctx context.Context, tx database.Store, userID uuid.UUID, roles []string) error	
+	SetUserSiteRoles            func(ctx context.Context, tx database.Store, userID uuid.UUID, roles []string) error
 	TemplateScheduleStore       *atomic.Pointer[schedule.TemplateScheduleStore]
 	UserQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
 	// AppSecurityKey is the crypto key used to sign and encrypt tokens related to
@@ -1106,7 +1106,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 }
 
 // nolint:revive
-func initExperiments(log slog.Logger, raw []string) codersdk.Experiments {
+func ReadExperiments(log slog.Logger, raw []string) codersdk.Experiments {
 	exps := make([]codersdk.Experiment, 0, len(raw))
 	for _, v := range raw {
 		switch v {
