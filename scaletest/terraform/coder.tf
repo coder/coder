@@ -54,7 +54,7 @@ resource "random_password" "prometheus-postgres-password" {
 }
 
 resource "kubernetes_secret" "coder-db" {
-  type = "" # Opaque
+  type = "Opaque"
   metadata {
     name      = "coder-db-url"
     namespace = local.coder_namespace
