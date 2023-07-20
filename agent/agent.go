@@ -339,6 +339,7 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 			if err != nil {
 				a.logger.Error(ctx, "agent failed to report metadata", slog.Error(err))
 			}
+			continue
 		case <-baseTicker.C:
 		}
 
