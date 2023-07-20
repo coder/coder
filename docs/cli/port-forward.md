@@ -2,7 +2,7 @@
 
 # port-forward
 
-Forward ports from machine to a workspace
+Forward ports from a workspace to the local machine. Please note that to achieve reverse port forwarding, utilize the "coder ssh -R" command.
 
 Aliases:
 
