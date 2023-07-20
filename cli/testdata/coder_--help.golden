@@ -22,8 +22,8 @@ Coder v0.0.0-devel — A tool for provisioning self-hosted development environme
     netcheck          Print network debug information for DERP and STUN
     ping              Ping a workspace
     port-forward      Forward ports from a workspace to the local machine.
-                      Please note that to achieve reverse port forwarding,
-                      utilize the "coder ssh -R" command.
+                      Forward ports from a workspace to the local machine. For
+                      reverse port forwarding, use "coder ssh -R".
     publickey         Output your Coder public key used for Git operations
     rename            Rename a workspace
     reset-password    Directly connect to the database to reset a user's
