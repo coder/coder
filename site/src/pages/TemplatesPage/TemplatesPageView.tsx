@@ -41,6 +41,7 @@ import { colors } from "theme/colors"
 import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined"
 import { Avatar } from "components/Avatar/Avatar"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
+import { docs } from "utils/docs"
 
 export const Language = {
   developerCount: (activeCount: number): string => {
@@ -64,7 +65,7 @@ const TemplateHelpTooltip: React.FC = () => {
       <HelpTooltipTitle>{Language.templateTooltipTitle}</HelpTooltipTitle>
       <HelpTooltipText>{Language.templateTooltipText}</HelpTooltipText>
       <HelpTooltipLinksGroup>
-        <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/templates#manage-templates">
+        <HelpTooltipLink href={docs("/templates#manage-templates")}>
           {Language.templateTooltipLink}
         </HelpTooltipLink>
       </HelpTooltipLinksGroup>

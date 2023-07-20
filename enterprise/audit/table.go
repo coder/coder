@@ -70,13 +70,17 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"description":                      ActionTrack,
 		"icon":                             ActionTrack,
 		"default_ttl":                      ActionTrack,
+		"max_ttl":                          ActionTrack,
+		"restart_requirement_days_of_week": ActionTrack,
+		"restart_requirement_weeks":        ActionTrack,
 		"created_by":                       ActionTrack,
+		"created_by_username":              ActionIgnore,
+		"created_by_avatar_url":            ActionIgnore,
 		"group_acl":                        ActionTrack,
 		"user_acl":                         ActionTrack,
 		"allow_user_autostart":             ActionTrack,
 		"allow_user_autostop":              ActionTrack,
 		"allow_user_cancel_workspace_jobs": ActionTrack,
-		"max_ttl":                          ActionTrack,
 		"failure_ttl":                      ActionTrack,
 		"inactivity_ttl":                   ActionTrack,
 		"locked_ttl":                       ActionTrack,
@@ -95,18 +99,19 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"git_auth_providers": ActionIgnore, // Not helpful because this can only change when new versions are added.
 	},
 	&database.User{}: {
-		"id":              ActionTrack,
-		"email":           ActionTrack,
-		"username":        ActionTrack,
-		"hashed_password": ActionSecret, // Do not expose a users hashed password.
-		"created_at":      ActionIgnore, // Never changes.
-		"updated_at":      ActionIgnore, // Changes, but is implicit and not helpful in a diff.
-		"status":          ActionTrack,
-		"rbac_roles":      ActionTrack,
-		"login_type":      ActionTrack,
-		"avatar_url":      ActionIgnore,
-		"last_seen_at":    ActionIgnore,
-		"deleted":         ActionTrack,
+		"id":                   ActionTrack,
+		"email":                ActionTrack,
+		"username":             ActionTrack,
+		"hashed_password":      ActionSecret, // Do not expose a users hashed password.
+		"created_at":           ActionIgnore, // Never changes.
+		"updated_at":           ActionIgnore, // Changes, but is implicit and not helpful in a diff.
+		"status":               ActionTrack,
+		"rbac_roles":           ActionTrack,
+		"login_type":           ActionTrack,
+		"avatar_url":           ActionIgnore,
+		"last_seen_at":         ActionIgnore,
+		"deleted":              ActionTrack,
+		"quiet_hours_schedule": ActionTrack,
 	},
 	&database.Workspace{}: {
 		"id":                 ActionTrack,

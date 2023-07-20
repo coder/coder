@@ -57,6 +57,15 @@ Specify the directory containing SSH diagnostic log files.
 
 Enter workspace immediately after the agent has connected. This is the default if the template has configured the agent startup script behavior as non-blocking.
 
+### -R, --remote-forward
+
+|             |                                        |
+| ----------- | -------------------------------------- |
+| Type        | <code>string</code>                    |
+| Environment | <code>$CODER_SSH_REMOTE_FORWARD</code> |
+
+Enable remote port forwarding (remote_port:local_address:local_port).
+
 ### --stdio
 
 |             |                               |

@@ -6,6 +6,7 @@ import {
   HelpTooltipText,
   HelpTooltipTitle,
 } from "./HelpTooltip"
+import { docs } from "utils/docs"
 
 export const Language = {
   title: "What is a role?",
@@ -21,7 +22,7 @@ export const UserRoleHelpTooltip: FC = () => {
       <HelpTooltipTitle>{Language.title}</HelpTooltipTitle>
       <HelpTooltipText>{Language.text}</HelpTooltipText>
       <HelpTooltipLinksGroup>
-        <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/admin/users#roles">
+        <HelpTooltipLink href={docs("/admin/users#roles")}>
           {Language.link}
         </HelpTooltipLink>
       </HelpTooltipLinksGroup>

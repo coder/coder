@@ -241,3 +241,12 @@ FROM
 	users
 WHERE
 	id = @user_id;
+
+-- name: UpdateUserQuietHoursSchedule :one
+UPDATE
+	users
+SET
+	quiet_hours_schedule = $2
+WHERE
+	id = $1
+RETURNING *;

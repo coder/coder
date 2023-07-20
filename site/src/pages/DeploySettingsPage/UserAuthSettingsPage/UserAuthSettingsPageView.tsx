@@ -11,6 +11,7 @@ import {
   deploymentGroupHasParent,
   useDeploymentOptions,
 } from "utils/deployOptions"
+import { docs } from "utils/docs"
 
 export type UserAuthSettingsPageViewProps = {
   options: DeploymentOption[]
@@ -28,7 +29,7 @@ export const UserAuthSettingsPageView = ({
           title="Login with OpenID Connect"
           secondary
           description="Set up authentication to login with OpenID Connect."
-          docsHref="https://coder.com/docs/coder-oss/latest/admin/auth#openid-connect-with-google"
+          docsHref={docs("/admin/auth#openid-connect-with-google")}
         />
 
         <Badges>
@@ -51,7 +52,7 @@ export const UserAuthSettingsPageView = ({
           title="Login with GitHub"
           secondary
           description="Set up authentication to login with GitHub."
-          docsHref="https://coder.com/docs/coder-oss/latest/admin/auth#github"
+          docsHref={docs("/admin/auth#github")}
         />
 
         <Badges>

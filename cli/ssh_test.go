@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -402,6 +404,58 @@ func TestSSH(t *testing.T) {
 		keys, err := kr.List()
 		require.NoError(t, err, "list keys failed")
 		pty.ExpectMatch(keys[0].String())
+
+		// And we're done.
+		pty.WriteLine("exit")
+		<-cmdDone
+	})
+
+	t.Run("RemoteForward", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("Test not supported on windows")
+		}
+
+		t.Parallel()
+
+		httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte("hello world"))
+		}))
+		defer httpServer.Close()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
+
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(agentToken)
+		agentCloser := agent.New(agent.Options{
+			Client: agentClient,
+			Logger: slogtest.Make(t, nil).Named("agent"),
+		})
+		defer agentCloser.Close()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		inv, root := clitest.New(t,
+			"ssh",
+			workspace.Name,
+			"--remote-forward",
+			"8222:"+httpServer.Listener.Addr().String(),
+		)
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t).Attach(inv)
+		inv.Stderr = pty.Output()
+		cmdDone := tGo(t, func() {
+			err := inv.WithContext(ctx).Run()
+			assert.NoError(t, err, "ssh command failed")
+		})
+
+		// Wait for the prompt or any output really to indicate the command has
+		// started and accepting input on stdin.
+		_ = pty.Peek(ctx, 1)
+
+		// Download the test page
+		pty.WriteLine("curl localhost:8222")
+		pty.ExpectMatch("hello world")
 
 		// And we're done.
 		pty.WriteLine("exit")
