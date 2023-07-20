@@ -308,6 +308,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 // to provide the hour of the day (e.g. 14:00:00).
 func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, startTimeString, endTimeString string) (startTime, endTime time.Time, ok bool) {
 	const insightsTimeLayout = time.RFC3339Nano
+	now := time.Now()
 
 	for _, qp := range []struct {
 		name, value string
@@ -329,6 +330,7 @@ func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, s
 			})
 			return time.Time{}, time.Time{}, false
 		}
+
 		if t.IsZero() {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Query parameter has invalid value.",
@@ -341,10 +343,24 @@ func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, s
 			})
 			return time.Time{}, time.Time{}, false
 		}
+
+		if t.After(now) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Query parameter has invalid value.",
+				Validations: []codersdk.ValidationError{
+					{
+						Field:  qp.name,
+						Detail: fmt.Sprintf("Query param %q must not be in the future", qp.name),
+					},
+				},
+			})
+			return time.Time{}, time.Time{}, false
+		}
+
 		ensureZeroHour := true
 		if qp.name == "end_time" {
 			ey, em, ed := t.Date()
-			ty, tm, td := time.Now().Date()
+			ty, tm, td := now.Date()
 
 			ensureZeroHour = ey != ty || em != tm || ed != td
 		}
