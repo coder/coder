@@ -32,10 +32,10 @@ import (
 
 var (
 	ttlMin = time.Minute //nolint:revive // min here means 'minimum' not 'minutes'
-	ttlMax = 7 * 24 * time.Hour
+	ttlMax = 30 * 24 * time.Hour
 
 	errTTLMin              = xerrors.New("time until shutdown must be at least one minute")
-	errTTLMax              = xerrors.New("time until shutdown must be less than 7 days")
+	errTTLMax              = xerrors.New("time until shutdown must be less than 30 days")
 	errDeadlineTooSoon     = xerrors.New("new deadline must be at least 30 minutes in the future")
 	errDeadlineBeforeStart = xerrors.New("new deadline must be before workspace start time")
 )
@@ -369,7 +369,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	templateSchedule, err := (*api.TemplateScheduleStore.Load()).GetTemplateScheduleOptions(ctx, api.Database, template.ID)
+	templateSchedule, err := (*api.TemplateScheduleStore.Load()).Get(ctx, api.Database, template.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching template schedule.",
@@ -378,7 +378,13 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	dbTTL, err := validWorkspaceTTLMillis(createWorkspace.TTLMillis, templateSchedule.DefaultTTL, templateSchedule.MaxTTL)
+	maxTTL := templateSchedule.MaxTTL
+	if templateSchedule.UseRestartRequirement {
+		// If we're using restart requirements, there isn't a max TTL.
+		maxTTL = 0
+	}
+
+	dbTTL, err := validWorkspaceTTLMillis(createWorkspace.TTLMillis, templateSchedule.DefaultTTL, maxTTL)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid Workspace Time to Shutdown.",
@@ -634,7 +640,7 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if the template allows users to configure autostart.
-	templateSchedule, err := (*api.TemplateScheduleStore.Load()).GetTemplateScheduleOptions(ctx, api.Database, workspace.TemplateID)
+	templateSchedule, err := (*api.TemplateScheduleStore.Load()).Get(ctx, api.Database, workspace.TemplateID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting template schedule options.",
@@ -701,7 +707,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	var dbTTL sql.NullInt64
 
 	err := api.Database.InTx(func(s database.Store) error {
-		templateSchedule, err := (*api.TemplateScheduleStore.Load()).GetTemplateScheduleOptions(ctx, s, workspace.TemplateID)
+		templateSchedule, err := (*api.TemplateScheduleStore.Load()).Get(ctx, s, workspace.TemplateID)
 		if err != nil {
 			return xerrors.Errorf("get template schedule: %w", err)
 		}
@@ -709,10 +715,16 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 			return codersdk.ValidationError{Field: "ttl_ms", Detail: "Custom autostop TTL is not allowed for workspaces using this template."}
 		}
 
+		maxTTL := templateSchedule.MaxTTL
+		if templateSchedule.UseRestartRequirement {
+			// If we're using restart requirements, there isn't a max TTL.
+			maxTTL = 0
+		}
+
 		// don't override 0 ttl with template default here because it indicates
 		// disabled autostop
 		var validityErr error
-		dbTTL, validityErr = validWorkspaceTTLMillis(req.TTLMillis, 0, templateSchedule.MaxTTL)
+		dbTTL, validityErr = validWorkspaceTTLMillis(req.TTLMillis, 0, maxTTL)
 		if validityErr != nil {
 			return codersdk.ValidationError{Field: "ttl_ms", Detail: validityErr.Error()}
 		}

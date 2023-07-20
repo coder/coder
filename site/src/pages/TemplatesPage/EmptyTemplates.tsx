@@ -9,6 +9,7 @@ import { TemplateExampleCard } from "components/TemplateExampleCard/TemplateExam
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
 import { Link as RouterLink } from "react-router-dom"
+import { docs } from "utils/docs"
 import { Permissions } from "xServices/auth/authXService"
 
 // Those are from https://github.com/coder/coder/tree/main/examples/templates
@@ -54,7 +55,7 @@ export const EmptyTemplates: FC<{
             for workspaces (e.g., docker_container, aws_instance,
             kubernetes_pod). Select a starter template below or
             <Link
-              href="https://coder.com/docs/coder-oss/latest/templates#add-a-template"
+              href={docs("/templates#add-a-template")}
               target="_blank"
               rel="noreferrer"
             >

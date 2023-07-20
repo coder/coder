@@ -3,6 +3,7 @@ import Button from "@mui/material/Button"
 import Link from "@mui/material/Link"
 import { Alert } from "components/Alert/Alert"
 import { ReactNode } from "react"
+import { docs } from "utils/docs"
 
 export type TerminalPageAlertType = "error" | "starting" | "success"
 
@@ -21,7 +22,7 @@ const mapAlertTypeToText: MapAlertTypeToComponent = {
         The workspace{" "}
         <Link
           title="startup script has exited with an error"
-          href="https://coder.com/docs/v2/latest/templates#startup-script-exited-with-an-error"
+          href={docs("/templates#startup-script-exited-with-an-error")}
           target="_blank"
           rel="noreferrer"
         >
@@ -30,7 +31,7 @@ const mapAlertTypeToText: MapAlertTypeToComponent = {
         , we recommend reloading this session and{" "}
         <Link
           title=" debugging the startup script"
-          href="https://coder.com/docs/v2/latest/templates#debugging-the-startup-script"
+          href={docs("/templates#debugging-the-startup-script")}
           target="_blank"
           rel="noreferrer"
         >
@@ -39,7 +40,7 @@ const mapAlertTypeToText: MapAlertTypeToComponent = {
         because{" "}
         <Link
           title="your workspace may be incomplete."
-          href="https://coder.com/docs/v2/latest/templates#your-workspace-may-be-incomplete"
+          href={docs("/templates#your-workspace-may-be-incomplete")}
           target="_blank"
           rel="noreferrer"
         >
@@ -56,7 +57,7 @@ const mapAlertTypeToText: MapAlertTypeToComponent = {
         but{" "}
         <Link
           title="your workspace may be incomplete."
-          href="https://coder.com/docs/v2/latest/templates#your-workspace-may-be-incomplete"
+          href={docs("/templates#your-workspace-may-be-incomplete")}
           target="_blank"
           rel="noreferrer"
         >
@@ -74,7 +75,7 @@ const mapAlertTypeToText: MapAlertTypeToComponent = {
         this{" "}
         <Link
           title="session was started before the startup script finished"
-          href="https://coder.com/docs/v2/latest/templates#your-workspace-may-be-incomplete"
+          href={docs("/templates#your-workspace-may-be-incomplete")}
           target="_blank"
           rel="noreferrer"
         >

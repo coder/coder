@@ -3,6 +3,7 @@ package coderd
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -22,6 +23,7 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/site"
 	"github.com/coder/coder/tailnet"
+	"github.com/coder/retry"
 )
 
 var tailnetTransport *http.Transport
@@ -41,7 +43,7 @@ func NewServerTailnet(
 	logger slog.Logger,
 	derpServer *derp.Server,
 	derpMap *tailcfg.DERPMap,
-	coord *atomic.Pointer[tailnet.Coordinator],
+	getMultiAgent func(context.Context) (tailnet.MultiAgentConn, error),
 	cache *wsconncache.Cache,
 ) (*ServerTailnet, error) {
 	logger = logger.Named("servertailnet")
@@ -56,20 +58,34 @@ func NewServerTailnet(
 
 	serverCtx, cancel := context.WithCancel(ctx)
 	tn := &ServerTailnet{
-		ctx:          serverCtx,
-		cancel:       cancel,
-		logger:       logger,
-		conn:         conn,
-		coord:        coord,
-		cache:        cache,
-		agentNodes:   map[uuid.UUID]time.Time{},
-		agentTickets: map[uuid.UUID]map[uuid.UUID]struct{}{},
-		transport:    tailnetTransport.Clone(),
+		ctx:           serverCtx,
+		cancel:        cancel,
+		logger:        logger,
+		conn:          conn,
+		getMultiAgent: getMultiAgent,
+		cache:         cache,
+		agentNodes:    map[uuid.UUID]time.Time{},
+		agentTickets:  map[uuid.UUID]map[uuid.UUID]struct{}{},
+		transport:     tailnetTransport.Clone(),
 	}
 	tn.transport.DialContext = tn.dialContext
 	tn.transport.MaxIdleConnsPerHost = 10
 	tn.transport.MaxIdleConns = 0
-	agentConn := (*coord.Load()).ServeMultiAgent(uuid.New())
+	// We intentionally don't verify the certificate chain here.
+	// The connection to the workspace is already established and most
+	// apps are already going to be accessed over plain HTTP, this config
+	// simply allows apps being run over HTTPS to be accessed without error --
+	// many of which may be using self-signed certs.
+	tn.transport.TLSClientConfig = &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		//nolint:gosec
+		InsecureSkipVerify: true,
+	}
+
+	agentConn, err := getMultiAgent(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("get initial multi agent: %w", err)
+	}
 	tn.agentConn.Store(&agentConn)
 
 	err = tn.getAgentConn().UpdateSelf(conn.Node())
@@ -86,19 +102,21 @@ func NewServerTailnet(
 	// This is set to allow local DERP traffic to be proxied through memory
 	// instead of needing to hit the external access URL. Don't use the ctx
 	// given in this callback, it's only valid while connecting.
-	conn.SetDERPRegionDialer(func(_ context.Context, region *tailcfg.DERPRegion) net.Conn {
-		if !region.EmbeddedRelay {
-			return nil
-		}
-		left, right := net.Pipe()
-		go func() {
-			defer left.Close()
-			defer right.Close()
-			brw := bufio.NewReadWriter(bufio.NewReader(right), bufio.NewWriter(right))
-			derpServer.Accept(ctx, right, brw, "internal")
-		}()
-		return left
-	})
+	if derpServer != nil {
+		conn.SetDERPRegionDialer(func(_ context.Context, region *tailcfg.DERPRegion) net.Conn {
+			if !region.EmbeddedRelay {
+				return nil
+			}
+			left, right := net.Pipe()
+			go func() {
+				defer left.Close()
+				defer right.Close()
+				brw := bufio.NewReadWriter(bufio.NewReader(right), bufio.NewWriter(right))
+				derpServer.Accept(ctx, right, brw, "internal")
+			}()
+			return left
+		})
+	}
 
 	go tn.watchAgentUpdates()
 	go tn.expireOldAgents()
@@ -167,30 +185,38 @@ func (s *ServerTailnet) getAgentConn() tailnet.MultiAgentConn {
 }
 
 func (s *ServerTailnet) reinitCoordinator() {
-	s.nodesMu.Lock()
-	agentConn := (*s.coord.Load()).ServeMultiAgent(uuid.New())
-	s.agentConn.Store(&agentConn)
-
-	// Resubscribe to all of the agents we're tracking.
-	for agentID := range s.agentNodes {
-		err := agentConn.SubscribeAgent(agentID)
+	for retrier := retry.New(25*time.Millisecond, 5*time.Second); retrier.Wait(s.ctx); {
+		s.nodesMu.Lock()
+		agentConn, err := s.getMultiAgent(s.ctx)
 		if err != nil {
-			s.logger.Warn(s.ctx, "resubscribe to agent", slog.Error(err), slog.F("agent_id", agentID))
+			s.nodesMu.Unlock()
+			s.logger.Error(s.ctx, "reinit multi agent", slog.Error(err))
+			continue
 		}
+		s.agentConn.Store(&agentConn)
+
+		// Resubscribe to all of the agents we're tracking.
+		for agentID := range s.agentNodes {
+			err := agentConn.SubscribeAgent(agentID)
+			if err != nil {
+				s.logger.Warn(s.ctx, "resubscribe to agent", slog.Error(err), slog.F("agent_id", agentID))
+			}
+		}
+		s.nodesMu.Unlock()
+		return
 	}
-	s.nodesMu.Unlock()
 }
 
 type ServerTailnet struct {
 	ctx    context.Context
 	cancel func()
 
-	logger    slog.Logger
-	conn      *tailnet.Conn
-	coord     *atomic.Pointer[tailnet.Coordinator]
-	agentConn atomic.Pointer[tailnet.MultiAgentConn]
-	cache     *wsconncache.Cache
-	nodesMu   sync.Mutex
+	logger        slog.Logger
+	conn          *tailnet.Conn
+	getMultiAgent func(context.Context) (tailnet.MultiAgentConn, error)
+	agentConn     atomic.Pointer[tailnet.MultiAgentConn]
+	cache         *wsconncache.Cache
+	nodesMu       sync.Mutex
 	// agentNodes is a map of agent tailnetNodes the server wants to keep a
 	// connection to. It contains the last time the agent was connected to.
 	agentNodes map[uuid.UUID]time.Time

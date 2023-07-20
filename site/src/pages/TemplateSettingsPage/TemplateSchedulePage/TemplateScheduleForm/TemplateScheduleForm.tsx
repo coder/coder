@@ -20,6 +20,7 @@ import { InactivityDialog } from "./InactivityDialog"
 import { useWorkspacesToBeDeleted } from "./useWorkspacesToBeDeleted"
 import { TemplateScheduleFormValues, getValidationSchema } from "./formHelpers"
 import { TTLHelperText } from "./TTLHelperText"
+import { docs } from "utils/docs"
 
 const MS_HOUR_CONVERSION = 3600000
 const MS_DAY_CONVERSION = 86400000
@@ -69,6 +70,11 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       locked_ttl_ms: allowAdvancedScheduling
         ? template.locked_ttl_ms / MS_DAY_CONVERSION
         : 0,
+
+      restart_requirement: {
+        days_of_week: template.restart_requirement.days_of_week,
+        weeks: template.restart_requirement.weeks,
+      },
 
       allow_user_autostart: template.allow_user_autostart,
       allow_user_autostop: template.allow_user_autostop,
@@ -222,9 +228,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
               ) : (
                 <>
                   {commonT("licenseFieldTextHelper")}{" "}
-                  <Link href="https://coder.com/docs/v2/latest/enterprise">
-                    {commonT("learnMore")}
-                  </Link>
+                  <Link href={docs("/enterprise")}>{commonT("learnMore")}</Link>
                   .
                 </>
               ),

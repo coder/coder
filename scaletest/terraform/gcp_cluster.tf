@@ -18,7 +18,8 @@ resource "google_container_cluster" "primary" {
 
   }
   release_channel {
-    channel = "STABLE"
+    # Setting release channel as STABLE can cause unexpected cluster upgrades.
+    channel = "UNSPECIFIED"
   }
   initial_node_count       = 1
   remove_default_node_pool = true

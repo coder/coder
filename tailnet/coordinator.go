@@ -140,7 +140,6 @@ type coordinator struct {
 func (c *coordinator) ServeMultiAgent(id uuid.UUID) MultiAgentConn {
 	m := (&MultiAgent{
 		ID:                id,
-		Logger:            c.core.logger,
 		AgentIsLegacyFunc: c.core.agentIsLegacy,
 		OnSubscribe:       c.core.clientSubscribeToAgent,
 		OnUnsubscribe:     c.core.clientUnsubscribeFromAgent,

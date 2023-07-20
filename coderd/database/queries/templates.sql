@@ -2,7 +2,7 @@
 SELECT
 	*
 FROM
-	templates
+	template_with_users
 WHERE
 	id = $1
 LIMIT
@@ -12,7 +12,7 @@ LIMIT
 SELECT
 	*
 FROM
-	templates
+	template_with_users AS templates
 WHERE
 	-- Optionally include deleted templates
 	templates.deleted = @deleted
@@ -43,7 +43,7 @@ ORDER BY (name, id) ASC
 SELECT
 	*
 FROM
-	templates
+	template_with_users AS templates
 WHERE
 	organization_id = @organization_id
 	AND deleted = @deleted
@@ -52,11 +52,11 @@ LIMIT
 	1;
 
 -- name: GetTemplates :many
-SELECT * FROM templates
+SELECT * FROM template_with_users AS templates
 ORDER BY (name, id) ASC
 ;
 
--- name: InsertTemplate :one
+-- name: InsertTemplate :exec
 INSERT INTO
 	templates (
 		id,
@@ -75,7 +75,7 @@ INSERT INTO
 		allow_user_cancel_workspace_jobs
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14);
 
 -- name: UpdateTemplateActiveVersionByID :exec
 UPDATE
@@ -95,7 +95,7 @@ SET
 WHERE
 	id = $1;
 
--- name: UpdateTemplateMetaByID :one
+-- name: UpdateTemplateMetaByID :exec
 UPDATE
 	templates
 SET
@@ -107,10 +107,9 @@ SET
 	allow_user_cancel_workspace_jobs = $7
 WHERE
 	id = $1
-RETURNING
-	*;
+;
 
--- name: UpdateTemplateScheduleByID :one
+-- name: UpdateTemplateScheduleByID :exec
 UPDATE
 	templates
 SET
@@ -119,15 +118,16 @@ SET
 	allow_user_autostop = $4,
 	default_ttl = $5,
 	max_ttl = $6,
-	failure_ttl = $7,
-	inactivity_ttl = $8,
-	locked_ttl = $9
+	restart_requirement_days_of_week = $7,
+	restart_requirement_weeks = $8,
+	failure_ttl = $9,
+	inactivity_ttl = $10,
+	locked_ttl = $11
 WHERE
 	id = $1
-RETURNING
-	*;
+;
 
--- name: UpdateTemplateACLByID :one
+-- name: UpdateTemplateACLByID :exec
 UPDATE
 	templates
 SET
@@ -135,8 +135,7 @@ SET
 	user_acl = $2
 WHERE
 	id = $3
-RETURNING
-	*;
+;
 
 -- name: GetTemplateAverageBuildTime :one
 WITH build_times AS (

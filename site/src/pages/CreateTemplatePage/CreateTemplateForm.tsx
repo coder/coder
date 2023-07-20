@@ -39,9 +39,10 @@ import {
 import camelCase from "lodash/camelCase"
 import capitalize from "lodash/capitalize"
 import { VariableInput } from "./VariableInput"
+import { docs } from "utils/docs"
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128
-const MAX_TTL_DAYS = 7
+const MAX_TTL_DAYS = 30
 
 const TTLHelperText = ({
   ttl,
@@ -78,15 +79,15 @@ const validationSchema = Yup.object({
     .integer()
     .min(0, "Default time until autostop must not be less than 0.")
     .max(
-      24 * MAX_TTL_DAYS /* 7 days in hours */,
-      "Please enter a limit that is less than or equal to 168 hours (7 days).",
+      24 * MAX_TTL_DAYS /* 30 days in hours */,
+      "Please enter a limit that is less than or equal to 720 hours (30 days).",
     ),
   max_ttl_hours: Yup.number()
     .integer()
     .min(0, "Maximum time until autostop must not be less than 0.")
     .max(
-      24 * MAX_TTL_DAYS /* 7 days in hours */,
-      "Please enter a limit that is less than or equal to 168 hours(7 days).",
+      24 * MAX_TTL_DAYS /* 30 days in hours */,
+      "Please enter a limit that is less than or equal to 720 hours (30 days).",
     ),
 })
 
@@ -98,6 +99,9 @@ const defaultInitialValues: CreateTemplateData = {
   default_ttl_hours: 24,
   // max_ttl is an enterprise-only feature, and the server ignores the value if
   // you are not licensed. We hide the form value based on entitlements.
+  //
+  // The maximum value is 30 days but we default to 7 days as it's a much more
+  // sensible value for most teams.
   max_ttl_hours: 24 * 7,
   allow_user_cancel_workspace_jobs: false,
   allow_user_autostart: false,
@@ -319,7 +323,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
                 ) : (
                   <>
                     {commonT("licenseFieldTextHelper")}{" "}
-                    <Link href="https://coder.com/docs/v2/latest/enterprise">
+                    <Link href={docs("/enterprise")}>
                       {commonT("learnMore")}
                     </Link>
                     .
@@ -456,7 +460,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
                   </Stack>
                   <span className={styles.optionHelperText}>
                     This setting requires an enterprise license for the&nbsp;
-                    <Link href="https://coder.com/docs/v2/latest/admin/rbac">
+                    <Link href={docs("/admin/rbac")}>
                       &apos;Template RBAC&apos;
                     </Link>{" "}
                     feature to customize permissions.

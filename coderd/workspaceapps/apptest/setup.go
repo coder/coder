@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"path"
 	"strconv"
@@ -48,6 +49,7 @@ type DeploymentOptions struct {
 	DisableSubdomainApps                 bool
 	DangerousAllowPathAppSharing         bool
 	DangerousAllowPathAppSiteOwnerAccess bool
+	ServeHTTPS                           bool
 
 	// The following fields are only used by setupProxyTestWithFactory.
 	noWorkspace bool
@@ -185,9 +187,9 @@ func setupProxyTestWithFactory(t *testing.T, factory DeploymentFactory, opts *De
 	}
 
 	if opts.port == 0 {
-		opts.port = appServer(t, opts.headers)
+		opts.port = appServer(t, opts.headers, opts.ServeHTTPS)
 	}
-	workspace, agnt := createWorkspaceWithApps(t, deployment.SDKClient, deployment.FirstUser.OrganizationID, me, opts.port)
+	workspace, agnt := createWorkspaceWithApps(t, deployment.SDKClient, deployment.FirstUser.OrganizationID, me, opts.port, opts.ServeHTTPS)
 
 	details := &Details{
 		Deployment: deployment,
@@ -234,60 +236,53 @@ func setupProxyTestWithFactory(t *testing.T, factory DeploymentFactory, opts *De
 	return details
 }
 
-func appServer(t *testing.T, headers http.Header) uint16 {
-	// Start a listener on a random port greater than the minimum app port.
-	var (
-		ln      net.Listener
-		tcpAddr *net.TCPAddr
-	)
-	for i := 0; i < 32; i++ {
-		var err error
-		// #nosec
-		ln, err = net.Listen("tcp", ":0")
-		require.NoError(t, err)
-
-		var ok bool
-		tcpAddr, ok = ln.Addr().(*net.TCPAddr)
-		require.True(t, ok)
-		if tcpAddr.Port < codersdk.WorkspaceAgentMinimumListeningPort {
-			_ = ln.Close()
-			ln = nil
-			time.Sleep(20 * time.Millisecond)
-			continue
-		}
-	}
-	require.NotNil(t, ln, "failed to find a free port greater than the minimum app port")
-
-	server := http.Server{
-		ReadHeaderTimeout: time.Minute,
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			_, err := r.Cookie(codersdk.SessionTokenCookie)
-			assert.ErrorIs(t, err, http.ErrNoCookie)
-			w.Header().Set("X-Forwarded-For", r.Header.Get("X-Forwarded-For"))
-			for name, values := range headers {
-				for _, value := range values {
-					w.Header().Add(name, value)
+//nolint:revive
+func appServer(t *testing.T, headers http.Header, isHTTPS bool) uint16 {
+	server := httptest.NewUnstartedServer(
+		http.HandlerFunc(
+			func(w http.ResponseWriter, r *http.Request) {
+				_, err := r.Cookie(codersdk.SessionTokenCookie)
+				assert.ErrorIs(t, err, http.ErrNoCookie)
+				w.Header().Set("X-Forwarded-For", r.Header.Get("X-Forwarded-For"))
+				for name, values := range headers {
+					for _, value := range values {
+						w.Header().Add(name, value)
+					}
 				}
-			}
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(proxyTestAppBody))
-		}),
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(proxyTestAppBody))
+			},
+		),
+	)
+
+	server.Config.ReadHeaderTimeout = time.Minute
+	if isHTTPS {
+		server.StartTLS()
+	} else {
+		server.Start()
 	}
 	t.Cleanup(func() {
-		_ = server.Close()
-		_ = ln.Close()
+		server.Close()
 	})
-	go func() {
-		_ = server.Serve(ln)
-	}()
 
-	return uint16(tcpAddr.Port)
+	_, portStr, err := net.SplitHostPort(server.Listener.Addr().String())
+	require.NoError(t, err)
+	port, err := strconv.ParseUint(portStr, 10, 16)
+	require.NoError(t, err)
+
+	return uint16(port)
 }
 
-func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.UUID, me codersdk.User, port uint16, workspaceMutators ...func(*codersdk.CreateWorkspaceRequest)) (codersdk.Workspace, codersdk.WorkspaceAgent) {
+//nolint:revive
+func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.UUID, me codersdk.User, port uint16, serveHTTPS bool, workspaceMutators ...func(*codersdk.CreateWorkspaceRequest)) (codersdk.Workspace, codersdk.WorkspaceAgent) {
 	authToken := uuid.NewString()
 
-	appURL := fmt.Sprintf("http://127.0.0.1:%d?%s", port, proxyTestAppQuery)
+	scheme := "http"
+	if serveHTTPS {
+		scheme = "https"
+	}
+
+	appURL := fmt.Sprintf("%s://127.0.0.1:%d?%s", scheme, port, proxyTestAppQuery)
 	version := coderdtest.CreateTemplateVersion(t, client, orgID, &echo.Responses{
 		Parse:         echo.ParseComplete,
 		ProvisionPlan: echo.ProvisionComplete,

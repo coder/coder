@@ -48,9 +48,9 @@
     },
     "error": {
       "descriptionMax": "Please enter a description that is less than or equal to 128 characters.",
-      "defaultTTLMax": "Please enter a limit that is less than or equal to 168 hours (7 days).",
+      "defaultTTLMax": "Please enter a limit that is less than or equal to 720 hours (30 days).",
       "defaultTTLMin": "Default time until autostop must not be less than 0.",
-      "maxTTLMax": "Please enter a limit that is less than or equal to 168 hours (7 days).",
+      "maxTTLMax": "Please enter a limit that is less than or equal to 720 hours (30 days).",
       "maxTTLMin": "Maximum time until autostop must not be less than 0."
     }
   }

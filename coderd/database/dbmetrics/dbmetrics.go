@@ -1124,11 +1124,11 @@ func (m metricsStore) InsertReplica(ctx context.Context, arg database.InsertRepl
 	return replica, err
 }
 
-func (m metricsStore) InsertTemplate(ctx context.Context, arg database.InsertTemplateParams) (database.Template, error) {
+func (m metricsStore) InsertTemplate(ctx context.Context, arg database.InsertTemplateParams) error {
 	start := time.Now()
-	template, err := m.s.InsertTemplate(ctx, arg)
+	err := m.s.InsertTemplate(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertTemplate").Observe(time.Since(start).Seconds())
-	return template, err
+	return err
 }
 
 func (m metricsStore) InsertTemplateVersion(ctx context.Context, arg database.InsertTemplateVersionParams) (database.TemplateVersion, error) {
@@ -1327,11 +1327,11 @@ func (m metricsStore) UpdateReplica(ctx context.Context, arg database.UpdateRepl
 	return replica, err
 }
 
-func (m metricsStore) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) (database.Template, error) {
+func (m metricsStore) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) error {
 	start := time.Now()
-	template, err := m.s.UpdateTemplateACLByID(ctx, arg)
+	err := m.s.UpdateTemplateACLByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateTemplateACLByID").Observe(time.Since(start).Seconds())
-	return template, err
+	return err
 }
 
 func (m metricsStore) UpdateTemplateActiveVersionByID(ctx context.Context, arg database.UpdateTemplateActiveVersionByIDParams) error {
@@ -1348,18 +1348,18 @@ func (m metricsStore) UpdateTemplateDeletedByID(ctx context.Context, arg databas
 	return err
 }
 
-func (m metricsStore) UpdateTemplateMetaByID(ctx context.Context, arg database.UpdateTemplateMetaByIDParams) (database.Template, error) {
+func (m metricsStore) UpdateTemplateMetaByID(ctx context.Context, arg database.UpdateTemplateMetaByIDParams) error {
 	start := time.Now()
-	template, err := m.s.UpdateTemplateMetaByID(ctx, arg)
+	err := m.s.UpdateTemplateMetaByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateTemplateMetaByID").Observe(time.Since(start).Seconds())
-	return template, err
+	return err
 }
 
-func (m metricsStore) UpdateTemplateScheduleByID(ctx context.Context, arg database.UpdateTemplateScheduleByIDParams) (database.Template, error) {
+func (m metricsStore) UpdateTemplateScheduleByID(ctx context.Context, arg database.UpdateTemplateScheduleByIDParams) error {
 	start := time.Now()
-	template, err := m.s.UpdateTemplateScheduleByID(ctx, arg)
+	err := m.s.UpdateTemplateScheduleByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateTemplateScheduleByID").Observe(time.Since(start).Seconds())
-	return template, err
+	return err
 }
 
 func (m metricsStore) UpdateTemplateVersionByID(ctx context.Context, arg database.UpdateTemplateVersionByIDParams) (database.TemplateVersion, error) {
@@ -1430,6 +1430,13 @@ func (m metricsStore) UpdateUserProfile(ctx context.Context, arg database.Update
 	user, err := m.s.UpdateUserProfile(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserProfile").Observe(time.Since(start).Seconds())
 	return user, err
+}
+
+func (m metricsStore) UpdateUserQuietHoursSchedule(ctx context.Context, arg database.UpdateUserQuietHoursScheduleParams) (database.User, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserQuietHoursSchedule(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserQuietHoursSchedule").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) UpdateUserRoles(ctx context.Context, arg database.UpdateUserRolesParams) (database.User, error) {
@@ -1555,13 +1562,6 @@ func (m metricsStore) UpdateWorkspaceTTL(ctx context.Context, arg database.Updat
 	start := time.Now()
 	r0 := m.s.UpdateWorkspaceTTL(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateWorkspaceTTL").Observe(time.Since(start).Seconds())
-	return r0
-}
-
-func (m metricsStore) UpdateWorkspaceTTLToBeWithinTemplateMax(ctx context.Context, arg database.UpdateWorkspaceTTLToBeWithinTemplateMaxParams) error {
-	start := time.Now()
-	r0 := m.s.UpdateWorkspaceTTLToBeWithinTemplateMax(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateWorkspaceTTLToBeWithinTemplateMax").Observe(time.Since(start).Seconds())
 	return r0
 }
 
