@@ -242,7 +242,7 @@ func (a *agent) runLoop(ctx context.Context) {
 	}
 }
 
-func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentMetadataDescription) *codersdk.WorkspaceAgentMetadataResult {
+func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentMetadataDescription, now time.Time) *codersdk.WorkspaceAgentMetadataResult {
 	var out bytes.Buffer
 	result := &codersdk.WorkspaceAgentMetadataResult{
 		// CollectedAt is set here for testing purposes and overrode by
@@ -250,7 +250,7 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 		//
 		// In the future, the server may accept the timestamp from the agent
 		// if it can guarantee the clocks are synchronized.
-		CollectedAt: time.Now(),
+		CollectedAt: now,
 	}
 	cmdPty, err := a.sshServer.CreateCommand(ctx, md.Script, nil)
 	if err != nil {
@@ -337,9 +337,7 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case mr := <-metadataResults:
-			lastCollectedAtMu.Lock()
-			lastCollectedAts[mr.key] = mr.result.CollectedAt
-			lastCollectedAtMu.Unlock()
+
 			err := a.client.PostMetadata(ctx, mr.key, *mr.result)
 			if err != nil {
 				a.logger.Error(ctx, "agent failed to report metadata", slog.Error(err))
@@ -406,7 +404,7 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 					// If the interval is zero, we assume the user just wants
 					// a single collection at startup, not a spinning loop.
 					if md.Interval == 0 {
-						logger.Debug(ctx, "skipping metadata, interval 0 and alredy collected once")
+						logger.Debug(ctx, "skipping metadata, interval 0 and already collected once")
 						return
 					}
 					// The last collected value isn't quite stale yet, so we skip it.
@@ -434,14 +432,18 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 				ctx, cancel := context.WithTimeout(ctx, ctxTimeout)
 				defer cancel()
 
+				now := time.Now()
 				select {
 				case <-ctx.Done():
 					logger.Debug(ctx, "metadata collection timed out", slog.F("timeout", ctxTimeout))
 				case metadataResults <- metadataResultAndKey{
 					key:    md.Key,
-					result: a.collectMetadata(ctx, md),
+					result: a.collectMetadata(ctx, md, now),
 				}:
-					logger.Debug(ctx, "sent metadata")
+					logger.Debug(ctx, "sent metadata", slog.F("took", time.Since(now).String()))
+					lastCollectedAtMu.Lock()
+					lastCollectedAts[md.Key] = now
+					lastCollectedAtMu.Unlock()
 				}
 			})
 		}
