@@ -259,6 +259,11 @@ jobs:
         env:
           CODER_BASE_IMAGE_TAG: ${{ steps.image-base-tag.outputs.tag }}
 
+      - name: Generate offline docs
+        run: |
+          version="$(./scripts/version.sh)"
+          make -j build/coder_docs_"$version".tgz
+
       - name: ls build
         run: ls -lh build
 

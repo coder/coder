@@ -1808,9 +1808,12 @@ func (q *querier) InsertReplica(ctx context.Context, arg database.InsertReplicaP
 	return q.db.InsertReplica(ctx, arg)
 }
 
-func (q *querier) InsertTemplate(ctx context.Context, arg database.InsertTemplateParams) (database.Template, error) {
+func (q *querier) InsertTemplate(ctx context.Context, arg database.InsertTemplateParams) error {
 	obj := rbac.ResourceTemplate.InOrg(arg.OrganizationID)
-	return insert(q.log, q.auth, obj, q.db.InsertTemplate)(ctx, arg)
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, obj); err != nil {
+		return err
+	}
+	return q.db.InsertTemplate(ctx, arg)
 }
 
 func (q *querier) InsertTemplateVersion(ctx context.Context, arg database.InsertTemplateVersionParams) (database.TemplateVersion, error) {
@@ -2134,13 +2137,13 @@ func (q *querier) UpdateReplica(ctx context.Context, arg database.UpdateReplicaP
 	return q.db.UpdateReplica(ctx, arg)
 }
 
-func (q *querier) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) (database.Template, error) {
-	// UpdateTemplateACL uses the ActionCreate action. Only users that can create the template
-	// may update the ACL.
+func (q *querier) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateTemplateACLByIDParams) (database.Template, error) {
 		return q.db.GetTemplateByID(ctx, arg.ID)
 	}
-	return fetchAndQuery(q.log, q.auth, rbac.ActionCreate, fetch, q.db.UpdateTemplateACLByID)(ctx, arg)
+	// UpdateTemplateACL uses the ActionCreate action. Only users that can create the template
+	// may update the ACL.
+	return fetchAndExec(q.log, q.auth, rbac.ActionCreate, fetch, q.db.UpdateTemplateACLByID)(ctx, arg)
 }
 
 func (q *querier) UpdateTemplateActiveVersionByID(ctx context.Context, arg database.UpdateTemplateActiveVersionByIDParams) error {
@@ -2155,18 +2158,18 @@ func (q *querier) UpdateTemplateDeletedByID(ctx context.Context, arg database.Up
 	return q.SoftDeleteTemplateByID(ctx, arg.ID)
 }
 
-func (q *querier) UpdateTemplateMetaByID(ctx context.Context, arg database.UpdateTemplateMetaByIDParams) (database.Template, error) {
+func (q *querier) UpdateTemplateMetaByID(ctx context.Context, arg database.UpdateTemplateMetaByIDParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateTemplateMetaByIDParams) (database.Template, error) {
 		return q.db.GetTemplateByID(ctx, arg.ID)
 	}
-	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateTemplateMetaByID)(ctx, arg)
+	return update(q.log, q.auth, fetch, q.db.UpdateTemplateMetaByID)(ctx, arg)
 }
 
-func (q *querier) UpdateTemplateScheduleByID(ctx context.Context, arg database.UpdateTemplateScheduleByIDParams) (database.Template, error) {
+func (q *querier) UpdateTemplateScheduleByID(ctx context.Context, arg database.UpdateTemplateScheduleByIDParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateTemplateScheduleByIDParams) (database.Template, error) {
 		return q.db.GetTemplateByID(ctx, arg.ID)
 	}
-	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateTemplateScheduleByID)(ctx, arg)
+	return update(q.log, q.auth, fetch, q.db.UpdateTemplateScheduleByID)(ctx, arg)
 }
 
 func (q *querier) UpdateTemplateVersionByID(ctx context.Context, arg database.UpdateTemplateVersionByIDParams) (database.TemplateVersion, error) {

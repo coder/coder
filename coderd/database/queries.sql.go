@@ -3638,9 +3638,9 @@ func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg GetTem
 
 const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl, locked_ttl, restart_requirement_days_of_week, restart_requirement_weeks
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl, locked_ttl, restart_requirement_days_of_week, restart_requirement_weeks, created_by_avatar_url, created_by_username
 FROM
-	templates
+	template_with_users
 WHERE
 	id = $1
 LIMIT
@@ -3675,15 +3675,17 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.LockedTTL,
 		&i.RestartRequirementDaysOfWeek,
 		&i.RestartRequirementWeeks,
+		&i.CreatedByAvatarURL,
+		&i.CreatedByUsername,
 	)
 	return i, err
 }
 
 const getTemplateByOrganizationAndName = `-- name: GetTemplateByOrganizationAndName :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl, locked_ttl, restart_requirement_days_of_week, restart_requirement_weeks
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl, locked_ttl, restart_requirement_days_of_week, restart_requirement_weeks, created_by_avatar_url, created_by_username
 FROM
-	templates
+	template_with_users AS templates
 WHERE
 	organization_id = $1
 	AND deleted = $2
@@ -3726,12 +3728,14 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.LockedTTL,
 		&i.RestartRequirementDaysOfWeek,
 		&i.RestartRequirementWeeks,
+		&i.CreatedByAvatarURL,
+		&i.CreatedByUsername,
 	)
 	return i, err
 }
 
 const getTemplates = `-- name: GetTemplates :many
-SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl, locked_ttl, restart_requirement_days_of_week, restart_requirement_weeks FROM templates
+SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl, locked_ttl, restart_requirement_days_of_week, restart_requirement_weeks, created_by_avatar_url, created_by_username FROM template_with_users AS templates
 ORDER BY (name, id) ASC
 `
 
@@ -3769,6 +3773,8 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.LockedTTL,
 			&i.RestartRequirementDaysOfWeek,
 			&i.RestartRequirementWeeks,
+			&i.CreatedByAvatarURL,
+			&i.CreatedByUsername,
 		); err != nil {
 			return nil, err
 		}
@@ -3785,9 +3791,9 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 
 const getTemplatesWithFilter = `-- name: GetTemplatesWithFilter :many
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl, locked_ttl, restart_requirement_days_of_week, restart_requirement_weeks
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl, locked_ttl, restart_requirement_days_of_week, restart_requirement_weeks, created_by_avatar_url, created_by_username
 FROM
-	templates
+	template_with_users AS templates
 WHERE
 	-- Optionally include deleted templates
 	templates.deleted = $1
@@ -3860,6 +3866,8 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.LockedTTL,
 			&i.RestartRequirementDaysOfWeek,
 			&i.RestartRequirementWeeks,
+			&i.CreatedByAvatarURL,
+			&i.CreatedByUsername,
 		); err != nil {
 			return nil, err
 		}
@@ -3874,7 +3882,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 	return items, nil
 }
 
-const insertTemplate = `-- name: InsertTemplate :one
+const insertTemplate = `-- name: InsertTemplate :exec
 INSERT INTO
 	templates (
 		id,
@@ -3893,7 +3901,7 @@ INSERT INTO
 		allow_user_cancel_workspace_jobs
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl, locked_ttl, restart_requirement_days_of_week, restart_requirement_weeks
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 `
 
 type InsertTemplateParams struct {
@@ -3913,8 +3921,8 @@ type InsertTemplateParams struct {
 	AllowUserCancelWorkspaceJobs bool            `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
 }
 
-func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParams) (Template, error) {
-	row := q.db.QueryRowContext(ctx, insertTemplate,
+func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParams) error {
+	_, err := q.db.ExecContext(ctx, insertTemplate,
 		arg.ID,
 		arg.CreatedAt,
 		arg.UpdatedAt,
@@ -3930,37 +3938,10 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		arg.DisplayName,
 		arg.AllowUserCancelWorkspaceJobs,
 	)
-	var i Template
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.OrganizationID,
-		&i.Deleted,
-		&i.Name,
-		&i.Provisioner,
-		&i.ActiveVersionID,
-		&i.Description,
-		&i.DefaultTTL,
-		&i.CreatedBy,
-		&i.Icon,
-		&i.UserACL,
-		&i.GroupACL,
-		&i.DisplayName,
-		&i.AllowUserCancelWorkspaceJobs,
-		&i.MaxTTL,
-		&i.AllowUserAutostart,
-		&i.AllowUserAutostop,
-		&i.FailureTTL,
-		&i.InactivityTTL,
-		&i.LockedTTL,
-		&i.RestartRequirementDaysOfWeek,
-		&i.RestartRequirementWeeks,
-	)
-	return i, err
+	return err
 }
 
-const updateTemplateACLByID = `-- name: UpdateTemplateACLByID :one
+const updateTemplateACLByID = `-- name: UpdateTemplateACLByID :exec
 UPDATE
 	templates
 SET
@@ -3968,8 +3949,6 @@ SET
 	user_acl = $2
 WHERE
 	id = $3
-RETURNING
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl, locked_ttl, restart_requirement_days_of_week, restart_requirement_weeks
 `
 
 type UpdateTemplateACLByIDParams struct {
@@ -3978,36 +3957,9 @@ type UpdateTemplateACLByIDParams struct {
 	ID       uuid.UUID   `db:"id" json:"id"`
 }
 
-func (q *sqlQuerier) UpdateTemplateACLByID(ctx context.Context, arg UpdateTemplateACLByIDParams) (Template, error) {
-	row := q.db.QueryRowContext(ctx, updateTemplateACLByID, arg.GroupACL, arg.UserACL, arg.ID)
-	var i Template
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.OrganizationID,
-		&i.Deleted,
-		&i.Name,
-		&i.Provisioner,
-		&i.ActiveVersionID,
-		&i.Description,
-		&i.DefaultTTL,
-		&i.CreatedBy,
-		&i.Icon,
-		&i.UserACL,
-		&i.GroupACL,
-		&i.DisplayName,
-		&i.AllowUserCancelWorkspaceJobs,
-		&i.MaxTTL,
-		&i.AllowUserAutostart,
-		&i.AllowUserAutostop,
-		&i.FailureTTL,
-		&i.InactivityTTL,
-		&i.LockedTTL,
-		&i.RestartRequirementDaysOfWeek,
-		&i.RestartRequirementWeeks,
-	)
-	return i, err
+func (q *sqlQuerier) UpdateTemplateACLByID(ctx context.Context, arg UpdateTemplateACLByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateTemplateACLByID, arg.GroupACL, arg.UserACL, arg.ID)
+	return err
 }
 
 const updateTemplateActiveVersionByID = `-- name: UpdateTemplateActiveVersionByID :exec
@@ -4052,7 +4004,7 @@ func (q *sqlQuerier) UpdateTemplateDeletedByID(ctx context.Context, arg UpdateTe
 	return err
 }
 
-const updateTemplateMetaByID = `-- name: UpdateTemplateMetaByID :one
+const updateTemplateMetaByID = `-- name: UpdateTemplateMetaByID :exec
 UPDATE
 	templates
 SET
@@ -4064,8 +4016,6 @@ SET
 	allow_user_cancel_workspace_jobs = $7
 WHERE
 	id = $1
-RETURNING
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl, locked_ttl, restart_requirement_days_of_week, restart_requirement_weeks
 `
 
 type UpdateTemplateMetaByIDParams struct {
@@ -4078,8 +4028,8 @@ type UpdateTemplateMetaByIDParams struct {
 	AllowUserCancelWorkspaceJobs bool      `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
 }
 
-func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTemplateMetaByIDParams) (Template, error) {
-	row := q.db.QueryRowContext(ctx, updateTemplateMetaByID,
+func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTemplateMetaByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateTemplateMetaByID,
 		arg.ID,
 		arg.UpdatedAt,
 		arg.Description,
@@ -4088,37 +4038,10 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		arg.DisplayName,
 		arg.AllowUserCancelWorkspaceJobs,
 	)
-	var i Template
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.OrganizationID,
-		&i.Deleted,
-		&i.Name,
-		&i.Provisioner,
-		&i.ActiveVersionID,
-		&i.Description,
-		&i.DefaultTTL,
-		&i.CreatedBy,
-		&i.Icon,
-		&i.UserACL,
-		&i.GroupACL,
-		&i.DisplayName,
-		&i.AllowUserCancelWorkspaceJobs,
-		&i.MaxTTL,
-		&i.AllowUserAutostart,
-		&i.AllowUserAutostop,
-		&i.FailureTTL,
-		&i.InactivityTTL,
-		&i.LockedTTL,
-		&i.RestartRequirementDaysOfWeek,
-		&i.RestartRequirementWeeks,
-	)
-	return i, err
+	return err
 }
 
-const updateTemplateScheduleByID = `-- name: UpdateTemplateScheduleByID :one
+const updateTemplateScheduleByID = `-- name: UpdateTemplateScheduleByID :exec
 UPDATE
 	templates
 SET
@@ -4134,8 +4057,6 @@ SET
 	locked_ttl = $11
 WHERE
 	id = $1
-RETURNING
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl, locked_ttl, restart_requirement_days_of_week, restart_requirement_weeks
 `
 
 type UpdateTemplateScheduleByIDParams struct {
@@ -4152,8 +4073,8 @@ type UpdateTemplateScheduleByIDParams struct {
 	LockedTTL                    int64     `db:"locked_ttl" json:"locked_ttl"`
 }
 
-func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateTemplateScheduleByIDParams) (Template, error) {
-	row := q.db.QueryRowContext(ctx, updateTemplateScheduleByID,
+func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateTemplateScheduleByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateTemplateScheduleByID,
 		arg.ID,
 		arg.UpdatedAt,
 		arg.AllowUserAutostart,
@@ -4166,34 +4087,7 @@ func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateT
 		arg.InactivityTTL,
 		arg.LockedTTL,
 	)
-	var i Template
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.OrganizationID,
-		&i.Deleted,
-		&i.Name,
-		&i.Provisioner,
-		&i.ActiveVersionID,
-		&i.Description,
-		&i.DefaultTTL,
-		&i.CreatedBy,
-		&i.Icon,
-		&i.UserACL,
-		&i.GroupACL,
-		&i.DisplayName,
-		&i.AllowUserCancelWorkspaceJobs,
-		&i.MaxTTL,
-		&i.AllowUserAutostart,
-		&i.AllowUserAutostop,
-		&i.FailureTTL,
-		&i.InactivityTTL,
-		&i.LockedTTL,
-		&i.RestartRequirementDaysOfWeek,
-		&i.RestartRequirementWeeks,
-	)
-	return i, err
+	return err
 }
 
 const getTemplateVersionParameters = `-- name: GetTemplateVersionParameters :many

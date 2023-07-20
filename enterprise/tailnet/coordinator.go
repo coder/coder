@@ -56,7 +56,6 @@ func NewCoordinator(logger slog.Logger, ps pubsub.Pubsub) (agpl.Coordinator, err
 func (c *haCoordinator) ServeMultiAgent(id uuid.UUID) agpl.MultiAgentConn {
 	m := (&agpl.MultiAgent{
 		ID:                id,
-		Logger:            c.log,
 		AgentIsLegacyFunc: c.agentIsLegacy,
 		OnSubscribe:       c.clientSubscribeToAgent,
 		OnNodeUpdate:      c.clientNodeUpdate,

@@ -74,6 +74,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"restart_requirement_days_of_week": ActionTrack,
 		"restart_requirement_weeks":        ActionTrack,
 		"created_by":                       ActionTrack,
+		"created_by_username":              ActionIgnore,
+		"created_by_avatar_url":            ActionIgnore,
 		"group_acl":                        ActionTrack,
 		"user_acl":                         ActionTrack,
 		"allow_user_autostart":             ActionTrack,

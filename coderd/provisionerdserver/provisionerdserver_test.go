@@ -1036,7 +1036,7 @@ func TestCompleteJob(t *testing.T) {
 					Name:        "template",
 					Provisioner: database.ProvisionerTypeEcho,
 				})
-				template, err := srv.Database.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+				err := srv.Database.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 					ID:                 template.ID,
 					UpdatedAt:          database.Now(),
 					AllowUserAutostart: c.templateAllowAutostop,
@@ -1273,7 +1273,7 @@ func TestCompleteJob(t *testing.T) {
 					Name:        "template",
 					Provisioner: database.ProvisionerTypeEcho,
 				})
-				template, err := srv.Database.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+				err := srv.Database.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 					ID:                           template.ID,
 					UpdatedAt:                    database.Now(),
 					AllowUserAutostart:           false,
@@ -1282,6 +1282,8 @@ func TestCompleteJob(t *testing.T) {
 					RestartRequirementDaysOfWeek: int16(c.templateRestartRequirement.DaysOfWeek),
 					RestartRequirementWeeks:      c.templateRestartRequirement.Weeks,
 				})
+				require.NoError(t, err)
+				template, err = srv.Database.GetTemplateByID(ctx, template.ID)
 				require.NoError(t, err)
 				file := dbgen.File(t, srv.Database, database.File{CreatedBy: user.ID})
 				workspaceTTL := sql.NullInt64{}

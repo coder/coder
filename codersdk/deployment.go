@@ -121,6 +121,7 @@ type DeploymentValues struct {
 	Verbose             clibase.Bool `json:"verbose,omitempty"`
 	AccessURL           clibase.URL  `json:"access_url,omitempty"`
 	WildcardAccessURL   clibase.URL  `json:"wildcard_access_url,omitempty"`
+	DocsURL             clibase.URL  `json:"docs_url,omitempty"`
 	RedirectToAccessURL clibase.Bool `json:"redirect_to_access_url,omitempty"`
 	// HTTPAddress is a string because it may be set to zero to disable.
 	HTTPAddress                     clibase.String                  `json:"http_address,omitempty" typescript:",notnull"`
@@ -546,6 +547,16 @@ when required by your organization's security policy.`,
 			Value:       &c.WildcardAccessURL,
 			Group:       &deploymentGroupNetworking,
 			YAML:        "wildcardAccessURL",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+		},
+		{
+			Name:        "Docs URL",
+			Description: "Specifies the custom docs URL.",
+			Value:       &c.DocsURL,
+			Flag:        "docs-url",
+			Env:         "CODER_DOCS_URL",
+			Group:       &deploymentGroupNetworking,
+			YAML:        "docsURL",
 			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		redirectToAccessURL,

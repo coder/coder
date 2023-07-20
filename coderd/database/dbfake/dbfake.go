@@ -58,7 +58,7 @@ func New() database.Store {
 			workspaceResourceMetadata: make([]database.WorkspaceResourceMetadatum, 0),
 			provisionerJobs:           make([]database.ProvisionerJob, 0),
 			templateVersions:          make([]database.TemplateVersion, 0),
-			templates:                 make([]database.Template, 0),
+			templates:                 make([]database.TemplateTable, 0),
 			workspaceAgentStats:       make([]database.WorkspaceAgentStat, 0),
 			workspaceAgentLogs:        make([]database.WorkspaceAgentStartupLog, 0),
 			workspaceBuilds:           make([]database.WorkspaceBuild, 0),
@@ -130,7 +130,7 @@ type data struct {
 	templateVersions          []database.TemplateVersion
 	templateVersionParameters []database.TemplateVersionParameter
 	templateVersionVariables  []database.TemplateVersionVariable
-	templates                 []database.Template
+	templates                 []database.TemplateTable
 	workspaceAgents           []database.WorkspaceAgent
 	workspaceAgentMetadata    []database.WorkspaceAgentMetadatum
 	workspaceAgentLogs        []database.WorkspaceAgentStartupLog
@@ -446,10 +446,35 @@ func (q *FakeQuerier) getLatestWorkspaceBuildByWorkspaceIDNoLock(_ context.Conte
 func (q *FakeQuerier) getTemplateByIDNoLock(_ context.Context, id uuid.UUID) (database.Template, error) {
 	for _, template := range q.templates {
 		if template.ID == id {
-			return template.DeepCopy(), nil
+			return q.templateWithUserNoLock(template), nil
 		}
 	}
 	return database.Template{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) templatesWithUserNoLock(tpl []database.TemplateTable) []database.Template {
+	cpy := make([]database.Template, 0, len(tpl))
+	for _, t := range tpl {
+		cpy = append(cpy, q.templateWithUserNoLock(t))
+	}
+	return cpy
+}
+
+func (q *FakeQuerier) templateWithUserNoLock(tpl database.TemplateTable) database.Template {
+	var user database.User
+	for _, _user := range q.users {
+		if _user.ID == tpl.CreatedBy {
+			user = _user
+			break
+		}
+	}
+	var withUser database.Template
+	// This is a cheeky way to copy the fields over without explicitly listing them all.
+	d, _ := json.Marshal(tpl)
+	_ = json.Unmarshal(d, &withUser)
+	withUser.CreatedByUsername = user.Username
+	withUser.CreatedByAvatarURL = user.AvatarURL.String
+	return withUser
 }
 
 func (q *FakeQuerier) getTemplateVersionByIDNoLock(_ context.Context, templateVersionID uuid.UUID) (database.TemplateVersion, error) {
@@ -1869,7 +1894,7 @@ func (q *FakeQuerier) GetTemplateByOrganizationAndName(_ context.Context, arg da
 		if template.Deleted != arg.Deleted {
 			continue
 		}
-		return template.DeepCopy(), nil
+		return q.templateWithUserNoLock(template), nil
 	}
 	return database.Template{}, sql.ErrNoRows
 }
@@ -2092,17 +2117,14 @@ func (q *FakeQuerier) GetTemplates(_ context.Context) ([]database.Template, erro
 	defer q.mutex.RUnlock()
 
 	templates := slices.Clone(q.templates)
-	for i := range templates {
-		templates[i] = templates[i].DeepCopy()
-	}
-	slices.SortFunc(templates, func(i, j database.Template) bool {
+	slices.SortFunc(templates, func(i, j database.TemplateTable) bool {
 		if i.Name != j.Name {
 			return i.Name < j.Name
 		}
 		return i.ID.String() < j.ID.String()
 	})
 
-	return templates, nil
+	return q.templatesWithUserNoLock(templates), nil
 }
 
 func (q *FakeQuerier) GetTemplatesWithFilter(ctx context.Context, arg database.GetTemplatesWithFilterParams) ([]database.Template, error) {
@@ -3436,16 +3458,16 @@ func (q *FakeQuerier) InsertReplica(_ context.Context, arg database.InsertReplic
 	return replica, nil
 }
 
-func (q *FakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTemplateParams) (database.Template, error) {
+func (q *FakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTemplateParams) error {
 	if err := validateDatabaseType(arg); err != nil {
-		return database.Template{}, err
+		return err
 	}
 
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	//nolint:gosimple
-	template := database.Template{
+	template := database.TemplateTable{
 		ID:                           arg.ID,
 		CreatedAt:                    arg.CreatedAt,
 		UpdatedAt:                    arg.UpdatedAt,
@@ -3464,7 +3486,7 @@ func (q *FakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 		AllowUserAutostop:            true,
 	}
 	q.templates = append(q.templates, template)
-	return template.DeepCopy(), nil
+	return nil
 }
 
 func (q *FakeQuerier) InsertTemplateVersion(_ context.Context, arg database.InsertTemplateVersionParams) (database.TemplateVersion, error) {
@@ -4172,9 +4194,9 @@ func (q *FakeQuerier) UpdateReplica(_ context.Context, arg database.UpdateReplic
 	return database.Replica{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateTemplateACLByID(_ context.Context, arg database.UpdateTemplateACLByIDParams) (database.Template, error) {
+func (q *FakeQuerier) UpdateTemplateACLByID(_ context.Context, arg database.UpdateTemplateACLByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
-		return database.Template{}, err
+		return err
 	}
 
 	q.mutex.Lock()
@@ -4186,11 +4208,11 @@ func (q *FakeQuerier) UpdateTemplateACLByID(_ context.Context, arg database.Upda
 			template.UserACL = arg.UserACL
 
 			q.templates[i] = template
-			return template.DeepCopy(), nil
+			return nil
 		}
 	}
 
-	return database.Template{}, sql.ErrNoRows
+	return sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateTemplateActiveVersionByID(_ context.Context, arg database.UpdateTemplateActiveVersionByIDParams) error {
@@ -4233,9 +4255,9 @@ func (q *FakeQuerier) UpdateTemplateDeletedByID(_ context.Context, arg database.
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.UpdateTemplateMetaByIDParams) (database.Template, error) {
+func (q *FakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.UpdateTemplateMetaByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
-		return database.Template{}, err
+		return err
 	}
 
 	q.mutex.Lock()
@@ -4251,15 +4273,15 @@ func (q *FakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 		tpl.Description = arg.Description
 		tpl.Icon = arg.Icon
 		q.templates[idx] = tpl
-		return tpl.DeepCopy(), nil
+		return nil
 	}
 
-	return database.Template{}, sql.ErrNoRows
+	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database.UpdateTemplateScheduleByIDParams) (database.Template, error) {
+func (q *FakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database.UpdateTemplateScheduleByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
-		return database.Template{}, err
+		return err
 	}
 
 	q.mutex.Lock()
@@ -4280,10 +4302,10 @@ func (q *FakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 		tpl.InactivityTTL = arg.InactivityTTL
 		tpl.LockedTTL = arg.LockedTTL
 		q.templates[idx] = tpl
-		return tpl.DeepCopy(), nil
+		return nil
 	}
 
-	return database.Template{}, sql.ErrNoRows
+	return sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateTemplateVersionByID(_ context.Context, arg database.UpdateTemplateVersionByIDParams) (database.TemplateVersion, error) {
@@ -4985,7 +5007,8 @@ func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.G
 	}
 
 	var templates []database.Template
-	for _, template := range q.templates {
+	for _, templateTable := range q.templates {
+		template := q.templateWithUserNoLock(templateTable)
 		if prepared != nil && prepared.Authorize(ctx, template.RBACObject()) != nil {
 			continue
 		}
@@ -5013,7 +5036,7 @@ func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.G
 				continue
 			}
 		}
-		templates = append(templates, template.DeepCopy())
+		templates = append(templates, template)
 	}
 	if len(templates) > 0 {
 		slices.SortFunc(templates, func(i, j database.Template) bool {
@@ -5032,7 +5055,7 @@ func (q *FakeQuerier) GetTemplateGroupRoles(_ context.Context, id uuid.UUID) ([]
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	var template database.Template
+	var template database.TemplateTable
 	for _, t := range q.templates {
 		if t.ID == id {
 			template = t
@@ -5069,7 +5092,7 @@ func (q *FakeQuerier) GetTemplateUserRoles(_ context.Context, id uuid.UUID) ([]d
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	var template database.Template
+	var template database.TemplateTable
 	for _, t := range q.templates {
 		if t.ID == id {
 			template = t

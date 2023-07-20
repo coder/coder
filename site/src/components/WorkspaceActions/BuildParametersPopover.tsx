@@ -20,6 +20,7 @@ import {
 } from "components/Tooltips/HelpTooltip/HelpTooltip"
 import { useFormik } from "formik"
 import { useRef, useState } from "react"
+import { docs } from "utils/docs"
 import { getFormHelpers } from "utils/formUtils"
 import { getInitialParameterValues } from "utils/richParameters"
 
@@ -118,7 +119,9 @@ export const BuildParametersPopover = ({
                   This template has no ephemeral build options.
                 </HelpTooltipText>
                 <HelpTooltipLinksGroup>
-                  <HelpTooltipLink href="https://coder.com/docs/v2/latest/templates/parameters#ephemeral-parameters">
+                  <HelpTooltipLink
+                    href={docs("/templates/parameters#ephemeral-parameters")}
+                  >
                     Read the docs
                   </HelpTooltipLink>
                 </HelpTooltipLinksGroup>

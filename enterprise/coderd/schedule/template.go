@@ -84,21 +84,36 @@ func (*EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.Sto
 		return database.Template{}, err
 	}
 
-	template, err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
-		ID:                           tpl.ID,
-		UpdatedAt:                    database.Now(),
-		AllowUserAutostart:           opts.UserAutostartEnabled,
-		AllowUserAutostop:            opts.UserAutostopEnabled,
-		DefaultTTL:                   int64(opts.DefaultTTL),
-		MaxTTL:                       int64(opts.MaxTTL),
-		RestartRequirementDaysOfWeek: int16(opts.RestartRequirement.DaysOfWeek),
-		RestartRequirementWeeks:      opts.RestartRequirement.Weeks,
-		FailureTTL:                   int64(opts.FailureTTL),
-		InactivityTTL:                int64(opts.InactivityTTL),
-		LockedTTL:                    int64(opts.LockedTTL),
-	})
+	var template database.Template
+	err = db.InTx(func(db database.Store) error {
+		err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+			ID:                           tpl.ID,
+			UpdatedAt:                    database.Now(),
+			AllowUserAutostart:           opts.UserAutostartEnabled,
+			AllowUserAutostop:            opts.UserAutostopEnabled,
+			DefaultTTL:                   int64(opts.DefaultTTL),
+			MaxTTL:                       int64(opts.MaxTTL),
+			RestartRequirementDaysOfWeek: int16(opts.RestartRequirement.DaysOfWeek),
+			RestartRequirementWeeks:      opts.RestartRequirement.Weeks,
+			FailureTTL:                   int64(opts.FailureTTL),
+			InactivityTTL:                int64(opts.InactivityTTL),
+			LockedTTL:                    int64(opts.LockedTTL),
+		})
+		if err != nil {
+			return xerrors.Errorf("update template schedule: %w", err)
+		}
+
+		// TODO: update all workspace max_deadlines to be within new bounds
+
+		template, err = db.GetTemplateByID(ctx, tpl.ID)
+		if err != nil {
+			return xerrors.Errorf("get updated template schedule: %w", err)
+		}
+
+		return nil
+	}, nil)
 	if err != nil {
-		return database.Template{}, xerrors.Errorf("update template schedule: %w", err)
+		return database.Template{}, err
 	}
 
 	return template, nil

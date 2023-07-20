@@ -349,10 +349,13 @@ func TestCache_BuildTime(t *testing.T) {
 
 			defer cache.Close()
 
-			template, err := db.InsertTemplate(ctx, database.InsertTemplateParams{
-				ID:          uuid.New(),
+			id := uuid.New()
+			err := db.InsertTemplate(ctx, database.InsertTemplateParams{
+				ID:          id,
 				Provisioner: database.ProvisionerTypeEcho,
 			})
+			require.NoError(t, err)
+			template, err := db.GetTemplateByID(ctx, id)
 			require.NoError(t, err)
 
 			templateVersion, err := db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{

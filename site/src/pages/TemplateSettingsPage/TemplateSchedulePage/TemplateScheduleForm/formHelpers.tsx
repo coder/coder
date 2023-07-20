@@ -8,7 +8,7 @@ export interface TemplateScheduleFormValues extends UpdateTemplateMeta {
   locked_cleanup_enabled: boolean
 }
 
-const MAX_TTL_DAYS = 7
+const MAX_TTL_DAYS = 30
 
 export const getValidationSchema = (): Yup.AnyObjectSchema =>
   Yup.object({
@@ -21,7 +21,7 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
           .toString(),
       )
       .max(
-        24 * MAX_TTL_DAYS /* 7 days in hours */,
+        24 * MAX_TTL_DAYS /* 30 days in hours */,
         i18next
           .t("defaultTTLMaxError", { ns: "templateSettingsPage" })
           .toString(),
@@ -33,7 +33,7 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
         i18next.t("maxTTLMinError", { ns: "templateSettingsPage" }).toString(),
       )
       .max(
-        24 * MAX_TTL_DAYS /* 7 days in hours */,
+        24 * MAX_TTL_DAYS /* 30 days in hours */,
         i18next.t("maxTTLMaxError", { ns: "templateSettingsPage" }).toString(),
       ),
     failure_ttl_ms: Yup.number()

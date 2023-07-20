@@ -130,6 +130,37 @@ variable "coder_mem_limit" {
   default     = "1024Mi"
 }
 
+// Allow independently scaling provisionerd resources
+variable "provisionerd_cpu_request" {
+  description = "CPU request to allocate to provisionerd."
+  default     = "500m"
+}
+
+variable "provisionerd_mem_request" {
+  description = "Memory request to allocate to provisionerd."
+  default     = "512Mi"
+}
+
+variable "provisionerd_cpu_limit" {
+  description = "CPU limit to allocate to provisionerd."
+  default     = "1000m"
+}
+
+variable "provisionerd_mem_limit" {
+  description = "Memory limit to allocate to provisionerd."
+  default     = "1024Mi"
+}
+
+variable "provisionerd_replicas" {
+  description = "Number of Provisionerd replicas."
+  default     = 1
+}
+
+variable "provisionerd_concurrency" {
+  description = "Number of concurrent provisioner jobs per provisionerd instance."
+  default     = 3
+}
+
 variable "coder_chart_version" {
   description = "Version of the Coder Helm chart to install. Defaults to latest."
   default     = null

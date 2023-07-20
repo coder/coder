@@ -48,7 +48,7 @@ export const Language = {
   errorNoStop:
     "Time until shutdown must be greater than zero when autostop is enabled.",
   errorTtlMax:
-    "Please enter a limit that is less than or equal to 168 hours (7 days).",
+    "Please enter a limit that is less than or equal to 720 hours (30 days).",
   daysOfWeekLabel: "Days of Week",
   daySundayLabel: "Sun",
   dayMondayLabel: "Mon",
@@ -172,7 +172,7 @@ export const validationSchema = Yup.object({
   ttl: Yup.number()
     .integer()
     .min(0)
-    .max(24 * 7 /* 7 days */, Language.errorTtlMax)
+    .max(24 * 30 /* 30 days */, Language.errorTtlMax)
     .test("positive-if-autostop", Language.errorNoStop, function (value) {
       const parent = this.parent as WorkspaceScheduleFormValues
       if (parent.autostopEnabled) {

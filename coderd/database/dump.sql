@@ -585,15 +585,6 @@ COMMENT ON COLUMN templates.restart_requirement_days_of_week IS 'A bitmap of day
 
 COMMENT ON COLUMN templates.restart_requirement_weeks IS 'The number of weeks between restarts. 0 or 1 weeks means "every week", 2 week means "every second week", etc. Weeks are counted from January 2, 2023, which is the first Monday of 2023. This is to ensure workspaces are started consistently for all customers on the same n-week cycles.';
 
-CREATE TABLE user_links (
-    user_id uuid NOT NULL,
-    login_type login_type NOT NULL,
-    linked_id text DEFAULT ''::text NOT NULL,
-    oauth_access_token text DEFAULT ''::text NOT NULL,
-    oauth_refresh_token text DEFAULT ''::text NOT NULL,
-    oauth_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
-);
-
 CREATE TABLE users (
     id uuid NOT NULL,
     email text NOT NULL,
@@ -611,6 +602,55 @@ CREATE TABLE users (
 );
 
 COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user''s quiet hours. If empty, the default quiet hours on the instance is used instead.';
+
+CREATE VIEW visible_users AS
+ SELECT users.id,
+    users.username,
+    users.avatar_url
+   FROM users;
+
+COMMENT ON VIEW visible_users IS 'Visible fields of users are allowed to be joined with other tables for including context of other resources.';
+
+CREATE VIEW template_with_users AS
+ SELECT templates.id,
+    templates.created_at,
+    templates.updated_at,
+    templates.organization_id,
+    templates.deleted,
+    templates.name,
+    templates.provisioner,
+    templates.active_version_id,
+    templates.description,
+    templates.default_ttl,
+    templates.created_by,
+    templates.icon,
+    templates.user_acl,
+    templates.group_acl,
+    templates.display_name,
+    templates.allow_user_cancel_workspace_jobs,
+    templates.max_ttl,
+    templates.allow_user_autostart,
+    templates.allow_user_autostop,
+    templates.failure_ttl,
+    templates.inactivity_ttl,
+    templates.locked_ttl,
+    templates.restart_requirement_days_of_week,
+    templates.restart_requirement_weeks,
+    COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
+    COALESCE(visible_users.username, ''::text) AS created_by_username
+   FROM (public.templates
+     LEFT JOIN visible_users ON ((templates.created_by = visible_users.id)));
+
+COMMENT ON VIEW template_with_users IS 'Joins in the username + avatar url of the created by user.';
+
+CREATE TABLE user_links (
+    user_id uuid NOT NULL,
+    login_type login_type NOT NULL,
+    linked_id text DEFAULT ''::text NOT NULL,
+    oauth_access_token text DEFAULT ''::text NOT NULL,
+    oauth_refresh_token text DEFAULT ''::text NOT NULL,
+    oauth_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
+);
 
 CREATE UNLOGGED TABLE workspace_agent_metadata (
     workspace_agent_id uuid NOT NULL,

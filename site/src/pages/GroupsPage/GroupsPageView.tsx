@@ -22,6 +22,7 @@ import { Link as RouterLink, useNavigate } from "react-router-dom"
 import { Paywall } from "components/Paywall/Paywall"
 import { Group } from "api/typesGenerated"
 import { GroupAvatar } from "components/GroupAvatar/GroupAvatar"
+import { docs } from "utils/docs"
 
 export type GroupsPageViewProps = {
   groups: Group[] | undefined
@@ -49,7 +50,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
             cta={
               <Stack direction="row" alignItems="center">
                 <Button
-                  href="https://coder.com/docs/coder-oss/latest/enterprise"
+                  href={docs("/enterprise")}
                   target="_blank"
                   rel="noreferrer"
                   startIcon={<ArrowRightAltOutlined />}
@@ -59,7 +60,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
                 </Button>
 
                 <Link
-                  href="https://coder.com/docs/coder-oss/latest/admin/groups"
+                  href={docs("/admin/groups")}
                   target="_blank"
                   rel="noreferrer"
                 >

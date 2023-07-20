@@ -153,19 +153,37 @@ func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tp
 		return tpl, nil
 	}
 
-	return db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
-		ID:         tpl.ID,
-		UpdatedAt:  database.Now(),
-		DefaultTTL: int64(opts.DefaultTTL),
-		// Don't allow changing these settings, but keep the value in the DB (to
-		// avoid clearing settings if the license has an issue).
-		MaxTTL:                       tpl.MaxTTL,
-		RestartRequirementDaysOfWeek: tpl.RestartRequirementDaysOfWeek,
-		RestartRequirementWeeks:      tpl.RestartRequirementWeeks,
-		AllowUserAutostart:           tpl.AllowUserAutostart,
-		AllowUserAutostop:            tpl.AllowUserAutostop,
-		FailureTTL:                   tpl.FailureTTL,
-		InactivityTTL:                tpl.InactivityTTL,
-		LockedTTL:                    tpl.LockedTTL,
-	})
+	var template database.Template
+	err := db.InTx(func(db database.Store) error {
+		err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+			ID:         tpl.ID,
+			UpdatedAt:  database.Now(),
+			DefaultTTL: int64(opts.DefaultTTL),
+			// Don't allow changing these settings, but keep the value in the DB (to
+			// avoid clearing settings if the license has an issue).
+			MaxTTL:                       tpl.MaxTTL,
+			RestartRequirementDaysOfWeek: tpl.RestartRequirementDaysOfWeek,
+			RestartRequirementWeeks:      tpl.RestartRequirementWeeks,
+			AllowUserAutostart:           tpl.AllowUserAutostart,
+			AllowUserAutostop:            tpl.AllowUserAutostop,
+			FailureTTL:                   tpl.FailureTTL,
+			InactivityTTL:                tpl.InactivityTTL,
+			LockedTTL:                    tpl.LockedTTL,
+		})
+		if err != nil {
+			return xerrors.Errorf("update template schedule: %w", err)
+		}
+
+		template, err = db.GetTemplateByID(ctx, tpl.ID)
+		if err != nil {
+			return xerrors.Errorf("fetch updated template: %w", err)
+		}
+
+		return nil
+	}, nil)
+	if err != nil {
+		return database.Template{}, err
+	}
+
+	return template, err
 }

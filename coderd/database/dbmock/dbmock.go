@@ -2318,12 +2318,11 @@ func (mr *MockStoreMockRecorder) InsertReplica(arg0, arg1 interface{}) *gomock.C
 }
 
 // InsertTemplate mocks base method.
-func (m *MockStore) InsertTemplate(arg0 context.Context, arg1 database.InsertTemplateParams) (database.Template, error) {
+func (m *MockStore) InsertTemplate(arg0 context.Context, arg1 database.InsertTemplateParams) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertTemplate", arg0, arg1)
-	ret0, _ := ret[0].(database.Template)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // InsertTemplate indicates an expected call of InsertTemplate.
@@ -2761,12 +2760,11 @@ func (mr *MockStoreMockRecorder) UpdateReplica(arg0, arg1 interface{}) *gomock.C
 }
 
 // UpdateTemplateACLByID mocks base method.
-func (m *MockStore) UpdateTemplateACLByID(arg0 context.Context, arg1 database.UpdateTemplateACLByIDParams) (database.Template, error) {
+func (m *MockStore) UpdateTemplateACLByID(arg0 context.Context, arg1 database.UpdateTemplateACLByIDParams) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateTemplateACLByID", arg0, arg1)
-	ret0, _ := ret[0].(database.Template)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // UpdateTemplateACLByID indicates an expected call of UpdateTemplateACLByID.
@@ -2804,12 +2802,11 @@ func (mr *MockStoreMockRecorder) UpdateTemplateDeletedByID(arg0, arg1 interface{
 }
 
 // UpdateTemplateMetaByID mocks base method.
-func (m *MockStore) UpdateTemplateMetaByID(arg0 context.Context, arg1 database.UpdateTemplateMetaByIDParams) (database.Template, error) {
+func (m *MockStore) UpdateTemplateMetaByID(arg0 context.Context, arg1 database.UpdateTemplateMetaByIDParams) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateTemplateMetaByID", arg0, arg1)
-	ret0, _ := ret[0].(database.Template)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // UpdateTemplateMetaByID indicates an expected call of UpdateTemplateMetaByID.
@@ -2819,12 +2816,11 @@ func (mr *MockStoreMockRecorder) UpdateTemplateMetaByID(arg0, arg1 interface{}) 
 }
 
 // UpdateTemplateScheduleByID mocks base method.
-func (m *MockStore) UpdateTemplateScheduleByID(arg0 context.Context, arg1 database.UpdateTemplateScheduleByIDParams) (database.Template, error) {
+func (m *MockStore) UpdateTemplateScheduleByID(arg0 context.Context, arg1 database.UpdateTemplateScheduleByIDParams) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateTemplateScheduleByID", arg0, arg1)
-	ret0, _ := ret[0].(database.Template)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // UpdateTemplateScheduleByID indicates an expected call of UpdateTemplateScheduleByID.

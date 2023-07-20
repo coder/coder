@@ -260,7 +260,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 						assert.Zero(t, options.RestartRequirement.DaysOfWeek)
 						assert.Zero(t, options.RestartRequirement.Weeks)
 
-						return db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+						err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 							ID:                           template.ID,
 							UpdatedAt:                    database.Now(),
 							AllowUserAutostart:           options.UserAutostartEnabled,
@@ -273,6 +273,11 @@ func TestPostTemplateByOrganization(t *testing.T) {
 							InactivityTTL:                int64(options.InactivityTTL),
 							LockedTTL:                    int64(options.LockedTTL),
 						})
+						if !assert.NoError(t, err) {
+							return database.Template{}, err
+						}
+
+						return db.GetTemplateByID(ctx, template.ID)
 					},
 				},
 			})
@@ -305,7 +310,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 						assert.EqualValues(t, 0b00110000, options.RestartRequirement.DaysOfWeek)
 						assert.EqualValues(t, 2, options.RestartRequirement.Weeks)
 
-						return db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+						err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 							ID:                           template.ID,
 							UpdatedAt:                    database.Now(),
 							AllowUserAutostart:           options.UserAutostartEnabled,
@@ -318,6 +323,11 @@ func TestPostTemplateByOrganization(t *testing.T) {
 							InactivityTTL:                int64(options.InactivityTTL),
 							LockedTTL:                    int64(options.LockedTTL),
 						})
+						if !assert.NoError(t, err) {
+							return database.Template{}, err
+						}
+
+						return db.GetTemplateByID(ctx, template.ID)
 					},
 				},
 			})
@@ -578,7 +588,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 							require.Equal(t, maxTTL, options.MaxTTL)
 						}
 
-						return db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+						err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 							ID:                           template.ID,
 							UpdatedAt:                    database.Now(),
 							AllowUserAutostart:           options.UserAutostartEnabled,
@@ -591,6 +601,11 @@ func TestPatchTemplateMeta(t *testing.T) {
 							InactivityTTL:                int64(options.InactivityTTL),
 							LockedTTL:                    int64(options.LockedTTL),
 						})
+						if !assert.NoError(t, err) {
+							return database.Template{}, err
+						}
+
+						return db.GetTemplateByID(ctx, template.ID)
 					},
 				},
 			})
@@ -964,7 +979,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 							assert.EqualValues(t, 2, options.RestartRequirement.Weeks)
 						}
 
-						return db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+						err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 							ID:                           template.ID,
 							UpdatedAt:                    database.Now(),
 							AllowUserAutostart:           options.UserAutostartEnabled,
@@ -977,6 +992,11 @@ func TestPatchTemplateMeta(t *testing.T) {
 							InactivityTTL:                int64(options.InactivityTTL),
 							LockedTTL:                    int64(options.LockedTTL),
 						})
+						if !assert.NoError(t, err) {
+							return database.Template{}, err
+						}
+
+						return db.GetTemplateByID(ctx, template.ID)
 					},
 				},
 			})
@@ -1028,7 +1048,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 							assert.EqualValues(t, 0, options.RestartRequirement.Weeks)
 						}
 
-						return db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+						err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 							ID:                           template.ID,
 							UpdatedAt:                    database.Now(),
 							AllowUserAutostart:           options.UserAutostartEnabled,
@@ -1041,6 +1061,11 @@ func TestPatchTemplateMeta(t *testing.T) {
 							InactivityTTL:                int64(options.InactivityTTL),
 							LockedTTL:                    int64(options.LockedTTL),
 						})
+						if !assert.NoError(t, err) {
+							return database.Template{}, err
+						}
+
+						return db.GetTemplateByID(ctx, template.ID)
 					},
 				},
 			})

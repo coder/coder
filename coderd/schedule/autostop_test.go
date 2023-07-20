@@ -453,13 +453,15 @@ func TestCalculateAutoStop(t *testing.T) {
 				OrganizationID: org.ID,
 				CreatedBy:      user.ID,
 			})
-			template, err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+			err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 				ID:                           template.ID,
 				UpdatedAt:                    database.Now(),
 				AllowUserAutostart:           c.templateAllowAutostop,
 				RestartRequirementDaysOfWeek: int16(c.templateRestartRequirement.DaysOfWeek),
 				RestartRequirementWeeks:      c.templateRestartRequirement.Weeks,
 			})
+			require.NoError(t, err)
+			template, err = db.GetTemplateByID(ctx, template.ID)
 			require.NoError(t, err)
 			workspaceTTL := sql.NullInt64{}
 			if c.workspaceTTL != 0 {
