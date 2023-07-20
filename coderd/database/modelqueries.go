@@ -83,6 +83,8 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 			&i.FailureTTL,
 			&i.InactivityTTL,
 			&i.LockedTTL,
+			&i.RestartRequirementDaysOfWeek,
+			&i.RestartRequirementWeeks,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {
@@ -304,6 +306,7 @@ func (q *sqlQuerier) GetAuthorizedUsers(ctx context.Context, arg GetUsersParams,
 			&i.AvatarURL,
 			&i.Deleted,
 			&i.LastSeenAt,
+			&i.QuietHoursSchedule,
 			&i.Count,
 		); err != nil {
 			return nil, err

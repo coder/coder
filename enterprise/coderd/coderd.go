@@ -22,10 +22,11 @@ import (
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/schedule"
+	agplschedule "github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/enterprise/coderd/proxyhealth"
+	"github.com/coder/coder/enterprise/coderd/schedule"
 	"github.com/coder/coder/enterprise/derpmesh"
 	"github.com/coder/coder/enterprise/replicasync"
 	"github.com/coder/coder/enterprise/tailnet"
@@ -52,6 +53,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if options.Options.Authorizer == nil {
 		options.Options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
 	}
+
 	ctx, cancelFunc := context.WithCancel(ctx)
 	api := &API{
 		ctx:    ctx,
@@ -240,6 +242,16 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Put("/", api.putAppearance)
 			})
 		})
+		r.Route("/users/{user}/quiet-hours", func(r chi.Router) {
+			r.Use(
+				api.restartRequirementEnabledMW,
+				apiKeyMiddleware,
+				httpmw.ExtractUserParam(options.Database, false),
+			)
+
+			r.Get("/", api.userQuietHoursSchedule)
+			r.Put("/", api.putUserQuietHoursSchedule)
+		})
 	})
 
 	if len(options.SCIMAPIKey) != 0 {
@@ -334,6 +346,9 @@ type Options struct {
 	DERPServerRelayAddress string
 	DERPServerRegionID     int
 
+	// Used for user quiet hours schedules.
+	DefaultQuietHoursSchedule string // cron schedule, if empty user quiet hours schedules are disabled
+
 	EntitlementsUpdateInterval time.Duration
 	ProxyHealthInterval        time.Duration
 	Keys                       map[string]ed25519.PublicKey
@@ -386,6 +401,9 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureTemplateRBAC:               api.RBAC,
 			codersdk.FeatureExternalProvisionerDaemons: true,
 			codersdk.FeatureAdvancedTemplateScheduling: true,
+			// FeatureTemplateRestartRequirement depends on
+			// FeatureAdvancedTemplateScheduling.
+			codersdk.FeatureTemplateRestartRequirement: api.DefaultQuietHoursSchedule != "",
 			codersdk.FeatureWorkspaceProxy:             true,
 		})
 	if err != nil {
@@ -402,6 +420,18 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			"License requires telemetry but telemetry is disabled",
 		}
 		api.Logger.Error(ctx, "license requires telemetry enabled")
+		return nil
+	}
+
+	if entitlements.Features[codersdk.FeatureTemplateRestartRequirement].Enabled && !entitlements.Features[codersdk.FeatureAdvancedTemplateScheduling].Enabled {
+		api.entitlements.Errors = []string{
+			`Your license is entitled to the feature "template restart ` +
+				`requirement" (and you have it enabled by setting the ` +
+				"default quiet hours schedule), but you are not entitled to " +
+				`the dependency feature "advanced template scheduling". ` +
+				"Please contact support for a new license.",
+		}
+		api.Logger.Error(ctx, "license is entitled to template restart requirement but not advanced template scheduling")
 		return nil
 	}
 
@@ -450,12 +480,43 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 	if initial, changed, enabled := featureChanged(codersdk.FeatureAdvancedTemplateScheduling); shouldUpdate(initial, changed, enabled) {
 		if enabled {
-			store := &EnterpriseTemplateScheduleStore{}
-			ptr := schedule.TemplateScheduleStore(store)
-			api.AGPL.TemplateScheduleStore.Store(&ptr)
+			templateStore := schedule.NewEnterpriseTemplateScheduleStore()
+			templateStoreInterface := agplschedule.TemplateScheduleStore(templateStore)
+			api.AGPL.TemplateScheduleStore.Store(&templateStoreInterface)
 		} else {
-			store := schedule.NewAGPLTemplateScheduleStore()
-			api.AGPL.TemplateScheduleStore.Store(&store)
+			templateStore := agplschedule.NewAGPLTemplateScheduleStore()
+			api.AGPL.TemplateScheduleStore.Store(&templateStore)
+		}
+	}
+
+	if initial, changed, enabled := featureChanged(codersdk.FeatureTemplateRestartRequirement); shouldUpdate(initial, changed, enabled) {
+		if enabled {
+			templateStore := *(api.AGPL.TemplateScheduleStore.Load())
+			enterpriseTemplateStore, ok := templateStore.(*schedule.EnterpriseTemplateScheduleStore)
+			if !ok {
+				api.Logger.Error(ctx, "unable to set up enterprise template schedule store, template restart requirements will not be applied to workspace builds")
+			}
+			enterpriseTemplateStore.UseRestartRequirement.Store(true)
+
+			quietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(api.DefaultQuietHoursSchedule)
+			if err != nil {
+				api.Logger.Error(ctx, "unable to set up enterprise user quiet hours schedule store, template restart requirements will not be applied to workspace builds", slog.Error(err))
+			} else {
+				api.AGPL.UserQuietHoursScheduleStore.Store(&quietHoursStore)
+			}
+		} else {
+			if api.DefaultQuietHoursSchedule != "" {
+				api.Logger.Warn(ctx, "template restart requirements are not enabled (due to setting default quiet hours schedule) as your license is not entitled to this feature")
+			}
+
+			templateStore := *(api.AGPL.TemplateScheduleStore.Load())
+			enterpriseTemplateStore, ok := templateStore.(*schedule.EnterpriseTemplateScheduleStore)
+			if ok {
+				enterpriseTemplateStore.UseRestartRequirement.Store(false)
+			}
+
+			quietHoursStore := agplschedule.NewAGPLUserQuietHoursScheduleStore()
+			api.AGPL.UserQuietHoursScheduleStore.Store(&quietHoursStore)
 		}
 	}
 

@@ -316,7 +316,8 @@ func TestScheduleOverride(t *testing.T) {
 			stdoutBuf = &bytes.Buffer{}
 		)
 		require.Zero(t, template.DefaultTTLMillis)
-		require.Zero(t, template.MaxTTLMillis)
+		require.Empty(t, template.RestartRequirement.DaysOfWeek)
+		require.Zero(t, template.RestartRequirement.Weeks)
 
 		// Unset the workspace TTL
 		err = client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{TTLMillis: nil})

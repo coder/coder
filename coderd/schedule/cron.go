@@ -42,6 +42,36 @@ func Weekly(raw string) (*Schedule, error) {
 		return nil, xerrors.Errorf("validate weekly schedule: %w", err)
 	}
 
+	return parse(raw)
+}
+
+// Daily parses a Schedule from spec scoped to a recurring daily event.
+// Spec consists of the following space-delimited fields, in the following order:
+// - timezone e.g. CRON_TZ=US/Central (optional)
+// - minutes of hour e.g. 30 (required)
+// - hour of day e.g. 9 (required)
+// - day of month (must be *)
+// - month (must be *)
+// - day of week (must be *)
+//
+// Example Usage:
+//
+//	local_sched, _ := schedule.Weekly("59 23 * * *")
+//	fmt.Println(sched.Next(time.Now().Format(time.RFC3339)))
+//	// Output: 2022-04-04T23:59:00Z
+//
+//	us_sched, _ := schedule.Weekly("CRON_TZ=US/Central 30 9 * * *")
+//	fmt.Println(sched.Next(time.Now()).Format(time.RFC3339))
+//	// Output: 2022-04-04T14:30:00Z
+func Daily(raw string) (*Schedule, error) {
+	if err := validateDailySpec(raw); err != nil {
+		return nil, xerrors.Errorf("validate daily schedule: %w", err)
+	}
+
+	return parse(raw)
+}
+
+func parse(raw string) (*Schedule, error) {
 	// If schedule does not specify a timezone, default to UTC. Otherwise,
 	// the library will default to time.Local which we want to avoid.
 	if !strings.HasPrefix(raw, "CRON_TZ=") {
@@ -187,7 +217,23 @@ func validateWeeklySpec(spec string) error {
 		parts = parts[1:]
 	}
 	if parts[2] != "*" || parts[3] != "*" {
-		return xerrors.Errorf("expected month and dom to be *")
+		return xerrors.Errorf("expected day-of-month and month to be *")
+	}
+	return nil
+}
+
+// validateDailySpec ensures that the day-of-month, month and day-of-week
+// options of spec are all set to *
+func validateDailySpec(spec string) error {
+	parts := strings.Fields(spec)
+	if len(parts) < 5 {
+		return xerrors.Errorf("expected schedule to consist of 5 fields with an optional CRON_TZ=<timezone> prefix")
+	}
+	if len(parts) == 6 {
+		parts = parts[1:]
+	}
+	if parts[2] != "*" || parts[3] != "*" || parts[4] != "*" {
+		return xerrors.Errorf("expected day-of-month, month and day-of-week to be *")
 	}
 	return nil
 }

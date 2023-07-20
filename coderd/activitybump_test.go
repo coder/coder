@@ -12,6 +12,7 @@ import (
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
@@ -25,14 +26,20 @@ func TestWorkspaceActivityBump(t *testing.T) {
 
 	ctx := context.Background()
 
-	setupActivityTest := func(t *testing.T, maxDeadline ...time.Duration) (client *codersdk.Client, workspace codersdk.Workspace, assertBumped func(want bool)) {
+	// deadline allows you to forcibly set a max_deadline on the build. This
+	// doesn't use template restart requirements and instead edits the
+	// max_deadline on the build directly in the database.
+	setupActivityTest := func(t *testing.T, deadline ...time.Duration) (client *codersdk.Client, workspace codersdk.Workspace, assertBumped func(want bool)) {
 		const ttl = time.Minute
 		maxTTL := time.Duration(0)
-		if len(maxDeadline) > 0 {
-			maxTTL = maxDeadline[0]
+		if len(deadline) > 0 {
+			maxTTL = deadline[0]
 		}
 
+		db, pubsub := dbtestutil.NewDB(t)
 		client = coderdtest.New(t, &coderdtest.Options{
+			Database:                 db,
+			Pubsub:                   pubsub,
 			IncludeProvisionerDaemon: true,
 			// Agent stats trigger the activity bump, so we want to report
 			// very frequently in tests.
@@ -42,7 +49,8 @@ func TestWorkspaceActivityBump(t *testing.T) {
 					return schedule.TemplateScheduleOptions{
 						UserAutostopEnabled: true,
 						DefaultTTL:          ttl,
-						MaxTTL:              maxTTL,
+						// We set max_deadline manually below.
+						RestartRequirement: schedule.TemplateRestartRequirement{},
 					}, nil
 				},
 			},
@@ -78,6 +86,21 @@ func TestWorkspaceActivityBump(t *testing.T) {
 			cwr.TTLMillis = &ttlMillis
 		})
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		// Update the max deadline.
+		if maxTTL != 0 {
+			dbBuild, err := db.GetWorkspaceBuildByID(ctx, workspace.LatestBuild.ID)
+			require.NoError(t, err)
+
+			_, err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+				ID:               workspace.LatestBuild.ID,
+				UpdatedAt:        database.Now(),
+				ProvisionerState: dbBuild.ProvisionerState,
+				Deadline:         dbBuild.Deadline,
+				MaxDeadline:      database.Now().Add(maxTTL),
+			})
+			require.NoError(t, err)
+		}
 
 		agentClient := agentsdk.New(client.URL)
 		agentClient.SetSessionToken(agentToken)
