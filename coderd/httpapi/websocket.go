@@ -25,3 +25,24 @@ func Heartbeat(ctx context.Context, conn *websocket.Conn) {
 		}
 	}
 }
+
+// Heartbeat loops to ping a WebSocket to keep it alive. It kills the connection
+// on ping failure.
+func HeartbeatClose(ctx context.Context, exit func(), conn *websocket.Conn) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+		err := conn.Ping(ctx)
+		if err != nil {
+			_ = conn.Close(websocket.StatusGoingAway, "Ping failed")
+			exit()
+			return
+		}
+	}
+}

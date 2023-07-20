@@ -384,6 +384,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			TemplateScheduleStore:       &templateScheduleStore,
 			TLSCertificates:             options.TLSCertificates,
 			TrialGenerator:              options.TrialGenerator,
+			TailnetCoordinator:          options.Coordinator,
 			DERPMap:                     derpMap,
 			MetricsCacheRefreshInterval: options.MetricsCacheRefreshInterval,
 			AgentStatsRefreshInterval:   options.AgentStatsRefreshInterval,

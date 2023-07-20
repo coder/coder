@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/oauth2"
@@ -47,6 +48,13 @@ func testTemplateScheduleStore() *atomic.Pointer[schedule.TemplateScheduleStore]
 	return ptr
 }
 
+func testUserQuietHoursScheduleStore() *atomic.Pointer[schedule.UserQuietHoursScheduleStore] {
+	ptr := &atomic.Pointer[schedule.UserQuietHoursScheduleStore]{}
+	store := schedule.NewAGPLUserQuietHoursScheduleStore()
+	ptr.Store(&store)
+	return ptr
+}
+
 func TestAcquireJob(t *testing.T) {
 	t.Parallel()
 	t.Run("Debounce", func(t *testing.T) {
@@ -54,18 +62,19 @@ func TestAcquireJob(t *testing.T) {
 		db := dbfake.New()
 		ps := pubsub.NewInMemory()
 		srv := &provisionerdserver.Server{
-			ID:                    uuid.New(),
-			Logger:                slogtest.Make(t, nil),
-			AccessURL:             &url.URL{},
-			Provisioners:          []database.ProvisionerType{database.ProvisionerTypeEcho},
-			Database:              db,
-			Pubsub:                ps,
-			Telemetry:             telemetry.NewNoop(),
-			AcquireJobDebounce:    time.Hour,
-			Auditor:               mockAuditor(),
-			TemplateScheduleStore: testTemplateScheduleStore(),
-			Tracer:                trace.NewNoopTracerProvider().Tracer("noop"),
-			DeploymentValues:      &codersdk.DeploymentValues{},
+			ID:                          uuid.New(),
+			Logger:                      slogtest.Make(t, nil),
+			AccessURL:                   &url.URL{},
+			Provisioners:                []database.ProvisionerType{database.ProvisionerTypeEcho},
+			Database:                    db,
+			Pubsub:                      ps,
+			Telemetry:                   telemetry.NewNoop(),
+			AcquireJobDebounce:          time.Hour,
+			Auditor:                     mockAuditor(),
+			TemplateScheduleStore:       testTemplateScheduleStore(),
+			UserQuietHoursScheduleStore: testUserQuietHoursScheduleStore(),
+			Tracer:                      trace.NewNoopTracerProvider().Tracer("noop"),
+			DeploymentValues:            &codersdk.DeploymentValues{},
 		}
 		job, err := srv.AcquireJob(context.Background(), nil)
 		require.NoError(t, err)
@@ -892,7 +901,8 @@ func TestCompleteJob(t *testing.T) {
 		require.False(t, job.Error.Valid)
 	})
 
-	t.Run("WorkspaceBuild", func(t *testing.T) {
+	// TODO(@dean): remove this legacy test for MaxTTL
+	t.Run("WorkspaceBuildLegacy", func(t *testing.T) {
 		t.Parallel()
 
 		cases := []struct {
@@ -1011,10 +1021,11 @@ func TestCompleteJob(t *testing.T) {
 				var store schedule.TemplateScheduleStore = schedule.MockTemplateScheduleStore{
 					GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 						return schedule.TemplateScheduleOptions{
-							UserAutostartEnabled: false,
-							UserAutostopEnabled:  c.templateAllowAutostop,
-							DefaultTTL:           c.templateDefaultTTL,
-							MaxTTL:               c.templateMaxTTL,
+							UserAutostartEnabled:  false,
+							UserAutostopEnabled:   c.templateAllowAutostop,
+							DefaultTTL:            c.templateDefaultTTL,
+							MaxTTL:                c.templateMaxTTL,
+							UseRestartRequirement: false,
 						}, nil
 					},
 				}
@@ -1025,7 +1036,7 @@ func TestCompleteJob(t *testing.T) {
 					Name:        "template",
 					Provisioner: database.ProvisionerTypeEcho,
 				})
-				template, err := srv.Database.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+				err := srv.Database.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 					ID:                 template.ID,
 					UpdatedAt:          database.Now(),
 					AllowUserAutostart: c.templateAllowAutostop,
@@ -1120,6 +1131,254 @@ func TestCompleteJob(t *testing.T) {
 					require.True(t, workspaceBuild.MaxDeadline.IsZero())
 				} else {
 					require.WithinDuration(t, time.Now().Add(c.expectedMaxTTL), workspaceBuild.MaxDeadline, 15*time.Second, "max deadline does not match expected")
+					require.GreaterOrEqual(t, workspaceBuild.MaxDeadline.Unix(), workspaceBuild.Deadline.Unix(), "max deadline is smaller than deadline")
+				}
+			})
+		}
+	})
+
+	t.Run("WorkspaceBuild", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Now()
+
+		// NOTE: if you're looking for more in-depth deadline/max_deadline
+		// calculation testing, see the schedule package. The provsiionerdserver
+		// package calls `schedule.CalculateAutostop()` to generate the deadline
+		// and max_deadline.
+
+		// Wednesday the 8th of February 2023 at midnight. This date was
+		// specifically chosen as it doesn't fall on a applicable week for both
+		// fortnightly and triweekly restart requirements.
+		wednesdayMidnightUTC := time.Date(2023, 2, 8, 0, 0, 0, 0, time.UTC)
+
+		sydneyQuietHours := "CRON_TZ=Australia/Sydney 0 0 * * *"
+		sydneyLoc, err := time.LoadLocation("Australia/Sydney")
+		require.NoError(t, err)
+		// 12am on Saturday the 11th of February 2023 in Sydney.
+		saturdayMidnightSydney := time.Date(2023, 2, 11, 0, 0, 0, 0, sydneyLoc)
+
+		t.Log("now", now)
+		t.Log("wednesdayMidnightUTC", wednesdayMidnightUTC)
+		t.Log("saturdayMidnightSydney", saturdayMidnightSydney)
+
+		cases := []struct {
+			name         string
+			now          time.Time
+			workspaceTTL time.Duration
+			transition   database.WorkspaceTransition
+
+			// These fields are only used when testing max deadline.
+			userQuietHoursSchedule     string
+			templateRestartRequirement schedule.TemplateRestartRequirement
+
+			expectedDeadline    time.Time
+			expectedMaxDeadline time.Time
+		}{
+			{
+				name:                       "OK",
+				now:                        now,
+				templateRestartRequirement: schedule.TemplateRestartRequirement{},
+				workspaceTTL:               0,
+				transition:                 database.WorkspaceTransitionStart,
+				expectedDeadline:           time.Time{},
+				expectedMaxDeadline:        time.Time{},
+			},
+			{
+				name:                       "Delete",
+				now:                        now,
+				templateRestartRequirement: schedule.TemplateRestartRequirement{},
+				workspaceTTL:               0,
+				transition:                 database.WorkspaceTransitionDelete,
+				expectedDeadline:           time.Time{},
+				expectedMaxDeadline:        time.Time{},
+			},
+			{
+				name:                       "WorkspaceTTL",
+				now:                        now,
+				templateRestartRequirement: schedule.TemplateRestartRequirement{},
+				workspaceTTL:               time.Hour,
+				transition:                 database.WorkspaceTransitionStart,
+				expectedDeadline:           now.Add(time.Hour),
+				expectedMaxDeadline:        time.Time{},
+			},
+			{
+				name:                   "TemplateRestartRequirement",
+				now:                    wednesdayMidnightUTC,
+				userQuietHoursSchedule: sydneyQuietHours,
+				templateRestartRequirement: schedule.TemplateRestartRequirement{
+					DaysOfWeek: 0b00100000, // Saturday
+					Weeks:      0,          // weekly
+				},
+				workspaceTTL: 0,
+				transition:   database.WorkspaceTransitionStart,
+				// expectedDeadline is copied from expectedMaxDeadline.
+				expectedMaxDeadline: saturdayMidnightSydney.In(time.UTC),
+			},
+		}
+
+		for _, c := range cases {
+			c := c
+
+			t.Run(c.name, func(t *testing.T) {
+				t.Parallel()
+
+				srv := setup(t, false)
+
+				// Simulate the given time starting from now.
+				require.False(t, c.now.IsZero())
+				start := time.Now()
+				srv.TimeNowFn = func() time.Time {
+					return c.now.Add(time.Since(start))
+				}
+
+				var templateScheduleStore schedule.TemplateScheduleStore = schedule.MockTemplateScheduleStore{
+					GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
+						return schedule.TemplateScheduleOptions{
+							UserAutostartEnabled:  false,
+							UserAutostopEnabled:   true,
+							DefaultTTL:            0,
+							UseRestartRequirement: true,
+							RestartRequirement:    c.templateRestartRequirement,
+						}, nil
+					},
+				}
+				srv.TemplateScheduleStore.Store(&templateScheduleStore)
+
+				var userQuietHoursScheduleStore schedule.UserQuietHoursScheduleStore = schedule.MockUserQuietHoursScheduleStore{
+					GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.UserQuietHoursScheduleOptions, error) {
+						if c.userQuietHoursSchedule == "" {
+							return schedule.UserQuietHoursScheduleOptions{
+								Schedule: nil,
+							}, nil
+						}
+
+						sched, err := schedule.Daily(c.userQuietHoursSchedule)
+						if !assert.NoError(t, err) {
+							return schedule.UserQuietHoursScheduleOptions{}, err
+						}
+
+						return schedule.UserQuietHoursScheduleOptions{
+							Schedule: sched,
+							UserSet:  false,
+						}, nil
+					},
+				}
+				srv.UserQuietHoursScheduleStore.Store(&userQuietHoursScheduleStore)
+
+				user := dbgen.User(t, srv.Database, database.User{
+					QuietHoursSchedule: c.userQuietHoursSchedule,
+				})
+				template := dbgen.Template(t, srv.Database, database.Template{
+					Name:        "template",
+					Provisioner: database.ProvisionerTypeEcho,
+				})
+				err := srv.Database.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+					ID:                           template.ID,
+					UpdatedAt:                    database.Now(),
+					AllowUserAutostart:           false,
+					AllowUserAutostop:            true,
+					DefaultTTL:                   0,
+					RestartRequirementDaysOfWeek: int16(c.templateRestartRequirement.DaysOfWeek),
+					RestartRequirementWeeks:      c.templateRestartRequirement.Weeks,
+				})
+				require.NoError(t, err)
+				template, err = srv.Database.GetTemplateByID(ctx, template.ID)
+				require.NoError(t, err)
+				file := dbgen.File(t, srv.Database, database.File{CreatedBy: user.ID})
+				workspaceTTL := sql.NullInt64{}
+				if c.workspaceTTL != 0 {
+					workspaceTTL = sql.NullInt64{
+						Int64: int64(c.workspaceTTL),
+						Valid: true,
+					}
+				}
+				workspace := dbgen.Workspace(t, srv.Database, database.Workspace{
+					TemplateID: template.ID,
+					Ttl:        workspaceTTL,
+					OwnerID:    user.ID,
+				})
+				version := dbgen.TemplateVersion(t, srv.Database, database.TemplateVersion{
+					TemplateID: uuid.NullUUID{
+						UUID:  template.ID,
+						Valid: true,
+					},
+					JobID: uuid.New(),
+				})
+				build := dbgen.WorkspaceBuild(t, srv.Database, database.WorkspaceBuild{
+					WorkspaceID:       workspace.ID,
+					TemplateVersionID: version.ID,
+					Transition:        c.transition,
+					Reason:            database.BuildReasonInitiator,
+				})
+				job := dbgen.ProvisionerJob(t, srv.Database, database.ProvisionerJob{
+					FileID: file.ID,
+					Type:   database.ProvisionerJobTypeWorkspaceBuild,
+					Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+						WorkspaceBuildID: build.ID,
+					})),
+				})
+				_, err = srv.Database.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+					WorkerID: uuid.NullUUID{
+						UUID:  srv.ID,
+						Valid: true,
+					},
+					Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+				})
+				require.NoError(t, err)
+
+				publishedWorkspace := make(chan struct{})
+				closeWorkspaceSubscribe, err := srv.Pubsub.Subscribe(codersdk.WorkspaceNotifyChannel(build.WorkspaceID), func(_ context.Context, _ []byte) {
+					close(publishedWorkspace)
+				})
+				require.NoError(t, err)
+				defer closeWorkspaceSubscribe()
+				publishedLogs := make(chan struct{})
+				closeLogsSubscribe, err := srv.Pubsub.Subscribe(provisionersdk.ProvisionerJobLogsNotifyChannel(job.ID), func(_ context.Context, _ []byte) {
+					close(publishedLogs)
+				})
+				require.NoError(t, err)
+				defer closeLogsSubscribe()
+
+				_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
+					JobId: job.ID.String(),
+					Type: &proto.CompletedJob_WorkspaceBuild_{
+						WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
+							State: []byte{},
+							Resources: []*sdkproto.Resource{{
+								Name: "example",
+								Type: "aws_instance",
+							}},
+						},
+					},
+				})
+				require.NoError(t, err)
+
+				<-publishedWorkspace
+				<-publishedLogs
+
+				workspace, err = srv.Database.GetWorkspaceByID(ctx, workspace.ID)
+				require.NoError(t, err)
+				require.Equal(t, c.transition == database.WorkspaceTransitionDelete, workspace.Deleted)
+
+				workspaceBuild, err := srv.Database.GetWorkspaceBuildByID(ctx, build.ID)
+				require.NoError(t, err)
+
+				// If the max deadline is set, the deadline should also be set.
+				// Default to the max deadline if the deadline is not set.
+				if c.expectedDeadline.IsZero() {
+					c.expectedDeadline = c.expectedMaxDeadline
+				}
+
+				if c.expectedDeadline.IsZero() {
+					require.True(t, workspaceBuild.Deadline.IsZero())
+				} else {
+					require.WithinDuration(t, c.expectedDeadline, workspaceBuild.Deadline, 15*time.Second, "deadline does not match expected")
+				}
+				if c.expectedMaxDeadline.IsZero() {
+					require.True(t, workspaceBuild.MaxDeadline.IsZero())
+				} else {
+					require.WithinDuration(t, c.expectedMaxDeadline, workspaceBuild.MaxDeadline, 15*time.Second, "max deadline does not match expected")
 					require.GreaterOrEqual(t, workspaceBuild.MaxDeadline.Unix(), workspaceBuild.Deadline.Unix(), "max deadline is smaller than deadline")
 				}
 			})
@@ -1260,18 +1519,23 @@ func setup(t *testing.T, ignoreLogErrors bool) *provisionerdserver.Server {
 	ps := pubsub.NewInMemory()
 
 	return &provisionerdserver.Server{
-		ID:                    uuid.New(),
-		Logger:                slogtest.Make(t, &slogtest.Options{IgnoreErrors: ignoreLogErrors}),
-		OIDCConfig:            &oauth2.Config{},
-		AccessURL:             &url.URL{},
-		Provisioners:          []database.ProvisionerType{database.ProvisionerTypeEcho},
-		Database:              db,
-		Pubsub:                ps,
-		Telemetry:             telemetry.NewNoop(),
-		Auditor:               mockAuditor(),
-		TemplateScheduleStore: testTemplateScheduleStore(),
-		Tracer:                trace.NewNoopTracerProvider().Tracer("noop"),
-		DeploymentValues:      &codersdk.DeploymentValues{},
+		ID:                          uuid.New(),
+		Logger:                      slogtest.Make(t, &slogtest.Options{IgnoreErrors: ignoreLogErrors}),
+		OIDCConfig:                  &oauth2.Config{},
+		AccessURL:                   &url.URL{},
+		Provisioners:                []database.ProvisionerType{database.ProvisionerTypeEcho},
+		Database:                    db,
+		Pubsub:                      ps,
+		Telemetry:                   telemetry.NewNoop(),
+		Auditor:                     mockAuditor(),
+		TemplateScheduleStore:       testTemplateScheduleStore(),
+		UserQuietHoursScheduleStore: testUserQuietHoursScheduleStore(),
+		Tracer:                      trace.NewNoopTracerProvider().Tracer("noop"),
+		DeploymentValues:            &codersdk.DeploymentValues{},
+
+		// Negative values cause the debounce to never kick in. Tests that want
+		// to test debounce can override this value.
+		AcquireJobDebounce: -time.Minute,
 	}
 }
 

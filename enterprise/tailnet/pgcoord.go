@@ -424,7 +424,7 @@ func (b *binder) writeOne(bnd binding) error {
 	default:
 		panic("unhittable")
 	}
-	if err != nil {
+	if err != nil && !database.IsQueryCanceledError(err) {
 		b.logger.Error(b.ctx, "failed to write binding to database",
 			slog.F("client_id", bnd.client),
 			slog.F("agent_id", bnd.agent),

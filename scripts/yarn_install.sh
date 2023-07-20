@@ -1,16 +1,12 @@
 #!/usr/bin/env bash
 #
-# Run "yarn install" with flags appropriate to the environment
-# (local development vs build system)
+# Run "yarn install" with flags appropriate to the environment (local
+# development vs build system). The install is always run within the current
+# directory.
 #
 # Usage: yarn_install.sh [optional extra flags]
 
 set -euo pipefail
-# shellcheck source=scripts/lib.sh
-source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
-
-cdroot
-cd site
 
 yarn_flags=(
 	# Do not execute install scripts

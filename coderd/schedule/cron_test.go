@@ -129,14 +129,14 @@ func Test_Weekly(t *testing.T) {
 			spec:          "30 9 1 1 1-5",
 			at:            time.Time{},
 			expectedNext:  time.Time{},
-			expectedError: "validate weekly schedule: expected month and dom to be *",
+			expectedError: "validate weekly schedule: expected day-of-month and month to be *",
 		},
 		{
 			name:          "valid schedule with 5 fields and timezone but month and dom not set to *",
 			spec:          "CRON_TZ=Europe/Dublin 30 9 1 1 1-5",
 			at:            time.Time{},
 			expectedNext:  time.Time{},
-			expectedError: "validate weekly schedule: expected month and dom to be *",
+			expectedError: "validate weekly schedule: expected day-of-month and month to be *",
 		},
 	}
 

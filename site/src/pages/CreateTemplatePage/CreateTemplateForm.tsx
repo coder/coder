@@ -39,6 +39,7 @@ import {
 import camelCase from "lodash/camelCase"
 import capitalize from "lodash/capitalize"
 import { VariableInput } from "./VariableInput"
+import { docs } from "utils/docs"
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128
 const MAX_TTL_DAYS = 30
@@ -322,7 +323,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
                 ) : (
                   <>
                     {commonT("licenseFieldTextHelper")}{" "}
-                    <Link href="https://coder.com/docs/v2/latest/enterprise">
+                    <Link href={docs("/enterprise")}>
                       {commonT("learnMore")}
                     </Link>
                     .
@@ -459,7 +460,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
                   </Stack>
                   <span className={styles.optionHelperText}>
                     This setting requires an enterprise license for the&nbsp;
-                    <Link href="https://coder.com/docs/v2/latest/admin/rbac">
+                    <Link href={docs("/admin/rbac")}>
                       &apos;Template RBAC&apos;
                     </Link>{" "}
                     feature to customize permissions.

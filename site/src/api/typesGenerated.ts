@@ -181,6 +181,7 @@ export interface CreateTemplateRequest {
   readonly template_version_id: string
   readonly default_ttl_ms?: number
   readonly max_ttl_ms?: number
+  readonly restart_requirement?: TemplateRestartRequirement
   readonly allow_user_cancel_workspace_jobs?: boolean
   readonly allow_user_autostart?: boolean
   readonly allow_user_autostop?: boolean
@@ -384,6 +385,7 @@ export interface DeploymentValues {
   readonly disable_owner_workspace_exec?: boolean
   readonly proxy_health_status_interval?: number
   readonly enable_terraform_debug_mode?: boolean
+  readonly user_quiet_hours_schedule?: UserQuietHoursScheduleConfig
   // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.YAMLConfigPath")
   readonly config?: string
   readonly write_config?: boolean
@@ -873,6 +875,7 @@ export interface Template {
   readonly icon: string
   readonly default_ttl_ms: number
   readonly max_ttl_ms: number
+  readonly restart_requirement: TemplateRestartRequirement
   readonly created_by_id: string
   readonly created_by_name: string
   readonly allow_user_autostart: boolean
@@ -909,6 +912,12 @@ export interface TemplateExample {
 // From codersdk/templates.go
 export interface TemplateGroup extends Group {
   readonly role: TemplateRole
+}
+
+// From codersdk/templates.go
+export interface TemplateRestartRequirement {
+  readonly days_of_week: string[]
+  readonly weeks: number
 }
 
 // From codersdk/templates.go
@@ -1044,6 +1053,7 @@ export interface UpdateTemplateMeta {
   readonly icon?: string
   readonly default_ttl_ms?: number
   readonly max_ttl_ms?: number
+  readonly restart_requirement?: TemplateRestartRequirement
   readonly allow_user_autostart?: boolean
   readonly allow_user_autostop?: boolean
   readonly allow_user_cancel_workspace_jobs?: boolean
@@ -1061,6 +1071,11 @@ export interface UpdateUserPasswordRequest {
 // From codersdk/users.go
 export interface UpdateUserProfileRequest {
   readonly username: string
+}
+
+// From codersdk/users.go
+export interface UpdateUserQuietHoursScheduleRequest {
+  readonly schedule: string
 }
 
 // From codersdk/workspaces.go
@@ -1111,6 +1126,20 @@ export interface User {
 // From codersdk/users.go
 export interface UserLoginType {
   readonly login_type: LoginType
+}
+
+// From codersdk/deployment.go
+export interface UserQuietHoursScheduleConfig {
+  readonly default_schedule: string
+}
+
+// From codersdk/users.go
+export interface UserQuietHoursScheduleResponse {
+  readonly raw_schedule: string
+  readonly user_set: boolean
+  readonly time: string
+  readonly timezone: string
+  readonly next: string
 }
 
 // From codersdk/users.go
@@ -1442,6 +1471,7 @@ export type Experiment =
   | "moons"
   | "single_tailnet"
   | "tailnet_ha_coordinator"
+  | "template_restart_requirement"
   | "workspace_actions"
   | "workspace_build_logs_ui"
 export const Experiments: Experiment[] = [
@@ -1449,6 +1479,7 @@ export const Experiments: Experiment[] = [
   "moons",
   "single_tailnet",
   "tailnet_ha_coordinator",
+  "template_restart_requirement",
   "workspace_actions",
   "workspace_build_logs_ui",
 ]
@@ -1464,6 +1495,7 @@ export type FeatureName =
   | "multiple_git_auth"
   | "scim"
   | "template_rbac"
+  | "template_restart_requirement"
   | "user_limit"
   | "workspace_proxy"
 export const FeatureNames: FeatureName[] = [
@@ -1476,6 +1508,7 @@ export const FeatureNames: FeatureName[] = [
   "multiple_git_auth",
   "scim",
   "template_rbac",
+  "template_restart_requirement",
   "user_limit",
   "workspace_proxy",
 ]

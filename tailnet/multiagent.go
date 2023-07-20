@@ -8,8 +8,6 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-
-	"cdr.dev/slog"
 )
 
 type MultiAgentConn interface {
@@ -25,10 +23,7 @@ type MultiAgentConn interface {
 type MultiAgent struct {
 	mu sync.RWMutex
 
-	closed bool
-
-	ID     uuid.UUID
-	Logger slog.Logger
+	ID uuid.UUID
 
 	AgentIsLegacyFunc func(agentID uuid.UUID) bool
 	OnSubscribe       func(enq Queue, agent uuid.UUID) (*Node, error)
@@ -36,6 +31,7 @@ type MultiAgent struct {
 	OnNodeUpdate      func(id uuid.UUID, node *Node) error
 	OnRemove          func(id uuid.UUID)
 
+	closed    bool
 	updates   chan []*Node
 	closeOnce sync.Once
 	start     int64

@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -20,6 +21,8 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 		icon                         string
 		defaultTTL                   time.Duration
 		maxTTL                       time.Duration
+		restartRequirementDaysOfWeek []string
+		restartRequirementWeeks      int64
 		failureTTL                   time.Duration
 		inactivityTTL                time.Duration
 		allowUserCancelWorkspaceJobs bool
@@ -48,7 +51,15 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				}
 			}
 
-			if maxTTL != 0 || !allowUserAutostart || !allowUserAutostop || failureTTL != 0 || inactivityTTL != 0 {
+			unsetRestartRequirementDaysOfWeek := len(restartRequirementDaysOfWeek) == 1 && restartRequirementDaysOfWeek[0] == "none"
+			requiresEntitlement := (len(restartRequirementDaysOfWeek) > 0 && !unsetRestartRequirementDaysOfWeek) ||
+				restartRequirementWeeks > 0 ||
+				!allowUserAutostart ||
+				!allowUserAutostop ||
+				maxTTL != 0 ||
+				failureTTL != 0 ||
+				inactivityTTL != 0
+			if requiresEntitlement {
 				entitlements, err := client.Entitlements(inv.Context())
 				var sdkErr *codersdk.Error
 				if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
@@ -71,14 +82,27 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				return xerrors.Errorf("get workspace template: %w", err)
 			}
 
+			// Copy the default value if the list is empty, or if the user
+			// specified the "none" value clear the list.
+			if len(restartRequirementDaysOfWeek) == 0 {
+				restartRequirementDaysOfWeek = template.RestartRequirement.DaysOfWeek
+			}
+			if unsetRestartRequirementDaysOfWeek {
+				restartRequirementDaysOfWeek = []string{}
+			}
+
 			// NOTE: coderd will ignore empty fields.
 			req := codersdk.UpdateTemplateMeta{
-				Name:                         name,
-				DisplayName:                  displayName,
-				Description:                  description,
-				Icon:                         icon,
-				DefaultTTLMillis:             defaultTTL.Milliseconds(),
-				MaxTTLMillis:                 maxTTL.Milliseconds(),
+				Name:             name,
+				DisplayName:      displayName,
+				Description:      description,
+				Icon:             icon,
+				DefaultTTLMillis: defaultTTL.Milliseconds(),
+				MaxTTLMillis:     maxTTL.Milliseconds(),
+				RestartRequirement: &codersdk.TemplateRestartRequirement{
+					DaysOfWeek: restartRequirementDaysOfWeek,
+					Weeks:      restartRequirementWeeks,
+				},
 				FailureTTLMillis:             failureTTL.Milliseconds(),
 				InactivityTTLMillis:          inactivityTTL.Milliseconds(),
 				AllowUserCancelWorkspaceJobs: allowUserCancelWorkspaceJobs,
@@ -125,6 +149,30 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 			Flag:        "max-ttl",
 			Description: "Edit the template maximum time before shutdown - workspaces created from this template must shutdown within the given duration after starting. This is an enterprise-only feature.",
 			Value:       clibase.DurationOf(&maxTTL),
+		},
+		{
+			Flag:        "restart-requirement-weekdays",
+			Description: "Edit the template restart requirement weekdays - workspaces created from this template must be restarted on the given weekdays. To unset this value for the template (and disable the restart requirement for the template), pass 'none'.",
+			// TODO(@dean): unhide when we delete max_ttl
+			Hidden: true,
+			Value: clibase.Validate(clibase.StringArrayOf(&restartRequirementDaysOfWeek), func(value *clibase.StringArray) error {
+				v := value.GetSlice()
+				if len(v) == 1 && v[0] == "none" {
+					return nil
+				}
+				_, err := codersdk.WeekdaysToBitmap(v)
+				if err != nil {
+					return xerrors.Errorf("invalid restart requirement days of week %q: %w", strings.Join(v, ","), err)
+				}
+				return nil
+			}),
+		},
+		{
+			Flag:        "restart-requirement-weeks",
+			Description: "Edit the template restart requirement weeks - workspaces created from this template must be restarted on an n-weekly basis.",
+			// TODO(@dean): unhide when we delete max_ttl
+			Hidden: true,
+			Value:  clibase.Int64Of(&restartRequirementWeeks),
 		},
 		{
 			Flag:        "failure-ttl",
