@@ -47,7 +47,7 @@ func TestUserOIDC(t *testing.T) {
 					OIDCConfig: config,
 				},
 				LicenseOptions: &coderdenttest.LicenseOptions{
-					Features: license.Features{codersdk.FeatureTemplateRBAC: 1},
+					Features: license.Features{codersdk.FeatureUserRoleManagement: 1},
 				},
 			})
 
@@ -93,7 +93,7 @@ func TestUserOIDC(t *testing.T) {
 					OIDCConfig: config,
 				},
 				LicenseOptions: &coderdenttest.LicenseOptions{
-					Features: license.Features{codersdk.FeatureTemplateRBAC: 1},
+					Features: license.Features{codersdk.FeatureUserRoleManagement: 1},
 				},
 			})
 
