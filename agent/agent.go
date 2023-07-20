@@ -337,7 +337,7 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 	// a goroutine running for a given key. This is to prevent a build-up of
 	// goroutines waiting on Do when the script takes many multiples of
 	// baseInterval to run.
-	var flight = trySingleflight{m: map[string]struct{}{}}
+	flight := trySingleflight{m: map[string]struct{}{}}
 
 	for {
 		select {
