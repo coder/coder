@@ -15,8 +15,8 @@ export interface UsersPageViewProps {
   count?: number
   roles?: TypesGen.AssignableRoles[]
   isUpdatingUserRoles?: boolean
-  canEditUsers: boolean
-  oidcRoleSyncEnabled?: boolean
+  canEditUsers?: boolean
+  oidcRoleSyncEnabled: boolean
   canViewActivity?: boolean
   isLoading?: boolean
   onSuspendUser: (user: TypesGen.User) => void
