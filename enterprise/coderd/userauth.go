@@ -59,7 +59,7 @@ func (api *API) setUserSiteRoles(ctx context.Context, db database.Store, userID 
 	api.entitlementsMu.RUnlock()
 
 	if !enabled {
-		api.Logger.Warn(ctx, "attempted to assign OIDC user roles without enterprise entitlement, roles left unchanged.",
+		api.Logger.Warn(ctx, "attempted to assign OIDC user roles without enterprise entitlement, roles left unchanged",
 			slog.F("user_id", userID), slog.F("roles", roles),
 		)
 		return nil
