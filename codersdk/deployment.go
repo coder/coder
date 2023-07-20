@@ -1805,8 +1805,6 @@ const (
 	// WARNING: This cannot be enabled when using HA.
 	ExperimentSingleTailnet Experiment = "single_tailnet"
 
-	ExperimentWorkspaceBuildLogsUI Experiment = "workspace_build_logs_ui"
-
 	// ExperimentTemplateRestartRequirement allows template admins to have more
 	// control over when workspaces created on a template are required to
 	// restart, and allows users to ensure these restarts never happen during
@@ -1827,9 +1825,7 @@ const (
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsAll = Experiments{
-	ExperimentWorkspaceBuildLogsUI,
-}
+var ExperimentsAll = Experiments{}
 
 // Experiments is a list of experiments that are enabled for the deployment.
 // Multiple experiments may be enabled at the same time.

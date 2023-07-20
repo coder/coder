@@ -93,13 +93,11 @@ export const WorkspaceReadyPage = ({
   const user = useMe()
   const { isWarningIgnored, ignoreWarning } = useIgnoreWarnings(user.id)
   const buildLogs = useBuildLogs(workspace)
-  const dashboard = useDashboard()
   const shouldDisplayBuildLogs =
     hasJobError(workspace) ||
-    (dashboard.experiments.includes("workspace_build_logs_ui") &&
-      ["canceling", "deleting", "pending", "starting", "stopping"].includes(
-        workspace.latest_build.status,
-      ))
+    ["canceling", "deleting", "pending", "starting", "stopping"].includes(
+      workspace.latest_build.status,
+    )
   const {
     mutate: restartWorkspace,
     error: restartBuildError,

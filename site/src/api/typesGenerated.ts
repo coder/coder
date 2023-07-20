@@ -1466,7 +1466,6 @@ export type Experiment =
   | "tailnet_ha_coordinator"
   | "template_restart_requirement"
   | "workspace_actions"
-  | "workspace_build_logs_ui"
 export const Experiments: Experiment[] = [
   "convert-to-oidc",
   "moons",
@@ -1474,7 +1473,6 @@ export const Experiments: Experiment[] = [
   "tailnet_ha_coordinator",
   "template_restart_requirement",
   "workspace_actions",
-  "workspace_build_logs_ui",
 ]
 
 // From codersdk/deployment.go
