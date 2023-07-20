@@ -858,7 +858,7 @@ func TestCompleteJob(t *testing.T) {
 		jobID := uuid.New()
 		versionID := uuid.New()
 		err := srv.Database.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
-			ID:    versionID
+			ID:    versionID,
 			JobID: jobID,
 		})
 		require.NoError(t, err)
