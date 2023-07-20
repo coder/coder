@@ -15,7 +15,7 @@ import (
 func Test_parseInsightsStartAndEndTime(t *testing.T) {
 	t.Parallel()
 
-	format := codersdk.InsightsTimeLayout
+	layout := codersdk.InsightsTimeLayout
 	now := time.Now().UTC()
 	y, m, d := now.Date()
 	today := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
@@ -49,8 +49,8 @@ func Test_parseInsightsStartAndEndTime(t *testing.T) {
 		{
 			name: "Today",
 			args: args{
-				startTime: today.Format(format),
-				endTime:   thisHour.Format(format),
+				startTime: today.Format(layout),
+				endTime:   thisHour.Format(layout),
 			},
 			wantStartTime: time.Date(2023, 7, today.Day(), 0, 0, 0, 0, time.UTC),
 			wantEndTime:   time.Date(2023, 7, today.Day(), thisHour.Hour(), 0, 0, 0, time.UTC),
@@ -59,16 +59,16 @@ func Test_parseInsightsStartAndEndTime(t *testing.T) {
 		{
 			name: "Today with minutes and seconds",
 			args: args{
-				startTime: today.Format(format),
-				endTime:   thisHour.Add(time.Minute + time.Second).Format(format),
+				startTime: today.Format(layout),
+				endTime:   thisHour.Add(time.Minute + time.Second).Format(layout),
 			},
 			wantOk: false,
 		},
 		{
 			name: "Today (hour round up)",
 			args: args{
-				startTime: today.Format(format),
-				endTime:   thisHourRoundUp.Format(format),
+				startTime: today.Format(layout),
+				endTime:   thisHourRoundUp.Format(layout),
 			},
 			wantStartTime: time.Date(2023, 7, today.Day(), 0, 0, 0, 0, time.UTC),
 			wantEndTime:   time.Date(2023, 7, today.Day(), thisHourRoundUp.Hour(), 0, 0, 0, time.UTC),
@@ -85,6 +85,14 @@ func Test_parseInsightsStartAndEndTime(t *testing.T) {
 			wantOk:        true,
 		},
 		{
+			name: "Mixed timezone week",
+			args: args{
+				startTime: "2023-07-10T00:00:00Z",
+				endTime:   "2023-07-17T00:00:00+03:00",
+			},
+			wantOk: false,
+		},
+		{
 			name: "Bad format",
 			args: args{
 				startTime: "2023-07-10",
@@ -95,24 +103,24 @@ func Test_parseInsightsStartAndEndTime(t *testing.T) {
 		{
 			name: "Zero time",
 			args: args{
-				startTime: (time.Time{}).Format(format),
-				endTime:   (time.Time{}).Format(format),
+				startTime: (time.Time{}).Format(layout),
+				endTime:   (time.Time{}).Format(layout),
 			},
 			wantOk: false,
 		},
 		{
 			name: "Time in future",
 			args: args{
-				startTime: today.AddDate(0, 0, 1).Format(format),
-				endTime:   today.AddDate(0, 0, 2).Format(format),
+				startTime: today.AddDate(0, 0, 1).Format(layout),
+				endTime:   today.AddDate(0, 0, 2).Format(layout),
 			},
 			wantOk: false,
 		},
 		{
 			name: "End before start",
 			args: args{
-				startTime: today.Format(format),
-				endTime:   today.AddDate(0, 0, -1).Format(format),
+				startTime: today.Format(layout),
+				endTime:   today.AddDate(0, 0, -1).Format(layout),
 			},
 			wantOk: false,
 		},
