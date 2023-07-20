@@ -558,7 +558,8 @@ func TestUpdateJob(t *testing.T) {
 		t.Parallel()
 		srv := setup(t, false)
 		job := setupJob(t, srv)
-		version, err := srv.Database.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
+		versionID := uuid.New()
+		err := srv.Database.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
 			ID:    uuid.New(),
 			JobID: job,
 		})
@@ -569,7 +570,7 @@ func TestUpdateJob(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		version, err = srv.Database.GetTemplateVersionByID(ctx, version.ID)
+		version, err := srv.Database.GetTemplateVersionByID(ctx, versionID)
 		require.NoError(t, err)
 		require.Equal(t, "# hello world", version.Readme)
 	})
@@ -583,8 +584,9 @@ func TestUpdateJob(t *testing.T) {
 
 			srv := setup(t, false)
 			job := setupJob(t, srv)
-			version, err := srv.Database.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
-				ID:    uuid.New(),
+			versionID := uuid.New()
+			err := srv.Database.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
+				ID:    versionID,
 				JobID: job,
 			})
 			require.NoError(t, err)
@@ -616,7 +618,7 @@ func TestUpdateJob(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, response.VariableValues, 2)
 
-			templateVariables, err := srv.Database.GetTemplateVersionVariables(ctx, version.ID)
+			templateVariables, err := srv.Database.GetTemplateVersionVariables(ctx, versionID)
 			require.NoError(t, err)
 			require.Len(t, templateVariables, 2)
 			require.Equal(t, templateVariables[0].Value, firstTemplateVariable.DefaultValue)
@@ -629,8 +631,9 @@ func TestUpdateJob(t *testing.T) {
 
 			srv := setup(t, false)
 			job := setupJob(t, srv)
-			version, err := srv.Database.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
-				ID:    uuid.New(),
+			versionID := uuid.New()
+			err := srv.Database.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
+				ID:    versionID,
 				JobID: job,
 			})
 			require.NoError(t, err)
@@ -658,7 +661,7 @@ func TestUpdateJob(t *testing.T) {
 
 			// Even though there is an error returned, variables are stored in the database
 			// to show the schema in the site UI.
-			templateVariables, err := srv.Database.GetTemplateVersionVariables(ctx, version.ID)
+			templateVariables, err := srv.Database.GetTemplateVersionVariables(ctx, versionID)
 			require.NoError(t, err)
 			require.Len(t, templateVariables, 2)
 			require.Equal(t, templateVariables[0].Value, firstTemplateVariable.DefaultValue)
@@ -761,6 +764,7 @@ func TestFailJob(t *testing.T) {
 			WorkspaceBuildID: buildID,
 		})
 		require.NoError(t, err)
+
 		job, err := srv.Database.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 			ID:            uuid.New(),
 			Input:         input,
@@ -779,7 +783,7 @@ func TestFailJob(t *testing.T) {
 		require.NoError(t, err)
 
 		publishedWorkspace := make(chan struct{})
-		closeWorkspaceSubscribe, err := srv.Pubsub.Subscribe(codersdk.WorkspaceNotifyChannel(build.WorkspaceID), func(_ context.Context, _ []byte) {
+		closeWorkspaceSubscribe, err := srv.Pubsub.Subscribe(codersdk.WorkspaceNotifyChannel(workspace.ID), func(_ context.Context, _ []byte) {
 			close(publishedWorkspace)
 		})
 		require.NoError(t, err)
@@ -802,7 +806,7 @@ func TestFailJob(t *testing.T) {
 		require.NoError(t, err)
 		<-publishedWorkspace
 		<-publishedLogs
-		build, err = srv.Database.GetWorkspaceBuildByID(ctx, build.ID)
+		build, err := srv.Database.GetWorkspaceBuildByID(ctx, buildID)
 		require.NoError(t, err)
 		require.Equal(t, "some state", string(build.ProvisionerState))
 	})
@@ -852,15 +856,16 @@ func TestCompleteJob(t *testing.T) {
 		t.Parallel()
 		srv := setup(t, false)
 		jobID := uuid.New()
-		version, err := srv.Database.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
-			ID:    uuid.New(),
+		versionID := uuid.New()
+		err := srv.Database.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
+			ID:    versionID
 			JobID: jobID,
 		})
 		require.NoError(t, err)
 		job, err := srv.Database.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 			ID:            jobID,
 			Provisioner:   database.ProvisionerTypeEcho,
-			Input:         []byte(`{"template_version_id": "` + version.ID.String() + `"}`),
+			Input:         []byte(`{"template_version_id": "` + versionID.String() + `"}`),
 			StorageMethod: database.ProvisionerStorageMethodFile,
 			Type:          database.ProvisionerJobTypeWorkspaceBuild,
 		})
