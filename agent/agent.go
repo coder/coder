@@ -337,7 +337,9 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case mr := <-metadataResults:
+			lastCollectedAtMu.Lock()
 			lastCollectedAts[mr.key] = mr.result.CollectedAt
+			lastCollectedAtMu.Unlock()
 			err := a.client.PostMetadata(ctx, mr.key, *mr.result)
 			if err != nil {
 				a.logger.Error(ctx, "agent failed to report metadata", slog.Error(err))
@@ -439,6 +441,7 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 					key:    md.Key,
 					result: a.collectMetadata(ctx, md),
 				}:
+					logger.Debug(ctx, "sent metadata")
 				}
 			})
 		}
