@@ -344,7 +344,6 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case mr := <-metadataResults:
-
 			err := a.client.PostMetadata(ctx, mr.key, *mr.result)
 			if err != nil {
 				a.logger.Error(ctx, "agent failed to report metadata", slog.Error(err))
