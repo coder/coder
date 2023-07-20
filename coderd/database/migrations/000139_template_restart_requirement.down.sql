@@ -1,5 +1,9 @@
 BEGIN;
 
+-- Delete the new version of the template_with_users view to remove the column
+-- dependency.
+DROP VIEW template_with_users;
+
 ALTER TABLE templates
 	DROP COLUMN restart_requirement_days_of_week,
 	DROP COLUMN restart_requirement_weeks;
@@ -7,7 +11,6 @@ ALTER TABLE templates
 ALTER TABLE users DROP COLUMN quiet_hours_schedule;
 
 -- Restore the old version of the template_with_users view.
-DROP VIEW template_with_users;
 CREATE VIEW
     template_with_users
 AS
