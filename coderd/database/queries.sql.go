@@ -1066,7 +1066,7 @@ func (q *sqlQuerier) DeleteGroupMembersByOrgAndUser(ctx context.Context, arg Del
 
 const getGroupMembers = `-- name: GetGroupMembers :many
 SELECT
-	users.id, users.email, users.username, users.hashed_password, users.created_at, users.updated_at, users.status, users.rbac_roles, users.login_type, users.avatar_url, users.deleted, users.last_seen_at
+	users.id, users.email, users.username, users.hashed_password, users.created_at, users.updated_at, users.status, users.rbac_roles, users.login_type, users.avatar_url, users.deleted, users.last_seen_at, users.quiet_hours_schedule
 FROM
 	users
 JOIN
@@ -1103,6 +1103,7 @@ func (q *sqlQuerier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]
 			&i.AvatarURL,
 			&i.Deleted,
 			&i.LastSeenAt,
+			&i.QuietHoursSchedule,
 		); err != nil {
 			return nil, err
 		}
@@ -3637,7 +3638,7 @@ func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg GetTem
 
 const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl, locked_ttl, created_by_avatar_url, created_by_username
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl, locked_ttl, restart_requirement_days_of_week, restart_requirement_weeks, created_by_avatar_url, created_by_username
 FROM
 	template_with_users
 WHERE
@@ -3672,6 +3673,8 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.FailureTTL,
 		&i.InactivityTTL,
 		&i.LockedTTL,
+		&i.RestartRequirementDaysOfWeek,
+		&i.RestartRequirementWeeks,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 	)
@@ -3680,7 +3683,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 
 const getTemplateByOrganizationAndName = `-- name: GetTemplateByOrganizationAndName :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl, locked_ttl, created_by_avatar_url, created_by_username
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl, locked_ttl, restart_requirement_days_of_week, restart_requirement_weeks, created_by_avatar_url, created_by_username
 FROM
 	template_with_users AS templates
 WHERE
@@ -3723,6 +3726,8 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.FailureTTL,
 		&i.InactivityTTL,
 		&i.LockedTTL,
+		&i.RestartRequirementDaysOfWeek,
+		&i.RestartRequirementWeeks,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 	)
@@ -3730,7 +3735,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 }
 
 const getTemplates = `-- name: GetTemplates :many
-SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl, locked_ttl, created_by_avatar_url, created_by_username FROM template_with_users AS templates
+SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl, locked_ttl, restart_requirement_days_of_week, restart_requirement_weeks, created_by_avatar_url, created_by_username FROM template_with_users AS templates
 ORDER BY (name, id) ASC
 `
 
@@ -3766,6 +3771,8 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.FailureTTL,
 			&i.InactivityTTL,
 			&i.LockedTTL,
+			&i.RestartRequirementDaysOfWeek,
+			&i.RestartRequirementWeeks,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {
@@ -3784,7 +3791,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 
 const getTemplatesWithFilter = `-- name: GetTemplatesWithFilter :many
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl, locked_ttl, created_by_avatar_url, created_by_username
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl, locked_ttl, restart_requirement_days_of_week, restart_requirement_weeks, created_by_avatar_url, created_by_username
 FROM
 	template_with_users AS templates
 WHERE
@@ -3857,6 +3864,8 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.FailureTTL,
 			&i.InactivityTTL,
 			&i.LockedTTL,
+			&i.RestartRequirementDaysOfWeek,
+			&i.RestartRequirementWeeks,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {
@@ -4041,23 +4050,27 @@ SET
 	allow_user_autostop = $4,
 	default_ttl = $5,
 	max_ttl = $6,
-	failure_ttl = $7,
-	inactivity_ttl = $8,
-	locked_ttl = $9
+	restart_requirement_days_of_week = $7,
+	restart_requirement_weeks = $8,
+	failure_ttl = $9,
+	inactivity_ttl = $10,
+	locked_ttl = $11
 WHERE
 	id = $1
 `
 
 type UpdateTemplateScheduleByIDParams struct {
-	ID                 uuid.UUID `db:"id" json:"id"`
-	UpdatedAt          time.Time `db:"updated_at" json:"updated_at"`
-	AllowUserAutostart bool      `db:"allow_user_autostart" json:"allow_user_autostart"`
-	AllowUserAutostop  bool      `db:"allow_user_autostop" json:"allow_user_autostop"`
-	DefaultTTL         int64     `db:"default_ttl" json:"default_ttl"`
-	MaxTTL             int64     `db:"max_ttl" json:"max_ttl"`
-	FailureTTL         int64     `db:"failure_ttl" json:"failure_ttl"`
-	InactivityTTL      int64     `db:"inactivity_ttl" json:"inactivity_ttl"`
-	LockedTTL          int64     `db:"locked_ttl" json:"locked_ttl"`
+	ID                           uuid.UUID `db:"id" json:"id"`
+	UpdatedAt                    time.Time `db:"updated_at" json:"updated_at"`
+	AllowUserAutostart           bool      `db:"allow_user_autostart" json:"allow_user_autostart"`
+	AllowUserAutostop            bool      `db:"allow_user_autostop" json:"allow_user_autostop"`
+	DefaultTTL                   int64     `db:"default_ttl" json:"default_ttl"`
+	MaxTTL                       int64     `db:"max_ttl" json:"max_ttl"`
+	RestartRequirementDaysOfWeek int16     `db:"restart_requirement_days_of_week" json:"restart_requirement_days_of_week"`
+	RestartRequirementWeeks      int64     `db:"restart_requirement_weeks" json:"restart_requirement_weeks"`
+	FailureTTL                   int64     `db:"failure_ttl" json:"failure_ttl"`
+	InactivityTTL                int64     `db:"inactivity_ttl" json:"inactivity_ttl"`
+	LockedTTL                    int64     `db:"locked_ttl" json:"locked_ttl"`
 }
 
 func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateTemplateScheduleByIDParams) error {
@@ -4068,6 +4081,8 @@ func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateT
 		arg.AllowUserAutostop,
 		arg.DefaultTTL,
 		arg.MaxTTL,
+		arg.RestartRequirementDaysOfWeek,
+		arg.RestartRequirementWeeks,
 		arg.FailureTTL,
 		arg.InactivityTTL,
 		arg.LockedTTL,
@@ -5012,7 +5027,7 @@ func (q *sqlQuerier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.
 
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
 FROM
 	users
 WHERE
@@ -5043,13 +5058,14 @@ func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserBy
 		&i.AvatarURL,
 		&i.Deleted,
 		&i.LastSeenAt,
+		&i.QuietHoursSchedule,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
 FROM
 	users
 WHERE
@@ -5074,6 +5090,7 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (User, error
 		&i.AvatarURL,
 		&i.Deleted,
 		&i.LastSeenAt,
+		&i.QuietHoursSchedule,
 	)
 	return i, err
 }
@@ -5096,7 +5113,7 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context) (int64, error) {
 
 const getUsers = `-- name: GetUsers :many
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, COUNT(*) OVER() AS count
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, COUNT(*) OVER() AS count
 FROM
 	users
 WHERE
@@ -5180,19 +5197,20 @@ type GetUsersParams struct {
 }
 
 type GetUsersRow struct {
-	ID             uuid.UUID      `db:"id" json:"id"`
-	Email          string         `db:"email" json:"email"`
-	Username       string         `db:"username" json:"username"`
-	HashedPassword []byte         `db:"hashed_password" json:"hashed_password"`
-	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time      `db:"updated_at" json:"updated_at"`
-	Status         UserStatus     `db:"status" json:"status"`
-	RBACRoles      pq.StringArray `db:"rbac_roles" json:"rbac_roles"`
-	LoginType      LoginType      `db:"login_type" json:"login_type"`
-	AvatarURL      sql.NullString `db:"avatar_url" json:"avatar_url"`
-	Deleted        bool           `db:"deleted" json:"deleted"`
-	LastSeenAt     time.Time      `db:"last_seen_at" json:"last_seen_at"`
-	Count          int64          `db:"count" json:"count"`
+	ID                 uuid.UUID      `db:"id" json:"id"`
+	Email              string         `db:"email" json:"email"`
+	Username           string         `db:"username" json:"username"`
+	HashedPassword     []byte         `db:"hashed_password" json:"hashed_password"`
+	CreatedAt          time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt          time.Time      `db:"updated_at" json:"updated_at"`
+	Status             UserStatus     `db:"status" json:"status"`
+	RBACRoles          pq.StringArray `db:"rbac_roles" json:"rbac_roles"`
+	LoginType          LoginType      `db:"login_type" json:"login_type"`
+	AvatarURL          sql.NullString `db:"avatar_url" json:"avatar_url"`
+	Deleted            bool           `db:"deleted" json:"deleted"`
+	LastSeenAt         time.Time      `db:"last_seen_at" json:"last_seen_at"`
+	QuietHoursSchedule string         `db:"quiet_hours_schedule" json:"quiet_hours_schedule"`
+	Count              int64          `db:"count" json:"count"`
 }
 
 // This will never return deleted users.
@@ -5227,6 +5245,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 			&i.AvatarURL,
 			&i.Deleted,
 			&i.LastSeenAt,
+			&i.QuietHoursSchedule,
 			&i.Count,
 		); err != nil {
 			return nil, err
@@ -5243,7 +5262,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 }
 
 const getUsersByIDs = `-- name: GetUsersByIDs :many
-SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at FROM users WHERE id = ANY($1 :: uuid [ ])
+SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule FROM users WHERE id = ANY($1 :: uuid [ ])
 `
 
 // This shouldn't check for deleted, because it's frequently used
@@ -5271,6 +5290,7 @@ func (q *sqlQuerier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User
 			&i.AvatarURL,
 			&i.Deleted,
 			&i.LastSeenAt,
+			&i.QuietHoursSchedule,
 		); err != nil {
 			return nil, err
 		}
@@ -5298,7 +5318,7 @@ INSERT INTO
 		login_type
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at
+	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
 `
 
 type InsertUserParams struct {
@@ -5337,6 +5357,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		&i.AvatarURL,
 		&i.Deleted,
 		&i.LastSeenAt,
+		&i.QuietHoursSchedule,
 	)
 	return i, err
 }
@@ -5386,7 +5407,7 @@ SET
 	last_seen_at = $2,
 	updated_at = $3
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
 `
 
 type UpdateUserLastSeenAtParams struct {
@@ -5411,6 +5432,7 @@ func (q *sqlQuerier) UpdateUserLastSeenAt(ctx context.Context, arg UpdateUserLas
 		&i.AvatarURL,
 		&i.Deleted,
 		&i.LastSeenAt,
+		&i.QuietHoursSchedule,
 	)
 	return i, err
 }
@@ -5428,7 +5450,7 @@ SET
 		'':: bytea
 	END
 WHERE
-	id = $2 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at
+	id = $2 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
 `
 
 type UpdateUserLoginTypeParams struct {
@@ -5452,6 +5474,7 @@ func (q *sqlQuerier) UpdateUserLoginType(ctx context.Context, arg UpdateUserLogi
 		&i.AvatarURL,
 		&i.Deleted,
 		&i.LastSeenAt,
+		&i.QuietHoursSchedule,
 	)
 	return i, err
 }
@@ -5465,7 +5488,7 @@ SET
 	avatar_url = $4,
 	updated_at = $5
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
 `
 
 type UpdateUserProfileParams struct {
@@ -5498,6 +5521,43 @@ func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfil
 		&i.AvatarURL,
 		&i.Deleted,
 		&i.LastSeenAt,
+		&i.QuietHoursSchedule,
+	)
+	return i, err
+}
+
+const updateUserQuietHoursSchedule = `-- name: UpdateUserQuietHoursSchedule :one
+UPDATE
+	users
+SET
+	quiet_hours_schedule = $2
+WHERE
+	id = $1
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
+`
+
+type UpdateUserQuietHoursScheduleParams struct {
+	ID                 uuid.UUID `db:"id" json:"id"`
+	QuietHoursSchedule string    `db:"quiet_hours_schedule" json:"quiet_hours_schedule"`
+}
+
+func (q *sqlQuerier) UpdateUserQuietHoursSchedule(ctx context.Context, arg UpdateUserQuietHoursScheduleParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUserQuietHoursSchedule, arg.ID, arg.QuietHoursSchedule)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Username,
+		&i.HashedPassword,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.RBACRoles,
+		&i.LoginType,
+		&i.AvatarURL,
+		&i.Deleted,
+		&i.LastSeenAt,
+		&i.QuietHoursSchedule,
 	)
 	return i, err
 }
@@ -5510,7 +5570,7 @@ SET
 	rbac_roles = ARRAY(SELECT DISTINCT UNNEST($1 :: text[]))
 WHERE
 	id = $2
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
 `
 
 type UpdateUserRolesParams struct {
@@ -5534,6 +5594,7 @@ func (q *sqlQuerier) UpdateUserRoles(ctx context.Context, arg UpdateUserRolesPar
 		&i.AvatarURL,
 		&i.Deleted,
 		&i.LastSeenAt,
+		&i.QuietHoursSchedule,
 	)
 	return i, err
 }
@@ -5545,7 +5606,7 @@ SET
 	status = $2,
 	updated_at = $3
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
 `
 
 type UpdateUserStatusParams struct {
@@ -5570,6 +5631,7 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 		&i.AvatarURL,
 		&i.Deleted,
 		&i.LastSeenAt,
+		&i.QuietHoursSchedule,
 	)
 	return i, err
 }
@@ -8842,30 +8904,5 @@ type UpdateWorkspaceTTLParams struct {
 
 func (q *sqlQuerier) UpdateWorkspaceTTL(ctx context.Context, arg UpdateWorkspaceTTLParams) error {
 	_, err := q.db.ExecContext(ctx, updateWorkspaceTTL, arg.ID, arg.Ttl)
-	return err
-}
-
-const updateWorkspaceTTLToBeWithinTemplateMax = `-- name: UpdateWorkspaceTTLToBeWithinTemplateMax :exec
-UPDATE
-	workspaces
-SET
-	ttl = LEAST(ttl, $1::bigint)
-WHERE
-	template_id = $2
-	-- LEAST() does not pick NULL, so filter it out as we don't want to set a
-	-- TTL on the workspace if it's unset.
-	--
-	-- During build time, the template max TTL will still be used if the
-	-- workspace TTL is NULL.
-	AND ttl IS NOT NULL
-`
-
-type UpdateWorkspaceTTLToBeWithinTemplateMaxParams struct {
-	TemplateMaxTTL int64     `db:"template_max_ttl" json:"template_max_ttl"`
-	TemplateID     uuid.UUID `db:"template_id" json:"template_id"`
-}
-
-func (q *sqlQuerier) UpdateWorkspaceTTLToBeWithinTemplateMax(ctx context.Context, arg UpdateWorkspaceTTLToBeWithinTemplateMaxParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspaceTTLToBeWithinTemplateMax, arg.TemplateMaxTTL, arg.TemplateID)
 	return err
 }

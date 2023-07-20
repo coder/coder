@@ -4296,6 +4296,8 @@ func (q *FakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 		tpl.UpdatedAt = database.Now()
 		tpl.DefaultTTL = arg.DefaultTTL
 		tpl.MaxTTL = arg.MaxTTL
+		tpl.RestartRequirementDaysOfWeek = arg.RestartRequirementDaysOfWeek
+		tpl.RestartRequirementWeeks = arg.RestartRequirementWeeks
 		tpl.FailureTTL = arg.FailureTTL
 		tpl.InactivityTTL = arg.InactivityTTL
 		tpl.LockedTTL = arg.LockedTTL
@@ -4518,6 +4520,25 @@ func (q *FakeQuerier) UpdateUserProfile(_ context.Context, arg database.UpdateUs
 		user.Email = arg.Email
 		user.Username = arg.Username
 		user.AvatarURL = arg.AvatarURL
+		q.users[index] = user
+		return user, nil
+	}
+	return database.User{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateUserQuietHoursSchedule(_ context.Context, arg database.UpdateUserQuietHoursScheduleParams) (database.User, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return database.User{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, user := range q.users {
+		if user.ID != arg.ID {
+			continue
+		}
+		user.QuietHoursSchedule = arg.QuietHoursSchedule
 		q.users[index] = user
 		return user, nil
 	}
@@ -4909,26 +4930,6 @@ func (q *FakeQuerier) UpdateWorkspaceTTL(_ context.Context, arg database.UpdateW
 	}
 
 	return sql.ErrNoRows
-}
-
-func (q *FakeQuerier) UpdateWorkspaceTTLToBeWithinTemplateMax(_ context.Context, arg database.UpdateWorkspaceTTLToBeWithinTemplateMaxParams) error {
-	if err := validateDatabaseType(arg); err != nil {
-		return err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for index, workspace := range q.workspaces {
-		if workspace.TemplateID != arg.TemplateID || !workspace.Ttl.Valid || workspace.Ttl.Int64 < arg.TemplateMaxTTL {
-			continue
-		}
-
-		workspace.Ttl = sql.NullInt64{Int64: arg.TemplateMaxTTL, Valid: true}
-		q.workspaces[index] = workspace
-	}
-
-	return nil
 }
 
 func (q *FakeQuerier) UpsertAppSecurityKey(_ context.Context, data string) error {
