@@ -473,7 +473,7 @@ func (q *FakeQuerier) templateWithUserNoLock(tpl database.TemplateTable) databas
 	d, _ := json.Marshal(tpl)
 	_ = json.Unmarshal(d, &withUser)
 	withUser.CreatedByUsername = user.Username
-	withUser.CreatedByAvatarURL = user.AvatarURL.String
+	withUser.CreatedByAvatarURL = user.AvatarURL
 	return withUser
 }
 
@@ -3489,13 +3489,13 @@ func (q *FakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 	return nil
 }
 
-func (q *FakeQuerier) InsertTemplateVersion(_ context.Context, arg database.InsertTemplateVersionParams) (database.TemplateVersion, error) {
+func (q *FakeQuerier) InsertTemplateVersion(_ context.Context, arg database.InsertTemplateVersionParams) error {
 	if err := validateDatabaseType(arg); err != nil {
-		return database.TemplateVersion{}, err
+		return err
 	}
 
 	if len(arg.Message) > 1048576 {
-		return database.TemplateVersion{}, xerrors.New("message too long")
+		return xerrors.New("message too long")
 	}
 
 	q.mutex.Lock()
@@ -3515,7 +3515,7 @@ func (q *FakeQuerier) InsertTemplateVersion(_ context.Context, arg database.Inse
 		CreatedBy:      arg.CreatedBy,
 	}
 	q.templateVersions = append(q.templateVersions, version)
-	return version, nil
+	return nil
 }
 
 func (q *FakeQuerier) InsertTemplateVersionParameter(_ context.Context, arg database.InsertTemplateVersionParameterParams) (database.TemplateVersionParameter, error) {
@@ -3846,9 +3846,9 @@ func (q *FakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 	return workspaceApp, nil
 }
 
-func (q *FakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.InsertWorkspaceBuildParams) (database.WorkspaceBuild, error) {
+func (q *FakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.InsertWorkspaceBuildParams) error {
 	if err := validateDatabaseType(arg); err != nil {
-		return database.WorkspaceBuild{}, err
+		return err
 	}
 
 	q.mutex.Lock()
@@ -3869,7 +3869,7 @@ func (q *FakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 		Reason:            arg.Reason,
 	}
 	q.workspaceBuilds = append(q.workspaceBuilds, workspaceBuild)
-	return workspaceBuild, nil
+	return nil
 }
 
 func (q *FakeQuerier) InsertWorkspaceBuildParameters(_ context.Context, arg database.InsertWorkspaceBuildParametersParams) error {
@@ -4308,9 +4308,9 @@ func (q *FakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateTemplateVersionByID(_ context.Context, arg database.UpdateTemplateVersionByIDParams) (database.TemplateVersion, error) {
+func (q *FakeQuerier) UpdateTemplateVersionByID(_ context.Context, arg database.UpdateTemplateVersionByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
-		return database.TemplateVersion{}, err
+		return err
 	}
 
 	q.mutex.Lock()
@@ -4325,9 +4325,9 @@ func (q *FakeQuerier) UpdateTemplateVersionByID(_ context.Context, arg database.
 		templateVersion.Name = arg.Name
 		templateVersion.Message = arg.Message
 		q.templateVersions[index] = templateVersion
-		return templateVersion, nil
+		return nil
 	}
-	return database.TemplateVersion{}, sql.ErrNoRows
+	return sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateTemplateVersionDescriptionByJobID(_ context.Context, arg database.UpdateTemplateVersionDescriptionByJobIDParams) error {
@@ -4771,9 +4771,9 @@ func (q *FakeQuerier) UpdateWorkspaceAutostart(_ context.Context, arg database.U
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.UpdateWorkspaceBuildByIDParams) (database.WorkspaceBuild, error) {
+func (q *FakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.UpdateWorkspaceBuildByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
-		return database.WorkspaceBuild{}, err
+		return err
 	}
 
 	q.mutex.Lock()
@@ -4788,14 +4788,14 @@ func (q *FakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.U
 		workspaceBuild.Deadline = arg.Deadline
 		workspaceBuild.MaxDeadline = arg.MaxDeadline
 		q.workspaceBuilds[index] = workspaceBuild
-		return workspaceBuild, nil
+		return nil
 	}
-	return database.WorkspaceBuild{}, sql.ErrNoRows
+	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateWorkspaceBuildCostByID(_ context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) (database.WorkspaceBuild, error) {
+func (q *FakeQuerier) UpdateWorkspaceBuildCostByID(_ context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
-		return database.WorkspaceBuild{}, err
+		return err
 	}
 
 	q.mutex.Lock()
@@ -4807,9 +4807,9 @@ func (q *FakeQuerier) UpdateWorkspaceBuildCostByID(_ context.Context, arg databa
 		}
 		workspaceBuild.DailyCost = arg.DailyCost
 		q.workspaceBuilds[index] = workspaceBuild
-		return workspaceBuild, nil
+		return nil
 	}
-	return database.WorkspaceBuild{}, sql.ErrNoRows
+	return sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateWorkspaceDeletedByID(_ context.Context, arg database.UpdateWorkspaceDeletedByIDParams) error {

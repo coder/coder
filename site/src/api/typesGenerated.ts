@@ -554,6 +554,13 @@ export interface LoginWithPasswordResponse {
   readonly session_token: string
 }
 
+// From codersdk/users.go
+export interface MinimalUser {
+  readonly id: string
+  readonly username: string
+  readonly avatar_url: string
+}
+
 // From codersdk/deployment.go
 export interface OAuth2Config {
   readonly github: OAuth2GithubConfig
@@ -930,7 +937,7 @@ export interface TemplateVersion {
   readonly message: string
   readonly job: ProvisionerJob
   readonly readme: string
-  readonly created_by: User
+  readonly created_by: MinimalUser
   readonly warnings?: TemplateVersionWarning[]
 }
 

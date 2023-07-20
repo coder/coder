@@ -384,7 +384,7 @@ func TestCache_BuildTime(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				_, err = db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
+				err = db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
 					TemplateVersionID: templateVersion.ID,
 					JobID:             job.ID,
 					Transition:        tt.args.transition,

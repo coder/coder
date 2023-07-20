@@ -749,7 +749,8 @@ func TestFailJob(t *testing.T) {
 			ID: uuid.New(),
 		})
 		require.NoError(t, err)
-		build, err := srv.Database.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
+		buildID := uuid.New()
+		err = srv.Database.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
 			ID:          uuid.New(),
 			WorkspaceID: workspace.ID,
 			Transition:  database.WorkspaceTransitionStart,
@@ -757,7 +758,7 @@ func TestFailJob(t *testing.T) {
 		})
 		require.NoError(t, err)
 		input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-			WorkspaceBuildID: build.ID,
+			WorkspaceBuildID: buildID,
 		})
 		require.NoError(t, err)
 		job, err := srv.Database.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{

@@ -350,7 +350,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 
 		templateAudit.New = dbTemplate
 
-		_, err = tx.UpdateTemplateVersionByID(ctx, database.UpdateTemplateVersionByIDParams{
+		err = tx.UpdateTemplateVersionByID(ctx, database.UpdateTemplateVersionByIDParams{
 			ID: templateVersion.ID,
 			TemplateID: uuid.NullUUID{
 				UUID:  dbTemplate.ID,

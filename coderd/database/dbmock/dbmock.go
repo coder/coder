@@ -2332,12 +2332,11 @@ func (mr *MockStoreMockRecorder) InsertTemplate(arg0, arg1 interface{}) *gomock.
 }
 
 // InsertTemplateVersion mocks base method.
-func (m *MockStore) InsertTemplateVersion(arg0 context.Context, arg1 database.InsertTemplateVersionParams) (database.TemplateVersion, error) {
+func (m *MockStore) InsertTemplateVersion(arg0 context.Context, arg1 database.InsertTemplateVersionParams) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertTemplateVersion", arg0, arg1)
-	ret0, _ := ret[0].(database.TemplateVersion)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // InsertTemplateVersion indicates an expected call of InsertTemplateVersion.
@@ -2510,12 +2509,11 @@ func (mr *MockStoreMockRecorder) InsertWorkspaceApp(arg0, arg1 interface{}) *gom
 }
 
 // InsertWorkspaceBuild mocks base method.
-func (m *MockStore) InsertWorkspaceBuild(arg0 context.Context, arg1 database.InsertWorkspaceBuildParams) (database.WorkspaceBuild, error) {
+func (m *MockStore) InsertWorkspaceBuild(arg0 context.Context, arg1 database.InsertWorkspaceBuildParams) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertWorkspaceBuild", arg0, arg1)
-	ret0, _ := ret[0].(database.WorkspaceBuild)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // InsertWorkspaceBuild indicates an expected call of InsertWorkspaceBuild.
@@ -2830,12 +2828,11 @@ func (mr *MockStoreMockRecorder) UpdateTemplateScheduleByID(arg0, arg1 interface
 }
 
 // UpdateTemplateVersionByID mocks base method.
-func (m *MockStore) UpdateTemplateVersionByID(arg0 context.Context, arg1 database.UpdateTemplateVersionByIDParams) (database.TemplateVersion, error) {
+func (m *MockStore) UpdateTemplateVersionByID(arg0 context.Context, arg1 database.UpdateTemplateVersionByIDParams) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateTemplateVersionByID", arg0, arg1)
-	ret0, _ := ret[0].(database.TemplateVersion)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // UpdateTemplateVersionByID indicates an expected call of UpdateTemplateVersionByID.
@@ -3134,12 +3131,11 @@ func (mr *MockStoreMockRecorder) UpdateWorkspaceAutostart(arg0, arg1 interface{}
 }
 
 // UpdateWorkspaceBuildByID mocks base method.
-func (m *MockStore) UpdateWorkspaceBuildByID(arg0 context.Context, arg1 database.UpdateWorkspaceBuildByIDParams) (database.WorkspaceBuild, error) {
+func (m *MockStore) UpdateWorkspaceBuildByID(arg0 context.Context, arg1 database.UpdateWorkspaceBuildByIDParams) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateWorkspaceBuildByID", arg0, arg1)
-	ret0, _ := ret[0].(database.WorkspaceBuild)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // UpdateWorkspaceBuildByID indicates an expected call of UpdateWorkspaceBuildByID.
@@ -3149,12 +3145,11 @@ func (mr *MockStoreMockRecorder) UpdateWorkspaceBuildByID(arg0, arg1 interface{}
 }
 
 // UpdateWorkspaceBuildCostByID mocks base method.
-func (m *MockStore) UpdateWorkspaceBuildCostByID(arg0 context.Context, arg1 database.UpdateWorkspaceBuildCostByIDParams) (database.WorkspaceBuild, error) {
+func (m *MockStore) UpdateWorkspaceBuildCostByID(arg0 context.Context, arg1 database.UpdateWorkspaceBuildCostByIDParams) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateWorkspaceBuildCostByID", arg0, arg1)
-	ret0, _ := ret[0].(database.WorkspaceBuild)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // UpdateWorkspaceBuildCostByID indicates an expected call of UpdateWorkspaceBuildCostByID.

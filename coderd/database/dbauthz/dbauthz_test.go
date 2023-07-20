@@ -1377,7 +1377,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(database.UpdateWorkspaceBuildCostByIDParams{
 			ID:        b.ID,
 			DailyCost: 10,
-		}).Asserts(rbac.ResourceSystem, rbac.ActionUpdate).Returns(o)
+		}).Asserts(rbac.ResourceSystem, rbac.ActionUpdate)
 	}))
 	s.Run("UpsertLastUpdateCheck", s.Subtest(func(db database.Store, check *expects) {
 		check.Args("value").Asserts(rbac.ResourceSystem, rbac.ActionUpdate)
