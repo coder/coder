@@ -248,8 +248,8 @@ resource "local_file" "kubernetes_template" {
 # TODO(cian): Remove this when we have support in the Helm chart.
 # Ref: https://github.com/coder/coder/issues/8243
 resource "local_file" "provisionerd_deployment" {
-    filename = "${path.module}/../.coderv2/provisionerd-deployment.yaml"
-    content = <<EOF
+  filename = "${path.module}/../.coderv2/provisionerd-deployment.yaml"
+  content  = <<EOF
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -397,8 +397,8 @@ spec:
 resource "null_resource" "provisionerd_deployment_apply" {
   depends_on = [helm_release.coder-chart, local_file.provisionerd_deployment, null_resource.cluster_kubeconfig]
   triggers = {
-    kubeconfig_path       = local.cluster_kubeconfig_path
-    manifest_path = local_file.provisionerd_deployment.filename
+    kubeconfig_path = local.cluster_kubeconfig_path
+    manifest_path   = local_file.provisionerd_deployment.filename
   }
   provisioner "local-exec" {
     command = <<EOF
