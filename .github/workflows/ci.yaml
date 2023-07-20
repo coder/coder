@@ -240,6 +240,7 @@ jobs:
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 20
     strategy:
+      fail-fast: false
       matrix:
         os:
           - ubuntu-latest
