@@ -66,20 +66,16 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO(mafredri): Client or deployment timezone?
-	// Example:
-	// - I want data from Monday - Friday
-	// - I'm UTC+3 and the deployment is UTC+0
-	// - Do we select Monday - Friday in UTC+0 or UTC+3?
-	// - Considering users can be in different timezones, perhaps this should be per-user (but we don't keep track of user timezones).
 	p := httpapi.NewQueryParamParser().
 		Required("start_time").
 		Required("end_time")
 	vals := r.URL.Query()
 	var (
-		startTime   = p.Time3339Nano(vals, time.Time{}, "start_time")
-		endTime     = p.Time3339Nano(vals, time.Time{}, "end_time")
-		templateIDs = p.UUIDs(vals, []uuid.UUID{}, "template_ids")
+		// The QueryParamParser does not preserve timezone, so we need
+		// to parse the time ourselves.
+		startTimeString = p.String(vals, "", "start_time")
+		endTimeString   = p.String(vals, "", "end_time")
+		templateIDs     = p.UUIDs(vals, []uuid.UUID{}, "template_ids")
 	)
 	p.ErrorExcessParams(vals)
 	if len(p.Errors) > 0 {
@@ -90,14 +86,10 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !verifyInsightsStartAndEndTime(ctx, rw, startTime, endTime) {
+	startTime, endTime, ok := parseInsightsStartAndEndTime(ctx, rw, startTimeString, endTimeString)
+	if !ok {
 		return
 	}
-
-	// Should we verify all template IDs exist, or just return no rows?
-	// _, err := api.Database.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
-	// 	IDs: templateIDs,
-	// })
 
 	rows, err := api.Database.GetUserLatencyInsights(ctx, database.GetUserLatencyInsightsParams{
 		StartTime:   startTime,
@@ -192,10 +184,12 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		Required("end_time")
 	vals := r.URL.Query()
 	var (
-		startTime      = p.Time3339Nano(vals, time.Time{}, "start_time")
-		endTime        = p.Time3339Nano(vals, time.Time{}, "end_time")
-		intervalString = p.String(vals, string(codersdk.InsightsReportIntervalNone), "interval")
-		templateIDs    = p.UUIDs(vals, []uuid.UUID{}, "template_ids")
+		// The QueryParamParser does not preserve timezone, so we need
+		// to parse the time ourselves.
+		startTimeString = p.String(vals, "", "start_time")
+		endTimeString   = p.String(vals, "", "end_time")
+		intervalString  = p.String(vals, string(codersdk.InsightsReportIntervalNone), "interval")
+		templateIDs     = p.UUIDs(vals, []uuid.UUID{}, "template_ids")
 	)
 	p.ErrorExcessParams(vals)
 	if len(p.Errors) > 0 {
@@ -206,18 +200,14 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !verifyInsightsStartAndEndTime(ctx, rw, startTime, endTime) {
+	startTime, endTime, ok := parseInsightsStartAndEndTime(ctx, rw, startTimeString, endTimeString)
+	if !ok {
 		return
 	}
 	interval, ok := verifyInsightsInterval(ctx, rw, intervalString)
 	if !ok {
 		return
 	}
-
-	// Should we verify all template IDs exist, or just return no rows?
-	// _, err := api.Database.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
-	// 	IDs: templateIDs,
-	// })
 
 	var usage database.GetTemplateInsightsRow
 	var dailyUsage []database.GetTemplateDailyInsightsRow
@@ -310,39 +300,79 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-func verifyInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, startTime, endTime time.Time) bool {
-	for _, v := range []struct {
-		name string
-		t    time.Time
+// parseInsightsStartAndEndTime parses the start and end time query parameters
+// and returns the parsed values. The client provided timezone must be preserved
+// when parsing the time. Verification is performed so that the start and end
+// time are not zero and that the end time is not before the start time. The
+// clock must be set to 00:00:00, except for "today", where end time is allowed
+// to provide the hour of the day (e.g. 14:00:00).
+func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, startTimeString, endTimeString string) (startTime, endTime time.Time, ok bool) {
+	const insightsTimeLayout = time.RFC3339Nano
+
+	for _, qp := range []struct {
+		name, value string
+		dest        *time.Time
 	}{
-		{"start_time", startTime},
-		{"end_time", endTime},
+		{"start_time", startTimeString, &startTime},
+		{"end_time", endTimeString, &endTime},
 	} {
-		if v.t.IsZero() {
+		t, err := time.Parse(insightsTimeLayout, qp.value)
+		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Query parameter has invalid value.",
 				Validations: []codersdk.ValidationError{
 					{
-						Field:  v.name,
-						Detail: "must be not be zero",
+						Field:  qp.name,
+						Detail: fmt.Sprintf("Query param %q must be a valid date format (%s): %s", qp.name, insightsTimeLayout, err.Error()),
 					},
 				},
 			})
-			return false
+			return time.Time{}, time.Time{}, false
 		}
-		h, m, s := v.t.Clock()
-		if h != 0 || m != 0 || s != 0 {
+		if t.IsZero() {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Query parameter has invalid value.",
 				Validations: []codersdk.ValidationError{
 					{
-						Field:  v.name,
-						Detail: "clock must be 00:00:00",
+						Field:  qp.name,
+						Detail: fmt.Sprintf("Query param %q must not be zero", qp.name),
 					},
 				},
 			})
-			return false
+			return time.Time{}, time.Time{}, false
 		}
+		ensureZeroHour := true
+		if qp.name == "end_time" {
+			ey, em, ed := t.Date()
+			ty, tm, td := time.Now().Date()
+
+			ensureZeroHour = ey != ty || em != tm || ed != td
+		}
+		h, m, s := t.Clock()
+		if ensureZeroHour && (h != 0 || m != 0 || s != 0) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Query parameter has invalid value.",
+				Validations: []codersdk.ValidationError{
+					{
+						Field:  qp.name,
+						Detail: fmt.Sprintf("Query param %q must have the clock set to 00:00:00", qp.name),
+					},
+				},
+			})
+			return time.Time{}, time.Time{}, false
+		} else if m != 0 || s != 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Query parameter has invalid value.",
+				Validations: []codersdk.ValidationError{
+					{
+						Field:  qp.name,
+						Detail: fmt.Sprintf("Query param %q must have the clock set to %02d:00:00", qp.name, h),
+					},
+				},
+			})
+			return time.Time{}, time.Time{}, false
+		}
+		*qp.dest = t
 	}
 	if endTime.Before(startTime) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -350,14 +380,14 @@ func verifyInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, 
 			Validations: []codersdk.ValidationError{
 				{
 					Field:  "end_time",
-					Detail: "must be after start_time",
+					Detail: fmt.Sprintf("Query param %q must be greater than %q", "end_time", "start_time"),
 				},
 			},
 		})
-		return false
+		return time.Time{}, time.Time{}, false
 	}
 
-	return true
+	return startTime, endTime, true
 }
 
 func verifyInsightsInterval(ctx context.Context, rw http.ResponseWriter, intervalString string) (codersdk.InsightsReportInterval, bool) {
