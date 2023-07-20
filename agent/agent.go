@@ -335,32 +335,8 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 			a.logger.Error(ctx, "agent failed to report metadata", slog.Error(err))
 		}
 	}
-	flushAllMetadata := func() {
-		wg := sync.WaitGroup{}
-		defer wg.Wait()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case mr := <-metadataResults:
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					postMetadata(mr)
-				}()
-				continue
-			default:
-				return
-			}
-		}
-	}
 
 	for {
-		// Ensure all backpressured metadata is posted.
-		if len(metadataResults) > 1 {
-			flushAllMetadata()
-		}
-
 		select {
 		case <-ctx.Done():
 			return
