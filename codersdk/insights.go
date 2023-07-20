@@ -12,6 +12,8 @@ import (
 	"golang.org/x/xerrors"
 )
 
+const InsightsTimeLayout = time.RFC3339
+
 // InsightsReportInterval is the interval of time over which to generate a
 // smaller insights report within a time range.
 type InsightsReportInterval string
@@ -51,11 +53,23 @@ type ConnectionLatency struct {
 	P95 float64 `json:"p95" example:"119.832"`
 }
 
-func (c *Client) UserLatencyInsights(ctx context.Context) (UserLatencyInsightsResponse, error) {
+type UserLatencyInsightsRequest struct {
+	StartTime   time.Time   `json:"start_time" format:"date-time"`
+	EndTime     time.Time   `json:"end_time" format:"date-time"`
+	TemplateIDs []uuid.UUID `json:"template_ids" format:"uuid"`
+}
+
+func (c *Client) UserLatencyInsights(ctx context.Context, req UserLatencyInsightsRequest) (UserLatencyInsightsResponse, error) {
 	var qp []string
-	qp = append(qp, fmt.Sprintf("start_time=%s", "2020-01-01T00:00:00Z"))
-	qp = append(qp, fmt.Sprintf("end_time=%s", "2020-01-01T00:00:00Z"))
-	qp = append(qp, fmt.Sprintf("template_ids=%s", "e0a3f9a0-4b0a-4b6a-8b0a-4b0a4b6a8b0a"))
+	qp = append(qp, fmt.Sprintf("start_time=%s", req.StartTime.Format(InsightsTimeLayout)))
+	qp = append(qp, fmt.Sprintf("end_time=%s", req.EndTime.Format(InsightsTimeLayout)))
+	if len(req.TemplateIDs) > 0 {
+		var templateIDs []string
+		for _, id := range req.TemplateIDs {
+			templateIDs = append(templateIDs, id.String())
+		}
+		qp = append(qp, fmt.Sprintf("template_ids=%s", strings.Join(templateIDs, ",")))
+	}
 
 	reqURL := fmt.Sprintf("/api/v2/insights/user-latency?%s", strings.Join(qp, "&"))
 	resp, err := c.Request(ctx, http.MethodGet, reqURL, nil)
@@ -138,12 +152,27 @@ type TemplateParameterValue struct {
 }
 */
 
-func (c *Client) TemplateInsights(ctx context.Context) (TemplateInsightsResponse, error) {
+type TemplateInsightsRequest struct {
+	StartTime   time.Time              `json:"start_time" format:"date-time"`
+	EndTime     time.Time              `json:"end_time" format:"date-time"`
+	TemplateIDs []uuid.UUID            `json:"template_ids" format:"uuid"`
+	Interval    InsightsReportInterval `json:"interval" example:"day"`
+}
+
+func (c *Client) TemplateInsights(ctx context.Context, req TemplateInsightsRequest) (TemplateInsightsResponse, error) {
 	var qp []string
-	qp = append(qp, fmt.Sprintf("start_time=%s", "2020-01-01T00:00:00Z"))
-	qp = append(qp, fmt.Sprintf("end_time=%s", "2020-01-01T00:00:00Z"))
-	qp = append(qp, fmt.Sprintf("interval=%s", InsightsReportIntervalDay))
-	qp = append(qp, fmt.Sprintf("template_ids=%s", "e0a3f9a0-4b0a-4b6a-8b0a-4b0a4b6a8b0a"))
+	qp = append(qp, fmt.Sprintf("start_time=%s", req.StartTime.Format(InsightsTimeLayout)))
+	qp = append(qp, fmt.Sprintf("end_time=%s", req.EndTime.Format(InsightsTimeLayout)))
+	if len(req.TemplateIDs) > 0 {
+		var templateIDs []string
+		for _, id := range req.TemplateIDs {
+			templateIDs = append(templateIDs, id.String())
+		}
+		qp = append(qp, fmt.Sprintf("template_ids=%s", strings.Join(templateIDs, ",")))
+	}
+	if req.Interval != "" {
+		qp = append(qp, fmt.Sprintf("interval=%s", req.Interval))
+	}
 
 	reqURL := fmt.Sprintf("/api/v2/insights/templates?%s", strings.Join(qp, "&"))
 	resp, err := c.Request(ctx, http.MethodGet, reqURL, nil)

@@ -112,6 +112,7 @@ func TestUserLatencyInsights(t *testing.T) {
 	})
 
 	user := coderdtest.CreateFirstUser(t, client)
+	_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:          echo.ParseComplete,
@@ -134,15 +135,54 @@ func TestUserLatencyInsights(t *testing.T) {
 	defer func() {
 		_ = agentCloser.Close()
 	}()
-	_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	userLatencies, err := client.UserLatencyInsights(ctx)
+	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
+		Logger: logger.Named("client"),
+	})
+	require.NoError(t, err)
+	defer conn.Close()
+
+	sshConn, err := conn.SSHClient(ctx)
+	require.NoError(t, err)
+	defer sshConn.Close()
+
+	// Create users that will not appear in the report.
+	_, user3 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+	_, user4 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+	_, err = client.UpdateUserStatus(ctx, user3.Username, codersdk.UserStatusSuspended)
+	require.NoError(t, err)
+	err = client.DeleteUser(ctx, user4.ID)
 	require.NoError(t, err)
 
-	t.Logf("%#v\n", userLatencies)
+	y, m, d := time.Now().Date()
+	today := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+
+	_ = sshConn.Close()
+
+	var userLatencies codersdk.UserLatencyInsightsResponse
+	require.Eventuallyf(t, func() bool {
+		userLatencies, err = client.UserLatencyInsights(ctx, codersdk.UserLatencyInsightsRequest{
+			StartTime:   today,
+			EndTime:     time.Now().UTC().Truncate(time.Hour).Add(time.Hour), // Round up to include the current hour.
+			TemplateIDs: []uuid.UUID{template.ID},
+		})
+		if !assert.NoError(t, err) {
+			return false
+		}
+		if userLatencies.Report.Users[0].UserID == user2.ID {
+			userLatencies.Report.Users[0], userLatencies.Report.Users[1] = userLatencies.Report.Users[1], userLatencies.Report.Users[0]
+		}
+		return userLatencies.Report.Users[0].LatencyMS != nil
+	}, testutil.WaitShort, testutil.IntervalFast, "user latency is missing")
+
+	require.Len(t, userLatencies.Report.Users, 2, "only 2 users should be included")
+	assert.Greater(t, userLatencies.Report.Users[0].LatencyMS.P50, float64(0), "expected p50 to be greater than 0")
+	assert.Greater(t, userLatencies.Report.Users[0].LatencyMS.P95, float64(0), "expected p95 to be greater than 0")
+	assert.Nil(t, userLatencies.Report.Users[1].LatencyMS, "user 2 should have no latency")
 }
 
 func TestTemplateInsights(t *testing.T) {
@@ -183,7 +223,11 @@ func TestTemplateInsights(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	templateInsights, err := client.TemplateInsights(ctx)
+	templateInsights, err := client.TemplateInsights(ctx, codersdk.TemplateInsightsRequest{
+		StartTime: time.Now().Add(-time.Hour),
+		EndTime:   time.Now(),
+		Interval:  codersdk.InsightsReportIntervalDay,
+	})
 	require.NoError(t, err)
 
 	t.Logf("%#v\n", templateInsights)

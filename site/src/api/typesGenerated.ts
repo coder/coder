@@ -940,6 +940,14 @@ export interface TemplateInsightsReport {
 }
 
 // From codersdk/insights.go
+export interface TemplateInsightsRequest {
+  readonly start_time: string
+  readonly end_time: string
+  readonly template_ids: string[]
+  readonly interval: InsightsReportInterval
+}
+
+// From codersdk/insights.go
 export interface TemplateInsightsResponse {
   readonly report: TemplateInsightsReport
   readonly interval_reports: TemplateInsightsIntervalReport[]
@@ -1155,6 +1163,13 @@ export interface UserLatencyInsightsReport {
   readonly end_time: string
   readonly template_ids: string[]
   readonly users: UserLatency[]
+}
+
+// From codersdk/insights.go
+export interface UserLatencyInsightsRequest {
+  readonly start_time: string
+  readonly end_time: string
+  readonly template_ids: string[]
 }
 
 // From codersdk/insights.go

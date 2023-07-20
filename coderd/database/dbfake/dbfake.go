@@ -2188,7 +2188,66 @@ func (q *FakeQuerier) GetUserLatencyInsights(ctx context.Context, arg database.G
 		return nil, err
 	}
 
-	panic("not implemented")
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	latenciesByUserID := make(map[uuid.UUID][]float64)
+	seenTemplatesByUserID := make(map[uuid.UUID]map[uuid.UUID]struct{})
+	for _, s := range q.workspaceAgentStats {
+		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, s.TemplateID) {
+			continue
+		}
+		if !arg.StartTime.Equal(s.CreatedAt) && !(s.CreatedAt.After(arg.StartTime) && s.CreatedAt.Before(arg.EndTime)) {
+			continue
+		}
+		if s.ConnectionCount == 0 {
+			continue
+		}
+
+		latenciesByUserID[s.UserID] = append(latenciesByUserID[s.UserID], s.ConnectionMedianLatencyMS)
+		if seenTemplatesByUserID[s.UserID] == nil {
+			seenTemplatesByUserID[s.UserID] = make(map[uuid.UUID]struct{})
+		}
+		seenTemplatesByUserID[s.UserID][s.TemplateID] = struct{}{}
+	}
+
+	tryPercentile := func(fs []float64, p float64) float64 {
+		if len(fs) == 0 {
+			return -1
+		}
+		sort.Float64s(fs)
+		return fs[int(float64(len(fs))*p/100)]
+	}
+
+	var rows []database.GetUserLatencyInsightsRow
+	for userID, latencies := range latenciesByUserID {
+		sort.Float64s(latencies)
+		templateSet := seenTemplatesByUserID[userID]
+		templateIDs := make([]uuid.UUID, 0, len(templateSet))
+		for templateID := range templateSet {
+			templateIDs = append(templateIDs, templateID)
+		}
+		slices.SortFunc(templateIDs, func(a, b uuid.UUID) bool {
+			return a.String() < b.String()
+		})
+		user, err := q.getUserByIDNoLock(userID)
+		if err != nil {
+			return nil, err
+		}
+		row := database.GetUserLatencyInsightsRow{
+			UserID:                       userID,
+			Username:                     user.Username,
+			TemplateIDs:                  templateIDs,
+			WorkspaceConnectionLatency50: tryPercentile(latencies, 50),
+			WorkspaceConnectionLatency95: tryPercentile(latencies, 95),
+		}
+		rows = append(rows, row)
+	}
+	slices.SortFunc(rows, func(a, b database.GetUserLatencyInsightsRow) bool {
+		return a.UserID.String() < b.UserID.String()
+	})
+
+	return rows, nil
 }
 
 func (q *FakeQuerier) GetUserLinkByLinkedID(_ context.Context, id string) (database.UserLink, error) {

@@ -307,7 +307,6 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 // clock must be set to 00:00:00, except for "today", where end time is allowed
 // to provide the hour of the day (e.g. 14:00:00).
 func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, startTimeString, endTimeString string) (startTime, endTime time.Time, ok bool) {
-	const insightsTimeLayout = time.RFC3339Nano
 	now := time.Now()
 
 	for _, qp := range []struct {
@@ -317,14 +316,14 @@ func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, s
 		{"start_time", startTimeString, &startTime},
 		{"end_time", endTimeString, &endTime},
 	} {
-		t, err := time.Parse(insightsTimeLayout, qp.value)
+		t, err := time.Parse(codersdk.InsightsTimeLayout, qp.value)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Query parameter has invalid value.",
 				Validations: []codersdk.ValidationError{
 					{
 						Field:  qp.name,
-						Detail: fmt.Sprintf("Query param %q must be a valid date format (%s): %s", qp.name, insightsTimeLayout, err.Error()),
+						Detail: fmt.Sprintf("Query param %q must be a valid date format (%s): %s", qp.name, codersdk.InsightsTimeLayout, err.Error()),
 					},
 				},
 			})
@@ -344,7 +343,8 @@ func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, s
 			return time.Time{}, time.Time{}, false
 		}
 
-		if t.After(now) {
+		// Round upwards one hour to ensure we can fetch the latest data.
+		if t.After(now.Truncate(time.Hour).Add(time.Hour)) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Query parameter has invalid value.",
 				Validations: []codersdk.ValidationError{

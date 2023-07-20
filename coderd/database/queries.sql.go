@@ -1376,11 +1376,12 @@ func (q *sqlQuerier) UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDPar
 
 const getTemplateDailyInsights = `-- name: GetTemplateDailyInsights :many
 WITH d AS (
+	-- sqlc workaround, use SELECT generate_series instead of SELECT * FROM generate_series.
 	SELECT generate_series($1::timestamptz, $2::timestamptz, '1 day'::interval) AS d
 ), ts AS (
 	SELECT
 		d::timestamptz AS from_,
-		(d + '1 day'::interval)::timestamptz AS to_
+		CASE WHEN (d + '1 day'::interval)::timestamptz <= $2::timestamptz THEN (d + '1 day'::interval)::timestamptz ELSE $2::timestamptz END AS to_
 	FROM d
 ), usage_by_day AS (
 	SELECT
@@ -1474,11 +1475,11 @@ WITH d AS (
 
 SELECT
 	COUNT(DISTINCT user_id) AS active_users,
-	array_agg(DISTINCT template_id)::uuid[] AS template_ids,
-	SUM(usage_vscode_seconds) AS usage_vscode_seconds,
-	SUM(usage_jetbrains_seconds) AS usage_jetbrains_seconds,
-	SUM(usage_reconnecting_pty_seconds) AS usage_reconnecting_pty_seconds,
-	SUM(usage_ssh_seconds) AS usage_ssh_seconds
+	COALESCE(array_agg(DISTINCT template_id), '{}')::uuid[] AS template_ids,
+	COALESCE(SUM(usage_vscode_seconds), 0)::bigint AS usage_vscode_seconds,
+	COALESCE(SUM(usage_jetbrains_seconds), 0)::bigint AS usage_jetbrains_seconds,
+	COALESCE(SUM(usage_reconnecting_pty_seconds), 0)::bigint AS usage_reconnecting_pty_seconds,
+	COALESCE(SUM(usage_ssh_seconds), 0)::bigint AS usage_ssh_seconds
 FROM usage_by_user, unnest(template_ids) as template_id
 `
 
