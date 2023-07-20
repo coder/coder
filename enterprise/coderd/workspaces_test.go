@@ -15,12 +15,12 @@ import (
 	"github.com/coder/coder/coderd/autobuild"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/schedule"
+	agplschedule "github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/coderd"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/enterprise/coderd/license"
+	"github.com/coder/coder/enterprise/coderd/schedule"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/testutil"
 )
@@ -101,7 +101,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 				AutobuildTicker:          ticker,
 				IncludeProvisionerDaemon: true,
 				AutobuildStats:           statCh,
-				TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
@@ -148,7 +148,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 				AutobuildTicker:          ticker,
 				IncludeProvisionerDaemon: true,
 				AutobuildStats:           statCh,
-				TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
@@ -194,7 +194,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 				AutobuildTicker:          ticker,
 				IncludeProvisionerDaemon: true,
 				AutobuildStats:           statCh,
-				TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
@@ -236,7 +236,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 				AutobuildTicker:          ticker,
 				IncludeProvisionerDaemon: true,
 				AutobuildStats:           statCh,
-				TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
@@ -293,7 +293,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 				AutobuildTicker:          ticker,
 				IncludeProvisionerDaemon: true,
 				AutobuildStats:           statCh,
-				TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
@@ -335,7 +335,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 				AutobuildTicker:          ticker,
 				IncludeProvisionerDaemon: true,
 				AutobuildStats:           statCh,
-				TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
@@ -377,7 +377,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 				AutobuildTicker:          ticker,
 				IncludeProvisionerDaemon: true,
 				AutobuildStats:           statCh,
-				TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
@@ -428,7 +428,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 				AutobuildTicker:          ticker,
 				IncludeProvisionerDaemon: true,
 				AutobuildStats:           statCh,
-				TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
@@ -498,7 +498,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 				AutobuildTicker:          ticker,
 				IncludeProvisionerDaemon: true,
 				AutobuildStats:           statCh,
-				TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
@@ -559,7 +559,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 				AutobuildTicker:          tickCh,
 				IncludeProvisionerDaemon: true,
 				AutobuildStats:           statsCh,
-				TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
@@ -575,7 +575,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		sched, err := schedule.Weekly("CRON_TZ=UTC 0 * * * *")
+		sched, err := agplschedule.Weekly("CRON_TZ=UTC 0 * * * *")
 		require.NoError(t, err)
 
 		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
