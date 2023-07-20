@@ -683,5 +683,6 @@ type WorkspaceAgentStartupLog struct {
 type AgentSubsystem string
 
 const (
-	AgentSubsystemEnvbox AgentSubsystem = "envbox"
+	AgentSubsystemEnvbox     AgentSubsystem = "envbox"
+	AgentSubsystemEnvbuilder AgentSubsystem = "envbuilder"
 )

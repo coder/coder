@@ -2018,6 +2018,8 @@ func convertWorkspaceAgentSubsystem(ss codersdk.AgentSubsystem) database.Workspa
 	switch ss {
 	case codersdk.AgentSubsystemEnvbox:
 		return database.WorkspaceAgentSubsystemEnvbox
+	case codersdk.AgentSubsystemEnvbuilder:
+		return database.WorkspaceAgentSubsystemEnvbuilder
 	default:
 		return database.WorkspaceAgentSubsystemNone
 	}
