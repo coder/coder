@@ -1905,7 +1905,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	})
 	statsCh := make(chan *agentsdk.Stats, 50)
 	fs := afero.NewMemMapFs()
-	c := agenttest.NewClient(t, logger, metadata.AgentID, metadata, statsCh, coordinator)
+	c := agenttest.NewClient(t, logger.Named("agent"), metadata.AgentID, metadata, statsCh, coordinator)
 
 	options := agent.Options{
 		Client:                 c,

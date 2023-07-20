@@ -320,6 +320,7 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 		lastCollectedAtMu sync.RWMutex
 		lastCollectedAts  = make(map[string]time.Time)
 		metadataResults   = make(chan metadataResultAndKey, metadataLimit)
+		logger            = a.logger.Named("metadata")
 	)
 	defer baseTicker.Stop()
 
@@ -330,6 +331,8 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 	var flight trySingleflight
 
 	for {
+		var delay time.Duration
+
 		select {
 		case <-ctx.Done():
 			return
@@ -340,14 +343,16 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 				a.logger.Error(ctx, "agent failed to report metadata", slog.Error(err))
 			}
 			continue
-		case <-baseTicker.C:
+		case t := <-baseTicker.C:
+			delay = time.Since(t)
 		}
+
+		logger.Debug(ctx, "report metadata ticking", slog.F("delay", delay.String()))
 
 		if len(metadataResults) > 0 {
 			// The inner collection loop expects the channel is empty before spinning up
 			// all the collection goroutines.
-			a.logger.Debug(
-				ctx, "metadata collection backpressured",
+			logger.Debug(ctx, "metadata collection backpressured",
 				slog.F("queue_len", len(metadataResults)),
 			)
 			continue
@@ -359,7 +364,7 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 		}
 
 		if len(manifest.Metadata) > metadataLimit {
-			a.logger.Error(
+			logger.Error(
 				ctx, "metadata limit exceeded",
 				slog.F("limit", metadataLimit), slog.F("got", len(manifest.Metadata)),
 			)
@@ -374,6 +379,9 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 			if slices.IndexFunc(manifest.Metadata, func(md codersdk.WorkspaceAgentMetadataDescription) bool {
 				return md.Key == key
 			}) < 0 {
+				logger.Debug(ctx, "deleting lastCollected key, missing from manifest",
+					slog.F("key", key),
+				)
 				delete(lastCollectedAts, key)
 			}
 		}
@@ -388,6 +396,7 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 			// sending the same result multiple times. So, we don't care about
 			// the return values.
 			go flight.Do(md.Key, func() {
+				ctx := slog.With(ctx, slog.F("key", md.Key))
 				lastCollectedAtMu.RLock()
 				collectedAt, ok := lastCollectedAts[md.Key]
 				lastCollectedAtMu.RUnlock()
@@ -395,10 +404,12 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 					// If the interval is zero, we assume the user just wants
 					// a single collection at startup, not a spinning loop.
 					if md.Interval == 0 {
+						logger.Debug(ctx, "skipping metadata, interval 0 and alredy collected once")
 						return
 					}
 					// The last collected value isn't quite stale yet, so we skip it.
 					if collectedAt.Add(a.reportMetadataInterval).After(time.Now()) {
+						logger.Debug(ctx, "skipping metadata, ")
 						return
 					}
 				}
@@ -417,11 +428,13 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 						timeout = 5
 					}
 				}
-				ctx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
+				ctxTimeout := time.Duration(timeout) * time.Second
+				ctx, cancel := context.WithTimeout(ctx, ctxTimeout)
 				defer cancel()
 
 				select {
 				case <-ctx.Done():
+					logger.Debug(ctx, "metadata collection timed out", slog.F("timeout", ctxTimeout))
 				case metadataResults <- metadataResultAndKey{
 					key:    md.Key,
 					result: a.collectMetadata(ctx, md),
