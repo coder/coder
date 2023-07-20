@@ -298,17 +298,26 @@ type metadataResultAndKey struct {
 }
 
 type trySingleflight struct {
-	m sync.Map
+	mu sync.Mutex
+	m  map[string]struct{}
 }
 
 func (t *trySingleflight) Do(key string, fn func()) {
-	_, loaded := t.m.LoadOrStore(key, struct{}{})
-	if !loaded {
-		// There is already a goroutine running for this key.
+	t.mu.Lock()
+	_, ok := t.m[key]
+	if ok {
+		t.mu.Unlock()
 		return
 	}
 
-	defer t.m.Delete(key)
+	t.m[key] = struct{}{}
+	t.mu.Unlock()
+	defer func() {
+		t.mu.Lock()
+		delete(t.m, key)
+		t.mu.Unlock()
+	}()
+
 	fn()
 }
 
@@ -328,7 +337,7 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 	// a goroutine running for a given key. This is to prevent a build-up of
 	// goroutines waiting on Do when the script takes many multiples of
 	// baseInterval to run.
-	var flight trySingleflight
+	var flight = trySingleflight{m: map[string]struct{}{}}
 
 	for {
 		var delay time.Duration
