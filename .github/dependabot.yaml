@@ -123,6 +123,28 @@ updates:
           - "@swc/jest"
           - "@types/jest"
 
+  - package-ecosystem: "npm"
+    directory: "/offlinedocs/"
+    schedule:
+      interval: "monthly"
+      time: "06:00"
+      timezone: "America/Chicago"
+    reviewers:
+      - "coder/ts"
+    commit-message:
+      prefix: "chore"
+    labels: []
+    ignore:
+      # Ignore patch updates for all dependencies
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-patch
+      # Ignore major updates to Node.js types, because they need to
+      # correspond to the Node.js engine version
+      - dependency-name: "@types/node"
+        update-types:
+          - version-update:semver-major
+
   # Update dogfood.
   - package-ecosystem: "docker"
     directory: "/dogfood/"
