@@ -7,7 +7,7 @@ import * as Yup from "yup"
 
 export const selectInitialRichParametersValues = (
   templateParameters?: TemplateVersionParameter[],
-  defaultValuesFromQuery?: Record<string, string>,
+  defaultBuildParameters?: WorkspaceBuildParameter[],
 ): WorkspaceBuildParameter[] => {
   const defaults: WorkspaceBuildParameter[] = []
   if (!templateParameters) {
@@ -20,8 +20,14 @@ export const selectInitialRichParametersValues = (
     if (parameter.options.length > 0) {
       parameterValue = parameterValue ?? parameter.options[0].value
 
-      if (defaultValuesFromQuery && defaultValuesFromQuery[parameter.name]) {
-        parameterValue = defaultValuesFromQuery[parameter.name]
+      if (defaultBuildParameters) {
+        const buildParameter = defaultBuildParameters.find(
+          (p) => p.name === parameter.name,
+        )
+
+        if (buildParameter) {
+          parameterValue = buildParameter?.value
+        }
       }
 
       const buildParameter: WorkspaceBuildParameter = {
@@ -36,8 +42,14 @@ export const selectInitialRichParametersValues = (
       parameterValue = parameter.default_value
     }
 
-    if (defaultValuesFromQuery && defaultValuesFromQuery[parameter.name]) {
-      parameterValue = defaultValuesFromQuery[parameter.name]
+    if (defaultBuildParameters) {
+      const buildParameter = defaultBuildParameters.find(
+        (p) => p.name === parameter.name,
+      )
+
+      if (buildParameter) {
+        parameterValue = buildParameter?.value
+      }
     }
 
     const buildParameter: WorkspaceBuildParameter = {

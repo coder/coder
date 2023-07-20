@@ -1,6 +1,7 @@
 import {
   checkAuthorization,
   createWorkspace,
+  getTemplateByName,
   getTemplates,
   getTemplateVersionGitAuth,
   getTemplateVersionRichParameters,
@@ -12,8 +13,17 @@ import {
   TemplateVersionParameter,
   User,
   Workspace,
+  WorkspaceBuildParameter,
 } from "api/typesGenerated"
 import { assign, createMachine } from "xstate"
+import {
+  uniqueNamesGenerator,
+  animals,
+  colors,
+  NumberDictionary,
+} from "unique-names-generator"
+
+export type CreateWorkspaceMode = "form" | "auto"
 
 export const REFRESH_GITAUTH_BROADCAST_CHANNEL = "gitauth_refresh"
 
@@ -21,6 +31,7 @@ type CreateWorkspaceContext = {
   organizationId: string
   owner: User | null
   templateName: string
+  mode: CreateWorkspaceMode
   templates?: Template[]
   selectedTemplate?: Template
   templateParameters?: TemplateVersionParameter[]
@@ -33,6 +44,8 @@ type CreateWorkspaceContext = {
   getTemplateGitAuthError?: Error | unknown
   permissions?: Record<string, boolean>
   checkPermissionsError?: Error | unknown
+  // Used on auto-create
+  defaultBuildParameters?: WorkspaceBuildParameter[]
 }
 
 type CreateWorkspaceEvent = {
@@ -76,10 +89,35 @@ export const createWorkspaceMachine =
           createWorkspace: {
             data: Workspace
           }
+          autoCreateWorkspace: {
+            data: Workspace
+          }
         },
       },
-      initial: "gettingTemplates",
+      initial: "checkingMode",
       states: {
+        checkingMode: {
+          always: [
+            {
+              target: "autoCreating",
+              cond: ({ mode }) => mode === "auto",
+            },
+            { target: "gettingTemplates" },
+          ],
+        },
+        autoCreating: {
+          invoke: {
+            src: "autoCreateWorkspace",
+            onDone: {
+              actions: ["onCreateWorkspace"],
+              target: "created",
+            },
+            onError: {
+              actions: ["assignCreateWorkspaceError"],
+              target: "fillingParams",
+            },
+          },
+        },
         gettingTemplates: {
           entry: "clearGetTemplatesError",
           invoke: {
@@ -247,6 +285,18 @@ export const createWorkspaceMachine =
             createWorkspaceRequest,
           )
         },
+        autoCreateWorkspace: async ({
+          templateName,
+          organizationId,
+          defaultBuildParameters,
+        }) => {
+          const template = await getTemplateByName(organizationId, templateName)
+          return createWorkspace(organizationId, "me", {
+            template_id: template.id,
+            name: generateUniqueName(),
+            rich_parameter_values: defaultBuildParameters,
+          })
+        },
       },
       guards: {
         areTemplatesEmpty: (_, event) => event.data.length === 0,
@@ -311,3 +361,13 @@ export const createWorkspaceMachine =
       },
     },
   )
+
+const generateUniqueName = () => {
+  const numberDictionary = NumberDictionary.generate({ min: 0, max: 99 })
+  return uniqueNamesGenerator({
+    dictionaries: [animals, colors, numberDictionary],
+    separator: "_",
+    length: 3,
+    style: "lowerCase",
+  })
+}

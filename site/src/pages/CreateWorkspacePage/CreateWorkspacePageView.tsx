@@ -54,18 +54,18 @@ export interface CreateWorkspacePageViewProps {
   onSubmit: (req: TypesGen.CreateWorkspaceRequest) => void
   // initialTouched is only used for testing the error state of the form.
   initialTouched?: FormikTouched<TypesGen.CreateWorkspaceRequest>
-  defaultParameterValues?: Record<string, string>
+  defaultBuildParameters?: TypesGen.WorkspaceBuildParameter[]
 }
 
-export const CreateWorkspacePageView: FC<
-  React.PropsWithChildren<CreateWorkspacePageViewProps>
-> = (props) => {
+export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = (
+  props,
+) => {
   const templateParameters = props.templateParameters?.filter(
     paramUsedToCreateWorkspace,
   )
   const initialRichParameterValues = selectInitialRichParametersValues(
     templateParameters,
-    props.defaultParameterValues,
+    props.defaultBuildParameters,
   )
   const [gitAuthErrors, setGitAuthErrors] = useState<Record<string, string>>({})
   useEffect(() => {

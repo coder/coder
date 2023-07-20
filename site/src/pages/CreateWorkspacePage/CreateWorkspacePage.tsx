@@ -1,27 +1,39 @@
 import { useMachine } from "@xstate/react"
-import { TemplateVersionParameter } from "api/typesGenerated"
+import {
+  TemplateVersionParameter,
+  WorkspaceBuildParameter,
+} from "api/typesGenerated"
 import { useMe } from "hooks/useMe"
 import { useOrganizationId } from "hooks/useOrganizationId"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { pageTitle } from "utils/page"
-import { createWorkspaceMachine } from "xServices/createWorkspace/createWorkspaceXService"
+import {
+  CreateWorkspaceMode,
+  createWorkspaceMachine,
+} from "xServices/createWorkspace/createWorkspaceXService"
 import {
   CreateWorkspaceErrors,
   CreateWorkspacePageView,
 } from "./CreateWorkspacePageView"
+import Box from "@mui/material/Box"
 
 const CreateWorkspacePage: FC = () => {
   const organizationId = useOrganizationId()
   const { template: templateName } = useParams() as { template: string }
   const navigate = useNavigate()
   const me = useMe()
+  const [searchParams] = useSearchParams()
+  const defaultBuildParameters = getDefaultBuildParameters(searchParams)
+  const name = searchParams.get("name") ?? ""
   const [createWorkspaceState, send] = useMachine(createWorkspaceMachine, {
     context: {
       organizationId,
       templateName,
       owner: me,
+      mode: (searchParams.get("mode") ?? "form") as CreateWorkspaceMode,
+      defaultBuildParameters,
     },
     actions: {
       onCreateWorkspace: (_, event) => {
@@ -40,9 +52,17 @@ const CreateWorkspacePage: FC = () => {
     permissions,
     owner,
   } = createWorkspaceState.context
-  const [searchParams] = useSearchParams()
-  const defaultParameterValues = getDefaultParameterValues(searchParams)
-  const name = getName(searchParams)
+
+  if (createWorkspaceState.matches("autoCreating")) {
+    return (
+      <>
+        <Helmet>
+          <title>{pageTitle("Creating workspace...")}</title>
+        </Helmet>
+        <Box>We&lsquo;re creating a new workspace for you</Box>
+      </>
+    )
+  }
 
   return (
     <>
@@ -51,7 +71,7 @@ const CreateWorkspacePage: FC = () => {
       </Helmet>
       <CreateWorkspacePageView
         name={name}
-        defaultParameterValues={defaultParameterValues}
+        defaultBuildParameters={defaultBuildParameters}
         loadingTemplates={createWorkspaceState.matches("gettingTemplates")}
         creatingWorkspace={createWorkspaceState.matches("creatingWorkspace")}
         hasTemplateErrors={createWorkspaceState.matches("error")}
@@ -90,22 +110,18 @@ const CreateWorkspacePage: FC = () => {
   )
 }
 
-const getName = (urlSearchParams: URLSearchParams): string => {
-  return urlSearchParams.get("name") ?? ""
-}
-
-const getDefaultParameterValues = (
+const getDefaultBuildParameters = (
   urlSearchParams: URLSearchParams,
-): Record<string, string> => {
-  const paramValues: Record<string, string> = {}
+): WorkspaceBuildParameter[] => {
+  const buildValues: WorkspaceBuildParameter[] = []
   Array.from(urlSearchParams.keys())
     .filter((key) => key.startsWith("param."))
     .forEach((key) => {
-      const paramName = key.replace("param.", "")
-      const paramValue = urlSearchParams.get(key)
-      paramValues[paramName] = paramValue ?? ""
+      const name = key.replace("param.", "")
+      const value = urlSearchParams.get(key) ?? ""
+      buildValues.push({ name, value })
     })
-  return paramValues
+  return buildValues
 }
 
 export const orderedTemplateParameters = (
