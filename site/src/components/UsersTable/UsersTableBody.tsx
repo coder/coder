@@ -16,9 +16,6 @@ import { TableRowMenu } from "../TableRowMenu/TableRowMenu"
 import { EditRolesButton } from "components/EditRolesButton/EditRolesButton"
 import { Stack } from "components/Stack/Stack"
 import { EnterpriseBadge } from "components/DeploySettingsLayout/Badges"
-import { usePermissions } from "hooks"
-import { deploymentConfigMachine } from "xServices/deploymentConfig/deploymentConfigMachine"
-import { useMachine } from "@xstate/react"
 
 const isOwnerRole = (role: TypesGen.Role): boolean => {
   return role.name === "owner"
@@ -51,6 +48,10 @@ interface UsersTableBodyProps {
   ) => void
   isNonInitialPage: boolean
   actorID: string
+  // oidcRoleSyncEnabled should be set to false if unknown.
+  // This is used to determine if the oidc roles are synced from the oidc idp and
+  // editing via the UI should be disabled.
+  oidcRoleSyncEnabled: boolean
 }
 
 export const UsersTableBody: FC<
@@ -71,21 +72,10 @@ export const UsersTableBody: FC<
   isLoading,
   isNonInitialPage,
   actorID,
+  oidcRoleSyncEnabled,
 }) => {
   const styles = useStyles()
   const { t } = useTranslation("usersPage")
-
-  const permissions = usePermissions()
-  const canViewDeployment = Boolean(permissions.viewDeploymentValues)
-  // Ideally this only runs if 'canViewDeployment' is true.
-  // TODO: Prevent api call if the user does not have the perms.
-  const [state] = useMachine(deploymentConfigMachine)
-  const { deploymentValues } = state.context
-
-  // Indicates if oidc roles are synced from the oidc idp.
-  // Assign 'false' if unknown.
-  const oidcRoleSync =
-    canViewDeployment && deploymentValues?.config.oidc?.user_role_field !== ""
 
   return (
     <ChooseOne>
@@ -143,7 +133,7 @@ export const UsersTableBody: FC<
                           selectedRoles={userRoles}
                           isLoading={Boolean(isUpdatingUserRoles)}
                           userLoginType={user.login_type}
-                          oidcRoleSync={oidcRoleSync}
+                          oidcRoleSync={oidcRoleSyncEnabled}
                           onChange={(roles) => {
                             // Remove the fallback role because it is only for the UI
                             const rolesWithoutFallback = roles.filter(
