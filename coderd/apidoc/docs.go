@@ -7949,9 +7949,11 @@ const docTemplate = `{
         "codersdk.InsightsReportInterval": {
             "type": "string",
             "enum": [
+                "none",
                 "day"
             ],
             "x-enum-varnames": [
+                "InsightsReportIntervalNone",
                 "InsightsReportIntervalDay"
             ]
         },
@@ -9122,7 +9124,12 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "interval": {
-                    "$ref": "#/definitions/codersdk.InsightsReportInterval"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.InsightsReportInterval"
+                        }
+                    ],
+                    "example": "day"
                 },
                 "start_time": {
                     "type": "string",

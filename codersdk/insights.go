@@ -94,7 +94,7 @@ type TemplateInsightsIntervalReport struct {
 	StartTime   time.Time              `json:"start_time" format:"date-time"`
 	EndTime     time.Time              `json:"end_time" format:"date-time"`
 	TemplateIDs []uuid.UUID            `json:"template_ids" format:"uuid"`
-	Interval    InsightsReportInterval `json:"interval"`
+	Interval    InsightsReportInterval `json:"interval" example:"day"`
 	ActiveUsers int64                  `json:"active_users" example:"14"`
 }
 
