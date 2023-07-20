@@ -108,7 +108,7 @@ func New(options Options) Agent {
 		}
 	}
 	if options.ReportMetadataInterval == 0 {
-		options.ReportMetadataInterval = 1 * time.Minute
+		options.ReportMetadataInterval = time.Second
 	}
 	if options.ServiceBannerRefreshInterval == 0 {
 		options.ServiceBannerRefreshInterval = 2 * time.Minute
@@ -328,16 +328,45 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 	// baseInterval to run.
 	var flight trySingleflight
 
+	postMetadata := func(mr metadataResultAndKey) {
+		lastCollectedAts[mr.key] = mr.result.CollectedAt
+		err := a.client.PostMetadata(ctx, mr.key, *mr.result)
+		if err != nil {
+			a.logger.Error(ctx, "agent failed to report metadata", slog.Error(err))
+		}
+	}
+	flushAllMetadata := func() {
+		wg := sync.WaitGroup{}
+		defer wg.Wait()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case mr := <-metadataResults:
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					postMetadata(mr)
+				}()
+				continue
+			default:
+				return
+			}
+		}
+	}
+
 	for {
+		// Ensure all backpressured metadata is posted.
+		if len(metadataResults) > 1 {
+			flushAllMetadata()
+		}
+
 		select {
 		case <-ctx.Done():
 			return
 		case mr := <-metadataResults:
-			lastCollectedAts[mr.key] = mr.result.CollectedAt
-			err := a.client.PostMetadata(ctx, mr.key, *mr.result)
-			if err != nil {
-				a.logger.Error(ctx, "agent failed to report metadata", slog.Error(err))
-			}
+			postMetadata(mr)
+			continue
 		case <-baseTicker.C:
 		}
 
@@ -386,8 +415,15 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 				if md.Interval == 0 {
 					continue
 				}
+
+				intervalUnit := time.Second
+				// reportMetadataInterval is only less than a second in tests,
+				// so adjust the interval unit for them.
+				if a.reportMetadataInterval < time.Second {
+					intervalUnit = 100 * time.Millisecond
+				}
 				// The last collected value isn't quite stale yet, so we skip it.
-				if collectedAt.Add(a.reportMetadataInterval).After(time.Now()) {
+				if collectedAt.Add(time.Duration(md.Interval) * intervalUnit).After(time.Now()) {
 					continue
 				}
 			}
@@ -399,11 +435,19 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 			go flight.Do(md.Key, func() {
 				timeout := md.Timeout
 				if timeout == 0 {
-					timeout = md.Interval
+					if md.Interval != 0 {
+						timeout = md.Interval
+					} else if interval := int64(a.reportMetadataInterval.Seconds()); interval != 0 {
+						// Fallback to the report interval
+						timeout = interval
+					} else {
+						// If the interval is still 0 (possible if the interval
+						// is less than a second), default to 5. This was
+						// randomly picked.
+						timeout = 5
+					}
 				}
-				ctx, cancel := context.WithTimeout(ctx,
-					time.Duration(timeout)*time.Second,
-				)
+				ctx, cancel := context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 				defer cancel()
 
 				select {
