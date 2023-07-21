@@ -202,7 +202,7 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 				}
 
 				if fi.Mode()&0o111 == 0 {
-					return xerrors.Errorf("%[1]q script is not executable. Please check https://coder.com/docs/v2/latest/dotfiles, script)
+					return xerrors.Errorf("script %q is not executable. See https://coder.com/docs/v2/latest/dotfiles for information on how to resolve the issue.", script)
 				}
 
 				// it is safe to use a variable command here because it's from
