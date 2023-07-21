@@ -180,11 +180,11 @@ func Workspace(t testing.TB, db database.Store, orig database.Workspace) databas
 }
 
 func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuild) database.WorkspaceBuild {
-	id := takeFirst(orig.ID, uuid.New())
+	buildID := takeFirst(orig.ID, uuid.New())
 	var build database.WorkspaceBuild
 	err := db.InTx(func(store database.Store) error {
 		err := db.InsertWorkspaceBuild(genCtx, database.InsertWorkspaceBuildParams{
-			ID:                takeFirst(orig.ID, uuid.New()),
+			ID:                buildID,
 			CreatedAt:         takeFirst(orig.CreatedAt, database.Now()),
 			UpdatedAt:         takeFirst(orig.UpdatedAt, database.Now()),
 			WorkspaceID:       takeFirst(orig.WorkspaceID, uuid.New()),
@@ -200,7 +200,7 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 		if err != nil {
 			return err
 		}
-		build, err = db.GetWorkspaceBuildByID(genCtx, id)
+		build, err = db.GetWorkspaceBuildByID(genCtx, buildID)
 		if err != nil {
 			return err
 		}
@@ -489,8 +489,9 @@ func GitAuthLink(t testing.TB, db database.Store, orig database.GitAuthLink) dat
 func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVersion) database.TemplateVersion {
 	var version database.TemplateVersion
 	err := db.InTx(func(db database.Store) error {
+		versionID := takeFirst(orig.ID, uuid.New())
 		err := db.InsertTemplateVersion(genCtx, database.InsertTemplateVersionParams{
-			ID:             takeFirst(orig.ID, uuid.New()),
+			ID:             versionID,
 			TemplateID:     orig.TemplateID,
 			OrganizationID: takeFirst(orig.OrganizationID, uuid.New()),
 			CreatedAt:      takeFirst(orig.CreatedAt, database.Now()),
@@ -505,7 +506,7 @@ func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVers
 			return err
 		}
 
-		version, err = db.GetTemplateVersionByID(genCtx, version.ID)
+		version, err = db.GetTemplateVersionByID(genCtx, versionID)
 		if err != nil {
 			return err
 		}

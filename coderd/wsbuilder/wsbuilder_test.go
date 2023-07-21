@@ -65,6 +65,8 @@ func TestBuilder_NoOptions(t *testing.T) {
 			// store build ID for later
 			buildID = input.WorkspaceBuildID
 		}),
+
+		withInTx,
 		expectBuild(func(bld database.InsertWorkspaceBuildParams) {
 			asrt.Equal(inactiveVersionID, bld.TemplateVersionID)
 			asrt.Equal(workspaceID, bld.WorkspaceID)
@@ -75,6 +77,7 @@ func TestBuilder_NoOptions(t *testing.T) {
 			asrt.Equal(database.BuildReasonInitiator, bld.Reason)
 			asrt.Equal(buildID, bld.ID)
 		}),
+		withBuild,
 		expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {
 			asrt.Equal(buildID, params.WorkspaceBuildID)
 			asrt.Empty(params.Name)
@@ -173,6 +176,7 @@ func TestBuilder_ActiveVersion(t *testing.T) {
 		expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
 			asrt.Equal(activeFileID, job.FileID)
 		}),
+
 		expectBuild(func(bld database.InsertWorkspaceBuildParams) {
 			asrt.Equal(activeVersionID, bld.TemplateVersionID)
 			// no previous build...
@@ -592,6 +596,15 @@ func withTemplate(mTx *dbmock.MockStore) {
 		}, nil)
 }
 
+// withInTx runs the given functions on the same db mock.
+func withInTx(mTx *dbmock.MockStore) {
+	mTx.EXPECT().InTx(gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
+		func(f func(store database.Store) error, _ *sql.TxOptions) error {
+			return f(mTx)
+		},
+	)
+}
+
 func withActiveVersion(params []database.TemplateVersionParameter) func(mTx *dbmock.MockStore) {
 	return func(mTx *dbmock.MockStore) {
 		mTx.EXPECT().GetTemplateVersionByID(gomock.Any(), activeVersionID).
@@ -758,6 +771,13 @@ func expectProvisionerJob(
 	}
 }
 
+func withBuild(mTx *dbmock.MockStore) {
+	mTx.EXPECT().GetWorkspaceBuildByID(gomock.Any(), gomock.Any()).Times(1).
+		DoAndReturn(func(ctx context.Context, id uuid.UUID) (database.WorkspaceBuild, error) {
+			return database.WorkspaceBuild{ID: id}, nil
+		})
+}
+
 // expectBuild captures a call to InsertWorkspaceBuild and runs the provided assertions
 // against it.
 func expectBuild(
@@ -767,11 +787,9 @@ func expectBuild(
 		mTx.EXPECT().InsertWorkspaceBuild(gomock.Any(), gomock.Any()).
 			Times(1).
 			DoAndReturn(
-				func(ctx context.Context, params database.InsertWorkspaceBuildParams) (database.WorkspaceBuild, error) {
+				func(ctx context.Context, params database.InsertWorkspaceBuildParams) error {
 					assertions(params)
-					// there is no point copying anything other than the ID, since this object is just
-					// returned to our test code, and we've already asserted what we care about.
-					return database.WorkspaceBuild{ID: params.ID}, nil
+					return nil
 				},
 			)
 	}
