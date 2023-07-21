@@ -168,11 +168,17 @@ func TestUserLatencyInsights(t *testing.T) {
 	defer r.Close()
 	defer w.Close()
 	sess.Stdin = r
+	sess.Stdout = io.Discard
 	err = sess.Start("cat")
 	require.NoError(t, err)
 
 	var userLatencies codersdk.UserLatencyInsightsResponse
 	require.Eventuallyf(t, func() bool {
+		// Keep connection active.
+		_, err := w.Write([]byte("hello world\n"))
+		if !assert.NoError(t, err) {
+			return false
+		}
 		userLatencies, err = client.UserLatencyInsights(ctx, codersdk.UserLatencyInsightsRequest{
 			StartTime:   today,
 			EndTime:     time.Now().UTC().Truncate(time.Hour).Add(time.Hour), // Round up to include the current hour.
