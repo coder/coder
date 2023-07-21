@@ -184,10 +184,10 @@ export const UsersTableBody: FC<
                                   ) as React.ReactNode,
                                   onClick: onMarkUserDormant,
                                   disabled: user.id === actorID,
-                                }
+                                },
                               ]
                             : user.status === "suspended"
-                              ? [
+                            ? [
                                 {
                                   label: t(
                                     "activateMenuItem",
@@ -196,7 +196,8 @@ export const UsersTableBody: FC<
                                   disabled: false,
                                 },
                               ]
-                              : [ // User account is dormant
+                            : [
+                                // User account is dormant
                                 {
                                   label: t(
                                     "activateMenuItem",

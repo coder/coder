@@ -30,7 +30,8 @@ export const Language = {
   activateDialogMessagePrefix: "Do you want to activate the user",
   markUserDormantDialogTitle: "Mark user dormant",
   markUserDormantDialogAction: "Mark dormant",
-  markUserDormantDialogMessagePrefix: "Do you want to mark the user account dormant",
+  markUserDormantDialogMessagePrefix:
+    "Do you want to mark the user account dormant",
 }
 
 const getSelectedUser = (id: string, users?: User[]) =>
