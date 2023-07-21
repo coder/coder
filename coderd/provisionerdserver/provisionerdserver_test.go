@@ -560,7 +560,7 @@ func TestUpdateJob(t *testing.T) {
 		job := setupJob(t, srv)
 		versionID := uuid.New()
 		err := srv.Database.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
-			ID:    uuid.New(),
+			ID:    versionID,
 			JobID: job,
 		})
 		require.NoError(t, err)
