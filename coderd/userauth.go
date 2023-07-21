@@ -690,7 +690,7 @@ type OIDCConfig struct {
 	UserRoleField string
 	// UserRoleMapping controls how groups returned by the OIDC provider get mapped
 	// to roles within Coder.
-	// map[oidcRoleName]coderRoleName
+	// map[oidcRoleName][]coderRoleName
 	UserRoleMapping map[string][]string
 	// UserRolesDefault is the default set of roles to assign to a user if role sync
 	// is enabled.
