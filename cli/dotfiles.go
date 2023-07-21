@@ -202,7 +202,7 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 				}
 
 				if fi.Mode()&0o111 == 0 {
-					return xerrors.Errorf("%[1]q script is not executable. You can solve this by making it executable in your dotfiles repo:\n  chmod +x %[1]q && git add %[1]q && git commit -m \"Make %[1]s executable\" && git push", script)
+					return xerrors.Errorf("%[1]q script is not executable. Please check https://coder.com/docs/v2/latest/dotfiles, script)
 				}
 
 				// it is safe to use a variable command here because it's from
