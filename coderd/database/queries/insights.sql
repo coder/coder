@@ -1,4 +1,8 @@
 -- name: GetUserLatencyInsights :many
+-- GetUserLatencyInsights returns the median and 95th percentile connection
+-- latency that users have experienced. The result can be filtered on
+-- template_ids, meaning only user data from workspaces based on those templates
+-- will be included.
 SELECT
 	workspace_agent_stats.user_id,
 	users.username,
@@ -17,7 +21,7 @@ GROUP BY workspace_agent_stats.user_id, users.username
 ORDER BY user_id ASC;
 
 -- name: GetTemplateInsights :one
--- GetTemplateInsights has a garnularity of 5 minutes where if a session/app was
+-- GetTemplateInsights has a granularity of 5 minutes where if a session/app was
 -- in use, we will add 5 minutes to the total usage for that session (per user).
 WITH d AS (
 	SELECT generate_series(@start_time::timestamptz, @end_time::timestamptz, '5 minute'::interval) AS d
@@ -61,6 +65,10 @@ SELECT
 FROM usage_by_user;
 
 -- name: GetTemplateDailyInsights :many
+-- GetTemplateDailyInsights returns all daily intervals between start and end
+-- time, if end time is a partial day, it will be included in the results and
+-- that interval will be less than 24 hours. If there is no data for a selected
+-- interval/template, it will be included in the results with 0 active users.
 WITH d AS (
 	-- sqlc workaround, use SELECT generate_series instead of SELECT * FROM generate_series.
 	SELECT generate_series(@start_time::timestamptz, @end_time::timestamptz, '1 day'::interval) AS d

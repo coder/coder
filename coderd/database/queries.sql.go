@@ -1425,6 +1425,10 @@ type GetTemplateDailyInsightsRow struct {
 	ActiveUsers int64       `db:"active_users" json:"active_users"`
 }
 
+// GetTemplateDailyInsights returns all daily intervals between start and end
+// time, if end time is a partial day, it will be included in the results and
+// that interval will be less than 24 hours. If there is no data for a selected
+// interval/template, it will be included in the results with 0 active users.
 func (q *sqlQuerier) GetTemplateDailyInsights(ctx context.Context, arg GetTemplateDailyInsightsParams) ([]GetTemplateDailyInsightsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getTemplateDailyInsights, arg.StartTime, arg.EndTime, pq.Array(arg.TemplateIDs))
 	if err != nil {
@@ -1511,7 +1515,7 @@ type GetTemplateInsightsRow struct {
 	UsageSshSeconds             int64       `db:"usage_ssh_seconds" json:"usage_ssh_seconds"`
 }
 
-// GetTemplateInsights has a garnularity of 5 minutes where if a session/app was
+// GetTemplateInsights has a granularity of 5 minutes where if a session/app was
 // in use, we will add 5 minutes to the total usage for that session (per user).
 func (q *sqlQuerier) GetTemplateInsights(ctx context.Context, arg GetTemplateInsightsParams) (GetTemplateInsightsRow, error) {
 	row := q.db.QueryRowContext(ctx, getTemplateInsights, arg.StartTime, arg.EndTime, pq.Array(arg.TemplateIDs))
@@ -1560,6 +1564,10 @@ type GetUserLatencyInsightsRow struct {
 	WorkspaceConnectionLatency95 float64     `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
 }
 
+// GetUserLatencyInsights returns the median and 95th percentile connection
+// latency that users have experienced. The result can be filtered on
+// template_ids, meaning only user data from workspaces based on those templates
+// will be included.
 func (q *sqlQuerier) GetUserLatencyInsights(ctx context.Context, arg GetUserLatencyInsightsParams) ([]GetUserLatencyInsightsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getUserLatencyInsights, arg.StartTime, arg.EndTime, pq.Array(arg.TemplateIDs))
 	if err != nil {
