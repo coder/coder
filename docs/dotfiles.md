@@ -74,7 +74,7 @@ User can have either of the following setup script files in their dotfiles repo:
 - `setup`
 - `script/setup`
 
-If any of the above files are found in the specified order, Coder will execute the first match, and the rest will be skipped.
+If any of the above files are found (in the specified order), Coder will try to execute the first match. After the first match is found, other files will be ignored.
 
 The setup script must be executable, otherwise the dotfiles setup will fail. If you encounter this issue, you can fix it by making the script executable using the following commands:
 
