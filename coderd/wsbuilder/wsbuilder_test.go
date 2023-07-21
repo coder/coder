@@ -111,11 +111,13 @@ func TestBuilder_Initiator(t *testing.T) {
 		expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
 			asrt.Equal(otherUserID, job.InitiatorID)
 		}),
+		withInTx,
 		expectBuild(func(bld database.InsertWorkspaceBuildParams) {
 			asrt.Equal(otherUserID, bld.InitiatorID)
 		}),
 		expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {
 		}),
+		withBuild,
 	)
 
 	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
@@ -143,11 +145,13 @@ func TestBuilder_Reason(t *testing.T) {
 		// Outputs
 		expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
 		}),
+		withInTx,
 		expectBuild(func(bld database.InsertWorkspaceBuildParams) {
 			asrt.Equal(database.BuildReasonAutostart, bld.Reason)
 		}),
 		expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {
 		}),
+		withBuild,
 	)
 
 	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
@@ -177,6 +181,7 @@ func TestBuilder_ActiveVersion(t *testing.T) {
 			asrt.Equal(activeFileID, job.FileID)
 		}),
 
+		withInTx,
 		expectBuild(func(bld database.InsertWorkspaceBuildParams) {
 			asrt.Equal(activeVersionID, bld.TemplateVersionID)
 			// no previous build...
@@ -185,6 +190,7 @@ func TestBuilder_ActiveVersion(t *testing.T) {
 		}),
 		expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {
 		}),
+		withBuild,
 	)
 
 	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}

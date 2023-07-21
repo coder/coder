@@ -754,7 +754,7 @@ func TestFailJob(t *testing.T) {
 		require.NoError(t, err)
 		buildID := uuid.New()
 		err = srv.Database.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
-			ID:          uuid.New(),
+			ID:          buildID,
 			WorkspaceID: workspace.ID,
 			Transition:  database.WorkspaceTransitionStart,
 			Reason:      database.BuildReasonInitiator,
