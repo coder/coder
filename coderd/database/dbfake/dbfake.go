@@ -562,6 +562,21 @@ func isNotNull(v interface{}) bool {
 // these methods  remain unimplemented in the FakeQuerier.
 var ErrUnimplemented = xerrors.New("unimplemented")
 
+func uniqueSortedUUIDs(uuids []uuid.UUID) []uuid.UUID {
+	set := make(map[uuid.UUID]struct{})
+	for _, id := range uuids {
+		set[id] = struct{}{}
+	}
+	unique := make([]uuid.UUID, 0, len(set))
+	for id := range set {
+		unique = append(unique, id)
+	}
+	slices.SortFunc(unique, func(a, b uuid.UUID) bool {
+		return a.String() < b.String()
+	})
+	return unique
+}
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -2147,7 +2162,7 @@ func (q *FakeQuerier) GetTemplateParameterInsights(ctx context.Context, arg data
 		for value, count := range counts[key] {
 			rows = append(rows, database.GetTemplateParameterInsightsRow{
 				Num:         utp.Num,
-				TemplateIDs: utp.TemplateIDs,
+				TemplateIDs: uniqueSortedUUIDs(utp.TemplateIDs),
 				Name:        utp.Name,
 				DisplayName: utp.DisplayName,
 				Description: utp.Description,
