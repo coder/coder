@@ -562,50 +562,6 @@ func isNotNull(v interface{}) bool {
 // these methods  remain unimplemented in the FakeQuerier.
 var ErrUnimplemented = xerrors.New("unimplemented")
 
-func (q *FakeQuerier) InsertWorkspaceAgentLogs(_ context.Context, arg database.InsertWorkspaceAgentLogsParams) ([]database.WorkspaceAgentLog, error) {
-	if err := validateDatabaseType(arg); err != nil {
-		return nil, err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	logs := []database.WorkspaceAgentLog{}
-	id := int64(0)
-	if len(q.workspaceAgentLogs) > 0 {
-		id = q.workspaceAgentLogs[len(q.workspaceAgentLogs)-1].ID
-	}
-	outputLength := int32(0)
-	for index, output := range arg.Output {
-		id++
-		logs = append(logs, database.WorkspaceAgentLog{
-			ID:        id,
-			AgentID:   arg.AgentID,
-			CreatedAt: arg.CreatedAt[index],
-			Level:     arg.Level[index],
-			Output:    output,
-		})
-		outputLength += int32(len(output))
-	}
-	for index, agent := range q.workspaceAgents {
-		if agent.ID != arg.AgentID {
-			continue
-		}
-		// Greater than 1MB, same as the PostgreSQL constraint!
-		if agent.LogsLength+outputLength > (1 << 20) {
-			return nil, &pq.Error{
-				Constraint: "max_startup_logs_length",
-				Table:      "workspace_agents",
-			}
-		}
-		agent.LogsLength += outputLength
-		q.workspaceAgents[index] = agent
-		break
-	}
-	q.workspaceAgentLogs = append(q.workspaceAgentLogs, logs...)
-	return logs, nil
-}
-
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -3763,6 +3719,50 @@ func (q *FakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 
 	q.workspaceAgents = append(q.workspaceAgents, agent)
 	return agent, nil
+}
+
+func (q *FakeQuerier) InsertWorkspaceAgentLogs(_ context.Context, arg database.InsertWorkspaceAgentLogsParams) ([]database.WorkspaceAgentLog, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return nil, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	logs := []database.WorkspaceAgentLog{}
+	id := int64(0)
+	if len(q.workspaceAgentLogs) > 0 {
+		id = q.workspaceAgentLogs[len(q.workspaceAgentLogs)-1].ID
+	}
+	outputLength := int32(0)
+	for index, output := range arg.Output {
+		id++
+		logs = append(logs, database.WorkspaceAgentLog{
+			ID:        id,
+			AgentID:   arg.AgentID,
+			CreatedAt: arg.CreatedAt[index],
+			Level:     arg.Level[index],
+			Output:    output,
+		})
+		outputLength += int32(len(output))
+	}
+	for index, agent := range q.workspaceAgents {
+		if agent.ID != arg.AgentID {
+			continue
+		}
+		// Greater than 1MB, same as the PostgreSQL constraint!
+		if agent.LogsLength+outputLength > (1 << 20) {
+			return nil, &pq.Error{
+				Constraint: "max_startup_logs_length",
+				Table:      "workspace_agents",
+			}
+		}
+		agent.LogsLength += outputLength
+		q.workspaceAgents[index] = agent
+		break
+	}
+	q.workspaceAgentLogs = append(q.workspaceAgentLogs, logs...)
+	return logs, nil
 }
 
 func (q *FakeQuerier) InsertWorkspaceAgentMetadata(_ context.Context, arg database.InsertWorkspaceAgentMetadataParams) error {

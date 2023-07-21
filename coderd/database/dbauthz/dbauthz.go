@@ -723,7 +723,10 @@ func (q *querier) DeleteLicense(ctx context.Context, id int32) (int32, error) {
 }
 
 func (q *querier) DeleteOldWorkspaceAgentLogs(ctx context.Context) error {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteOldWorkspaceAgentLogs(ctx)
 }
 
 func (q *querier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
@@ -1412,7 +1415,11 @@ func (q *querier) GetWorkspaceAgentLifecycleStateByID(ctx context.Context, id uu
 }
 
 func (q *querier) GetWorkspaceAgentLogsAfter(ctx context.Context, arg database.GetWorkspaceAgentLogsAfterParams) ([]database.WorkspaceAgentLog, error) {
-	panic("not implemented")
+	_, err := q.GetWorkspaceAgentByID(ctx, arg.AgentID)
+	if err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceAgentLogsAfter(ctx, arg)
 }
 
 func (q *querier) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentMetadatum, error) {
@@ -1890,7 +1897,7 @@ func (q *querier) InsertWorkspaceAgent(ctx context.Context, arg database.InsertW
 }
 
 func (q *querier) InsertWorkspaceAgentLogs(ctx context.Context, arg database.InsertWorkspaceAgentLogsParams) ([]database.WorkspaceAgentLog, error) {
-	panic("not implemented")
+	return q.db.InsertWorkspaceAgentLogs(ctx, arg)
 }
 
 func (q *querier) InsertWorkspaceAgentMetadata(ctx context.Context, arg database.InsertWorkspaceAgentMetadataParams) error {
@@ -2368,7 +2375,21 @@ func (q *querier) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, ar
 }
 
 func (q *querier) UpdateWorkspaceAgentLogOverflowByID(ctx context.Context, arg database.UpdateWorkspaceAgentLogOverflowByIDParams) error {
-	panic("not implemented")
+	agent, err := q.db.GetWorkspaceAgentByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, agent.ID)
+	if err != nil {
+		return err
+	}
+
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, workspace); err != nil {
+		return err
+	}
+
+	return q.db.UpdateWorkspaceAgentLogOverflowByID(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceAgentMetadata(ctx context.Context, arg database.UpdateWorkspaceAgentMetadataParams) error {

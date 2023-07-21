@@ -261,7 +261,7 @@ func TestStartupLogsSender(t *testing.T) {
 			defer cancel()
 
 			got := []agentsdk.Log{}
-			PatchLogs := func(_ context.Context, req agentsdk.PatchLogs) error {
+			patchLogs := func(_ context.Context, req agentsdk.PatchLogs) error {
 				if tt.patchResp != nil {
 					err := tt.patchResp(req)
 					if err != nil {
@@ -272,7 +272,7 @@ func TestStartupLogsSender(t *testing.T) {
 				return nil
 			}
 
-			sendLog, flushAndClose := agentsdk.LogsSender(PatchLogs, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
+			sendLog, flushAndClose := agentsdk.LogsSender(patchLogs, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
 			defer func() {
 				err := flushAndClose(ctx)
 				require.NoError(t, err)
@@ -306,12 +306,12 @@ func TestStartupLogsSender(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
-		PatchLogs := func(_ context.Context, _ agentsdk.PatchLogs) error {
+		patchLogs := func(_ context.Context, _ agentsdk.PatchLogs) error {
 			assert.Fail(t, "should not be called")
 			return nil
 		}
 
-		sendLog, flushAndClose := agentsdk.LogsSender(PatchLogs, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
+		sendLog, flushAndClose := agentsdk.LogsSender(patchLogs, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
 		defer func() {
 			_ = flushAndClose(ctx)
 		}()
@@ -337,12 +337,12 @@ func TestStartupLogsSender(t *testing.T) {
 		defer cancel()
 
 		var want, got []agentsdk.Log
-		PatchLogs := func(_ context.Context, req agentsdk.PatchLogs) error {
+		patchLogs := func(_ context.Context, req agentsdk.PatchLogs) error {
 			got = append(got, req.Logs...)
 			return nil
 		}
 
-		sendLog, flushAndClose := agentsdk.LogsSender(PatchLogs, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
+		sendLog, flushAndClose := agentsdk.LogsSender(patchLogs, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
 		defer func() {
 			_ = flushAndClose(ctx)
 		}()
