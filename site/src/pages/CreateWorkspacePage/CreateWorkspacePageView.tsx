@@ -242,7 +242,8 @@ const useGitAuthVerification = (gitAuth: TypesGen.TemplateVersionGitAuth[]) => {
     }
 
     setGitAuthErrors(errors)
-    return Object.keys(errors).length > 0
+    const isValid = Object.keys(errors).length === 0
+    return isValid
   }
 
   return {

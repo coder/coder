@@ -120,7 +120,7 @@ export const createWorkspaceMachine =
                 const channel = watchGitAuthRefresh(() => {
                   callback("REFRESH_GITAUTH")
                 })
-                return channel.close
+                return () => channel.close()
               },
             },
           ],
