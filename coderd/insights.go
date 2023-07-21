@@ -196,7 +196,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		// to parse the time ourselves.
 		startTimeString = p.String(vals, "", "start_time")
 		endTimeString   = p.String(vals, "", "end_time")
-		intervalString  = p.String(vals, string(codersdk.InsightsReportIntervalNone), "interval")
+		intervalString  = p.String(vals, "", "interval")
 		templateIDs     = p.UUIDs(vals, []uuid.UUID{}, "template_ids")
 	)
 	p.ErrorExcessParams(vals)
@@ -224,7 +224,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	err := api.Database.InTx(func(db database.Store) error {
 		var err error
 
-		if interval != codersdk.InsightsReportIntervalNone {
+		if interval != "" {
 			dailyUsage, err = db.GetTemplateDailyInsights(ctx, database.GetTemplateDailyInsightsParams{
 				StartTime:   startTime,
 				EndTime:     endTime,
@@ -435,7 +435,7 @@ func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, s
 
 func verifyInsightsInterval(ctx context.Context, rw http.ResponseWriter, intervalString string) (codersdk.InsightsReportInterval, bool) {
 	switch v := codersdk.InsightsReportInterval(intervalString); v {
-	case codersdk.InsightsReportIntervalDay, codersdk.InsightsReportIntervalNone:
+	case codersdk.InsightsReportIntervalDay, "":
 		return v, true
 	default:
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -443,7 +443,7 @@ func verifyInsightsInterval(ctx context.Context, rw http.ResponseWriter, interva
 			Validations: []codersdk.ValidationError{
 				{
 					Field:  "interval",
-					Detail: fmt.Sprintf("must be one of %v", []codersdk.InsightsReportInterval{codersdk.InsightsReportIntervalNone, codersdk.InsightsReportIntervalDay}),
+					Detail: fmt.Sprintf("must be one of %v", []codersdk.InsightsReportInterval{codersdk.InsightsReportIntervalDay}),
 				},
 			},
 		})

@@ -21,8 +21,7 @@ type InsightsReportInterval string
 
 // InsightsReportInterval enums.
 const (
-	InsightsReportIntervalNone InsightsReportInterval = "none"
-	InsightsReportIntervalDay  InsightsReportInterval = "day"
+	InsightsReportIntervalDay InsightsReportInterval = "day"
 )
 
 // UserLatencyInsightsResponse is the response from the user latency insights
@@ -109,7 +108,7 @@ type TemplateInsightsIntervalReport struct {
 	StartTime   time.Time              `json:"start_time" format:"date-time"`
 	EndTime     time.Time              `json:"end_time" format:"date-time"`
 	TemplateIDs []uuid.UUID            `json:"template_ids" format:"uuid"`
-	Interval    InsightsReportInterval `json:"interval" example:"day"`
+	Interval    InsightsReportInterval `json:"interval"`
 	ActiveUsers int64                  `json:"active_users" example:"14"`
 }
 
@@ -157,7 +156,7 @@ type TemplateInsightsRequest struct {
 	StartTime   time.Time              `json:"start_time" format:"date-time"`
 	EndTime     time.Time              `json:"end_time" format:"date-time"`
 	TemplateIDs []uuid.UUID            `json:"template_ids" format:"uuid"`
-	Interval    InsightsReportInterval `json:"interval" example:"day"`
+	Interval    InsightsReportInterval `json:"interval"`
 }
 
 func (c *Client) TemplateInsights(ctx context.Context, req TemplateInsightsRequest) (TemplateInsightsResponse, error) {

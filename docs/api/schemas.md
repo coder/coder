@@ -2914,17 +2914,16 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ## codersdk.InsightsReportInterval
 
 ```json
-"none"
+"day"
 ```
 
 ### Properties
 
 #### Enumerated Values
 
-| Value  |
-| ------ |
-| `none` |
-| `day`  |
+| Value |
+| ----- |
+| `day` |
 
 ## codersdk.IssueReconnectingPTYSignedTokenRequest
 

@@ -1590,8 +1590,8 @@ export const GitProviders: GitProvider[] = [
 ]
 
 // From codersdk/insights.go
-export type InsightsReportInterval = "day" | "none"
-export const InsightsReportIntervals: InsightsReportInterval[] = ["day", "none"]
+export type InsightsReportInterval = "day"
+export const InsightsReportIntervals: InsightsReportInterval[] = ["day"]
 
 // From codersdk/provisionerdaemons.go
 export type JobErrorCode =
