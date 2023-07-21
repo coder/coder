@@ -271,44 +271,50 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 			EndTime:     endTime,
 			TemplateIDs: usage.TemplateIDs,
 			ActiveUsers: usage.ActiveUsers,
-			AppsUsage: []codersdk.TemplateAppUsage{
-				{
-					TemplateIDs: usage.TemplateIDs,
-					Type:        codersdk.TemplateAppsTypeBuiltin,
-					DisplayName: "Visual Studio Code",
-					Slug:        "vscode",
-					Icon:        "/icons/code.svg",
-					Seconds:     usage.UsageVscodeSeconds,
-				},
-				{
-					TemplateIDs: usage.TemplateIDs,
-					Type:        codersdk.TemplateAppsTypeBuiltin,
-					DisplayName: "JetBrains",
-					Slug:        "jetbrains",
-					Icon:        "/icons/intellij.svg",
-					Seconds:     usage.UsageJetbrainsSeconds,
-				},
-				{
-					TemplateIDs: usage.TemplateIDs,
-					Type:        codersdk.TemplateAppsTypeBuiltin,
-					DisplayName: "Web Terminal",
-					Slug:        "reconnecting-pty",
-					Icon:        "/icons/terminal.svg",
-					Seconds:     usage.UsageReconnectingPtySeconds,
-				},
-				{
-					TemplateIDs: usage.TemplateIDs,
-					Type:        codersdk.TemplateAppsTypeBuiltin,
-					DisplayName: "SSH",
-					Slug:        "ssh",
-					Icon:        "/icons/terminal.svg",
-					Seconds:     usage.UsageSshSeconds,
-				},
-			},
+			AppsUsage:   convertTemplateInsightsBuiltinApps(usage),
 		},
 		IntervalReports: intervalReports,
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// convertTemplateInsightsBuiltinApps builds the list of builtin apps from the
+// database row, these are apps that are implicitly a part of all templates.
+func convertTemplateInsightsBuiltinApps(usage database.GetTemplateInsightsRow) []codersdk.TemplateAppUsage {
+	return []codersdk.TemplateAppUsage{
+		{
+			TemplateIDs: usage.TemplateIDs,
+			Type:        codersdk.TemplateAppsTypeBuiltin,
+			DisplayName: "Visual Studio Code",
+			Slug:        "vscode",
+			Icon:        "/icons/code.svg",
+			Seconds:     usage.UsageVscodeSeconds,
+		},
+		{
+			TemplateIDs: usage.TemplateIDs,
+			Type:        codersdk.TemplateAppsTypeBuiltin,
+			DisplayName: "JetBrains",
+			Slug:        "jetbrains",
+			Icon:        "/icons/intellij.svg",
+			Seconds:     usage.UsageJetbrainsSeconds,
+		},
+		{
+			TemplateIDs: usage.TemplateIDs,
+			Type:        codersdk.TemplateAppsTypeBuiltin,
+			DisplayName: "Web Terminal",
+			Slug:        "reconnecting-pty",
+			Icon:        "/icons/terminal.svg",
+			Seconds:     usage.UsageReconnectingPtySeconds,
+		},
+		{
+			TemplateIDs: usage.TemplateIDs,
+			Type:        codersdk.TemplateAppsTypeBuiltin,
+			DisplayName: "SSH",
+			Slug:        "ssh",
+			Icon:        "/icons/terminal.svg",
+			Seconds:     usage.UsageSshSeconds,
+		},
+	}
 }
 
 // parseInsightsStartAndEndTime parses the start and end time query parameters
