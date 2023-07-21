@@ -186,7 +186,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			// This is required in "stdio" mode so a connecting indicator can be displayed.
 			err = cliui.Agent(ctx, inv.Stderr, workspaceAgent.ID, cliui.AgentOptions{
 				Fetch:     client.WorkspaceAgent,
-				FetchLogs: client.WorkspaceAgentStartupLogsAfter,
+				FetchLogs: client.WorkspaceAgentLogsAfter,
 				Wait:      wait,
 			})
 			if err != nil {

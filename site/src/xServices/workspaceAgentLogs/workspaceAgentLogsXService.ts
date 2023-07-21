@@ -75,7 +75,7 @@ export const workspaceAgentLogsMachine = createMachine(
   {
     services: {
       getStartupLogs: (ctx) =>
-        API.getWorkspaceAgentStartupLogs(ctx.agentID).then((data) =>
+        API.getWorkspaceAgentLogs(ctx.agentID).then((data) =>
           data.map((log) => ({
             id: log.id,
             level: log.level || "info",
@@ -89,7 +89,7 @@ export const workspaceAgentLogsMachine = createMachine(
           after = ctx.startupLogs[ctx.startupLogs.length - 1].id
         }
 
-        const socket = API.watchStartupLogs(ctx.agentID, {
+        const socket = API.watchWorkspaceAgentLogs(ctx.agentID, {
           after,
           onMessage: (logs) => {
             callback({

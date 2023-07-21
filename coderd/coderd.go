@@ -757,8 +757,7 @@ func New(options *Options) *API {
 				// New agents will use /me/manifest instead.
 				r.Get("/metadata", api.workspaceAgentManifest)
 				r.Post("/startup", api.postWorkspaceAgentStartup)
-				// /startup prefix is supported for backwards compatibility - remove in October, 2023.
-				r.Patch("/startup-logs", api.patchWorkspaceAgentLogs)
+				r.Patch("/startup-logs", api.patchWorkspaceAgentLogsDeprecated)
 				r.Patch("/logs", api.patchWorkspaceAgentLogs)
 				r.Post("/app-health", api.postWorkspaceAppHealth)
 				r.Get("/gitauth", api.workspaceAgentsGitAuth)
@@ -783,8 +782,7 @@ func New(options *Options) *API {
 				)
 				r.Get("/", api.workspaceAgent)
 				r.Get("/watch-metadata", api.watchWorkspaceAgentMetadata)
-				// /startup prefix is supported for backwards compatibility - remove in October, 2023.
-				r.Get("/startup-logs", api.workspaceAgentLogs)
+				r.Get("/startup-logs", api.workspaceAgentLogsDeprecated)
 				r.Get("/logs", api.workspaceAgentLogs)
 				r.Get("/listening-ports", api.workspaceAgentListeningPorts)
 				r.Get("/connection", api.workspaceAgentConnection)

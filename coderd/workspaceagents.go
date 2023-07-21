@@ -343,7 +343,7 @@ func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request)
 
 	// Publish by the lowest log ID inserted so the
 	// log stream will fetch everything from that point.
-	api.publishWorkspaceAgentStartupLogsUpdate(ctx, workspaceAgent.ID, agentsdk.LogsNotifyMessage{
+	api.publishWorkspaceAgentLogsUpdate(ctx, workspaceAgent.ID, agentsdk.LogsNotifyMessage{
 		CreatedAfter: lowestLogID - 1,
 	})
 

@@ -91,7 +91,7 @@ func TestGetDeploymentWorkspaceAgentStats(t *testing.T) {
 	})
 }
 
-func TestInsertWorkspaceAgentStartupLogs(t *testing.T) {
+func TestInsertWorkspaceAgentLogs(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.SkipNow()

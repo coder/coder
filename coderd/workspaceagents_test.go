@@ -224,7 +224,7 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		logs, closer, err := client.WorkspaceAgentStartupLogsAfter(ctx, build.Resources[0].Agents[0].ID, 0, true)
+		logs, closer, err := client.WorkspaceAgentLogsAfter(ctx, build.Resources[0].Agents[0].ID, 0, true)
 		require.NoError(t, err)
 		defer func() {
 			_ = closer.Close()

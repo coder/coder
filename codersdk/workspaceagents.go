@@ -557,7 +557,7 @@ func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.
 }
 
 //nolint:revive // Follow is a control flag on the server as well.
-func (c *Client) WorkspaceAgentStartupLogsAfter(ctx context.Context, agentID uuid.UUID, after int64, follow bool) (<-chan []WorkspaceAgentLog, io.Closer, error) {
+func (c *Client) WorkspaceAgentLogsAfter(ctx context.Context, agentID uuid.UUID, after int64, follow bool) (<-chan []WorkspaceAgentLog, io.Closer, error) {
 	var queryParams []string
 	if after != 0 {
 		queryParams = append(queryParams, fmt.Sprintf("after=%d", after))
@@ -569,7 +569,7 @@ func (c *Client) WorkspaceAgentStartupLogsAfter(ctx context.Context, agentID uui
 	if len(queryParams) > 0 {
 		query = "?" + strings.Join(queryParams, "&")
 	}
-	reqURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/startup-logs%s", agentID, query))
+	reqURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/logs%s", agentID, query))
 	if err != nil {
 		return nil, nil, err
 	}

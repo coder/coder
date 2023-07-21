@@ -46,7 +46,7 @@ export default defineConfig({
         secure: process.env.NODE_ENV === "production",
         configure: (proxy) => {
           // Vite does not catch socket errors, and stops the webserver.
-          // As /startup-logs endpoint can return HTTP 4xx status, we need to embrace
+          // As /logs endpoint can return HTTP 4xx status, we need to embrace
           // Vite with a custom error handler to prevent from quitting.
           proxy.on("proxyReqWs", (proxyReq, req, socket) => {
             if (process.env.NODE_ENV === "development") {
