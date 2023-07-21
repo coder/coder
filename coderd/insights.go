@@ -401,22 +401,6 @@ func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, s
 		}
 		*qp.dest = t
 	}
-	if startTime.Location().String() != endTime.Location().String() {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Query parameter has invalid value.",
-			Validations: []codersdk.ValidationError{
-				{
-					Field:  "start_time",
-					Detail: fmt.Sprintf("Query param %q must have the same timezone as %q", "start_time", "end_time"),
-				},
-				{
-					Field:  "end_time",
-					Detail: fmt.Sprintf("Query param %q must have the same timezone as %q", "end_time", "start_time"),
-				},
-			},
-		})
-		return time.Time{}, time.Time{}, false
-	}
 	if endTime.Before(startTime) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Query parameter has invalid value.",

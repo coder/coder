@@ -83,12 +83,14 @@ func Test_parseInsightsStartAndEndTime(t *testing.T) {
 			wantOk:        true,
 		},
 		{
-			name: "Mixed timezone week",
+			name: "Daylight savings time",
 			args: args{
-				startTime: "2023-07-10T00:00:00Z",
-				endTime:   "2023-07-17T00:00:00+03:00",
+				startTime: "2023-03-26T00:00:00+02:00",
+				endTime:   "2023-03-27T00:00:00+03:00",
 			},
-			wantOk: false,
+			wantStartTime: time.Date(2023, 3, 26, 0, 0, 0, 0, helsinki),
+			wantEndTime:   time.Date(2023, 3, 27, 0, 0, 0, 0, helsinki),
+			wantOk:        true,
 		},
 		{
 			name: "Bad format",
@@ -133,7 +135,10 @@ func Test_parseInsightsStartAndEndTime(t *testing.T) {
 
 			// assert.Equal is unable to test location equality, so we
 			// use assert.WithinDuration.
-			assert.Equal(t, tt.wantOk, gotOk)
+			if !assert.Equal(t, tt.wantOk, gotOk) {
+				t.Log("Status: ", rw.Result().StatusCode)
+				t.Log("Body: ", rw.Body.String())
+			}
 			assert.WithinDuration(t, tt.wantStartTime, gotStartTime, 0)
 			assert.True(t, tt.wantStartTime.Equal(gotStartTime))
 			assert.WithinDuration(t, tt.wantEndTime, gotEndTime, 0)
