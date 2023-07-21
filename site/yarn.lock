@@ -4607,7 +4607,7 @@ canvas@2.11.0:
     nan "^2.17.0"
     simple-get "^3.0.3"
 
-case-anything@^2.1.10:
+case-anything@^2.1.13:
   version "2.1.13"
   resolved "https://registry.yarnpkg.com/case-anything/-/case-anything-2.1.13.tgz#0cdc16278cb29a7fcdeb072400da3f342ba329e9"
   integrity sha512-zlOQ80VrQ2Ue+ymH5OuM/DlDq64mEm+B9UTdHULv5osUMD6HalNTblf2b1u/m6QecjsnOkBpqVZ+XPwIVsy7Ng==
@@ -11088,29 +11088,30 @@ ts-morph@^13.0.1:
     "@ts-morph/common" "~0.12.3"
     code-block-writer "^11.0.0"
 
-ts-poet@^6.4.1:
-  version "6.4.1"
-  resolved "https://registry.yarnpkg.com/ts-poet/-/ts-poet-6.4.1.tgz#e68d314a07cf9c0d568a3bfd87023ec91ff77964"
-  integrity sha512-AjZEs4h2w4sDfwpHMxQKHrTlNh2wRbM5NRXmLz0RiH+yPGtSQFbe9hBpNocU8vqVNgfh0BIOiXR80xDz3kKxUQ==
+ts-poet@^6.5.0:
+  version "6.5.0"
+  resolved "https://registry.yarnpkg.com/ts-poet/-/ts-poet-6.5.0.tgz#7070bfae1d53847aa38e8e02bdbe4f1064d6d091"
+  integrity sha512-44jURLT1HG6+NsDcadM826V6Ekux+wk07Go+MX5Gfx+8zcPKfUiFEtnjL9imuRVGSCRtloRLqw4bDGZVJYGZMQ==
   dependencies:
     dprint-node "^1.0.7"
 
-ts-proto-descriptors@1.11.0:
-  version "1.11.0"
-  resolved "https://registry.yarnpkg.com/ts-proto-descriptors/-/ts-proto-descriptors-1.11.0.tgz#632f540855a167179268705dc41b82414f62c2e8"
-  integrity sha512-mOBVD9CW77x35eftRFVFQ5bhRl+UpzItDITxQQtJq3vJ/0rjHJOiI/BekkJIwUyWtJjlmO8f9LnN02MDpuZ/hQ==
+ts-proto-descriptors@1.14.0:
+  version "1.14.0"
+  resolved "https://registry.yarnpkg.com/ts-proto-descriptors/-/ts-proto-descriptors-1.14.0.tgz#bf95cfd815049763524185cec49b2557ca40faa7"
+  integrity sha512-xqLA6cBTfof+mZ/sIw/pZviyhnWWcWqRBjyjaMW5O4fIogpawT4aa0wI8rKh0rYIrQzoHxLugmFu4+rdiWaGEQ==
   dependencies:
+    long "^5.0.0"
     protobufjs "^7.2.4"
 
-ts-proto@1.153.2:
-  version "1.153.2"
-  resolved "https://registry.yarnpkg.com/ts-proto/-/ts-proto-1.153.2.tgz#0692b30e144d71c306aca519bfbb40f6e72fcec2"
-  integrity sha512-gunIpanSurlIHPQUwB2J/jpj2VUwtdBrW5rOBrSiP2+borI3wWyzPRLoiuA6e4XwmTgKYlpfo7m461ooRp1joQ==
+ts-proto@1.156.0:
+  version "1.156.0"
+  resolved "https://registry.yarnpkg.com/ts-proto/-/ts-proto-1.156.0.tgz#50978feb24f8f11315a51ff7916630154a5a30f5"
+  integrity sha512-GnOxEAD1mRkiqV9VLv48GrNdps8gXp+vE9rWToCPyIxCIjVjkH3ls8iXxRXOS9LSwueJT8F+N9w7Xy3zftUecA==
   dependencies:
-    case-anything "^2.1.10"
+    case-anything "^2.1.13"
     protobufjs "^7.2.4"
-    ts-poet "^6.4.1"
-    ts-proto-descriptors "1.11.0"
+    ts-poet "^6.5.0"
+    ts-proto-descriptors "1.14.0"
 
 ts-prune@0.10.3:
   version "0.10.3"
