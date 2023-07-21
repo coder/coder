@@ -273,6 +273,66 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitsshkey \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Patch workspace agent logs
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/logs \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /workspaceagents/me/logs`
+
+> Body parameter
+
+```json
+{
+  "logs": [
+    {
+      "created_at": "string",
+      "level": "trace",
+      "output": "string",
+      "stage": "string"
+    }
+  ]
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                               | Required | Description |
+| ------ | ---- | -------------------------------------------------- | -------- | ----------- |
+| `body` | body | [agentsdk.PatchLogs](schemas.md#agentsdkpatchlogs) | true     | logs        |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get authorized workspace agent manifest
 
 ### Code samples
@@ -468,65 +528,6 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/report-stats \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Patch workspace agent startup logs
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/startup-logs \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`PATCH /workspaceagents/me/startup-logs`
-
-> Body parameter
-
-```json
-{
-  "logs": [
-    {
-      "created_at": "string",
-      "level": "trace",
-      "output": "string"
-    }
-  ]
-}
-```
-
-### Parameters
-
-| Name   | In   | Type                                                             | Required | Description  |
-| ------ | ---- | ---------------------------------------------------------------- | -------- | ------------ |
-| `body` | body | [agentsdk.PatchStartupLogs](schemas.md#agentsdkpatchstartuplogs) | true     | Startup logs |
-
-### Example responses
-
-> 200 Response
-
-```json
-{
-  "detail": "string",
-  "message": "string",
-  "validations": [
-    {
-      "detail": "string",
-      "field": "string"
-    }
-  ]
-}
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                           |
-| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
 ## Get workspace agent by ID
 
 ### Code samples
@@ -601,6 +602,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
   },
   "lifecycle_state": "created",
   "login_before_ready": true,
+  "logs_length": 0,
+  "logs_overflowed": true,
   "name": "string",
   "operating_system": "string",
   "ready_at": "2019-08-24T14:15:22Z",
@@ -608,8 +611,6 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
   "shutdown_script": "string",
   "shutdown_script_timeout_seconds": 0,
   "started_at": "2019-08-24T14:15:22Z",
-  "startup_logs_length": 0,
-  "startup_logs_overflowed": true,
   "startup_script": "string",
   "startup_script_behavior": "blocking",
   "startup_script_timeout_seconds": 0,
@@ -786,44 +787,18 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/lis
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Open PTY to workspace agent
+## Get logs by workspace agent
 
 ### Code samples
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/pty \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`GET /workspaceagents/{workspaceagent}/pty`
-
-### Parameters
-
-| Name             | In   | Type         | Required | Description        |
-| ---------------- | ---- | ------------ | -------- | ------------------ |
-| `workspaceagent` | path | string(uuid) | true     | Workspace agent ID |
-
-### Responses
-
-| Status | Meaning                                                                  | Description         | Schema |
-| ------ | ------------------------------------------------------------------------ | ------------------- | ------ |
-| 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
-## Get startup logs by workspace agent
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/startup-logs \
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/logs \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspaceagents/{workspaceagent}/startup-logs`
+`GET /workspaceagents/{workspaceagent}/logs`
 
 ### Parameters
 
@@ -852,11 +827,11 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/sta
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                                    |
-| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.WorkspaceAgentStartupLog](schemas.md#codersdkworkspaceagentstartuplog) |
+| Status | Meaning                                                 | Description | Schema                                                                      |
+| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.WorkspaceAgentLog](schemas.md#codersdkworkspaceagentlog) |
 
-<h3 id="get-startup-logs-by-workspace-agent-responseschema">Response Schema</h3>
+<h3 id="get-logs-by-workspace-agent-responseschema">Response Schema</h3>
 
 Status Code **200**
 
@@ -877,5 +852,31 @@ Status Code **200**
 | `level`  | `info`  |
 | `level`  | `warn`  |
 | `level`  | `error` |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Open PTY to workspace agent
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/pty \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaceagents/{workspaceagent}/pty`
+
+### Parameters
+
+| Name             | In   | Type         | Required | Description        |
+| ---------------- | ---- | ------------ | -------- | ------------------ |
+| `workspaceagent` | path | string(uuid) | true     | Workspace agent ID |
+
+### Responses
+
+| Status | Meaning                                                                  | Description         | Schema |
+| ------ | ------------------------------------------------------------------------ | ------------------- | ------ |
+| 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

@@ -167,7 +167,7 @@ func main() {
 		Use: "agent",
 		Handler: func(inv *clibase.Invocation) error {
 			var agent codersdk.WorkspaceAgent
-			var logs []codersdk.WorkspaceAgentStartupLog
+			var logs []codersdk.WorkspaceAgentLog
 
 			fetchSteps := []func(){
 				func() {
@@ -191,7 +191,7 @@ func main() {
 						if rand.Float64() > 0.75 { //nolint:gosec
 							level = codersdk.LogLevelError
 						}
-						logs = append(logs, codersdk.WorkspaceAgentStartupLog{
+						logs = append(logs, codersdk.WorkspaceAgentLog{
 							CreatedAt: time.Now().Add(-time.Duration(10-i) * 144 * time.Millisecond),
 							Output:    fmt.Sprintf("Some log %d", i),
 							Level:     level,
@@ -226,13 +226,13 @@ func main() {
 					step()
 					return agent, nil
 				},
-				FetchLogs: func(_ context.Context, _ uuid.UUID, _ int64, follow bool) (<-chan []codersdk.WorkspaceAgentStartupLog, io.Closer, error) {
-					logsC := make(chan []codersdk.WorkspaceAgentStartupLog, len(logs))
+				FetchLogs: func(_ context.Context, _ uuid.UUID, _ int64, follow bool) (<-chan []codersdk.WorkspaceAgentLog, io.Closer, error) {
+					logsC := make(chan []codersdk.WorkspaceAgentLog, len(logs))
 					if follow {
 						go func() {
 							defer close(logsC)
 							for _, log := range logs {
-								logsC <- []codersdk.WorkspaceAgentStartupLog{log}
+								logsC <- []codersdk.WorkspaceAgentLog{log}
 								time.Sleep(144 * time.Millisecond)
 							}
 							agent.LifecycleState = codersdk.WorkspaceAgentLifecycleReady

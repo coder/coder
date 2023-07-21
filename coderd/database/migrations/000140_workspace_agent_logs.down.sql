@@ -1,0 +1,1 @@
+ALTER TABLE workspace_agent_logs RENAME TO workspace_agent_startup_logs;

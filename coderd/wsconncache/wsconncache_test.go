@@ -256,7 +256,7 @@ func (*client) PostStartup(_ context.Context, _ agentsdk.PostStartupRequest) err
 	return nil
 }
 
-func (*client) PatchStartupLogs(_ context.Context, _ agentsdk.PatchStartupLogs) error {
+func (*client) PatchLogs(_ context.Context, _ agentsdk.PatchLogs) error {
 	return nil
 }
 

@@ -107,6 +107,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
           },
           "lifecycle_state": "created",
           "login_before_ready": true,
+          "logs_length": 0,
+          "logs_overflowed": true,
           "name": "string",
           "operating_system": "string",
           "ready_at": "2019-08-24T14:15:22Z",
@@ -114,8 +116,6 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
           "shutdown_script": "string",
           "shutdown_script_timeout_seconds": 0,
           "started_at": "2019-08-24T14:15:22Z",
-          "startup_logs_length": 0,
-          "startup_logs_overflowed": true,
           "startup_script": "string",
           "startup_script_behavior": "blocking",
           "startup_script_timeout_seconds": 0,
@@ -269,6 +269,8 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
           },
           "lifecycle_state": "created",
           "login_before_ready": true,
+          "logs_length": 0,
+          "logs_overflowed": true,
           "name": "string",
           "operating_system": "string",
           "ready_at": "2019-08-24T14:15:22Z",
@@ -276,8 +278,6 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
           "shutdown_script": "string",
           "shutdown_script_timeout_seconds": 0,
           "started_at": "2019-08-24T14:15:22Z",
-          "startup_logs_length": 0,
-          "startup_logs_overflowed": true,
           "startup_script": "string",
           "startup_script_behavior": "blocking",
           "startup_script_timeout_seconds": 0,
@@ -570,6 +570,8 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
         },
         "lifecycle_state": "created",
         "login_before_ready": true,
+        "logs_length": 0,
+        "logs_overflowed": true,
         "name": "string",
         "operating_system": "string",
         "ready_at": "2019-08-24T14:15:22Z",
@@ -577,8 +579,6 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
         "shutdown_script": "string",
         "shutdown_script_timeout_seconds": 0,
         "started_at": "2019-08-24T14:15:22Z",
-        "startup_logs_length": 0,
-        "startup_logs_overflowed": true,
         "startup_script": "string",
         "startup_script_behavior": "blocking",
         "startup_script_timeout_seconds": 0,
@@ -659,6 +659,8 @@ Status Code **200**
 | `»»»» preferred`                     | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» lifecycle_state`                 | [codersdk.WorkspaceAgentLifecycle](schemas.md#codersdkworkspaceagentlifecycle)                         | false    |              |                                                                                                                                                                                                                                                |
 | `»» login_before_ready`              | boolean                                                                                                | false    |              | Deprecated: Use StartupScriptBehavior instead.                                                                                                                                                                                                 |
+| `»» logs_length`                     | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»» logs_overflowed`                 | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» name`                            | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» operating_system`                | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» ready_at`                        | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
@@ -666,8 +668,6 @@ Status Code **200**
 | `»» shutdown_script`                 | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» shutdown_script_timeout_seconds` | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» started_at`                      | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
-| `»» startup_logs_length`             | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
-| `»» startup_logs_overflowed`         | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» startup_script`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» startup_script_behavior`         | [codersdk.WorkspaceAgentStartupScriptBehavior](schemas.md#codersdkworkspaceagentstartupscriptbehavior) | false    |              |                                                                                                                                                                                                                                                |
 | `»» startup_script_timeout_seconds`  | integer                                                                                                | false    |              | »startup script timeout seconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.                                    |
@@ -828,6 +828,8 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
           },
           "lifecycle_state": "created",
           "login_before_ready": true,
+          "logs_length": 0,
+          "logs_overflowed": true,
           "name": "string",
           "operating_system": "string",
           "ready_at": "2019-08-24T14:15:22Z",
@@ -835,8 +837,6 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
           "shutdown_script": "string",
           "shutdown_script_timeout_seconds": 0,
           "started_at": "2019-08-24T14:15:22Z",
-          "startup_logs_length": 0,
-          "startup_logs_overflowed": true,
           "startup_script": "string",
           "startup_script_behavior": "blocking",
           "startup_script_timeout_seconds": 0,
@@ -995,6 +995,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
             },
             "lifecycle_state": "created",
             "login_before_ready": true,
+            "logs_length": 0,
+            "logs_overflowed": true,
             "name": "string",
             "operating_system": "string",
             "ready_at": "2019-08-24T14:15:22Z",
@@ -1002,8 +1004,6 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
             "shutdown_script": "string",
             "shutdown_script_timeout_seconds": 0,
             "started_at": "2019-08-24T14:15:22Z",
-            "startup_logs_length": 0,
-            "startup_logs_overflowed": true,
             "startup_script": "string",
             "startup_script_behavior": "blocking",
             "startup_script_timeout_seconds": 0,
@@ -1120,6 +1120,8 @@ Status Code **200**
 | `»»»»» preferred`                     | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» lifecycle_state`                 | [codersdk.WorkspaceAgentLifecycle](schemas.md#codersdkworkspaceagentlifecycle)                         | false    |              |                                                                                                                                                                                                                                                |
 | `»»» login_before_ready`              | boolean                                                                                                | false    |              | Deprecated: Use StartupScriptBehavior instead.                                                                                                                                                                                                 |
+| `»»» logs_length`                     | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»»» logs_overflowed`                 | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» name`                            | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» operating_system`                | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» ready_at`                        | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
@@ -1127,8 +1129,6 @@ Status Code **200**
 | `»»» shutdown_script`                 | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» shutdown_script_timeout_seconds` | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» started_at`                      | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
-| `»»» startup_logs_length`             | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
-| `»»» startup_logs_overflowed`         | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» startup_script`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» startup_script_behavior`         | [codersdk.WorkspaceAgentStartupScriptBehavior](schemas.md#codersdkworkspaceagentstartupscriptbehavior) | false    |              |                                                                                                                                                                                                                                                |
 | `»»» startup_script_timeout_seconds`  | integer                                                                                                | false    |              | »»startup script timeout seconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.                                   |
@@ -1343,6 +1343,8 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
           },
           "lifecycle_state": "created",
           "login_before_ready": true,
+          "logs_length": 0,
+          "logs_overflowed": true,
           "name": "string",
           "operating_system": "string",
           "ready_at": "2019-08-24T14:15:22Z",
@@ -1350,8 +1352,6 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
           "shutdown_script": "string",
           "shutdown_script_timeout_seconds": 0,
           "started_at": "2019-08-24T14:15:22Z",
-          "startup_logs_length": 0,
-          "startup_logs_overflowed": true,
           "startup_script": "string",
           "startup_script_behavior": "blocking",
           "startup_script_timeout_seconds": 0,

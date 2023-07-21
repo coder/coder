@@ -1203,8 +1203,8 @@ export interface WorkspaceAgent {
   readonly startup_script?: string
   readonly startup_script_behavior: WorkspaceAgentStartupScriptBehavior
   readonly startup_script_timeout_seconds: number
-  readonly startup_logs_length: number
-  readonly startup_logs_overflowed: boolean
+  readonly logs_length: number
+  readonly logs_overflowed: boolean
   readonly directory?: string
   readonly expanded_directory?: string
   readonly version: string
@@ -1238,6 +1238,14 @@ export interface WorkspaceAgentListeningPortsResponse {
 }
 
 // From codersdk/workspaceagents.go
+export interface WorkspaceAgentLog {
+  readonly id: number
+  readonly created_at: string
+  readonly output: string
+  readonly level: LogLevel
+}
+
+// From codersdk/workspaceagents.go
 export interface WorkspaceAgentMetadata {
   readonly result: WorkspaceAgentMetadataResult
   readonly description: WorkspaceAgentMetadataDescription
@@ -1258,14 +1266,6 @@ export interface WorkspaceAgentMetadataResult {
   readonly age: number
   readonly value: string
   readonly error: string
-}
-
-// From codersdk/workspaceagents.go
-export interface WorkspaceAgentStartupLog {
-  readonly id: number
-  readonly created_at: string
-  readonly output: string
-  readonly level: LogLevel
 }
 
 // From codersdk/workspaceapps.go
@@ -1416,6 +1416,14 @@ export interface WorkspacesResponse {
 // From codersdk/apikey.go
 export type APIKeyScope = "all" | "application_connect"
 export const APIKeyScopes: APIKeyScope[] = ["all", "application_connect"]
+
+// From codersdk/workspaceagents.go
+export type AgentLogSource = "devcontainer" | "kubernetes" | "startup"
+export const AgentLogSources: AgentLogSource[] = [
+  "devcontainer",
+  "kubernetes",
+  "startup",
+]
 
 // From codersdk/workspaceagents.go
 export type AgentSubsystem = "envbox"

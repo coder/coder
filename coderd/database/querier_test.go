@@ -111,7 +111,7 @@ func TestInsertWorkspaceAgentStartupLogs(t *testing.T) {
 	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
 		ResourceID: resource.ID,
 	})
-	logs, err := db.InsertWorkspaceAgentStartupLogs(ctx, database.InsertWorkspaceAgentStartupLogsParams{
+	logs, err := db.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
 		AgentID:   agent.ID,
 		CreatedAt: []time.Time{database.Now()},
 		Output:    []string{"first"},
@@ -122,7 +122,7 @@ func TestInsertWorkspaceAgentStartupLogs(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(1), logs[0].ID)
 
-	_, err = db.InsertWorkspaceAgentStartupLogs(ctx, database.InsertWorkspaceAgentStartupLogsParams{
+	_, err = db.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
 		AgentID:      agent.ID,
 		CreatedAt:    []time.Time{database.Now()},
 		Output:       []string{"second"},

@@ -52,7 +52,7 @@ func IsQueryCanceledError(err error) bool {
 func IsStartupLogsLimitError(err error) bool {
 	var pqErr *pq.Error
 	if errors.As(err, &pqErr) {
-		return pqErr.Constraint == "max_startup_logs_length" && pqErr.Table == "workspace_agents"
+		return pqErr.Constraint == "max_logs_length" && pqErr.Table == "workspace_agents"
 	}
 
 	return false

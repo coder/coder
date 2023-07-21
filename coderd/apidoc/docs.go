@@ -4458,6 +4458,45 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/me/logs": {
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Patch workspace agent logs",
+                "operationId": "patch-workspace-agent-logs",
+                "parameters": [
+                    {
+                        "description": "logs",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agentsdk.PatchLogs"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaceagents/me/manifest": {
             "get": {
                 "security": [
@@ -4641,45 +4680,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaceagents/me/startup-logs": {
-            "patch": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Agents"
-                ],
-                "summary": "Patch workspace agent startup logs",
-                "operationId": "patch-workspace-agent-startup-logs",
-                "parameters": [
-                    {
-                        "description": "Startup logs",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/agentsdk.PatchStartupLogs"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    }
-                }
-            }
-        },
         "/workspaceagents/{workspaceagent}": {
             "get": {
                 "security": [
@@ -4852,36 +4852,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaceagents/{workspaceagent}/pty": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "tags": [
-                    "Agents"
-                ],
-                "summary": "Open PTY to workspace agent",
-                "operationId": "open-pty-to-workspace-agent",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Workspace agent ID",
-                        "name": "workspaceagent",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "101": {
-                        "description": "Switching Protocols"
-                    }
-                }
-            }
-        },
-        "/workspaceagents/{workspaceagent}/startup-logs": {
+        "/workspaceagents/{workspaceagent}/logs": {
             "get": {
                 "security": [
                     {
@@ -4894,8 +4865,8 @@ const docTemplate = `{
                 "tags": [
                     "Agents"
                 ],
-                "summary": "Get startup logs by workspace agent",
-                "operationId": "get-startup-logs-by-workspace-agent",
+                "summary": "Get logs by workspace agent",
+                "operationId": "get-logs-by-workspace-agent",
                 "parameters": [
                     {
                         "type": "string",
@@ -4936,9 +4907,38 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.WorkspaceAgentStartupLog"
+                                "$ref": "#/definitions/codersdk.WorkspaceAgentLog"
                             }
                         }
+                    }
+                }
+            }
+        },
+        "/workspaceagents/{workspaceagent}/pty": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Open PTY to workspace agent",
+                "operationId": "open-pty-to-workspace-agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
                     }
                 }
             }
@@ -6098,6 +6098,23 @@ const docTemplate = `{
                 }
             }
         },
+        "agentsdk.Log": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "level": {
+                    "$ref": "#/definitions/codersdk.LogLevel"
+                },
+                "output": {
+                    "type": "string"
+                },
+                "stage": {
+                    "type": "string"
+                }
+            }
+        },
         "agentsdk.Manifest": {
             "type": "object",
             "properties": {
@@ -6155,13 +6172,13 @@ const docTemplate = `{
                 }
             }
         },
-        "agentsdk.PatchStartupLogs": {
+        "agentsdk.PatchLogs": {
             "type": "object",
             "properties": {
                 "logs": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/agentsdk.StartupLog"
+                        "$ref": "#/definitions/agentsdk.Log"
                     }
                 }
             }
@@ -6218,20 +6235,6 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.AgentSubsystem"
                 },
                 "version": {
-                    "type": "string"
-                }
-            }
-        },
-        "agentsdk.StartupLog": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string"
-                },
-                "level": {
-                    "$ref": "#/definitions/codersdk.LogLevel"
-                },
-                "output": {
                     "type": "string"
                 }
             }
@@ -9950,6 +9953,12 @@ const docTemplate = `{
                     "description": "Deprecated: Use StartupScriptBehavior instead.",
                     "type": "boolean"
                 },
+                "logs_length": {
+                    "type": "integer"
+                },
+                "logs_overflowed": {
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -9973,12 +9982,6 @@ const docTemplate = `{
                 "started_at": {
                     "type": "string",
                     "format": "date-time"
-                },
-                "startup_logs_length": {
-                    "type": "integer"
-                },
-                "startup_logs_overflowed": {
-                    "type": "boolean"
                 },
                 "startup_script": {
                     "type": "string"
@@ -10087,6 +10090,24 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.WorkspaceAgentLog": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "level": {
+                    "$ref": "#/definitions/codersdk.LogLevel"
+                },
+                "output": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.WorkspaceAgentMetadataDescription": {
             "type": "object",
             "properties": {
@@ -10104,24 +10125,6 @@ const docTemplate = `{
                 },
                 "timeout": {
                     "type": "integer"
-                }
-            }
-        },
-        "codersdk.WorkspaceAgentStartupLog": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "level": {
-                    "$ref": "#/definitions/codersdk.LogLevel"
-                },
-                "output": {
-                    "type": "string"
                 }
             }
         },

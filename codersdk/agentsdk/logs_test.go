@@ -29,7 +29,7 @@ func TestStartupLogsWriter_Write(t *testing.T) {
 		ctx        context.Context
 		level      codersdk.LogLevel
 		writes     []string
-		want       []agentsdk.StartupLog
+		want       []agentsdk.Log
 		wantErr    bool
 		closeFirst bool
 	}{
@@ -38,7 +38,7 @@ func TestStartupLogsWriter_Write(t *testing.T) {
 			ctx:    context.Background(),
 			level:  codersdk.LogLevelInfo,
 			writes: []string{"hello world\n"},
-			want: []agentsdk.StartupLog{
+			want: []agentsdk.Log{
 				{
 					Level:  codersdk.LogLevelInfo,
 					Output: "hello world",
@@ -50,7 +50,7 @@ func TestStartupLogsWriter_Write(t *testing.T) {
 			ctx:    context.Background(),
 			level:  codersdk.LogLevelInfo,
 			writes: []string{"hello world\n", "goodbye world\n"},
-			want: []agentsdk.StartupLog{
+			want: []agentsdk.Log{
 				{
 					Level:  codersdk.LogLevelInfo,
 					Output: "hello world",
@@ -66,7 +66,7 @@ func TestStartupLogsWriter_Write(t *testing.T) {
 			ctx:    context.Background(),
 			level:  codersdk.LogLevelInfo,
 			writes: []string{"\n\n", "hello world\n\n\n", "goodbye world\n"},
-			want: []agentsdk.StartupLog{
+			want: []agentsdk.Log{
 				{
 					Level:  codersdk.LogLevelInfo,
 					Output: "",
@@ -98,7 +98,7 @@ func TestStartupLogsWriter_Write(t *testing.T) {
 			ctx:    context.Background(),
 			level:  codersdk.LogLevelInfo,
 			writes: []string{"hello world\n", "goodbye world"},
-			want: []agentsdk.StartupLog{
+			want: []agentsdk.Log{
 				{
 					Level:  codersdk.LogLevelInfo,
 					Output: "hello world",
@@ -111,7 +111,7 @@ func TestStartupLogsWriter_Write(t *testing.T) {
 			level:      codersdk.LogLevelInfo,
 			writes:     []string{"hello world\n", "goodbye world"},
 			closeFirst: true,
-			want: []agentsdk.StartupLog{
+			want: []agentsdk.Log{
 				{
 					Level:  codersdk.LogLevelInfo,
 					Output: "hello world",
@@ -127,7 +127,7 @@ func TestStartupLogsWriter_Write(t *testing.T) {
 			ctx:    context.Background(),
 			level:  codersdk.LogLevelInfo,
 			writes: []string{"hello world\n", "goodbye", " world\n"},
-			want: []agentsdk.StartupLog{
+			want: []agentsdk.Log{
 				{
 					Level:  codersdk.LogLevelInfo,
 					Output: "hello world",
@@ -143,7 +143,7 @@ func TestStartupLogsWriter_Write(t *testing.T) {
 			ctx:    context.Background(),
 			level:  codersdk.LogLevelInfo,
 			writes: []string{"hello world\r\n", "\r\r\n", "goodbye world\n"},
-			want: []agentsdk.StartupLog{
+			want: []agentsdk.Log{
 				{
 					Level:  codersdk.LogLevelInfo,
 					Output: "hello world",
@@ -172,8 +172,8 @@ func TestStartupLogsWriter_Write(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var got []agentsdk.StartupLog
-			send := func(ctx context.Context, log ...agentsdk.StartupLog) error {
+			var got []agentsdk.Log
+			send := func(ctx context.Context, log ...agentsdk.Log) error {
 				select {
 				case <-ctx.Done():
 					return ctx.Err()
@@ -233,7 +233,7 @@ func TestStartupLogsSender(t *testing.T) {
 		name      string
 		sendCount int
 		discard   []int
-		patchResp func(req agentsdk.PatchStartupLogs) error
+		patchResp func(req agentsdk.PatchLogs) error
 	}{
 		{
 			name:      "single log",
@@ -247,7 +247,7 @@ func TestStartupLogsSender(t *testing.T) {
 			name:      "too large",
 			sendCount: 1,
 			discard:   []int{1},
-			patchResp: func(req agentsdk.PatchStartupLogs) error {
+			patchResp: func(req agentsdk.PatchLogs) error {
 				return statusError(http.StatusRequestEntityTooLarge)
 			},
 		},
@@ -260,8 +260,8 @@ func TestStartupLogsSender(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 			defer cancel()
 
-			got := []agentsdk.StartupLog{}
-			patchStartupLogs := func(_ context.Context, req agentsdk.PatchStartupLogs) error {
+			got := []agentsdk.Log{}
+			PatchLogs := func(_ context.Context, req agentsdk.PatchLogs) error {
 				if tt.patchResp != nil {
 					err := tt.patchResp(req)
 					if err != nil {
@@ -272,15 +272,15 @@ func TestStartupLogsSender(t *testing.T) {
 				return nil
 			}
 
-			sendLog, flushAndClose := agentsdk.StartupLogsSender(patchStartupLogs, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
+			sendLog, flushAndClose := agentsdk.LogsSender(PatchLogs, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
 			defer func() {
 				err := flushAndClose(ctx)
 				require.NoError(t, err)
 			}()
 
-			var want []agentsdk.StartupLog
+			var want []agentsdk.Log
 			for i := 0; i < tt.sendCount; i++ {
-				want = append(want, agentsdk.StartupLog{
+				want = append(want, agentsdk.Log{
 					CreatedAt: time.Now(),
 					Level:     codersdk.LogLevelInfo,
 					Output:    fmt.Sprintf("hello world %d", i),
@@ -306,18 +306,18 @@ func TestStartupLogsSender(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
-		patchStartupLogs := func(_ context.Context, _ agentsdk.PatchStartupLogs) error {
+		PatchLogs := func(_ context.Context, _ agentsdk.PatchLogs) error {
 			assert.Fail(t, "should not be called")
 			return nil
 		}
 
-		sendLog, flushAndClose := agentsdk.StartupLogsSender(patchStartupLogs, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
+		sendLog, flushAndClose := agentsdk.LogsSender(PatchLogs, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
 		defer func() {
 			_ = flushAndClose(ctx)
 		}()
 
 		cancel()
-		err := sendLog(ctx, agentsdk.StartupLog{
+		err := sendLog(ctx, agentsdk.Log{
 			CreatedAt: time.Now(),
 			Level:     codersdk.LogLevelInfo,
 			Output:    "hello world",
@@ -336,18 +336,18 @@ func TestStartupLogsSender(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
-		var want, got []agentsdk.StartupLog
-		patchStartupLogs := func(_ context.Context, req agentsdk.PatchStartupLogs) error {
+		var want, got []agentsdk.Log
+		PatchLogs := func(_ context.Context, req agentsdk.PatchLogs) error {
 			got = append(got, req.Logs...)
 			return nil
 		}
 
-		sendLog, flushAndClose := agentsdk.StartupLogsSender(patchStartupLogs, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
+		sendLog, flushAndClose := agentsdk.LogsSender(PatchLogs, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
 		defer func() {
 			_ = flushAndClose(ctx)
 		}()
 
-		err := sendLog(ctx, agentsdk.StartupLog{
+		err := sendLog(ctx, agentsdk.Log{
 			CreatedAt: time.Now(),
 			Level:     codersdk.LogLevelInfo,
 			Output:    "hello world",

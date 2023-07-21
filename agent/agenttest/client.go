@@ -49,7 +49,7 @@ type Client struct {
 	mu              sync.Mutex // Protects following.
 	lifecycleStates []codersdk.WorkspaceAgentLifecycle
 	startup         agentsdk.PostStartupRequest
-	logs            []agentsdk.StartupLog
+	logs            []agentsdk.Log
 }
 
 func (c *Client) Manifest(_ context.Context) (agentsdk.Manifest, error) {
@@ -150,13 +150,13 @@ func (c *Client) PostStartup(_ context.Context, startup agentsdk.PostStartupRequ
 	return nil
 }
 
-func (c *Client) GetStartupLogs() []agentsdk.StartupLog {
+func (c *Client) GetStartupLogs() []agentsdk.Log {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.logs
 }
 
-func (c *Client) PatchStartupLogs(_ context.Context, logs agentsdk.PatchStartupLogs) error {
+func (c *Client) PatchLogs(_ context.Context, logs agentsdk.PatchLogs) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.PatchWorkspaceLogs != nil {
