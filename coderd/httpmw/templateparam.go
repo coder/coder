@@ -27,7 +27,7 @@ func ExtractTemplateParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			templateID, parsed := parseUUID(rw, r, "template")
+			templateID, parsed := ParseUUIDParam(rw, r, "template")
 			if !parsed {
 				return
 			}

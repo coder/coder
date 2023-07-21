@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/tabbed/pqtype"
+	"github.com/sqlc-dev/pqtype"
 	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/exp/maps"
@@ -26,7 +26,6 @@ import (
 	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/coderd/apikey"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
@@ -50,23 +49,35 @@ var (
 )
 
 type Server struct {
-	AccessURL             *url.URL
-	ID                    uuid.UUID
-	Logger                slog.Logger
-	Provisioners          []database.ProvisionerType
-	GitAuthConfigs        []*gitauth.Config
-	Tags                  json.RawMessage
-	Database              database.Store
-	Pubsub                pubsub.Pubsub
-	Telemetry             telemetry.Reporter
-	Tracer                trace.Tracer
-	QuotaCommitter        *atomic.Pointer[proto.QuotaCommitter]
-	Auditor               *atomic.Pointer[audit.Auditor]
-	TemplateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
-	DeploymentValues      *codersdk.DeploymentValues
+	AccessURL                   *url.URL
+	ID                          uuid.UUID
+	Logger                      slog.Logger
+	Provisioners                []database.ProvisionerType
+	GitAuthConfigs              []*gitauth.Config
+	Tags                        json.RawMessage
+	Database                    database.Store
+	Pubsub                      pubsub.Pubsub
+	Telemetry                   telemetry.Reporter
+	Tracer                      trace.Tracer
+	QuotaCommitter              *atomic.Pointer[proto.QuotaCommitter]
+	Auditor                     *atomic.Pointer[audit.Auditor]
+	TemplateScheduleStore       *atomic.Pointer[schedule.TemplateScheduleStore]
+	UserQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
+	DeploymentValues            *codersdk.DeploymentValues
 
 	AcquireJobDebounce time.Duration
 	OIDCConfig         httpmw.OAuth2Config
+
+	TimeNowFn func() time.Time
+}
+
+// timeNow should be used when trying to get the current time for math
+// calculations regarding workspace start and stop time.
+func (server *Server) timeNow() time.Time {
+	if server.TimeNowFn != nil {
+		return database.Time(server.TimeNowFn())
+	}
+	return database.Now()
 }
 
 // AcquireJob queries the database to lock a job.
@@ -101,7 +112,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 		// The provisioner daemon assumes no jobs are available if
 		// an empty struct is returned.
 		lastAcquireMutex.Lock()
-		lastAcquire = time.Now()
+		lastAcquire = database.Now()
 		lastAcquireMutex.Unlock()
 		return &proto.AcquiredJob{}, nil
 	}
@@ -632,9 +643,6 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 
 	switch jobType := failJob.Type.(type) {
 	case *proto.FailedJob_WorkspaceBuild_:
-		if jobType.WorkspaceBuild.State == nil {
-			break
-		}
 		var input WorkspaceProvisionJob
 		err = json.Unmarshal(job.Input, &input)
 		if err != nil {
@@ -642,21 +650,23 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 		}
 
 		var build database.WorkspaceBuild
-		err := server.Database.InTx(func(db database.Store) error {
-			workspaceBuild, err := db.GetWorkspaceBuildByID(ctx, input.WorkspaceBuildID)
+		err = server.Database.InTx(func(db database.Store) error {
+			build, err = db.GetWorkspaceBuildByID(ctx, input.WorkspaceBuildID)
 			if err != nil {
 				return xerrors.Errorf("get workspace build: %w", err)
 			}
 
-			build, err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
-				ID:               input.WorkspaceBuildID,
-				UpdatedAt:        database.Now(),
-				ProvisionerState: jobType.WorkspaceBuild.State,
-				Deadline:         workspaceBuild.Deadline,
-				MaxDeadline:      workspaceBuild.MaxDeadline,
-			})
-			if err != nil {
-				return xerrors.Errorf("update workspace build state: %w", err)
+			if jobType.WorkspaceBuild.State != nil {
+				_, err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+					ID:               input.WorkspaceBuildID,
+					UpdatedAt:        database.Now(),
+					ProvisionerState: jobType.WorkspaceBuild.State,
+					Deadline:         build.Deadline,
+					MaxDeadline:      build.MaxDeadline,
+				})
+				if err != nil {
+					return xerrors.Errorf("update workspace build state: %w", err)
+				}
 			}
 
 			return nil
@@ -895,15 +905,9 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 		var getWorkspaceError error
 
 		err = server.Database.InTx(func(db database.Store) error {
-			var (
-				now = database.Now()
-				// deadline is the time when the workspace will be stopped. The
-				// value can be bumped by user activity or manually by the user
-				// via the UI.
-				deadline time.Time
-				// maxDeadline is the maximum value for deadline.
-				maxDeadline time.Time
-			)
+			// It's important we use server.timeNow() here because we want to be
+			// able to customize the current time from within tests.
+			now := server.timeNow()
 
 			workspace, getWorkspaceError = db.GetWorkspaceByID(ctx, workspaceBuild.WorkspaceID)
 			if getWorkspaceError != nil {
@@ -914,31 +918,16 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 				)
 				return getWorkspaceError
 			}
-			if workspace.Ttl.Valid {
-				deadline = now.Add(time.Duration(workspace.Ttl.Int64))
-			}
 
-			templateSchedule, err := (*server.TemplateScheduleStore.Load()).GetTemplateScheduleOptions(ctx, db, workspace.TemplateID)
+			autoStop, err := schedule.CalculateAutostop(ctx, schedule.CalculateAutostopParams{
+				Database:                    db,
+				TemplateScheduleStore:       *server.TemplateScheduleStore.Load(),
+				UserQuietHoursScheduleStore: *server.UserQuietHoursScheduleStore.Load(),
+				Now:                         now,
+				Workspace:                   workspace,
+			})
 			if err != nil {
-				return xerrors.Errorf("get template schedule options: %w", err)
-			}
-			if !templateSchedule.UserAutostopEnabled {
-				// The user is not permitted to set their own TTL, so use the
-				// template default.
-				deadline = time.Time{}
-				if templateSchedule.DefaultTTL > 0 {
-					deadline = now.Add(templateSchedule.DefaultTTL)
-				}
-			}
-			if templateSchedule.MaxTTL > 0 {
-				maxDeadline = now.Add(templateSchedule.MaxTTL)
-
-				if deadline.IsZero() || maxDeadline.Before(deadline) {
-					// If the workspace doesn't have a deadline or the max
-					// deadline is sooner than the workspace deadline, use the
-					// max deadline as the actual deadline.
-					deadline = maxDeadline
-				}
+				return xerrors.Errorf("calculate auto stop: %w", err)
 			}
 
 			err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
@@ -954,8 +943,8 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			}
 			_, err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 				ID:               workspaceBuild.ID,
-				Deadline:         deadline,
-				MaxDeadline:      maxDeadline,
+				Deadline:         autoStop.Deadline,
+				MaxDeadline:      autoStop.MaxDeadline,
 				ProvisionerState: jobType.WorkspaceBuild.State,
 				UpdatedAt:        now,
 			})

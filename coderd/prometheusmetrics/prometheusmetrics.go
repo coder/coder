@@ -15,7 +15,6 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/db2sdk"
 	"github.com/coder/coder/coderd/database/dbauthz"
@@ -153,7 +152,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		Subsystem: "agents",
 		Name:      "up",
 		Help:      "The number of active agents per workspace.",
-	}, []string{usernameLabel, workspaceNameLabel}))
+	}, []string{usernameLabel, workspaceNameLabel, "template_name", "template_version"}))
 	err := registerer.Register(agentsGauge)
 	if err != nil {
 		return nil, err
@@ -234,29 +233,35 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 			}
 
 			for _, workspace := range workspaceRows {
+				templateName := workspace.TemplateName
+				templateVersionName := workspace.TemplateVersionName.String
+				if !workspace.TemplateVersionName.Valid {
+					templateVersionName = "unknown"
+				}
+
 				user, err := db.GetUserByID(ctx, workspace.OwnerID)
 				if err != nil {
 					logger.Error(ctx, "can't get user from the database", slog.F("user_id", workspace.OwnerID), slog.Error(err))
-					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name)
+					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name, templateName, templateVersionName)
 					continue
 				}
 
 				agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
 				if err != nil {
 					logger.Error(ctx, "can't get workspace agents", slog.F("workspace_id", workspace.ID), slog.Error(err))
-					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name)
+					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name, templateName, templateVersionName)
 					continue
 				}
 
 				if len(agents) == 0 {
 					logger.Debug(ctx, "workspace agents are unavailable", slog.F("workspace_id", workspace.ID))
-					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name)
+					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name, templateName, templateVersionName)
 					continue
 				}
 
 				for _, agent := range agents {
 					// Collect information about agents
-					agentsGauge.WithLabelValues(VectorOperationAdd, 1, user.Username, workspace.Name)
+					agentsGauge.WithLabelValues(VectorOperationAdd, 1, user.Username, workspace.Name, templateName, templateVersionName)
 
 					connectionStatus := agent.Status(agentInactiveDisconnectTimeout)
 					node := (*coordinator.Load()).Node(agent.ID)

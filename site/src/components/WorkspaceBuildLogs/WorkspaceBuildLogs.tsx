@@ -5,6 +5,7 @@ import { ProvisionerJobLog } from "../../api/typesGenerated"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { Logs } from "../Logs/Logs"
 import Box from "@mui/material/Box"
+import { combineClasses } from "utils/combineClasses"
 
 const Language = {
   seconds: "seconds",
@@ -40,11 +41,13 @@ const getStageDurationInSeconds = (logs: ProvisionerJobLog[]) => {
 
 export type WorkspaceBuildLogsProps = {
   logs: ProvisionerJobLog[]
+  sticky?: boolean
   hideTimestamps?: boolean
 } & ComponentProps<typeof Box>
 
 export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
   hideTimestamps,
+  sticky,
   logs,
   ...boxProps
 }) => {
@@ -75,7 +78,12 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 
         return (
           <Fragment key={stage}>
-            <div className={styles.header}>
+            <div
+              className={combineClasses([
+                styles.header,
+                sticky ? styles.sticky : "",
+              ])}
+            >
               <div>{stage}</div>
               {shouldDisplayDuration && (
                 <div className={styles.duration}>
@@ -100,8 +108,6 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     fontFamily: "Inter",
     borderBottom: `1px solid ${theme.palette.divider}`,
-    position: "sticky",
-    top: 0,
     background: theme.palette.background.default,
 
     "&:last-child": {
@@ -112,6 +118,11 @@ const useStyles = makeStyles((theme) => ({
     "&:first-child": {
       borderRadius: "8px 8px 0 0",
     },
+  },
+
+  sticky: {
+    position: "sticky",
+    top: 0,
   },
 
   duration: {

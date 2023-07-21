@@ -32,7 +32,7 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Use:     "port-forward <workspace>",
-		Short:   "Forward ports from machine to a workspace",
+		Short:   `Forward ports from a workspace to the local machine. Forward ports from a workspace to the local machine. For reverse port forwarding, use "coder ssh -R".`,
 		Aliases: []string{"tunnel"},
 		Long: formatExamples(
 			example{
@@ -90,11 +90,9 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 				}
 			}
 
-			err = cliui.Agent(ctx, inv.Stderr, cliui.AgentOptions{
-				Fetch: func(ctx context.Context) (codersdk.WorkspaceAgent, error) {
-					return client.WorkspaceAgent(ctx, workspaceAgent.ID)
-				},
-				Wait: false,
+			err = cliui.Agent(ctx, inv.Stderr, workspaceAgent.ID, cliui.AgentOptions{
+				Fetch: client.WorkspaceAgent,
+				Wait:  false,
 			})
 			if err != nil {
 				return xerrors.Errorf("await agent: %w", err)

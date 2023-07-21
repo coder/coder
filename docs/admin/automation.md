@@ -1,32 +1,86 @@
 # Automation
 
-We recommend automating Coder deployments through the CLI. Examples include [updating templates via CI/CD pipelines](../templates/change-management.md).
+All actions possible through the Coder dashboard can also be automated as it utilizes the same public REST API. There are several ways to extend/automate Coder:
 
-## Authentication
+- [CLI](../cli.md)
+- [REST API](../api/)
+- [Coder SDK](https://pkg.go.dev/github.com/coder/coder/codersdk)
 
-Coder uses authentication tokens to grant machine users access to the REST API. Follow the [Authentication](../api/authentication.md) page to learn how to generate long-lived tokens.
+## Quickstart
 
-## CLI
+Generate a token on your Coder deployment by visiting:
 
-You can use tokens with the CLI by setting the `--token` CLI flag or the `CODER_SESSION_TOKEN`
-environment variable.
-
-```console
-export CODER_URL=https://coder.example.com
-export CODER_SESSION_TOKEN=*****
-coder workspaces ls
+```sh
+https://coder.example.com/settings/tokens
 ```
 
-## REST API
+List your workspaces
 
-You can review the [API reference](../api/index.md) to find the necessary routes and payload. Alternatively, you can enable the [Swagger](https://swagger.io/) endpoint to read the documentation and do requests against the API:
+```sh
+# CLI
+coder ls \
+  --url https://coder.example.com \
+  --token <your-token> \
+  --output json
 
-```console
-coder server --swagger-enable
+# REST API (with curl)
+curl https://coder.example.com/api/v2/workspaces?q=owner:me \
+  -H "Coder-Session-Token: <your-token>"
 ```
 
-By default, the local Swagger endpoint is http://localhost:3000/swagger.
+## Documentation
 
-## Golang SDK
+We publish an [API reference](../api/index.md) in our documentation. You can also enable a [Swagger endpoint](../cli/server#--swagger-enable) on your Coder deployment.
 
-Coder publishes a public [Golang SDK](https://pkg.go.dev/github.com/coder/coder/codersdk) for Coder. This is consumed by the [CLI package](https://github.com/coder/coder/tree/main/cli).
+## Use cases
+
+We strive to keep the following use cases up to date, but please note that changes to API queries and routes can occur. For the most recent queries and payloads, we recommend checking the CLI and API documentation.
+
+### Templates
+
+- [Update templates in CI](../templates/change-management.md): Store all templates and git and update templates in CI/CD pipelines.
+
+### Workspace agents
+
+Workspace agents have a special token that can send logs, metrics, and workspace activity.
+
+- [Custom workspace logs](../api/agents.md#patch-workspace-agent-startup-logs): Expose messages prior to the Coder init script running (e.g. pulling image, VM starting, restoring snapshot). [coder-logstream-kube](https://github.com/coder/coder-logstream-kube) uses this to show Kubernetes events, such as image pulls or ResourceQuota restrictions.
+
+  ```sh
+  curl -X PATCH https://coder.example.com/api/v2/workspaceagents/me/startup-logs \
+  -H "Coder-Session-Token: $CODER_AGENT_TOKEN" \
+  -d "{
+    \"logs\": [
+      {
+        \"created_at\": \"$(date -u +'%Y-%m-%dT%H:%M:%SZ')\",
+        \"level\": \"info\",
+        \"output\": \"Restoring workspace from snapshot: 05%...\"
+      }
+    ]
+  }"
+  ```
+
+- [Manually send workspace activity](../api/agents.md#submit-workspace-agent-stats): Keep a workspace "active," even if there is not an open connection (e.g. for a long-running machine learning job).
+
+  ```sh
+  #!/bin/bash
+  # Send workspace activity as long as the job is still running
+
+  while true
+  do
+    if pgrep -f "my_training_script.py" > /dev/null
+    then
+      curl -X POST "https://coder.example.com/api/v2/workspaceagents/me/report-stats" \
+      -H "Coder-Session-Token: $CODER_AGENT_TOKEN" \
+      -d '{
+        "connection_count": 1
+      }'
+
+      # Sleep for 30 minutes (1800 seconds) if the job is running
+      sleep 1800
+    else
+      # Sleep for 1 minute (60 seconds) if the job is not running
+      sleep 60
+    fi
+  done
+  ```

@@ -27,7 +27,7 @@ func ExtractWorkspaceBuildParam(db database.Store) func(http.Handler) http.Handl
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			workspaceBuildID, parsed := parseUUID(rw, r, "workspacebuild")
+			workspaceBuildID, parsed := ParseUUIDParam(rw, r, "workspacebuild")
 			if !parsed {
 				return
 			}

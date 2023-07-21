@@ -109,6 +109,7 @@ type Options struct {
 	GitAuthConfigs        []*gitauth.Config
 	TrialGenerator        func(context.Context, string) error
 	TemplateScheduleStore schedule.TemplateScheduleStore
+	Coordinator           tailnet.Coordinator
 
 	HealthcheckFunc    func(ctx context.Context, apiKey string) *healthcheck.Report
 	HealthcheckTimeout time.Duration
@@ -383,6 +384,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			TemplateScheduleStore:       &templateScheduleStore,
 			TLSCertificates:             options.TLSCertificates,
 			TrialGenerator:              options.TrialGenerator,
+			TailnetCoordinator:          options.Coordinator,
 			DERPMap:                     derpMap,
 			MetricsCacheRefreshInterval: options.MetricsCacheRefreshInterval,
 			AgentStatsRefreshInterval:   options.AgentStatsRefreshInterval,
@@ -642,9 +644,13 @@ func CreateWorkspaceBuild(
 	client *codersdk.Client,
 	workspace codersdk.Workspace,
 	transition database.WorkspaceTransition,
+	mutators ...func(*codersdk.CreateWorkspaceBuildRequest),
 ) codersdk.WorkspaceBuild {
 	req := codersdk.CreateWorkspaceBuildRequest{
 		Transition: codersdk.WorkspaceTransition(transition),
+	}
+	for _, mut := range mutators {
+		mut(&req)
 	}
 	build, err := client.CreateWorkspaceBuild(context.Background(), workspace.ID, req)
 	require.NoError(t, err)

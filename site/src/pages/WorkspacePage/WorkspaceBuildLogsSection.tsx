@@ -1,7 +1,4 @@
-import CloseOutlined from "@mui/icons-material/CloseOutlined"
 import Box from "@mui/material/Box"
-import IconButton from "@mui/material/IconButton"
-import Tooltip from "@mui/material/Tooltip"
 import { ProvisionerJobLog } from "api/typesGenerated"
 import { Loader } from "components/Loader/Loader"
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
@@ -9,10 +6,8 @@ import { useRef, useEffect } from "react"
 
 export const WorkspaceBuildLogsSection = ({
   logs,
-  onHide,
 }: {
   logs: ProvisionerJobLog[] | undefined
-  onHide?: () => void
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -43,24 +38,6 @@ export const WorkspaceBuildLogsSection = ({
         })}
       >
         Build logs
-        {onHide && (
-          <Box sx={{ marginLeft: "auto" }}>
-            <Tooltip title="Hide build logs" placement="top">
-              <IconButton
-                onClick={onHide}
-                size="small"
-                sx={(theme) => ({
-                  color: theme.palette.text.secondary,
-                  "&:hover": {
-                    color: theme.palette.text.primary,
-                  },
-                })}
-              >
-                <CloseOutlined sx={{ height: 16, width: 16 }} />
-              </IconButton>
-            </Tooltip>
-          </Box>
-        )}
       </Box>
       <Box
         ref={scrollRef}
@@ -70,7 +47,11 @@ export const WorkspaceBuildLogsSection = ({
         })}
       >
         {logs ? (
-          <WorkspaceBuildLogs logs={logs} sx={{ border: 0, borderRadius: 0 }} />
+          <WorkspaceBuildLogs
+            sticky
+            logs={logs}
+            sx={{ border: 0, borderRadius: 0 }}
+          />
         ) : (
           <Box
             sx={{

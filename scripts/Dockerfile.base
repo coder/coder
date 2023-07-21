@@ -10,11 +10,12 @@ RUN apk add --no-cache \
 		curl \
 		wget \
 		bash \
+		jq \
 		git \
 		openssh-client && \
 	# Use the edge repo, since Terraform doesn't seem to be backported to 3.18.
 	apk add --no-cache --repository=https://dl-cdn.alpinelinux.org/alpine/edge/community \
-		terraform=1.5.2-r0 && \
+		terraform=~1.5 && \
 	addgroup \
 		-g 1000 \
 		coder && \

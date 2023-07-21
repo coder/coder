@@ -163,13 +163,17 @@ func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		template, err = tx.UpdateTemplateACLByID(ctx, database.UpdateTemplateACLByIDParams{
+		err = tx.UpdateTemplateACLByID(ctx, database.UpdateTemplateACLByIDParams{
 			ID:       template.ID,
 			UserACL:  template.UserACL,
 			GroupACL: template.GroupACL,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template ACL by ID: %w", err)
+		}
+		template, err = tx.GetTemplateByID(ctx, template.ID)
+		if err != nil {
+			return xerrors.Errorf("get updated template by ID: %w", err)
 		}
 		return nil
 	}, nil)

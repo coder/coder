@@ -93,7 +93,7 @@ func StartupLogsWriter(ctx context.Context, sender func(ctx context.Context, log
 // will be discarded.
 func StartupLogsSender(patchStartupLogs func(ctx context.Context, req PatchStartupLogs) error, logger slog.Logger) (sendLog func(ctx context.Context, log ...StartupLog) error, flushAndClose func(context.Context) error) {
 	// The main context is used to close the sender goroutine and cancel
-	// any outbound requests to the API. The shudown context is used to
+	// any outbound requests to the API. The shutdown context is used to
 	// signal the sender goroutine to flush logs and then exit.
 	ctx, cancel := context.WithCancel(context.Background())
 	shutdownCtx, shutdown := context.WithCancel(ctx)

@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"net"
@@ -52,20 +51,22 @@ const (
 )
 
 type Options struct {
-	Filesystem             afero.Fs
-	LogDir                 string
-	TempDir                string
-	ExchangeToken          func(ctx context.Context) (string, error)
-	Client                 Client
-	ReconnectingPTYTimeout time.Duration
-	EnvironmentVariables   map[string]string
-	Logger                 slog.Logger
-	IgnorePorts            map[int]string
-	SSHMaxTimeout          time.Duration
-	TailnetListenPort      uint16
-	Subsystem              codersdk.AgentSubsystem
-
-	PrometheusRegistry *prometheus.Registry
+	Filesystem                   afero.Fs
+	LogDir                       string
+	TempDir                      string
+	ExchangeToken                func(ctx context.Context) (string, error)
+	Client                       Client
+	ReconnectingPTYTimeout       time.Duration
+	EnvironmentVariables         map[string]string
+	Logger                       slog.Logger
+	IgnorePorts                  map[int]string
+	SSHMaxTimeout                time.Duration
+	TailnetListenPort            uint16
+	Subsystem                    codersdk.AgentSubsystem
+	Addresses                    []netip.Prefix
+	PrometheusRegistry           *prometheus.Registry
+	ReportMetadataInterval       time.Duration
+	ServiceBannerRefreshInterval time.Duration
 }
 
 type Client interface {
@@ -106,6 +107,12 @@ func New(options Options) Agent {
 			return "", nil
 		}
 	}
+	if options.ReportMetadataInterval == 0 {
+		options.ReportMetadataInterval = time.Second
+	}
+	if options.ServiceBannerRefreshInterval == 0 {
+		options.ServiceBannerRefreshInterval = 2 * time.Minute
+	}
 
 	prometheusRegistry := options.PrometheusRegistry
 	if prometheusRegistry == nil {
@@ -114,24 +121,27 @@ func New(options Options) Agent {
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	a := &agent{
-		tailnetListenPort:      options.TailnetListenPort,
-		reconnectingPTYTimeout: options.ReconnectingPTYTimeout,
-		logger:                 options.Logger,
-		closeCancel:            cancelFunc,
-		closed:                 make(chan struct{}),
-		envVars:                options.EnvironmentVariables,
-		client:                 options.Client,
-		exchangeToken:          options.ExchangeToken,
-		filesystem:             options.Filesystem,
-		logDir:                 options.LogDir,
-		tempDir:                options.TempDir,
-		lifecycleUpdate:        make(chan struct{}, 1),
-		lifecycleReported:      make(chan codersdk.WorkspaceAgentLifecycle, 1),
-		lifecycleStates:        []agentsdk.PostLifecycleRequest{{State: codersdk.WorkspaceAgentLifecycleCreated}},
-		ignorePorts:            options.IgnorePorts,
-		connStatsChan:          make(chan *agentsdk.Stats, 1),
-		sshMaxTimeout:          options.SSHMaxTimeout,
-		subsystem:              options.Subsystem,
+		tailnetListenPort:            options.TailnetListenPort,
+		reconnectingPTYTimeout:       options.ReconnectingPTYTimeout,
+		logger:                       options.Logger,
+		closeCancel:                  cancelFunc,
+		closed:                       make(chan struct{}),
+		envVars:                      options.EnvironmentVariables,
+		client:                       options.Client,
+		exchangeToken:                options.ExchangeToken,
+		filesystem:                   options.Filesystem,
+		logDir:                       options.LogDir,
+		tempDir:                      options.TempDir,
+		lifecycleUpdate:              make(chan struct{}, 1),
+		lifecycleReported:            make(chan codersdk.WorkspaceAgentLifecycle, 1),
+		lifecycleStates:              []agentsdk.PostLifecycleRequest{{State: codersdk.WorkspaceAgentLifecycleCreated}},
+		ignorePorts:                  options.IgnorePorts,
+		connStatsChan:                make(chan *agentsdk.Stats, 1),
+		reportMetadataInterval:       options.ReportMetadataInterval,
+		serviceBannerRefreshInterval: options.ServiceBannerRefreshInterval,
+		sshMaxTimeout:                options.SSHMaxTimeout,
+		subsystem:                    options.Subsystem,
+		addresses:                    options.Addresses,
 
 		prometheusRegistry: prometheusRegistry,
 		metrics:            newAgentMetrics(prometheusRegistry),
@@ -163,13 +173,14 @@ type agent struct {
 	closed        chan struct{}
 
 	envVars map[string]string
-	// manifest is atomic because values can change after reconnection.
-	manifest atomic.Pointer[agentsdk.Manifest]
-	// serviceBanner is atomic because it can change.
-	serviceBanner atomic.Pointer[codersdk.ServiceBannerConfig]
-	sessionToken  atomic.Pointer[string]
-	sshServer     *agentssh.Server
-	sshMaxTimeout time.Duration
+
+	manifest                     atomic.Pointer[agentsdk.Manifest] // manifest is atomic because values can change after reconnection.
+	reportMetadataInterval       time.Duration
+	serviceBanner                atomic.Pointer[codersdk.ServiceBannerConfig] // serviceBanner is atomic because it is periodically updated.
+	serviceBannerRefreshInterval time.Duration
+	sessionToken                 atomic.Pointer[string]
+	sshServer                    *agentssh.Server
+	sshMaxTimeout                time.Duration
 
 	lifecycleUpdate   chan struct{}
 	lifecycleReported chan codersdk.WorkspaceAgentLifecycle
@@ -177,6 +188,7 @@ type agent struct {
 	lifecycleStates   []agentsdk.PostLifecycleRequest
 
 	network       *tailnet.Conn
+	addresses     []netip.Prefix
 	connStatsChan chan *agentsdk.Stats
 	latestStat    atomic.Pointer[agentsdk.Stats]
 
@@ -230,7 +242,7 @@ func (a *agent) runLoop(ctx context.Context) {
 	}
 }
 
-func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentMetadataDescription) *codersdk.WorkspaceAgentMetadataResult {
+func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentMetadataDescription, now time.Time) *codersdk.WorkspaceAgentMetadataResult {
 	var out bytes.Buffer
 	result := &codersdk.WorkspaceAgentMetadataResult{
 		// CollectedAt is set here for testing purposes and overrode by
@@ -238,7 +250,7 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 		//
 		// In the future, the server may accept the timestamp from the agent
 		// if it can guarantee the clocks are synchronized.
-		CollectedAt: time.Now(),
+		CollectedAt: now,
 	}
 	cmdPty, err := a.sshServer.CreateCommand(ctx, md.Script, nil)
 	if err != nil {
@@ -280,46 +292,44 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 	return result
 }
 
-// adjustIntervalForTests returns a duration of testInterval milliseconds long
-// for tests and interval seconds long otherwise.
-func adjustIntervalForTests(interval time.Duration, testInterval time.Duration) time.Duration {
-	// In tests we want to set shorter intervals because engineers are
-	// impatient.
-	if flag.Lookup("test.v") != nil {
-		return testInterval
-	}
-	return interval
-}
-
 type metadataResultAndKey struct {
 	result *codersdk.WorkspaceAgentMetadataResult
 	key    string
 }
 
 type trySingleflight struct {
-	m sync.Map
+	mu sync.Mutex
+	m  map[string]struct{}
 }
 
 func (t *trySingleflight) Do(key string, fn func()) {
-	_, loaded := t.m.LoadOrStore(key, struct{}{})
-	if !loaded {
-		// There is already a goroutine running for this key.
+	t.mu.Lock()
+	_, ok := t.m[key]
+	if ok {
+		t.mu.Unlock()
 		return
 	}
 
-	defer t.m.Delete(key)
+	t.m[key] = struct{}{}
+	t.mu.Unlock()
+	defer func() {
+		t.mu.Lock()
+		delete(t.m, key)
+		t.mu.Unlock()
+	}()
+
 	fn()
 }
 
 func (a *agent) reportMetadataLoop(ctx context.Context) {
-	baseInterval := adjustIntervalForTests(time.Second, time.Millisecond*100)
-
 	const metadataLimit = 128
 
 	var (
-		baseTicker       = time.NewTicker(baseInterval)
-		lastCollectedAts = make(map[string]time.Time)
-		metadataResults  = make(chan metadataResultAndKey, metadataLimit)
+		baseTicker        = time.NewTicker(a.reportMetadataInterval)
+		lastCollectedAtMu sync.RWMutex
+		lastCollectedAts  = make(map[string]time.Time)
+		metadataResults   = make(chan metadataResultAndKey, metadataLimit)
+		logger            = a.logger.Named("metadata")
 	)
 	defer baseTicker.Stop()
 
@@ -327,26 +337,29 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 	// a goroutine running for a given key. This is to prevent a build-up of
 	// goroutines waiting on Do when the script takes many multiples of
 	// baseInterval to run.
-	var flight trySingleflight
+	flight := trySingleflight{m: map[string]struct{}{}}
+
+	postMetadata := func(mr metadataResultAndKey) {
+		err := a.client.PostMetadata(ctx, mr.key, *mr.result)
+		if err != nil {
+			a.logger.Error(ctx, "agent failed to report metadata", slog.Error(err))
+		}
+	}
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case mr := <-metadataResults:
-			lastCollectedAts[mr.key] = mr.result.CollectedAt
-			err := a.client.PostMetadata(ctx, mr.key, *mr.result)
-			if err != nil {
-				a.logger.Error(ctx, "agent failed to report metadata", slog.Error(err))
-			}
+			postMetadata(mr)
+			continue
 		case <-baseTicker.C:
 		}
 
 		if len(metadataResults) > 0 {
 			// The inner collection loop expects the channel is empty before spinning up
 			// all the collection goroutines.
-			a.logger.Debug(
-				ctx, "metadata collection backpressured",
+			logger.Debug(ctx, "metadata collection backpressured",
 				slog.F("queue_len", len(metadataResults)),
 			)
 			continue
@@ -358,7 +371,7 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 		}
 
 		if len(manifest.Metadata) > metadataLimit {
-			a.logger.Error(
+			logger.Error(
 				ctx, "metadata limit exceeded",
 				slog.F("limit", metadataLimit), slog.F("got", len(manifest.Metadata)),
 			)
@@ -368,55 +381,79 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 		// If the manifest changes (e.g. on agent reconnect) we need to
 		// purge old cache values to prevent lastCollectedAt from growing
 		// boundlessly.
+		lastCollectedAtMu.Lock()
 		for key := range lastCollectedAts {
 			if slices.IndexFunc(manifest.Metadata, func(md codersdk.WorkspaceAgentMetadataDescription) bool {
 				return md.Key == key
 			}) < 0 {
+				logger.Debug(ctx, "deleting lastCollected key, missing from manifest",
+					slog.F("key", key),
+				)
 				delete(lastCollectedAts, key)
 			}
 		}
+		lastCollectedAtMu.Unlock()
 
 		// Spawn a goroutine for each metadata collection, and use a
 		// channel to synchronize the results and avoid both messy
 		// mutex logic and overloading the API.
 		for _, md := range manifest.Metadata {
-			collectedAt, ok := lastCollectedAts[md.Key]
-			if ok {
-				// If the interval is zero, we assume the user just wants
-				// a single collection at startup, not a spinning loop.
-				if md.Interval == 0 {
-					continue
-				}
-				// The last collected value isn't quite stale yet, so we skip it.
-				if collectedAt.Add(
-					adjustIntervalForTests(
-						time.Duration(md.Interval)*time.Second,
-						time.Duration(md.Interval)*time.Millisecond*100),
-				).After(time.Now()) {
-					continue
-				}
-			}
-
 			md := md
 			// We send the result to the channel in the goroutine to avoid
 			// sending the same result multiple times. So, we don't care about
 			// the return values.
 			go flight.Do(md.Key, func() {
+				ctx := slog.With(ctx, slog.F("key", md.Key))
+				lastCollectedAtMu.RLock()
+				collectedAt, ok := lastCollectedAts[md.Key]
+				lastCollectedAtMu.RUnlock()
+				if ok {
+					// If the interval is zero, we assume the user just wants
+					// a single collection at startup, not a spinning loop.
+					if md.Interval == 0 {
+						return
+					}
+					intervalUnit := time.Second
+					// reportMetadataInterval is only less than a second in tests,
+					// so adjust the interval unit for them.
+					if a.reportMetadataInterval < time.Second {
+						intervalUnit = 100 * time.Millisecond
+					}
+					// The last collected value isn't quite stale yet, so we skip it.
+					if collectedAt.Add(time.Duration(md.Interval) * intervalUnit).After(time.Now()) {
+						return
+					}
+				}
+
 				timeout := md.Timeout
 				if timeout == 0 {
-					timeout = md.Interval
+					if md.Interval != 0 {
+						timeout = md.Interval
+					} else if interval := int64(a.reportMetadataInterval.Seconds()); interval != 0 {
+						// Fallback to the report interval
+						timeout = interval * 3
+					} else {
+						// If the interval is still 0 (possible if the interval
+						// is less than a second), default to 5. This was
+						// randomly picked.
+						timeout = 5
+					}
 				}
-				ctx, cancel := context.WithTimeout(ctx,
-					time.Duration(timeout)*time.Second,
-				)
+				ctxTimeout := time.Duration(timeout) * time.Second
+				ctx, cancel := context.WithTimeout(ctx, ctxTimeout)
 				defer cancel()
 
+				now := time.Now()
 				select {
 				case <-ctx.Done():
+					logger.Warn(ctx, "metadata collection timed out", slog.F("timeout", ctxTimeout))
 				case metadataResults <- metadataResultAndKey{
 					key:    md.Key,
-					result: a.collectMetadata(ctx, md),
+					result: a.collectMetadata(ctx, md, now),
 				}:
+					lastCollectedAtMu.Lock()
+					lastCollectedAts[md.Key] = now
+					lastCollectedAtMu.Unlock()
 				}
 			})
 		}
@@ -503,7 +540,7 @@ func (a *agent) setLifecycle(ctx context.Context, state codersdk.WorkspaceAgentL
 // not be fetched immediately; the expectation is that it is primed elsewhere
 // (and must be done before the session actually starts).
 func (a *agent) fetchServiceBannerLoop(ctx context.Context) {
-	ticker := time.NewTicker(adjustIntervalForTests(2*time.Minute, time.Millisecond*5))
+	ticker := time.NewTicker(a.serviceBannerRefreshInterval)
 	defer ticker.Stop()
 	for {
 		select {
@@ -544,6 +581,10 @@ func (a *agent) run(ctx context.Context) error {
 		return xerrors.Errorf("fetch metadata: %w", err)
 	}
 	a.logger.Info(ctx, "fetched manifest", slog.F("manifest", manifest))
+
+	if manifest.AgentID == uuid.Nil {
+		return xerrors.New("nil agentID returned by manifest")
+	}
 
 	// Expand the directory and send it back to coderd so external
 	// applications that rely on the directory can use it.
@@ -630,7 +671,7 @@ func (a *agent) run(ctx context.Context) error {
 	network := a.network
 	a.closeMutex.Unlock()
 	if network == nil {
-		network, err = a.createTailnet(ctx, manifest.DERPMap, manifest.DisableDirectConnections)
+		network, err = a.createTailnet(ctx, manifest.AgentID, manifest.DERPMap, manifest.DisableDirectConnections)
 		if err != nil {
 			return xerrors.Errorf("create tailnet: %w", err)
 		}
@@ -648,6 +689,11 @@ func (a *agent) run(ctx context.Context) error {
 
 		a.startReportingConnectionStats(ctx)
 	} else {
+		// Update the wireguard IPs if the agent ID changed.
+		err := network.SetAddresses(a.wireguardAddresses(manifest.AgentID))
+		if err != nil {
+			a.logger.Error(ctx, "update tailnet addresses", slog.Error(err))
+		}
 		// Update the DERP map and allow/disallow direct connections.
 		network.SetDERPMap(manifest.DERPMap)
 		network.SetBlockEndpoints(manifest.DisableDirectConnections)
@@ -659,6 +705,20 @@ func (a *agent) run(ctx context.Context) error {
 		return xerrors.Errorf("run coordinator: %w", err)
 	}
 	return nil
+}
+
+func (a *agent) wireguardAddresses(agentID uuid.UUID) []netip.Prefix {
+	if len(a.addresses) == 0 {
+		return []netip.Prefix{
+			// This is the IP that should be used primarily.
+			netip.PrefixFrom(tailnet.IPFromUUID(agentID), 128),
+			// We also listen on the legacy codersdk.WorkspaceAgentIP. This
+			// allows for a transition away from wsconncache.
+			netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128),
+		}
+	}
+
+	return a.addresses
 }
 
 func (a *agent) trackConnGoroutine(fn func()) error {
@@ -675,9 +735,9 @@ func (a *agent) trackConnGoroutine(fn func()) error {
 	return nil
 }
 
-func (a *agent) createTailnet(ctx context.Context, derpMap *tailcfg.DERPMap, disableDirectConnections bool) (_ *tailnet.Conn, err error) {
+func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *tailcfg.DERPMap, disableDirectConnections bool) (_ *tailnet.Conn, err error) {
 	network, err := tailnet.NewConn(&tailnet.Options{
-		Addresses:      []netip.Prefix{netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128)},
+		Addresses:      a.wireguardAddresses(agentID),
 		DERPMap:        derpMap,
 		Logger:         a.logger.Named("tailnet"),
 		ListenPort:     a.tailnetListenPort,

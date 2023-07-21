@@ -3829,6 +3829,92 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/{user}/quiet-hours": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get user quiet hours schedule",
+                "operationId": "get-user-quiet-hours-schedule",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "User ID",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.UserQuietHoursScheduleResponse"
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Update user quiet hours schedule",
+                "operationId": "update-user-quiet-hours-schedule",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "User ID",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update schedule request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateUserQuietHoursScheduleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.UserQuietHoursScheduleResponse"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/users/{user}/roles": {
             "get": {
                 "security": [
@@ -4513,9 +4599,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/agentsdk.StatsResponse"
                         }
                     }
-                },
-                "x-apidocgen": {
-                    "skip": true
                 }
             }
         },
@@ -4594,9 +4677,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     }
-                },
-                "x-apidocgen": {
-                    "skip": true
                 }
             }
         },
@@ -4696,6 +4776,44 @@ const docTemplate = `{
                     "101": {
                         "description": "Switching Protocols"
                     }
+                }
+            }
+        },
+        "/workspaceagents/{workspaceagent}/legacy": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Agent is legacy",
+                "operationId": "agent-is-legacy",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace Agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/wsproxysdk.AgentIsLegacyResponse"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
                 }
             }
         },
@@ -5150,6 +5268,28 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.WorkspaceProxy"
                         }
                     }
+                }
+            }
+        },
+        "/workspaceproxies/me/coordinate": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Workspace Proxy Coordinate",
+                "operationId": "workspace-proxy-coordinate",
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
                 }
             }
         },
@@ -5961,6 +6101,9 @@ const docTemplate = `{
         "agentsdk.Manifest": {
             "type": "object",
             "properties": {
+                "agent_id": {
+                    "type": "string"
+                },
                 "apps": {
                     "type": "array",
                     "items": {
@@ -6945,12 +7088,20 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "max_ttl_ms": {
-                    "description": "MaxTTLMillis allows optionally specifying the max lifetime for\nworkspaces created from this template.",
+                    "description": "TODO(@dean): remove max_ttl once restart_requirement is matured",
                     "type": "integer"
                 },
                 "name": {
                     "description": "Name is the name of the template.",
                     "type": "string"
+                },
+                "restart_requirement": {
+                    "description": "RestartRequirement allows optionally specifying the restart requirement\nfor workspaces created from this template. This is an enterprise feature.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.TemplateRestartRequirement"
+                        }
+                    ]
                 },
                 "template_version_id": {
                     "description": "VersionID is an in-progress or completed job to use as an initial version\nof the template.\n\nThis is required on creation to enable a user-flow of validating a\ntemplate works. There is no reason the data-model cannot support empty\ntemplates, but it doesn't make sense for users.",
@@ -7442,6 +7593,9 @@ const docTemplate = `{
                 "disable_session_expiry_refresh": {
                     "type": "boolean"
                 },
+                "docs_url": {
+                    "$ref": "#/definitions/clibase.URL"
+                },
                 "enable_terraform_debug_mode": {
                     "type": "boolean"
                 },
@@ -7551,6 +7705,9 @@ const docTemplate = `{
                 "update_check": {
                     "type": "boolean"
                 },
+                "user_quiet_hours_schedule": {
+                    "$ref": "#/definitions/codersdk.UserQuietHoursScheduleConfig"
+                },
                 "verbose": {
                     "type": "boolean"
                 },
@@ -7615,16 +7772,18 @@ const docTemplate = `{
             "enum": [
                 "moons",
                 "workspace_actions",
-                "tailnet_pg_coordinator",
+                "tailnet_ha_coordinator",
                 "convert-to-oidc",
-                "workspace_build_logs_ui"
+                "single_tailnet",
+                "template_restart_requirement"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
                 "ExperimentWorkspaceActions",
-                "ExperimentTailnetPGCoordinator",
+                "ExperimentTailnetHACoordinator",
                 "ExperimentConvertToOIDC",
-                "ExperimentWorkspaceBuildLogsUI"
+                "ExperimentSingleTailnet",
+                "ExperimentTemplateRestartRequirement"
             ]
         },
         "codersdk.Feature": {
@@ -8223,6 +8382,9 @@ const docTemplate = `{
         "codersdk.PatchTemplateVersionRequest": {
             "type": "object",
             "properties": {
+                "message": {
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
                 }
@@ -8931,7 +9093,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "max_ttl_ms": {
-                    "description": "MaxTTLMillis is an enterprise feature. It's value is only used if your\nlicense is entitled to use the advanced template scheduling feature.",
+                    "description": "TODO(@dean): remove max_ttl once restart_requirement is matured",
                     "type": "integer"
                 },
                 "name": {
@@ -8945,6 +9107,14 @@ const docTemplate = `{
                     "type": "string",
                     "enum": [
                         "terraform"
+                    ]
+                },
+                "restart_requirement": {
+                    "description": "RestartRequirement is an enterprise feature. Its value is only used if\nyour license is entitled to use the advanced template scheduling feature.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.TemplateRestartRequirement"
+                        }
                     ]
                 },
                 "updated_at": {
@@ -8986,6 +9156,31 @@ const docTemplate = `{
                 },
                 "url": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.TemplateRestartRequirement": {
+            "type": "object",
+            "properties": {
+                "days_of_week": {
+                    "description": "DaysOfWeek is a list of days of the week on which restarts are required.\nRestarts happen within the user's quiet hours (in their configured\ntimezone). If no days are specified, restarts are not required. Weekdays\ncannot be specified twice.\n\nRestarts will only happen on weekdays in this list on weeks which line up\nwith Weeks.",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": [
+                            "monday",
+                            "tuesday",
+                            "wednesday",
+                            "thursday",
+                            "friday",
+                            "saturday",
+                            "sunday"
+                        ]
+                    }
+                },
+                "weeks": {
+                    "description": "Weeks is the number of weeks between required restarts. Weeks are synced\nacross all workspaces (and Coder deployments) using modulo math on a\nhardcoded epoch week of January 2nd, 2023 (the first Monday of 2023).\nValues of 0 or 1 indicate weekly restarts. Values of 2 indicate\nfortnightly restarts, etc.",
+                    "type": "integer"
                 }
             }
         },
@@ -9402,6 +9597,18 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateUserQuietHoursScheduleRequest": {
+            "type": "object",
+            "required": [
+                "schedule"
+            ],
+            "properties": {
+                "schedule": {
+                    "description": "Schedule is a cron expression that defines when the user's quiet hours\nwindow is. Schedule must not be empty. For new users, the schedule is set\nto 2am in their browser or computer's timezone. The schedule denotes the\nbeginning of a 4 hour window where the workspace is allowed to\nautomatically stop or restart due to maintenance or template max TTL.\n\nThe schedule must be daily with a single time, and should have a timezone\nspecified via a CRON_TZ prefix (otherwise UTC will be used).\n\nIf the schedule is empty, the user will be updated to use the default\nschedule.",
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.UpdateWorkspaceAutostartRequest": {
             "type": "object",
             "properties": {
@@ -9506,6 +9713,39 @@ const docTemplate = `{
             "properties": {
                 "login_type": {
                     "$ref": "#/definitions/codersdk.LoginType"
+                }
+            }
+        },
+        "codersdk.UserQuietHoursScheduleConfig": {
+            "type": "object",
+            "properties": {
+                "default_schedule": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.UserQuietHoursScheduleResponse": {
+            "type": "object",
+            "properties": {
+                "next": {
+                    "description": "Next is the next time that the quiet hours window will start.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "raw_schedule": {
+                    "type": "string"
+                },
+                "time": {
+                    "description": "Time is the time of day that the quiet hours window starts in the given\nTimezone each day.",
+                    "type": "string"
+                },
+                "timezone": {
+                    "description": "raw format from the cron expression, UTC if unspecified",
+                    "type": "string"
+                },
+                "user_set": {
+                    "description": "UserSet is true if the user has set their own quiet hours schedule. If\nfalse, the user is using the default schedule.",
+                    "type": "boolean"
                 }
             }
         },
@@ -10873,6 +11113,17 @@ const docTemplate = `{
                 },
                 "workspace_name_or_id": {
                     "type": "string"
+                }
+            }
+        },
+        "wsproxysdk.AgentIsLegacyResponse": {
+            "type": "object",
+            "properties": {
+                "found": {
+                    "type": "boolean"
+                },
+                "legacy": {
+                    "type": "boolean"
                 }
             }
         },

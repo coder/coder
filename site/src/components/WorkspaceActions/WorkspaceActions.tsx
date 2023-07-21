@@ -3,7 +3,7 @@ import Menu from "@mui/material/Menu"
 import { makeStyles } from "@mui/styles"
 import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined"
 import { FC, Fragment, ReactNode, useRef, useState } from "react"
-import { WorkspaceStatus } from "api/typesGenerated"
+import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated"
 import {
   ActionLoadingButton,
   CancelButton,
@@ -22,17 +22,12 @@ import SettingsOutlined from "@mui/icons-material/SettingsOutlined"
 import HistoryOutlined from "@mui/icons-material/HistoryOutlined"
 import DeleteOutlined from "@mui/icons-material/DeleteOutlined"
 import IconButton from "@mui/material/IconButton"
-import Divider from "@mui/material/Divider"
-import VisibilityOffOutlined from "@mui/icons-material/VisibilityOffOutlined"
-import VisibilityOutlined from "@mui/icons-material/VisibilityOutlined"
-import { useLocalPreferences } from "contexts/LocalPreferencesContext"
 
 export interface WorkspaceActionsProps {
-  workspaceStatus: WorkspaceStatus
-  isOutdated: boolean
-  handleStart: () => void
+  workspace: Workspace
+  handleStart: (buildParameters?: WorkspaceBuildParameter[]) => void
   handleStop: () => void
-  handleRestart: () => void
+  handleRestart: (buildParameters?: WorkspaceBuildParameter[]) => void
   handleDelete: () => void
   handleUpdate: () => void
   handleCancel: () => void
@@ -42,13 +37,10 @@ export interface WorkspaceActionsProps {
   isRestarting: boolean
   children?: ReactNode
   canChangeVersions: boolean
-  canChangeBuildLogsVisibility: boolean
-  isWorkspaceBuildLogsUIActive: boolean
 }
 
 export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
-  workspaceStatus,
-  isOutdated,
+  workspace,
   handleStart,
   handleStop,
   handleRestart,
@@ -60,21 +52,16 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   isUpdating,
   isRestarting,
   canChangeVersions,
-  canChangeBuildLogsVisibility,
-  isWorkspaceBuildLogsUIActive,
 }) => {
   const styles = useStyles()
   const {
     canCancel,
     canAcceptJobs,
     actions: actionsByStatus,
-  } = actionsByWorkspaceStatus(workspaceStatus)
-  const canBeUpdated = isOutdated && canAcceptJobs
+  } = actionsByWorkspaceStatus(workspace.latest_build.status)
+  const canBeUpdated = workspace.outdated && canAcceptJobs
   const menuTriggerRef = useRef<HTMLButtonElement>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const localPreferences = useLocalPreferences()
-  const isBuildLogsVisible =
-    localPreferences.getPreference("buildLogsVisibility") === "visible"
 
   // A mapping of button type to the corresponding React component
   const buttonMapping: ButtonMapping = {
@@ -82,17 +69,25 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     [ButtonTypesEnum.updating]: (
       <UpdateButton loading handleAction={handleUpdate} />
     ),
-    [ButtonTypesEnum.start]: <StartButton handleAction={handleStart} />,
+    [ButtonTypesEnum.start]: (
+      <StartButton workspace={workspace} handleAction={handleStart} />
+    ),
     [ButtonTypesEnum.starting]: (
-      <StartButton loading handleAction={handleStart} />
+      <StartButton loading workspace={workspace} handleAction={handleStart} />
     ),
     [ButtonTypesEnum.stop]: <StopButton handleAction={handleStop} />,
     [ButtonTypesEnum.stopping]: (
       <StopButton loading handleAction={handleStop} />
     ),
-    [ButtonTypesEnum.restart]: <RestartButton handleAction={handleRestart} />,
+    [ButtonTypesEnum.restart]: (
+      <RestartButton workspace={workspace} handleAction={handleRestart} />
+    ),
     [ButtonTypesEnum.restarting]: (
-      <RestartButton loading handleAction={handleRestart} />
+      <RestartButton
+        loading
+        workspace={workspace}
+        handleAction={handleRestart}
+      />
     ),
     [ButtonTypesEnum.deleting]: <ActionLoadingButton label="Deleting" />,
     [ButtonTypesEnum.canceling]: <DisabledButton label="Canceling..." />,
@@ -151,39 +146,6 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
             <DeleteOutlined />
             Delete
           </MenuItem>
-
-          {isWorkspaceBuildLogsUIActive && (
-            <>
-              <Divider sx={{ borderColor: (theme) => theme.palette.divider }} />
-              {isBuildLogsVisible ? (
-                <MenuItem
-                  disabled={!canChangeBuildLogsVisibility}
-                  onClick={onMenuItemClick(() => {
-                    localPreferences.setPreference(
-                      "buildLogsVisibility",
-                      "hide",
-                    )
-                  })}
-                >
-                  <VisibilityOffOutlined />
-                  Hide build logs
-                </MenuItem>
-              ) : (
-                <MenuItem
-                  disabled={!canChangeBuildLogsVisibility}
-                  onClick={onMenuItemClick(() => {
-                    localPreferences.setPreference(
-                      "buildLogsVisibility",
-                      "visible",
-                    )
-                  })}
-                >
-                  <VisibilityOutlined />
-                  Show build logs
-                </MenuItem>
-              )}
-            </>
-          )}
         </Menu>
       </div>
     </div>

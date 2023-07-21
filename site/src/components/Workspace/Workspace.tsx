@@ -45,9 +45,9 @@ export interface WorkspaceProps {
     maxDeadlineIncrease: number
     maxDeadlineDecrease: number
   }
-  handleStart: () => void
+  handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void
   handleStop: () => void
-  handleRestart: () => void
+  handleRestart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void
   handleDelete: () => void
   handleUpdate: () => void
   handleCancel: () => void
@@ -71,8 +71,6 @@ export interface WorkspaceProps {
   quota_budget?: number
   handleBuildRetry: () => void
   buildLogs?: React.ReactNode
-  canChangeBuildLogsVisibility: boolean
-  isWorkspaceBuildLogsUIActive: boolean
 }
 
 /**
@@ -106,8 +104,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   handleBuildRetry,
   templateWarnings,
   buildLogs,
-  canChangeBuildLogsVisibility,
-  isWorkspaceBuildLogsUIActive,
 }) => {
   const styles = useStyles()
   const navigate = useNavigate()
@@ -198,8 +194,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 
         <PageHeaderActions>
           <WorkspaceActions
-            workspaceStatus={workspace.latest_build.status}
-            isOutdated={workspace.outdated}
+            workspace={workspace}
             handleStart={handleStart}
             handleStop={handleStop}
             handleRestart={handleRestart}
@@ -211,8 +206,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             canChangeVersions={canChangeVersions}
             isUpdating={isUpdating}
             isRestarting={isRestarting}
-            canChangeBuildLogsVisibility={canChangeBuildLogsVisibility}
-            isWorkspaceBuildLogsUIActive={isWorkspaceBuildLogsUIActive}
           />
         </PageHeaderActions>
       </FullWidthPageHeader>
@@ -225,6 +218,19 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
         >
           {buildError}
           {cancellationError}
+          {workspace.latest_build.status === "running" &&
+            !workspace.health.healthy && (
+              <Alert severity="warning">
+                <AlertTitle>Workspace is unhealthy</AlertTitle>
+                <AlertDetail>
+                  Your workspace is running but{" "}
+                  {workspace.health.failing_agents.length > 1
+                    ? `${workspace.health.failing_agents.length} agents are unhealthy`
+                    : `1 agent is unhealthy`}
+                  .
+                </AlertDetail>
+              </Alert>
+            )}
 
           <ChooseOne>
             <Cond condition={workspace.latest_build.status === "deleted"}>

@@ -13,7 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
-	"github.com/tabbed/pqtype"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -106,10 +106,15 @@ func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 		TemplateID: templateVersion.TemplateID,
 		UpdatedAt:  database.Now(),
 		Name:       templateVersion.Name,
+		Message:    templateVersion.Message,
 	}
 
 	if params.Name != "" {
 		updateParams.Name = params.Name
+	}
+
+	if params.Message != nil {
+		updateParams.Message = *params.Message
 	}
 
 	errTemplateVersionNameConflict := xerrors.New("template version name must be unique for a template")

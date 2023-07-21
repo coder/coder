@@ -1,9 +1,13 @@
 // Package wsconncache caches workspace agent connections by UUID.
+// Deprecated: Use ServerTailnet instead.
 package wsconncache
 
 import (
 	"context"
+	"crypto/tls"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"sync"
 	"time"
 
@@ -13,13 +17,58 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/site"
 )
 
-// New creates a new workspace connection cache that closes
-// connections after the inactive timeout provided.
+type AgentProvider struct {
+	Cache *Cache
+}
+
+func (a *AgentProvider) AgentConn(_ context.Context, agentID uuid.UUID) (*codersdk.WorkspaceAgentConn, func(), error) {
+	conn, rel, err := a.Cache.Acquire(agentID)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("acquire agent connection: %w", err)
+	}
+
+	return conn.WorkspaceAgentConn, rel, nil
+}
+
+func (a *AgentProvider) ReverseProxy(targetURL *url.URL, dashboardURL *url.URL, agentID uuid.UUID) (*httputil.ReverseProxy, func(), error) {
+	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		site.RenderStaticErrorPage(w, r, site.ErrorPageData{
+			Status:       http.StatusBadGateway,
+			Title:        "Bad Gateway",
+			Description:  "Failed to proxy request to application: " + err.Error(),
+			RetryEnabled: true,
+			DashboardURL: dashboardURL.String(),
+		})
+	}
+
+	conn, release, err := a.Cache.Acquire(agentID)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("acquire agent connection: %w", err)
+	}
+
+	transport := conn.HTTPTransport()
+
+	proxy.Transport = transport
+	return proxy, release, nil
+}
+
+func (a *AgentProvider) Close() error {
+	return a.Cache.Close()
+}
+
+// New creates a new workspace connection cache that closes connections after
+// the inactive timeout provided.
 //
-// Agent connections are cached due to WebRTC negotiation
-// taking a few hundred milliseconds.
+// Agent connections are cached due to Wireguard negotiation taking a few
+// hundred milliseconds, depending on latency.
+//
+// Deprecated: Use coderd.NewServerTailnet instead. wsconncache is being phased
+// out because it creates a unique Tailnet for each agent.
+// See: https://github.com/coder/coder/issues/8218
 func New(dialer Dialer, inactiveTimeout time.Duration) *Cache {
 	if inactiveTimeout == 0 {
 		inactiveTimeout = 5 * time.Minute
@@ -107,6 +156,18 @@ func (c *Cache) Acquire(id uuid.UUID) (*Conn, func(), error) {
 			}
 			transport := defaultTransport.Clone()
 			transport.DialContext = agentConn.DialContext
+
+			// We intentionally don't verify the certificate chain here.
+			// The connection to the workspace is already established and most
+			// apps are already going to be accessed over plain HTTP, this config
+			// simply allows apps being run over HTTPS to be accessed without error --
+			// many of which may be using self-signed certs.
+			transport.TLSClientConfig = &tls.Config{
+				MinVersion: tls.VersionTLS12,
+				//nolint:gosec
+				InsecureSkipVerify: true,
+			}
+
 			conn := &Conn{
 				WorkspaceAgentConn: agentConn,
 				timeoutCancel:      timeoutCancelFunc,

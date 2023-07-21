@@ -128,6 +128,9 @@ Use a YAML configuration file when your server launch become unwieldy.
       --access-url url, $CODER_ACCESS_URL
           The URL that users will use to access the Coder deployment.
 
+      --docs-url url, $CODER_DOCS_URL
+          Specifies the custom docs URL.
+
       --proxy-trusted-headers string-array, $CODER_PROXY_TRUSTED_HEADERS
           Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip,
           True-Client-Ip, X-Forwarded-For.
@@ -373,6 +376,20 @@ telemetrywhen required by your organization's security policy.
           Whether Opentelemetry traces are sent to Coder. Coder collects
           anonymized application tracing to help improve our product. Disabling
           telemetry also disables this option.
+
+[1mUser Quiet Hours Schedule Options[0m 
+Allow users to set quiet hours schedules each day for workspaces to avoid
+workspaces stopping during the day due to template max TTL.
+
+      --default-quiet-hours-schedule string, $CODER_QUIET_HOURS_DEFAULT_SCHEDULE
+          The default daily cron schedule applied to users that haven't set a
+          custom quiet hours schedule themselves. The quiet hours schedule
+          determines when workspaces will be force stopped due to the template's
+          max TTL, and will round the max TTL up to be within the user's quiet
+          hours window (or default). The format is the same as the standard cron
+          format, but the day-of-month, month and day-of-week must be *. Only
+          one hour and minute can be specified (ranges or comma separated values
+          are not supported).
 
 [1m⚠️ Dangerous Options[0m 
       --dangerous-allow-path-app-sharing bool, $CODER_DANGEROUS_ALLOW_PATH_APP_SHARING

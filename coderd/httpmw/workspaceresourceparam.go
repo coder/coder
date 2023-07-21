@@ -29,7 +29,7 @@ func ExtractWorkspaceResourceParam(db database.Store) func(http.Handler) http.Ha
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			resourceUUID, parsed := parseUUID(rw, r, "workspaceresource")
+			resourceUUID, parsed := ParseUUIDParam(rw, r, "workspaceresource")
 			if !parsed {
 				return
 			}

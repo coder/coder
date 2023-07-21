@@ -196,6 +196,19 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "disable_password_auth": true,
     "disable_path_apps": true,
     "disable_session_expiry_refresh": true,
+    "docs_url": {
+      "forceQuery": true,
+      "fragment": "string",
+      "host": "string",
+      "omitHost": true,
+      "opaque": "string",
+      "path": "string",
+      "rawFragment": "string",
+      "rawPath": "string",
+      "rawQuery": "string",
+      "scheme": "string",
+      "user": {}
+    },
     "enable_terraform_debug_mode": true,
     "experiments": ["string"],
     "git_auth": {
@@ -357,6 +370,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "honeycomb_api_key": "string"
     },
     "update_check": true,
+    "user_quiet_hours_schedule": {
+      "default_schedule": "string"
+    },
     "verbose": true,
     "wgtunnel_host": "string",
     "wildcard_access_url": {

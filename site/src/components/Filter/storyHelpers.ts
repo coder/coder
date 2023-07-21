@@ -31,4 +31,4 @@ export const getDefaultFilterProps = <TFilterProps>({
       values,
     },
     menus,
-  } as TFilterProps)
+  }) as TFilterProps

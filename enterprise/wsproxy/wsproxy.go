@@ -27,10 +27,12 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/wsproxy/wsproxysdk"
 	"github.com/coder/coder/site"
+	agpl "github.com/coder/coder/tailnet"
 )
 
 type Options struct {
-	Logger slog.Logger
+	Logger      slog.Logger
+	Experiments codersdk.Experiments
 
 	HTTPClient *http.Client
 	// DashboardURL is the URL of the primary coderd instance.
@@ -168,6 +170,30 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		cancel:             cancel,
 	}
 
+	connInfo, err := client.SDKClient.WorkspaceAgentConnectionInfo(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("get derpmap: %w", err)
+	}
+
+	var agentProvider workspaceapps.AgentProvider
+	if opts.Experiments.Enabled(codersdk.ExperimentSingleTailnet) {
+		stn, err := coderd.NewServerTailnet(ctx,
+			s.Logger,
+			nil,
+			connInfo.DERPMap,
+			s.DialCoordinator,
+			wsconncache.New(s.DialWorkspaceAgent, 0),
+		)
+		if err != nil {
+			return nil, xerrors.Errorf("create server tailnet: %w", err)
+		}
+		agentProvider = stn
+	} else {
+		agentProvider = &wsconncache.AgentProvider{
+			Cache: wsconncache.New(s.DialWorkspaceAgent, 0),
+		}
+	}
+
 	s.AppServer = &workspaceapps.Server{
 		Logger:        opts.Logger.Named("workspaceapps"),
 		DashboardURL:  opts.DashboardURL,
@@ -183,9 +209,9 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 			SecurityKey:  secKey,
 			Logger:       s.Logger.Named("proxy_token_provider"),
 		},
-		WorkspaceConnCache: wsconncache.New(s.DialWorkspaceAgent, 0),
-		AppSecurityKey:     secKey,
+		AppSecurityKey: secKey,
 
+		AgentProvider:    agentProvider,
 		DisablePathApps:  opts.DisablePathApps,
 		SecureAuthCookie: opts.SecureAuthCookie,
 	}
@@ -273,12 +299,17 @@ func (s *Server) Close() error {
 	tmp, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	_ = s.SDKClient.WorkspaceProxyGoingAway(tmp)
+	_ = s.AppServer.AgentProvider.Close()
 
 	return s.AppServer.Close()
 }
 
 func (s *Server) DialWorkspaceAgent(id uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
 	return s.SDKClient.DialWorkspaceAgent(s.ctx, id, nil)
+}
+
+func (s *Server) DialCoordinator(ctx context.Context) (agpl.MultiAgentConn, error) {
+	return s.SDKClient.DialCoordinator(ctx)
 }
 
 func (s *Server) buildInfo(rw http.ResponseWriter, r *http.Request) {

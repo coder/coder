@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/testutil"
 )
 
 func TestUpdate(t *testing.T) {
@@ -90,9 +91,13 @@ func TestUpdateWithRichParameters(t *testing.T) {
 		secondParameterDescription = "This is second parameter"
 		secondParameterValue       = "2"
 
+		ephemeralParameterName        = "ephemeral_parameter"
+		ephemeralParameterDescription = "This is ephemeral parameter"
+		ephemeralParameterValue       = "3"
+
 		immutableParameterName        = "immutable_parameter"
 		immutableParameterDescription = "This is not mutable parameter"
-		immutableParameterValue       = "3"
+		immutableParameterValue       = "4"
 	)
 
 	echoResponses := &echo.Responses{
@@ -105,6 +110,7 @@ func TestUpdateWithRichParameters(t *testing.T) {
 							{Name: firstParameterName, Description: firstParameterDescription, Mutable: true},
 							{Name: immutableParameterName, Description: immutableParameterDescription, Mutable: false},
 							{Name: secondParameterName, Description: secondParameterDescription, Mutable: true},
+							{Name: ephemeralParameterName, Description: ephemeralParameterDescription, Mutable: true, Ephemeral: true},
 						},
 					},
 				},
@@ -165,6 +171,70 @@ func TestUpdateWithRichParameters(t *testing.T) {
 			}
 		}
 		<-doneChan
+	})
+
+	t.Run("BuildOptions", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, echoResponses)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		tempDir := t.TempDir()
+		removeTmpDirUntilSuccessAfterTest(t, tempDir)
+		parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
+		_, _ = parameterFile.WriteString(
+			firstParameterName + ": " + firstParameterValue + "\n" +
+				immutableParameterName + ": " + immutableParameterValue + "\n" +
+				secondParameterName + ": " + secondParameterValue)
+
+		const workspaceName = "my-workspace"
+
+		inv, root := clitest.New(t, "create", workspaceName, "--template", template.Name, "--rich-parameter-file", parameterFile.Name(), "-y")
+		clitest.SetupConfig(t, client, root)
+		err := inv.Run()
+		assert.NoError(t, err)
+
+		inv, root = clitest.New(t, "update", workspaceName, "--build-options")
+		clitest.SetupConfig(t, client, root)
+
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t).Attach(inv)
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		matches := []string{
+			ephemeralParameterDescription, ephemeralParameterValue,
+			"Planning workspace", "",
+		}
+		for i := 0; i < len(matches); i += 2 {
+			match := matches[i]
+			value := matches[i+1]
+			pty.ExpectMatch(match)
+			if value != "" {
+				pty.WriteLine(value)
+			}
+		}
+		<-doneChan
+
+		// Verify if build option is set
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		workspace, err := client.WorkspaceByOwnerAndName(ctx, user.UserID.String(), workspaceName, codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		actualParameters, err := client.WorkspaceBuildParameters(ctx, workspace.LatestBuild.ID)
+		require.NoError(t, err)
+		require.Contains(t, actualParameters, codersdk.WorkspaceBuildParameter{
+			Name:  ephemeralParameterName,
+			Value: ephemeralParameterValue,
+		})
 	})
 }
 

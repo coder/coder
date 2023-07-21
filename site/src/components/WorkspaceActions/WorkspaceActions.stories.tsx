@@ -26,67 +26,66 @@ const defaultArgs = {
 export const Starting = Template.bind({})
 Starting.args = {
   ...defaultArgs,
-  workspaceStatus: Mocks.MockStartingWorkspace.latest_build.status,
+  workspace: Mocks.MockStartingWorkspace,
 }
 
 export const Running = Template.bind({})
 Running.args = {
   ...defaultArgs,
-  workspaceStatus: Mocks.MockWorkspace.latest_build.status,
+  workspace: Mocks.MockWorkspace,
 }
 
 export const Stopping = Template.bind({})
 Stopping.args = {
   ...defaultArgs,
-  workspaceStatus: Mocks.MockStoppingWorkspace.latest_build.status,
+  workspace: Mocks.MockStoppingWorkspace,
 }
 
 export const Stopped = Template.bind({})
 Stopped.args = {
   ...defaultArgs,
-  workspaceStatus: Mocks.MockStoppedWorkspace.latest_build.status,
+  workspace: Mocks.MockStoppedWorkspace,
 }
 
 export const Canceling = Template.bind({})
 Canceling.args = {
   ...defaultArgs,
-  workspaceStatus: Mocks.MockCancelingWorkspace.latest_build.status,
+  workspace: Mocks.MockCancelingWorkspace,
 }
 
 export const Canceled = Template.bind({})
 Canceled.args = {
   ...defaultArgs,
-  workspaceStatus: Mocks.MockCanceledWorkspace.latest_build.status,
+  workspace: Mocks.MockCanceledWorkspace,
 }
 
 export const Deleting = Template.bind({})
 Deleting.args = {
   ...defaultArgs,
-  workspaceStatus: Mocks.MockDeletingWorkspace.latest_build.status,
+  workspace: Mocks.MockDeletingWorkspace,
 }
 
 export const Deleted = Template.bind({})
 Deleted.args = {
   ...defaultArgs,
-  workspaceStatus: Mocks.MockDeletedWorkspace.latest_build.status,
+  workspace: Mocks.MockDeletedWorkspace,
 }
 
 export const Outdated = Template.bind({})
 Outdated.args = {
   ...defaultArgs,
-  isOutdated: true,
-  workspaceStatus: Mocks.MockOutdatedWorkspace.latest_build.status,
+  workspace: Mocks.MockOutdatedWorkspace,
 }
 
 export const Failed = Template.bind({})
 Failed.args = {
   ...defaultArgs,
-  workspaceStatus: Mocks.MockFailedWorkspace.latest_build.status,
+  workspace: Mocks.MockFailedWorkspace,
 }
 
 export const Updating = Template.bind({})
 Updating.args = {
   ...defaultArgs,
   isUpdating: true,
-  workspaceStatus: Mocks.MockOutdatedWorkspace.latest_build.status,
+  workspace: Mocks.MockOutdatedWorkspace,
 }

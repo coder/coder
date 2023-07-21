@@ -38,6 +38,16 @@ replace github.com/dlclark/regexp2 => github.com/dlclark/regexp2 v1.7.0
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
 replace tailscale.com => github.com/coder/tailscale v0.0.0-20230522123520-74712221d00f
 
+// Use our tempfork of gvisor that includes a fix for TCP connection stalls:
+// https://github.com/coder/coder/issues/7388
+// The basis for this fork is: gvisor.dev/gvisor v0.0.0-20230504175454-7b0a1988a28f
+// This is the same version as used by Tailscale `main`:
+// https://github.com/tailscale/tailscale/blob/c19b5bfbc391637b11c2acb3c725909a0046d849/go.mod#L88
+//
+// Latest gvisor otherwise has refactored packages and is currently incompatible with
+// Tailscale, to remove our tempfork this needs to be addressed.
+replace gvisor.dev/gvisor => github.com/coder/gvisor v0.0.0-20230714132058-be2e4ac102c3
+
 // Switch to our fork that imports fixes from http://github.com/tailscale/ssh.
 // See: https://github.com/coder/coder/issues/3371
 //
@@ -65,17 +75,17 @@ require (
 	github.com/bramvdbogaerde/go-scp v1.2.1-0.20221219230748-977ee74ac37b
 	github.com/briandowns/spinner v1.18.1
 	github.com/cakturk/go-netstat v0.0.0-20200220111822-e5b49efee7a5
-	github.com/cenkalti/backoff/v4 v4.2.0
+	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/charmbracelet/charm v0.12.4
 	github.com/charmbracelet/glamour v0.6.0
 	// In later at least v0.7.1, lipgloss changes its terminal detection
 	// which breaks most of our CLI golden files tests.
 	github.com/charmbracelet/lipgloss v0.7.1
 	github.com/cli/safeexec v1.0.1
-	github.com/codeclysm/extract v2.2.0+incompatible
+	github.com/codeclysm/extract/v3 v3.1.1
 	github.com/coder/flog v1.1.0
 	github.com/coder/retry v1.4.0
-	github.com/coder/terraform-provider-coder v0.11.0
+	github.com/coder/terraform-provider-coder v0.11.1
 	github.com/coder/wgtunnel v0.1.5
 	github.com/coreos/go-oidc/v3 v3.6.0
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
@@ -110,7 +120,6 @@ require (
 	github.com/hashicorp/go-version v1.6.0
 	github.com/hashicorp/golang-lru/v2 v2.0.1
 	github.com/hashicorp/hc-install v0.5.2
-	github.com/hashicorp/hcl/v2 v2.17.0 // indirect
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20211115214459-90acf1ca460f
 	github.com/hashicorp/terraform-json v0.17.0
 	github.com/hashicorp/yamux v0.1.1
@@ -126,7 +135,7 @@ require (
 	github.com/mitchellh/go-wordwrap v1.0.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/moby/moby v24.0.1+incompatible
-	github.com/muesli/reflow v0.3.0 // indirect
+	github.com/muesli/termenv v0.15.1
 	github.com/open-policy-agent/opa v0.51.0
 	github.com/ory/dockertest/v3 v3.10.0
 	github.com/pion/udp v0.1.2
@@ -140,22 +149,22 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/afero v1.9.5
 	github.com/spf13/pflag v1.0.5
+	github.com/sqlc-dev/pqtype v0.2.0
 	github.com/stretchr/testify v1.8.4
 	github.com/swaggo/http-swagger/v2 v2.0.1
 	github.com/swaggo/swag v1.8.6
-	github.com/tabbed/pqtype v0.1.1
 	github.com/u-root/u-root v0.11.0
 	github.com/unrolled/secure v1.13.0
 	github.com/valyala/fasthttp v1.48.0
 	github.com/wagslane/go-password-validator v0.3.0
 	go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1
-	go.nhat.io/otelsql v0.9.0
-	go.opentelemetry.io/otel v1.14.0
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.14.0
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.14.0
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.14.0
-	go.opentelemetry.io/otel/sdk v1.14.0
-	go.opentelemetry.io/otel/trace v1.14.0
+	go.nhat.io/otelsql v0.11.0
+	go.opentelemetry.io/otel v1.16.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.16.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.16.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.16.0
+	go.opentelemetry.io/otel/sdk v1.16.0
+	go.opentelemetry.io/otel/trace v1.16.0
 	go.uber.org/atomic v1.11.0
 	go.uber.org/goleak v1.2.1
 	go4.org/netipx v0.0.0-20220725152314-7e7bdc8411bf
@@ -169,8 +178,8 @@ require (
 	golang.org/x/tools v0.11.0
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	golang.zx2c4.com/wireguard v0.0.0-20230325221338-052af4a8072b
-	google.golang.org/api v0.129.0
-	google.golang.org/grpc v1.56.1
+	google.golang.org/api v0.132.0
+	google.golang.org/grpc v1.56.2
 	google.golang.org/protobuf v1.31.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
@@ -183,7 +192,7 @@ require (
 require (
 	cloud.google.com/go/compute v1.20.1 // indirect
 	cloud.google.com/go/logging v1.7.0 // indirect
-	cloud.google.com/go/longrunning v0.4.1 // indirect
+	cloud.google.com/go/longrunning v0.5.1 // indirect
 	filippo.io/edwards25519 v1.0.0-rc.1 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
@@ -203,6 +212,7 @@ require (
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bep/godartsass v1.2.0 // indirect
+	github.com/bep/godartsass/v2 v2.0.0 // indirect
 	github.com/bep/golibsass v1.1.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/charmbracelet/bubbles v0.15.0 // indirect
@@ -257,6 +267,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
+	github.com/hashicorp/hcl/v2 v2.17.0 // indirect
 	github.com/hashicorp/logutils v1.0.0 // indirect
 	github.com/hashicorp/terraform-plugin-go v0.12.0 // indirect
 	github.com/hashicorp/terraform-plugin-log v0.7.0 // indirect
@@ -294,7 +305,7 @@ require (
 	github.com/moby/term v0.5.0 // indirect
 	github.com/muesli/ansi v0.0.0-20221106050444-61f0cd9a192a // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
-	github.com/muesli/termenv v0.15.1
+	github.com/muesli/reflow v0.3.0 // indirect
 	github.com/niklasfasching/go-org v1.7.0 // indirect
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
@@ -323,6 +334,7 @@ require (
 	github.com/tdewolff/parse/v2 v2.6.6 // indirect
 	github.com/tdewolff/test v1.0.9 // indirect
 	github.com/u-root/uio v0.0.0-20221213070652-c3537552635f // indirect
+	github.com/ulikunitz/xz v0.5.11 // indirect
 	github.com/vishvananda/netlink v1.1.1-0.20211118161826-650dca95af54 // indirect
 	github.com/vishvananda/netns v0.0.0-20211101163701-50045581ed74 // indirect
 	github.com/vmihailenco/msgpack v4.0.4+incompatible // indirect
@@ -339,23 +351,21 @@ require (
 	github.com/zclconf/go-cty v1.13.2 // indirect
 	github.com/zeebo/errs v1.3.0 // indirect
 	go.opencensus.io v0.24.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.14.0 // indirect
-	go.opentelemetry.io/otel/metric v0.37.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.16.0 // indirect
+	go.opentelemetry.io/otel/metric v1.16.0 // indirect
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
 	go4.org/mem v0.0.0-20210711025021-927187094b94 // indirect
-	golang.org/x/net v0.12.0 // indirect
+	golang.org/x/net v0.12.0
 	golang.org/x/text v0.11.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20230215201556-9c5414ab4bde // indirect
 	golang.zx2c4.com/wireguard/windows v0.5.3 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20230530153820-e85fd2cbaebc // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20230530153820-e85fd2cbaebc // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20230530153820-e85fd2cbaebc // indirect
+	google.golang.org/genproto v0.0.0-20230706204954-ccb25ca9f130 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20230706204954-ccb25ca9f130 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20230711160842-782d3b101e98 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	howett.net/plist v1.0.0 // indirect
 	inet.af/peercred v0.0.0-20210906144145-0893ea02156a // indirect
 )
-
-require github.com/bep/godartsass/v2 v2.0.0 // indirect

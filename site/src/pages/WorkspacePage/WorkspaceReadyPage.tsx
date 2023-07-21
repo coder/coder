@@ -39,7 +39,6 @@ import Checkbox from "@mui/material/Checkbox"
 import FormControlLabel from "@mui/material/FormControlLabel"
 import { workspaceBuildMachine } from "xServices/workspaceBuild/workspaceBuildXService"
 import * as TypesGen from "api/typesGenerated"
-import { useLocalPreferences } from "contexts/LocalPreferencesContext"
 import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection"
 
 interface WorkspaceReadyPageProps {
@@ -94,23 +93,16 @@ export const WorkspaceReadyPage = ({
   const user = useMe()
   const { isWarningIgnored, ignoreWarning } = useIgnoreWarnings(user.id)
   const buildLogs = useBuildLogs(workspace)
-  const localPreferences = useLocalPreferences()
-  const dashboard = useDashboard()
-  const canChangeBuildLogsVisibility = !hasJobError(workspace)
-  const isWorkspaceBuildLogsUIActive = dashboard.experiments.includes(
-    "workspace_build_logs_ui",
-  )
   const shouldDisplayBuildLogs =
     hasJobError(workspace) ||
-    (localPreferences.getPreference("buildLogsVisibility") === "visible" &&
-      isWorkspaceBuildLogsUIActive)
-
+    ["canceling", "deleting", "pending", "starting", "stopping"].includes(
+      workspace.latest_build.status,
+    )
   const {
     mutate: restartWorkspace,
     error: restartBuildError,
     isLoading: isRestarting,
   } = useRestartWorkspace()
-
   // keep banner machine in sync with workspace
   useEffect(() => {
     bannerSend({ type: "REFRESH_WORKSPACE", workspace })
@@ -155,12 +147,14 @@ export const WorkspaceReadyPage = ({
         isUpdating={workspaceState.matches("ready.build.requestingUpdate")}
         isRestarting={isRestarting}
         workspace={workspace}
-        handleStart={() => workspaceSend({ type: "START" })}
+        handleStart={(buildParameters) =>
+          workspaceSend({ type: "START", buildParameters })
+        }
         handleStop={() => workspaceSend({ type: "STOP" })}
         handleDelete={() => workspaceSend({ type: "ASK_DELETE" })}
-        handleRestart={() => {
+        handleRestart={(buildParameters) => {
           if (isWarningIgnored("restart")) {
-            restartWorkspace(workspace)
+            restartWorkspace({ workspace, buildParameters })
           } else {
             setIsConfirmingRestart(true)
           }
@@ -195,18 +189,9 @@ export const WorkspaceReadyPage = ({
         template={template}
         quota_budget={quotaState.context.quota?.budget}
         templateWarnings={templateVersion?.warnings}
-        canChangeBuildLogsVisibility={canChangeBuildLogsVisibility}
-        isWorkspaceBuildLogsUIActive={isWorkspaceBuildLogsUIActive}
         buildLogs={
           shouldDisplayBuildLogs && (
-            <WorkspaceBuildLogsSection
-              logs={buildLogs}
-              onHide={() => {
-                if (canChangeBuildLogsVisibility) {
-                  localPreferences.setPreference("buildLogsVisibility", "hide")
-                }
-              }}
-            />
+            <WorkspaceBuildLogsSection logs={buildLogs} />
           )
         }
       />
@@ -273,7 +258,7 @@ export const WorkspaceReadyPage = ({
           if (shouldIgnore) {
             ignoreWarning("restart")
           }
-          restartWorkspace(workspace)
+          restartWorkspace({ workspace })
           setIsConfirmingRestart(false)
         }}
         onClose={() => setIsConfirmingRestart(false)}

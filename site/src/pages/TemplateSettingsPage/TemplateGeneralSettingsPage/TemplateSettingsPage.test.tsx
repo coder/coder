@@ -26,6 +26,10 @@ const validFormValues: FormValues = {
   allow_user_cancel_workspace_jobs: false,
   allow_user_autostart: false,
   allow_user_autostop: false,
+  restart_requirement: {
+    days_of_week: [],
+    weeks: 1,
+  },
   failure_ttl_ms: 0,
   inactivity_ttl_ms: 0,
   locked_ttl_ms: 0,

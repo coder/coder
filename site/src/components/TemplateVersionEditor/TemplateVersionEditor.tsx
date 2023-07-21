@@ -13,7 +13,7 @@ import {
   VariableValue,
   WorkspaceResource,
 } from "api/typesGenerated"
-import { Alert } from "components/Alert/Alert"
+import { Alert, AlertDetail } from "components/Alert/Alert"
 import { Avatar } from "components/Avatar/Avatar"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import { bannerHeight } from "components/DeploymentBanner/DeploymentBannerView"
@@ -47,6 +47,7 @@ import {
   TemplateVersionStatusBadge,
 } from "./TemplateVersionStatusBadge"
 import { Theme } from "@mui/material/styles"
+import AlertTitle from "@mui/material/AlertTitle"
 
 export interface TemplateVersionEditorProps {
   template: Template
@@ -374,7 +375,12 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 }`}
               >
                 {templateVersion.job.error && (
-                  <Alert severity="error">{templateVersion.job.error}</Alert>
+                  <div>
+                    <Alert severity="error">
+                      <AlertTitle>Error during the build</AlertTitle>
+                      <AlertDetail>{templateVersion.job.error}</AlertDetail>
+                    </Alert>
+                  </div>
                 )}
 
                 {buildLogs && buildLogs.length > 0 && (

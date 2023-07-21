@@ -9,6 +9,8 @@ import { TemplateVersionParameter } from "../../api/typesGenerated"
 import { colors } from "theme/colors"
 import { MemoizedMarkdown } from "components/Markdown/Markdown"
 import { MultiTextField } from "components/MultiTextField/MultiTextField"
+import Box from "@mui/material/Box"
+import { Theme } from "@mui/material/styles"
 
 const isBoolean = (parameter: TemplateVersionParameter) => {
   return parameter.type === "bool"
@@ -42,9 +44,9 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ id, parameter }) => {
         {hasDescription ? (
           <Stack spacing={0}>
             <span className={styles.labelCaption}>{displayName}</span>
-            <span className={styles.labelPrimary}>
-              <MemoizedMarkdown>{parameter.description}</MemoizedMarkdown>
-            </span>
+            <MemoizedMarkdown className={styles.labelPrimary}>
+              {parameter.description}
+            </MemoizedMarkdown>
           </Stack>
         ) : (
           <span className={styles.labelPrimary}>{displayName}</span>
@@ -54,12 +56,18 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ id, parameter }) => {
   )
 }
 
-export type RichParameterInputProps = Omit<TextFieldProps, "onChange"> & {
+type Size = "medium" | "small"
+
+export type RichParameterInputProps = Omit<
+  TextFieldProps,
+  "onChange" | "size"
+> & {
   index: number
   parameter: TemplateVersionParameter
   onChange: (value: string) => void
   initialValue?: string
   id: string
+  size?: Size
 }
 
 export const RichParameterInput: FC<RichParameterInputProps> = ({
@@ -68,14 +76,17 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
   onChange,
   parameter,
   initialValue,
+  size = "medium",
   ...fieldProps
 }) => {
-  const styles = useStyles()
-
   return (
-    <Stack direction="column" spacing={2}>
+    <Stack
+      direction="column"
+      spacing={size === "small" ? 1.25 : 2}
+      className={size}
+    >
       <ParameterLabel id={fieldProps.id} parameter={parameter} />
-      <div className={styles.input}>
+      <Box sx={{ display: "flex", flexDirection: "column" }}>
         <RichParameterField
           {...fieldProps}
           index={index}
@@ -84,7 +95,7 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
           parameter={parameter}
           initialValue={initialValue}
         />
-      </div>
+      </Box>
     </Stack>
   )
 }
@@ -94,6 +105,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
   onChange,
   parameter,
   initialValue,
+  size,
   ...props
 }) => {
   const [parameterValue, setParameterValue] = useState(initialValue)
@@ -102,6 +114,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
   if (isBoolean(parameter)) {
     return (
       <RadioGroup
+        className={styles.radioGroup}
         defaultValue={parameterValue}
         onChange={(event) => {
           onChange(event.target.value)
@@ -126,6 +139,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
   if (parameter.options.length > 0) {
     return (
       <RadioGroup
+        className={styles.radioGroup}
         defaultValue={parameterValue}
         onChange={(event) => {
           onChange(event.target.value)
@@ -192,6 +206,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
   return (
     <TextField
       {...props}
+      className={styles.textField}
       type={parameter.type}
       disabled={disabled}
       required={parameter.required}
@@ -205,15 +220,18 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
   )
 }
 
-const optionIconSize = 20
-
-const useStyles = makeStyles((theme) => ({
+const useStyles = makeStyles<Theme>((theme) => ({
   label: {
     marginBottom: theme.spacing(0.5),
   },
   labelCaption: {
     fontSize: 14,
     color: theme.palette.text.secondary,
+
+    ".small &": {
+      fontSize: 13,
+      lineHeight: "140%",
+    },
   },
   labelPrimary: {
     fontSize: 16,
@@ -224,15 +242,34 @@ const useStyles = makeStyles((theme) => ({
       margin: 0,
       lineHeight: "24px", // Keep the same as ParameterInput
     },
+
+    ".small &": {
+      fontSize: 14,
+    },
   },
   labelImmutable: {
     marginTop: theme.spacing(0.5),
     marginBottom: theme.spacing(0.5),
     color: colors.yellow[7],
   },
-  input: {
-    display: "flex",
-    flexDirection: "column",
+  textField: {
+    ".small & .MuiInputBase-root": {
+      height: 36,
+      fontSize: 14,
+      borderRadius: 6,
+    },
+  },
+  radioGroup: {
+    ".small & .MuiFormControlLabel-label": {
+      fontSize: 14,
+    },
+    ".small & .MuiRadio-root": {
+      padding: theme.spacing(0.75, "9px"), // 8px + 1px border
+    },
+    ".small & .MuiRadio-root svg": {
+      width: 16,
+      height: 16,
+    },
   },
   checkbox: {
     display: "flex",
@@ -243,6 +280,10 @@ const useStyles = makeStyles((theme) => ({
     width: theme.spacing(2.5),
     height: theme.spacing(2.5),
     display: "block",
+
+    ".small &": {
+      display: "none",
+    },
   },
   labelIcon: {
     width: "100%",
@@ -255,7 +296,12 @@ const useStyles = makeStyles((theme) => ({
     gap: theme.spacing(1.5),
   },
   optionIcon: {
-    maxHeight: optionIconSize,
-    width: optionIconSize,
+    maxHeight: 20,
+    width: 20,
+
+    ".small &": {
+      maxHeight: 16,
+      width: 16,
+    },
   },
 }))

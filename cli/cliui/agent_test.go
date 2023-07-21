@@ -6,6 +6,7 @@ import (
 	"context"
 	"io"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -16,16 +17,13 @@ import (
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/clitest"
 	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/coderd/util/ptr"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
 )
 
 func TestAgent(t *testing.T) {
 	t.Parallel()
-
-	ptrTime := func(t time.Time) *time.Time {
-		return &t
-	}
 
 	for _, tc := range []struct {
 		name    string
@@ -47,8 +45,7 @@ func TestAgent(t *testing.T) {
 				},
 				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentStartupLog) error {
 					agent.Status = codersdk.WorkspaceAgentConnected
-					agent.FirstConnectedAt = ptrTime(time.Now())
-					close(logs)
+					agent.FirstConnectedAt = ptr.Ref(time.Now())
 					return nil
 				},
 			},
@@ -69,7 +66,7 @@ func TestAgent(t *testing.T) {
 				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentStartupLog) error {
 					agent.Status = codersdk.WorkspaceAgentConnecting
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleStarting
-					agent.StartedAt = ptrTime(time.Now())
+					agent.StartedAt = ptr.Ref(time.Now())
 					return nil
 				},
 				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentStartupLog) error {
@@ -78,10 +75,9 @@ func TestAgent(t *testing.T) {
 				},
 				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentStartupLog) error {
 					agent.Status = codersdk.WorkspaceAgentConnected
-					agent.FirstConnectedAt = ptrTime(time.Now())
+					agent.FirstConnectedAt = ptr.Ref(time.Now())
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleReady
-					agent.ReadyAt = ptrTime(time.Now())
-					close(logs)
+					agent.ReadyAt = ptr.Ref(time.Now())
 					return nil
 				},
 			},
@@ -102,21 +98,17 @@ func TestAgent(t *testing.T) {
 			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentStartupLog) error{
 				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentStartupLog) error {
 					agent.Status = codersdk.WorkspaceAgentDisconnected
-					agent.FirstConnectedAt = ptrTime(time.Now().Add(-1 * time.Minute))
-					agent.LastConnectedAt = ptrTime(time.Now().Add(-1 * time.Minute))
-					agent.DisconnectedAt = ptrTime(time.Now())
+					agent.FirstConnectedAt = ptr.Ref(time.Now().Add(-1 * time.Minute))
+					agent.LastConnectedAt = ptr.Ref(time.Now().Add(-1 * time.Minute))
+					agent.DisconnectedAt = ptr.Ref(time.Now())
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleReady
-					agent.StartedAt = ptrTime(time.Now().Add(-1 * time.Minute))
-					agent.ReadyAt = ptrTime(time.Now())
+					agent.StartedAt = ptr.Ref(time.Now().Add(-1 * time.Minute))
+					agent.ReadyAt = ptr.Ref(time.Now())
 					return nil
 				},
 				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentStartupLog) error {
 					agent.Status = codersdk.WorkspaceAgentConnected
-					agent.LastConnectedAt = ptrTime(time.Now())
-					return nil
-				},
-				func(_ context.Context, _ *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentStartupLog) error {
-					close(logs)
+					agent.LastConnectedAt = ptr.Ref(time.Now())
 					return nil
 				},
 			},
@@ -136,9 +128,9 @@ func TestAgent(t *testing.T) {
 			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentStartupLog) error{
 				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentStartupLog) error {
 					agent.Status = codersdk.WorkspaceAgentConnected
-					agent.FirstConnectedAt = ptrTime(time.Now())
+					agent.FirstConnectedAt = ptr.Ref(time.Now())
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleStarting
-					agent.StartedAt = ptrTime(time.Now())
+					agent.StartedAt = ptr.Ref(time.Now())
 					logs <- []codersdk.WorkspaceAgentStartupLog{
 						{
 							CreatedAt: time.Now(),
@@ -149,14 +141,13 @@ func TestAgent(t *testing.T) {
 				},
 				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentStartupLog) error {
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleReady
-					agent.ReadyAt = ptrTime(time.Now())
+					agent.ReadyAt = ptr.Ref(time.Now())
 					logs <- []codersdk.WorkspaceAgentStartupLog{
 						{
 							CreatedAt: time.Now(),
 							Output:    "Bye now",
 						},
 					}
-					close(logs)
 					return nil
 				},
 			},
@@ -176,17 +167,16 @@ func TestAgent(t *testing.T) {
 			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentStartupLog) error{
 				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentStartupLog) error {
 					agent.Status = codersdk.WorkspaceAgentConnected
-					agent.FirstConnectedAt = ptrTime(time.Now())
-					agent.StartedAt = ptrTime(time.Now())
+					agent.FirstConnectedAt = ptr.Ref(time.Now())
+					agent.StartedAt = ptr.Ref(time.Now())
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleStartError
-					agent.ReadyAt = ptrTime(time.Now())
+					agent.ReadyAt = ptr.Ref(time.Now())
 					logs <- []codersdk.WorkspaceAgentStartupLog{
 						{
 							CreatedAt: time.Now(),
 							Output:    "Hello world",
 						},
 					}
-					close(logs)
 					return nil
 				},
 			},
@@ -207,7 +197,6 @@ func TestAgent(t *testing.T) {
 				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentStartupLog) error {
 					agent.Status = codersdk.WorkspaceAgentDisconnected
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleOff
-					close(logs)
 					return nil
 				},
 			},
@@ -222,9 +211,9 @@ func TestAgent(t *testing.T) {
 			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentStartupLog) error{
 				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentStartupLog) error {
 					agent.Status = codersdk.WorkspaceAgentConnected
-					agent.FirstConnectedAt = ptrTime(time.Now())
+					agent.FirstConnectedAt = ptr.Ref(time.Now())
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleStarting
-					agent.StartedAt = ptrTime(time.Now())
+					agent.StartedAt = ptr.Ref(time.Now())
 					logs <- []codersdk.WorkspaceAgentStartupLog{
 						{
 							CreatedAt: time.Now(),
@@ -234,9 +223,8 @@ func TestAgent(t *testing.T) {
 					return nil
 				},
 				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentStartupLog) error {
-					agent.ReadyAt = ptrTime(time.Now())
+					agent.ReadyAt = ptr.Ref(time.Now())
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleShuttingDown
-					close(logs)
 					return nil
 				},
 			},
@@ -310,7 +298,7 @@ func TestAgent(t *testing.T) {
 
 			cmd := &clibase.Cmd{
 				Handler: func(inv *clibase.Invocation) error {
-					tc.opts.Fetch = func(_ context.Context) (codersdk.WorkspaceAgent, error) {
+					tc.opts.Fetch = func(_ context.Context, _ uuid.UUID) (codersdk.WorkspaceAgent, error) {
 						var err error
 						if len(tc.iter) > 0 {
 							err = tc.iter[0](ctx, &agent, logs)
@@ -318,10 +306,23 @@ func TestAgent(t *testing.T) {
 						}
 						return agent, err
 					}
-					tc.opts.FetchLogs = func(_ context.Context, _ uuid.UUID, _ int64, _ bool) (<-chan []codersdk.WorkspaceAgentStartupLog, io.Closer, error) {
-						return logs, closeFunc(func() error { return nil }), nil
+					tc.opts.FetchLogs = func(ctx context.Context, _ uuid.UUID, _ int64, follow bool) (<-chan []codersdk.WorkspaceAgentStartupLog, io.Closer, error) {
+						if follow {
+							return logs, closeFunc(func() error { return nil }), nil
+						}
+
+						fetchLogs := make(chan []codersdk.WorkspaceAgentStartupLog, 1)
+						select {
+						case <-ctx.Done():
+							return nil, nil, ctx.Err()
+						case l := <-logs:
+							fetchLogs <- l
+						default:
+						}
+						close(fetchLogs)
+						return fetchLogs, closeFunc(func() error { return nil }), nil
 					}
-					err := cliui.Agent(inv.Context(), &buf, tc.opts)
+					err := cliui.Agent(inv.Context(), &buf, uuid.Nil, tc.opts)
 					return err
 				},
 			}
@@ -350,4 +351,37 @@ func TestAgent(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("NotInfinite", func(t *testing.T) {
+		t.Parallel()
+		var fetchCalled uint64
+
+		cmd := &clibase.Cmd{
+			Handler: func(inv *clibase.Invocation) error {
+				buf := bytes.Buffer{}
+				err := cliui.Agent(inv.Context(), &buf, uuid.Nil, cliui.AgentOptions{
+					FetchInterval: 10 * time.Millisecond,
+					Fetch: func(ctx context.Context, agentID uuid.UUID) (codersdk.WorkspaceAgent, error) {
+						atomic.AddUint64(&fetchCalled, 1)
+
+						return codersdk.WorkspaceAgent{
+							Status:         codersdk.WorkspaceAgentConnected,
+							LifecycleState: codersdk.WorkspaceAgentLifecycleReady,
+						}, nil
+					},
+				})
+				if err != nil {
+					return err
+				}
+
+				require.Never(t, func() bool {
+					called := atomic.LoadUint64(&fetchCalled)
+					return called > 5 || called == 0
+				}, time.Second, 100*time.Millisecond)
+
+				return nil
+			},
+		}
+		require.NoError(t, cmd.Invoke().Run())
+	})
 }

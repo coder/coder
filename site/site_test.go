@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/coderd/database/db2sdk"
 	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/database/dbgen"
+	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/site"
 	"github.com/coder/coder/testutil"
@@ -67,6 +68,59 @@ func TestInjection(t *testing.T) {
 	got.LastSeenAt = user.LastSeenAt
 
 	require.Equal(t, db2sdk.User(user, []uuid.UUID{}), got)
+}
+
+func TestInjectionFailureProducesCleanHTML(t *testing.T) {
+	t.Parallel()
+
+	db := dbfake.New()
+
+	// Create an expired user with a refresh token, but provide no OAuth2
+	// configuration so that refresh is impossible, this should result in
+	// an error when httpmw.ExtractAPIKey is called.
+	user := dbgen.User(t, db, database.User{})
+	_, token := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    user.ID,
+		LastUsed:  database.Now().Add(-time.Hour),
+		ExpiresAt: database.Now().Add(-time.Second),
+		LoginType: database.LoginTypeGithub,
+	})
+	_ = dbgen.UserLink(t, db, database.UserLink{
+		UserID:            user.ID,
+		LoginType:         database.LoginTypeGithub,
+		OAuthRefreshToken: "hello",
+		OAuthExpiry:       database.Now().Add(-time.Second),
+	})
+
+	binFs := http.FS(fstest.MapFS{})
+	siteFS := fstest.MapFS{
+		"index.html": &fstest.MapFile{
+			Data: []byte("<html>{{ .User }}</html>"),
+		},
+	}
+	handler := site.New(&site.Options{
+		BinFS:    binFs,
+		Database: db,
+		SiteFS:   siteFS,
+
+		// No OAuth2 configs, refresh will fail.
+		OAuth2Configs: &httpmw.OAuth2Configs{
+			Github: nil,
+			OIDC:   nil,
+		},
+	})
+
+	r := httptest.NewRequest("GET", "/", nil)
+	r.Header.Set(codersdk.SessionTokenHeader, token)
+	rw := httptest.NewRecorder()
+
+	handler.ServeHTTP(rw, r)
+
+	// Ensure we get a clean HTML response with no user data or errors
+	// from httpmw.ExtractAPIKey.
+	assert.Equal(t, http.StatusOK, rw.Code)
+	body := rw.Body.String()
+	assert.Equal(t, "<html></html>", body)
 }
 
 func TestCaching(t *testing.T) {

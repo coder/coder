@@ -4,22 +4,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 )
 
 type Config struct {
 	// AgentID is the workspace agent ID to which to connect.
 	AgentID uuid.UUID `json:"agent_id"`
-
-	// AgentName is the name of the agent. Used for metrics.
-	AgentName string `json:"agent_name"`
-
-	// WorkspaceName is the name of the workspace. Used for metrics.
-	WorkspaceName string `json:"workspace_name"`
-
-	// WorkspaceOwner is the owner of the workspace. Used for metrics.
-	WorkspaceOwner string `json:"workspace_owner"`
 
 	// BytesPerTick is the number of bytes to send to the agent per tick.
 	BytesPerTick int64 `json:"bytes_per_tick"`
@@ -31,8 +21,10 @@ type Config struct {
 	// send data to workspace agents).
 	TickInterval time.Duration `json:"tick_interval"`
 
-	// Registry is a prometheus.Registerer for logging metrics
-	Registry prometheus.Registerer
+	ReadMetrics  ConnMetrics `json:"-"`
+	WriteMetrics ConnMetrics `json:"-"`
+
+	SSH bool `json:"ssh"`
 }
 
 func (c Config) Validate() error {

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/url"
 	"os"
 	"os/exec"
@@ -27,7 +26,6 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 
-	"github.com/coder/coder/agent/agentssh"
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/autobuild/notify"
@@ -53,6 +51,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 		waitEnum       string
 		noWait         bool
 		logDirPath     string
+		remoteForward  string
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -122,6 +121,16 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				client.SetLogger(logger)
 			}
 
+			if remoteForward != "" {
+				isValid := validateRemoteForward(remoteForward)
+				if !isValid {
+					return xerrors.Errorf(`invalid format of remote-forward, expected: remote_port:local_address:local_port`)
+				}
+				if isValid && stdio {
+					return xerrors.Errorf(`remote-forward can't be enabled in the stdio mode`)
+				}
+			}
+
 			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, codersdk.Me, inv.Args[0])
 			if err != nil {
 				return err
@@ -175,10 +184,8 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 
 			// OpenSSH passes stderr directly to the calling TTY.
 			// This is required in "stdio" mode so a connecting indicator can be displayed.
-			err = cliui.Agent(ctx, inv.Stderr, cliui.AgentOptions{
-				Fetch: func(ctx context.Context) (codersdk.WorkspaceAgent, error) {
-					return client.WorkspaceAgent(ctx, workspaceAgent.ID)
-				},
+			err = cliui.Agent(ctx, inv.Stderr, workspaceAgent.ID, cliui.AgentOptions{
+				Fetch:     client.WorkspaceAgent,
 				FetchLogs: client.WorkspaceAgentStartupLogsAfter,
 				Wait:      wait,
 			})
@@ -200,6 +207,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			}
 			defer conn.Close()
 			conn.AwaitReachable(ctx)
+
 			stopPolling := tryPollWorkspaceAutostop(ctx, client, workspace)
 			defer stopPolling()
 
@@ -298,6 +306,19 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 				closer, err := forwardGPGAgent(ctx, inv.Stderr, sshClient)
 				if err != nil {
 					return xerrors.Errorf("forward GPG socket: %w", err)
+				}
+				defer closer.Close()
+			}
+
+			if remoteForward != "" {
+				localAddr, remoteAddr, err := parseRemoteForward(remoteForward)
+				if err != nil {
+					return err
+				}
+
+				closer, err := sshRemoteForward(ctx, inv.Stderr, sshClient, localAddr, remoteAddr)
+				if err != nil {
+					return xerrors.Errorf("ssh remote forward: %w", err)
 				}
 				defer closer.Close()
 			}
@@ -425,6 +446,13 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			Env:           "CODER_SSH_LOG_DIR",
 			FlagShorthand: "l",
 			Value:         clibase.StringOf(&logDirPath),
+		},
+		{
+			Flag:          "remote-forward",
+			Description:   "Enable remote port forwarding (remote_port:local_address:local_port).",
+			Env:           "CODER_SSH_REMOTE_FORWARD",
+			FlagShorthand: "R",
+			Value:         clibase.StringOf(&remoteForward),
 		},
 	}
 	return cmd
@@ -570,8 +598,15 @@ func getWorkspaceAndAgent(ctx context.Context, inv *clibase.Invocation, client *
 // of the CLI running simultaneously.
 func tryPollWorkspaceAutostop(ctx context.Context, client *codersdk.Client, workspace codersdk.Workspace) (stop func()) {
 	lock := flock.New(filepath.Join(os.TempDir(), "coder-autostop-notify-"+workspace.ID.String()))
-	condition := notifyCondition(ctx, client, workspace.ID, lock)
-	return notify.Notify(condition, workspacePollInterval, autostopNotifyCountdown...)
+	conditionCtx, cancelCondition := context.WithCancel(ctx)
+	condition := notifyCondition(conditionCtx, client, workspace.ID, lock)
+	stopFunc := notify.Notify(condition, workspacePollInterval, autostopNotifyCountdown...)
+	return func() {
+		// With many "ssh" processes running, `lock.TryLockContext` can be hanging until the context canceled.
+		// Without this cancellation, a CLI process with failed remote-forward could be hanging indefinitely.
+		cancelCondition()
+		stopFunc()
+	}
 }
 
 // Notify the user if the workspace is due to shutdown.
@@ -753,57 +788,4 @@ func remoteGPGAgentSocket(sshClient *gossh.Client) (string, error) {
 	}
 
 	return string(bytes.TrimSpace(remoteSocket)), nil
-}
-
-// cookieAddr is a special net.Addr accepted by sshForward() which includes a
-// cookie which is written to the connection before forwarding.
-type cookieAddr struct {
-	net.Addr
-	cookie []byte
-}
-
-// sshForwardRemote starts forwarding connections from a remote listener to a
-// local address via SSH in a goroutine.
-//
-// Accepts a `cookieAddr` as the local address.
-func sshForwardRemote(ctx context.Context, stderr io.Writer, sshClient *gossh.Client, localAddr, remoteAddr net.Addr) (io.Closer, error) {
-	listener, err := sshClient.Listen(remoteAddr.Network(), remoteAddr.String())
-	if err != nil {
-		return nil, xerrors.Errorf("listen on remote SSH address %s: %w", remoteAddr.String(), err)
-	}
-
-	go func() {
-		for {
-			remoteConn, err := listener.Accept()
-			if err != nil {
-				if ctx.Err() == nil {
-					_, _ = fmt.Fprintf(stderr, "Accept SSH listener connection: %+v\n", err)
-				}
-				return
-			}
-
-			go func() {
-				defer remoteConn.Close()
-
-				localConn, err := net.Dial(localAddr.Network(), localAddr.String())
-				if err != nil {
-					_, _ = fmt.Fprintf(stderr, "Dial local address %s: %+v\n", localAddr.String(), err)
-					return
-				}
-				defer localConn.Close()
-
-				if c, ok := localAddr.(cookieAddr); ok {
-					_, err = localConn.Write(c.cookie)
-					if err != nil {
-						_, _ = fmt.Fprintf(stderr, "Write cookie to local connection: %+v\n", err)
-						return
-					}
-				}
-
-				agentssh.Bicopy(ctx, localConn, remoteConn)
-			}()
-		}
-	}()
-
-	return listener, nil
 }

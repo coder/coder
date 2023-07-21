@@ -21,8 +21,10 @@ import (
 	"github.com/coder/coder/tailnet"
 )
 
+//go:generate mockgen -destination ./multiagentmock.go -package tailnettest github.com/coder/coder/tailnet MultiAgentConn
+
 // RunDERPAndSTUN creates a DERP mapping for tests.
-func RunDERPAndSTUN(t *testing.T) *tailcfg.DERPMap {
+func RunDERPAndSTUN(t *testing.T) (*tailcfg.DERPMap, *derp.Server) {
 	logf := tailnet.Logger(slogtest.Make(t, nil))
 	d := derp.NewServer(key.NewNode(), logf)
 	server := httptest.NewUnstartedServer(derphttp.Handler(d))
@@ -61,7 +63,7 @@ func RunDERPAndSTUN(t *testing.T) *tailcfg.DERPMap {
 				},
 			},
 		},
-	}
+	}, d
 }
 
 // RunDERPOnlyWebSockets creates a DERP mapping for tests that

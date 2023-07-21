@@ -16,6 +16,12 @@ import (
 	"github.com/coder/coder/coderd/rbac"
 )
 
+var (
+	// Force these imports, for some reason the autogen does not include them.
+	_ uuid.UUID
+	_ rbac.Action
+)
+
 const wrapname = "dbmetrics.metricsStore"
 
 // New returns a database.Store that registers metrics for all queries to reg.
@@ -71,41 +77,6 @@ func (m metricsStore) InTx(f func(database.Store) error, options *sql.TxOptions)
 	err := m.s.InTx(f, options)
 	m.txDuration.Observe(time.Since(start).Seconds())
 	return err
-}
-
-func (m metricsStore) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.Template, error) {
-	start := time.Now()
-	templates, err := m.s.GetAuthorizedTemplates(ctx, arg, prepared)
-	m.queryLatencies.WithLabelValues("GetAuthorizedTemplates").Observe(time.Since(start).Seconds())
-	return templates, err
-}
-
-func (m metricsStore) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateGroup, error) {
-	start := time.Now()
-	roles, err := m.s.GetTemplateGroupRoles(ctx, id)
-	m.queryLatencies.WithLabelValues("GetTemplateGroupRoles").Observe(time.Since(start).Seconds())
-	return roles, err
-}
-
-func (m metricsStore) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateUser, error) {
-	start := time.Now()
-	roles, err := m.s.GetTemplateUserRoles(ctx, id)
-	m.queryLatencies.WithLabelValues("GetTemplateUserRoles").Observe(time.Since(start).Seconds())
-	return roles, err
-}
-
-func (m metricsStore) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetWorkspacesParams, prepared rbac.PreparedAuthorized) ([]database.GetWorkspacesRow, error) {
-	start := time.Now()
-	workspaces, err := m.s.GetAuthorizedWorkspaces(ctx, arg, prepared)
-	m.queryLatencies.WithLabelValues("GetAuthorizedWorkspaces").Observe(time.Since(start).Seconds())
-	return workspaces, err
-}
-
-func (m metricsStore) GetAuthorizedUserCount(ctx context.Context, arg database.GetFilteredUserCountParams, prepared rbac.PreparedAuthorized) (int64, error) {
-	start := time.Now()
-	count, err := m.s.GetAuthorizedUserCount(ctx, arg, prepared)
-	m.queryLatencies.WithLabelValues("GetAuthorizedUserCount").Observe(time.Since(start).Seconds())
-	return count, err
 }
 
 func (m metricsStore) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
@@ -348,13 +319,6 @@ func (m metricsStore) GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([
 	rows, err := m.s.GetFileTemplates(ctx, fileID)
 	m.queryLatencies.WithLabelValues("GetFileTemplates").Observe(time.Since(start).Seconds())
 	return rows, err
-}
-
-func (m metricsStore) GetFilteredUserCount(ctx context.Context, arg database.GetFilteredUserCountParams) (int64, error) {
-	start := time.Now()
-	count, err := m.s.GetFilteredUserCount(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetFilteredUserCount").Observe(time.Since(start).Seconds())
-	return count, err
 }
 
 func (m metricsStore) GetGitAuthLink(ctx context.Context, arg database.GetGitAuthLinkParams) (database.GitAuthLink, error) {
@@ -1139,11 +1103,11 @@ func (m metricsStore) InsertReplica(ctx context.Context, arg database.InsertRepl
 	return replica, err
 }
 
-func (m metricsStore) InsertTemplate(ctx context.Context, arg database.InsertTemplateParams) (database.Template, error) {
+func (m metricsStore) InsertTemplate(ctx context.Context, arg database.InsertTemplateParams) error {
 	start := time.Now()
-	template, err := m.s.InsertTemplate(ctx, arg)
+	err := m.s.InsertTemplate(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertTemplate").Observe(time.Since(start).Seconds())
-	return template, err
+	return err
 }
 
 func (m metricsStore) InsertTemplateVersion(ctx context.Context, arg database.InsertTemplateVersionParams) (database.TemplateVersion, error) {
@@ -1342,11 +1306,11 @@ func (m metricsStore) UpdateReplica(ctx context.Context, arg database.UpdateRepl
 	return replica, err
 }
 
-func (m metricsStore) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) (database.Template, error) {
+func (m metricsStore) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) error {
 	start := time.Now()
-	template, err := m.s.UpdateTemplateACLByID(ctx, arg)
+	err := m.s.UpdateTemplateACLByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateTemplateACLByID").Observe(time.Since(start).Seconds())
-	return template, err
+	return err
 }
 
 func (m metricsStore) UpdateTemplateActiveVersionByID(ctx context.Context, arg database.UpdateTemplateActiveVersionByIDParams) error {
@@ -1363,18 +1327,18 @@ func (m metricsStore) UpdateTemplateDeletedByID(ctx context.Context, arg databas
 	return err
 }
 
-func (m metricsStore) UpdateTemplateMetaByID(ctx context.Context, arg database.UpdateTemplateMetaByIDParams) (database.Template, error) {
+func (m metricsStore) UpdateTemplateMetaByID(ctx context.Context, arg database.UpdateTemplateMetaByIDParams) error {
 	start := time.Now()
-	template, err := m.s.UpdateTemplateMetaByID(ctx, arg)
+	err := m.s.UpdateTemplateMetaByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateTemplateMetaByID").Observe(time.Since(start).Seconds())
-	return template, err
+	return err
 }
 
-func (m metricsStore) UpdateTemplateScheduleByID(ctx context.Context, arg database.UpdateTemplateScheduleByIDParams) (database.Template, error) {
+func (m metricsStore) UpdateTemplateScheduleByID(ctx context.Context, arg database.UpdateTemplateScheduleByIDParams) error {
 	start := time.Now()
-	template, err := m.s.UpdateTemplateScheduleByID(ctx, arg)
+	err := m.s.UpdateTemplateScheduleByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateTemplateScheduleByID").Observe(time.Since(start).Seconds())
-	return template, err
+	return err
 }
 
 func (m metricsStore) UpdateTemplateVersionByID(ctx context.Context, arg database.UpdateTemplateVersionByIDParams) (database.TemplateVersion, error) {
@@ -1445,6 +1409,13 @@ func (m metricsStore) UpdateUserProfile(ctx context.Context, arg database.Update
 	user, err := m.s.UpdateUserProfile(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserProfile").Observe(time.Since(start).Seconds())
 	return user, err
+}
+
+func (m metricsStore) UpdateUserQuietHoursSchedule(ctx context.Context, arg database.UpdateUserQuietHoursScheduleParams) (database.User, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserQuietHoursSchedule(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserQuietHoursSchedule").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) UpdateUserRoles(ctx context.Context, arg database.UpdateUserRolesParams) (database.User, error) {
@@ -1545,10 +1516,10 @@ func (m metricsStore) UpdateWorkspaceLastUsedAt(ctx context.Context, arg databas
 	return err
 }
 
-func (m metricsStore) UpdateWorkspaceLockedAt(ctx context.Context, arg database.UpdateWorkspaceLockedAtParams) error {
+func (m metricsStore) UpdateWorkspaceLockedDeletingAt(ctx context.Context, arg database.UpdateWorkspaceLockedDeletingAtParams) error {
 	start := time.Now()
-	r0 := m.s.UpdateWorkspaceLockedAt(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateWorkspaceLockedAt").Observe(time.Since(start).Seconds())
+	r0 := m.s.UpdateWorkspaceLockedDeletingAt(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceLockedDeletingAt").Observe(time.Since(start).Seconds())
 	return r0
 }
 
@@ -1573,10 +1544,10 @@ func (m metricsStore) UpdateWorkspaceTTL(ctx context.Context, arg database.Updat
 	return r0
 }
 
-func (m metricsStore) UpdateWorkspaceTTLToBeWithinTemplateMax(ctx context.Context, arg database.UpdateWorkspaceTTLToBeWithinTemplateMaxParams) error {
+func (m metricsStore) UpdateWorkspacesDeletingAtByTemplateID(ctx context.Context, arg database.UpdateWorkspacesDeletingAtByTemplateIDParams) error {
 	start := time.Now()
-	r0 := m.s.UpdateWorkspaceTTLToBeWithinTemplateMax(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateWorkspaceTTLToBeWithinTemplateMax").Observe(time.Since(start).Seconds())
+	r0 := m.s.UpdateWorkspacesDeletingAtByTemplateID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspacesDeletingAtByTemplateID").Observe(time.Since(start).Seconds())
 	return r0
 }
 
@@ -1638,4 +1609,39 @@ func (m metricsStore) UpsertTailnetCoordinator(ctx context.Context, id uuid.UUID
 	start := time.Now()
 	defer m.queryLatencies.WithLabelValues("UpsertTailnetCoordinator").Observe(time.Since(start).Seconds())
 	return m.s.UpsertTailnetCoordinator(ctx, id)
+}
+
+func (m metricsStore) GetAuthorizedTemplates(ctx context.Context, arg database.GetTemplatesWithFilterParams, prepared rbac.PreparedAuthorized) ([]database.Template, error) {
+	start := time.Now()
+	templates, err := m.s.GetAuthorizedTemplates(ctx, arg, prepared)
+	m.queryLatencies.WithLabelValues("GetAuthorizedTemplates").Observe(time.Since(start).Seconds())
+	return templates, err
+}
+
+func (m metricsStore) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateGroup, error) {
+	start := time.Now()
+	roles, err := m.s.GetTemplateGroupRoles(ctx, id)
+	m.queryLatencies.WithLabelValues("GetTemplateGroupRoles").Observe(time.Since(start).Seconds())
+	return roles, err
+}
+
+func (m metricsStore) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateUser, error) {
+	start := time.Now()
+	roles, err := m.s.GetTemplateUserRoles(ctx, id)
+	m.queryLatencies.WithLabelValues("GetTemplateUserRoles").Observe(time.Since(start).Seconds())
+	return roles, err
+}
+
+func (m metricsStore) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetWorkspacesParams, prepared rbac.PreparedAuthorized) ([]database.GetWorkspacesRow, error) {
+	start := time.Now()
+	workspaces, err := m.s.GetAuthorizedWorkspaces(ctx, arg, prepared)
+	m.queryLatencies.WithLabelValues("GetAuthorizedWorkspaces").Observe(time.Since(start).Seconds())
+	return workspaces, err
+}
+
+func (m metricsStore) GetAuthorizedUsers(ctx context.Context, arg database.GetUsersParams, prepared rbac.PreparedAuthorized) ([]database.GetUsersRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAuthorizedUsers(ctx, arg, prepared)
+	m.queryLatencies.WithLabelValues("GetAuthorizedUsers").Observe(time.Since(start).Seconds())
+	return r0, r1
 }

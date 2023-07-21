@@ -246,6 +246,13 @@ func TestSearchAudit(t *testing.T) {
 			Query:                 "date_from:2006",
 			ExpectedErrorContains: "valid date format",
 		},
+		{
+			Name:  "ResourceTarget",
+			Query: "resource_target:foo",
+			Expected: database.GetAuditLogsOffsetParams{
+				ResourceTarget: "foo",
+			},
+		},
 	}
 
 	for _, c := range testCases {

@@ -39,7 +39,7 @@ func ExtractOrganizationParam(db database.Store) func(http.Handler) http.Handler
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			orgID, ok := parseUUID(rw, r, "organization")
+			orgID, ok := ParseUUIDParam(rw, r, "organization")
 			if !ok {
 				return
 			}

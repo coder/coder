@@ -75,7 +75,7 @@ export interface WorkspaceContext {
 
 export type WorkspaceEvent =
   | { type: "REFRESH_WORKSPACE"; data: TypesGen.ServerSentEvent["data"] }
-  | { type: "START" }
+  | { type: "START"; buildParameters?: TypesGen.WorkspaceBuildParameter[] }
   | { type: "STOP" }
   | { type: "ASK_DELETE" }
   | { type: "DELETE" }
@@ -138,7 +138,7 @@ const permissionsToCheck = (
       },
       action: "read",
     },
-  } as const)
+  }) as const
 
 export const workspaceMachine = createMachine(
   {
@@ -151,9 +151,6 @@ export const workspaceMachine = createMachine(
       services: {} as {
         loadInitialWorkspaceData: {
           data: Awaited<ReturnType<typeof loadInitialWorkspaceData>>
-        }
-        getTemplateParameters: {
-          data: TypesGen.TemplateVersionParameter[]
         }
         updateWorkspace: {
           data: TypesGen.WorkspaceBuild
@@ -629,12 +626,13 @@ export const workspaceMachine = createMachine(
           send({ type: "REFRESH_TIMELINE" })
           return build
         },
-      startWorkspace: (context) => async (send) => {
+      startWorkspace: (context, data) => async (send) => {
         if (context.workspace) {
           const startWorkspacePromise = await API.startWorkspace(
             context.workspace.id,
             context.workspace.latest_build.template_version_id,
             context.createBuildLogLevel,
+            "buildParameters" in data ? data.buildParameters : undefined,
           )
           send({ type: "REFRESH_TIMELINE" })
           return startWorkspacePromise

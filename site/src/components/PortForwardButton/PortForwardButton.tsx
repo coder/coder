@@ -17,6 +17,7 @@ import { Maybe } from "components/Conditionals/Maybe"
 import { useMachine } from "@xstate/react"
 import { portForwardMachine } from "xServices/portForward/portForwardXService"
 import { SecondaryAgentButton } from "components/Resources/AgentButton"
+import { docs } from "utils/docs"
 
 export interface PortForwardButtonProps {
   host: string
@@ -129,7 +130,7 @@ const TooltipView: React.FC<PortForwardButtonProps> = (props) => {
       </Maybe>
 
       <HelpTooltipLinksGroup>
-        <HelpTooltipLink href="https://coder.com/docs/coder-oss/latest/networking/port-forwarding#dashboard">
+        <HelpTooltipLink href={docs("/networking/port-forwarding#dashboard")}>
           Learn more about web port forwarding
         </HelpTooltipLink>
       </HelpTooltipLinksGroup>
