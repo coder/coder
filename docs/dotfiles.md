@@ -60,3 +60,30 @@ sudo apt update
 # Install some of my favorite tools every time my workspace boots
 sudo apt install -y neovim fish cargo
 ```
+
+## Install or Setup script support
+
+User can have either of the following setup script files in their dotfiles repo:
+
+- install.sh
+- install
+- bootstrap.sh
+- bootstrap
+- script/bootstrap
+- setup.sh
+- setup
+- script/setup
+
+If any of these files are present, Coder will run them after cloning the dotfiles repo. If any of these files are found in the specified order, only the first match will be executed, and the rest will be skipped.
+
+The Setup scripts must be executable. If they are not, Coder will not execute them. If the script is not executable, you can make it executable by running:
+
+```bash
+cd <path_to_dotfiles_repo>
+
+chmod +x <script_name>
+
+git commit -m "Make <script_name> executable" <script_name>
+
+git push
+```
