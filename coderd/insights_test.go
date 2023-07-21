@@ -160,6 +160,17 @@ func TestUserLatencyInsights(t *testing.T) {
 	require.NoError(t, err)
 	defer sshConn.Close()
 
+	sess, err := sshConn.NewSession()
+	require.NoError(t, err)
+	defer sess.Close()
+
+	r, w := io.Pipe()
+	defer r.Close()
+	defer w.Close()
+	sess.Stdin = r
+	err = sess.Start("cat")
+	require.NoError(t, err)
+
 	var userLatencies codersdk.UserLatencyInsightsResponse
 	require.Eventuallyf(t, func() bool {
 		userLatencies, err = client.UserLatencyInsights(ctx, codersdk.UserLatencyInsightsRequest{
@@ -174,6 +185,7 @@ func TestUserLatencyInsights(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast, "user latency is missing")
 
 	// We got our latency data, close the connection.
+	_ = sess.Close()
 	_ = sshConn.Close()
 
 	require.Len(t, userLatencies.Report.Users, 1, "want only 1 user")
