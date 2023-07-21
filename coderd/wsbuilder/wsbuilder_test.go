@@ -252,6 +252,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
+			withInTx,
 			expectBuild(func(bld database.InsertWorkspaceBuildParams) {}),
 			expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {
 				asrt.Len(params.Name, len(expectedParams))
@@ -261,6 +262,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 					asrt.Equal(value, params.Value[i])
 				}
 			}),
+			withBuild,
 		)
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
@@ -293,6 +295,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
+			withInTx,
 			expectBuild(func(bld database.InsertWorkspaceBuildParams) {}),
 			expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {
 				asrt.Len(params.Name, len(expectedParams))
@@ -302,6 +305,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 					asrt.Equal(value, params.Value[i])
 				}
 			}),
+			withBuild,
 		)
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
@@ -340,6 +344,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
+			withInTx,
 			expectBuild(func(bld database.InsertWorkspaceBuildParams) {}),
 		)
 
@@ -374,6 +379,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
+			withInTx,
 			expectBuild(func(bld database.InsertWorkspaceBuildParams) {}),
 			// no build parameters, since we hit an error validating.
 			// expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {}),
@@ -426,6 +432,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
+			withInTx,
 			expectBuild(func(bld database.InsertWorkspaceBuildParams) {}),
 			expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {
 				asrt.Len(params.Name, len(expectedParams))
@@ -435,6 +442,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 					asrt.Equal(value, params.Value[i])
 				}
 			}),
+			withBuild,
 		)
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
@@ -484,6 +492,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
+			withInTx,
 			expectBuild(func(bld database.InsertWorkspaceBuildParams) {}),
 			expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {
 				asrt.Len(params.Name, len(expectedParams))
@@ -493,6 +502,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 					asrt.Equal(value, params.Value[i])
 				}
 			}),
+			withBuild,
 		)
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
@@ -540,6 +550,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
+			withInTx,
 			expectBuild(func(bld database.InsertWorkspaceBuildParams) {}),
 			expectBuildParameters(func(params database.InsertWorkspaceBuildParametersParams) {
 				asrt.Len(params.Name, len(expectedParams))
@@ -549,6 +560,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 					asrt.Equal(value, params.Value[i])
 				}
 			}),
+			withBuild,
 		)
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
