@@ -182,7 +182,7 @@ func Workspace(t testing.TB, db database.Store, orig database.Workspace) databas
 func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuild) database.WorkspaceBuild {
 	buildID := takeFirst(orig.ID, uuid.New())
 	var build database.WorkspaceBuild
-	err := db.InTx(func(store database.Store) error {
+	err := db.InTx(func(db database.Store) error {
 		err := db.InsertWorkspaceBuild(genCtx, database.InsertWorkspaceBuildParams{
 			ID:                buildID,
 			CreatedAt:         takeFirst(orig.CreatedAt, database.Now()),
