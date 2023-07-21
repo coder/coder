@@ -76,7 +76,7 @@ User can have either of the following setup script files in their dotfiles repo:
 
 If any of the above files are found in the specified order, Coder will execute the first match, and the rest will be skipped.
 
-The Setup scripts must be executable. If they are not, Coder will not execute them. If the script is not executable, you can make it executable by running:
+The setup script must be executable, otherwise the dotfiles setup will fail. If you encounter this issue, you can fix it by making the script executable using the following commands:
 
 ```bash
 cd <path_to_dotfiles_repo>
