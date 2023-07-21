@@ -328,6 +328,7 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 	}
 
 	if user.Status == database.UserStatusDormant {
+		//nolint:gocritic // System needs to update status of the user account (dormant -> active).
 		user, err = api.Database.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
 			ID:        user.ID,
 			Status:    database.UserStatusActive,
