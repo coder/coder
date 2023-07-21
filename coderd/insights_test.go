@@ -186,6 +186,31 @@ func TestUserLatencyInsights(t *testing.T) {
 	assert.Nil(t, userLatencies.Report.Users[1].LatencyMS, "want user 2 to have no latency")
 }
 
+func TestUserLatencyInsights_BadRequest(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	y, m, d := time.Now().Date()
+	today := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	_, err := client.UserLatencyInsights(ctx, codersdk.UserLatencyInsightsRequest{
+		StartTime: today,
+		EndTime:   today.AddDate(0, 0, -1),
+	})
+	assert.Error(t, err, "want error for end time before start time")
+
+	_, err = client.UserLatencyInsights(ctx, codersdk.UserLatencyInsightsRequest{
+		StartTime: today.AddDate(0, 0, -7),
+		EndTime:   today.Add(-time.Hour),
+	})
+	assert.Error(t, err, "want error for end time partial day when not today")
+}
+
 func TestTemplateInsights(t *testing.T) {
 	t.Parallel()
 
@@ -302,4 +327,36 @@ func TestTemplateInsights(t *testing.T) {
 	assert.WithinDuration(t, req.StartTime, resp.IntervalReports[0].StartTime, 0)
 	assert.WithinDuration(t, req.EndTime, resp.IntervalReports[0].EndTime, 0)
 	assert.Equal(t, resp.IntervalReports[0].ActiveUsers, int64(1), "want one active user in the interval report")
+}
+
+func TestTemplateInsights_BadRequest(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	y, m, d := time.Now().Date()
+	today := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	_, err := client.TemplateInsights(ctx, codersdk.TemplateInsightsRequest{
+		StartTime: today,
+		EndTime:   today.AddDate(0, 0, -1),
+	})
+	assert.Error(t, err, "want error for end time before start time")
+
+	_, err = client.TemplateInsights(ctx, codersdk.TemplateInsightsRequest{
+		StartTime: today.AddDate(0, 0, -7),
+		EndTime:   today.Add(-time.Hour),
+	})
+	assert.Error(t, err, "want error for end time partial day when not today")
+
+	_, err = client.TemplateInsights(ctx, codersdk.TemplateInsightsRequest{
+		StartTime: today.AddDate(0, 0, -1),
+		EndTime:   today,
+		Interval:  "invalid",
+	})
+	assert.Error(t, err, "want error for bad interval")
 }
