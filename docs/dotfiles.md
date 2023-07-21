@@ -63,7 +63,7 @@ sudo apt install -y neovim fish cargo
 
 ## Setup script support
 
-User can have either of the following setup script files in their dotfiles repo:
+User can setup their dotfiles by creating one of the following script files in their dotfiles repo:
 
 - `install.sh`
 - `install`
