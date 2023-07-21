@@ -1,5 +1,7 @@
 import { useMachine } from "@xstate/react"
 import {
+  Template,
+  TemplateVersionGitAuth,
   TemplateVersionParameter,
   WorkspaceBuildParameter,
 } from "api/typesGenerated"
@@ -10,28 +12,26 @@ import { Helmet } from "react-helmet-async"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { pageTitle } from "utils/page"
 import {
+  CreateWSPermissions,
   CreateWorkspaceMode,
   createWorkspaceMachine,
 } from "xServices/createWorkspace/createWorkspaceXService"
-import {
-  CreateWorkspaceErrors,
-  CreateWorkspacePageView,
-} from "./CreateWorkspacePageView"
-import Box from "@mui/material/Box"
+import { CreateWorkspacePageView } from "./CreateWorkspacePageView"
+import { Loader } from "components/Loader/Loader"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 const CreateWorkspacePage: FC = () => {
   const organizationId = useOrganizationId()
   const { template: templateName } = useParams() as { template: string }
-  const navigate = useNavigate()
   const me = useMe()
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const defaultBuildParameters = getDefaultBuildParameters(searchParams)
-  const name = searchParams.get("name") ?? ""
+  const defaultName = searchParams.get("name") ?? ""
   const [createWorkspaceState, send] = useMachine(createWorkspaceMachine, {
     context: {
       organizationId,
       templateName,
-      owner: me,
       mode: (searchParams.get("mode") ?? "form") as CreateWorkspaceMode,
       defaultBuildParameters,
     },
@@ -41,71 +41,47 @@ const CreateWorkspacePage: FC = () => {
       },
     },
   })
-  const {
-    templates,
-    templateParameters,
-    templateGitAuth,
-    selectedTemplate,
-    getTemplateGitAuthError,
-    getTemplatesError,
-    createWorkspaceError,
-    permissions,
-    owner,
-  } = createWorkspaceState.context
-
-  if (createWorkspaceState.matches("autoCreating")) {
-    return (
-      <>
-        <Helmet>
-          <title>{pageTitle("Creating workspace...")}</title>
-        </Helmet>
-        <Box>We&lsquo;re creating a new workspace for you</Box>
-      </>
-    )
-  }
+  const { template, error, parameters, permissions, gitAuth } =
+    createWorkspaceState.context
+  const title = createWorkspaceState.matches("autoCreating")
+    ? "Creating workspace..."
+    : "Create Workspace"
 
   return (
     <>
       <Helmet>
-        <title>{pageTitle("Create Workspace")}</title>
+        <title>{pageTitle(title)}</title>
       </Helmet>
-      <CreateWorkspacePageView
-        name={name}
-        defaultBuildParameters={defaultBuildParameters}
-        loadingTemplates={createWorkspaceState.matches("gettingTemplates")}
-        creatingWorkspace={createWorkspaceState.matches("creatingWorkspace")}
-        hasTemplateErrors={createWorkspaceState.matches("error")}
-        templateName={templateName}
-        templates={templates}
-        selectedTemplate={selectedTemplate}
-        templateParameters={orderedTemplateParameters(templateParameters)}
-        templateGitAuth={templateGitAuth}
-        createWorkspaceErrors={{
-          [CreateWorkspaceErrors.GET_TEMPLATES_ERROR]: getTemplatesError,
-          [CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]: createWorkspaceError,
-          [CreateWorkspaceErrors.GET_TEMPLATE_GITAUTH_ERROR]:
-            getTemplateGitAuthError,
-        }}
-        canCreateForUser={permissions?.createWorkspaceForUser}
-        owner={owner}
-        setOwner={(user) => {
-          send({
-            type: "SELECT_OWNER",
-            owner: user,
-          })
-        }}
-        onCancel={() => {
-          // Go back
-          navigate(-1)
-        }}
-        onSubmit={(request) => {
-          send({
-            type: "CREATE_WORKSPACE",
-            request,
-            owner,
-          })
-        }}
-      />
+      {Boolean(
+        createWorkspaceState.matches("loadingFormData") ||
+          createWorkspaceState.matches("autoCreating"),
+      ) && <Loader />}
+      {createWorkspaceState.matches("loadError") && (
+        <ErrorAlert error={error} />
+      )}
+      {createWorkspaceState.matches("idle") && (
+        <CreateWorkspacePageView
+          defaultName={defaultName}
+          defaultOwner={me}
+          defaultBuildParameters={defaultBuildParameters}
+          error={error}
+          template={template as Template}
+          gitAuth={gitAuth as TemplateVersionGitAuth[]}
+          permissions={permissions as CreateWSPermissions}
+          parameters={parameters as TemplateVersionParameter[]}
+          creatingWorkspace={createWorkspaceState.matches("creatingWorkspace")}
+          onCancel={() => {
+            navigate(-1)
+          }}
+          onSubmit={(request, owner) => {
+            send({
+              type: "CREATE_WORKSPACE",
+              request,
+              owner,
+            })
+          }}
+        />
+      )}
     </>
   )
 }
