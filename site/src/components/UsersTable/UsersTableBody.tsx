@@ -41,6 +41,7 @@ interface UsersTableBodyProps {
   onListWorkspaces: (user: TypesGen.User) => void
   onViewActivity: (user: TypesGen.User) => void
   onActivateUser: (user: TypesGen.User) => void
+  onMarkUserDormant: (user: TypesGen.User) => void
   onResetUserPassword: (user: TypesGen.User) => void
   onUpdateUserRoles: (
     user: TypesGen.User,
@@ -60,6 +61,7 @@ export const UsersTableBody: FC<
   onListWorkspaces,
   onViewActivity,
   onActivateUser,
+  onMarkUserDormant,
   onResetUserPassword,
   onUpdateUserRoles,
   isUpdatingUserRoles,
@@ -176,13 +178,37 @@ export const UsersTableBody: FC<
                                   onClick: onSuspendUser,
                                   disabled: false,
                                 },
+                                {
+                                  label: t(
+                                    "markUserDormantMenuItem",
+                                  ) as React.ReactNode,
+                                  onClick: onMarkUserDormant,
+                                  disabled: user.id === actorID,
+                                }
                               ]
-                            : [
+                            : user.status === "suspended"
+                              ? [
                                 {
                                   label: t(
                                     "activateMenuItem",
                                   ) as React.ReactNode,
                                   onClick: onActivateUser,
+                                  disabled: false,
+                                },
+                              ]
+                              : [ // User account is dormant
+                                {
+                                  label: t(
+                                    "activateMenuItem",
+                                  ) as React.ReactNode,
+                                  onClick: onActivateUser,
+                                  disabled: false,
+                                },
+                                {
+                                  label: t(
+                                    "suspendMenuItem",
+                                  ) as React.ReactNode,
+                                  onClick: onSuspendUser,
                                   disabled: false,
                                 },
                               ]

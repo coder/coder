@@ -23,6 +23,7 @@ export interface UsersPageViewProps {
   onListWorkspaces: (user: TypesGen.User) => void
   onViewActivity: (user: TypesGen.User) => void
   onActivateUser: (user: TypesGen.User) => void
+  onMarkUserDormant: (user: TypesGen.User) => void
   onResetUserPassword: (user: TypesGen.User) => void
   onUpdateUserRoles: (
     user: TypesGen.User,
@@ -43,6 +44,7 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
   onListWorkspaces,
   onViewActivity,
   onActivateUser,
+  onMarkUserDormant,
   onResetUserPassword,
   onUpdateUserRoles,
   isUpdatingUserRoles,
@@ -73,6 +75,7 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
         onListWorkspaces={onListWorkspaces}
         onViewActivity={onViewActivity}
         onActivateUser={onActivateUser}
+        onMarkUserDormant={onMarkUserDormant}
         onResetUserPassword={onResetUserPassword}
         onUpdateUserRoles={onUpdateUserRoles}
         isUpdatingUserRoles={isUpdatingUserRoles}

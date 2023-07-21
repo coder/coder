@@ -661,6 +661,15 @@ export const activateUser = async (
   return response.data
 }
 
+export const markUserDormant = async (
+  userId: TypesGen.User["id"],
+): Promise<TypesGen.User> => {
+  const response = await axios.put<TypesGen.User>(
+    `/api/v2/users/${userId}/status/dormant`,
+  )
+  return response.data
+}
+
 export const suspendUser = async (
   userId: TypesGen.User["id"],
 ): Promise<TypesGen.User> => {

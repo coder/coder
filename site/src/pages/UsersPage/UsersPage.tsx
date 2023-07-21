@@ -28,6 +28,9 @@ export const Language = {
   activateDialogTitle: "Activate user",
   activateDialogAction: "Activate",
   activateDialogMessagePrefix: "Do you want to activate the user",
+  markUserDormantDialogTitle: "Mark user dormant",
+  markUserDormantDialogAction: "Mark dormant",
+  markUserDormantDialogMessagePrefix: "Do you want to mark the user account dormant",
 }
 
 const getSelectedUser = (id: string, users?: User[]) =>
@@ -55,6 +58,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
     usernameToDelete,
     usernameToSuspend,
     usernameToActivate,
+    usernameToMarkDormant,
     userIdToResetPassword,
     newUserPassword,
     paginationRef,
@@ -133,6 +137,13 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         onActivateUser={(user) => {
           usersSend({
             type: "ACTIVATE_USER",
+            userId: user.id,
+            username: user.username,
+          })
+        }}
+        onMarkUserDormant={(user) => {
+          usersSend({
+            type: "MARK_USER_DORMANT",
             userId: user.id,
             username: user.username,
           })
@@ -226,6 +237,31 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
             {Language.activateDialogMessagePrefix}
             {usernameToActivate && " "}
             <strong>{usernameToActivate ?? ""}</strong>?
+          </>
+        }
+      />
+
+      <ConfirmDialog
+        type="info"
+        hideCancel={false}
+        open={
+          usersState.matches("confirmUserDormant") ||
+          usersState.matches("markingUserDormant")
+        }
+        confirmLoading={usersState.matches("markingUserDormant")}
+        title={Language.markUserDormantDialogTitle}
+        confirmText={Language.markUserDormantDialogAction}
+        onConfirm={() => {
+          usersSend("CONFIRM_USER_DORMANT")
+        }}
+        onClose={() => {
+          usersSend("CANCEL_USER_DORMANT")
+        }}
+        description={
+          <>
+            {Language.markUserDormantDialogMessagePrefix}
+            {usernameToMarkDormant && " "}
+            <strong>{usernameToMarkDormant ?? ""}</strong>?
           </>
         }
       />
