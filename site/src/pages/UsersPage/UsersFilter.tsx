@@ -24,7 +24,8 @@ export const useStatusFilterMenu = ({
 }: Pick<UseFilterMenuOptions<StatusOption>, "value" | "onChange">) => {
   const statusOptions: StatusOption[] = [
     { value: "active", label: "Active", color: "success" },
-    { value: "suspended", label: "Suspended", color: "secondary" },
+    { value: "dormant", label: "Dormant", color: "secondary" },
+    { value: "suspended", label: "Suspended", color: "warning" },
   ]
   return useFilterMenu({
     onChange,
