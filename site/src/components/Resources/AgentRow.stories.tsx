@@ -215,7 +215,7 @@ Started.args = {
   ...Example.args,
   agent: {
     ...MockWorkspaceAgentReady,
-    startup_logs_length: 1,
+    logs_length: 1,
   },
 }
 

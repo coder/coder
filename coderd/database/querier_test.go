@@ -129,7 +129,7 @@ func TestInsertWorkspaceAgentLogs(t *testing.T) {
 		Level:        []database.LogLevel{database.LogLevelInfo},
 		OutputLength: 1,
 	})
-	require.True(t, database.IsStartupLogsLimitError(err))
+	require.True(t, database.IsWorkspaceAgentLogsLimitError(err))
 }
 
 func TestProxyByHostname(t *testing.T) {

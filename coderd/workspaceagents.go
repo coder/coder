@@ -288,9 +288,9 @@ func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request)
 		OutputLength: int32(outputLength),
 	})
 	if err != nil {
-		if !database.IsStartupLogsLimitError(err) {
+		if !database.IsWorkspaceAgentLogsLimitError(err) {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to upload startup logs",
+				Message: "Failed to upload logs",
 				Detail:  err.Error(),
 			})
 			return

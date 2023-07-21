@@ -3753,7 +3753,7 @@ func (q *FakeQuerier) InsertWorkspaceAgentLogs(_ context.Context, arg database.I
 		// Greater than 1MB, same as the PostgreSQL constraint!
 		if agent.LogsLength+outputLength > (1 << 20) {
 			return nil, &pq.Error{
-				Constraint: "max_startup_logs_length",
+				Constraint: "max_logs_length",
 				Table:      "workspace_agents",
 			}
 		}
