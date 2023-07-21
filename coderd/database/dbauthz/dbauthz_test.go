@@ -521,7 +521,7 @@ func (s *MethodTestSuite) TestOrganization() {
 		ma := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{OrganizationID: oa.ID})
 		mb := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{OrganizationID: ob.ID})
 		check.Args([]uuid.UUID{ma.UserID, mb.UserID}).
-			Asserts(rbac.ResourceUser.WithID(ma.UserID), rbac.ActionRead, rbac.ResourceUser.WithID(mb.UserID), rbac.ActionRead)
+			Asserts(rbac.ResourceUserObject(ma.UserID), rbac.ActionRead, rbac.ResourceUserObject(mb.UserID), rbac.ActionRead)
 	}))
 	s.Run("GetOrganizationMemberByUserID", s.Subtest(func(db database.Store, check *expects) {
 		mem := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{})

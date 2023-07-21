@@ -1108,7 +1108,7 @@ func (q *querier) GetProvisionerLogsAfterID(ctx context.Context, arg database.Ge
 }
 
 func (q *querier) GetQuotaAllowanceForUser(ctx context.Context, userID uuid.UUID) (int64, error) {
-	err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUser.WithID(userID))
+	err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUserObject(userID))
 	if err != nil {
 		return -1, err
 	}
@@ -1116,7 +1116,7 @@ func (q *querier) GetQuotaAllowanceForUser(ctx context.Context, userID uuid.UUID
 }
 
 func (q *querier) GetQuotaConsumedForUser(ctx context.Context, userID uuid.UUID) (int64, error) {
-	err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUser.WithID(userID))
+	err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUserObject(userID))
 	if err != nil {
 		return -1, err
 	}
@@ -1367,7 +1367,7 @@ func (q *querier) GetUsers(ctx context.Context, arg database.GetUsersParams) ([]
 // itself.
 func (q *querier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]database.User, error) {
 	for _, uid := range ids {
-		if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUser.WithID(uid)); err != nil {
+		if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUserObject(uid)); err != nil {
 			return nil, err
 		}
 	}
@@ -1876,7 +1876,7 @@ func (q *querier) InsertUserGroupsByName(ctx context.Context, arg database.Inser
 
 // TODO: Should this be in system.go?
 func (q *querier) InsertUserLink(ctx context.Context, arg database.InsertUserLinkParams) (database.UserLink, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceUser.WithID(arg.UserID)); err != nil {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceUserObject(arg.UserID)); err != nil {
 		return database.UserLink{}, err
 	}
 	return q.db.InsertUserLink(ctx, arg)

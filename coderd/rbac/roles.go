@@ -151,8 +151,14 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// All users can see the provisioner daemons.
 			ResourceProvisionerDaemon.Type: {ActionRead},
 		}),
-		Org:  map[string][]Permission{},
-		User: allPermsExcept(ResourceWorkspaceLocked),
+		Org: map[string][]Permission{},
+		User: append(allPermsExcept(ResourceWorkspaceLocked, ResourceUser),
+			Permissions(map[string][]Action{
+				// Users cannot do create/update/delete on themselves, but they
+				// can read their own details.
+				ResourceUser.Type: {ActionRead},
+			})...,
+		),
 	}.withCachedRegoValue()
 
 	auditorRole := Role{
@@ -163,6 +169,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// are not in.
 			ResourceTemplate.Type: {ActionRead},
 			ResourceAuditLog.Type: {ActionRead},
+			ResourceUser.Type:     {ActionRead},
 		}),
 		Org:  map[string][]Permission{},
 		User: []Permission{},
@@ -180,6 +187,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceProvisionerDaemon.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 			// Needs to read all organizations since
 			ResourceOrganization.Type: {ActionRead},
+			ResourceUser.Type:         {ActionRead},
 		}),
 		Org:  map[string][]Permission{},
 		User: []Permission{},
