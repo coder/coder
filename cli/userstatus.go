@@ -23,6 +23,7 @@ func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *clibas
 		pastVerb = "activated"
 		aliases = []string{"active"}
 		short = "Update a user's status to 'active'. Active users can fully interact with the platform"
+	// TODO(mtojek): dormant
 	case codersdk.UserStatusSuspended:
 		verb = "suspend"
 		pastVerb = "suspended"
