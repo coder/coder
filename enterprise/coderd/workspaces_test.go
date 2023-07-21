@@ -686,7 +686,7 @@ func TestWorkspaceLock(t *testing.T) {
 			client, user = coderdenttest.New(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
 					IncludeProvisionerDaemon: true,
-					TemplateScheduleStore:    &coderd.EnterpriseTemplateScheduleStore{},
+					TemplateScheduleStore:    &schedule.EnterpriseTemplateScheduleStore{},
 				},
 				LicenseOptions: &coderdenttest.LicenseOptions{
 					Features: license.Features{

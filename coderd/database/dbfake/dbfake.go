@@ -4997,6 +4997,7 @@ func (q *FakeQuerier) UpsertLastUpdateCheck(_ context.Context, data string) erro
 	defer q.mutex.Unlock()
 
 	q.lastUpdateCheck = []byte(data)
+	return nil
 }
 
 func (q *FakeQuerier) UpsertLogoURL(_ context.Context, data string) error {
