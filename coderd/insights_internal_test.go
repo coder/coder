@@ -8,14 +8,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/coder/coder/codersdk"
 )
 
 func Test_parseInsightsStartAndEndTime(t *testing.T) {
 	t.Parallel()
 
-	layout := codersdk.InsightsTimeLayout
+	layout := insightsTimeLayout
 	now := time.Now().UTC()
 	y, m, d := now.Date()
 	today := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
@@ -135,11 +133,11 @@ func Test_parseInsightsStartAndEndTime(t *testing.T) {
 
 			// assert.Equal is unable to test location equality, so we
 			// use assert.WithinDuration.
+			assert.Equal(t, tt.wantOk, gotOk)
 			assert.WithinDuration(t, tt.wantStartTime, gotStartTime, 0)
 			assert.True(t, tt.wantStartTime.Equal(gotStartTime))
 			assert.WithinDuration(t, tt.wantEndTime, gotEndTime, 0)
 			assert.True(t, tt.wantEndTime.Equal(gotEndTime))
-			assert.Equal(t, tt.wantOk, gotOk)
 		})
 	}
 }

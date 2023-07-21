@@ -12,7 +12,8 @@ import (
 	"golang.org/x/xerrors"
 )
 
-const InsightsTimeLayout = time.RFC3339
+// Duplicated in coderd.
+const insightsTimeLayout = time.RFC3339
 
 // InsightsReportInterval is the interval of time over which to generate a
 // smaller insights report within a time range.
@@ -61,8 +62,8 @@ type UserLatencyInsightsRequest struct {
 
 func (c *Client) UserLatencyInsights(ctx context.Context, req UserLatencyInsightsRequest) (UserLatencyInsightsResponse, error) {
 	var qp []string
-	qp = append(qp, fmt.Sprintf("start_time=%s", req.StartTime.Format(InsightsTimeLayout)))
-	qp = append(qp, fmt.Sprintf("end_time=%s", req.EndTime.Format(InsightsTimeLayout)))
+	qp = append(qp, fmt.Sprintf("start_time=%s", req.StartTime.Format(insightsTimeLayout)))
+	qp = append(qp, fmt.Sprintf("end_time=%s", req.EndTime.Format(insightsTimeLayout)))
 	if len(req.TemplateIDs) > 0 {
 		var templateIDs []string
 		for _, id := range req.TemplateIDs {
@@ -161,8 +162,8 @@ type TemplateInsightsRequest struct {
 
 func (c *Client) TemplateInsights(ctx context.Context, req TemplateInsightsRequest) (TemplateInsightsResponse, error) {
 	var qp []string
-	qp = append(qp, fmt.Sprintf("start_time=%s", req.StartTime.Format(InsightsTimeLayout)))
-	qp = append(qp, fmt.Sprintf("end_time=%s", req.EndTime.Format(InsightsTimeLayout)))
+	qp = append(qp, fmt.Sprintf("start_time=%s", req.StartTime.Format(insightsTimeLayout)))
+	qp = append(qp, fmt.Sprintf("end_time=%s", req.EndTime.Format(insightsTimeLayout)))
 	if len(req.TemplateIDs) > 0 {
 		var templateIDs []string
 		for _, id := range req.TemplateIDs {

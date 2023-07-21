@@ -16,6 +16,9 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+// Duplicated in codersdk.
+const insightsTimeLayout = time.RFC3339
+
 // @Summary Get deployment DAUs
 // @ID get-deployment-daus
 // @Security CoderSessionToken
@@ -324,14 +327,14 @@ func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, s
 		{"start_time", startTimeString, &startTime},
 		{"end_time", endTimeString, &endTime},
 	} {
-		t, err := time.Parse(codersdk.InsightsTimeLayout, qp.value)
+		t, err := time.Parse(insightsTimeLayout, qp.value)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Query parameter has invalid value.",
 				Validations: []codersdk.ValidationError{
 					{
 						Field:  qp.name,
-						Detail: fmt.Sprintf("Query param %q must be a valid date format (%s): %s", qp.name, codersdk.InsightsTimeLayout, err.Error()),
+						Detail: fmt.Sprintf("Query param %q must be a valid date format (%s): %s", qp.name, insightsTimeLayout, err.Error()),
 					},
 				},
 			})
