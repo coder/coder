@@ -195,13 +195,13 @@ $ kubectl create secret tls postgres-certs -n coder --key="postgres.key" --cert=
 ```yaml
 coder:
   volumes:
-  - name: "pg-certs-mount"
-    secret:
-      secretName: "postgres-certs"
+    - name: "pg-certs-mount"
+      secret:
+        secretName: "postgres-certs"
   volumeMounts:
-  - name: "pg-certs-mount"
-    mountPath: "$HOME/.postgresql"
-    readOnly: true
+    - name: "pg-certs-mount"
+      mountPath: "$HOME/.postgresql"
+      readOnly: true
 ```
 
 1. Lastly, your PG connection URL will look like:
