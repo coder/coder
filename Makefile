@@ -416,6 +416,8 @@ lint: lint/shellcheck lint/go lint/ts lint/helm
 lint/ts:
 	cd site
 	yarn && yarn lint
+	cd offlinedocs
+	yarn & yarn lint
 .PHONY: lint/ts
 
 lint/go:
