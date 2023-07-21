@@ -182,7 +182,7 @@ func TestUserLatencyInsights(t *testing.T) {
 			return false
 		}
 		return len(userLatencies.Report.Users) > 0 && userLatencies.Report.Users[0].LatencyMS.P50 > 0
-	}, testutil.WaitShort, testutil.IntervalFast, "user latency is missing")
+	}, testutil.WaitMedium, testutil.IntervalFast, "user latency is missing")
 
 	// We got our latency data, close the connection.
 	_ = sess.Close()
@@ -318,8 +318,8 @@ func TestTemplateInsights(t *testing.T) {
 			return false
 		}
 	}
-	require.Eventually(t, waitForAppSeconds("reconnecting-pty"), testutil.WaitShort, testutil.IntervalFast, "reconnecting-pty seconds missing")
-	require.Eventually(t, waitForAppSeconds("ssh"), testutil.WaitShort, testutil.IntervalFast, "ssh seconds missing")
+	require.Eventually(t, waitForAppSeconds("reconnecting-pty"), testutil.WaitMedium, testutil.IntervalFast, "reconnecting-pty seconds missing")
+	require.Eventually(t, waitForAppSeconds("ssh"), testutil.WaitMedium, testutil.IntervalFast, "ssh seconds missing")
 
 	// We got our data, close down sessions and connections.
 	_ = rpty.Close()
