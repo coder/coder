@@ -65,14 +65,14 @@ sudo apt install -y neovim fish cargo
 
 User can have either of the following setup script files in their dotfiles repo:
 
-- install.sh
-- install
-- bootstrap.sh
-- bootstrap
-- script/bootstrap
-- setup.sh
-- setup
-- script/setup
+- `install.sh`
+- `install`
+- `bootstrap.sh`
+- `bootstrap`
+- `script/bootstrap`
+- `setup.sh`
+- `setup`
+- `script/setup`
 
 If any of the above files are found in the specified order, Coder will execute the first match, and the rest will be skipped.
 
