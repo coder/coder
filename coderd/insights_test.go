@@ -112,8 +112,10 @@ func TestUserLatencyInsights(t *testing.T) {
 		AgentStatsRefreshInterval: time.Millisecond * 100,
 	})
 
+	// Create two users, one that will appear in the report and another that
+	// won't (due to not having/using a workspace).
 	user := coderdtest.CreateFirstUser(t, client)
-	_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+	_, _ = coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:          echo.ParseComplete,
@@ -127,6 +129,7 @@ func TestUserLatencyInsights(t *testing.T) {
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
+	// Start an agent so that we can generate stats.
 	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(authToken)
 	agentCloser := agent.New(agent.Options{
@@ -138,9 +141,15 @@ func TestUserLatencyInsights(t *testing.T) {
 	}()
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
+	// Start must be at the beginning of the day, initialize it early in case
+	// the day changes so that we get the relevant stats faster.
+	y, m, d := time.Now().UTC().Date()
+	today := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
+	// Connect to the agent to generate usage/latency stats.
 	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
 		Logger: logger.Named("client"),
 	})
@@ -150,19 +159,6 @@ func TestUserLatencyInsights(t *testing.T) {
 	sshConn, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
 	defer sshConn.Close()
-
-	// Create users that will not appear in the report.
-	_, user3 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-	_, user4 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-	_, err = client.UpdateUserStatus(ctx, user3.Username, codersdk.UserStatusSuspended)
-	require.NoError(t, err)
-	err = client.DeleteUser(ctx, user4.ID)
-	require.NoError(t, err)
-
-	y, m, d := time.Now().Date()
-	today := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
-
-	_ = sshConn.Close()
 
 	var userLatencies codersdk.UserLatencyInsightsResponse
 	require.Eventuallyf(t, func() bool {
@@ -174,16 +170,16 @@ func TestUserLatencyInsights(t *testing.T) {
 		if !assert.NoError(t, err) {
 			return false
 		}
-		if userLatencies.Report.Users[0].UserID == user2.ID {
-			userLatencies.Report.Users[0], userLatencies.Report.Users[1] = userLatencies.Report.Users[1], userLatencies.Report.Users[0]
-		}
-		return userLatencies.Report.Users[0].LatencyMS != nil
+		return len(userLatencies.Report.Users) > 0 && userLatencies.Report.Users[0].LatencyMS.P50 > 0
 	}, testutil.WaitShort, testutil.IntervalFast, "user latency is missing")
 
-	require.Len(t, userLatencies.Report.Users, 2, "want only 2 users")
+	// We got our latency data, close the connection.
+	_ = sshConn.Close()
+
+	require.Len(t, userLatencies.Report.Users, 1, "want only 1 user")
+	require.Equal(t, userLatencies.Report.Users[0].UserID, user.UserID, "want user id to match")
 	assert.Greater(t, userLatencies.Report.Users[0].LatencyMS.P50, float64(0), "want p50 to be greater than 0")
 	assert.Greater(t, userLatencies.Report.Users[0].LatencyMS.P95, float64(0), "want p95 to be greater than 0")
-	assert.Nil(t, userLatencies.Report.Users[1].LatencyMS, "want user 2 to have no latency")
 }
 
 func TestUserLatencyInsights_BadRequest(t *testing.T) {
@@ -192,7 +188,7 @@ func TestUserLatencyInsights_BadRequest(t *testing.T) {
 	client := coderdtest.New(t, &coderdtest.Options{})
 	_ = coderdtest.CreateFirstUser(t, client)
 
-	y, m, d := time.Now().Date()
+	y, m, d := time.Now().UTC().Date()
 	today := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -235,6 +231,7 @@ func TestTemplateInsights(t *testing.T) {
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
+	// Start an agent so that we can generate stats.
 	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(authToken)
 	agentCloser := agent.New(agent.Options{
@@ -246,12 +243,15 @@ func TestTemplateInsights(t *testing.T) {
 	}()
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
-	y, m, d := time.Now().Date()
+	// Start must be at the beginning of the day, initialize it early in case
+	// the day changes so that we get the relevant stats faster.
+	y, m, d := time.Now().UTC().Date()
 	today := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
+	// Connect to the agent to generate usage/latency stats.
 	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
 		Logger: logger.Named("client"),
 	})
@@ -262,11 +262,11 @@ func TestTemplateInsights(t *testing.T) {
 	require.NoError(t, err)
 	defer sshConn.Close()
 
+	// Start an SSH session to generate SSH usage stats.
 	sess, err := sshConn.NewSession()
 	require.NoError(t, err)
 	defer sess.Close()
 
-	// Keep SSH session open for long enough to generate insights.
 	r, w := io.Pipe()
 	defer r.Close()
 	defer w.Close()
@@ -274,6 +274,7 @@ func TestTemplateInsights(t *testing.T) {
 	err = sess.Start("cat")
 	require.NoError(t, err)
 
+	// Start an rpty session to generate rpty usage stats.
 	rpty, err := client.WorkspaceAgentReconnectingPTY(ctx, codersdk.WorkspaceAgentReconnectingPTYOpts{
 		AgentID:   resources[0].Agents[0].ID,
 		Reconnect: uuid.New(),
@@ -289,7 +290,7 @@ func TestTemplateInsights(t *testing.T) {
 		return func() bool {
 			req = codersdk.TemplateInsightsRequest{
 				StartTime: today,
-				EndTime:   time.Now().Truncate(time.Hour).Add(time.Hour),
+				EndTime:   time.Now().UTC().Truncate(time.Hour).Add(time.Hour),
 				Interval:  codersdk.InsightsReportIntervalDay,
 			}
 			resp, err = client.TemplateInsights(ctx, req)
@@ -308,6 +309,7 @@ func TestTemplateInsights(t *testing.T) {
 	require.Eventually(t, waitForAppSeconds("reconnecting-pty"), testutil.WaitShort, testutil.IntervalFast, "reconnecting-pty seconds missing")
 	require.Eventually(t, waitForAppSeconds("ssh"), testutil.WaitShort, testutil.IntervalFast, "ssh seconds missing")
 
+	// We got our data, close down sessions and connections.
 	_ = rpty.Close()
 	_ = sess.Close()
 	_ = sshConn.Close()
@@ -335,7 +337,7 @@ func TestTemplateInsights_BadRequest(t *testing.T) {
 	client := coderdtest.New(t, &coderdtest.Options{})
 	_ = coderdtest.CreateFirstUser(t, client)
 
-	y, m, d := time.Now().Date()
+	y, m, d := time.Now().UTC().Date()
 	today := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)

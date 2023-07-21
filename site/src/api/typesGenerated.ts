@@ -1169,7 +1169,7 @@ export interface UserLatency {
   readonly template_ids: string[]
   readonly user_id: string
   readonly username: string
-  readonly latency_ms?: ConnectionLatency
+  readonly latency_ms: ConnectionLatency
 }
 
 // From codersdk/insights.go

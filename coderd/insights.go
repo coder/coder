@@ -107,50 +107,21 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch all users so that we can still include users that have no
-	// latency data.
-	users, err := api.Database.GetUsers(ctx, database.GetUsersParams{})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching users.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
 	templateIDSet := make(map[uuid.UUID]struct{})
-	usersWithLatencyByID := make(map[uuid.UUID]codersdk.UserLatency)
+	userLatencies := make([]codersdk.UserLatency, 0, len(rows))
 	for _, row := range rows {
 		for _, templateID := range row.TemplateIDs {
 			templateIDSet[templateID] = struct{}{}
 		}
-		usersWithLatencyByID[row.UserID] = codersdk.UserLatency{
+		userLatencies = append(userLatencies, codersdk.UserLatency{
 			TemplateIDs: row.TemplateIDs,
 			UserID:      row.UserID,
 			Username:    row.Username,
-			LatencyMS: &codersdk.ConnectionLatency{
+			LatencyMS: codersdk.ConnectionLatency{
 				P50: row.WorkspaceConnectionLatency50,
 				P95: row.WorkspaceConnectionLatency95,
 			},
-		}
-	}
-	userLatencies := []codersdk.UserLatency{}
-	for _, user := range users {
-		userLatency, ok := usersWithLatencyByID[user.ID]
-		if !ok {
-			// We only include deleted/inactive users if they were
-			// active as part of the requested timeframe.
-			if user.Deleted || user.Status != database.UserStatusActive {
-				continue
-			}
-
-			userLatency = codersdk.UserLatency{
-				TemplateIDs: []uuid.UUID{},
-				UserID:      user.ID,
-				Username:    user.Username,
-			}
-		}
-		userLatencies = append(userLatencies, userLatency)
+		})
 	}
 
 	// TemplateIDs that contributed to the data.

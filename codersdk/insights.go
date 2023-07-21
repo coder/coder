@@ -41,10 +41,10 @@ type UserLatencyInsightsReport struct {
 
 // UserLatency shows the connection latency for a user.
 type UserLatency struct {
-	TemplateIDs []uuid.UUID        `json:"template_ids" format:"uuid"`
-	UserID      uuid.UUID          `json:"user_id" format:"uuid"`
-	Username    string             `json:"username"`
-	LatencyMS   *ConnectionLatency `json:"latency_ms"`
+	TemplateIDs []uuid.UUID       `json:"template_ids" format:"uuid"`
+	UserID      uuid.UUID         `json:"user_id" format:"uuid"`
+	Username    string            `json:"username"`
+	LatencyMS   ConnectionLatency `json:"latency_ms"`
 }
 
 // ConnectionLatency shows the latency for a connection.
