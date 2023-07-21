@@ -4116,6 +4116,39 @@
         }
       }
     },
+    "/workspaceagents/me/startup-logs": {
+      "patch": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "tags": ["Agents"],
+        "summary": "Removed: Patch workspace agent logs",
+        "operationId": "removed-patch-workspace-agent-logs",
+        "parameters": [
+          {
+            "description": "logs",
+            "name": "request",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/agentsdk.PatchLogs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/codersdk.Response"
+            }
+          }
+        }
+      }
+    },
     "/workspaceagents/{workspaceagent}": {
       "get": {
         "security": [
@@ -4351,6 +4384,64 @@
         "responses": {
           "101": {
             "description": "Switching Protocols"
+          }
+        }
+      }
+    },
+    "/workspaceagents/{workspaceagent}/startup-logs": {
+      "get": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Agents"],
+        "summary": "Removed: Get logs by workspace agent",
+        "operationId": "removed-get-logs-by-workspace-agent",
+        "parameters": [
+          {
+            "type": "string",
+            "format": "uuid",
+            "description": "Workspace agent ID",
+            "name": "workspaceagent",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "integer",
+            "description": "Before log id",
+            "name": "before",
+            "in": "query"
+          },
+          {
+            "type": "integer",
+            "description": "After log id",
+            "name": "after",
+            "in": "query"
+          },
+          {
+            "type": "boolean",
+            "description": "Follow log stream",
+            "name": "follow",
+            "in": "query"
+          },
+          {
+            "type": "boolean",
+            "description": "Disable compression for WebSocket connection",
+            "name": "no_compression",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/codersdk.WorkspaceAgentLog"
+              }
+            }
           }
         }
       }

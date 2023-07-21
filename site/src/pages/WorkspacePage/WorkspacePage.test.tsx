@@ -43,10 +43,12 @@ const renderWorkspacePage = async () => {
   jest
     .spyOn(api, "getDeploymentValues")
     .mockResolvedValueOnce(MockDeploymentConfig)
-  jest.spyOn(api, "watchStartupLogs").mockImplementation((_, options) => {
-    options.onDone()
-    return new WebSocket("")
-  })
+  jest
+    .spyOn(api, "watchWorkspaceAgentLogs")
+    .mockImplementation((_, options) => {
+      options.onDone()
+      return new WebSocket("")
+    })
   renderWithAuth(<WorkspacePage />, {
     route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
     path: "/:username/:workspace",

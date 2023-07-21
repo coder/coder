@@ -528,6 +528,66 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/report-stats \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Removed: Patch workspace agent logs
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/startup-logs \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /workspaceagents/me/startup-logs`
+
+> Body parameter
+
+```json
+{
+  "logs": [
+    {
+      "created_at": "string",
+      "level": "trace",
+      "output": "string",
+      "stage": "string"
+    }
+  ]
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                               | Required | Description |
+| ------ | ---- | -------------------------------------------------- | -------- | ----------- |
+| `body` | body | [agentsdk.PatchLogs](schemas.md#agentsdkpatchlogs) | true     | logs        |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get workspace agent by ID
 
 ### Code samples
@@ -878,5 +938,73 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/pty
 | Status | Meaning                                                                  | Description         | Schema |
 | ------ | ------------------------------------------------------------------------ | ------------------- | ------ |
 | 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Removed: Get logs by workspace agent
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/startup-logs \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaceagents/{workspaceagent}/startup-logs`
+
+### Parameters
+
+| Name             | In    | Type         | Required | Description                                  |
+| ---------------- | ----- | ------------ | -------- | -------------------------------------------- |
+| `workspaceagent` | path  | string(uuid) | true     | Workspace agent ID                           |
+| `before`         | query | integer      | false    | Before log id                                |
+| `after`          | query | integer      | false    | After log id                                 |
+| `follow`         | query | boolean      | false    | Follow log stream                            |
+| `no_compression` | query | boolean      | false    | Disable compression for WebSocket connection |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "created_at": "2019-08-24T14:15:22Z",
+    "id": 0,
+    "level": "trace",
+    "output": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                      |
+| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.WorkspaceAgentLog](schemas.md#codersdkworkspaceagentlog) |
+
+<h3 id="removed:-get-logs-by-workspace-agent-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name           | Type                                             | Required | Restrictions | Description |
+| -------------- | ------------------------------------------------ | -------- | ------------ | ----------- |
+| `[array item]` | array                                            | false    |              |             |
+| `» created_at` | string(date-time)                                | false    |              |             |
+| `» id`         | integer                                          | false    |              |             |
+| `» level`      | [codersdk.LogLevel](schemas.md#codersdkloglevel) | false    |              |             |
+| `» output`     | string                                           | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value   |
+| -------- | ------- |
+| `level`  | `trace` |
+| `level`  | `debug` |
+| `level`  | `info`  |
+| `level`  | `warn`  |
+| `level`  | `error` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
