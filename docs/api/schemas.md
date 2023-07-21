@@ -2585,7 +2585,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `tailnet_ha_coordinator`       |
 | `convert-to-oidc`              |
 | `single_tailnet`               |
-| `workspace_build_logs_ui`      |
 | `template_restart_requirement` |
 
 ## codersdk.Feature

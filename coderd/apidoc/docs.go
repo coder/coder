@@ -7775,7 +7775,6 @@ const docTemplate = `{
                 "tailnet_ha_coordinator",
                 "convert-to-oidc",
                 "single_tailnet",
-                "workspace_build_logs_ui",
                 "template_restart_requirement"
             ],
             "x-enum-varnames": [
@@ -7784,7 +7783,6 @@ const docTemplate = `{
                 "ExperimentTailnetHACoordinator",
                 "ExperimentConvertToOIDC",
                 "ExperimentSingleTailnet",
-                "ExperimentWorkspaceBuildLogsUI",
                 "ExperimentTemplateRestartRequirement"
             ]
         },

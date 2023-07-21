@@ -255,11 +255,12 @@ type sqlcQuerier interface {
 	UpdateWorkspaceBuildCostByID(ctx context.Context, arg UpdateWorkspaceBuildCostByIDParams) error
 	UpdateWorkspaceDeletedByID(ctx context.Context, arg UpdateWorkspaceDeletedByIDParams) error
 	UpdateWorkspaceLastUsedAt(ctx context.Context, arg UpdateWorkspaceLastUsedAtParams) error
-	UpdateWorkspaceLockedAt(ctx context.Context, arg UpdateWorkspaceLockedAtParams) error
+	UpdateWorkspaceLockedDeletingAt(ctx context.Context, arg UpdateWorkspaceLockedDeletingAtParams) error
 	// This allows editing the properties of a workspace proxy.
 	UpdateWorkspaceProxy(ctx context.Context, arg UpdateWorkspaceProxyParams) (WorkspaceProxy, error)
 	UpdateWorkspaceProxyDeleted(ctx context.Context, arg UpdateWorkspaceProxyDeletedParams) error
 	UpdateWorkspaceTTL(ctx context.Context, arg UpdateWorkspaceTTLParams) error
+	UpdateWorkspacesDeletingAtByTemplateID(ctx context.Context, arg UpdateWorkspacesDeletingAtByTemplateIDParams) error
 	UpsertAppSecurityKey(ctx context.Context, value string) error
 	// The default proxy is implied and not actually stored in the database.
 	// So we need to store it's configuration here for display purposes.

@@ -409,7 +409,7 @@ func TestTemplateEdit(t *testing.T) {
 					clitest.SetupConfig(t, proxyClient, root)
 
 					ctx := testutil.Context(t, testutil.WaitLong)
-					err = inv.WithContext(ctx).Run()
+					err := inv.WithContext(ctx).Run()
 					if c.ok {
 						require.NoError(t, err)
 					} else {

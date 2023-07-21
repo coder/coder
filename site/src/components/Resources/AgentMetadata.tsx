@@ -31,7 +31,10 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
     if (year <= 1970 || isNaN(year)) {
       return "loading"
     }
-    if (item.result.age > staleThreshold) {
+    // There is a special circumstance for metadata with `interval: 0`. It is
+    // expected that they run once and never again, so never display them as
+    // stale.
+    if (item.result.age > staleThreshold && item.description.interval > 0) {
       return "stale"
     }
     return "valid"

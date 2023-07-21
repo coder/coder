@@ -108,7 +108,7 @@ func New(options Options) Agent {
 		}
 	}
 	if options.ReportMetadataInterval == 0 {
-		options.ReportMetadataInterval = 1 * time.Minute
+		options.ReportMetadataInterval = time.Second
 	}
 	if options.ServiceBannerRefreshInterval == 0 {
 		options.ServiceBannerRefreshInterval = 2 * time.Minute
@@ -242,7 +242,7 @@ func (a *agent) runLoop(ctx context.Context) {
 	}
 }
 
-func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentMetadataDescription) *codersdk.WorkspaceAgentMetadataResult {
+func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentMetadataDescription, now time.Time) *codersdk.WorkspaceAgentMetadataResult {
 	var out bytes.Buffer
 	result := &codersdk.WorkspaceAgentMetadataResult{
 		// CollectedAt is set here for testing purposes and overrode by
@@ -250,7 +250,7 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 		//
 		// In the future, the server may accept the timestamp from the agent
 		// if it can guarantee the clocks are synchronized.
-		CollectedAt: time.Now(),
+		CollectedAt: now,
 	}
 	cmdPty, err := a.sshServer.CreateCommand(ctx, md.Script, nil)
 	if err != nil {
@@ -298,17 +298,26 @@ type metadataResultAndKey struct {
 }
 
 type trySingleflight struct {
-	m sync.Map
+	mu sync.Mutex
+	m  map[string]struct{}
 }
 
 func (t *trySingleflight) Do(key string, fn func()) {
-	_, loaded := t.m.LoadOrStore(key, struct{}{})
-	if !loaded {
-		// There is already a goroutine running for this key.
+	t.mu.Lock()
+	_, ok := t.m[key]
+	if ok {
+		t.mu.Unlock()
 		return
 	}
 
-	defer t.m.Delete(key)
+	t.m[key] = struct{}{}
+	t.mu.Unlock()
+	defer func() {
+		t.mu.Lock()
+		delete(t.m, key)
+		t.mu.Unlock()
+	}()
+
 	fn()
 }
 
@@ -316,9 +325,11 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 	const metadataLimit = 128
 
 	var (
-		baseTicker       = time.NewTicker(a.reportMetadataInterval)
-		lastCollectedAts = make(map[string]time.Time)
-		metadataResults  = make(chan metadataResultAndKey, metadataLimit)
+		baseTicker        = time.NewTicker(a.reportMetadataInterval)
+		lastCollectedAtMu sync.RWMutex
+		lastCollectedAts  = make(map[string]time.Time)
+		metadataResults   = make(chan metadataResultAndKey, metadataLimit)
+		logger            = a.logger.Named("metadata")
 	)
 	defer baseTicker.Stop()
 
@@ -326,26 +337,29 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 	// a goroutine running for a given key. This is to prevent a build-up of
 	// goroutines waiting on Do when the script takes many multiples of
 	// baseInterval to run.
-	var flight trySingleflight
+	flight := trySingleflight{m: map[string]struct{}{}}
+
+	postMetadata := func(mr metadataResultAndKey) {
+		err := a.client.PostMetadata(ctx, mr.key, *mr.result)
+		if err != nil {
+			a.logger.Error(ctx, "agent failed to report metadata", slog.Error(err))
+		}
+	}
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case mr := <-metadataResults:
-			lastCollectedAts[mr.key] = mr.result.CollectedAt
-			err := a.client.PostMetadata(ctx, mr.key, *mr.result)
-			if err != nil {
-				a.logger.Error(ctx, "agent failed to report metadata", slog.Error(err))
-			}
+			postMetadata(mr)
+			continue
 		case <-baseTicker.C:
 		}
 
 		if len(metadataResults) > 0 {
 			// The inner collection loop expects the channel is empty before spinning up
 			// all the collection goroutines.
-			a.logger.Debug(
-				ctx, "metadata collection backpressured",
+			logger.Debug(ctx, "metadata collection backpressured",
 				slog.F("queue_len", len(metadataResults)),
 			)
 			continue
@@ -357,7 +371,7 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 		}
 
 		if len(manifest.Metadata) > metadataLimit {
-			a.logger.Error(
+			logger.Error(
 				ctx, "metadata limit exceeded",
 				slog.F("limit", metadataLimit), slog.F("got", len(manifest.Metadata)),
 			)
@@ -367,51 +381,79 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 		// If the manifest changes (e.g. on agent reconnect) we need to
 		// purge old cache values to prevent lastCollectedAt from growing
 		// boundlessly.
+		lastCollectedAtMu.Lock()
 		for key := range lastCollectedAts {
 			if slices.IndexFunc(manifest.Metadata, func(md codersdk.WorkspaceAgentMetadataDescription) bool {
 				return md.Key == key
 			}) < 0 {
+				logger.Debug(ctx, "deleting lastCollected key, missing from manifest",
+					slog.F("key", key),
+				)
 				delete(lastCollectedAts, key)
 			}
 		}
+		lastCollectedAtMu.Unlock()
 
 		// Spawn a goroutine for each metadata collection, and use a
 		// channel to synchronize the results and avoid both messy
 		// mutex logic and overloading the API.
 		for _, md := range manifest.Metadata {
-			collectedAt, ok := lastCollectedAts[md.Key]
-			if ok {
-				// If the interval is zero, we assume the user just wants
-				// a single collection at startup, not a spinning loop.
-				if md.Interval == 0 {
-					continue
-				}
-				// The last collected value isn't quite stale yet, so we skip it.
-				if collectedAt.Add(a.reportMetadataInterval).After(time.Now()) {
-					continue
-				}
-			}
-
 			md := md
 			// We send the result to the channel in the goroutine to avoid
 			// sending the same result multiple times. So, we don't care about
 			// the return values.
 			go flight.Do(md.Key, func() {
+				ctx := slog.With(ctx, slog.F("key", md.Key))
+				lastCollectedAtMu.RLock()
+				collectedAt, ok := lastCollectedAts[md.Key]
+				lastCollectedAtMu.RUnlock()
+				if ok {
+					// If the interval is zero, we assume the user just wants
+					// a single collection at startup, not a spinning loop.
+					if md.Interval == 0 {
+						return
+					}
+					intervalUnit := time.Second
+					// reportMetadataInterval is only less than a second in tests,
+					// so adjust the interval unit for them.
+					if a.reportMetadataInterval < time.Second {
+						intervalUnit = 100 * time.Millisecond
+					}
+					// The last collected value isn't quite stale yet, so we skip it.
+					if collectedAt.Add(time.Duration(md.Interval) * intervalUnit).After(time.Now()) {
+						return
+					}
+				}
+
 				timeout := md.Timeout
 				if timeout == 0 {
-					timeout = md.Interval
+					if md.Interval != 0 {
+						timeout = md.Interval
+					} else if interval := int64(a.reportMetadataInterval.Seconds()); interval != 0 {
+						// Fallback to the report interval
+						timeout = interval * 3
+					} else {
+						// If the interval is still 0 (possible if the interval
+						// is less than a second), default to 5. This was
+						// randomly picked.
+						timeout = 5
+					}
 				}
-				ctx, cancel := context.WithTimeout(ctx,
-					time.Duration(timeout)*time.Second,
-				)
+				ctxTimeout := time.Duration(timeout) * time.Second
+				ctx, cancel := context.WithTimeout(ctx, ctxTimeout)
 				defer cancel()
 
+				now := time.Now()
 				select {
 				case <-ctx.Done():
+					logger.Warn(ctx, "metadata collection timed out", slog.F("timeout", ctxTimeout))
 				case metadataResults <- metadataResultAndKey{
 					key:    md.Key,
-					result: a.collectMetadata(ctx, md),
+					result: a.collectMetadata(ctx, md, now),
 				}:
+					lastCollectedAtMu.Lock()
+					lastCollectedAts[md.Key] = now
+					lastCollectedAtMu.Unlock()
 				}
 			})
 		}
