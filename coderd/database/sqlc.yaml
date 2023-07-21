@@ -69,6 +69,7 @@ overrides:
       inactivity_ttl: InactivityTTL
       eof: EOF
       locked_ttl: LockedTTL
+      template_ids: TemplateIDs
 
 sql:
   - schema: "./dump.sql"
