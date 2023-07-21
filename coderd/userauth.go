@@ -327,6 +327,21 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 		return user, database.GetAuthorizationUserRolesRow{}, false
 	}
 
+	if user.Status == database.UserStatusDormant {
+		user, err = api.Database.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
+			ID:        user.ID,
+			Status:    database.UserStatusActive,
+			UpdatedAt: database.Now(),
+		})
+		if err != nil {
+			logger.Error(ctx, "unable to update user status to active", slog.Error(err))
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error.",
+			})
+			return user, database.GetAuthorizationUserRolesRow{}, false
+		}
+	}
+
 	//nolint:gocritic // System needs to fetch user roles in order to login user.
 	roles, err := api.Database.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), user.ID)
 	if err != nil {
@@ -340,7 +355,7 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 	// If the user logged into a suspended account, reject the login request.
 	if roles.Status != database.UserStatusActive {
 		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
-			Message: "Your account is suspended. Contact an admin to reactivate your account.",
+			Message: fmt.Sprintf("Your account is %s. Contact an admin to reactivate your account.", roles.Status),
 		})
 		return user, database.GetAuthorizationUserRolesRow{}, false
 	}
