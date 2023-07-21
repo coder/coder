@@ -394,6 +394,14 @@ ifdef CI
 else
 	yarn run format:write
 endif
+	echo "--- prettier"
+	cd ../offlinedocs
+# Avoid writing files in CI to reduce file write activity
+ifdef CI
+	yarn run format:check
+else
+	yarn run format:write
+endif
 .PHONY: fmt/prettier
 
 fmt/terraform: $(wildcard *.tf)
@@ -416,8 +424,8 @@ lint: lint/shellcheck lint/go lint/ts lint/helm
 lint/ts:
 	cd site
 	yarn && yarn lint
-	cd offlinedocs
-	yarn & yarn lint
+	cd ../offlinedocs
+	yarn && yarn lint
 .PHONY: lint/ts
 
 lint/go:
