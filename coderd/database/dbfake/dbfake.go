@@ -2326,10 +2326,13 @@ func (q *FakeQuerier) GetUserLatencyInsights(_ context.Context, arg database.Get
 		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, s.TemplateID) {
 			continue
 		}
-		if !arg.StartTime.Equal(s.CreatedAt) && !(s.CreatedAt.After(arg.StartTime) && s.CreatedAt.Before(arg.EndTime)) {
+		if !arg.StartTime.Equal(s.CreatedAt) && (s.CreatedAt.Before(arg.StartTime) || s.CreatedAt.After(arg.EndTime)) {
 			continue
 		}
 		if s.ConnectionCount == 0 {
+			continue
+		}
+		if s.ConnectionMedianLatencyMS <= 0 {
 			continue
 		}
 
