@@ -240,6 +240,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 			&i.Ttl,
 			&i.LastUsedAt,
 			&i.LockedAt,
+			&i.DeletingAt,
 			&i.TemplateName,
 			&i.TemplateVersionID,
 			&i.TemplateVersionName,

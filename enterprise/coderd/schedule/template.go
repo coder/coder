@@ -103,8 +103,19 @@ func (*EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.Sto
 			return xerrors.Errorf("update template schedule: %w", err)
 		}
 
-		// TODO: update all workspace max_deadlines to be within new bounds
+		// If we updated the locked_ttl we need to update all the workspaces deleting_at
+		// to ensure workspaces are being cleaned up correctly. Similarly if we are
+		// disabling it (by passing 0), then we want to delete nullify the deleting_at
+		// fields of all the template workspaces.
+		err = db.UpdateWorkspacesDeletingAtByTemplateID(ctx, database.UpdateWorkspacesDeletingAtByTemplateIDParams{
+			TemplateID:  tpl.ID,
+			LockedTtlMs: opts.LockedTTL.Milliseconds(),
+		})
+		if err != nil {
+			return xerrors.Errorf("update deleting_at of all workspaces for new locked_ttl %q: %w", opts.LockedTTL, err)
+		}
 
+		// TODO: update all workspace max_deadlines to be within new bounds
 		template, err = db.GetTemplateByID(ctx, tpl.ID)
 		if err != nil {
 			return xerrors.Errorf("get updated template schedule: %w", err)
