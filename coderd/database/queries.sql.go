@@ -1378,7 +1378,8 @@ func (q *sqlQuerier) UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDPar
 const getTemplateDailyInsights = `-- name: GetTemplateDailyInsights :many
 WITH d AS (
 	-- sqlc workaround, use SELECT generate_series instead of SELECT * FROM generate_series.
-	SELECT generate_series($1::timestamptz, $2::timestamptz, '1 day'::interval) AS d
+	-- Subtract 1 second from end_time to avoid including the next interval in the results.
+	SELECT generate_series($1::timestamptz, ($2::timestamptz) - '1 second'::interval, '1 day'::interval) AS d
 ), ts AS (
 	SELECT
 		d::timestamptz AS from_,
@@ -1398,17 +1399,20 @@ WITH d AS (
 	)
 	GROUP BY ts.from_, ts.to_, was.user_id
 ), template_ids AS (
-	SELECT array_agg(DISTINCT template_id) AS ids
+	SELECT
+		from_,
+		array_agg(DISTINCT template_id) AS ids
 	FROM usage_by_day, unnest(template_ids) template_id
 	WHERE template_id IS NOT NULL
+	GROUP BY from_, template_ids
 )
 
 SELECT
 	from_ AS start_time,
 	to_ AS end_time,
-	COALESCE((SELECT ids FROM template_ids), '{}')::uuid[] AS template_ids,
+	COALESCE((SELECT template_ids.ids FROM template_ids WHERE template_ids.from_ = usage_by_day.from_), '{}')::uuid[] AS template_ids,
 	COUNT(DISTINCT user_id) AS active_users
-FROM usage_by_day, unnest(template_ids) as template_id
+FROM usage_by_day
 GROUP BY from_, to_
 `
 
@@ -1459,7 +1463,8 @@ func (q *sqlQuerier) GetTemplateDailyInsights(ctx context.Context, arg GetTempla
 
 const getTemplateInsights = `-- name: GetTemplateInsights :one
 WITH d AS (
-	SELECT generate_series($1::timestamptz, $2::timestamptz, '5 minute'::interval) AS d
+	-- Subtract 1 second from end_time to avoid including the next interval in the results.
+	SELECT generate_series($1::timestamptz, ($2::timestamptz) - '1 second'::interval, '5 minute'::interval) AS d
 ), ts AS (
 	SELECT
 		d::timestamptz AS from_,
