@@ -78,12 +78,9 @@ If any of the above files are found (in the specified order), Coder will try to 
 
 The setup script must be executable, otherwise the dotfiles setup will fail. If you encounter this issue, you can fix it by making the script executable using the following commands:
 
-```bash
+```shell
 cd <path_to_dotfiles_repo>
-
 chmod +x <script_name>
-
 git commit -m "Make <script_name> executable" <script_name>
-
 git push
 ```
