@@ -12,7 +12,7 @@ import (
 const (
 	procMounts                           = "/proc/mounts"
 	procOneCgroup                        = "/proc/1/cgroup"
-	kubernetesDefaultServiceAccountToken = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	kubernetesDefaultServiceAccountToken = "/var/run/secrets/kubernetes.io/serviceaccount/token" //nolint:gosec
 )
 
 // IsContainerized returns whether the host is containerized.
