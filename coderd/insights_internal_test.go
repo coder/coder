@@ -136,6 +136,7 @@ func Test_parseInsightsStartAndEndTime(t *testing.T) {
 			// assert.Equal is unable to test location equality, so we
 			// use assert.WithinDuration.
 			if !assert.Equal(t, tt.wantOk, gotOk) {
+				//nolint:bodyclose
 				t.Log("Status: ", rw.Result().StatusCode)
 				t.Log("Body: ", rw.Body.String())
 			}
