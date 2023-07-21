@@ -1174,6 +1174,7 @@ func (q *querier) GetTemplateDAUs(ctx context.Context, arg database.GetTemplateD
 }
 
 func (q *querier) GetTemplateDailyInsights(ctx context.Context, arg database.GetTemplateDailyInsightsParams) ([]database.GetTemplateDailyInsightsRow, error) {
+	// FIXME: this should maybe be READ rbac.ResourceTemplate or it's own resource.
 	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
@@ -1181,6 +1182,7 @@ func (q *querier) GetTemplateDailyInsights(ctx context.Context, arg database.Get
 }
 
 func (q *querier) GetTemplateInsights(ctx context.Context, arg database.GetTemplateInsightsParams) (database.GetTemplateInsightsRow, error) {
+	// FIXME: this should maybe be READ rbac.ResourceTemplate or it's own resource.
 	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.GetTemplateInsightsRow{}, err
 	}
