@@ -422,9 +422,9 @@ func (q *FakeQuerier) getWorkspaceByAgentIDNoLock(_ context.Context, agentID uui
 }
 
 func (q *FakeQuerier) getWorkspaceBuildByIDNoLock(_ context.Context, id uuid.UUID) (database.WorkspaceBuild, error) {
-	for _, history := range q.workspaceBuilds {
-		if history.ID == id {
-			return q.workspaceBuildWithUserNoLock(history), nil
+	for _, build := range q.workspaceBuilds {
+		if build.ID == id {
+			return q.workspaceBuildWithUserNoLock(build), nil
 		}
 	}
 	return database.WorkspaceBuild{}, sql.ErrNoRows
@@ -2738,7 +2738,12 @@ func (q *FakeQuerier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.U
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	return q.getWorkspaceBuildByIDNoLock(ctx, jobID)
+	for _, build := range q.workspaceBuilds {
+		if build.JobID == jobID {
+			return q.workspaceBuildWithUserNoLock(build), nil
+		}
+	}
+	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(_ context.Context, arg database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams) (database.WorkspaceBuild, error) {
