@@ -254,17 +254,6 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	intervalReports := []codersdk.TemplateInsightsIntervalReport{}
-	for _, row := range dailyUsage {
-		intervalReports = append(intervalReports, codersdk.TemplateInsightsIntervalReport{
-			StartTime:   row.StartTime,
-			EndTime:     row.EndTime,
-			Interval:    interval,
-			TemplateIDs: row.TemplateIDs,
-			ActiveUsers: row.ActiveUsers,
-		})
-	}
-
 	resp := codersdk.TemplateInsightsResponse{
 		Report: codersdk.TemplateInsightsReport{
 			StartTime:   startTime,
@@ -273,7 +262,16 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 			ActiveUsers: usage.ActiveUsers,
 			AppsUsage:   convertTemplateInsightsBuiltinApps(usage),
 		},
-		IntervalReports: intervalReports,
+		IntervalReports: []codersdk.TemplateInsightsIntervalReport{},
+	}
+	for _, row := range dailyUsage {
+		resp.IntervalReports = append(resp.IntervalReports, codersdk.TemplateInsightsIntervalReport{
+			StartTime:   row.StartTime,
+			EndTime:     row.EndTime,
+			Interval:    interval,
+			TemplateIDs: row.TemplateIDs,
+			ActiveUsers: row.ActiveUsers,
+		})
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
