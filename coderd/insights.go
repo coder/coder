@@ -420,7 +420,7 @@ func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, s
 			Validations: []codersdk.ValidationError{
 				{
 					Field:  "end_time",
-					Detail: fmt.Sprintf("Query param %q must be greater than %q", "end_time", "start_time"),
+					Detail: fmt.Sprintf("Query param %q must be after than %q", "end_time", "start_time"),
 				},
 			},
 		})
