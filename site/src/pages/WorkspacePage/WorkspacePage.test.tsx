@@ -24,7 +24,6 @@ import {
   MockUser,
   MockEntitlementsWithScheduling,
   MockDeploymentConfig,
-  MockWorkspaceBuildParameter1,
 } from "testHelpers/entities"
 import * as api from "../../api/api"
 import { Workspace } from "../../api/typesGenerated"
