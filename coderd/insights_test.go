@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"io"
 	"testing"
 	"time"
 
@@ -241,7 +242,11 @@ func TestTemplateInsights(t *testing.T) {
 	defer sess.Close()
 
 	// Keep SSH session open for long enough to generate insights.
-	err = sess.Start("sleep 5")
+	r, w := io.Pipe()
+	defer r.Close()
+	defer w.Close()
+	sess.Stdin = r
+	err = sess.Start("cat")
 	require.NoError(t, err)
 
 	rpty, err := client.WorkspaceAgentReconnectingPTY(ctx, codersdk.WorkspaceAgentReconnectingPTYOpts{
