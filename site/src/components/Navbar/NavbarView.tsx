@@ -288,7 +288,7 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
               margin: 0,
             }}
           >
-            Reduce workspace latency by selecting the region nearest you.
+            Select a region nearest to you
           </Typography>
           <Typography
             component="p"
@@ -299,8 +299,8 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
               marginTop: 0.5,
             }}
           >
-            * Only applies to web connections. Local ssh connections will
-            automatically select the nearest region based on latency.
+            Workspace proxies improve terminal and web app connections to
+            workspaces. This does not apply to SSH connections.
           </Typography>
         </Box>
         <Divider sx={{ borderColor: (theme) => theme.palette.divider }} />
