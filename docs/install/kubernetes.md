@@ -209,6 +209,7 @@ coder:
 ```console
 postgres://<user>:<password>@databasehost:<port>/<db-name>?sslmode=require&sslcert=$HOME/.postgresql/postgres.crt&sslkey=$HOME/.postgresql/postgres.key"
 ```
+
 > More information on connecting to PostgreSQL databases using certificates can be found [here](https://www.postgresql.org/docs/current/libpq-ssl.html#LIBPQ-SSL-CLIENTCERT).
 
 ## Upgrading Coder via Helm
