@@ -341,6 +341,8 @@ func TestTemplateInsights(t *testing.T) {
 	assert.WithinDuration(t, req.StartTime, resp.IntervalReports[0].StartTime, 0)
 	assert.WithinDuration(t, req.EndTime, resp.IntervalReports[0].EndTime, 0)
 	assert.Equal(t, resp.IntervalReports[0].ActiveUsers, int64(1), "want one active user in the interval report")
+
+	// TODO(mafredri): Verify template parameter insights (first we need to generate them).
 }
 
 func TestTemplateInsights_BadRequest(t *testing.T) {
