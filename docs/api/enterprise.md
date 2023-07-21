@@ -809,6 +809,7 @@ curl -X POST http://coder-server:8080/api/v2/scim/v2/Users \
 ```json
 {
   "active": true,
+  "dormant": true,
   "emails": [
     {
       "display": "string",
@@ -844,6 +845,7 @@ curl -X POST http://coder-server:8080/api/v2/scim/v2/Users \
 ```json
 {
   "active": true,
+  "dormant": true,
   "emails": [
     {
       "display": "string",
@@ -919,6 +921,7 @@ curl -X PATCH http://coder-server:8080/api/v2/scim/v2/Users/{id} \
 ```json
 {
   "active": true,
+  "dormant": true,
   "emails": [
     {
       "display": "string",

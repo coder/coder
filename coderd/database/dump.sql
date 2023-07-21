@@ -595,7 +595,7 @@ CREATE TABLE users (
     hashed_password bytea NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    status user_status DEFAULT 'active'::user_status NOT NULL,
+    status user_status DEFAULT 'dormant'::user_status NOT NULL,
     rbac_roles text[] DEFAULT '{}'::text[] NOT NULL,
     login_type login_type DEFAULT 'password'::login_type NOT NULL,
     avatar_url text,

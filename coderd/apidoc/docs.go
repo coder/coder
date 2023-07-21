@@ -4027,6 +4027,40 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/{user}/status/dormant": {
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Mark user account as dormant",
+                "operationId": "dormant-user-account",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.User"
+                        }
+                    }
+                }
+            }
+        },
         "/users/{user}/status/suspend": {
             "put": {
                 "security": [
@@ -6500,6 +6534,9 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "active": {
+                    "type": "boolean"
+                },
+                "dormant": {
                     "type": "boolean"
                 },
                 "emails": {
