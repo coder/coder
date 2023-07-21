@@ -97,7 +97,10 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 		TemplateIDs: templateIDs,
 	})
 	if err != nil {
-		httpapi.InternalServerError(rw, err)
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching user latency.",
+			Detail:  err.Error(),
+		})
 		return
 	}
 
@@ -105,7 +108,10 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 	// latency data.
 	users, err := api.Database.GetUsers(ctx, database.GetUsersParams{})
 	if err != nil {
-		httpapi.InternalServerError(rw, err)
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching users.",
+			Detail:  err.Error(),
+		})
 		return
 	}
 
@@ -238,7 +244,10 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	}, nil)
 	if err != nil {
-		httpapi.InternalServerError(rw, err)
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template insights.",
+			Detail:  err.Error(),
+		})
 		return
 	}
 
