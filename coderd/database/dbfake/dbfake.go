@@ -2073,7 +2073,92 @@ func (q *FakeQuerier) GetTemplateParameterInsights(ctx context.Context, arg data
 		return nil, err
 	}
 
-	panic("not implemented")
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	// WITH latest_workspace_builds ...
+	latestWorkspaceBuilds := make(map[uuid.UUID]database.WorkspaceBuild)
+	for _, wb := range q.workspaceBuilds {
+		if wb.CreatedAt.Before(arg.StartTime) || wb.CreatedAt.Equal(arg.EndTime) || wb.CreatedAt.After(arg.EndTime) {
+			continue
+		}
+		if latestWorkspaceBuilds[wb.WorkspaceID].BuildNumber < wb.BuildNumber {
+			latestWorkspaceBuilds[wb.WorkspaceID] = wb
+		}
+	}
+	if len(arg.TemplateIDs) > 0 {
+		for wsID := range latestWorkspaceBuilds {
+			ws, err := q.getWorkspaceByIDNoLock(ctx, wsID)
+			if err != nil {
+				return nil, err
+			}
+			if slices.Contains(arg.TemplateIDs, ws.TemplateID) {
+				delete(latestWorkspaceBuilds, wsID)
+			}
+		}
+	}
+	// WITH unique_template_params ...
+	num := int64(0)
+	uniqueTemplateParams := make(map[string]*database.GetTemplateParameterInsightsRow)
+	uniqueTemplateParamWorkspaceBuildIDs := make(map[string][]uuid.UUID)
+	for _, wb := range latestWorkspaceBuilds {
+		tv, err := q.getTemplateVersionByIDNoLock(ctx, wb.TemplateVersionID)
+		if err != nil {
+			return nil, err
+		}
+		for _, tvp := range q.templateVersionParameters {
+			if tvp.TemplateVersionID != tv.ID {
+				continue
+			}
+			key := fmt.Sprintf("%s:%s:%s:%s", tvp.Name, tvp.DisplayName, tvp.Description, tvp.Options)
+			if _, ok := uniqueTemplateParams[key]; !ok {
+				num++
+				uniqueTemplateParams[key] = &database.GetTemplateParameterInsightsRow{
+					Num:         num,
+					Name:        tvp.Name,
+					DisplayName: tvp.DisplayName,
+					Description: tvp.Description,
+					Options:     tvp.Options,
+				}
+			}
+			uniqueTemplateParams[key].TemplateIDs = append(uniqueTemplateParams[key].TemplateIDs, tv.TemplateID.UUID)
+			uniqueTemplateParamWorkspaceBuildIDs[key] = append(uniqueTemplateParamWorkspaceBuildIDs[key], wb.ID)
+		}
+	}
+	// SELECT ...
+	counts := make(map[string]map[string]int64)
+	for key, utp := range uniqueTemplateParams {
+		for _, wbp := range q.workspaceBuildParameters {
+			if !slices.Contains(uniqueTemplateParamWorkspaceBuildIDs[key], wbp.WorkspaceBuildID) {
+				continue
+			}
+			if wbp.Name != utp.Name {
+				continue
+			}
+			if counts[key] == nil {
+				counts[key] = make(map[string]int64)
+			}
+			counts[key][wbp.Value]++
+		}
+	}
+
+	var rows []database.GetTemplateParameterInsightsRow
+	for key, utp := range uniqueTemplateParams {
+		for value, count := range counts[key] {
+			rows = append(rows, database.GetTemplateParameterInsightsRow{
+				Num:         utp.Num,
+				TemplateIDs: utp.TemplateIDs,
+				Name:        utp.Name,
+				DisplayName: utp.DisplayName,
+				Description: utp.Description,
+				Options:     utp.Options,
+				Value:       value,
+				Count:       count,
+			})
+		}
+	}
+
+	return rows, nil
 }
 
 func (q *FakeQuerier) GetTemplateVersionByID(ctx context.Context, templateVersionID uuid.UUID) (database.TemplateVersion, error) {
