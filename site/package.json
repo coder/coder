@@ -156,6 +156,8 @@
     "storybook-react-context": "0.6.0",
     "ts-proto": "1.153.2",
     "typescript": "5.1.6",
+    "ts-proto": "1.156.0",
+    "typescript": "4.8.2",
     "vite-plugin-checker": "0.6.0"
   },
   "browserslist": [

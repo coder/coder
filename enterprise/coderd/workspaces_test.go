@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
@@ -625,10 +624,10 @@ func TestWorkspaceAutobuild(t *testing.T) {
 func TestWorkspacesFiltering(t *testing.T) {
 	t.Parallel()
 
-	t.Run("FilterQueryHasDeletingByAndLicensed", func(t *testing.T) {
+	t.Run("DeletingBy", func(t *testing.T) {
 		t.Parallel()
 
-		inactivityTTL := 1 * 24 * time.Hour
+		lockedTTL := 24 * time.Hour
 
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -642,34 +641,103 @@ func TestWorkspacesFiltering(t *testing.T) {
 		})
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 
 		// update template with inactivity ttl
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
 		template, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			InactivityTTLMillis: inactivityTTL.Milliseconds(),
+			LockedTTLMillis: lockedTTL.Milliseconds(),
 		})
-
-		assert.NoError(t, err)
-		assert.Equal(t, inactivityTTL.Milliseconds(), template.InactivityTTLMillis)
+		require.NoError(t, err)
+		require.Equal(t, lockedTTL.Milliseconds(), template.LockedTTLMillis)
 
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 		// stop build so workspace is inactive
 		stopBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, stopBuild.ID)
+		err = client.UpdateWorkspaceLock(ctx, workspace.ID, codersdk.UpdateWorkspaceLock{
+			Lock: true,
+		})
+		require.NoError(t, err)
+		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+		require.NotNil(t, workspace.DeletingAt)
 
 		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			// adding a second to time.Now() to give some buffer in case test runs quickly
-			FilterQuery: fmt.Sprintf("deleting_by:%s", time.Now().Add(time.Second).Add(inactivityTTL).Format("2006-01-02")),
+			FilterQuery: fmt.Sprintf("deleting_by:%s", time.Now().Add(time.Second).Add(lockedTTL).Format("2006-01-02")),
 		})
-		assert.NoError(t, err)
-		assert.Len(t, res.Workspaces, 1)
-		assert.Equal(t, workspace.ID, res.Workspaces[0].ID)
+		require.NoError(t, err)
+		require.Len(t, res.Workspaces, 1)
+		require.Equal(t, workspace.ID, res.Workspaces[0].ID)
+	})
+}
+
+func TestWorkspaceLock(t *testing.T) {
+	t.Parallel()
+
+	t.Run("TemplateLockedTTL", func(t *testing.T) {
+		t.Parallel()
+		var (
+			client, user = coderdenttest.New(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					IncludeProvisionerDaemon: true,
+					TemplateScheduleStore:    &schedule.EnterpriseTemplateScheduleStore{},
+				},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureAdvancedTemplateScheduling: 1,
+					},
+				},
+			})
+
+			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			lockedTTL = time.Minute
+		)
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.LockedTTLMillis = ptr.Ref[int64](lockedTTL.Milliseconds())
+		})
+
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		lastUsedAt := workspace.LastUsedAt
+		err := client.UpdateWorkspaceLock(ctx, workspace.ID, codersdk.UpdateWorkspaceLock{
+			Lock: true,
+		})
+		require.NoError(t, err)
+
+		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+		require.NoError(t, err, "fetch provisioned workspace")
+		require.NotNil(t, workspace.DeletingAt)
+		require.NotNil(t, workspace.LockedAt)
+		require.Equal(t, workspace.LockedAt.Add(lockedTTL), *workspace.DeletingAt)
+		require.WithinRange(t, *workspace.LockedAt, time.Now().Add(-time.Second*10), time.Now())
+		// Locking a workspace shouldn't update the last_used_at.
+		require.Equal(t, lastUsedAt, workspace.LastUsedAt)
+
+		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+		lastUsedAt = workspace.LastUsedAt
+		err = client.UpdateWorkspaceLock(ctx, workspace.ID, codersdk.UpdateWorkspaceLock{
+			Lock: false,
+		})
+		require.NoError(t, err)
+
+		workspace, err = client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err, "fetch provisioned workspace")
+		require.Nil(t, workspace.LockedAt)
+		// Unlocking a workspace should cause the deleting_at to be unset.
+		require.Nil(t, workspace.DeletingAt)
+		// The last_used_at should get updated when we unlock the workspace.
+		require.True(t, workspace.LastUsedAt.After(lastUsedAt))
 	})
 }

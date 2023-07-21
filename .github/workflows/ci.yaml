@@ -85,6 +85,7 @@ jobs:
             ts:
               - "site/**"
               - "Makefile"
+              - "offlinedocs/**"
             k8s:
               - "helm/**"
               - "scripts/Dockerfile"
@@ -240,6 +241,7 @@ jobs:
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 20
     strategy:
+      fail-fast: false
       matrix:
         os:
           - ubuntu-latest
