@@ -2734,7 +2734,7 @@ func (q *FakeQuerier) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (
 	return q.getWorkspaceBuildByIDNoLock(ctx, id)
 }
 
-func (q *FakeQuerier) GetWorkspaceBuildByJobID(_g context.Context, jobID uuid.UUID) (database.WorkspaceBuild, error) {
+func (q *FakeQuerier) GetWorkspaceBuildByJobID(_ context.Context, jobID uuid.UUID) (database.WorkspaceBuild, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 

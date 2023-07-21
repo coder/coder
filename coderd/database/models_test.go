@@ -23,6 +23,34 @@ func TestViewSubsetTemplate(t *testing.T) {
 	}
 }
 
+// TestViewSubsetTemplateVersion ensures TemplateVersionTable is a subset TemplateVersion
+func TestViewSubsetTemplateVersion(t *testing.T) {
+	t.Parallel()
+	table := reflect.TypeOf(database.TemplateVersionTable{})
+	joined := reflect.TypeOf(database.TemplateVersion{})
+
+	tableFields := allFields(table)
+	joinedFields := allFields(joined)
+	if !assert.Subset(t, fieldNames(joinedFields), fieldNames(tableFields), "table is not subset") {
+		t.Log("Some fields were added to the TemplateVersion Table without updating the 'template_version_with_user' view.")
+		t.Log("See migration 000141_join_users_build_version.up.sql to create the view.")
+	}
+}
+
+// TestViewSubsetWorkspaceBuild ensures WorkspaceBuildTable is a subset of WorkspaceBuild
+func TestViewSubsetWorkspaceBuild(t *testing.T) {
+	t.Parallel()
+	table := reflect.TypeOf(database.WorkspaceBuildTable{})
+	joined := reflect.TypeOf(database.WorkspaceBuild{})
+
+	tableFields := allFields(table)
+	joinedFields := allFields(joined)
+	if !assert.Subset(t, fieldNames(joinedFields), fieldNames(tableFields), "table is not subset") {
+		t.Log("Some fields were added to the WorkspaceBuild Table without updating the 'workspace_build_with_user' view.")
+		t.Log("See migration 000141_join_users_build_version.up.sql to create the view.")
+	}
+}
+
 func fieldNames(fields []reflect.StructField) []string {
 	names := make([]string, len(fields))
 	for i, field := range fields {
