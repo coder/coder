@@ -133,14 +133,14 @@ func Test_parseInsightsStartAndEndTime(t *testing.T) {
 			rw := httptest.NewRecorder()
 			gotStartTime, gotEndTime, gotOk := parseInsightsStartAndEndTime(context.Background(), rw, tt.args.startTime, tt.args.endTime)
 
-			// assert.Equal is unable to test time equality with different
-			// (but same) locations because the *time.Location names differ
-			// between LoadLocation and Parse, so we use assert.WithinDuration.
 			if !assert.Equal(t, tt.wantOk, gotOk) {
 				//nolint:bodyclose
 				t.Log("Status: ", rw.Result().StatusCode)
 				t.Log("Body: ", rw.Body.String())
 			}
+			// assert.Equal is unable to test time equality with different
+			// (but same) locations because the *time.Location names differ
+			// between LoadLocation and Parse, so we use assert.WithinDuration.
 			assert.WithinDuration(t, tt.wantStartTime, gotStartTime, 0)
 			assert.True(t, tt.wantStartTime.Equal(gotStartTime))
 			assert.WithinDuration(t, tt.wantEndTime, gotEndTime, 0)
