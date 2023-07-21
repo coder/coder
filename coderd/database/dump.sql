@@ -113,8 +113,11 @@ CREATE TYPE startup_script_behavior AS ENUM (
 
 CREATE TYPE user_status AS ENUM (
     'active',
-    'suspended'
+    'suspended',
+    'dormant'
 );
+
+COMMENT ON TYPE user_status IS 'Defines the user status: active, dormant, or suspended.';
 
 CREATE TYPE workspace_agent_lifecycle_state AS ENUM (
     'created',

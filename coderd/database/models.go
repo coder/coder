@@ -1032,11 +1032,13 @@ func AllStartupScriptBehaviorValues() []StartupScriptBehavior {
 	}
 }
 
+// Defines the user status: active, dormant, or suspended.
 type UserStatus string
 
 const (
 	UserStatusActive    UserStatus = "active"
 	UserStatusSuspended UserStatus = "suspended"
+	UserStatusDormant   UserStatus = "dormant"
 )
 
 func (e *UserStatus) Scan(src interface{}) error {
@@ -1077,7 +1079,8 @@ func (ns NullUserStatus) Value() (driver.Value, error) {
 func (e UserStatus) Valid() bool {
 	switch e {
 	case UserStatusActive,
-		UserStatusSuspended:
+		UserStatusSuspended,
+		UserStatusDormant:
 		return true
 	}
 	return false
@@ -1087,6 +1090,7 @@ func AllUserStatusValues() []UserStatus {
 	return []UserStatus{
 		UserStatusActive,
 		UserStatusSuspended,
+		UserStatusDormant,
 	}
 }
 
