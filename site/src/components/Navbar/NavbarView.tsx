@@ -299,7 +299,8 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
               marginTop: 0.5,
             }}
           >
-            Workspace proxies improve terminal and web app connections to workspaces. This does not apply to SSH connections.  
+            Workspace proxies improve terminal and web app connections to
+            workspaces. This does not apply to SSH connections.
           </Typography>
         </Box>
         <Divider sx={{ borderColor: (theme) => theme.palette.divider }} />
