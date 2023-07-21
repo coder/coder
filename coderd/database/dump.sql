@@ -876,7 +876,8 @@ CREATE TABLE workspaces (
     autostart_schedule text,
     ttl bigint,
     last_used_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL,
-    locked_at timestamp with time zone
+    locked_at timestamp with time zone,
+    deleting_at timestamp with time zone
 );
 
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq'::regclass);

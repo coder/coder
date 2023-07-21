@@ -178,7 +178,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 				// Lock the workspace if it has breached the template's
 				// threshold for inactivity.
 				if reason == database.BuildReasonAutolock {
-					err = tx.UpdateWorkspaceLockedAt(e.ctx, database.UpdateWorkspaceLockedAtParams{
+					err = tx.UpdateWorkspaceLockedDeletingAt(e.ctx, database.UpdateWorkspaceLockedDeletingAtParams{
 						ID: ws.ID,
 						LockedAt: sql.NullTime{
 							Time:  database.Now(),
@@ -347,11 +347,11 @@ func isEligibleForLockedStop(ws database.Workspace, templateSchedule schedule.Te
 
 func isEligibleForDelete(ws database.Workspace, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) bool {
 	// Only attempt to delete locked workspaces.
-	return ws.LockedAt.Valid &&
+	return ws.LockedAt.Valid && ws.DeletingAt.Valid &&
 		// Locked workspaces should only be deleted if a locked_ttl is specified.
 		templateSchedule.LockedTTL > 0 &&
 		// The workspace must breach the locked_ttl.
-		currentTick.Sub(ws.LockedAt.Time) > templateSchedule.LockedTTL
+		currentTick.After(ws.DeletingAt.Time)
 }
 
 // isEligibleForFailedStop returns true if the workspace is eligible to be stopped

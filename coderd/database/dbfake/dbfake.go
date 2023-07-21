@@ -339,6 +339,8 @@ func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspac
 			AutostartSchedule: w.AutostartSchedule,
 			Ttl:               w.Ttl,
 			LastUsedAt:        w.LastUsedAt,
+			LockedAt:          w.LockedAt,
+			DeletingAt:        w.DeletingAt,
 			Count:             count,
 		}
 
@@ -5042,24 +5044,42 @@ func (q *FakeQuerier) UpdateWorkspaceLastUsedAt(_ context.Context, arg database.
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateWorkspaceLockedAt(_ context.Context, arg database.UpdateWorkspaceLockedAtParams) error {
+func (q *FakeQuerier) UpdateWorkspaceLockedDeletingAt(_ context.Context, arg database.UpdateWorkspaceLockedDeletingAtParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
 	}
-
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
-
 	for index, workspace := range q.workspaces {
 		if workspace.ID != arg.ID {
 			continue
 		}
 		workspace.LockedAt = arg.LockedAt
-		workspace.LastUsedAt = database.Now()
+		if workspace.LockedAt.Time.IsZero() {
+			workspace.LastUsedAt = database.Now()
+			workspace.DeletingAt = sql.NullTime{}
+		}
+		if !workspace.LockedAt.Time.IsZero() {
+			var template database.TemplateTable
+			for _, t := range q.templates {
+				if t.ID == workspace.TemplateID {
+					template = t
+					break
+				}
+			}
+			if template.ID == uuid.Nil {
+				return xerrors.Errorf("unable to find workspace template")
+			}
+			if template.LockedTTL > 0 {
+				workspace.DeletingAt = sql.NullTime{
+					Valid: true,
+					Time:  workspace.LockedAt.Time.Add(time.Duration(template.LockedTTL)),
+				}
+			}
+		}
 		q.workspaces[index] = workspace
 		return nil
 	}
-
 	return sql.ErrNoRows
 }
 
@@ -5121,6 +5141,32 @@ func (q *FakeQuerier) UpdateWorkspaceTTL(_ context.Context, arg database.UpdateW
 	}
 
 	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateWorkspacesDeletingAtByTemplateID(_ context.Context, arg database.UpdateWorkspacesDeletingAtByTemplateIDParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	for i, ws := range q.workspaces {
+		if ws.LockedAt.Time.IsZero() {
+			continue
+		}
+		deletingAt := sql.NullTime{
+			Valid: arg.LockedTtlMs > 0,
+		}
+		if arg.LockedTtlMs > 0 {
+			deletingAt.Time = ws.LockedAt.Time.Add(time.Duration(arg.LockedTtlMs) * time.Millisecond)
+		}
+		ws.DeletingAt = deletingAt
+		q.workspaces[i] = ws
+	}
+
+	return nil
 }
 
 func (q *FakeQuerier) UpsertAppSecurityKey(_ context.Context, data string) error {
