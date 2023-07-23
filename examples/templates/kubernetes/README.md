@@ -7,7 +7,7 @@ icon: /icon/k8s.png
 
 # Getting started
 
-This template creates a pod running the `codercom/enterprise-base:ubuntu` image.
+This template creates a deplyment running the `codercom/enterprise-base:ubuntu` image.
 
 ## Authentication
 
@@ -62,7 +62,7 @@ You may want to deploy workspaces on a cluster outside of the Coder control plan
 
 ## Namespace
 
-The target namespace in which the pod will be deployed is defined via the `coder_workspace`
+The target namespace in which the deployment will be deployed is defined via the `coder_workspace`
 variable. The namespace must exist prior to creating workspaces.
 
 ## Persistence
@@ -96,3 +96,14 @@ resource "coder_agent" "main" {
 `code-server` is installed via the `startup_script` argument in the `coder_agent`
 resource block. The `coder_app` resource is defined to access `code-server` through
 the dashboard UI over `localhost:13337`.
+
+## Deployment logs
+
+To stream kubernetes pods events from the deployment, you can use Coder's [`coder-logstream-kube`](https://github.com/coder/coder-logstream-kube) tool. This can stream logs from the deployment to Coder's workspace startup logs. You just need to install the `coder-kubestream-logs` helm chart on the cluster where the deployment is running.
+
+```shell
+helm repo add coder-logstream-kube https://helm.coder.com/logstream-kube
+helm install coder-logstream-kube coder-logstream-kube/coder-logstream-kube \
+    --namespace coder \
+    --set url=<your-coder-url-including-http-or-https>
+```
