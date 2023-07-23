@@ -41,17 +41,7 @@ realpath() {
 # We have to define realpath before these otherwise it fails on Mac's bash.
 SCRIPT="${BASH_SOURCE[1]:-${BASH_SOURCE[0]}}"
 SCRIPT_DIR="$(realpath "$(dirname "$SCRIPT")")"
-
-function project_root {
-  dir=$(pwd)
-
-  while [[ "$dir" != "" && ! -e "$dir/.git" && ! -e "$dir/.sl" ]]; do
-    dir=${dir%/*}
-  done
-
-  echo "$dir"
-}
-PROJECT_ROOT="$(cd "$SCRIPT_DIR" && realpath "$(project_root)")"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR" && realpath "$(git rev-parse --show-toplevel)")"
 
 # pushd is a silent alternative to the real pushd shell command.
 pushd() {
