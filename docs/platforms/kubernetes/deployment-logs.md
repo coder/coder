@@ -8,4 +8,3 @@ helm install coder-logstream-kube coder-logstream-kube/coder-logstream-kube \
     --namespace coder \
     --set url=<your-coder-url-including-http-or-https>
 ```
-
