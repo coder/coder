@@ -137,21 +137,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: "Set up kubeconfig"
+      - name: Set up kubeconfig
         run: |
           set -euxo pipefail
           mkdir -p ~/.kube
           echo "${{ secrets.DELIVERYBOT_KUBECONFIG }}" > ~/.kube/config
           export KUBECONFIG=~/.kube/config
 
-      - name: "Create PR namespace"
+      - name: Create PR namespace
         run: |
           set -euxo pipefail
           # try to delete the namespace, but don't fail if it doesn't exist
           kubectl delete namespace "pr${{ env.PR_NUMBER }}" || true
           kubectl create namespace "pr${{ env.PR_NUMBER }}"
 
-      - name: "Install Helm chart"
+      - name: Install Helm chart
         run: |
           helm upgrade --install pr${{ env.PR_NUMBER }}  ./helm \
           --namespace "pr${{ env.PR_NUMBER }}" \
@@ -163,7 +163,7 @@ jobs:
           --set coder.env[0].value="" \
           --force
 
-      - name: "Get deployment URL"
+      - name: Get deployment URL
         id: deployment_url
         run: |
           set -euo pipefail
@@ -172,7 +172,14 @@ jobs:
           CODER_ACCESS_URL=$(kubectl logs $POD_NAME -n "pr${{ env.PR_NUMBER }}" | grep "Web UI:" | awk -F ':' '{print $2":"$3}' | awk '{$1=$1};1')
           echo "::add-mask::$CODER_ACCESS_URL"
           echo "CODER_ACCESS_URL=$CODER_ACCESS_URL" >> $GITHUB_OUTPUT
-
+      
+      - name: Install coder-logstream-kube
+        run: |
+          helm repo add coder-logstream-kube https://helm.coder.com/logstream-kube
+          helm install coder-logstream-kube coder-logstream-kube/coder-logstream-kube \
+            --namespace "pr${{ env.PR_NUMBER }}"
+            --set url="${{ steps.deployment_url.outputs.CODER_ACCESS_URL }}"s
+            
       - name: Send Slack notification
         run: |
           curl -s -o /dev/null -X POST -H 'Content-type: application/json' \
