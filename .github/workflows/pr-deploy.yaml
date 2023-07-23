@@ -178,8 +178,8 @@ jobs:
         run: |
           helm repo add coder-logstream-kube https://helm.coder.com/logstream-kube
           helm install coder-logstream-kube coder-logstream-kube/coder-logstream-kube \
-            --namespace "pr${{ env.PR_NUMBER }}"
-            --set url="${{ steps.deployment_url.outputs.CODER_ACCESS_URL }}"s
+            --namespace "pr${{ env.PR_NUMBER }}" \
+            --set url="${{ steps.deployment_url.outputs.CODER_ACCESS_URL }}"
 
       - name: Send Slack notification
         run: |
