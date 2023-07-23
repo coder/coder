@@ -2,6 +2,7 @@
 name: Deploy PR
 on:
   issue_comment:
+    types: [created, edited]
   workflow_dispatch:
     inputs:
       pr_number:
