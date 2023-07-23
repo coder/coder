@@ -144,14 +144,14 @@ jobs:
           mkdir -p ~/.kube
           echo "${{ secrets.DELIVERYBOT_KUBECONFIG }}" > ~/.kube/config
           export KUBECONFIG=~/.kube/config
-
+      
       - name: Create PR namespace
         run: |
           set -euxo pipefail
           # try to delete the namespace, but don't fail if it doesn't exist
           kubectl delete namespace "pr${{ env.PR_NUMBER }}" || true
           kubectl create namespace "pr${{ env.PR_NUMBER }}"
-
+      
       - name: Install Helm chart
         run: |
           helm upgrade --install pr${{ env.PR_NUMBER }}  ./helm \
