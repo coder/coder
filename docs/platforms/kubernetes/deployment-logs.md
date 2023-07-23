@@ -23,14 +23,18 @@ helm install coder-logstream-kube coder-logstream-kube/coder-logstream-kube \
 
 Here is an example of the logs you can expect to see in the workspace startup logs:
 
-### Normal pod deployment logs
+### Normal pod deployment
 
-![normal pod deployment logs](./coder-logstream-kube-logs-normal.png)
+![normal pod deployment](./coder-logstream-kube-logs-normal.png)
 
-### Pod deployment failure logs
+### Wrong image
 
-![pod deployment failure logs](./coder-logstream-kube-logs-wrong-image.png)
+![Wrong image name](./coder-logstream-kube-logs-wrong-image.png)
 
-### Pod crash logs
+### Kubernetes quota exceeded
 
-TODO: add screenshot of pod crash logs
+![Kubernetes quota exceeded](./coder-logstream-kube-logs-quota-exceeded.png)
+
+### Pod crash loop
+
+![Pod crash loop](./coder-logstream-kube-logs-pod-crashed.png)
