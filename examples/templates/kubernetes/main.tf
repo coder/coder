@@ -221,10 +221,10 @@ resource "kubernetes_persistent_volume_claim" "home" {
 }
 
 resource "kubernetes_deployment" "main" {
-  count = data.coder_workspace.me.start_count  
+  count = data.coder_workspace.me.start_count
   depends_on = [
     kubernetes_persistent_volume_claim.home
-  ]   
+  ]
   wait_for_rollout = false
   metadata {
     name = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
@@ -232,11 +232,11 @@ resource "kubernetes_deployment" "main" {
       "app.kubernetes.io/name"     = "coder-workspace"
       "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
       "app.kubernetes.io/part-of"  = "coder"
-      "com.coder.resource"       = "true"
-      "com.coder.workspace.id"   = data.coder_workspace.me.id
-      "com.coder.workspace.name" = data.coder_workspace.me.name
-      "com.coder.user.id"        = data.coder_workspace.me.owner_id
-      "com.coder.user.username"  = data.coder_workspace.me.owner
+      "com.coder.resource"         = "true"
+      "com.coder.workspace.id"     = data.coder_workspace.me.id
+      "com.coder.workspace.name"   = data.coder_workspace.me.name
+      "com.coder.user.id"          = data.coder_workspace.me.owner_id
+      "com.coder.user.username"    = data.coder_workspace.me.owner
     }
     annotations = {
       "com.coder.user.email" = data.coder_workspace.me.owner_email
@@ -263,7 +263,7 @@ resource "kubernetes_deployment" "main" {
           run_as_user = 1000
           fs_group    = 1000
         }
-        
+
         container {
           name              = "dev"
           image             = "codercom/enterprise-base:ubuntu"
