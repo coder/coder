@@ -227,7 +227,7 @@ resource "kubernetes_deployment" "main" {
   ]
   wait_for_rollout = false
   metadata {
-    name = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+    name      = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
     namespace = var.namespace
     labels = {
       "app.kubernetes.io/name"     = "coder-workspace"
@@ -303,8 +303,8 @@ resource "kubernetes_deployment" "main" {
         }
 
         affinity {
-        // This affinity attempts to spread out all workspace pods evenly across
-        // nodes.
+          // This affinity attempts to spread out all workspace pods evenly across
+          // nodes.
           pod_anti_affinity {
             preferred_during_scheduling_ignored_during_execution {
               weight = 1
