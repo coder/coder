@@ -158,6 +158,7 @@ jobs:
           --set coder.image.repo=${{ env.REPO }} \
           --set coder.image.tag=pr${{ env.PR_NUMBER }} \
           --set coder.service.type=ClusterIP \
+          --set coder.serviceAccount.enableDeployments=true \
           --set coder.env[0].name=CODER_ACCESS_URL \
           --set coder.env[0].value="" \
           --force
