@@ -10,6 +10,7 @@ import {
   HelpTooltipTitle,
   HelpTooltipText,
 } from "components/Tooltips/HelpTooltip"
+import { UserAvatar } from "components/UserAvatar/UserAvatar"
 import { getLatencyColor } from "utils/latency"
 
 export default function TemplateInsightsPage() {
@@ -83,10 +84,21 @@ const UserLatencyPanel = (props: BoxProps) => {
                   display: "flex",
                   justifyContent: "space-between",
                   fontSize: 14,
+                  py: 1,
                 }}
               >
-                <Box sx={{ fontWeight: 500 }}>{row.username}</Box>
-                <Box sx={{ color: getLatencyColor(theme, row.latency_ms.p95) }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                  <UserAvatar username={row.username} avatarURL="" />
+                  <Box sx={{ fontWeight: 500 }}>{row.username}</Box>
+                </Box>
+                <Box
+                  sx={{
+                    color: getLatencyColor(theme, row.latency_ms.p95),
+                    fontWeight: 500,
+                    fontSize: 13,
+                    textAlign: "right",
+                  }}
+                >
                   {row.latency_ms.p95.toFixed(0)}ms
                 </Box>
               </Box>
