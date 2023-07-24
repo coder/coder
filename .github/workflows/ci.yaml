@@ -164,7 +164,7 @@ jobs:
         uses: ./.github/actions/setup-go
 
       - name: Setup sqlc
-        uses: ./github/actions/setup-sqlc
+        uses: ./.github/actions/setup-sqlc
 
       - name: go install tools
         run: |
