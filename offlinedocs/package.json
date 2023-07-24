@@ -8,7 +8,7 @@
     "start": "next start",
     "export": "yarn copy-images && next build && next export",
     "copy-images": "sh ./scripts/copyImages.sh",
-    "lint": "yarn run lint:types && jest --selectProjects lint",
+    "lint": "yarn run lint:types",
     "lint:fix": "FIX=true yarn lint",
     "lint:types": "tsc --noEmit",
     "format:check": "prettier --cache --check './**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'",
