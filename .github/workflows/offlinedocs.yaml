@@ -20,7 +20,7 @@ concurrency:
 jobs:
   fmt:
     name: fmt
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -28,7 +28,10 @@ jobs:
       - name: Install Pretier
         run: |
           cd offlinedocs
-          yarn
+          mv package.json package.json.bak
+          jq '{dependencies: {prettier: .devDependencies.prettier}}' < package.json.bak > package.json
+          yarn --frozen-lockfile
+          mv package.json.bak package.json
 
       - name: Check format
         run: |
@@ -37,13 +40,17 @@ jobs:
 
   lint:
     name: lint
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
 
       - name: Setup Node
-        uses: ./.github/actions/setup-node
+        uses: buildjet/setup-node@v3
+        with:
+          node-version: 16.20.1
+          cache: "yarn"
+          cache-dependency-path: "offlinedocs/yarn.lock"
 
       - name: lint
         run: |
@@ -52,13 +59,17 @@ jobs:
 
   build:
     name: build
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
 
       - name: Setup Node
-        uses: ./.github/actions/setup-node
+        uses: buildjet/setup-node@v3
+        with:
+          node-version: 16.20.1
+          cache: "yarn"
+          cache-dependency-path: "offlinedocs/yarn.lock"
 
       - name: Build
         run: |
