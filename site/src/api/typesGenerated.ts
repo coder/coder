@@ -140,6 +140,12 @@ export interface BuildInfoResponse {
   readonly workspace_proxy: boolean
 }
 
+// From codersdk/insights.go
+export interface ConnectionLatency {
+  readonly p50: number
+  readonly p95: number
+}
+
 // From codersdk/users.go
 export interface ConvertLoginRequest {
   readonly to_type: LoginType
@@ -886,6 +892,16 @@ export interface TemplateACL {
   readonly group: TemplateGroup[]
 }
 
+// From codersdk/insights.go
+export interface TemplateAppUsage {
+  readonly template_ids: string[]
+  readonly type: TemplateAppsType
+  readonly display_name: string
+  readonly slug: string
+  readonly icon: string
+  readonly seconds: number
+}
+
 // From codersdk/templates.go
 export type TemplateBuildTimeStats = Record<
   WorkspaceTransition,
@@ -906,6 +922,38 @@ export interface TemplateExample {
 // From codersdk/templates.go
 export interface TemplateGroup extends Group {
   readonly role: TemplateRole
+}
+
+// From codersdk/insights.go
+export interface TemplateInsightsIntervalReport {
+  readonly start_time: string
+  readonly end_time: string
+  readonly template_ids: string[]
+  readonly interval: InsightsReportInterval
+  readonly active_users: number
+}
+
+// From codersdk/insights.go
+export interface TemplateInsightsReport {
+  readonly start_time: string
+  readonly end_time: string
+  readonly template_ids: string[]
+  readonly active_users: number
+  readonly apps_usage: TemplateAppUsage[]
+}
+
+// From codersdk/insights.go
+export interface TemplateInsightsRequest {
+  readonly start_time: string
+  readonly end_time: string
+  readonly template_ids: string[]
+  readonly interval: InsightsReportInterval
+}
+
+// From codersdk/insights.go
+export interface TemplateInsightsResponse {
+  readonly report: TemplateInsightsReport
+  readonly interval_reports: TemplateInsightsIntervalReport[]
 }
 
 // From codersdk/templates.go
@@ -1114,6 +1162,34 @@ export interface User {
   readonly organization_ids: string[]
   readonly roles: Role[]
   readonly avatar_url: string
+}
+
+// From codersdk/insights.go
+export interface UserLatency {
+  readonly template_ids: string[]
+  readonly user_id: string
+  readonly username: string
+  readonly latency_ms: ConnectionLatency
+}
+
+// From codersdk/insights.go
+export interface UserLatencyInsightsReport {
+  readonly start_time: string
+  readonly end_time: string
+  readonly template_ids: string[]
+  readonly users: UserLatency[]
+}
+
+// From codersdk/insights.go
+export interface UserLatencyInsightsRequest {
+  readonly start_time: string
+  readonly end_time: string
+  readonly template_ids: string[]
+}
+
+// From codersdk/insights.go
+export interface UserLatencyInsightsResponse {
+  readonly report: UserLatencyInsightsReport
 }
 
 // From codersdk/users.go
@@ -1513,6 +1589,10 @@ export const GitProviders: GitProvider[] = [
   "gitlab",
 ]
 
+// From codersdk/insights.go
+export type InsightsReportInterval = "day"
+export const InsightsReportIntervals: InsightsReportInterval[] = ["day"]
+
 // From codersdk/provisionerdaemons.go
 export type JobErrorCode =
   | "MISSING_TEMPLATE_PARAMETER"
@@ -1663,6 +1743,10 @@ export const ServerSentEventTypes: ServerSentEventType[] = [
   "error",
   "ping",
 ]
+
+// From codersdk/insights.go
+export type TemplateAppsType = "builtin"
+export const TemplateAppsTypes: TemplateAppsType[] = ["builtin"]
 
 // From codersdk/templates.go
 export type TemplateRole = "" | "admin" | "use"

@@ -27,9 +27,8 @@ import {
 } from "../../xServices/workspace/workspaceXService"
 import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog"
 import { ChangeVersionDialog } from "./ChangeVersionDialog"
-import { useQuery } from "@tanstack/react-query"
-import { getTemplateVersions } from "api/api"
-import { useRestartWorkspace } from "./hooks"
+import { useMutation, useQuery } from "@tanstack/react-query"
+import { getTemplateVersions, restartWorkspace } from "api/api"
 import {
   ConfirmDialog,
   ConfirmDialogProps,
@@ -89,7 +88,10 @@ export const WorkspaceReadyPage = ({
     enabled: changeVersionDialogOpen,
   })
   const [isConfirmingUpdate, setIsConfirmingUpdate] = useState(false)
-  const [isConfirmingRestart, setIsConfirmingRestart] = useState(false)
+  const [confirmingRestart, setConfirmingRestart] = useState<{
+    open: boolean
+    buildParameters?: TypesGen.WorkspaceBuildParameter[]
+  }>({ open: false })
   const user = useMe()
   const { isWarningIgnored, ignoreWarning } = useIgnoreWarnings(user.id)
   const buildLogs = useBuildLogs(workspace)
@@ -99,10 +101,12 @@ export const WorkspaceReadyPage = ({
       workspace.latest_build.status,
     )
   const {
-    mutate: restartWorkspace,
+    mutate: mutateRestartWorkspace,
     error: restartBuildError,
     isLoading: isRestarting,
-  } = useRestartWorkspace()
+  } = useMutation({
+    mutationFn: restartWorkspace,
+  })
   // keep banner machine in sync with workspace
   useEffect(() => {
     bannerSend({ type: "REFRESH_WORKSPACE", workspace })
@@ -154,9 +158,9 @@ export const WorkspaceReadyPage = ({
         handleDelete={() => workspaceSend({ type: "ASK_DELETE" })}
         handleRestart={(buildParameters) => {
           if (isWarningIgnored("restart")) {
-            restartWorkspace({ workspace, buildParameters })
+            mutateRestartWorkspace({ workspace, buildParameters })
           } else {
-            setIsConfirmingRestart(true)
+            setConfirmingRestart({ open: true, buildParameters })
           }
         }}
         handleUpdate={() => {
@@ -253,15 +257,18 @@ export const WorkspaceReadyPage = ({
       />
 
       <WarningDialog
-        open={isConfirmingRestart}
+        open={confirmingRestart.open}
         onConfirm={(shouldIgnore) => {
           if (shouldIgnore) {
             ignoreWarning("restart")
           }
-          restartWorkspace({ workspace })
-          setIsConfirmingRestart(false)
+          mutateRestartWorkspace({
+            workspace,
+            buildParameters: confirmingRestart.buildParameters,
+          })
+          setConfirmingRestart({ open: false })
         }}
-        onClose={() => setIsConfirmingRestart(false)}
+        onClose={() => setConfirmingRestart({ open: false })}
         title="Confirm restart"
         confirmText="Restart"
         description="Are you sure you want to restart your workspace? Updating your workspace will stop all running processes and delete non-persistent data."

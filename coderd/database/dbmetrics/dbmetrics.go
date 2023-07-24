@@ -599,6 +599,20 @@ func (m metricsStore) GetTemplateDAUs(ctx context.Context, arg database.GetTempl
 	return daus, err
 }
 
+func (m metricsStore) GetTemplateDailyInsights(ctx context.Context, arg database.GetTemplateDailyInsightsParams) ([]database.GetTemplateDailyInsightsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateDailyInsights(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetTemplateDailyInsights").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) GetTemplateInsights(ctx context.Context, arg database.GetTemplateInsightsParams) (database.GetTemplateInsightsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateInsights(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetTemplateInsights").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (database.TemplateVersion, error) {
 	start := time.Now()
 	version, err := m.s.GetTemplateVersionByID(ctx, id)
@@ -695,6 +709,13 @@ func (m metricsStore) GetUserCount(ctx context.Context) (int64, error) {
 	count, err := m.s.GetUserCount(ctx)
 	m.queryLatencies.WithLabelValues("GetUserCount").Observe(time.Since(start).Seconds())
 	return count, err
+}
+
+func (m metricsStore) GetUserLatencyInsights(ctx context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserLatencyInsights(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetUserLatencyInsights").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) GetUserLinkByLinkedID(ctx context.Context, linkedID string) (database.UserLink, error) {

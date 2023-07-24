@@ -1173,6 +1173,22 @@ func (q *querier) GetTemplateDAUs(ctx context.Context, arg database.GetTemplateD
 	return q.db.GetTemplateDAUs(ctx, arg)
 }
 
+func (q *querier) GetTemplateDailyInsights(ctx context.Context, arg database.GetTemplateDailyInsightsParams) ([]database.GetTemplateDailyInsightsRow, error) {
+	// FIXME: this should maybe be READ rbac.ResourceTemplate or it's own resource.
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetTemplateDailyInsights(ctx, arg)
+}
+
+func (q *querier) GetTemplateInsights(ctx context.Context, arg database.GetTemplateInsightsParams) (database.GetTemplateInsightsRow, error) {
+	// FIXME: this should maybe be READ rbac.ResourceTemplate or it's own resource.
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.GetTemplateInsightsRow{}, err
+	}
+	return q.db.GetTemplateInsights(ctx, arg)
+}
+
 func (q *querier) GetTemplateVersionByID(ctx context.Context, tvid uuid.UUID) (database.TemplateVersion, error) {
 	tv, err := q.db.GetTemplateVersionByID(ctx, tvid)
 	if err != nil {
@@ -1337,6 +1353,13 @@ func (q *querier) GetUserCount(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 	return q.db.GetUserCount(ctx)
+}
+
+func (q *querier) GetUserLatencyInsights(ctx context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetUserLatencyInsights(ctx, arg)
 }
 
 func (q *querier) GetUserLinkByLinkedID(ctx context.Context, linkedID string) (database.UserLink, error) {
