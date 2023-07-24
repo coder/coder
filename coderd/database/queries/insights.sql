@@ -101,8 +101,8 @@ WITH d AS (
 			from_,
 			unnest(template_ids) AS template_id
 		FROM usage_by_day
-		WHERE usage_by_day.template_ids IS NOT NULL
 	) AS template_usage_by_day
+	WHERE template_id IS NOT NULL
 	GROUP BY template_usage_by_day.from_
 )
 
