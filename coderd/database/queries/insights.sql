@@ -95,17 +95,13 @@ WITH d AS (
 ), template_ids AS (
 	SELECT
 		template_usage_by_day.from_,
-		array_agg(DISTINCT id) AS ids
+		array_agg(template_id) AS ids
 	FROM (
-		SELECT template_usage_by_day_unnested.from_, unnest(ids) AS id
-		FROM (
-			SELECT DISTINCT
-				from_,
-				array_agg(DISTINCT template_id) AS ids
-			FROM usage_by_day, unnest(template_ids) template_id
-			WHERE template_id IS NOT NULL
-			GROUP BY from_, template_ids
-		) AS template_usage_by_day_unnested
+		SELECT DISTINCT
+			from_,
+			template_id
+		FROM usage_by_day, unnest(template_ids) template_id
+		WHERE template_id IS NOT NULL
 	) AS template_usage_by_day
 	GROUP BY template_usage_by_day.from_
 )
