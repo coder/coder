@@ -6,6 +6,7 @@
 SELECT
 	workspace_agent_stats.user_id,
 	users.username,
+	users.avatar_url,
 	array_agg(DISTINCT template_id)::uuid[] AS template_ids,
 	coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_50,
 	coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95

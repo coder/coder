@@ -117,6 +117,7 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 			TemplateIDs: row.TemplateIDs,
 			UserID:      row.UserID,
 			Username:    row.Username,
+			AvatarURL:   row.AvatarURL.String,
 			LatencyMS: codersdk.ConnectionLatency{
 				P50: row.WorkspaceConnectionLatency50,
 				P95: row.WorkspaceConnectionLatency95,
