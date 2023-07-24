@@ -95,7 +95,7 @@ WITH d AS (
 ), template_ids AS (
 	SELECT
 		template_usage_by_day.from_,
-		array_agg(template_id) AS ids
+		array_agg(template_usage_by_day.template_id) AS ids
 	FROM (
 		SELECT DISTINCT
 			from_,
