@@ -4879,6 +4879,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "avatar_url": "string",
   "latency_ms": {
     "p50": 31.312,
     "p95": 119.832
@@ -4893,6 +4894,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name           | Type                                                     | Required | Restrictions | Description |
 | -------------- | -------------------------------------------------------- | -------- | ------------ | ----------- |
+| `avatar_url`   | string                                                   | false    |              |             |
 | `latency_ms`   | [codersdk.ConnectionLatency](#codersdkconnectionlatency) | false    |              |             |
 | `template_ids` | array of string                                          | false    |              |             |
 | `user_id`      | string                                                   | false    |              |             |
@@ -4907,6 +4909,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
   "users": [
     {
+      "avatar_url": "string",
       "latency_ms": {
         "p50": 31.312,
         "p95": 119.832
@@ -4938,6 +4941,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "users": [
       {
+        "avatar_url": "string",
         "latency_ms": {
           "p50": 31.312,
           "p95": 119.832

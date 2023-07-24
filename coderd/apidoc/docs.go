@@ -9916,6 +9916,9 @@ const docTemplate = `{
         "codersdk.UserLatency": {
             "type": "object",
             "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
                 "latency_ms": {
                     "$ref": "#/definitions/codersdk.ConnectionLatency"
                 },
