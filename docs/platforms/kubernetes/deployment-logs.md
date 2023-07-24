@@ -12,7 +12,7 @@ To stream kubernetes pods events from the deployment, you can use Coder's [`code
 
 ## Prerequisites
 
-`coder-logstream-kube` works with the [`kubernetes_deployment`](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/deployment) terraform resource, which requires the `coder` service account to have permission to create deploymnets. For example if you are using [helm](https://coder.com/docs/v2/latest/install/kubernetes#install-coder-with-helm) to install Coder, you should set `coder.serviceAccount.enableDeployments=true` in your `values.yaml`
+`coder-logstream-kube` works with the [`kubernetes_deployment`](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/deployment) terraform resource, which requires the `coder` service account to have permission to create deployments. For example if you are using [helm](https://coder.com/docs/v2/latest/install/kubernetes#install-coder-with-helm) to install Coder, you should set `coder.serviceAccount.enableDeployments=true` in your `values.yaml`
 
 ```diff
 coder:
