@@ -601,7 +601,7 @@ jobs:
           workingDir: "./site"
 
   offlinedocs:
-    name: fmt
+    name: offlinedocs
     needs: changes
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     if: needs.changes.outputs.offlinedocs == 'true' || needs.changes.outputs.ci == 'true'
@@ -619,12 +619,12 @@ jobs:
           cd offlinedocs
           yarn
 
-      - name: Check format
+      - name: Format
         run: |
           cd offlinedocs
           yarn format:check
 
-      - name: lint
+      - name: Lint
         run: |
           cd offlinedocs
           yarn && yarn lint
