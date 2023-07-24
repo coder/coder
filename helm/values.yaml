@@ -75,7 +75,7 @@ coder:
     workspacePerms: true
     # coder.serviceAccount.enableDeployments -- Provides the service account permission
     # to manage Kubernetes deployments.
-    enableDeployments: false
+    enableDeployments: true
     # coder.serviceAccount.annotations -- The Coder service account annotations.
     annotations: {}
     # coder.serviceAccount.name -- The service account name
