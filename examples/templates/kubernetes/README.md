@@ -16,23 +16,14 @@ This template uses [`kubernetes_deployment`](https://registry.terraform.io/provi
 ```diff
 coder:
 serviceAccount:
-    # coder.serviceAccount.workspacePerms -- Whether or not to grant the coder
-    # service account permissions to manage workspaces. This includes
-    # permission to manage pods and persistent volume claims in the deployment
-    # namespace.
-    #
-    # It is recommended to keep this on if you are using Kubernetes templates
-    # within Coder.
     workspacePerms: true
-    # coder.serviceAccount.enableDeployments -- Provides the service account permission
-    # to manage Kubernetes deployments.
 -   enableDeployments: false
 +   enableDeployments: true
-    # coder.serviceAccount.annotations -- The Coder service account annotations.
     annotations: {}
-    # coder.serviceAccount.name -- The service account name
     name: coder
 ```
+
+> Note: This is only required for Coder versions < 0.28.0, as this will be the default value for Coder versions >= 0.28.0
 
 ## Authentication
 

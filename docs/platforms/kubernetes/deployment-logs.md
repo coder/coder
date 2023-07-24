@@ -20,6 +20,8 @@ serviceAccount:
     name: coder
 ```
 
+> Note: This is only required for Coder versions < 0.28.0, as this will be the default value for Coder versions >= 0.28.0
+
 ## Installation
 
 Install the `coder-kubestream-logs` helm chart on the cluster where the deployment is running.
