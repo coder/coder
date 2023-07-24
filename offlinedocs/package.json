@@ -23,7 +23,7 @@
     "front-matter": "4.0.2",
     "fs-extra": "10.1.0",
     "lodash": "4.17.21",
-    "next": "12.1.6",
+    "next": "13.4.12",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "react-icons": "4.10.1",
