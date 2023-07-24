@@ -8,6 +8,33 @@ To stream kubernetes pods events from the deployment, you can use Coder's [`code
 - Visibility into when pods are OOMKilled, or when they are evicted.
 - Filter by namespace, field selector, and label selector to reduce Kubernetes API load.
 
+## Prerequisite
+
+## Prerequisites
+
+`coder-logstream-kube` works with the [`kubernetes_deployment`](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/deployment) terraform resource, which requires the `coder` service account to have permission to create deploymnets. For example if you are using [helm](https://coder.com/docs/v2/latest/install/kubernetes#install-coder-with-helm) to install Coder, you should set `coder.serviceAccount.enableDeployments=true` in your `values.yaml`
+
+```diff
+coder:
+serviceAccount:
+    # coder.serviceAccount.workspacePerms -- Whether or not to grant the coder
+    # service account permissions to manage workspaces. This includes
+    # permission to manage pods and persistent volume claims in the deployment
+    # namespace.
+    #
+    # It is recommended to keep this on if you are using Kubernetes templates
+    # within Coder.
+    workspacePerms: true
+    # coder.serviceAccount.enableDeployments -- Provides the service account permission
+    # to manage Kubernetes deployments.
+-   enableDeployments: false
++   enableDeployments: true
+    # coder.serviceAccount.annotations -- The Coder service account annotations.
+    annotations: {}
+    # coder.serviceAccount.name -- The service account name
+    name: coder
+```
+
 ## Installation
 
 Install the `coder-kubestream-logs` helm chart on the cluster where the deployment is running.
