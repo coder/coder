@@ -124,4 +124,4 @@ helm install coder-logstream-kube coder-logstream-kube/coder-logstream-kube \
     --set url=<your-coder-url-including-http-or-https>
 ```
 
-For detailed instructions, see [Deployment logs](../../../docs/platforms/kubernetes/deployment-logs.md)
+For detailed instructions, see [Deployment logs](https://coder.com/docs/v2/latest/platforms/kubernetes/deployment-logs)
