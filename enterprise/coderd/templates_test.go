@@ -25,73 +25,7 @@ import (
 func TestTemplates(t *testing.T) {
 	t.Parallel()
 
-	t.Run("SetMaxTTL", func(t *testing.T) {
-		t.Parallel()
-
-		client, user := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				IncludeProvisionerDaemon: true,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAdvancedTemplateScheduling: 1,
-				},
-			},
-		})
-
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		require.EqualValues(t, 0, template.MaxTTLMillis)
-
-		// Create some workspaces to test propagation to user-defined TTLs.
-		workspace1 := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
-			ttl := (24 * time.Hour).Milliseconds()
-			cwr.TTLMillis = &ttl
-		})
-		workspace2TTL := (1 * time.Hour).Milliseconds()
-		workspace2 := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
-			cwr.TTLMillis = &workspace2TTL
-		})
-		workspace3 := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		// To unset TTL you have to update, as setting a nil TTL on create
-		// copies the template default TTL.
-		ctx := testutil.Context(t, testutil.WaitLong)
-		err := client.UpdateWorkspaceTTL(ctx, workspace3.ID, codersdk.UpdateWorkspaceTTLRequest{
-			TTLMillis: nil,
-		})
-		require.NoError(t, err)
-
-		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			Name:                         template.Name,
-			DisplayName:                  template.DisplayName,
-			Description:                  template.Description,
-			Icon:                         template.Icon,
-			AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
-			DefaultTTLMillis:             time.Hour.Milliseconds(),
-			MaxTTLMillis:                 (2 * time.Hour).Milliseconds(),
-		})
-		require.NoError(t, err)
-		require.Equal(t, 2*time.Hour, time.Duration(updated.MaxTTLMillis)*time.Millisecond)
-
-		template, err = client.Template(ctx, template.ID)
-		require.NoError(t, err)
-		require.Equal(t, 2*time.Hour, time.Duration(template.MaxTTLMillis)*time.Millisecond)
-
-		// Verify that only the first workspace has been updated.
-		workspace1, err = client.Workspace(ctx, workspace1.ID)
-		require.NoError(t, err)
-		require.Equal(t, &template.MaxTTLMillis, workspace1.TTLMillis)
-
-		workspace2, err = client.Workspace(ctx, workspace2.ID)
-		require.NoError(t, err)
-		require.Equal(t, &workspace2TTL, workspace2.TTLMillis)
-
-		workspace3, err = client.Workspace(ctx, workspace3.ID)
-		require.NoError(t, err)
-		require.Nil(t, workspace3.TTLMillis)
-	})
-
+	// TODO(@dean): remove legacy max_ttl tests
 	t.Run("CreateUpdateWorkspaceMaxTTL", func(t *testing.T) {
 		t.Parallel()
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
@@ -123,6 +57,7 @@ func TestTemplates(t *testing.T) {
 		}
 		ws, err := client.CreateWorkspace(ctx, template.OrganizationID, codersdk.Me, req)
 		require.NoError(t, err)
+		require.NotNil(t, ws.TTLMillis)
 		require.EqualValues(t, exp, *ws.TTLMillis)
 
 		// Editing a workspace to have a higher TTL than the template's max
@@ -182,6 +117,7 @@ func TestTemplates(t *testing.T) {
 		}
 		ws, err := client.CreateWorkspace(ctx, template.OrganizationID, codersdk.Me, req)
 		require.NoError(t, err)
+		require.NotNil(t, ws.TTLMillis)
 		require.EqualValues(t, exp, *ws.TTLMillis)
 
 		// Editing a workspace to disable the TTL should do nothing
@@ -202,6 +138,50 @@ func TestTemplates(t *testing.T) {
 		ws, err = client.Workspace(ctx, ws.ID)
 		require.NoError(t, err)
 		require.EqualValues(t, exp, *ws.TTLMillis)
+	})
+
+	t.Run("SetRestartRequirement", func(t *testing.T) {
+		t.Parallel()
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAdvancedTemplateScheduling: 1,
+				},
+			},
+		})
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		require.Empty(t, 0, template.RestartRequirement.DaysOfWeek)
+		require.Zero(t, template.RestartRequirement.Weeks)
+
+		// ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := context.Background()
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			Name:                         template.Name,
+			DisplayName:                  template.DisplayName,
+			Description:                  template.Description,
+			Icon:                         template.Icon,
+			AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
+			DefaultTTLMillis:             time.Hour.Milliseconds(),
+			RestartRequirement: &codersdk.TemplateRestartRequirement{
+				DaysOfWeek: []string{"monday", "saturday"},
+				Weeks:      3,
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{"monday", "saturday"}, updated.RestartRequirement.DaysOfWeek)
+		require.EqualValues(t, 3, updated.RestartRequirement.Weeks)
+
+		template, err = client.Template(ctx, template.ID)
+		require.NoError(t, err)
+		require.Equal(t, []string{"monday", "saturday"}, template.RestartRequirement.DaysOfWeek)
+		require.EqualValues(t, 3, template.RestartRequirement.Weeks)
 	})
 
 	t.Run("CleanupTTLs", func(t *testing.T) {
@@ -254,6 +234,78 @@ func TestTemplates(t *testing.T) {
 		require.Equal(t, failureTTL, updated.FailureTTLMillis)
 		require.Equal(t, inactivityTTL, updated.InactivityTTLMillis)
 		require.Equal(t, lockedTTL, updated.LockedTTLMillis)
+	})
+
+	t.Run("UpdateLockedTTL", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAdvancedTemplateScheduling: 1,
+				},
+			},
+		})
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		unlockedWorkspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		lockedWorkspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		require.Nil(t, unlockedWorkspace.DeletingAt)
+		require.Nil(t, lockedWorkspace.DeletingAt)
+
+		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, unlockedWorkspace.LatestBuild.ID)
+		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, lockedWorkspace.LatestBuild.ID)
+
+		err := client.UpdateWorkspaceLock(ctx, lockedWorkspace.ID, codersdk.UpdateWorkspaceLock{
+			Lock: true,
+		})
+		require.NoError(t, err)
+
+		lockedWorkspace = coderdtest.MustWorkspace(t, client, lockedWorkspace.ID)
+		require.NotNil(t, lockedWorkspace.LockedAt)
+		// The deleting_at field should be nil since there is no template locked_ttl set.
+		require.Nil(t, lockedWorkspace.DeletingAt)
+
+		lockedTTL := time.Minute
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			LockedTTLMillis: lockedTTL.Milliseconds(),
+		})
+		require.NoError(t, err)
+		require.Equal(t, lockedTTL.Milliseconds(), updated.LockedTTLMillis)
+
+		unlockedWorkspace = coderdtest.MustWorkspace(t, client, unlockedWorkspace.ID)
+		require.Nil(t, unlockedWorkspace.LockedAt)
+		require.Nil(t, unlockedWorkspace.DeletingAt)
+
+		lockedWorkspace = coderdtest.MustWorkspace(t, client, lockedWorkspace.ID)
+		require.NotNil(t, lockedWorkspace.LockedAt)
+		require.NotNil(t, lockedWorkspace.DeletingAt)
+		require.Equal(t, lockedWorkspace.LockedAt.Add(lockedTTL), *lockedWorkspace.DeletingAt)
+
+		// Disable the locked_ttl on the template, then we can assert that the workspaces
+		// no longer have a deleting_at field.
+		updated, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			LockedTTLMillis: 0,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 0, updated.LockedTTLMillis)
+
+		// The unlocked workspace should remain unchanged.
+		unlockedWorkspace = coderdtest.MustWorkspace(t, client, unlockedWorkspace.ID)
+		require.Nil(t, unlockedWorkspace.LockedAt)
+		require.Nil(t, unlockedWorkspace.DeletingAt)
+
+		// Fetch the locked workspace. It should still be locked, but it should no
+		// longer be scheduled for deletion.
+		lockedWorkspace = coderdtest.MustWorkspace(t, client, lockedWorkspace.ID)
+		require.NotNil(t, lockedWorkspace.LockedAt)
+		require.Nil(t, lockedWorkspace.DeletingAt)
 	})
 }
 

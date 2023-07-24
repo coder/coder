@@ -347,20 +347,6 @@ SET
 WHERE
 	id = $1;
 
--- name: UpdateWorkspaceTTLToBeWithinTemplateMax :exec
-UPDATE
-	workspaces
-SET
-	ttl = LEAST(ttl, @template_max_ttl::bigint)
-WHERE
-	template_id = @template_id
-	-- LEAST() does not pick NULL, so filter it out as we don't want to set a
-	-- TTL on the workspace if it's unset.
-	--
-	-- During build time, the template max TTL will still be used if the
-	-- workspace TTL is NULL.
-	AND ttl IS NOT NULL;
-
 -- name: GetDeploymentWorkspaceStats :one
 WITH workspaces_with_jobs AS (
 	SELECT
@@ -488,11 +474,30 @@ WHERE
 		)
 	) AND workspaces.deleted = 'false';
 
--- name: UpdateWorkspaceLockedAt :exec
+-- name: UpdateWorkspaceLockedDeletingAt :exec
 UPDATE
 	workspaces
 SET
 	locked_at = $2,
-	last_used_at = now() at time zone 'utc'
+	-- When a workspace is unlocked we want to update the last_used_at to avoid the workspace getting re-locked.
+	-- if we're locking the workspace then we leave it alone.
+	last_used_at = CASE WHEN $2::timestamptz IS NULL THEN now() at time zone 'utc' ELSE last_used_at END,
+	-- If locked_at is null (meaning unlocked) or the template-defined locked_ttl is 0 we should set
+	-- deleting_at to NULL else set it to the locked_at + locked_ttl duration.
+	deleting_at = CASE WHEN $2::timestamptz IS NULL OR templates.locked_ttl = 0 THEN NULL ELSE $2::timestamptz + INTERVAL '1 milliseconds' * templates.locked_ttl / 1000000 END
+FROM
+	templates
 WHERE
-	id = $1;
+	workspaces.template_id = templates.id
+AND
+	workspaces.id = $1;
+
+-- name: UpdateWorkspacesDeletingAtByTemplateID :exec
+UPDATE
+	workspaces
+SET
+	deleting_at = CASE WHEN @locked_ttl_ms::bigint = 0 THEN NULL ELSE locked_at + interval '1 milliseconds' * @locked_ttl_ms::bigint END
+WHERE
+	template_id = @template_id
+AND
+	locked_at IS NOT NULL;

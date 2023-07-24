@@ -20,6 +20,7 @@ import (
 )
 
 func NewClient(t testing.TB,
+	logger slog.Logger,
 	agentID uuid.UUID,
 	manifest agentsdk.Manifest,
 	statsChan chan *agentsdk.Stats,
@@ -30,6 +31,7 @@ func NewClient(t testing.TB,
 	}
 	return &Client{
 		t:              t,
+		logger:         logger.Named("client"),
 		agentID:        agentID,
 		manifest:       manifest,
 		statsChan:      statsChan,
@@ -40,6 +42,7 @@ func NewClient(t testing.TB,
 
 type Client struct {
 	t                    testing.TB
+	logger               slog.Logger
 	agentID              uuid.UUID
 	manifest             agentsdk.Manifest
 	metadata             map[string]agentsdk.PostMetadataRequest
@@ -114,14 +117,16 @@ func (c *Client) GetLifecycleStates() []codersdk.WorkspaceAgentLifecycle {
 	return c.lifecycleStates
 }
 
-func (c *Client) PostLifecycle(_ context.Context, req agentsdk.PostLifecycleRequest) error {
+func (c *Client) PostLifecycle(ctx context.Context, req agentsdk.PostLifecycleRequest) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.lifecycleStates = append(c.lifecycleStates, req.State)
+	c.logger.Debug(ctx, "post lifecycle", slog.F("req", req))
 	return nil
 }
 
-func (*Client) PostAppHealth(_ context.Context, _ agentsdk.PostAppHealthsRequest) error {
+func (c *Client) PostAppHealth(ctx context.Context, req agentsdk.PostAppHealthsRequest) error {
+	c.logger.Debug(ctx, "post app health", slog.F("req", req))
 	return nil
 }
 
@@ -137,20 +142,22 @@ func (c *Client) GetMetadata() map[string]agentsdk.PostMetadataRequest {
 	return maps.Clone(c.metadata)
 }
 
-func (c *Client) PostMetadata(_ context.Context, key string, req agentsdk.PostMetadataRequest) error {
+func (c *Client) PostMetadata(ctx context.Context, key string, req agentsdk.PostMetadataRequest) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.metadata == nil {
 		c.metadata = make(map[string]agentsdk.PostMetadataRequest)
 	}
 	c.metadata[key] = req
+	c.logger.Debug(ctx, "post metadata", slog.F("key", key), slog.F("req", req))
 	return nil
 }
 
-func (c *Client) PostStartup(_ context.Context, startup agentsdk.PostStartupRequest) error {
+func (c *Client) PostStartup(ctx context.Context, startup agentsdk.PostStartupRequest) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.startup = startup
+	c.logger.Debug(ctx, "post startup", slog.F("req", startup))
 	return nil
 }
 
@@ -160,13 +167,14 @@ func (c *Client) GetStartupLogs() []agentsdk.StartupLog {
 	return c.logs
 }
 
-func (c *Client) PatchStartupLogs(_ context.Context, logs agentsdk.PatchStartupLogs) error {
+func (c *Client) PatchStartupLogs(ctx context.Context, logs agentsdk.PatchStartupLogs) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.PatchWorkspaceLogs != nil {
 		return c.PatchWorkspaceLogs()
 	}
 	c.logs = append(c.logs, logs.Logs...)
+	c.logger.Debug(ctx, "patch startup logs", slog.F("req", logs))
 	return nil
 }
 
@@ -177,9 +185,10 @@ func (c *Client) SetServiceBannerFunc(f func() (codersdk.ServiceBannerConfig, er
 	c.GetServiceBannerFunc = f
 }
 
-func (c *Client) GetServiceBanner(_ context.Context) (codersdk.ServiceBannerConfig, error) {
+func (c *Client) GetServiceBanner(ctx context.Context) (codersdk.ServiceBannerConfig, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.logger.Debug(ctx, "get service banner")
 	if c.GetServiceBannerFunc != nil {
 		return c.GetServiceBannerFunc()
 	}

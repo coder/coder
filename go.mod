@@ -38,6 +38,16 @@ replace github.com/dlclark/regexp2 => github.com/dlclark/regexp2 v1.7.0
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
 replace tailscale.com => github.com/coder/tailscale v0.0.0-20230522123520-74712221d00f
 
+// Use our tempfork of gvisor that includes a fix for TCP connection stalls:
+// https://github.com/coder/coder/issues/7388
+// The basis for this fork is: gvisor.dev/gvisor v0.0.0-20230504175454-7b0a1988a28f
+// This is the same version as used by Tailscale `main`:
+// https://github.com/tailscale/tailscale/blob/c19b5bfbc391637b11c2acb3c725909a0046d849/go.mod#L88
+//
+// Latest gvisor otherwise has refactored packages and is currently incompatible with
+// Tailscale, to remove our tempfork this needs to be addressed.
+replace gvisor.dev/gvisor => github.com/coder/gvisor v0.0.0-20230714132058-be2e4ac102c3
+
 // Switch to our fork that imports fixes from http://github.com/tailscale/ssh.
 // See: https://github.com/coder/coder/issues/3371
 //
@@ -75,7 +85,7 @@ require (
 	github.com/codeclysm/extract/v3 v3.1.1
 	github.com/coder/flog v1.1.0
 	github.com/coder/retry v1.4.0
-	github.com/coder/terraform-provider-coder v0.11.0
+	github.com/coder/terraform-provider-coder v0.11.1
 	github.com/coder/wgtunnel v0.1.5
 	github.com/coreos/go-oidc/v3 v3.6.0
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
@@ -125,6 +135,7 @@ require (
 	github.com/mitchellh/go-wordwrap v1.0.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/moby/moby v24.0.1+incompatible
+	github.com/muesli/termenv v0.15.1
 	github.com/open-policy-agent/opa v0.51.0
 	github.com/ory/dockertest/v3 v3.10.0
 	github.com/pion/udp v0.1.2
@@ -167,7 +178,7 @@ require (
 	golang.org/x/tools v0.11.0
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	golang.zx2c4.com/wireguard v0.0.0-20230325221338-052af4a8072b
-	google.golang.org/api v0.131.0
+	google.golang.org/api v0.132.0
 	google.golang.org/grpc v1.56.2
 	google.golang.org/protobuf v1.31.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
@@ -181,7 +192,7 @@ require (
 require (
 	cloud.google.com/go/compute v1.20.1 // indirect
 	cloud.google.com/go/logging v1.7.0 // indirect
-	cloud.google.com/go/longrunning v0.4.1 // indirect
+	cloud.google.com/go/longrunning v0.5.1 // indirect
 	filippo.io/edwards25519 v1.0.0-rc.1 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
@@ -295,7 +306,6 @@ require (
 	github.com/muesli/ansi v0.0.0-20221106050444-61f0cd9a192a // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/muesli/reflow v0.3.0 // indirect
-	github.com/muesli/termenv v0.15.1
 	github.com/niklasfasching/go-org v1.7.0 // indirect
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
@@ -352,9 +362,9 @@ require (
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20230215201556-9c5414ab4bde // indirect
 	golang.zx2c4.com/wireguard/windows v0.5.3 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20230629202037-9506855d4529 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20230629202037-9506855d4529 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20230706204954-ccb25ca9f130 // indirect
+	google.golang.org/genproto v0.0.0-20230706204954-ccb25ca9f130 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20230706204954-ccb25ca9f130 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20230711160842-782d3b101e98 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	howett.net/plist v1.0.0 // indirect
 	inet.af/peercred v0.0.0-20210906144145-0893ea02156a // indirect

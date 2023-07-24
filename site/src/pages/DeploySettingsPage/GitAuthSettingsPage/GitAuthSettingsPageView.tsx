@@ -9,6 +9,7 @@ import { DeploymentValues, GitAuthConfig } from "api/typesGenerated"
 import { Alert } from "components/Alert/Alert"
 import { EnterpriseBadge } from "components/DeploySettingsLayout/Badges"
 import { Header } from "components/DeploySettingsLayout/Header"
+import { docs } from "utils/docs"
 
 export type GitAuthSettingsPageViewProps = {
   config: DeploymentValues
@@ -24,7 +25,7 @@ export const GitAuthSettingsPageView = ({
       <Header
         title="Git Authentication"
         description="Coder integrates with GitHub, GitLab, BitBucket, and Azure Repos to authenticate developers with your Git provider."
-        docsHref="https://coder.com/docs/coder-oss/latest/admin/git-providers"
+        docsHref={docs("/admin/git-providers")}
       />
 
       <video

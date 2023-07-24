@@ -62,8 +62,9 @@ func AuditLog(t testing.TB, db database.Store, seed database.AuditLog) database.
 }
 
 func Template(t testing.TB, db database.Store, seed database.Template) database.Template {
-	template, err := db.InsertTemplate(genCtx, database.InsertTemplateParams{
-		ID:                           takeFirst(seed.ID, uuid.New()),
+	id := takeFirst(seed.ID, uuid.New())
+	err := db.InsertTemplate(genCtx, database.InsertTemplateParams{
+		ID:                           id,
 		CreatedAt:                    takeFirst(seed.CreatedAt, database.Now()),
 		UpdatedAt:                    takeFirst(seed.UpdatedAt, database.Now()),
 		OrganizationID:               takeFirst(seed.OrganizationID, uuid.New()),
@@ -79,6 +80,9 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 		AllowUserCancelWorkspaceJobs: seed.AllowUserCancelWorkspaceJobs,
 	})
 	require.NoError(t, err, "insert template")
+
+	template, err := db.GetTemplateByID(context.Background(), id)
+	require.NoError(t, err, "get template")
 	return template
 }
 

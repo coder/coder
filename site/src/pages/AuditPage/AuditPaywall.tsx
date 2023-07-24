@@ -5,6 +5,7 @@ import { Paywall } from "components/Paywall/Paywall"
 import { Stack } from "components/Stack/Stack"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
+import { docs } from "utils/docs"
 
 export const AuditPaywall: FC = () => {
   const { t } = useTranslation("auditLog")
@@ -15,17 +16,13 @@ export const AuditPaywall: FC = () => {
       description={t("paywall.description")}
       cta={
         <Stack direction="row" alignItems="center">
-          <Link
-            href="https://coder.com/docs/coder-oss/latest/admin/upgrade"
-            target="_blank"
-            rel="noreferrer"
-          >
+          <Link href={docs("/admin/upgrade")} target="_blank" rel="noreferrer">
             <Button size="small" startIcon={<ArrowRightAltOutlined />}>
               {t("paywall.actions.upgrade")}
             </Button>
           </Link>
           <Link
-            href="https://coder.com/docs/coder-oss/latest/admin/audit-logs"
+            href={docs("/admin/audit-logs")}
             target="_blank"
             rel="noreferrer"
           >

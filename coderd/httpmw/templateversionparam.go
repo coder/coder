@@ -29,7 +29,7 @@ func ExtractTemplateVersionParam(db database.Store) func(http.Handler) http.Hand
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			templateVersionID, parsed := parseUUID(rw, r, "templateversion")
+			templateVersionID, parsed := ParseUUIDParam(rw, r, "templateversion")
 			if !parsed {
 				return
 			}

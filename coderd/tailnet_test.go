@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"net/netip"
 	"net/url"
-	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
@@ -63,66 +62,105 @@ func TestServerTailnet_AgentConn_Legacy(t *testing.T) {
 	assert.True(t, conn.AwaitReachable(ctx))
 }
 
-func TestServerTailnet_ReverseProxy_OK(t *testing.T) {
+func TestServerTailnet_ReverseProxy(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
 
-	// Force a connection through wsconncache using the legacy hardcoded ip.
-	agentID, _, serverTailnet := setupAgent(t, nil)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
 
-	u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", codersdk.WorkspaceAgentHTTPAPIServerPort))
-	require.NoError(t, err)
+		agentID, _, serverTailnet := setupAgent(t, nil)
 
-	rp, release, err := serverTailnet.ReverseProxy(u, u, agentID)
-	require.NoError(t, err)
-	defer release()
+		u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", codersdk.WorkspaceAgentHTTPAPIServerPort))
+		require.NoError(t, err)
 
-	rw := httptest.NewRecorder()
-	req := httptest.NewRequest(
-		http.MethodGet,
-		u.String(),
-		nil,
-	).WithContext(ctx)
+		rp, release, err := serverTailnet.ReverseProxy(u, u, agentID)
+		require.NoError(t, err)
+		defer release()
 
-	rp.ServeHTTP(rw, req)
-	res := rw.Result()
-	defer res.Body.Close()
+		rw := httptest.NewRecorder()
+		req := httptest.NewRequest(
+			http.MethodGet,
+			u.String(),
+			nil,
+		).WithContext(ctx)
 
-	assert.Equal(t, http.StatusOK, res.StatusCode)
-}
+		rp.ServeHTTP(rw, req)
+		res := rw.Result()
+		defer res.Body.Close()
 
-func TestServerTailnet_ReverseProxy_Legacy(t *testing.T) {
-	t.Parallel()
-
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-
-	// Force a connection through wsconncache using the legacy hardcoded ip.
-	agentID, _, serverTailnet := setupAgent(t, []netip.Prefix{
-		netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128),
+		assert.Equal(t, http.StatusOK, res.StatusCode)
 	})
 
-	u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", codersdk.WorkspaceAgentHTTPAPIServerPort))
-	require.NoError(t, err)
+	t.Run("HTTPSProxy", func(t *testing.T) {
+		t.Parallel()
 
-	rp, release, err := serverTailnet.ReverseProxy(u, u, agentID)
-	require.NoError(t, err)
-	defer release()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
 
-	rw := httptest.NewRecorder()
-	req := httptest.NewRequest(
-		http.MethodGet,
-		u.String(),
-		nil,
-	).WithContext(ctx)
+		agentID, _, serverTailnet := setupAgent(t, nil)
 
-	rp.ServeHTTP(rw, req)
-	res := rw.Result()
-	defer res.Body.Close()
+		const expectedResponseCode = 209
+		// Test that we can proxy HTTPS traffic.
+		s := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(expectedResponseCode)
+		}))
+		t.Cleanup(s.Close)
 
-	assert.Equal(t, http.StatusOK, res.StatusCode)
+		uri, err := url.Parse(s.URL)
+		require.NoError(t, err)
+
+		rp, release, err := serverTailnet.ReverseProxy(uri, uri, agentID)
+		require.NoError(t, err)
+		defer release()
+
+		rw := httptest.NewRecorder()
+		req := httptest.NewRequest(
+			http.MethodGet,
+			uri.String(),
+			nil,
+		).WithContext(ctx)
+
+		rp.ServeHTTP(rw, req)
+		res := rw.Result()
+		defer res.Body.Close()
+
+		assert.Equal(t, expectedResponseCode, res.StatusCode)
+	})
+
+	t.Run("Legacy", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Force a connection through wsconncache using the legacy hardcoded ip.
+		agentID, _, serverTailnet := setupAgent(t, []netip.Prefix{
+			netip.PrefixFrom(codersdk.WorkspaceAgentIP, 128),
+		})
+
+		u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", codersdk.WorkspaceAgentHTTPAPIServerPort))
+		require.NoError(t, err)
+
+		rp, release, err := serverTailnet.ReverseProxy(u, u, agentID)
+		require.NoError(t, err)
+		defer release()
+
+		rw := httptest.NewRecorder()
+		req := httptest.NewRequest(
+			http.MethodGet,
+			u.String(),
+			nil,
+		).WithContext(ctx)
+
+		rp.ServeHTTP(rw, req)
+		res := rw.Result()
+		defer res.Body.Close()
+
+		assert.Equal(t, http.StatusOK, res.StatusCode)
+	})
 }
 
 func setupAgent(t *testing.T, agentAddresses []netip.Prefix) (uuid.UUID, agent.Agent, *coderd.ServerTailnet) {
@@ -133,14 +171,12 @@ func setupAgent(t *testing.T, agentAddresses []netip.Prefix) (uuid.UUID, agent.A
 		DERPMap: derpMap,
 	}
 
-	var coordPtr atomic.Pointer[tailnet.Coordinator]
 	coord := tailnet.NewCoordinator(logger)
-	coordPtr.Store(&coord)
 	t.Cleanup(func() {
 		_ = coord.Close()
 	})
 
-	c := agenttest.NewClient(t, manifest.AgentID, manifest, make(chan *agentsdk.Stats, 50), coord)
+	c := agenttest.NewClient(t, logger, manifest.AgentID, manifest, make(chan *agentsdk.Stats, 50), coord)
 
 	options := agent.Options{
 		Client:     c,
@@ -194,7 +230,7 @@ func setupAgent(t *testing.T, agentAddresses []netip.Prefix) (uuid.UUID, agent.A
 		logger,
 		derpServer,
 		manifest.DERPMap,
-		&coordPtr,
+		func(context.Context) (tailnet.MultiAgentConn, error) { return coord.ServeMultiAgent(uuid.New()), nil },
 		cache,
 	)
 	require.NoError(t, err)

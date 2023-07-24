@@ -242,6 +242,292 @@ func TestTemplateEdit(t *testing.T) {
 		assert.Equal(t, "", updated.Icon)
 		assert.Equal(t, "", updated.DisplayName)
 	})
+	t.Run("RestartRequirement", func(t *testing.T) {
+		t.Parallel()
+		t.Run("BlockedAGPL", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+				ctr.DefaultTTLMillis = nil
+				ctr.RestartRequirement = nil
+			})
+
+			cases := []struct {
+				name  string
+				flags []string
+				ok    bool
+			}{
+				{
+					name: "Weekdays",
+					flags: []string{
+						"--restart-requirement-weekdays", "monday",
+					},
+				},
+				{
+					name: "WeekdaysNoneAllowed",
+					flags: []string{
+						"--restart-requirement-weekdays", "none",
+					},
+					ok: true,
+				},
+				{
+					name: "Weeks",
+					flags: []string{
+						"--restart-requirement-weeks", "1",
+					},
+				},
+			}
+
+			for _, c := range cases {
+				c := c
+				t.Run(c.name, func(t *testing.T) {
+					t.Parallel()
+
+					cmdArgs := []string{
+						"templates",
+						"edit",
+						template.Name,
+					}
+					cmdArgs = append(cmdArgs, c.flags...)
+					inv, root := clitest.New(t, cmdArgs...)
+					clitest.SetupConfig(t, client, root)
+
+					ctx := testutil.Context(t, testutil.WaitLong)
+					err := inv.WithContext(ctx).Run()
+					if c.ok {
+						require.NoError(t, err)
+					} else {
+						require.Error(t, err)
+						require.ErrorContains(t, err, "appears to be an AGPL deployment")
+					}
+
+					// Assert that the template metadata did not change.
+					updated, err := client.Template(context.Background(), template.ID)
+					require.NoError(t, err)
+					assert.Equal(t, template.Name, updated.Name)
+					assert.Equal(t, template.Description, updated.Description)
+					assert.Equal(t, template.Icon, updated.Icon)
+					assert.Equal(t, template.DisplayName, updated.DisplayName)
+					assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
+					assert.Equal(t, template.RestartRequirement.DaysOfWeek, updated.RestartRequirement.DaysOfWeek)
+					assert.Equal(t, template.RestartRequirement.Weeks, updated.RestartRequirement.Weeks)
+				})
+			}
+		})
+
+		t.Run("BlockedNotEntitled", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+				ctr.DefaultTTLMillis = nil
+				ctr.RestartRequirement = nil
+			})
+
+			// Make a proxy server that will return a valid entitlements
+			// response, but without advanced scheduling entitlement.
+			proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/api/v2/entitlements" {
+					res := codersdk.Entitlements{
+						Features:         map[codersdk.FeatureName]codersdk.Feature{},
+						Warnings:         []string{},
+						Errors:           []string{},
+						HasLicense:       true,
+						Trial:            true,
+						RequireTelemetry: false,
+					}
+					for _, feature := range codersdk.FeatureNames {
+						res.Features[feature] = codersdk.Feature{
+							Entitlement: codersdk.EntitlementNotEntitled,
+							Enabled:     false,
+							Limit:       nil,
+							Actual:      nil,
+						}
+					}
+					httpapi.Write(r.Context(), w, http.StatusOK, res)
+					return
+				}
+
+				// Otherwise, proxy the request to the real API server.
+				rp := httputil.NewSingleHostReverseProxy(client.URL)
+				rp.Transport = &http.Transport{
+					DisableKeepAlives: true,
+				}
+				rp.ServeHTTP(w, r)
+			}))
+			t.Cleanup(proxy.Close)
+
+			// Create a new client that uses the proxy server.
+			proxyURL, err := url.Parse(proxy.URL)
+			require.NoError(t, err)
+			proxyClient := codersdk.New(proxyURL)
+			proxyClient.SetSessionToken(client.SessionToken())
+
+			cases := []struct {
+				name  string
+				flags []string
+				ok    bool
+			}{
+				{
+					name: "Weekdays",
+					flags: []string{
+						"--restart-requirement-weekdays", "monday",
+					},
+				},
+				{
+					name: "WeekdaysNoneAllowed",
+					flags: []string{
+						"--restart-requirement-weekdays", "none",
+					},
+					ok: true,
+				},
+				{
+					name: "Weeks",
+					flags: []string{
+						"--restart-requirement-weeks", "1",
+					},
+				},
+			}
+
+			for _, c := range cases {
+				c := c
+				t.Run(c.name, func(t *testing.T) {
+					t.Parallel()
+
+					cmdArgs := []string{
+						"templates",
+						"edit",
+						template.Name,
+					}
+					cmdArgs = append(cmdArgs, c.flags...)
+					inv, root := clitest.New(t, cmdArgs...)
+					clitest.SetupConfig(t, proxyClient, root)
+
+					ctx := testutil.Context(t, testutil.WaitLong)
+					err := inv.WithContext(ctx).Run()
+					if c.ok {
+						require.NoError(t, err)
+					} else {
+						require.Error(t, err)
+						require.ErrorContains(t, err, "license is not entitled")
+					}
+
+					// Assert that the template metadata did not change.
+					updated, err := client.Template(context.Background(), template.ID)
+					require.NoError(t, err)
+					assert.Equal(t, template.Name, updated.Name)
+					assert.Equal(t, template.Description, updated.Description)
+					assert.Equal(t, template.Icon, updated.Icon)
+					assert.Equal(t, template.DisplayName, updated.DisplayName)
+					assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
+					assert.Equal(t, template.RestartRequirement.DaysOfWeek, updated.RestartRequirement.DaysOfWeek)
+					assert.Equal(t, template.RestartRequirement.Weeks, updated.RestartRequirement.Weeks)
+				})
+			}
+		})
+		t.Run("Entitled", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+				ctr.DefaultTTLMillis = nil
+				ctr.RestartRequirement = nil
+			})
+
+			// Make a proxy server that will return a valid entitlements
+			// response, including a valid advanced scheduling entitlement.
+			var updateTemplateCalled int64
+			proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/api/v2/entitlements" {
+					res := codersdk.Entitlements{
+						Features:         map[codersdk.FeatureName]codersdk.Feature{},
+						Warnings:         []string{},
+						Errors:           []string{},
+						HasLicense:       true,
+						Trial:            true,
+						RequireTelemetry: false,
+					}
+					for _, feature := range codersdk.FeatureNames {
+						var one int64 = 1
+						res.Features[feature] = codersdk.Feature{
+							Entitlement: codersdk.EntitlementNotEntitled,
+							Enabled:     true,
+							Limit:       &one,
+							Actual:      &one,
+						}
+					}
+					httpapi.Write(r.Context(), w, http.StatusOK, res)
+					return
+				}
+				if strings.HasPrefix(r.URL.Path, "/api/v2/templates/") {
+					body, err := io.ReadAll(r.Body)
+					require.NoError(t, err)
+					_ = r.Body.Close()
+
+					var req codersdk.UpdateTemplateMeta
+					err = json.Unmarshal(body, &req)
+					require.NoError(t, err)
+					assert.Equal(t, req.RestartRequirement.DaysOfWeek, []string{"monday", "tuesday"})
+					assert.EqualValues(t, req.RestartRequirement.Weeks, 3)
+
+					r.Body = io.NopCloser(bytes.NewReader(body))
+					atomic.AddInt64(&updateTemplateCalled, 1)
+					// We still want to call the real route.
+				}
+
+				// Otherwise, proxy the request to the real API server.
+				rp := httputil.NewSingleHostReverseProxy(client.URL)
+				rp.Transport = &http.Transport{
+					DisableKeepAlives: true,
+				}
+				rp.ServeHTTP(w, r)
+			}))
+			defer proxy.Close()
+
+			// Create a new client that uses the proxy server.
+			proxyURL, err := url.Parse(proxy.URL)
+			require.NoError(t, err)
+			proxyClient := codersdk.New(proxyURL)
+			proxyClient.SetSessionToken(client.SessionToken())
+
+			// Test the cli command.
+			cmdArgs := []string{
+				"templates",
+				"edit",
+				template.Name,
+				"--restart-requirement-weekdays", "monday,tuesday",
+				"--restart-requirement-weeks", "3",
+			}
+			inv, root := clitest.New(t, cmdArgs...)
+			clitest.SetupConfig(t, proxyClient, root)
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			err = inv.WithContext(ctx).Run()
+			require.NoError(t, err)
+
+			require.EqualValues(t, 1, atomic.LoadInt64(&updateTemplateCalled))
+
+			// Assert that the template metadata did not change. We verify the
+			// correct request gets sent to the server already.
+			updated, err := client.Template(context.Background(), template.ID)
+			require.NoError(t, err)
+			assert.Equal(t, template.Name, updated.Name)
+			assert.Equal(t, template.Description, updated.Description)
+			assert.Equal(t, template.Icon, updated.Icon)
+			assert.Equal(t, template.DisplayName, updated.DisplayName)
+			assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
+			assert.Equal(t, template.RestartRequirement.DaysOfWeek, updated.RestartRequirement.DaysOfWeek)
+			assert.Equal(t, template.RestartRequirement.Weeks, updated.RestartRequirement.Weeks)
+		})
+	})
+	// TODO(@dean): remove this test when we remove max_ttl
 	t.Run("MaxTTL", func(t *testing.T) {
 		t.Parallel()
 		t.Run("BlockedAGPL", func(t *testing.T) {
@@ -317,7 +603,11 @@ func TestTemplateEdit(t *testing.T) {
 				}
 
 				// Otherwise, proxy the request to the real API server.
-				httputil.NewSingleHostReverseProxy(client.URL).ServeHTTP(w, r)
+				rp := httputil.NewSingleHostReverseProxy(client.URL)
+				rp.Transport = &http.Transport{
+					DisableKeepAlives: true,
+				}
+				rp.ServeHTTP(w, r)
 			}))
 			defer proxy.Close()
 
@@ -404,7 +694,11 @@ func TestTemplateEdit(t *testing.T) {
 				}
 
 				// Otherwise, proxy the request to the real API server.
-				httputil.NewSingleHostReverseProxy(client.URL).ServeHTTP(w, r)
+				rp := httputil.NewSingleHostReverseProxy(client.URL)
+				rp.Transport = &http.Transport{
+					DisableKeepAlives: true,
+				}
+				rp.ServeHTTP(w, r)
 			}))
 			defer proxy.Close()
 
@@ -452,7 +746,7 @@ func TestTemplateEdit(t *testing.T) {
 			_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.DefaultTTLMillis = nil
-				ctr.MaxTTLMillis = nil
+				ctr.RestartRequirement = nil
 				ctr.FailureTTLMillis = nil
 				ctr.InactivityTTLMillis = nil
 			})
@@ -495,7 +789,8 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.Icon, updated.Icon)
 			assert.Equal(t, template.DisplayName, updated.DisplayName)
 			assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
-			assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
+			assert.Equal(t, template.RestartRequirement.DaysOfWeek, updated.RestartRequirement.DaysOfWeek)
+			assert.Equal(t, template.RestartRequirement.Weeks, updated.RestartRequirement.Weeks)
 			assert.Equal(t, template.AllowUserAutostart, updated.AllowUserAutostart)
 			assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
 			assert.Equal(t, template.FailureTTLMillis, updated.FailureTTLMillis)
@@ -535,7 +830,11 @@ func TestTemplateEdit(t *testing.T) {
 				}
 
 				// Otherwise, proxy the request to the real API server.
-				httputil.NewSingleHostReverseProxy(client.URL).ServeHTTP(w, r)
+				rp := httputil.NewSingleHostReverseProxy(client.URL)
+				rp.Transport = &http.Transport{
+					DisableKeepAlives: true,
+				}
+				rp.ServeHTTP(w, r)
 			}))
 			defer proxy.Close()
 
@@ -583,7 +882,8 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.Icon, updated.Icon)
 			assert.Equal(t, template.DisplayName, updated.DisplayName)
 			assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
-			assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
+			assert.Equal(t, template.RestartRequirement.DaysOfWeek, updated.RestartRequirement.DaysOfWeek)
+			assert.Equal(t, template.RestartRequirement.Weeks, updated.RestartRequirement.Weeks)
 			assert.Equal(t, template.AllowUserAutostart, updated.AllowUserAutostart)
 			assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
 			assert.Equal(t, template.FailureTTLMillis, updated.FailureTTLMillis)
@@ -639,7 +939,11 @@ func TestTemplateEdit(t *testing.T) {
 				}
 
 				// Otherwise, proxy the request to the real API server.
-				httputil.NewSingleHostReverseProxy(client.URL).ServeHTTP(w, r)
+				rp := httputil.NewSingleHostReverseProxy(client.URL)
+				rp.Transport = &http.Transport{
+					DisableKeepAlives: true,
+				}
+				rp.ServeHTTP(w, r)
 			}))
 			defer proxy.Close()
 
@@ -675,7 +979,8 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.Icon, updated.Icon)
 			assert.Equal(t, template.DisplayName, updated.DisplayName)
 			assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
-			assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
+			assert.Equal(t, template.RestartRequirement.DaysOfWeek, updated.RestartRequirement.DaysOfWeek)
+			assert.Equal(t, template.RestartRequirement.Weeks, updated.RestartRequirement.Weeks)
 			assert.Equal(t, template.AllowUserAutostart, updated.AllowUserAutostart)
 			assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
 			assert.Equal(t, template.FailureTTLMillis, updated.FailureTTLMillis)

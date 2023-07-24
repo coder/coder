@@ -100,8 +100,7 @@ export const UnhealthyTooltip = () => {
     >
       <HelpTooltipTitle>Workspace is unhealthy</HelpTooltipTitle>
       <HelpTooltipText>
-        Your workspace is running but some agents had failed during
-        initialization.
+        Your workspace is running but some agents are unhealthy.
       </HelpTooltipText>
     </HelpTooltip>
   )

@@ -8,7 +8,7 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
   const styles = useStyles()
 
   const description =
-    "Workspace proxies are used to reduce the latency of connections to your workspaces."
+    "Workspace proxies improve terminal and web app connections to workspaces."
 
   const {
     proxyLatencies,

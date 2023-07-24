@@ -1066,6 +1066,7 @@ func TestAgent_StartupScript(t *testing.T) {
 		t.Parallel()
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		client := agenttest.NewClient(t,
+			logger,
 			uuid.New(),
 			agentsdk.Manifest{
 				StartupScript: command,
@@ -1097,6 +1098,7 @@ func TestAgent_StartupScript(t *testing.T) {
 		t.Parallel()
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		client := agenttest.NewClient(t,
+			logger,
 			uuid.New(),
 			agentsdk.Manifest{
 				StartupScript: command,
@@ -1470,6 +1472,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 		derpMap, _ := tailnettest.RunDERPAndSTUN(t)
 
 		client := agenttest.NewClient(t,
+			logger,
 			uuid.New(),
 			agentsdk.Manifest{
 				DERPMap:        derpMap,
@@ -1855,6 +1858,7 @@ func TestAgent_Reconnect(t *testing.T) {
 	statsCh := make(chan *agentsdk.Stats, 50)
 	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
 	client := agenttest.NewClient(t,
+		logger,
 		agentID,
 		agentsdk.Manifest{
 			DERPMap: derpMap,
@@ -1889,6 +1893,7 @@ func TestAgent_WriteVSCodeConfigs(t *testing.T) {
 	defer coordinator.Close()
 
 	client := agenttest.NewClient(t,
+		logger,
 		uuid.New(),
 		agentsdk.Manifest{
 			GitAuthConfigs: 1,
@@ -2013,7 +2018,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	})
 	statsCh := make(chan *agentsdk.Stats, 50)
 	fs := afero.NewMemMapFs()
-	c := agenttest.NewClient(t, metadata.AgentID, metadata, statsCh, coordinator)
+	c := agenttest.NewClient(t, logger.Named("agent"), metadata.AgentID, metadata, statsCh, coordinator)
 
 	options := agent.Options{
 		Client:                 c,

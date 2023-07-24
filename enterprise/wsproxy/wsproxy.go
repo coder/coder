@@ -39,7 +39,8 @@ import (
 )
 
 type Options struct {
-	Logger slog.Logger
+	Logger      slog.Logger
+	Experiments codersdk.Experiments
 
 	HTTPClient *http.Client
 	// DashboardURL is the URL of the primary coderd instance.
@@ -231,6 +232,31 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("parse app security key: %w", err)
 	}
+
+	connInfo, err := client.SDKClient.WorkspaceAgentConnectionInfoGeneric(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("get derpmap: %w", err)
+	}
+
+	var agentProvider workspaceapps.AgentProvider
+	if opts.Experiments.Enabled(codersdk.ExperimentSingleTailnet) {
+		stn, err := coderd.NewServerTailnet(ctx,
+			s.Logger,
+			nil,
+			connInfo.DERPMap,
+			s.DialCoordinator,
+			wsconncache.New(s.DialWorkspaceAgent, 0),
+		)
+		if err != nil {
+			return nil, xerrors.Errorf("create server tailnet: %w", err)
+		}
+		agentProvider = stn
+	} else {
+		agentProvider = &wsconncache.AgentProvider{
+			Cache: wsconncache.New(s.DialWorkspaceAgent, 0),
+		}
+	}
+
 	s.AppServer = &workspaceapps.Server{
 		Logger:        opts.Logger.Named("workspaceapps"),
 		DashboardURL:  opts.DashboardURL,
@@ -248,10 +274,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		},
 		AppSecurityKey: secKey,
 
-		// TODO: Convert wsproxy to use coderd.ServerTailnet.
-		AgentProvider: &wsconncache.AgentProvider{
-			Cache: wsconncache.New(s.DialWorkspaceAgent, 0),
-		},
+		AgentProvider:    agentProvider,
 		DisablePathApps:  opts.DisablePathApps,
 		SecureAuthCookie: opts.SecureAuthCookie,
 	}
@@ -393,6 +416,10 @@ func (s *Server) handleRegisterFailure(err error) {
 		"failed to periodically re-register workspace proxy with primary Coder deployment",
 		slog.Error(err),
 	)
+}
+
+func (s *Server) DialCoordinator(ctx context.Context) (tailnet.MultiAgentConn, error) {
+	return s.SDKClient.DialCoordinator(ctx)
 }
 
 func (s *Server) buildInfo(rw http.ResponseWriter, r *http.Request) {

@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/cli"
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/codersdk"
@@ -220,6 +221,7 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 
 			proxy, err := wsproxy.New(ctx, &wsproxy.Options{
 				Logger:                 logger,
+				Experiments:            coderd.ReadExperiments(logger, cfg.Experiments.Value()),
 				HTTPClient:             httpClient,
 				DashboardURL:           primaryAccessURL.Value(),
 				AccessURL:              cfg.AccessURL.Value(),

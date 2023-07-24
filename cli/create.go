@@ -23,8 +23,6 @@ func (r *RootCmd) create() *clibase.Cmd {
 		startAt           string
 		stopAfter         time.Duration
 		workspaceName     string
-
-		parameterFlags workspaceParameterFlags
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -135,7 +133,6 @@ func (r *RootCmd) create() *clibase.Cmd {
 				Template:          template,
 				RichParameterFile: richParameterFile,
 				NewWorkspaceName:  workspaceName,
-				BuildOptions:      parameterFlags.buildOptions,
 			})
 			if err != nil {
 				return xerrors.Errorf("prepare build: %w", err)
@@ -152,8 +149,6 @@ func (r *RootCmd) create() *clibase.Cmd {
 			var ttlMillis *int64
 			if stopAfter > 0 {
 				ttlMillis = ptr.Ref(stopAfter.Milliseconds())
-			} else if template.MaxTTLMillis > 0 {
-				ttlMillis = &template.MaxTTLMillis
 			}
 
 			workspace, err := client.CreateWorkspace(inv.Context(), organization.ID, workspaceOwner, codersdk.CreateWorkspaceRequest{
@@ -204,8 +199,6 @@ func (r *RootCmd) create() *clibase.Cmd {
 		},
 		cliui.SkipPromptOption(),
 	)
-	cmd.Options = append(cmd.Options, parameterFlags.options()...)
-
 	return cmd
 }
 

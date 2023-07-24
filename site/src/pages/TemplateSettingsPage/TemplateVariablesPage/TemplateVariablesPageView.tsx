@@ -44,21 +44,23 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
     !errors.getTemplateDataError &&
     !errors.updateTemplateError
   const { t } = useTranslation("templateVariablesPage")
-
+  const hasError = Object.values(errors).some((error) => Boolean(error))
   return (
     <>
       <PageHeader className={classes.pageHeader}>
         <PageHeaderTitle>{t("title")}</PageHeaderTitle>
       </PageHeader>
-      <div className={classes.errorContainer}>
-        {Boolean(errors.getTemplateDataError) && (
-          <ErrorAlert error={errors.getTemplateDataError} />
-        )}
-        {Boolean(errors.updateTemplateError) && (
-          <ErrorAlert error={errors.updateTemplateError} />
-        )}
-        {Boolean(errors.jobError) && <ErrorAlert error={errors.jobError} />}
-      </div>
+      {hasError && (
+        <div className={classes.errorContainer}>
+          {Boolean(errors.getTemplateDataError) && (
+            <ErrorAlert error={errors.getTemplateDataError} />
+          )}
+          {Boolean(errors.updateTemplateError) && (
+            <ErrorAlert error={errors.updateTemplateError} />
+          )}
+          {Boolean(errors.jobError) && <ErrorAlert error={errors.jobError} />}
+        </div>
+      )}
       {isLoading && <Loader />}
       {templateVersion && templateVariables && templateVariables.length > 0 && (
         <TemplateVariablesForm

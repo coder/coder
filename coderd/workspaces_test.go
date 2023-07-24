@@ -1741,7 +1741,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 						UserAutostartEnabled: false,
 						UserAutostopEnabled:  false,
 						DefaultTTL:           0,
-						MaxTTL:               0,
+						RestartRequirement:   schedule.TemplateRestartRequirement{},
 					}, nil
 				},
 				SetFn: func(_ context.Context, _ database.Store, tpl database.Template, _ schedule.TemplateScheduleOptions) (database.Template, error) {
@@ -1837,13 +1837,13 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 		},
 		{
 			name:          "maximum ttl",
-			ttlMillis:     ptr.Ref((24 * 7 * time.Hour).Milliseconds()),
+			ttlMillis:     ptr.Ref((24 * 30 * time.Hour).Milliseconds()),
 			expectedError: "",
 		},
 		{
 			name:          "above maximum ttl",
-			ttlMillis:     ptr.Ref((24*7*time.Hour + time.Minute).Milliseconds()),
-			expectedError: "time until shutdown must be less than 7 days",
+			ttlMillis:     ptr.Ref((24*30*time.Hour + time.Minute).Milliseconds()),
+			expectedError: "time until shutdown must be less than 30 days",
 		},
 	}
 
@@ -1908,7 +1908,7 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 						UserAutostartEnabled: false,
 						UserAutostopEnabled:  false,
 						DefaultTTL:           0,
-						MaxTTL:               0,
+						RestartRequirement:   schedule.TemplateRestartRequirement{},
 					}, nil
 				},
 				SetFn: func(_ context.Context, _ database.Store, tpl database.Template, _ schedule.TemplateScheduleOptions) (database.Template, error) {
@@ -2121,12 +2121,6 @@ func TestWorkspaceWatcher(t *testing.T) {
 		return w.LatestBuild.Resources[0].Agents[0].Status == codersdk.WorkspaceAgentDisconnected
 	})
 
-	build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart)
-	wait("first is for the workspace build itself", nil)
-	err = client.CancelWorkspaceBuild(ctx, build.ID)
-	require.NoError(t, err)
-	wait("second is for the build cancel", nil)
-
 	err = client.UpdateWorkspace(ctx, workspace.ID, codersdk.UpdateWorkspaceRequest{
 		Name: "another",
 	})
@@ -2134,7 +2128,7 @@ func TestWorkspaceWatcher(t *testing.T) {
 	wait("update workspace name", nil)
 
 	// Add a new version that will fail.
-	updatedVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+	badVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:         echo.ParseComplete,
 		ProvisionPlan: echo.ProvisionComplete,
 		ProvisionApply: []*proto.Provision_Response{{
@@ -2147,23 +2141,32 @@ func TestWorkspaceWatcher(t *testing.T) {
 	}, func(req *codersdk.CreateTemplateVersionRequest) {
 		req.TemplateID = template.ID
 	})
-	coderdtest.AwaitTemplateVersionJob(t, client, updatedVersion.ID)
+	coderdtest.AwaitTemplateVersionJob(t, client, badVersion.ID)
 	err = client.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
-		ID: updatedVersion.ID,
+		ID: badVersion.ID,
 	})
 	require.NoError(t, err)
 	wait("update active template version", nil)
 
 	// Build with the new template; should end up with a failure state.
 	_ = coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart, func(req *codersdk.CreateWorkspaceBuildRequest) {
-		req.TemplateVersionID = updatedVersion.ID
+		req.TemplateVersionID = badVersion.ID
 	})
-	wait("workspace build pending", func(w codersdk.Workspace) bool {
-		return w.LatestBuild.Status == codersdk.WorkspaceStatusPending
+	// We want to verify pending state here, but it's possible that we reach
+	// failed state fast enough that we never see pending.
+	wait("workspace build pending or failed", func(w codersdk.Workspace) bool {
+		return w.LatestBuild.Status == codersdk.WorkspaceStatusPending || w.LatestBuild.Status == codersdk.WorkspaceStatusFailed
 	})
 	wait("workspace build failed", func(w codersdk.Workspace) bool {
 		return w.LatestBuild.Status == codersdk.WorkspaceStatusFailed
 	})
+
+	closeFunc.Close()
+	build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart)
+	wait("first is for the workspace build itself", nil)
+	err = client.CancelWorkspaceBuild(ctx, build.ID)
+	require.NoError(t, err)
+	wait("second is for the build cancel", nil)
 }
 
 func mustLocation(t *testing.T, location string) *time.Location {
@@ -2677,14 +2680,19 @@ func TestWorkspaceLock(t *testing.T) {
 			user      = coderdtest.CreateFirstUser(t, client)
 			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-			template  = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-			_         = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+			lockedTTL = time.Minute
 		)
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.LockedTTLMillis = ptr.Ref[int64](lockedTTL.Milliseconds())
+		})
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
+		lastUsedAt := workspace.LastUsedAt
 		err := client.UpdateWorkspaceLock(ctx, workspace.ID, codersdk.UpdateWorkspaceLock{
 			Lock: true,
 		})
@@ -2692,10 +2700,14 @@ func TestWorkspaceLock(t *testing.T) {
 
 		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
 		require.NoError(t, err, "fetch provisioned workspace")
+		// The template doesn't have a locked_ttl set so this should be nil.
+		require.Nil(t, workspace.DeletingAt)
 		require.NotNil(t, workspace.LockedAt)
 		require.WithinRange(t, *workspace.LockedAt, time.Now().Add(-time.Second*10), time.Now())
+		require.Equal(t, lastUsedAt, workspace.LastUsedAt)
 
-		lastUsedAt := workspace.LastUsedAt
+		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+		lastUsedAt = workspace.LastUsedAt
 		err = client.UpdateWorkspaceLock(ctx, workspace.ID, codersdk.UpdateWorkspaceLock{
 			Lock: false,
 		})
@@ -2704,6 +2716,9 @@ func TestWorkspaceLock(t *testing.T) {
 		workspace, err = client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err, "fetch provisioned workspace")
 		require.Nil(t, workspace.LockedAt)
+		// The template doesn't have a locked_ttl set so this should be nil.
+		require.Nil(t, workspace.DeletingAt)
+		// The last_used_at should get updated when we unlock the workspace.
 		require.True(t, workspace.LastUsedAt.After(lastUsedAt))
 	})
 

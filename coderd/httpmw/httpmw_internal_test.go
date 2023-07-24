@@ -29,7 +29,7 @@ func TestParseUUID_Valid(t *testing.T) {
 	ctx.URLParams.Add(testParam, testWorkspaceAgentID)
 	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, ctx))
 
-	parsed, ok := parseUUID(rw, r, "workspaceagent")
+	parsed, ok := ParseUUIDParam(rw, r, "workspaceagent")
 	assert.True(t, ok, "UUID should be parsed")
 	assert.Equal(t, testWorkspaceAgentID, parsed.String())
 }
@@ -44,7 +44,7 @@ func TestParseUUID_Invalid(t *testing.T) {
 	ctx.URLParams.Add(testParam, "wrong-id")
 	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, ctx))
 
-	_, ok := parseUUID(rw, r, "workspaceagent")
+	_, ok := ParseUUIDParam(rw, r, "workspaceagent")
 	assert.False(t, ok, "UUID should not be parsed")
 	assert.Equal(t, http.StatusBadRequest, rw.Code)
 

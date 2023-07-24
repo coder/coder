@@ -356,9 +356,17 @@ build/coder_helm_$(VERSION).tgz:
 		--output "$@"
 
 site/out/index.html: site/package.json $(shell find ./site $(FIND_EXCLUSIONS) -type f \( -name '*.ts' -o -name '*.tsx' \))
-	./scripts/yarn_install.sh
 	cd site
+	../scripts/yarn_install.sh
 	yarn build
+
+offlinedocs/out/index.html: $(shell find ./offlinedocs $(FIND_EXCLUSIONS) -type f) $(shell find ./docs $(FIND_EXCLUSIONS) -type f | sed 's: :\\ :g')
+	cd offlinedocs
+	../scripts/yarn_install.sh
+	yarn export
+
+build/coder_docs_$(VERSION).tgz: offlinedocs/out/index.html
+	tar -czf "$@" -C offlinedocs/out .
 
 install: build/coder_$(VERSION)_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT)
 	install_dir="$$(go env GOPATH)/bin"
@@ -402,8 +410,13 @@ else
 endif
 .PHONY: fmt/shfmt
 
-lint: lint/shellcheck lint/go lint/ts lint/helm
+lint: lint/shellcheck lint/go lint/ts lint/helm lint/site-icons
 .PHONY: lint
+
+lint/site-icons:
+	./scripts/check_site_icons.sh
+
+.PHONY: lint/site-icons
 
 lint/ts:
 	cd site

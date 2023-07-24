@@ -45,6 +45,7 @@ const (
 	FeatureExternalProvisionerDaemons FeatureName = "external_provisioner_daemons"
 	FeatureAppearance                 FeatureName = "appearance"
 	FeatureAdvancedTemplateScheduling FeatureName = "advanced_template_scheduling"
+	FeatureTemplateRestartRequirement FeatureName = "template_restart_requirement"
 	FeatureWorkspaceProxy             FeatureName = "workspace_proxy"
 )
 
@@ -120,6 +121,7 @@ type DeploymentValues struct {
 	Verbose             clibase.Bool `json:"verbose,omitempty"`
 	AccessURL           clibase.URL  `json:"access_url,omitempty"`
 	WildcardAccessURL   clibase.URL  `json:"wildcard_access_url,omitempty"`
+	DocsURL             clibase.URL  `json:"docs_url,omitempty"`
 	RedirectToAccessURL clibase.Bool `json:"redirect_to_access_url,omitempty"`
 	// HTTPAddress is a string because it may be set to zero to disable.
 	HTTPAddress                     clibase.String                  `json:"http_address,omitempty" typescript:",notnull"`
@@ -166,6 +168,7 @@ type DeploymentValues struct {
 	DisableOwnerWorkspaceExec       clibase.Bool                    `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
 	ProxyHealthStatusInterval       clibase.Duration                `json:"proxy_health_status_interval,omitempty" typescript:",notnull"`
 	EnableTerraformDebugMode        clibase.Bool                    `json:"enable_terraform_debug_mode,omitempty" typescript:",notnull"`
+	UserQuietHoursSchedule          UserQuietHoursScheduleConfig    `json:"user_quiet_hours_schedule,omitempty" typescript:",notnull"`
 
 	Config      clibase.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig clibase.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -343,6 +346,13 @@ type DangerousConfig struct {
 	AllowAllCors                clibase.Bool `json:"allow_all_cors" typescript:",notnull"`
 }
 
+type UserQuietHoursScheduleConfig struct {
+	DefaultSchedule clibase.String `json:"default_schedule" typescript:",notnull"`
+	// TODO: add WindowDuration and the ability to postpone max_deadline by this
+	// amount
+	// WindowDuration  clibase.Duration `json:"window_duration" typescript:",notnull"`
+}
+
 const (
 	annotationEnterpriseKey = "enterprise"
 	annotationSecretKey     = "secret"
@@ -466,6 +476,11 @@ when required by your organization's security policy.`,
 			Description: `Tune the behavior of the provisioner, which is responsible for creating, updating, and deleting workspace resources.`,
 			YAML:        "provisioning",
 		}
+		deploymentGroupUserQuietHoursSchedule = clibase.Group{
+			Name:        "User Quiet Hours Schedule",
+			Description: "Allow users to set quiet hours schedules each day for workspaces to avoid workspaces stopping during the day due to template max TTL.",
+			YAML:        "userQuietHoursSchedule",
+		}
 		deploymentGroupDangerous = clibase.Group{
 			Name: "⚠️ Dangerous",
 			YAML: "dangerous",
@@ -532,6 +547,16 @@ when required by your organization's security policy.`,
 			Value:       &c.WildcardAccessURL,
 			Group:       &deploymentGroupNetworking,
 			YAML:        "wildcardAccessURL",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+		},
+		{
+			Name:        "Docs URL",
+			Description: "Specifies the custom docs URL.",
+			Value:       &c.DocsURL,
+			Flag:        "docs-url",
+			Env:         "CODER_DOCS_URL",
+			Group:       &deploymentGroupNetworking,
+			YAML:        "docsURL",
 			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		redirectToAccessURL,
@@ -1576,6 +1601,16 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupNetworkingHTTP,
 			YAML:        "proxyHealthInterval",
 		},
+		{
+			Name:        "Default Quiet Hours Schedule",
+			Description: "The default daily cron schedule applied to users that haven't set a custom quiet hours schedule themselves. The quiet hours schedule determines when workspaces will be force stopped due to the template's max TTL, and will round the max TTL up to be within the user's quiet hours window (or default). The format is the same as the standard cron format, but the day-of-month, month and day-of-week must be *. Only one hour and minute can be specified (ranges or comma separated values are not supported).",
+			Flag:        "default-quiet-hours-schedule",
+			Env:         "CODER_QUIET_HOURS_DEFAULT_SCHEDULE",
+			Default:     "",
+			Value:       &c.UserQuietHoursSchedule.DefaultSchedule,
+			Group:       &deploymentGroupUserQuietHoursSchedule,
+			YAML:        "defaultQuietHoursSchedule",
+		},
 	}
 	return opts
 }
@@ -1776,7 +1811,18 @@ const (
 	// WARNING: This cannot be enabled when using HA.
 	ExperimentSingleTailnet Experiment = "single_tailnet"
 
-	ExperimentWorkspaceBuildLogsUI Experiment = "workspace_build_logs_ui"
+	// ExperimentTemplateRestartRequirement allows template admins to have more
+	// control over when workspaces created on a template are required to
+	// restart, and allows users to ensure these restarts never happen during
+	// their business hours.
+	//
+	// Enables:
+	// - User quiet hours schedule settings
+	// - Template restart requirement settings
+	// - Changes the max_deadline algorithm to use restart requirement and user
+	//   quiet hours instead of max_ttl.
+	ExperimentTemplateRestartRequirement Experiment = "template_restart_requirement"
+
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"
 )
@@ -1785,9 +1831,7 @@ const (
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsAll = Experiments{
-	ExperimentWorkspaceBuildLogsUI,
-}
+var ExperimentsAll = Experiments{}
 
 // Experiments is a list of experiments that are enabled for the deployment.
 // Multiple experiments may be enabled at the same time.
