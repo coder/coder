@@ -48,6 +48,10 @@ interface UsersTableBodyProps {
   ) => void
   isNonInitialPage: boolean
   actorID: string
+  // oidcRoleSyncEnabled should be set to false if unknown.
+  // This is used to determine if the oidc roles are synced from the oidc idp and
+  // editing via the UI should be disabled.
+  oidcRoleSyncEnabled: boolean
 }
 
 export const UsersTableBody: FC<
@@ -68,6 +72,7 @@ export const UsersTableBody: FC<
   isLoading,
   isNonInitialPage,
   actorID,
+  oidcRoleSyncEnabled,
 }) => {
   const styles = useStyles()
   const { t } = useTranslation("usersPage")
@@ -127,6 +132,8 @@ export const UsersTableBody: FC<
                           roles={roles ? sortRoles(roles) : []}
                           selectedRoles={userRoles}
                           isLoading={Boolean(isUpdatingUserRoles)}
+                          userLoginType={user.login_type}
+                          oidcRoleSync={oidcRoleSyncEnabled}
                           onChange={(roles) => {
                             // Remove the fallback role because it is only for the UI
                             const rolesWithoutFallback = roles.filter(

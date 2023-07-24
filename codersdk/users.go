@@ -53,6 +53,7 @@ type User struct {
 	OrganizationIDs []uuid.UUID `json:"organization_ids" format:"uuid"`
 	Roles           []Role      `json:"roles"`
 	AvatarURL       string      `json:"avatar_url" format:"uri"`
+	LoginType       LoginType   `json:"login_type"`
 }
 
 type GetUsersResponse struct {

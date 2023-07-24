@@ -1375,6 +1375,238 @@ func (q *sqlQuerier) UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDPar
 	return i, err
 }
 
+const getTemplateDailyInsights = `-- name: GetTemplateDailyInsights :many
+WITH d AS (
+	-- sqlc workaround, use SELECT generate_series instead of SELECT * FROM generate_series.
+	-- Subtract 1 second from end_time to avoid including the next interval in the results.
+	SELECT generate_series($1::timestamptz, ($2::timestamptz) - '1 second'::interval, '1 day'::interval) AS d
+), ts AS (
+	SELECT
+		d::timestamptz AS from_,
+		CASE WHEN (d + '1 day'::interval)::timestamptz <= $2::timestamptz THEN (d + '1 day'::interval)::timestamptz ELSE $2::timestamptz END AS to_
+	FROM d
+), usage_by_day AS (
+	SELECT
+		ts.from_, ts.to_,
+		was.user_id,
+		array_agg(was.template_id) AS template_ids
+	FROM ts
+	LEFT JOIN workspace_agent_stats was ON (
+		was.created_at >= ts.from_
+		AND was.created_at < ts.to_
+		AND was.connection_count > 0
+		AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN was.template_id = ANY($3::uuid[]) ELSE TRUE END
+	)
+	GROUP BY ts.from_, ts.to_, was.user_id
+), template_ids AS (
+	SELECT
+		template_usage_by_day.from_,
+		array_agg(template_id) AS ids
+	FROM (
+		SELECT DISTINCT
+			from_,
+			unnest(template_ids) AS template_id
+		FROM usage_by_day
+	) AS template_usage_by_day
+	WHERE template_id IS NOT NULL
+	GROUP BY template_usage_by_day.from_
+)
+
+SELECT
+	from_ AS start_time,
+	to_ AS end_time,
+	COALESCE((SELECT template_ids.ids FROM template_ids WHERE template_ids.from_ = usage_by_day.from_), '{}')::uuid[] AS template_ids,
+	COUNT(DISTINCT user_id) AS active_users
+FROM usage_by_day
+GROUP BY from_, to_
+`
+
+type GetTemplateDailyInsightsParams struct {
+	StartTime   time.Time   `db:"start_time" json:"start_time"`
+	EndTime     time.Time   `db:"end_time" json:"end_time"`
+	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
+}
+
+type GetTemplateDailyInsightsRow struct {
+	StartTime   time.Time   `db:"start_time" json:"start_time"`
+	EndTime     time.Time   `db:"end_time" json:"end_time"`
+	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
+	ActiveUsers int64       `db:"active_users" json:"active_users"`
+}
+
+// GetTemplateDailyInsights returns all daily intervals between start and end
+// time, if end time is a partial day, it will be included in the results and
+// that interval will be less than 24 hours. If there is no data for a selected
+// interval/template, it will be included in the results with 0 active users.
+func (q *sqlQuerier) GetTemplateDailyInsights(ctx context.Context, arg GetTemplateDailyInsightsParams) ([]GetTemplateDailyInsightsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateDailyInsights, arg.StartTime, arg.EndTime, pq.Array(arg.TemplateIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTemplateDailyInsightsRow
+	for rows.Next() {
+		var i GetTemplateDailyInsightsRow
+		if err := rows.Scan(
+			&i.StartTime,
+			&i.EndTime,
+			pq.Array(&i.TemplateIDs),
+			&i.ActiveUsers,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTemplateInsights = `-- name: GetTemplateInsights :one
+WITH d AS (
+	-- Subtract 1 second from end_time to avoid including the next interval in the results.
+	SELECT generate_series($1::timestamptz, ($2::timestamptz) - '1 second'::interval, '5 minute'::interval) AS d
+), ts AS (
+	SELECT
+		d::timestamptz AS from_,
+		(d + '5 minute'::interval)::timestamptz AS to_,
+		EXTRACT(epoch FROM '5 minute'::interval) AS seconds
+	FROM d
+), usage_by_user AS (
+	SELECT
+		ts.from_,
+		ts.to_,
+		was.user_id,
+		array_agg(was.template_id) AS template_ids,
+		CASE WHEN SUM(was.session_count_vscode) > 0 THEN ts.seconds ELSE 0 END AS usage_vscode_seconds,
+		CASE WHEN SUM(was.session_count_jetbrains) > 0 THEN ts.seconds ELSE 0 END AS usage_jetbrains_seconds,
+		CASE WHEN SUM(was.session_count_reconnecting_pty) > 0 THEN ts.seconds ELSE 0 END AS usage_reconnecting_pty_seconds,
+		CASE WHEN SUM(was.session_count_ssh) > 0 THEN ts.seconds ELSE 0 END AS usage_ssh_seconds
+	FROM ts
+	JOIN workspace_agent_stats was ON (
+		was.created_at >= ts.from_
+		AND was.created_at < ts.to_
+		AND was.connection_count > 0
+		AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN was.template_id = ANY($3::uuid[]) ELSE TRUE END
+	)
+	GROUP BY ts.from_, ts.to_, ts.seconds, was.user_id
+), template_ids AS (
+	SELECT array_agg(DISTINCT template_id) AS ids
+	FROM usage_by_user, unnest(template_ids) template_id
+	WHERE template_id IS NOT NULL
+)
+
+SELECT
+	COALESCE((SELECT ids FROM template_ids), '{}')::uuid[] AS template_ids,
+	COUNT(DISTINCT user_id) AS active_users,
+	COALESCE(SUM(usage_vscode_seconds), 0)::bigint AS usage_vscode_seconds,
+	COALESCE(SUM(usage_jetbrains_seconds), 0)::bigint AS usage_jetbrains_seconds,
+	COALESCE(SUM(usage_reconnecting_pty_seconds), 0)::bigint AS usage_reconnecting_pty_seconds,
+	COALESCE(SUM(usage_ssh_seconds), 0)::bigint AS usage_ssh_seconds
+FROM usage_by_user
+`
+
+type GetTemplateInsightsParams struct {
+	StartTime   time.Time   `db:"start_time" json:"start_time"`
+	EndTime     time.Time   `db:"end_time" json:"end_time"`
+	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
+}
+
+type GetTemplateInsightsRow struct {
+	TemplateIDs                 []uuid.UUID `db:"template_ids" json:"template_ids"`
+	ActiveUsers                 int64       `db:"active_users" json:"active_users"`
+	UsageVscodeSeconds          int64       `db:"usage_vscode_seconds" json:"usage_vscode_seconds"`
+	UsageJetbrainsSeconds       int64       `db:"usage_jetbrains_seconds" json:"usage_jetbrains_seconds"`
+	UsageReconnectingPtySeconds int64       `db:"usage_reconnecting_pty_seconds" json:"usage_reconnecting_pty_seconds"`
+	UsageSshSeconds             int64       `db:"usage_ssh_seconds" json:"usage_ssh_seconds"`
+}
+
+// GetTemplateInsights has a granularity of 5 minutes where if a session/app was
+// in use, we will add 5 minutes to the total usage for that session (per user).
+func (q *sqlQuerier) GetTemplateInsights(ctx context.Context, arg GetTemplateInsightsParams) (GetTemplateInsightsRow, error) {
+	row := q.db.QueryRowContext(ctx, getTemplateInsights, arg.StartTime, arg.EndTime, pq.Array(arg.TemplateIDs))
+	var i GetTemplateInsightsRow
+	err := row.Scan(
+		pq.Array(&i.TemplateIDs),
+		&i.ActiveUsers,
+		&i.UsageVscodeSeconds,
+		&i.UsageJetbrainsSeconds,
+		&i.UsageReconnectingPtySeconds,
+		&i.UsageSshSeconds,
+	)
+	return i, err
+}
+
+const getUserLatencyInsights = `-- name: GetUserLatencyInsights :many
+SELECT
+	workspace_agent_stats.user_id,
+	users.username,
+	array_agg(DISTINCT template_id)::uuid[] AS template_ids,
+	coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_50,
+	coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
+FROM workspace_agent_stats
+JOIN users ON (users.id = workspace_agent_stats.user_id)
+WHERE
+	workspace_agent_stats.created_at >= $1
+	AND workspace_agent_stats.created_at < $2
+	AND workspace_agent_stats.connection_median_latency_ms > 0
+	AND workspace_agent_stats.connection_count > 0
+	AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN template_id = ANY($3::uuid[]) ELSE TRUE END
+GROUP BY workspace_agent_stats.user_id, users.username
+ORDER BY user_id ASC
+`
+
+type GetUserLatencyInsightsParams struct {
+	StartTime   time.Time   `db:"start_time" json:"start_time"`
+	EndTime     time.Time   `db:"end_time" json:"end_time"`
+	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
+}
+
+type GetUserLatencyInsightsRow struct {
+	UserID                       uuid.UUID   `db:"user_id" json:"user_id"`
+	Username                     string      `db:"username" json:"username"`
+	TemplateIDs                  []uuid.UUID `db:"template_ids" json:"template_ids"`
+	WorkspaceConnectionLatency50 float64     `db:"workspace_connection_latency_50" json:"workspace_connection_latency_50"`
+	WorkspaceConnectionLatency95 float64     `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
+}
+
+// GetUserLatencyInsights returns the median and 95th percentile connection
+// latency that users have experienced. The result can be filtered on
+// template_ids, meaning only user data from workspaces based on those templates
+// will be included.
+func (q *sqlQuerier) GetUserLatencyInsights(ctx context.Context, arg GetUserLatencyInsightsParams) ([]GetUserLatencyInsightsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getUserLatencyInsights, arg.StartTime, arg.EndTime, pq.Array(arg.TemplateIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUserLatencyInsightsRow
+	for rows.Next() {
+		var i GetUserLatencyInsightsRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.Username,
+			pq.Array(&i.TemplateIDs),
+			&i.WorkspaceConnectionLatency50,
+			&i.WorkspaceConnectionLatency95,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const deleteLicense = `-- name: DeleteLicense :one
 DELETE
 FROM licenses
@@ -8487,7 +8719,7 @@ type GetWorkspacesParams struct {
 	OwnerID                               uuid.UUID   `db:"owner_id" json:"owner_id"`
 	OwnerUsername                         string      `db:"owner_username" json:"owner_username"`
 	TemplateName                          string      `db:"template_name" json:"template_name"`
-	TemplateIds                           []uuid.UUID `db:"template_ids" json:"template_ids"`
+	TemplateIDs                           []uuid.UUID `db:"template_ids" json:"template_ids"`
 	Name                                  string      `db:"name" json:"name"`
 	HasAgent                              string      `db:"has_agent" json:"has_agent"`
 	AgentInactiveDisconnectTimeoutSeconds int64       `db:"agent_inactive_disconnect_timeout_seconds" json:"agent_inactive_disconnect_timeout_seconds"`
@@ -8522,7 +8754,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		arg.OwnerID,
 		arg.OwnerUsername,
 		arg.TemplateName,
-		pq.Array(arg.TemplateIds),
+		pq.Array(arg.TemplateIDs),
 		arg.Name,
 		arg.HasAgent,
 		arg.AgentInactiveDisconnectTimeoutSeconds,

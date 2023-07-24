@@ -1978,6 +1978,129 @@ func (q *FakeQuerier) GetTemplateDAUs(_ context.Context, arg database.GetTemplat
 	return rs, nil
 }
 
+func (q *FakeQuerier) GetTemplateDailyInsights(_ context.Context, arg database.GetTemplateDailyInsightsParams) ([]database.GetTemplateDailyInsightsRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	type dailyStat struct {
+		startTime, endTime time.Time
+		userSet            map[uuid.UUID]struct{}
+		templateIDSet      map[uuid.UUID]struct{}
+	}
+	dailyStats := []dailyStat{{arg.StartTime, arg.StartTime.AddDate(0, 0, 1), make(map[uuid.UUID]struct{}), make(map[uuid.UUID]struct{})}}
+	for dailyStats[len(dailyStats)-1].endTime.Before(arg.EndTime) {
+		dailyStats = append(dailyStats, dailyStat{dailyStats[len(dailyStats)-1].endTime, dailyStats[len(dailyStats)-1].endTime.AddDate(0, 0, 1), make(map[uuid.UUID]struct{}), make(map[uuid.UUID]struct{})})
+	}
+	if dailyStats[len(dailyStats)-1].endTime.After(arg.EndTime) {
+		dailyStats[len(dailyStats)-1].endTime = arg.EndTime
+	}
+
+	for _, s := range q.workspaceAgentStats {
+		if s.CreatedAt.Before(arg.StartTime) || s.CreatedAt.Equal(arg.EndTime) || s.CreatedAt.After(arg.EndTime) {
+			continue
+		}
+		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, s.TemplateID) {
+			continue
+		}
+		if s.ConnectionCount == 0 {
+			continue
+		}
+
+		for _, ds := range dailyStats {
+			if s.CreatedAt.Before(ds.startTime) || s.CreatedAt.Equal(ds.endTime) || s.CreatedAt.After(ds.endTime) {
+				continue
+			}
+			ds.userSet[s.UserID] = struct{}{}
+			ds.templateIDSet[s.TemplateID] = struct{}{}
+			break
+		}
+	}
+
+	var result []database.GetTemplateDailyInsightsRow
+	for _, ds := range dailyStats {
+		templateIDs := make([]uuid.UUID, 0, len(ds.templateIDSet))
+		for templateID := range ds.templateIDSet {
+			templateIDs = append(templateIDs, templateID)
+		}
+		slices.SortFunc(templateIDs, func(a, b uuid.UUID) bool {
+			return a.String() < b.String()
+		})
+		result = append(result, database.GetTemplateDailyInsightsRow{
+			StartTime:   ds.startTime,
+			EndTime:     ds.endTime,
+			TemplateIDs: templateIDs,
+			ActiveUsers: int64(len(ds.userSet)),
+		})
+	}
+	return result, nil
+}
+
+func (q *FakeQuerier) GetTemplateInsights(_ context.Context, arg database.GetTemplateInsightsParams) (database.GetTemplateInsightsRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.GetTemplateInsightsRow{}, err
+	}
+
+	templateIDSet := make(map[uuid.UUID]struct{})
+	appUsageIntervalsByUser := make(map[uuid.UUID]map[time.Time]*database.GetTemplateInsightsRow)
+	for _, s := range q.workspaceAgentStats {
+		if s.CreatedAt.Before(arg.StartTime) || s.CreatedAt.Equal(arg.EndTime) || s.CreatedAt.After(arg.EndTime) {
+			continue
+		}
+		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, s.TemplateID) {
+			continue
+		}
+		if s.ConnectionCount == 0 {
+			continue
+		}
+
+		templateIDSet[s.TemplateID] = struct{}{}
+		if appUsageIntervalsByUser[s.UserID] == nil {
+			appUsageIntervalsByUser[s.UserID] = make(map[time.Time]*database.GetTemplateInsightsRow)
+		}
+		t := s.CreatedAt.Truncate(5 * time.Minute)
+		if _, ok := appUsageIntervalsByUser[s.UserID][t]; !ok {
+			appUsageIntervalsByUser[s.UserID][t] = &database.GetTemplateInsightsRow{}
+		}
+
+		if s.SessionCountJetBrains > 0 {
+			appUsageIntervalsByUser[s.UserID][t].UsageJetbrainsSeconds = 300
+		}
+		if s.SessionCountVSCode > 0 {
+			appUsageIntervalsByUser[s.UserID][t].UsageVscodeSeconds = 300
+		}
+		if s.SessionCountReconnectingPTY > 0 {
+			appUsageIntervalsByUser[s.UserID][t].UsageReconnectingPtySeconds = 300
+		}
+		if s.SessionCountSSH > 0 {
+			appUsageIntervalsByUser[s.UserID][t].UsageSshSeconds = 300
+		}
+	}
+
+	templateIDs := make([]uuid.UUID, 0, len(templateIDSet))
+	for templateID := range templateIDSet {
+		templateIDs = append(templateIDs, templateID)
+	}
+	slices.SortFunc(templateIDs, func(a, b uuid.UUID) bool {
+		return a.String() < b.String()
+	})
+	result := database.GetTemplateInsightsRow{
+		TemplateIDs: templateIDs,
+		ActiveUsers: int64(len(appUsageIntervalsByUser)),
+	}
+	for _, intervals := range appUsageIntervalsByUser {
+		for _, interval := range intervals {
+			result.UsageJetbrainsSeconds += interval.UsageJetbrainsSeconds
+			result.UsageVscodeSeconds += interval.UsageVscodeSeconds
+			result.UsageReconnectingPtySeconds += interval.UsageReconnectingPtySeconds
+			result.UsageSshSeconds += interval.UsageSshSeconds
+		}
+	}
+	return result, nil
+}
+
 func (q *FakeQuerier) GetTemplateVersionByID(ctx context.Context, templateVersionID uuid.UUID) (database.TemplateVersion, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -2220,6 +2343,77 @@ func (q *FakeQuerier) GetUserCount(_ context.Context) (int64, error) {
 		}
 	}
 	return existing, nil
+}
+
+func (q *FakeQuerier) GetUserLatencyInsights(_ context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	latenciesByUserID := make(map[uuid.UUID][]float64)
+	seenTemplatesByUserID := make(map[uuid.UUID]map[uuid.UUID]struct{})
+	for _, s := range q.workspaceAgentStats {
+		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, s.TemplateID) {
+			continue
+		}
+		if !arg.StartTime.Equal(s.CreatedAt) && (s.CreatedAt.Before(arg.StartTime) || s.CreatedAt.After(arg.EndTime)) {
+			continue
+		}
+		if s.ConnectionCount == 0 {
+			continue
+		}
+		if s.ConnectionMedianLatencyMS <= 0 {
+			continue
+		}
+
+		latenciesByUserID[s.UserID] = append(latenciesByUserID[s.UserID], s.ConnectionMedianLatencyMS)
+		if seenTemplatesByUserID[s.UserID] == nil {
+			seenTemplatesByUserID[s.UserID] = make(map[uuid.UUID]struct{})
+		}
+		seenTemplatesByUserID[s.UserID][s.TemplateID] = struct{}{}
+	}
+
+	tryPercentile := func(fs []float64, p float64) float64 {
+		if len(fs) == 0 {
+			return -1
+		}
+		sort.Float64s(fs)
+		return fs[int(float64(len(fs))*p/100)]
+	}
+
+	var rows []database.GetUserLatencyInsightsRow
+	for userID, latencies := range latenciesByUserID {
+		sort.Float64s(latencies)
+		templateIDSet := seenTemplatesByUserID[userID]
+		templateIDs := make([]uuid.UUID, 0, len(templateIDSet))
+		for templateID := range templateIDSet {
+			templateIDs = append(templateIDs, templateID)
+		}
+		slices.SortFunc(templateIDs, func(a, b uuid.UUID) bool {
+			return a.String() < b.String()
+		})
+		user, err := q.getUserByIDNoLock(userID)
+		if err != nil {
+			return nil, err
+		}
+		row := database.GetUserLatencyInsightsRow{
+			UserID:                       userID,
+			Username:                     user.Username,
+			TemplateIDs:                  templateIDs,
+			WorkspaceConnectionLatency50: tryPercentile(latencies, 50),
+			WorkspaceConnectionLatency95: tryPercentile(latencies, 95),
+		}
+		rows = append(rows, row)
+	}
+	slices.SortFunc(rows, func(a, b database.GetUserLatencyInsightsRow) bool {
+		return a.UserID.String() < b.UserID.String()
+	})
+
+	return rows, nil
 }
 
 func (q *FakeQuerier) GetUserLinkByLinkedID(_ context.Context, id string) (database.UserLink, error) {
@@ -5367,9 +5561,9 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 			}
 		}
 
-		if len(arg.TemplateIds) > 0 {
+		if len(arg.TemplateIDs) > 0 {
 			match := false
-			for _, id := range arg.TemplateIds {
+			for _, id := range arg.TemplateIDs {
 				if workspace.TemplateID == id {
 					match = true
 					break

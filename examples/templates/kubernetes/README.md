@@ -7,7 +7,23 @@ icon: /icon/k8s.png
 
 # Getting started
 
-This template creates a pod running the `codercom/enterprise-base:ubuntu` image.
+This template creates a deplyment running the `codercom/enterprise-base:ubuntu` image.
+
+## Prerequisites
+
+This template uses [`kubernetes_deployment`](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/deployment) terraform resource, which requires the `coder` service account to have permission to create deploymnets. For example if you are using [helm](https://coder.com/docs/v2/latest/install/kubernetes#install-coder-with-helm) to install Coder, you should set `coder.serviceAccount.enableDeployments=true` in your `values.yaml`
+
+```diff
+coder:
+serviceAccount:
+    workspacePerms: true
+-   enableDeployments: false
++   enableDeployments: true
+    annotations: {}
+    name: coder
+```
+
+> Note: This is only required for Coder versions < 0.28.0, as this will be the default value for Coder versions >= 0.28.0
 
 ## Authentication
 
@@ -62,7 +78,7 @@ You may want to deploy workspaces on a cluster outside of the Coder control plan
 
 ## Namespace
 
-The target namespace in which the pod will be deployed is defined via the `coder_workspace`
+The target namespace in which the deployment will be deployed is defined via the `coder_workspace`
 variable. The namespace must exist prior to creating workspaces.
 
 ## Persistence
@@ -96,3 +112,16 @@ resource "coder_agent" "main" {
 `code-server` is installed via the `startup_script` argument in the `coder_agent`
 resource block. The `coder_app` resource is defined to access `code-server` through
 the dashboard UI over `localhost:13337`.
+
+## Deployment logs
+
+To stream kubernetes pods events from the deployment, you can use Coder's [`coder-logstream-kube`](https://github.com/coder/coder-logstream-kube) tool. This can stream logs from the deployment to Coder's workspace startup logs. You just need to install the `coder-logstream-kube` helm chart on the cluster where the deployment is running.
+
+```shell
+helm repo add coder-logstream-kube https://helm.coder.com/logstream-kube
+helm install coder-logstream-kube coder-logstream-kube/coder-logstream-kube \
+    --namespace coder \
+    --set url=<your-coder-url-including-http-or-https>
+```
+
+For detailed instructions, see [Deployment logs](https://coder.com/docs/v2/latest/platforms/kubernetes/deployment-logs)

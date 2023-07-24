@@ -105,6 +105,14 @@ type sqlcQuerier interface {
 	GetTemplateByID(ctx context.Context, id uuid.UUID) (Template, error)
 	GetTemplateByOrganizationAndName(ctx context.Context, arg GetTemplateByOrganizationAndNameParams) (Template, error)
 	GetTemplateDAUs(ctx context.Context, arg GetTemplateDAUsParams) ([]GetTemplateDAUsRow, error)
+	// GetTemplateDailyInsights returns all daily intervals between start and end
+	// time, if end time is a partial day, it will be included in the results and
+	// that interval will be less than 24 hours. If there is no data for a selected
+	// interval/template, it will be included in the results with 0 active users.
+	GetTemplateDailyInsights(ctx context.Context, arg GetTemplateDailyInsightsParams) ([]GetTemplateDailyInsightsRow, error)
+	// GetTemplateInsights has a granularity of 5 minutes where if a session/app was
+	// in use, we will add 5 minutes to the total usage for that session (per user).
+	GetTemplateInsights(ctx context.Context, arg GetTemplateInsightsParams) (GetTemplateInsightsRow, error)
 	GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (TemplateVersion, error)
 	GetTemplateVersionByJobID(ctx context.Context, jobID uuid.UUID) (TemplateVersion, error)
 	GetTemplateVersionByTemplateIDAndName(ctx context.Context, arg GetTemplateVersionByTemplateIDAndNameParams) (TemplateVersion, error)
@@ -119,6 +127,11 @@ type sqlcQuerier interface {
 	GetUserByEmailOrUsername(ctx context.Context, arg GetUserByEmailOrUsernameParams) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserCount(ctx context.Context) (int64, error)
+	// GetUserLatencyInsights returns the median and 95th percentile connection
+	// latency that users have experienced. The result can be filtered on
+	// template_ids, meaning only user data from workspaces based on those templates
+	// will be included.
+	GetUserLatencyInsights(ctx context.Context, arg GetUserLatencyInsightsParams) ([]GetUserLatencyInsightsRow, error)
 	GetUserLinkByLinkedID(ctx context.Context, linkedID string) (UserLink, error)
 	GetUserLinkByUserIDLoginType(ctx context.Context, arg GetUserLinkByUserIDLoginTypeParams) (UserLink, error)
 	// This will never return deleted users.
