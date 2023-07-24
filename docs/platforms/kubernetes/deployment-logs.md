@@ -4,7 +4,6 @@ To stream Kubernetes events into your workspace startup logs, you can use Coder'
 
 - Causes of pod provisioning failures, or why a pod is stuck in a pending state.
 - Visibility into when pods are OOMKilled, or when they are evicted.
-- Filter by namespace, field selector, and label selector to reduce Kubernetes API load.
 
 ## Prerequisites
 
