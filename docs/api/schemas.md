@@ -2610,6 +2610,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `convert-to-oidc`              |
 | `single_tailnet`               |
 | `template_restart_requirement` |
+| `template_insights_page`       |
 
 ## codersdk.Feature
 
