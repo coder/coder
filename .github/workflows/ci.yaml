@@ -35,6 +35,7 @@ jobs:
       ts: ${{ steps.filter.outputs.ts }}
       k8s: ${{ steps.filter.outputs.k8s }}
       ci: ${{ steps.filter.outputs.ci }}
+      offlinedocs-only: ${{ steps.filter.outputs.offlinedocs_count == steps.filter.outputs.all_count }}
       offlinedocs: ${{ steps.filter.outputs.offlinedocs }}
     steps:
       - name: Checkout
@@ -102,6 +103,8 @@ jobs:
           echo "${{ toJSON(steps.filter )}}"
 
   lint:
+    needs: changes
+    if: needs.changes.outputs.offlinedocs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     steps:
       - name: Checkout
@@ -199,6 +202,8 @@ jobs:
         run: ./scripts/check_unstaged.sh
 
   fmt:
+    needs: changes
+    if: needs.changes.outputs.offlinedocs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
