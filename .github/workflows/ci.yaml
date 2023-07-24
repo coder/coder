@@ -616,9 +616,10 @@ jobs:
         with:
           directory: offlinedocs
 
-      - name: Install prettier
+      - name: Install prettier globally
         run: |
           cd offlinedocs
+          yarn
           mv package.json package.json.bak
           jq '{dependencies: {prettier: .devDependencies.prettier}}' < package.json.bak > package.json
           yarn --frozen-lockfile
@@ -632,7 +633,7 @@ jobs:
       - name: Lint
         run: |
           cd offlinedocs
-          yarn && yarn lint
+          yarn lint
 
       - name: Build
         run: |
