@@ -2,11 +2,15 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.8.3"
+      version = "~> 0.11.1"
     }
     docker = {
       source  = "kreuzwerker/docker"
       version = "~> 3.0.1"
+    }
+    artifactory = {
+      source  = "registry.terraform.io/jfrog/artifactory"
+      version = "6.22.3"
     }
   }
 }
@@ -24,6 +28,29 @@ provider "docker" {
 data "coder_workspace" "me" {
 }
 
+variable "jfrog_url" {
+  type        = string
+  description = "The URL of the JFrog instance."
+}
+
+variable "artifactory_access_token" {
+  type        = string
+  description = "The access token to use for JFrog."
+}
+
+
+# Configure the Artifactory provider
+provider "artifactory" {
+  url           = "${var.jfrog_url}/artifactory"
+  access_token  = "${var.artifactory_access_token}"
+}
+
+resource "artifactory_access_token" "me" {
+  username          = "${data.coder_workspace.me.owner_email}"
+  # The token should live for the duration of the workspace.
+  end_date_relative = "0s"
+}
+
 resource "coder_agent" "main" {
   arch                   = data.coder_provisioner.me.arch
   os                     = "linux"
@@ -34,6 +61,22 @@ resource "coder_agent" "main" {
     # install and start code-server
     curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.11.0
     /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
+
+    # The jf CLI checks $CI when determining whether to use interactive
+    # flows.
+    export CI=true
+
+    jf c rm 0 || true
+    echo ${artifactory_access_token.me.access_token} | \
+      jf c add --access-token-stdin --url ${var.jfrog_url} 0
+
+    # Configure the `npm` CLI to use the Artifactory "npm" registry.
+    cat << EOF > ~/.npmrc
+    _auth = ${artifactory_access_token.me.access_token}
+    email = ${data.coder_workspace.me.owner_email}
+    always-auth = true
+    registry=${var.jfrog_url}/artifactory/api/npm/npm/
+    EOF
   EOT
 }
 
