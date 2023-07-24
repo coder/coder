@@ -11,6 +11,9 @@ on:
       - "offlinedocs/**"
   workflow_dispatch:
 
+env:
+  NODE_VERSION: 16.20.1
+
 # Cancel in-progress runs for pull requests when developers push
 # additional changes
 concurrency:
@@ -24,6 +27,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+
+      - name: Setup Node
+        uses: buildjet/setup-node@v3
+        with:
+          node-version: env.NODE_VERSION
+          cache: "yarn"
+          cache-dependency-path: "offlinedocs/yarn.lock"
 
       - name: Install Pretier
         run: |
@@ -48,7 +58,7 @@ jobs:
       - name: Setup Node
         uses: buildjet/setup-node@v3
         with:
-          node-version: 16.20.1
+          node-version: env.NODE_VERSION
           cache: "yarn"
           cache-dependency-path: "offlinedocs/yarn.lock"
 
@@ -67,7 +77,7 @@ jobs:
       - name: Setup Node
         uses: buildjet/setup-node@v3
         with:
-          node-version: 16.20.1
+          node-version: env.NODE_VERSION
           cache: "yarn"
           cache-dependency-path: "offlinedocs/yarn.lock"
 
