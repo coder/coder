@@ -618,11 +618,11 @@ jobs:
 
       - name: Install dependencies
         run: |
+          cd offlinedocs
+          yarn
           # Install prettier globally
           prettier_version=$(jq '{dependencies: {prettier: .devDependencies.prettier}}' < package.json)
           yarn global add prettier@$prettier_version
-          cd offlinedocs
-          yarn
 
       - name: Format
         run: |
