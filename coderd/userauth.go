@@ -965,7 +965,8 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			// a member. This is because there is no way to tell the difference
 			// between []string{} and nil for OIDC claims. IDPs omit claims
 			// if they are empty ([]string{}).
-			rolesRow = []string{}
+			// Use []interface{}{} so the next typecast works.
+			rolesRow = []interface{}{}
 		}
 
 		rolesInterface, ok := rolesRow.([]interface{})
