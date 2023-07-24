@@ -9,6 +9,31 @@ icon: /icon/k8s.png
 
 This template creates a deplyment running the `codercom/enterprise-base:ubuntu` image.
 
+## Prerequisites
+
+This template requires that you have deployments enabled for the `coder` service account. For example if you are using [helm](https://coder.com/docs/v2/latest/install/kubernetes#install-coder-with-helm) to install Coder, you should set `coder.serviceAccount.enableDeployments=true` in your `values.yaml`
+
+```diff
+coder:
+serviceAccount:
+    # coder.serviceAccount.workspacePerms -- Whether or not to grant the coder
+    # service account permissions to manage workspaces. This includes
+    # permission to manage pods and persistent volume claims in the deployment
+    # namespace.
+    #
+    # It is recommended to keep this on if you are using Kubernetes templates
+    # within Coder.
+    workspacePerms: true
+    # coder.serviceAccount.enableDeployments -- Provides the service account permission
+    # to manage Kubernetes deployments.
+-   enableDeployments: false
++   enableDeployments: true
+    # coder.serviceAccount.annotations -- The Coder service account annotations.
+    annotations: {}
+    # coder.serviceAccount.name -- The service account name
+    name: coder
+```
+
 ## Authentication
 
 This template can authenticate using in-cluster authentication, or using a kubeconfig local to the
