@@ -649,7 +649,6 @@ jobs:
       - name: Build
         run: |
           version="$(./scripts/version.sh)"
-          yarn global add prettier    # Install prettier before running the script
           make -j build/coder_docs_"$version".tgz
 
   required:
