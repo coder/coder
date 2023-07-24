@@ -415,6 +415,7 @@ lint: lint/shellcheck lint/go lint/ts lint/helm lint/site-icons
 
 lint/site-icons:
 	./scripts/check_site_icons.sh
+
 .PHONY: lint/site-icons
 
 lint/ts:
