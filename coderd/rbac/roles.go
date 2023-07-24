@@ -283,10 +283,13 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 //	map[actor_role][assign_role]<can_assign>
 var assignRoles = map[string]map[string]bool{
 	"system": {
-		owner:     true,
-		member:    true,
-		orgAdmin:  true,
-		orgMember: true,
+		owner:         true,
+		auditor:       true,
+		member:        true,
+		orgAdmin:      true,
+		orgMember:     true,
+		templateAdmin: true,
+		userAdmin:     true,
 	},
 	owner: {
 		owner:         true,

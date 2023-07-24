@@ -268,6 +268,20 @@ oidc:
   # for when OIDC providers only return group IDs.
   # (default: {}, type: struct[map[string]string])
   groupMapping: {}
+  # This field must be set if using the user roles sync feature. Set this to the
+  # name of the claim used to store the user's role. The roles should be sent as an
+  # array of strings.
+  # (default: <unset>, type: string)
+  userRoleField: ""
+  # A map of the OIDC passed in user roles and the groups in Coder it should map to.
+  # This is useful if the group names do not match. If mapped to the empty string,
+  # the role will ignored.
+  # (default: {}, type: struct[map[string][]string])
+  userRoleMapping: {}
+  # If user role sync is enabled, these roles are always included for all
+  # authenticated users. The 'member' role is always assigned.
+  # (default: <unset>, type: string-array)
+  userRoleDefault: []
   # The text to show on the OpenID Connect sign in button.
   # (default: OpenID Connect, type: string)
   signInText: OpenID Connect
