@@ -616,10 +616,10 @@ jobs:
         with:
           directory: offlinedocs
 
-      - name: Install dependencies
-        run: |
-          cd offlinedocs
-          yarn
+      # - name: Install dependencies
+      #   run: |
+      #     cd offlinedocs
+      #     yarn
 
       - name: Format
         run: |
@@ -633,8 +633,6 @@ jobs:
 
       - name: Build
         run: |
-          cd offlinedocs
-
           version="$(./scripts/version.sh)"
           make -j build/coder_docs_"$version".tgz
 
