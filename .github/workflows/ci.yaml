@@ -618,6 +618,9 @@ jobs:
 
       - name: Install dependencies
         run: |
+          # Install prettier globally
+          prettier_version=$(jq '{dependencies: {prettier: .devDependencies.prettier}}' < package.json)
+          yarn global add prettier@$prettier_version
           cd offlinedocs
           yarn
 
@@ -634,6 +637,7 @@ jobs:
       - name: Build
         run: |
           version="$(./scripts/version.sh)"
+          yarn global add prettier    # Install prettier before running the script
           make -j build/coder_docs_"$version".tgz
 
   required:
