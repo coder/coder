@@ -1,0 +1,66 @@
+name: offlinedocs
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "offlinedocs/**"
+  pull_request:
+    paths:
+      - "offlinedocs/**"
+  workflow_dispatch:
+
+# Cancel in-progress runs for pull requests when developers push
+# additional changes
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  fmt:
+    name: fmt
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install Pretier
+        run: |
+          cd offlinedocs
+          yarn
+
+      - name: Check format
+        run: |
+          cd offlinedocs
+          yarn format:check
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: lint
+        run: |
+          cd offlinedocs
+          yarn && yarn lint
+
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: Build
+        run: |
+          version="$(./scripts/version.sh)"
+          make -j build/coder_docs_"$version".tgz
