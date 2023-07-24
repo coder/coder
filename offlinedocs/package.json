@@ -21,7 +21,7 @@
     "archiver": "5.3.1",
     "framer-motion": "6",
     "front-matter": "4.0.2",
-    "fs-extra": "10.1.0",
+    "fs-extra": "11.1.1",
     "lodash": "4.17.21",
     "next": "13.4.12",
     "react": "18.2.0",
