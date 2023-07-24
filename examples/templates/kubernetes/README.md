@@ -11,7 +11,7 @@ This template creates a deplyment running the `codercom/enterprise-base:ubuntu` 
 
 ## Prerequisites
 
-This template requires that you have deployments enabled for the `coder` service account. For example if you are using [helm](https://coder.com/docs/v2/latest/install/kubernetes#install-coder-with-helm) to install Coder, you should set `coder.serviceAccount.enableDeployments=true` in your `values.yaml`
+This template uses [`kubernetes_deployment`](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/deployment) terraform resource, which requires the `coder` service account to have permission to create deploymnets. For example if you are using [helm](https://coder.com/docs/v2/latest/install/kubernetes#install-coder-with-helm) to install Coder, you should set `coder.serviceAccount.enableDeployments=true` in your `values.yaml`
 
 ```diff
 coder:
