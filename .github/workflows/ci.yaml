@@ -53,6 +53,7 @@ jobs:
               - "examples/web-server/**"
               - "examples/monitoring/**"
               - "examples/lima/**"
+              - "offlinedocs/**"
             go:
               - "**.sql"
               - "**.go"
@@ -85,7 +86,6 @@ jobs:
             ts:
               - "site/**"
               - "Makefile"
-              - "offlinedocs/**"
             k8s:
               - "helm/**"
               - "scripts/Dockerfile"
