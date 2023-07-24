@@ -223,9 +223,6 @@ jobs:
           jq '{dependencies: {prettier: .devDependencies.prettier}}' < package.json.bak > package.json
           yarn --frozen-lockfile
           mv package.json.bak package.json
-          # repeat for offlinedocs
-          cd ../offlinedocs
-          yarn
 
       - name: Install shfmt
         run: go install mvdan.cc/sh/v3/cmd/shfmt@v3.5.0
