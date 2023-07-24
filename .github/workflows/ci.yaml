@@ -616,10 +616,13 @@ jobs:
         with:
           directory: offlinedocs
 
-      - name: Install dependencies
+      - name: Install prettier
         run: |
           cd offlinedocs
-          yarn
+          mv package.json package.json.bak
+          jq '{dependencies: {prettier: .devDependencies.prettier}}' < package.json.bak > package.json
+          yarn --frozen-lockfile
+          mv package.json.bak package.json
 
       - name: Format
         run: |
