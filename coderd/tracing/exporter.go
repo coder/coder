@@ -78,7 +78,7 @@ func TracerProvider(ctx context.Context, service string, opts TracerOpts) (*sdkt
 	} else if opts.SamplePercent >= 100 {
 		sampler = sdktrace.AlwaysSample()
 	} else {
-		rat := float64(100) / opts.SamplePercent
+		rat := float64(opts.SamplePercent) / 100.0
 		sampler = sdktrace.ParentBased(sdktrace.TraceIDRatioBased(rat))
 	}
 	tracerOpts = append(tracerOpts, sdktrace.WithSampler(sampler))
