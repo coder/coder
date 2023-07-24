@@ -9665,6 +9665,9 @@ const docTemplate = `{
                 },
                 "honeycomb_api_key": {
                     "type": "string"
+                },
+                "sample_percent": {
+                    "type": "integer"
                 }
             }
         },

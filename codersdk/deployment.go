@@ -298,6 +298,7 @@ type TraceConfig struct {
 	Enable          clibase.Bool   `json:"enable" typescript:",notnull"`
 	HoneycombAPIKey clibase.String `json:"honeycomb_api_key" typescript:",notnull"`
 	CaptureLogs     clibase.Bool   `json:"capture_logs" typescript:",notnull"`
+	SamplePercent   clibase.Int64  `json:"sample_percent" typescript:",notnull"`
 }
 
 type GitAuthConfig struct {
@@ -1122,6 +1123,18 @@ when required by your organization's security policy.`,
 			Value:       &c.Trace.CaptureLogs,
 			Group:       &deploymentGroupIntrospectionTracing,
 			YAML:        "captureLogs",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+		},
+		{
+			Name: "Trace Sample Percentage",
+			Description: "Sample a percentage of traces. This is useful if your" +
+				" deployment produces a large amount of traces. Should be a whole " +
+				"number between 0 and 100.",
+			Flag:        "trace-sample-percent",
+			Env:         "CODER_TRACE_SAMPLE_PERCENT",
+			Value:       &c.Trace.SamplePercent,
+			Group:       &deploymentGroupIntrospectionTracing,
+			YAML:        "samplePercent",
 			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		// Provisioner settings

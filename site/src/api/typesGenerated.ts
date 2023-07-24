@@ -1050,6 +1050,7 @@ export interface TraceConfig {
   readonly enable: boolean
   readonly honeycomb_api_key: string
   readonly capture_logs: boolean
+  readonly sample_percent: number
 }
 
 // From codersdk/templates.go

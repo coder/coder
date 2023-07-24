@@ -2094,7 +2094,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "trace": {
       "capture_logs": true,
       "enable": true,
-      "honeycomb_api_key": "string"
+      "honeycomb_api_key": "string",
+      "sample_percent": 0
     },
     "update_check": true,
     "user_quiet_hours_schedule": {
@@ -2447,7 +2448,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "trace": {
     "capture_logs": true,
     "enable": true,
-    "honeycomb_api_key": "string"
+    "honeycomb_api_key": "string",
+    "sample_percent": 0
   },
   "update_check": true,
   "user_quiet_hours_schedule": {
@@ -4577,7 +4579,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "capture_logs": true,
   "enable": true,
-  "honeycomb_api_key": "string"
+  "honeycomb_api_key": "string",
+  "sample_percent": 0
 }
 ```
 
@@ -4588,6 +4591,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `capture_logs`      | boolean | false    |              |             |
 | `enable`            | boolean | false    |              |             |
 | `honeycomb_api_key` | string  | false    |              |             |
+| `sample_percent`    | integer | false    |              |             |
 
 ## codersdk.TransitionStats
 

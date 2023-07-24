@@ -27,6 +27,9 @@ type TracerOpts struct {
 	Coder bool
 	// Exports traces to Honeycomb.io with the provided API key.
 	Honeycomb string
+	// SamplePercent defines the sampling rate for traces.
+	// This should be a number between 0 and 100, inclusive.
+	SamplePercent float64
 }
 
 // TracerProvider creates a grpc otlp exporter and configures a trace provider.
@@ -69,6 +72,16 @@ func TracerProvider(ctx context.Context, service string, opts TracerOpts) (*sdkt
 		closers = append(closers, exporter.Shutdown)
 		tracerOpts = append(tracerOpts, sdktrace.WithBatcher(exporter))
 	}
+	var sampler sdktrace.Sampler
+	if opts.SamplePercent <= 0 {
+		sampler = sdktrace.NeverSample()
+	} else if opts.SamplePercent >= 100 {
+		sampler = sdktrace.AlwaysSample()
+	} else {
+		rat := float64(100) / opts.SamplePercent
+		sampler = sdktrace.ParentBased(sdktrace.TraceIDRatioBased(rat))
+	}
+	tracerOpts = append(tracerOpts, sdktrace.WithSampler(sampler))
 
 	tracerProvider := sdktrace.NewTracerProvider(tracerOpts...)
 	otel.SetTracerProvider(tracerProvider)

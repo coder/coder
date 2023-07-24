@@ -367,7 +367,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "trace": {
       "capture_logs": true,
       "enable": true,
-      "honeycomb_api_key": "string"
+      "honeycomb_api_key": "string",
+      "sample_percent": 0
     },
     "update_check": true,
     "user_quiet_hours_schedule": {
