@@ -1000,6 +1000,7 @@
     "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "last_seen_at": "2019-08-24T14:15:22Z",
+    "login_type": "password",
     "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "roles": [
       {
@@ -1076,6 +1077,7 @@
         "email": "user@example.com",
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "last_seen_at": "2019-08-24T14:15:22Z",
+        "login_type": "password",
         "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
         "roles": [
           {
@@ -2006,6 +2008,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "issuer_url": "string",
       "scopes": ["string"],
       "sign_in_text": "string",
+      "user_role_field": "string",
+      "user_role_mapping": {},
+      "user_roles_default": ["string"],
       "username_field": "string"
     },
     "pg_connection_url": "string",
@@ -2359,6 +2364,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "issuer_url": "string",
     "scopes": ["string"],
     "sign_in_text": "string",
+    "user_role_field": "string",
+    "user_role_mapping": {},
+    "user_roles_default": ["string"],
     "username_field": "string"
   },
   "pg_connection_url": "string",
@@ -2649,6 +2657,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "password",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -2865,6 +2874,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "password",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -3223,6 +3233,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "issuer_url": "string",
   "scopes": ["string"],
   "sign_in_text": "string",
+  "user_role_field": "string",
+  "user_role_mapping": {},
+  "user_roles_default": ["string"],
   "username_field": "string"
 }
 ```
@@ -3245,6 +3258,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `issuer_url`            | string                     | false    |              |             |
 | `scopes`                | array of string            | false    |              |             |
 | `sign_in_text`          | string                     | false    |              |             |
+| `user_role_field`       | string                     | false    |              |             |
+| `user_role_mapping`     | object                     | false    |              |             |
+| `user_roles_default`    | array of string            | false    |              |             |
 | `username_field`        | string                     | false    |              |             |
 
 ## codersdk.Organization
@@ -4304,6 +4320,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "email": "user@example.com",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_seen_at": "2019-08-24T14:15:22Z",
+  "login_type": "password",
   "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
   "role": "admin",
   "roles": [
@@ -4326,6 +4343,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `email`            | string                                         | true     |              |             |
 | `id`               | string                                         | true     |              |             |
 | `last_seen_at`     | string                                         | false    |              |             |
+| `login_type`       | [codersdk.LoginType](#codersdklogintype)       | false    |              |             |
 | `organization_ids` | array of string                                | false    |              |             |
 | `role`             | [codersdk.TemplateRole](#codersdktemplaterole) | false    |              |             |
 | `roles`            | array of [codersdk.Role](#codersdkrole)        | false    |              |             |
@@ -4352,6 +4370,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "last_seen_at": "2019-08-24T14:15:22Z",
+    "login_type": "password",
     "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "roles": [
       {
@@ -4821,6 +4840,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "email": "user@example.com",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_seen_at": "2019-08-24T14:15:22Z",
+  "login_type": "password",
   "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
   "roles": [
     {
@@ -4842,6 +4862,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `email`            | string                                     | true     |              |             |
 | `id`               | string                                     | true     |              |             |
 | `last_seen_at`     | string                                     | false    |              |             |
+| `login_type`       | [codersdk.LoginType](#codersdklogintype)   | false    |              |             |
 | `organization_ids` | array of string                            | false    |              |             |
 | `roles`            | array of [codersdk.Role](#codersdkrole)    | false    |              |             |
 | `status`           | [codersdk.UserStatus](#codersdkuserstatus) | false    |              |             |

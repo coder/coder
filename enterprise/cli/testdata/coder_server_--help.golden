@@ -337,6 +337,20 @@ can safely ignore these settings.
       --oidc-scopes string-array, $CODER_OIDC_SCOPES (default: openid,profile,email)
           Scopes to grant when authenticating with OIDC.
 
+      --oidc-user-role-default string-array, $CODER_OIDC_USER_ROLE_DEFAULT
+          If user role sync is enabled, these roles are always included for all
+          authenticated users. The 'member' role is always assigned.
+
+      --oidc-user-role-field string, $CODER_OIDC_USER_ROLE_FIELD
+          This field must be set if using the user roles sync feature. Set this
+          to the name of the claim used to store the user's role. The roles
+          should be sent as an array of strings.
+
+      --oidc-user-role-mapping struct[map[string][]string], $CODER_OIDC_USER_ROLE_MAPPING (default: {})
+          A map of the OIDC passed in user roles and the groups in Coder it
+          should map to. This is useful if the group names do not match. If
+          mapped to the empty string, the role will ignored.
+
       --oidc-username-field string, $CODER_OIDC_USERNAME_FIELD (default: preferred_username)
           OIDC claim field to use as the username.
 

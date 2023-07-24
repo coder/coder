@@ -380,6 +380,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "last_seen_at": "2019-08-24T14:15:22Z",
+    "login_type": "password",
     "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "roles": [
       {
@@ -461,6 +462,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "last_seen_at": "2019-08-24T14:15:22Z",
+    "login_type": "password",
     "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "roles": [
       {
@@ -566,6 +568,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
     "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "last_seen_at": "2019-08-24T14:15:22Z",
+    "login_type": "password",
     "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "roles": [
       {
@@ -878,6 +881,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions \
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "password",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -938,6 +942,7 @@ Status Code **200**
 | `»» email`            | string(email)                                                            | true     |              |             |
 | `»» id`               | string(uuid)                                                             | true     |              |             |
 | `»» last_seen_at`     | string(date-time)                                                        | false    |              |             |
+| `»» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)                       | false    |              |             |
 | `»» organization_ids` | array                                                                    | false    |              |             |
 | `»» roles`            | array                                                                    | false    |              |             |
 | `»»» display_name`    | string                                                                   | false    |              |             |
@@ -972,6 +977,11 @@ Status Code **200**
 
 | Property     | Value                         |
 | ------------ | ----------------------------- |
+| `login_type` | `password`                    |
+| `login_type` | `github`                      |
+| `login_type` | `oidc`                        |
+| `login_type` | `token`                       |
+| `login_type` | `none`                        |
 | `status`     | `active`                      |
 | `status`     | `suspended`                   |
 | `error_code` | `MISSING_TEMPLATE_PARAMETER`  |
@@ -1073,6 +1083,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions/{templ
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "password",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -1133,6 +1144,7 @@ Status Code **200**
 | `»» email`            | string(email)                                                            | true     |              |             |
 | `»» id`               | string(uuid)                                                             | true     |              |             |
 | `»» last_seen_at`     | string(date-time)                                                        | false    |              |             |
+| `»» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)                       | false    |              |             |
 | `»» organization_ids` | array                                                                    | false    |              |             |
 | `»» roles`            | array                                                                    | false    |              |             |
 | `»»» display_name`    | string                                                                   | false    |              |             |
@@ -1167,6 +1179,11 @@ Status Code **200**
 
 | Property     | Value                         |
 | ------------ | ----------------------------- |
+| `login_type` | `password`                    |
+| `login_type` | `github`                      |
+| `login_type` | `oidc`                        |
+| `login_type` | `token`                       |
+| `login_type` | `none`                        |
 | `status`     | `active`                      |
 | `status`     | `suspended`                   |
 | `error_code` | `MISSING_TEMPLATE_PARAMETER`  |
@@ -1212,6 +1229,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion} \
     "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "last_seen_at": "2019-08-24T14:15:22Z",
+    "login_type": "password",
     "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "roles": [
       {
@@ -1302,6 +1320,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
     "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "last_seen_at": "2019-08-24T14:15:22Z",
+    "login_type": "password",
     "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "roles": [
       {
