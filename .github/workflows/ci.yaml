@@ -621,7 +621,7 @@ jobs:
           cd offlinedocs
           yarn
           # Install prettier globally
-          prettier_version=$(jq '{dependencies: {prettier: .devDependencies.prettier}}' < package.json)
+          prettier_version=$(jq -r '.devDependencies.prettier' < package.json)
           yarn global add prettier@$prettier_version
 
       - name: Format
