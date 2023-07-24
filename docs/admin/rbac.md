@@ -1,6 +1,6 @@
 # Role Based Access Control (RBAC)
 
-Use RBAC to define which users and [groups](./groups.md) can use specific templates in Coder.
+Use RBAC to define which users and [groups](./groups.md) can use specific templates in Coder. These can be defined in Coder or [synced from your identity provider](./auth.md)
 
 ![rbac](../images/template-rbac.png)
 

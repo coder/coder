@@ -308,6 +308,22 @@ Steps to troubleshoot.
    - [Azure AD limit is 200, and omits groups if exceeded.](https://learn.microsoft.com/en-us/azure/active-directory/hybrid/connect/how-to-connect-fed-group-claims#options-for-applications-to-consume-group-information)
    - [Okta limit is 100, and returns an error if exceeded.](https://developer.okta.com/docs/reference/api/oidc/#scope-dependent-claims-not-always-returned)
 
+## Role sync (enterprise)
+
+If your OpenID Connect provider supports roles claims, you can configure Coder
+to synchronize roles in your auth provider to deployment-wide roles within Coder.
+
+To enable group sync, ensure that the `roles` claim is set by adding the correct scope to request. If role sync is enabled, the user's roles will be controlled by the OIDC provider. This means manual group additions/removals will be overwritten on the next login.
+
+Set the following in your Coder server [configuration](./configure.md):
+
+```console
+CODER_OIDC_USER_ROLE_FIELD=roles
+CODER_OIDC_USER_ROLE_MAPPING='{"TemplateAuthors":["template-admin","user-admin"]}'
+```
+
+> `CODER_OIDC_USER_ROLE_FIELD` can be used if a non-standard roles claim is used.
+
 ## Provider-Specific Guides
 
 Below are some details specific to individual OIDC providers.

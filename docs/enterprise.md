@@ -7,6 +7,7 @@ trial](https://coder.com/trial).
 | Category        | Feature                                                                              | Open Source | Enterprise |
 | --------------- | ------------------------------------------------------------------------------------ | :---------: | :--------: |
 | User Management | [Groups](./admin/groups.md)                                                          |     ❌      |     ✅     |
+| User Management | [Group & role sync](./admin/auth.md#group-sync-enterprise)                           |     ❌      |     ✅     |
 | User Management | [SCIM](./admin/auth.md#scim)                                                         |     ❌      |     ✅     |
 | Governance      | [Audit Logging](./admin/audit-logs.md)                                               |     ❌      |     ✅     |
 | Governance      | [Browser Only Connections](./networking/#browser-only-connections-enterprise)        |     ❌      |     ✅     |
