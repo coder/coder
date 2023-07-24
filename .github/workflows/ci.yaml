@@ -610,11 +610,9 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Setup Node
-        uses: buildjet/setup-node@v3
+        uses: ./.github/actions/setup-node
         with:
-          node-version: 16.20.1
-          cache: "yarn"
-          cache-dependency-path: "offlinedocs/yarn.lock"
+          directory: offlinedocs
 
       - name: Install dependencies
         run: |
