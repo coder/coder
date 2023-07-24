@@ -878,6 +878,56 @@ const docTemplate = `{
                 }
             }
         },
+        "/insights/templates": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Insights"
+                ],
+                "summary": "Get insights about templates",
+                "operationId": "get-insights-about-templates",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateInsightsResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/insights/user-latency": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Insights"
+                ],
+                "summary": "Get insights about user latency",
+                "operationId": "get-insights-about-user-latency",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserLatencyInsightsResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/licenses": {
             "get": {
                 "security": [
@@ -6993,6 +7043,19 @@ const docTemplate = `{
                 "BuildReasonAutostop"
             ]
         },
+        "codersdk.ConnectionLatency": {
+            "type": "object",
+            "properties": {
+                "p50": {
+                    "type": "number",
+                    "example": 31.312
+                },
+                "p95": {
+                    "type": "number",
+                    "example": 119.832
+                }
+            }
+        },
         "codersdk.ConvertLoginRequest": {
             "type": "object",
             "required": [
@@ -8077,6 +8140,15 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.InsightsReportInterval": {
+            "type": "string",
+            "enum": [
+                "day"
+            ],
+            "x-enum-varnames": [
+                "InsightsReportIntervalDay"
+            ]
+        },
         "codersdk.IssueReconnectingPTYSignedTokenRequest": {
             "type": "object",
             "required": [
@@ -8357,6 +8429,18 @@ const docTemplate = `{
                 },
                 "sign_in_text": {
                     "type": "string"
+                },
+                "user_role_field": {
+                    "type": "string"
+                },
+                "user_role_mapping": {
+                    "type": "object"
+                },
+                "user_roles_default": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "username_field": {
                     "type": "string"
@@ -9160,6 +9244,50 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.TemplateAppUsage": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string",
+                    "example": "Visual Studio Code"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "seconds": {
+                    "type": "integer",
+                    "example": 80500
+                },
+                "slug": {
+                    "type": "string",
+                    "example": "vscode"
+                },
+                "template_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "type": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.TemplateAppsType"
+                        }
+                    ],
+                    "example": "builtin"
+                }
+            }
+        },
+        "codersdk.TemplateAppsType": {
+            "type": "string",
+            "enum": [
+                "builtin"
+            ],
+            "x-enum-varnames": [
+                "TemplateAppsTypeBuiltin"
+            ]
+        },
         "codersdk.TemplateBuildTimeStats": {
             "type": "object",
             "additionalProperties": {
@@ -9193,6 +9321,77 @@ const docTemplate = `{
                 },
                 "url": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.TemplateInsightsIntervalReport": {
+            "type": "object",
+            "properties": {
+                "active_users": {
+                    "type": "integer",
+                    "example": 14
+                },
+                "end_time": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "interval": {
+                    "$ref": "#/definitions/codersdk.InsightsReportInterval"
+                },
+                "start_time": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "template_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                }
+            }
+        },
+        "codersdk.TemplateInsightsReport": {
+            "type": "object",
+            "properties": {
+                "active_users": {
+                    "type": "integer",
+                    "example": 22
+                },
+                "apps_usage": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateAppUsage"
+                    }
+                },
+                "end_time": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "start_time": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "template_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                }
+            }
+        },
+        "codersdk.TemplateInsightsResponse": {
+            "type": "object",
+            "properties": {
+                "interval_reports": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateInsightsIntervalReport"
+                    }
+                },
+                "report": {
+                    "$ref": "#/definitions/codersdk.TemplateInsightsReport"
                 }
             }
         },
@@ -9262,6 +9461,9 @@ const docTemplate = `{
                 "last_seen_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "login_type": {
+                    "$ref": "#/definitions/codersdk.LoginType"
                 },
                 "organization_ids": {
                     "type": "array",
@@ -9716,6 +9918,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "login_type": {
+                    "$ref": "#/definitions/codersdk.LoginType"
+                },
                 "organization_ids": {
                     "type": "array",
                     "items": {
@@ -9742,6 +9947,62 @@ const docTemplate = `{
                 },
                 "username": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.UserLatency": {
+            "type": "object",
+            "properties": {
+                "latency_ms": {
+                    "$ref": "#/definitions/codersdk.ConnectionLatency"
+                },
+                "template_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.UserLatencyInsightsReport": {
+            "type": "object",
+            "properties": {
+                "end_time": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "start_time": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "template_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.UserLatency"
+                    }
+                }
+            }
+        },
+        "codersdk.UserLatencyInsightsResponse": {
+            "type": "object",
+            "properties": {
+                "report": {
+                    "$ref": "#/definitions/codersdk.UserLatencyInsightsReport"
                 }
             }
         },

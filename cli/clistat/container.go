@@ -10,8 +10,9 @@ import (
 )
 
 const (
-	procMounts    = "/proc/mounts"
-	procOneCgroup = "/proc/1/cgroup"
+	procMounts                           = "/proc/mounts"
+	procOneCgroup                        = "/proc/1/cgroup"
+	kubernetesDefaultServiceAccountToken = "/var/run/secrets/kubernetes.io/serviceaccount/token" //nolint:gosec
 )
 
 // IsContainerized returns whether the host is containerized.
@@ -36,6 +37,14 @@ func IsContainerized(fs afero.Fs) (ok bool, err error) {
 			bytes.Contains(line, []byte("kubepods")) {
 			return true, nil
 		}
+	}
+
+	// Sometimes the above method of sniffing /proc/1/cgroup isn't reliable.
+	// If a Kubernetes service account token is present, that's
+	// also a good indication that we are in a container.
+	_, err = afero.ReadFile(fs, kubernetesDefaultServiceAccountToken)
+	if err == nil {
+		return true, nil
 	}
 
 	// Last-ditch effort to detect Sysbox containers.

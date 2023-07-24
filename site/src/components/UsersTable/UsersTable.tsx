@@ -37,6 +37,7 @@ export interface UsersTableProps {
   ) => void
   isNonInitialPage: boolean
   actorID: string
+  oidcRoleSyncEnabled: boolean
 }
 
 export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
@@ -56,6 +57,7 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
   isLoading,
   isNonInitialPage,
   actorID,
+  oidcRoleSyncEnabled,
 }) => {
   return (
     <TableContainer>
@@ -94,6 +96,7 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
             onUpdateUserRoles={onUpdateUserRoles}
             isNonInitialPage={isNonInitialPage}
             actorID={actorID}
+            oidcRoleSyncEnabled={oidcRoleSyncEnabled}
           />
         </TableBody>
       </Table>

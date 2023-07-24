@@ -41,7 +41,19 @@ realpath() {
 # We have to define realpath before these otherwise it fails on Mac's bash.
 SCRIPT="${BASH_SOURCE[1]:-${BASH_SOURCE[0]}}"
 SCRIPT_DIR="$(realpath "$(dirname "$SCRIPT")")"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR" && realpath "$(git rev-parse --show-toplevel)")"
+
+function project_root {
+	# Try to use `git rev-parse --show-toplevel` to find the project root.
+	# If this directory is not a git repository, this command will fail.
+	git rev-parse --show-toplevel 2>/dev/null && return
+
+	# This finds the Sapling root. This behavior is added so that @ammario
+	# and others can more easily experiment with Sapling, but we do not have a
+	# plan to support Sapling across the repo.
+	sl root 2>/dev/null && return
+}
+
+PROJECT_ROOT="$(cd "$SCRIPT_DIR" && realpath "$(project_root)")"
 
 # pushd is a silent alternative to the real pushd shell command.
 pushd() {
