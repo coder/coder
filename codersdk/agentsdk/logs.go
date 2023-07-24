@@ -16,10 +16,11 @@ import (
 )
 
 type startupLogsWriter struct {
-	buf   bytes.Buffer // Buffer to track partial lines.
-	ctx   context.Context
-	send  func(ctx context.Context, log ...Log) error
-	level codersdk.LogLevel
+	buf    bytes.Buffer // Buffer to track partial lines.
+	ctx    context.Context
+	send   func(ctx context.Context, log ...Log) error
+	level  codersdk.LogLevel
+	source codersdk.WorkspaceAgentLogSource
 }
 
 func (w *startupLogsWriter) Write(p []byte) (int, error) {
@@ -43,6 +44,7 @@ func (w *startupLogsWriter) Write(p []byte) (int, error) {
 			CreatedAt: time.Now().UTC(), // UTC, like database.Now().
 			Level:     w.level,
 			Output:    string(partial) + string(p[:nl-cr]),
+			Source:    w.source,
 		})
 		if err != nil {
 			return n - len(p), err
@@ -65,6 +67,7 @@ func (w *startupLogsWriter) Close() error {
 			CreatedAt: time.Now().UTC(), // UTC, like database.Now().
 			Level:     w.level,
 			Output:    w.buf.String(),
+			Source:    w.source,
 		})
 	}
 	return nil
@@ -78,7 +81,7 @@ func (w *startupLogsWriter) Close() error {
 //
 // Neither Write nor Close is safe for concurrent use and must be used
 // by a single goroutine.
-func StartupLogsWriter(ctx context.Context, sender func(ctx context.Context, log ...Log) error, level codersdk.LogLevel) io.WriteCloser {
+func StartupLogsWriter(ctx context.Context, sender func(ctx context.Context, log ...Log) error, source codersdk.WorkspaceAgentLogSource, level codersdk.LogLevel) io.WriteCloser {
 	return &startupLogsWriter{
 		ctx:   ctx,
 		send:  sender,

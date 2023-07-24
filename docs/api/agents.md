@@ -296,7 +296,7 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/logs \
       "created_at": "string",
       "level": "trace",
       "output": "string",
-      "stage": "string"
+      "source": "startup_script"
     }
   ]
 }
@@ -551,7 +551,7 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/startup-logs \
       "created_at": "string",
       "level": "trace",
       "output": "string",
-      "stage": "string"
+      "source": "startup_script"
     }
   ]
 }

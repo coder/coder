@@ -686,10 +686,13 @@ const (
 	AgentSubsystemEnvbox AgentSubsystem = "envbox"
 )
 
-type AgentLogSource string
+type WorkspaceAgentLogSource string
 
 const (
-	AgentLogSourceStartup      AgentLogSource = "startup"
-	AgentLogSourceKubernetes   AgentLogSource = "kubernetes"
-	AgentLogSourceDevcontainer AgentLogSource = "devcontainer"
+	WorkspaceAgentLogSourceStartupScript  WorkspaceAgentLogSource = "startup_script"
+	WorkspaceAgentLogSourceShutdownScript WorkspaceAgentLogSource = "shutdown_script"
+	WorkspaceAgentLogSourceKubernetes     WorkspaceAgentLogSource = "kubernetes"
+	WorkspaceAgentLogSourceEnvbox         WorkspaceAgentLogSource = "envbox"
+	WorkspaceAgentLogSourceEnvbuilder     WorkspaceAgentLogSource = "envbuilder"
+	WorkspaceAgentLogSourceExternal       WorkspaceAgentLogSource = "external"
 )

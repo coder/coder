@@ -1173,6 +1173,7 @@ type WorkspaceAgentLogSource string
 
 const (
 	WorkspaceAgentLogSourceStartupScript  WorkspaceAgentLogSource = "startup_script"
+	WorkspaceAgentLogSourceShutdownScript WorkspaceAgentLogSource = "shutdown_script"
 	WorkspaceAgentLogSourceKubernetesLogs WorkspaceAgentLogSource = "kubernetes_logs"
 	WorkspaceAgentLogSourceEnvbox         WorkspaceAgentLogSource = "envbox"
 	WorkspaceAgentLogSourceEnvbuilder     WorkspaceAgentLogSource = "envbuilder"
@@ -1217,6 +1218,7 @@ func (ns NullWorkspaceAgentLogSource) Value() (driver.Value, error) {
 func (e WorkspaceAgentLogSource) Valid() bool {
 	switch e {
 	case WorkspaceAgentLogSourceStartupScript,
+		WorkspaceAgentLogSourceShutdownScript,
 		WorkspaceAgentLogSourceKubernetesLogs,
 		WorkspaceAgentLogSourceEnvbox,
 		WorkspaceAgentLogSourceEnvbuilder,
@@ -1229,6 +1231,7 @@ func (e WorkspaceAgentLogSource) Valid() bool {
 func AllWorkspaceAgentLogSourceValues() []WorkspaceAgentLogSource {
 	return []WorkspaceAgentLogSource{
 		WorkspaceAgentLogSourceStartupScript,
+		WorkspaceAgentLogSourceShutdownScript,
 		WorkspaceAgentLogSourceKubernetesLogs,
 		WorkspaceAgentLogSourceEnvbox,
 		WorkspaceAgentLogSourceEnvbuilder,

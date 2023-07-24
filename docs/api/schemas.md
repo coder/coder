@@ -164,18 +164,18 @@
   "created_at": "string",
   "level": "trace",
   "output": "string",
-  "stage": "string"
+  "source": "startup_script"
 }
 ```
 
 ### Properties
 
-| Name         | Type                                   | Required | Restrictions | Description |
-| ------------ | -------------------------------------- | -------- | ------------ | ----------- |
-| `created_at` | string                                 | false    |              |             |
-| `level`      | [codersdk.LogLevel](#codersdkloglevel) | false    |              |             |
-| `output`     | string                                 | false    |              |             |
-| `stage`      | string                                 | false    |              |             |
+| Name         | Type                                                                 | Required | Restrictions | Description |
+| ------------ | -------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `created_at` | string                                                               | false    |              |             |
+| `level`      | [codersdk.LogLevel](#codersdkloglevel)                               | false    |              |             |
+| `output`     | string                                                               | false    |              |             |
+| `source`     | [codersdk.WorkspaceAgentLogSource](#codersdkworkspaceagentlogsource) | false    |              |             |
 
 ## agentsdk.Manifest
 
@@ -306,7 +306,7 @@
       "created_at": "string",
       "level": "trace",
       "output": "string",
-      "stage": "string"
+      "source": "startup_script"
     }
   ]
 }
@@ -5265,6 +5265,25 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `id`         | integer                                | false    |              |             |
 | `level`      | [codersdk.LogLevel](#codersdkloglevel) | false    |              |             |
 | `output`     | string                                 | false    |              |             |
+
+## codersdk.WorkspaceAgentLogSource
+
+```json
+"startup_script"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value             |
+| ----------------- |
+| `startup_script`  |
+| `shutdown_script` |
+| `kubernetes`      |
+| `envbox`          |
+| `envbuilder`      |
+| `external`        |
 
 ## codersdk.WorkspaceAgentMetadataDescription
 

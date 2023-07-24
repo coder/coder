@@ -568,10 +568,10 @@ func (c *Client) PostStartup(ctx context.Context, req PostStartupRequest) error 
 }
 
 type Log struct {
-	CreatedAt time.Time         `json:"created_at"`
-	Output    string            `json:"output"`
-	Level     codersdk.LogLevel `json:"level"`
-	Stage     string            `json:"stage"`
+	CreatedAt time.Time                        `json:"created_at"`
+	Output    string                           `json:"output"`
+	Level     codersdk.LogLevel                `json:"level"`
+	Source    codersdk.WorkspaceAgentLogSource `json:"source"`
 }
 
 type PatchLogs struct {

@@ -6211,8 +6211,8 @@ const docTemplate = `{
                 "output": {
                     "type": "string"
                 },
-                "stage": {
-                    "type": "string"
+                "source": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentLogSource"
                 }
             }
         },
@@ -10208,6 +10208,25 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.WorkspaceAgentLogSource": {
+            "type": "string",
+            "enum": [
+                "startup_script",
+                "shutdown_script",
+                "kubernetes",
+                "envbox",
+                "envbuilder",
+                "external"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceAgentLogSourceStartupScript",
+                "WorkspaceAgentLogSourceShutdownScript",
+                "WorkspaceAgentLogSourceKubernetes",
+                "WorkspaceAgentLogSourceEnvbox",
+                "WorkspaceAgentLogSourceEnvbuilder",
+                "WorkspaceAgentLogSourceExternal"
+            ]
         },
         "codersdk.WorkspaceAgentMetadataDescription": {
             "type": "object",

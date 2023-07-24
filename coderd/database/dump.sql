@@ -130,6 +130,7 @@ CREATE TYPE workspace_agent_lifecycle_state AS ENUM (
 
 CREATE TYPE workspace_agent_log_source AS ENUM (
     'startup_script',
+    'shutdown_script',
     'kubernetes_logs',
     'envbox',
     'envbuilder',

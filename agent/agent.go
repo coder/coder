@@ -973,9 +973,9 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) (err er
 			}
 		}()
 
-		infoW := agentsdk.StartupLogsWriter(ctx, send, codersdk.LogLevelInfo)
+		infoW := agentsdk.StartupLogsWriter(ctx, send, codersdk.WorkspaceAgentLogSourceStartupScript, codersdk.LogLevelInfo)
 		defer infoW.Close()
-		errW := agentsdk.StartupLogsWriter(ctx, send, codersdk.LogLevelError)
+		errW := agentsdk.StartupLogsWriter(ctx, send, codersdk.WorkspaceAgentLogSourceStartupScript, codersdk.LogLevelError)
 		defer errW.Close()
 
 		stdout = io.MultiWriter(fileWriter, infoW)

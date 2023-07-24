@@ -1418,14 +1418,6 @@ export type APIKeyScope = "all" | "application_connect"
 export const APIKeyScopes: APIKeyScope[] = ["all", "application_connect"]
 
 // From codersdk/workspaceagents.go
-export type AgentLogSource = "devcontainer" | "kubernetes" | "startup"
-export const AgentLogSources: AgentLogSource[] = [
-  "devcontainer",
-  "kubernetes",
-  "startup",
-]
-
-// From codersdk/workspaceagents.go
 export type AgentSubsystem = "envbox"
 export const AgentSubsystems: AgentSubsystem[] = ["envbox"]
 
@@ -1714,6 +1706,23 @@ export const WorkspaceAgentLifecycles: WorkspaceAgentLifecycle[] = [
   "start_error",
   "start_timeout",
   "starting",
+]
+
+// From codersdk/workspaceagents.go
+export type WorkspaceAgentLogSource =
+  | "envbox"
+  | "envbuilder"
+  | "external"
+  | "kubernetes"
+  | "shutdown_script"
+  | "startup_script"
+export const WorkspaceAgentLogSources: WorkspaceAgentLogSource[] = [
+  "envbox",
+  "envbuilder",
+  "external",
+  "kubernetes",
+  "shutdown_script",
+  "startup_script",
 ]
 
 // From codersdk/workspaceagents.go
