@@ -619,7 +619,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd offlinedocs
-          sudo yarn
+          yarn
 
       - name: Format
         run: |
