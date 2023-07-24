@@ -631,7 +631,7 @@ jobs:
 
       - name: Build
         run: |
-          version="$(../scripts/version.sh)"
+          version="$(./scripts/version.sh)"
           make -j build/coder_docs_"$version".tgz
 
   required:
