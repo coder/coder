@@ -35,6 +35,7 @@ jobs:
       ts: ${{ steps.filter.outputs.ts }}
       k8s: ${{ steps.filter.outputs.k8s }}
       ci: ${{ steps.filter.outputs.ci }}
+      offlinedocs: ${{ steps.filter.outputs.offlinedocs }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -53,7 +54,6 @@ jobs:
               - "examples/web-server/**"
               - "examples/monitoring/**"
               - "examples/lima/**"
-              - "offlinedocs/**"
             go:
               - "**.sql"
               - "**.go"
@@ -94,6 +94,9 @@ jobs:
             ci:
               - ".github/actions/**"
               - ".github/workflows/ci.yaml"
+            offlinedocs:
+              - "offlinedocs/**"
+
       - id: debug
         run: |
           echo "${{ toJSON(steps.filter )}}"
@@ -592,9 +595,46 @@ jobs:
           projectToken: 695c25b6cb65
           workingDir: "./site"
 
+  offlinedocs:
+    name: fmt
+    needs: changes
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    if: needs.changes.outputs.offlinedocs == 'true' || needs.changes.outputs.ci == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Node
+        uses: buildjet/setup-node@v3
+        with:
+          node-version: 16.20.1
+          cache: "yarn"
+          cache-dependency-path: "offlinedocs/yarn.lock"
+
+      - name: Install dependencies
+        run: |
+          cd offlinedocs
+          yarn
+
+      - name: Check format
+        run: |
+          cd offlinedocs
+          yarn format:check
+
+      - name: lint
+        run: |
+          cd offlinedocs
+          yarn && yarn lint
+
+      - name: Build
+        run: |
+          version="$(./scripts/version.sh)"
+          make -j build/coder_docs_"$version".tgz
+
   required:
     runs-on: ubuntu-latest
-    needs: [fmt, lint, gen, test-go, test-go-pg, test-go-race, test-js]
+    needs:
+      [fmt, lint, gen, test-go, test-go-pg, test-go-race, test-js, offlinedocs]
     # Allow this job to run even if the needed jobs fail, are skipped or
     # cancelled.
     if: always()
