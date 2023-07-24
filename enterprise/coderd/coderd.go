@@ -571,7 +571,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		}
 	}
 
-	if changed, enabled := featureChanged(codersdk.FeatureWorkspaceProxy); changed {
+	if initial, changed, enabled := featureChanged(codersdk.FeatureWorkspaceProxy); shouldUpdate(initial, changed, enabled) {
 		if enabled {
 			fn := derpMapper(api.Logger, api.ProxyHealth)
 			api.AGPL.DERPMapper.Store(&fn)

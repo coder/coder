@@ -344,6 +344,13 @@ func New(options *Options) *API {
 		Experiments:                 experiments,
 		healthCheckGroup:            &singleflight.Group[string, *healthcheck.Report]{},
 	}
+	if options.UpdateCheckOptions != nil {
+		api.updateChecker = updatecheck.New(
+			options.Database,
+			options.Logger.Named("update_checker"),
+			*options.UpdateCheckOptions,
+		)
+	}
 	if options.HealthcheckFunc == nil {
 		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *healthcheck.Report {
 			return healthcheck.Run(ctx, &healthcheck.ReportOptions{

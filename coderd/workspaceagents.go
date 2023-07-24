@@ -816,7 +816,7 @@ func (api *API) workspaceAgentConnectionGeneric(rw http.ResponseWriter, r *http.
 // @Security CoderSessionToken
 // @Tags Agents
 // @Success 101
-// @Router /derpmap [get]
+// @Router /derp-map [get]
 func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

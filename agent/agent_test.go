@@ -1735,6 +1735,7 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 	statsCh := make(chan *agentsdk.Stats, 50)
 	fs := afero.NewMemMapFs()
 	client := agenttest.NewClient(t,
+		logger.Named("agent"),
 		agentID,
 		agentsdk.Manifest{
 			DERPMap: originalDerpMap,
