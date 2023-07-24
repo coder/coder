@@ -634,7 +634,7 @@ jobs:
           yarn
           # Install prettier globally
           prettier_version=$(jq -r '.devDependencies.prettier' < package.json)
-          yarn global add prettier@$prettier_version
+          yarn global add "prettier@${prettier_version}"
 
       - name: Format
         run: |
