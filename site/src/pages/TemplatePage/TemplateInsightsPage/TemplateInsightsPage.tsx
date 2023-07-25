@@ -3,11 +3,7 @@ import Box from "@mui/material/Box"
 import { styled, useTheme } from "@mui/material/styles"
 import { BoxProps } from "@mui/system"
 import { useQuery } from "@tanstack/react-query"
-import {
-  getInsightsTemplate,
-  getInsightsUserLatency,
-  getTemplateDAUs,
-} from "api/api"
+import { getInsightsTemplate, getInsightsUserLatency } from "api/api"
 import { DAUChart } from "components/DAUChart/DAUChart"
 import { useTemplateLayoutContext } from "components/TemplateLayout/TemplateLayout"
 import {
@@ -22,9 +18,21 @@ import { colors } from "theme/colors"
 import { Helmet } from "react-helmet-async"
 import { getTemplatePageTitle } from "../utils"
 import { Loader } from "components/Loader/Loader"
+import { DAUsResponse, TemplateInsightsResponse } from "api/typesGenerated"
+import { ComponentProps } from "react"
+import subDays from "date-fns/subDays"
 
 export default function TemplateInsightsPage() {
   const { template } = useTemplateLayoutContext()
+  const { data: templateInsights } = useQuery({
+    queryKey: ["templates", template.id, "usage"],
+    queryFn: () =>
+      getInsightsTemplate({
+        template_ids: template.id,
+        start_time: toTimeFilter(sevenDaysAgo()),
+        end_time: toTimeFilter(new Date()),
+      }),
+  })
 
   return (
     <>
@@ -40,22 +48,28 @@ export default function TemplateInsightsPage() {
           gap: (theme) => theme.spacing(3),
         }}
       >
-        <DailyUsersPanel sx={{ gridColumn: "span 2" }} />
+        <DailyUsersPanel
+          sx={{ gridColumn: "span 2" }}
+          data={templateInsights?.interval_reports}
+        />
         <UserLatencyPanel />
-        <TemplateUsagePanel sx={{ gridColumn: "span 3" }} />
+        <TemplateUsagePanel
+          sx={{ gridColumn: "span 3" }}
+          data={templateInsights?.report.apps_usage}
+        />
       </Box>
     </>
   )
 }
 
-const DailyUsersPanel = (props: BoxProps) => {
-  const { template } = useTemplateLayoutContext()
-  const { data } = useQuery({
-    queryKey: ["templates", template.id, "dau"],
-    queryFn: () => getTemplateDAUs(template.id),
-  })
+const DailyUsersPanel = ({
+  data,
+  ...panelProps
+}: PanelProps & {
+  data: TemplateInsightsResponse["interval_reports"] | undefined
+}) => {
   return (
-    <Panel {...props}>
+    <Panel {...panelProps}>
       <PanelHeader sx={{ display: "flex", alignItems: "center", gap: 1 }}>
         Active daily users
         <HelpTooltip size="small">
@@ -67,21 +81,21 @@ const DailyUsersPanel = (props: BoxProps) => {
       </PanelHeader>
       <PanelContent>
         {!data && <Loader sx={{ height: "100%" }} />}
-        {data && data.entries.length === 0 && <NoDataAvailable />}
-        {data && data.entries.length > 0 && <DAUChart daus={data} />}
+        {data && data.length === 0 && <NoDataAvailable />}
+        {data && data.length > 0 && <DAUChart daus={mapToDAUsResponse(data)} />}
       </PanelContent>
     </Panel>
   )
 }
 
-const UserLatencyPanel = (props: BoxProps) => {
+const UserLatencyPanel = (props: PanelProps) => {
   const { template } = useTemplateLayoutContext()
   const { data } = useQuery({
     queryKey: ["templates", template.id, "user-latency"],
     queryFn: () =>
       getInsightsUserLatency({
         template_ids: template.id,
-        start_time: toTimeFilter(new Date(template.created_at)),
+        start_time: toTimeFilter(sevenDaysAgo()),
         end_time: toTimeFilter(new Date()),
       }),
   })
@@ -133,37 +147,29 @@ const UserLatencyPanel = (props: BoxProps) => {
   )
 }
 
-const TemplateUsagePanel = (props: BoxProps) => {
-  const { template } = useTemplateLayoutContext()
-  const { data } = useQuery({
-    queryKey: ["templates", template.id, "usage"],
-    queryFn: () =>
-      getInsightsTemplate({
-        template_ids: template.id,
-        start_time: toTimeFilter(new Date(template.created_at)),
-        end_time: toTimeFilter(new Date()),
-      }),
-  })
+const TemplateUsagePanel = ({
+  data,
+  ...panelProps
+}: PanelProps & {
+  data: TemplateInsightsResponse["report"]["apps_usage"] | undefined
+}) => {
   const totalInSeconds =
-    data?.report.apps_usage.reduce(
-      (total, usage) => total + usage.seconds,
-      0,
-    ) ?? 1
+    data?.reduce((total, usage) => total + usage.seconds, 0) ?? 1
   const usageColors = chroma
     .scale([colors.green[8], colors.blue[8]])
     .mode("lch")
-    .colors(data?.report.apps_usage.length ?? 0)
+    .colors(data?.length ?? 0)
   // The API returns a row for each app, even if the user didn't use it.
-  const hasDataAvailable = data?.report.apps_usage.some((u) => u.seconds > 0)
+  const hasDataAvailable = data?.some((u) => u.seconds > 0)
   return (
-    <Panel {...props}>
+    <Panel {...panelProps}>
       <PanelHeader>App&lsquo;s & IDE usage</PanelHeader>
       <PanelContent>
         {!data && <Loader sx={{ height: 200 }} />}
         {data && !hasDataAvailable && <NoDataAvailable sx={{ height: 200 }} />}
         {data && hasDataAvailable && (
           <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-            {data.report.apps_usage
+            {data
               .sort((a, b) => b.seconds - a.seconds)
               .map((usage, i) => {
                 const percentage = (usage.seconds / totalInSeconds) * 100
@@ -237,6 +243,8 @@ const Panel = styled(Box)(({ theme }) => ({
   flexDirection: "column",
 }))
 
+type PanelProps = ComponentProps<typeof Panel>
+
 const PanelHeader = styled(Box)(({ theme }) => ({
   fontSize: 14,
   fontWeight: 500,
@@ -269,6 +277,20 @@ const NoDataAvailable = (props: BoxProps) => {
   )
 }
 
+function mapToDAUsResponse(
+  data: TemplateInsightsResponse["interval_reports"],
+): DAUsResponse {
+  return {
+    tz_hour_offset: 0,
+    entries: data.map((d) => {
+      return {
+        amount: d.active_users,
+        date: d.end_time,
+      }
+    }),
+  }
+}
+
 function toTimeFilter(date: Date) {
   date.setHours(0, 0, 0, 0)
   const year = date.getUTCFullYear()
@@ -293,4 +315,8 @@ function formatTime(seconds: number): string {
       return hours + " hours, " + remainingMinutes + " minutes"
     }
   }
+}
+
+function sevenDaysAgo() {
+  return subDays(new Date(), 7)
 }

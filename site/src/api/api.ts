@@ -1386,7 +1386,10 @@ export const getInsightsUserLatency = async (
 export const getInsightsTemplate = async (
   filters: InsightsFilter,
 ): Promise<TypesGen.TemplateInsightsResponse> => {
-  const params = new URLSearchParams(filters)
+  const params = new URLSearchParams({
+    ...filters,
+    interval: "day",
+  })
   const response = await axios.get(`/api/v2/insights/templates?${params}`)
   return response.data
 }
