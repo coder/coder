@@ -37,11 +37,11 @@ jobs:
       - name: Get PR number, title, and branch name
         id: pr_info
         run: |
-          set -exo pipefail
+          set -euxo pipefail
           if [[ ${{ github.event_name }} == "workflow_dispatch" ]]; then
-            PR_NUMBER=${{ github.event.inputs.pr_number }}"
+            PR_NUMBER=${{ github.event.inputs.pr_number }}
           else
-            PR_NUMBER=${{ github.event.issue.number }}"
+            PR_NUMBER=${{ github.event.issue.number }}
           fi
           PR_TITLE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/coder/coder/pulls/$PR_NUMBER | jq -r '.title')
           PR_BRANCH=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/coder/coder/pulls/$PR_NUMBER | jq -r '.head.ref')
