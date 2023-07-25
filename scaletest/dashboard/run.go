@@ -42,34 +42,68 @@ func (r *Runner) Run(ctx context.Context, _ string, _ io.Writer) error {
 		return xerrors.Errorf("user has no organizations")
 	}
 	orgID := me.OrganizationIDs[0]
+	rolls := make(chan int)
+	// Roll a die
+	go func() {
+		t := time.NewTicker(r.randWait())
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				rolls <- rand.Intn(6)
+				t.Reset(r.randWait())
+			}
+		}
+	}()
 
-	go r.do(ctx, "auth check - owner", func(client *codersdk.Client) error {
-		_, err := client.AuthCheck(ctx, randAuthReq(orgID, ownedByMe(me.ID), withAction(randAction()), withObjType(randObjectType())))
-		return err
-	})
-
-	go r.do(ctx, "auth check - not owner", func(client *codersdk.Client) error {
-		_, err := client.AuthCheck(ctx, randAuthReq(orgID, ownedByMe(uuid.New()), withAction(randAction()), withObjType(randObjectType())))
-		return err
-	})
-
-	go r.do(ctx, "fetch workspaces", func(client *codersdk.Client) error {
-		_, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
-		return err
-	})
-
-	go r.do(ctx, "fetch users", func(client *codersdk.Client) error {
-		_, err := client.Users(ctx, codersdk.UsersRequest{})
-		return err
-	})
-
-	go r.do(ctx, "fetch templates", func(client *codersdk.Client) error {
-		_, err = client.TemplatesByOrganization(ctx, orgID)
-		return err
-	})
-
-	<-ctx.Done()
-	return nil
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case n := <-rolls:
+			switch n {
+			case 0:
+				go r.do(ctx, "fetch workspaces", func(client *codersdk.Client) error {
+					_, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+					return err
+				})
+			case 1:
+				go r.do(ctx, "fetch users", func(client *codersdk.Client) error {
+					_, err := client.Users(ctx, codersdk.UsersRequest{})
+					return err
+				})
+			case 2:
+				go r.do(ctx, "fetch templates", func(client *codersdk.Client) error {
+					_, err = client.TemplatesByOrganization(ctx, orgID)
+					return err
+				})
+			case 3:
+				go r.do(ctx, "auth check - owner", func(client *codersdk.Client) error {
+					_, err := client.AuthCheck(ctx, randAuthReq(
+						ownedBy(me.ID),
+						withAction(randAction()),
+						withObjType(randObjectType()),
+						inOrg(orgID),
+					))
+					return err
+				})
+			case 4:
+				go r.do(ctx, "auth check - not owner", func(client *codersdk.Client) error {
+					_, err := client.AuthCheck(ctx, randAuthReq(
+						ownedBy(uuid.New()),
+						withAction(randAction()),
+						withObjType(randObjectType()),
+						inOrg(orgID),
+					))
+					return err
+				})
+			default:
+				r.cfg.Logger.Warn(ctx, "no action for roll - skipping my turn", slog.F("roll", n))
+			}
+		}
+	}
 }
 
 func (*Runner) Cleanup(_ context.Context, _ string) error {
@@ -77,31 +111,26 @@ func (*Runner) Cleanup(_ context.Context, _ string) error {
 }
 
 func (r *Runner) do(ctx context.Context, label string, fn func(client *codersdk.Client) error) {
-	t := time.NewTicker(r.randWait())
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			r.cfg.Logger.Info(ctx, "context done, stopping")
-			return
-		case <-t.C:
-			start := time.Now()
-			err := fn(r.client)
-			elapsed := time.Since(start)
-			if err != nil {
-				r.cfg.Logger.Error(
-					ctx, "function returned error",
-					slog.Error(err),
-					slog.F("fn", label),
-					slog.F("elapsed", elapsed),
-				)
-			} else {
-				r.cfg.Logger.Info(ctx, "completed successfully",
-					slog.F("fn", label),
-					slog.F("elapsed", elapsed),
-				)
-			}
-			t.Reset(r.randWait())
+	select {
+	case <-ctx.Done():
+		r.cfg.Logger.Info(ctx, "context done, stopping")
+		return
+	default:
+		start := time.Now()
+		err := fn(r.client)
+		elapsed := time.Since(start)
+		if err != nil {
+			r.cfg.Logger.Error(
+				ctx, "function returned error",
+				slog.Error(err),
+				slog.F("fn", label),
+				slog.F("elapsed", elapsed),
+			)
+		} else {
+			r.cfg.Logger.Info(ctx, "completed successfully",
+				slog.F("fn", label),
+				slog.F("elapsed", elapsed),
+			)
 		}
 	}
 }
@@ -113,7 +142,7 @@ func (r *Runner) randWait() time.Duration {
 }
 
 // nolint: gosec
-func randAuthReq(orgID uuid.UUID, mut ...func(*codersdk.AuthorizationCheck)) codersdk.AuthorizationRequest {
+func randAuthReq(mut ...func(*codersdk.AuthorizationCheck)) codersdk.AuthorizationRequest {
 	var check codersdk.AuthorizationCheck
 	for _, m := range mut {
 		m(&check)
@@ -125,7 +154,7 @@ func randAuthReq(orgID uuid.UUID, mut ...func(*codersdk.AuthorizationCheck)) cod
 	}
 }
 
-func ownedByMe(myID uuid.UUID) func(check *codersdk.AuthorizationCheck) {
+func ownedBy(myID uuid.UUID) func(check *codersdk.AuthorizationCheck) {
 	return func(check *codersdk.AuthorizationCheck) {
 		check.Object.OwnerID = myID.String()
 	}
