@@ -586,6 +586,39 @@ func TestProxyRegisterDeregister(t *testing.T) {
 		require.Equal(t, req2.ReplicaRelayAddress, registerRes1.SiblingReplicas[0].RelayAddress)
 		require.EqualValues(t, 10001, registerRes1.SiblingReplicas[0].RegionID)
 	})
+
+	// ReturnSiblings2 tries to create 1000 proxy replicas and ensures that they
+	// all return the correct number of siblings.
+	t.Run("ReturnSiblings2", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := setup(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		createRes, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
+			Name: "proxy",
+		})
+		require.NoError(t, err)
+
+		proxyClient := wsproxysdk.New(client.URL)
+		proxyClient.SetSessionToken(createRes.ProxyToken)
+
+		for i := 0; i < 1000; i++ {
+			registerRes, err := proxyClient.RegisterWorkspaceProxy(ctx, wsproxysdk.RegisterWorkspaceProxyRequest{
+				AccessURL:           "https://proxy.coder.test",
+				WildcardHostname:    "*.proxy.coder.test",
+				DerpEnabled:         true,
+				ReplicaID:           uuid.New(),
+				ReplicaHostname:     "venus",
+				ReplicaError:        "",
+				ReplicaRelayAddress: fmt.Sprintf("http://127.0.0.1:%d", 8080+i),
+				Version:             buildinfo.Version(),
+			})
+			require.NoErrorf(t, err, "register proxy %d", i)
+
+			require.Lenf(t, registerRes.SiblingReplicas, i, "siblings for proxy %d", i)
+		}
+	})
 }
 
 func TestIssueSignedAppToken(t *testing.T) {

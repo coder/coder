@@ -126,6 +126,20 @@ type Manager struct {
 	callback func()
 }
 
+func (m *Manager) ID() uuid.UUID {
+	return m.id
+}
+
+// UpdateNow synchronously updates replicas.
+func (m *Manager) UpdateNow(ctx context.Context) error {
+	return m.syncReplicas(ctx)
+}
+
+// PublishUpdate notifies all other replicas to update.
+func (m *Manager) PublishUpdate() error {
+	return m.pubsub.Publish(PubsubEvent, []byte(m.id.String()))
+}
+
 // updateInterval is used to determine a replicas state.
 // If the replica was updated > the time, it's considered healthy.
 // If the replica was updated < the time, it's considered stale.
@@ -307,7 +321,7 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 	}
 	if m.self.Error != replica.Error {
 		// Publish an update occurred!
-		err = m.pubsub.Publish(PubsubEvent, []byte(m.self.ID.String()))
+		err = m.PublishUpdate()
 		if err != nil {
 			return xerrors.Errorf("publish replica update: %w", err)
 		}

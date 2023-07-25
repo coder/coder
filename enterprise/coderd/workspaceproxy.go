@@ -645,9 +645,16 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Publish a replicasync event with a nil ID so every replica (yes, even the
-	// current replica) will refresh its replicas list.
-	err = api.Pubsub.Publish(replicasync.PubsubEvent, []byte(uuid.Nil.String()))
+	// Update replica sync and notify all other replicas to update their
+	// replica list.
+	err = api.replicaManager.PublishUpdate()
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	replicaUpdateCtx, replicaUpdateCancel := context.WithTimeout(ctx, 5*time.Second)
+	defer replicaUpdateCancel()
+	err = api.replicaManager.UpdateNow(replicaUpdateCtx)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
