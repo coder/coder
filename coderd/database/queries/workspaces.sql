@@ -259,11 +259,13 @@ WHERE
 			) > 0
 		ELSE true
 	END
-	-- Filter by locked workspaces.
+	-- Filter by locked workspaces. By default we do not return locked
+	-- workspaces since they are considered soft-deleted.
 	AND CASE
 		WHEN @locked_at :: timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN
 			locked_at IS NOT NULL AND locked_at >= @locked_at
-		ELSE true
+		ELSE
+			locked_at IS NULL
 	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
