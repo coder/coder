@@ -21,12 +21,13 @@ export type UserOrGroupAutocompleteProps = {
   value: UserOrGroupAutocompleteValue
   onChange: (value: UserOrGroupAutocompleteValue) => void
   organizationId: string
+  templateID?: string
   exclude: UserOrGroupAutocompleteValue[]
 }
 
 export const UserOrGroupAutocomplete: React.FC<
   UserOrGroupAutocompleteProps
-> = ({ value, onChange, organizationId, exclude }) => {
+> = ({ value, onChange, organizationId, templateID, exclude }) => {
   const styles = useStyles()
   const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false)
   const [searchState, sendSearch] = useMachine(searchUsersAndGroupsMachine, {
@@ -34,6 +35,7 @@ export const UserOrGroupAutocomplete: React.FC<
       userResults: [],
       groupResults: [],
       organizationId,
+      templateID,
     },
   })
   const { userResults, groupResults } = searchState.context
@@ -73,6 +75,7 @@ export const UserOrGroupAutocomplete: React.FC<
       }
       renderOption={(props, option) => {
         const isOptionGroup = isGroup(option)
+        console.log("option", option)
 
         return (
           <Box component="li" {...props}>

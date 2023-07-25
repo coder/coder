@@ -869,6 +869,15 @@ export const getDeploymentDAUs = async (
   return response.data
 }
 
+export const getTemplateACLAvailable = async (
+  templateId: string,
+  options: TypesGen.UsersRequest,
+): Promise<TypesGen.ACLAvailable> => {
+  const url = getURLWithSearchParams(`/api/v2/templates/${templateId}/acl/available`, options)
+  const response = await axios.get(url.toString())
+  return response.data
+}
+
 export const getTemplateACL = async (
   templateId: string,
 ): Promise<TypesGen.TemplateACL> => {

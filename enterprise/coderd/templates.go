@@ -57,17 +57,22 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 
 	sdkGroups := make([]codersdk.Group, 0, len(groups))
 	for _, group := range groups {
-		sdkGroups = append(sdkGroups, codersdk.Group{
-			ID:             group.ID,
-			Name:           group.Name,
-			OrganizationID: group.OrganizationID,
-			AvatarURL:      group.AvatarURL,
-			QuotaAllowance: int(group.QuotaAllowance),
-		})
+		// nolint:gocritic
+		members, err := api.Database.GetGroupMembers(dbauthz.AsSystemRestricted(ctx), group.ID)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+
+		sdkGroups = append(sdkGroups, convertGroup(group, members))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ACLAvailable{
-		Users:  convertMinimalUser(users),
+		// No need to pass organization info here.
+		// TODO: @emyrk we should return a MinimalUser here instead of a full user.
+		// The FE requires the `email` field, so this cannot be done without
+		// a UI change.
+		Users:  convertUsers(users, map[uuid.UUID][]uuid.UUID{}),
 		Groups: sdkGroups,
 	})
 }

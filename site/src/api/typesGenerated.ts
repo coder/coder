@@ -2,7 +2,7 @@
 
 // From codersdk/templates.go
 export interface ACLAvailable {
-  readonly users: MinimalUser[]
+  readonly users: User[]
   readonly groups: Group[]
 }
 

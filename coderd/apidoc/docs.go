@@ -6669,7 +6669,7 @@ const docTemplate = `{
                 "users": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.MinimalUser"
+                        "$ref": "#/definitions/codersdk.User"
                     }
                 }
             }
