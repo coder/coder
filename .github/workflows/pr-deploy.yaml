@@ -150,6 +150,35 @@ jobs:
           kubectl delete namespace "pr${{ env.PR_NUMBER }}" || true
           kubectl create namespace "pr${{ env.PR_NUMBER }}"
 
+      - name: Setup ingress
+        run: |
+          echo <<EOF
+          apiVersion: networking.k8s.io/v1
+          kind: Ingress
+          metadata:
+            name: pr${{ env.PR_NUMBER }}-ingress
+            namespace: pr${{ env.PR_NUMBER }}
+            annotations:
+              cert-manager.io/cluster-issuer: letsencrypt-prod
+          spec:
+            tls:
+            - hosts:
+              - "pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
+              secretName: pr${{ env.PR_NUMBER }}-tls
+            rules:
+            - host: "pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
+              http:
+                paths:
+                - pathType: Prefix
+                  path: /
+                  backend:
+                    service:
+                      name: coder
+                      port:
+                        number: 80
+          EOF > ingress.yaml
+          kubectl apply -f ingress.yaml
+
       - name: Install Helm chart
         run: |
           helm upgrade --install pr${{ env.PR_NUMBER }}  ./helm \
@@ -159,7 +188,18 @@ jobs:
           --set coder.service.type=ClusterIP \
           --set coder.serviceAccount.enableDeployments=true \
           --set coder.env[0].name=CODER_ACCESS_URL \
-          --set coder.env[0].value="" \
+          --set coder.env[0].value="https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}" \
+          --set coder.env[1].name=CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS \
+          --set coder.env[1].value=true \
+          --set coder.env[2].name=CODER_OAUTH2_GITHUB_CLIENT_ID \
+          --set coder.env[2].value=${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_ID }} \
+          --set coder.env[3].name=CODER_OAUTH2_GITHUB_CLIENT_SECRET \
+          --set coder.env[3].value=${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_SECRET }} \
+          --set coder.env[4].name=CODER_OAUTH2_GITHUB_ALLOWED_ORGS \
+          --set coder.env[4].value=coder \
+          # Uncomment this when https://github.com/coder/coder/issues/8714 is resolved
+          # --set coder.env[5].name=CODER_OAUTH2_GITHUB_REDIRECT_URI \
+          # --set coder.env[5].value="https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}/gitauth/github/callback \
           --force
 
       - name: Get deployment URL
