@@ -169,21 +169,10 @@ jobs:
           spec:
             tls:
             - hosts:
-              - "pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
-              - "*--pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
+              - "*.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
               secretName: pr${{ env.PR_NUMBER }}-tls
             rules:
             - host: "pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
-              http:
-                paths:
-                - pathType: Prefix
-                  path: "/"
-                  backend:
-                    service:
-                      name: coder
-                      port:
-                        number: 80
-            - host: "*--pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
               http:
                 paths:
                 - pathType: Prefix
@@ -206,7 +195,7 @@ jobs:
           --set coder.serviceAccount.enableDeployments=true \
           --set coder.env[0].name=CODER_ACCESS_URL \
           --set coder.env[0].value="pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}" \
-          --set coder.env[1].name=CODER_WILD_CARD_ACCESS_URL \
+          --set coder.env[1].name=CODER_WILDCARD_ACCESS_URL \
           --set coder.env[1].value="*--pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}" \
           # Uncomment this when https://github.com/coder/coder/issues/8714 is resolved
           # --set coder.env[2].name=CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS \
