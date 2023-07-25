@@ -18,20 +18,28 @@ import { colors } from "theme/colors"
 import { Helmet } from "react-helmet-async"
 import { getTemplatePageTitle } from "../utils"
 import { Loader } from "components/Loader/Loader"
-import { DAUsResponse, TemplateInsightsResponse } from "api/typesGenerated"
+import {
+  DAUsResponse,
+  TemplateInsightsResponse,
+  UserLatencyInsightsResponse,
+} from "api/typesGenerated"
 import { ComponentProps } from "react"
 import subDays from "date-fns/subDays"
 
 export default function TemplateInsightsPage() {
   const { template } = useTemplateLayoutContext()
+  const insightsFilter = {
+    template_ids: template.id,
+    start_time: toTimeFilter(sevenDaysAgo()),
+    end_time: toTimeFilter(new Date()),
+  }
   const { data: templateInsights } = useQuery({
     queryKey: ["templates", template.id, "usage"],
-    queryFn: () =>
-      getInsightsTemplate({
-        template_ids: template.id,
-        start_time: toTimeFilter(sevenDaysAgo()),
-        end_time: toTimeFilter(new Date()),
-      }),
+    queryFn: () => getInsightsTemplate(insightsFilter),
+  })
+  const { data: userLatency } = useQuery({
+    queryKey: ["templates", template.id, "user-latency"],
+    queryFn: () => getInsightsUserLatency(insightsFilter),
   })
 
   return (
@@ -39,26 +47,40 @@ export default function TemplateInsightsPage() {
       <Helmet>
         <title>{getTemplatePageTitle("Insights", template)}</title>
       </Helmet>
-
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-          gridTemplateRows: "440px auto",
-          gap: (theme) => theme.spacing(3),
-        }}
-      >
-        <DailyUsersPanel
-          sx={{ gridColumn: "span 2" }}
-          data={templateInsights?.interval_reports}
-        />
-        <UserLatencyPanel />
-        <TemplateUsagePanel
-          sx={{ gridColumn: "span 3" }}
-          data={templateInsights?.report.apps_usage}
-        />
-      </Box>
+      <TemplateInsightsPageView
+        templateInsights={templateInsights}
+        userLatency={userLatency}
+      />
     </>
+  )
+}
+
+export const TemplateInsightsPageView = ({
+  templateInsights,
+  userLatency,
+}: {
+  templateInsights: TemplateInsightsResponse | undefined
+  userLatency: UserLatencyInsightsResponse | undefined
+}) => {
+  return (
+    <Box
+      sx={{
+        display: "grid",
+        gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+        gridTemplateRows: "440px auto",
+        gap: (theme) => theme.spacing(3),
+      }}
+    >
+      <DailyUsersPanel
+        sx={{ gridColumn: "span 2" }}
+        data={templateInsights?.interval_reports}
+      />
+      <UserLatencyPanel data={userLatency} />
+      <TemplateUsagePanel
+        sx={{ gridColumn: "span 3" }}
+        data={templateInsights?.report.apps_usage}
+      />
+    </Box>
   )
 }
 
@@ -91,22 +113,15 @@ const DailyUsersPanel = ({
   )
 }
 
-const UserLatencyPanel = (props: PanelProps) => {
-  const { template } = useTemplateLayoutContext()
-  const { data } = useQuery({
-    queryKey: ["templates", template.id, "user-latency"],
-    queryFn: () =>
-      getInsightsUserLatency({
-        template_ids: template.id,
-        start_time: toTimeFilter(sevenDaysAgo()),
-        end_time: toTimeFilter(new Date()),
-      }),
-  })
+const UserLatencyPanel = ({
+  data,
+  ...panelProps
+}: PanelProps & { data: UserLatencyInsightsResponse | undefined }) => {
   const theme = useTheme()
   const users = data?.report.users
 
   return (
-    <Panel {...props} sx={{ overflowY: "auto", ...props.sx }}>
+    <Panel {...panelProps} sx={{ overflowY: "auto", ...panelProps.sx }}>
       <PanelHeader>
         <PanelTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           Latency by user
