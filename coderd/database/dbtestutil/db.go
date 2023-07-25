@@ -19,7 +19,13 @@ func WillUsePostgres() bool {
 	return os.Getenv("DB") != ""
 }
 
-func NewDB(t testing.TB) (database.Store, pubsub.Pubsub) {
+// NewDB returns a new database.Store and pubsub.Pubsub.
+// If the DB environment variable is set, a real postgres-backed
+// Store and Pubsub will be returned.
+// Additionally, if CODER_PG_CONNECTION_URL is set, it will be used
+// to connect to the database.
+// Otherwise, a new fake in-memory Store and Pubsub will be returned.
+func NewDB(t testing.TB, seedFunc ...func(*sql.DB) error) (database.Store, pubsub.Pubsub) {
 	t.Helper()
 
 	db := dbfake.New()
@@ -42,11 +48,17 @@ func NewDB(t testing.TB) (database.Store, pubsub.Pubsub) {
 		})
 		db = database.New(sqlDB)
 
+		for i, f := range seedFunc {
+			require.NoError(t, f(sqlDB), "database seed function %d failed", i+1)
+		}
+
 		ps, err = pubsub.New(context.Background(), sqlDB, connectionURL)
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			_ = ps.Close()
 		})
+	} else if len(seedFunc) > 0 {
+		t.Fatal("cannot seed fake database, skip this test if not using postgres")
 	}
 
 	return db, ps
