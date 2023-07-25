@@ -18,7 +18,7 @@ WHERE
 	AND workspace_agent_stats.connection_median_latency_ms > 0
 	AND workspace_agent_stats.connection_count > 0
 	AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
-GROUP BY workspace_agent_stats.user_id, users.username
+GROUP BY workspace_agent_stats.user_id, users.username, users.avatar_url
 ORDER BY user_id ASC;
 
 -- name: GetTemplateInsights :one
