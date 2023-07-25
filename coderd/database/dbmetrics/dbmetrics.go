@@ -599,6 +599,20 @@ func (m metricsStore) GetTemplateDAUs(ctx context.Context, arg database.GetTempl
 	return daus, err
 }
 
+func (m metricsStore) GetTemplateDailyInsights(ctx context.Context, arg database.GetTemplateDailyInsightsParams) ([]database.GetTemplateDailyInsightsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateDailyInsights(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetTemplateDailyInsights").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) GetTemplateInsights(ctx context.Context, arg database.GetTemplateInsightsParams) (database.GetTemplateInsightsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateInsights(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetTemplateInsights").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (database.TemplateVersion, error) {
 	start := time.Now()
 	version, err := m.s.GetTemplateVersionByID(ctx, id)
@@ -695,6 +709,13 @@ func (m metricsStore) GetUserCount(ctx context.Context) (int64, error) {
 	count, err := m.s.GetUserCount(ctx)
 	m.queryLatencies.WithLabelValues("GetUserCount").Observe(time.Since(start).Seconds())
 	return count, err
+}
+
+func (m metricsStore) GetUserLatencyInsights(ctx context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserLatencyInsights(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetUserLatencyInsights").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) GetUserLinkByLinkedID(ctx context.Context, linkedID string) (database.UserLink, error) {
@@ -1516,10 +1537,10 @@ func (m metricsStore) UpdateWorkspaceLastUsedAt(ctx context.Context, arg databas
 	return err
 }
 
-func (m metricsStore) UpdateWorkspaceLockedAt(ctx context.Context, arg database.UpdateWorkspaceLockedAtParams) error {
+func (m metricsStore) UpdateWorkspaceLockedDeletingAt(ctx context.Context, arg database.UpdateWorkspaceLockedDeletingAtParams) error {
 	start := time.Now()
-	r0 := m.s.UpdateWorkspaceLockedAt(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateWorkspaceLockedAt").Observe(time.Since(start).Seconds())
+	r0 := m.s.UpdateWorkspaceLockedDeletingAt(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceLockedDeletingAt").Observe(time.Since(start).Seconds())
 	return r0
 }
 
@@ -1541,6 +1562,13 @@ func (m metricsStore) UpdateWorkspaceTTL(ctx context.Context, arg database.Updat
 	start := time.Now()
 	r0 := m.s.UpdateWorkspaceTTL(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateWorkspaceTTL").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m metricsStore) UpdateWorkspacesDeletingAtByTemplateID(ctx context.Context, arg database.UpdateWorkspacesDeletingAtByTemplateIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspacesDeletingAtByTemplateID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspacesDeletingAtByTemplateID").Observe(time.Since(start).Seconds())
 	return r0
 }
 

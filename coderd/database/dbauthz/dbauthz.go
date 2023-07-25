@@ -207,7 +207,7 @@ var (
 					rbac.ResourceWildcard.Type:           {rbac.ActionRead},
 					rbac.ResourceAPIKey.Type:             {rbac.ActionCreate, rbac.ActionUpdate, rbac.ActionDelete},
 					rbac.ResourceGroup.Type:              {rbac.ActionCreate, rbac.ActionUpdate},
-					rbac.ResourceRoleAssignment.Type:     {rbac.ActionCreate},
+					rbac.ResourceRoleAssignment.Type:     {rbac.ActionCreate, rbac.ActionDelete},
 					rbac.ResourceSystem.Type:             {rbac.WildcardSymbol},
 					rbac.ResourceOrganization.Type:       {rbac.ActionCreate},
 					rbac.ResourceOrganizationMember.Type: {rbac.ActionCreate},
@@ -1173,6 +1173,22 @@ func (q *querier) GetTemplateDAUs(ctx context.Context, arg database.GetTemplateD
 	return q.db.GetTemplateDAUs(ctx, arg)
 }
 
+func (q *querier) GetTemplateDailyInsights(ctx context.Context, arg database.GetTemplateDailyInsightsParams) ([]database.GetTemplateDailyInsightsRow, error) {
+	// FIXME: this should maybe be READ rbac.ResourceTemplate or it's own resource.
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetTemplateDailyInsights(ctx, arg)
+}
+
+func (q *querier) GetTemplateInsights(ctx context.Context, arg database.GetTemplateInsightsParams) (database.GetTemplateInsightsRow, error) {
+	// FIXME: this should maybe be READ rbac.ResourceTemplate or it's own resource.
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.GetTemplateInsightsRow{}, err
+	}
+	return q.db.GetTemplateInsights(ctx, arg)
+}
+
 func (q *querier) GetTemplateVersionByID(ctx context.Context, tvid uuid.UUID) (database.TemplateVersion, error) {
 	tv, err := q.db.GetTemplateVersionByID(ctx, tvid)
 	if err != nil {
@@ -1337,6 +1353,13 @@ func (q *querier) GetUserCount(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 	return q.db.GetUserCount(ctx)
+}
+
+func (q *querier) GetUserLatencyInsights(ctx context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetUserLatencyInsights(ctx, arg)
 }
 
 func (q *querier) GetUserLinkByLinkedID(ctx context.Context, linkedID string) (database.UserLink, error) {
@@ -2488,11 +2511,11 @@ func (q *querier) UpdateWorkspaceLastUsedAt(ctx context.Context, arg database.Up
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceLastUsedAt)(ctx, arg)
 }
 
-func (q *querier) UpdateWorkspaceLockedAt(ctx context.Context, arg database.UpdateWorkspaceLockedAtParams) error {
-	fetch := func(ctx context.Context, arg database.UpdateWorkspaceLockedAtParams) (database.Workspace, error) {
+func (q *querier) UpdateWorkspaceLockedDeletingAt(ctx context.Context, arg database.UpdateWorkspaceLockedDeletingAtParams) error {
+	fetch := func(ctx context.Context, arg database.UpdateWorkspaceLockedDeletingAtParams) (database.Workspace, error) {
 		return q.db.GetWorkspaceByID(ctx, arg.ID)
 	}
-	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceLockedAt)(ctx, arg)
+	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceLockedDeletingAt)(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceProxy(ctx context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
@@ -2514,6 +2537,14 @@ func (q *querier) UpdateWorkspaceTTL(ctx context.Context, arg database.UpdateWor
 		return q.db.GetWorkspaceByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceTTL)(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspacesDeletingAtByTemplateID(ctx context.Context, arg database.UpdateWorkspacesDeletingAtByTemplateIDParams) error {
+	fetch := func(ctx context.Context, arg database.UpdateWorkspacesDeletingAtByTemplateIDParams) (database.Template, error) {
+		return q.db.GetTemplateByID(ctx, arg.TemplateID)
+	}
+
+	return fetchAndExec(q.log, q.auth, rbac.ActionUpdate, fetch, q.db.UpdateWorkspacesDeletingAtByTemplateID)(ctx, arg)
 }
 
 func (q *querier) UpsertAppSecurityKey(ctx context.Context, data string) error {

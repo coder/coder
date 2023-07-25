@@ -14,6 +14,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
 
@@ -262,7 +263,11 @@ func (c *connIO) recvLoop() {
 		var node agpl.Node
 		err := c.decoder.Decode(&node)
 		if err != nil {
-			if xerrors.Is(err, io.EOF) || xerrors.Is(err, io.ErrClosedPipe) || xerrors.Is(err, context.Canceled) {
+			if xerrors.Is(err, io.EOF) ||
+				xerrors.Is(err, io.ErrClosedPipe) ||
+				xerrors.Is(err, context.Canceled) ||
+				xerrors.Is(err, context.DeadlineExceeded) ||
+				websocket.CloseStatus(err) > 0 {
 				c.logger.Debug(c.ctx, "exiting recvLoop", slog.Error(err))
 			} else {
 				c.logger.Error(c.ctx, "failed to decode Node update", slog.Error(err))

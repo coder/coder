@@ -98,7 +98,11 @@ export const useProxyLatency = (
         // This prevents fetching latencies too often.
         // 1. Fetch the latest stored latency for the given proxy.
         // 2. If the latest latency is after the latestFetchRequest, then skip the latency check.
-        if (storedLatencies && storedLatencies[proxy.id]) {
+        if (
+          storedLatencies &&
+          storedLatencies[proxy.id] &&
+          storedLatencies[proxy.id].length > 0
+        ) {
           const fetchRequestDate = new Date(latestFetchRequest)
           const latest = storedLatencies[proxy.id].reduce((prev, next) =>
             prev.at > next.at ? prev : next,

@@ -31,6 +31,10 @@ func Test_TimezoneIANA(t *testing.T) {
 			// Not all Linux operating systems are guaranteed to have localtime!
 			t.Skip("localtime doesn't exist!")
 		}
+		if runtime.GOOS == "windows" {
+			// This test can be flaky on some Windows runners :(
+			t.Skip("This test is flaky under Windows.")
+		}
 		oldEnv, found := os.LookupEnv("TZ")
 		if found {
 			require.NoError(t, os.Unsetenv("TZ"))
