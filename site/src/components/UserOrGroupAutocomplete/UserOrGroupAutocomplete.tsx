@@ -75,7 +75,6 @@ export const UserOrGroupAutocomplete: React.FC<
       }
       renderOption={(props, option) => {
         const isOptionGroup = isGroup(option)
-        console.log("option", option)
 
         return (
           <Box component="li" {...props}>
