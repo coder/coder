@@ -88,7 +88,10 @@ const UserLatencyPanel = (props: BoxProps) => {
                 }}
               >
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                  <UserAvatar username={row.username} avatarURL="" />
+                  <UserAvatar
+                    username={row.username}
+                    avatarURL={row.avatar_url}
+                  />
                   <Box sx={{ fontWeight: 500 }}>{row.username}</Box>
                 </Box>
                 <Box
