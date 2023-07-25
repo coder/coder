@@ -1176,7 +1176,7 @@ export interface UserLatency {
   readonly template_ids: string[]
   readonly user_id: string
   readonly username: string
-  readonly avatar_url?: string
+  readonly avatar_url: string
   readonly latency_ms: ConnectionLatency
 }
 

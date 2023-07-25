@@ -9917,7 +9917,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "avatar_url": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uri"
                 },
                 "latency_ms": {
                     "$ref": "#/definitions/codersdk.ConnectionLatency"
