@@ -1431,7 +1431,7 @@ func TestGetUsersPagination(t *testing.T) {
 	require.Equal(t, res.Count, 2)
 
 	// if offset is higher than the count postgres returns an empty array
-	// and not an ErrNoRows error. This also means the count must be 0.
+	// and not an ErrNoRows error.
 	res, err = client.Users(ctx, codersdk.UsersRequest{
 		Pagination: codersdk.Pagination{
 			Offset: 3,
@@ -1439,7 +1439,7 @@ func TestGetUsersPagination(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, res.Users, 0)
-	require.Equal(t, res.Count, 0)
+	require.Equal(t, res.Count, -1)
 }
 
 func TestPostTokens(t *testing.T) {
