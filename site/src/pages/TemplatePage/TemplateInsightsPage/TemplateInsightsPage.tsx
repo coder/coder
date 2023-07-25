@@ -71,7 +71,7 @@ const DailyUsersPanel = ({
   return (
     <Panel {...panelProps}>
       <PanelHeader sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-        Active daily users
+        Daily Active Users
         <HelpTooltip size="small">
           <HelpTooltipTitle>How do we calculate DAUs?</HelpTooltipTitle>
           <HelpTooltipText>
@@ -153,14 +153,15 @@ const TemplateUsagePanel = ({
 }: PanelProps & {
   data: TemplateInsightsResponse["report"]["apps_usage"] | undefined
 }) => {
+  const validUsage = data?.filter((u) => u.seconds > 0)
   const totalInSeconds =
-    data?.reduce((total, usage) => total + usage.seconds, 0) ?? 1
+    validUsage?.reduce((total, usage) => total + usage.seconds, 0) ?? 1
   const usageColors = chroma
     .scale([colors.green[8], colors.blue[8]])
     .mode("lch")
-    .colors(data?.length ?? 0)
+    .colors(validUsage?.length ?? 0)
   // The API returns a row for each app, even if the user didn't use it.
-  const hasDataAvailable = data?.some((u) => u.seconds > 0)
+  const hasDataAvailable = validUsage && validUsage.length > 0
   return (
     <Panel {...panelProps}>
       <PanelHeader>App&lsquo;s & IDE usage</PanelHeader>
@@ -169,7 +170,7 @@ const TemplateUsagePanel = ({
         {data && !hasDataAvailable && <NoDataAvailable sx={{ height: 200 }} />}
         {data && hasDataAvailable && (
           <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-            {data
+            {validUsage
               .sort((a, b) => b.seconds - a.seconds)
               .map((usage, i) => {
                 const percentage = (usage.seconds / totalInSeconds) * 100
@@ -199,7 +200,7 @@ const TemplateUsagePanel = ({
                         />
                       </Box>
                       <Box sx={{ fontSize: 13, fontWeight: 500, width: 200 }}>
-                        {usage.slug}
+                        {usage.display_name}
                       </Box>
                     </Box>
                     <LinearProgress
