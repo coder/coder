@@ -1368,13 +1368,3 @@ export const getWorkspaceParameters = async (workspace: TypesGen.Workspace) => {
     buildParameters,
   }
 }
-
-export const getInsightsUserLatency = async (filters: {
-  start_time: string
-  end_time: string
-  template_ids: string
-}): Promise<TypesGen.DAUsResponse> => {
-  const params = new URLSearchParams(filters)
-  const response = await axios.get(`/api/v2/insights/user-latency?${params}`)
-  return response.data
-}
