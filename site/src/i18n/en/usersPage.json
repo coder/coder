@@ -5,7 +5,7 @@
   "deleteMenuItem": "Delete",
   "listWorkspacesMenuItem": "View workspaces",
   "activateMenuItem": "Activate",
-  "markUserDormantMenuItem": "Mark user as dormant",
+  "markUserDormantMenuItem": "Mark as dormant",
   "resetPasswordMenuItem": "Reset password",
   "editUserRolesTooltip": "Edit user roles",
   "fieldSetRolesTooltip": "Available roles",

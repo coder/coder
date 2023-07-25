@@ -12,6 +12,8 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/db2sdk"
@@ -711,6 +713,12 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 				Detail:  err.Error(),
 			})
 			return
+		}
+
+		err = api.Pubsub.Publish("licenses", []byte("add")) // FIXME PubsubEventLicenses
+		if err != nil {
+			api.Logger.Error(context.Background(), "failed to publish license add", slog.Error(err))
+			// don't fail the HTTP request, since we did write it successfully to the database
 		}
 
 		httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(suspendedUser, organizations))

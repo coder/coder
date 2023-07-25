@@ -29,10 +29,10 @@ export const Language = {
   activateDialogTitle: "Activate user",
   activateDialogAction: "Activate",
   activateDialogMessagePrefix: "Do you want to activate the user",
-  markUserDormantDialogTitle: "Mark user dormant",
-  markUserDormantDialogAction: "Mark dormant",
+  markUserDormantDialogTitle: "Mark user as dormant",
+  markUserDormantDialogAction: "Mark as dormant",
   markUserDormantDialogMessagePrefix:
-    "Do you want to mark the user account dormant",
+    "Do you want to mark the user account as dormant",
 }
 
 const getSelectedUser = (id: string, users?: User[]) =>
@@ -262,8 +262,8 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
           usersState.matches("markingUserDormant")
         }
         confirmLoading={usersState.matches("markingUserDormant")}
-        title={Language.markUserDormantDialogTitle}
-        confirmText={Language.markUserDormantDialogAction}
+        title="Mark user as dormant"
+        confirmText="Mark as dormant"
         onConfirm={() => {
           usersSend("CONFIRM_USER_DORMANT")
         }}
@@ -272,9 +272,8 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         }}
         description={
           <>
-            {Language.markUserDormantDialogMessagePrefix}
-            {usernameToMarkDormant && " "}
-            <strong>{usernameToMarkDormant ?? ""}</strong>?
+            Do you want to mark the user {" "}
+            <strong>{usernameToMarkDormant ?? ""}</strong> as dormant?
           </>
         }
       />
