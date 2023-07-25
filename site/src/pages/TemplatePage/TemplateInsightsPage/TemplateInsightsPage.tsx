@@ -81,7 +81,7 @@ const UserLatencyPanel = (props: BoxProps) => {
     queryFn: () =>
       getInsightsUserLatency({
         template_ids: template.id,
-        start_time: toTimeFilter(getTimeFor7DaysAgo()),
+        start_time: toTimeFilter(new Date(template.created_at)),
         end_time: toTimeFilter(new Date()),
       }),
   })
@@ -140,7 +140,7 @@ const TemplateUsagePanel = (props: BoxProps) => {
     queryFn: () =>
       getInsightsTemplate({
         template_ids: template.id,
-        start_time: toTimeFilter(getTimeFor7DaysAgo()),
+        start_time: toTimeFilter(new Date(template.created_at)),
         end_time: toTimeFilter(new Date()),
       }),
   })
@@ -267,12 +267,6 @@ const NoDataAvailable = (props: BoxProps) => {
       No data available
     </Box>
   )
-}
-
-function getTimeFor7DaysAgo(): Date {
-  const sevenDaysAgo = new Date()
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-  return sevenDaysAgo
 }
 
 function toTimeFilter(date: Date) {
