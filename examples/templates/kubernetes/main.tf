@@ -2,11 +2,11 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.7.0"
+      version = "~> 0.11.0"
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"
-      version = "~> 2.18"
+      version = "~> 2.22"
     }
   }
 }
@@ -198,7 +198,7 @@ resource "kubernetes_persistent_volume_claim" "home" {
       "app.kubernetes.io/name"     = "coder-pvc"
       "app.kubernetes.io/instance" = "coder-pvc-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
       "app.kubernetes.io/part-of"  = "coder"
-      // Coder specific labels.
+      //Coder-specific labels.
       "com.coder.resource"       = "true"
       "com.coder.workspace.id"   = data.coder_workspace.me.id
       "com.coder.workspace.name" = data.coder_workspace.me.name
@@ -220,8 +220,12 @@ resource "kubernetes_persistent_volume_claim" "home" {
   }
 }
 
-resource "kubernetes_pod" "main" {
+resource "kubernetes_deployment" "main" {
   count = data.coder_workspace.me.start_count
+  depends_on = [
+    kubernetes_persistent_volume_claim.home
+  ]
+  wait_for_rollout = false
   metadata {
     name      = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
     namespace = var.namespace
@@ -229,73 +233,90 @@ resource "kubernetes_pod" "main" {
       "app.kubernetes.io/name"     = "coder-workspace"
       "app.kubernetes.io/instance" = "coder-workspace-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
       "app.kubernetes.io/part-of"  = "coder"
-      // Coder specific labels.
-      "com.coder.resource"       = "true"
-      "com.coder.workspace.id"   = data.coder_workspace.me.id
-      "com.coder.workspace.name" = data.coder_workspace.me.name
-      "com.coder.user.id"        = data.coder_workspace.me.owner_id
-      "com.coder.user.username"  = data.coder_workspace.me.owner
+      "com.coder.resource"         = "true"
+      "com.coder.workspace.id"     = data.coder_workspace.me.id
+      "com.coder.workspace.name"   = data.coder_workspace.me.name
+      "com.coder.user.id"          = data.coder_workspace.me.owner_id
+      "com.coder.user.username"    = data.coder_workspace.me.owner
     }
     annotations = {
       "com.coder.user.email" = data.coder_workspace.me.owner_email
     }
   }
+
   spec {
-    security_context {
-      run_as_user = "1000"
-      fs_group    = "1000"
+    # replicas = data.coder_workspace.me.start_count
+    replicas = 1
+    selector {
+      match_labels = {
+        "app.kubernetes.io/name" = "coder-workspace"
+      }
     }
-    container {
-      name              = "dev"
-      image             = "codercom/enterprise-base:ubuntu"
-      image_pull_policy = "Always"
-      command           = ["sh", "-c", coder_agent.main.init_script]
-      security_context {
-        run_as_user = "1000"
-      }
-      env {
-        name  = "CODER_AGENT_TOKEN"
-        value = coder_agent.main.token
-      }
-      resources {
-        requests = {
-          "cpu"    = "250m"
-          "memory" = "512Mi"
-        }
-        limits = {
-          "cpu"    = "${data.coder_parameter.cpu.value}"
-          "memory" = "${data.coder_parameter.memory.value}Gi"
+
+    template {
+      metadata {
+        labels = {
+          "app.kubernetes.io/name" = "coder-workspace"
         }
       }
-      volume_mount {
-        mount_path = "/home/coder"
-        name       = "home"
-        read_only  = false
-      }
-    }
+      spec {
+        security_context {
+          run_as_user = 1000
+          fs_group    = 1000
+        }
 
-    volume {
-      name = "home"
-      persistent_volume_claim {
-        claim_name = kubernetes_persistent_volume_claim.home.metadata.0.name
-        read_only  = false
-      }
-    }
+        container {
+          name              = "dev"
+          image             = "codercom/enterprise-base:ubuntu"
+          image_pull_policy = "Always"
+          command           = ["sh", "-c", coder_agent.main.init_script]
+          security_context {
+            run_as_user = "1000"
+          }
+          env {
+            name  = "CODER_AGENT_TOKEN"
+            value = coder_agent.main.token
+          }
+          resources {
+            requests = {
+              "cpu"    = "250m"
+              "memory" = "512Mi"
+            }
+            limits = {
+              "cpu"    = "${data.coder_parameter.cpu.value}"
+              "memory" = "${data.coder_parameter.memory.value}Gi"
+            }
+          }
+          volume_mount {
+            mount_path = "/home/coder"
+            name       = "home"
+            read_only  = false
+          }
+        }
 
+        volume {
+          name = "home"
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim.home.metadata.0.name
+            read_only  = false
+          }
+        }
 
-    affinity {
-      pod_anti_affinity {
-        // This affinity attempts to spread out all workspace pods evenly across
-        // nodes.
-        preferred_during_scheduling_ignored_during_execution {
-          weight = 1
-          pod_affinity_term {
-            topology_key = "kubernetes.io/hostname"
-            label_selector {
-              match_expressions {
-                key      = "app.kubernetes.io/name"
-                operator = "In"
-                values   = ["coder-workspace"]
+        affinity {
+          // This affinity attempts to spread out all workspace pods evenly across
+          // nodes.
+          pod_anti_affinity {
+            preferred_during_scheduling_ignored_during_execution {
+              weight = 1
+              pod_affinity_term {
+                topology_key = "kubernetes.io/hostname"
+                label_selector {
+                  match_expressions {
+                    key      = "app.kubernetes.io/name"
+                    operator = "In"
+                    values   = ["coder-workspace"]
+                  }
+                }
               }
             }
           }

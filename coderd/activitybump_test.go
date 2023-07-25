@@ -92,7 +92,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 			dbBuild, err := db.GetWorkspaceBuildByID(ctx, workspace.LatestBuild.ID)
 			require.NoError(t, err)
 
-			_, err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+			err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 				ID:               workspace.LatestBuild.ID,
 				UpdatedAt:        database.Now(),
 				ProvisionerState: dbBuild.ProvisionerState,

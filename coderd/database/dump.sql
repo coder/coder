@@ -547,6 +547,51 @@ COMMENT ON COLUMN template_versions.git_auth_providers IS 'IDs of Git auth provi
 
 COMMENT ON COLUMN template_versions.message IS 'Message describing the changes in this version of the template, similar to a Git commit message. Like a commit message, this should be a short, high-level description of the changes in this version of the template. This message is immutable and should not be updated after the fact.';
 
+CREATE TABLE users (
+    id uuid NOT NULL,
+    email text NOT NULL,
+    username text DEFAULT ''::text NOT NULL,
+    hashed_password bytea NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    status user_status DEFAULT 'active'::user_status NOT NULL,
+    rbac_roles text[] DEFAULT '{}'::text[] NOT NULL,
+    login_type login_type DEFAULT 'password'::login_type NOT NULL,
+    avatar_url text,
+    deleted boolean DEFAULT false NOT NULL,
+    last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL,
+    quiet_hours_schedule text DEFAULT ''::text NOT NULL
+);
+
+COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user''s quiet hours. If empty, the default quiet hours on the instance is used instead.';
+
+CREATE VIEW visible_users AS
+ SELECT users.id,
+    users.username,
+    users.avatar_url
+   FROM users;
+
+COMMENT ON VIEW visible_users IS 'Visible fields of users are allowed to be joined with other tables for including context of other resources.';
+
+CREATE VIEW template_version_with_user AS
+ SELECT template_versions.id,
+    template_versions.template_id,
+    template_versions.organization_id,
+    template_versions.created_at,
+    template_versions.updated_at,
+    template_versions.name,
+    template_versions.readme,
+    template_versions.job_id,
+    template_versions.created_by,
+    template_versions.git_auth_providers,
+    template_versions.message,
+    COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
+    COALESCE(visible_users.username, ''::text) AS created_by_username
+   FROM (public.template_versions
+     LEFT JOIN visible_users ON ((template_versions.created_by = visible_users.id)));
+
+COMMENT ON VIEW template_version_with_user IS 'Joins in the username + avatar url of the created by user.';
+
 CREATE TABLE templates (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -587,32 +632,6 @@ COMMENT ON COLUMN templates.allow_user_autostop IS 'Allow users to specify custo
 COMMENT ON COLUMN templates.restart_requirement_days_of_week IS 'A bitmap of days of week to restart the workspace on, starting with Monday as the 0th bit, and Sunday as the 6th bit. The 7th bit is unused.';
 
 COMMENT ON COLUMN templates.restart_requirement_weeks IS 'The number of weeks between restarts. 0 or 1 weeks means "every week", 2 week means "every second week", etc. Weeks are counted from January 2, 2023, which is the first Monday of 2023. This is to ensure workspaces are started consistently for all customers on the same n-week cycles.';
-
-CREATE TABLE users (
-    id uuid NOT NULL,
-    email text NOT NULL,
-    username text DEFAULT ''::text NOT NULL,
-    hashed_password bytea NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    status user_status DEFAULT 'dormant'::user_status NOT NULL,
-    rbac_roles text[] DEFAULT '{}'::text[] NOT NULL,
-    login_type login_type DEFAULT 'password'::login_type NOT NULL,
-    avatar_url text,
-    deleted boolean DEFAULT false NOT NULL,
-    last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL,
-    quiet_hours_schedule text DEFAULT ''::text NOT NULL
-);
-
-COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user''s quiet hours. If empty, the default quiet hours on the instance is used instead.';
-
-CREATE VIEW visible_users AS
- SELECT users.id,
-    users.username,
-    users.avatar_url
-   FROM users;
-
-COMMENT ON VIEW visible_users IS 'Visible fields of users are allowed to be joined with other tables for including context of other resources.';
 
 CREATE VIEW template_with_users AS
  SELECT templates.id,
@@ -813,6 +832,28 @@ CREATE TABLE workspace_builds (
     daily_cost integer DEFAULT 0 NOT NULL,
     max_deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
 );
+
+CREATE VIEW workspace_build_with_user AS
+ SELECT workspace_builds.id,
+    workspace_builds.created_at,
+    workspace_builds.updated_at,
+    workspace_builds.workspace_id,
+    workspace_builds.template_version_id,
+    workspace_builds.build_number,
+    workspace_builds.transition,
+    workspace_builds.initiator_id,
+    workspace_builds.provisioner_state,
+    workspace_builds.job_id,
+    workspace_builds.deadline,
+    workspace_builds.reason,
+    workspace_builds.daily_cost,
+    workspace_builds.max_deadline,
+    COALESCE(visible_users.avatar_url, ''::text) AS initiator_by_avatar_url,
+    COALESCE(visible_users.username, ''::text) AS initiator_by_username
+   FROM (public.workspace_builds
+     LEFT JOIN visible_users ON ((workspace_builds.initiator_id = visible_users.id)));
+
+COMMENT ON VIEW workspace_build_with_user IS 'Joins in the username + avatar url of the initiated by user.';
 
 CREATE TABLE workspace_proxies (
     id uuid NOT NULL,
