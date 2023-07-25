@@ -16,6 +16,7 @@ import (
 
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/testutil"
@@ -24,6 +25,138 @@ import (
 // nolint:bodyclose
 func TestUserOIDC(t *testing.T) {
 	t.Parallel()
+	t.Run("RoleSync", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("NoRoles", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			conf := coderdtest.NewOIDCConfig(t, "")
+
+			oidcRoleName := "TemplateAuthor"
+
+			config := conf.OIDCConfig(t, jwt.MapClaims{}, func(cfg *coderd.OIDCConfig) {
+				cfg.UserRoleMapping = map[string][]string{oidcRoleName: {rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin()}}
+			})
+			config.AllowSignups = true
+			config.UserRoleField = "roles"
+
+			client, _ := coderdenttest.New(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					OIDCConfig: config,
+				},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{codersdk.FeatureUserRoleManagement: 1},
+				},
+			})
+
+			admin, err := client.User(ctx, "me")
+			require.NoError(t, err)
+			require.Len(t, admin.OrganizationIDs, 1)
+
+			resp := oidcCallback(t, client, conf.EncodeClaims(t, jwt.MapClaims{
+				"email": "alice@coder.com",
+			}))
+			require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+			user, err := client.User(ctx, "alice")
+			require.NoError(t, err)
+
+			require.Len(t, user.Roles, 0)
+			roleNames := []string{}
+			require.ElementsMatch(t, roleNames, []string{})
+		})
+
+		t.Run("NewUserAndRemoveRoles", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			conf := coderdtest.NewOIDCConfig(t, "")
+
+			oidcRoleName := "TemplateAuthor"
+
+			config := conf.OIDCConfig(t, jwt.MapClaims{}, func(cfg *coderd.OIDCConfig) {
+				cfg.UserRoleMapping = map[string][]string{oidcRoleName: {rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin()}}
+			})
+			config.AllowSignups = true
+			config.UserRoleField = "roles"
+
+			client, _ := coderdenttest.New(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					OIDCConfig: config,
+				},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{codersdk.FeatureUserRoleManagement: 1},
+				},
+			})
+
+			admin, err := client.User(ctx, "me")
+			require.NoError(t, err)
+			require.Len(t, admin.OrganizationIDs, 1)
+
+			resp := oidcCallback(t, client, conf.EncodeClaims(t, jwt.MapClaims{
+				"email": "alice@coder.com",
+				"roles": []string{"random", oidcRoleName, rbac.RoleOwner()},
+			}))
+			require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+			user, err := client.User(ctx, "alice")
+			require.NoError(t, err)
+
+			require.Len(t, user.Roles, 3)
+			roleNames := []string{user.Roles[0].Name, user.Roles[1].Name, user.Roles[2].Name}
+			require.ElementsMatch(t, roleNames, []string{rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin(), rbac.RoleOwner()})
+
+			// Now remove the roles with a new oidc login
+			resp = oidcCallback(t, client, conf.EncodeClaims(t, jwt.MapClaims{
+				"email": "alice@coder.com",
+				"roles": []string{"random"},
+			}))
+			require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+			user, err = client.User(ctx, "alice")
+			require.NoError(t, err)
+
+			require.Len(t, user.Roles, 0)
+		})
+		t.Run("BlockAssignRoles", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			conf := coderdtest.NewOIDCConfig(t, "")
+
+			config := conf.OIDCConfig(t, jwt.MapClaims{})
+			config.AllowSignups = true
+			config.UserRoleField = "roles"
+
+			client, _ := coderdenttest.New(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					OIDCConfig: config,
+				},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{codersdk.FeatureUserRoleManagement: 1},
+				},
+			})
+
+			admin, err := client.User(ctx, "me")
+			require.NoError(t, err)
+			require.Len(t, admin.OrganizationIDs, 1)
+
+			resp := oidcCallback(t, client, conf.EncodeClaims(t, jwt.MapClaims{
+				"email": "alice@coder.com",
+				"roles": []string{},
+			}))
+			require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+			// Try to manually update user roles, even though controlled by oidc
+			// role sync.
+			_, err = client.UpdateUserRoles(ctx, "alice", codersdk.UpdateRoles{
+				Roles: []string{
+					rbac.RoleTemplateAdmin(),
+				},
+			})
+			require.Error(t, err)
+			require.ErrorContains(t, err, "Cannot modify roles for OIDC users when role sync is enabled.")
+		})
+	})
+
 	t.Run("Groups", func(t *testing.T) {
 		t.Parallel()
 		t.Run("Assigns", func(t *testing.T) {

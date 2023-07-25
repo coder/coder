@@ -33,6 +33,14 @@ type UsersRequest struct {
 	Pagination
 }
 
+// MinimalUser is the minimal information needed to identify a user and show
+// them on the UI.
+type MinimalUser struct {
+	ID        uuid.UUID `json:"id" validate:"required" table:"id" format:"uuid"`
+	Username  string    `json:"username" validate:"required" table:"username,default_sort"`
+	AvatarURL string    `json:"avatar_url" format:"uri"`
+}
+
 // User represents a user in Coder.
 type User struct {
 	ID         uuid.UUID `json:"id" validate:"required" table:"id" format:"uuid"`
@@ -45,6 +53,7 @@ type User struct {
 	OrganizationIDs []uuid.UUID `json:"organization_ids" format:"uuid"`
 	Roles           []Role      `json:"roles"`
 	AvatarURL       string      `json:"avatar_url" format:"uri"`
+	LoginType       LoginType   `json:"login_type"`
 }
 
 type GetUsersResponse struct {

@@ -57,11 +57,11 @@ func New() database.Store {
 			workspaceResources:        make([]database.WorkspaceResource, 0),
 			workspaceResourceMetadata: make([]database.WorkspaceResourceMetadatum, 0),
 			provisionerJobs:           make([]database.ProvisionerJob, 0),
-			templateVersions:          make([]database.TemplateVersion, 0),
+			templateVersions:          make([]database.TemplateVersionTable, 0),
 			templates:                 make([]database.TemplateTable, 0),
 			workspaceAgentStats:       make([]database.WorkspaceAgentStat, 0),
 			workspaceAgentLogs:        make([]database.WorkspaceAgentStartupLog, 0),
-			workspaceBuilds:           make([]database.WorkspaceBuild, 0),
+			workspaceBuilds:           make([]database.WorkspaceBuildTable, 0),
 			workspaceApps:             make([]database.WorkspaceApp, 0),
 			workspaces:                make([]database.Workspace, 0),
 			licenses:                  make([]database.License, 0),
@@ -127,7 +127,7 @@ type data struct {
 	provisionerJobLogs        []database.ProvisionerJobLog
 	provisionerJobs           []database.ProvisionerJob
 	replicas                  []database.Replica
-	templateVersions          []database.TemplateVersion
+	templateVersions          []database.TemplateVersionTable
 	templateVersionParameters []database.TemplateVersionParameter
 	templateVersionVariables  []database.TemplateVersionVariable
 	templates                 []database.TemplateTable
@@ -135,7 +135,7 @@ type data struct {
 	workspaceAgentMetadata    []database.WorkspaceAgentMetadatum
 	workspaceAgentLogs        []database.WorkspaceAgentStartupLog
 	workspaceApps             []database.WorkspaceApp
-	workspaceBuilds           []database.WorkspaceBuild
+	workspaceBuilds           []database.WorkspaceBuildTable
 	workspaceBuildParameters  []database.WorkspaceBuildParameter
 	workspaceResourceMetadata []database.WorkspaceResourceMetadatum
 	workspaceResources        []database.WorkspaceResource
@@ -404,7 +404,7 @@ func (q *FakeQuerier) getWorkspaceByAgentIDNoLock(_ context.Context, agentID uui
 	var build database.WorkspaceBuild
 	for _, _build := range q.workspaceBuilds {
 		if _build.JobID == resource.JobID {
-			build = _build
+			build = q.workspaceBuildWithUserNoLock(_build)
 			break
 		}
 	}
@@ -422,9 +422,9 @@ func (q *FakeQuerier) getWorkspaceByAgentIDNoLock(_ context.Context, agentID uui
 }
 
 func (q *FakeQuerier) getWorkspaceBuildByIDNoLock(_ context.Context, id uuid.UUID) (database.WorkspaceBuild, error) {
-	for _, history := range q.workspaceBuilds {
-		if history.ID == id {
-			return history, nil
+	for _, build := range q.workspaceBuilds {
+		if build.ID == id {
+			return q.workspaceBuildWithUserNoLock(build), nil
 		}
 	}
 	return database.WorkspaceBuild{}, sql.ErrNoRows
@@ -435,7 +435,7 @@ func (q *FakeQuerier) getLatestWorkspaceBuildByWorkspaceIDNoLock(_ context.Conte
 	var buildNum int32 = -1
 	for _, workspaceBuild := range q.workspaceBuilds {
 		if workspaceBuild.WorkspaceID == workspaceID && workspaceBuild.BuildNumber > buildNum {
-			row = workspaceBuild
+			row = q.workspaceBuildWithUserNoLock(workspaceBuild)
 			buildNum = workspaceBuild.BuildNumber
 		}
 	}
@@ -475,7 +475,41 @@ func (q *FakeQuerier) templateWithUserNoLock(tpl database.TemplateTable) databas
 	d, _ := json.Marshal(tpl)
 	_ = json.Unmarshal(d, &withUser)
 	withUser.CreatedByUsername = user.Username
-	withUser.CreatedByAvatarURL = user.AvatarURL.String
+	withUser.CreatedByAvatarURL = user.AvatarURL
+	return withUser
+}
+
+func (q *FakeQuerier) templateVersionWithUserNoLock(tpl database.TemplateVersionTable) database.TemplateVersion {
+	var user database.User
+	for _, _user := range q.users {
+		if _user.ID == tpl.CreatedBy {
+			user = _user
+			break
+		}
+	}
+	var withUser database.TemplateVersion
+	// This is a cheeky way to copy the fields over without explicitly listing them all.
+	d, _ := json.Marshal(tpl)
+	_ = json.Unmarshal(d, &withUser)
+	withUser.CreatedByUsername = user.Username
+	withUser.CreatedByAvatarURL = user.AvatarURL
+	return withUser
+}
+
+func (q *FakeQuerier) workspaceBuildWithUserNoLock(tpl database.WorkspaceBuildTable) database.WorkspaceBuild {
+	var user database.User
+	for _, _user := range q.users {
+		if _user.ID == tpl.InitiatorID {
+			user = _user
+			break
+		}
+	}
+	var withUser database.WorkspaceBuild
+	// This is a cheeky way to copy the fields over without explicitly listing them all.
+	d, _ := json.Marshal(tpl)
+	_ = json.Unmarshal(d, &withUser)
+	withUser.InitiatorByUsername = user.Username
+	withUser.InitiatorByAvatarUrl = user.AvatarURL
 	return withUser
 }
 
@@ -484,7 +518,7 @@ func (q *FakeQuerier) getTemplateVersionByIDNoLock(_ context.Context, templateVe
 		if templateVersion.ID != templateVersionID {
 			continue
 		}
-		return templateVersion, nil
+		return q.templateVersionWithUserNoLock(templateVersion), nil
 	}
 	return database.TemplateVersion{}, sql.ErrNoRows
 }
@@ -1370,7 +1404,7 @@ func (q *FakeQuerier) GetLatestWorkspaceBuilds(_ context.Context) ([]database.Wo
 	for _, workspaceBuild := range q.workspaceBuilds {
 		id := workspaceBuild.WorkspaceID
 		if workspaceBuild.BuildNumber > buildNumbers[id] {
-			builds[id] = workspaceBuild
+			builds[id] = q.workspaceBuildWithUserNoLock(workspaceBuild)
 			buildNumbers[id] = workspaceBuild.BuildNumber
 		}
 	}
@@ -1396,7 +1430,7 @@ func (q *FakeQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(_ context.Context, 
 	for _, workspaceBuild := range q.workspaceBuilds {
 		for _, id := range ids {
 			if id == workspaceBuild.WorkspaceID && workspaceBuild.BuildNumber > buildNumbers[id] {
-				builds[id] = workspaceBuild
+				builds[id] = q.workspaceBuildWithUserNoLock(workspaceBuild)
 				buildNumbers[id] = workspaceBuild.BuildNumber
 			}
 		}
@@ -1606,7 +1640,7 @@ func (q *FakeQuerier) GetPreviousTemplateVersion(_ context.Context, arg database
 		if templateVersion.OrganizationID != arg.OrganizationID {
 			continue
 		}
-		currentTemplateVersion = templateVersion
+		currentTemplateVersion = q.templateVersionWithUserNoLock(templateVersion)
 		break
 	}
 
@@ -1623,7 +1657,7 @@ func (q *FakeQuerier) GetPreviousTemplateVersion(_ context.Context, arg database
 		}
 
 		if templateVersion.CreatedAt.Before(currentTemplateVersion.CreatedAt) {
-			previousTemplateVersions = append(previousTemplateVersions, templateVersion)
+			previousTemplateVersions = append(previousTemplateVersions, q.templateVersionWithUserNoLock(templateVersion))
 		}
 	}
 
@@ -1772,7 +1806,7 @@ func (q *FakeQuerier) GetQuotaConsumedForUser(_ context.Context, userID uuid.UUI
 			continue
 		}
 
-		var lastBuild database.WorkspaceBuild
+		var lastBuild database.WorkspaceBuildTable
 		for _, build := range q.workspaceBuilds {
 			if build.WorkspaceID != workspace.ID {
 				continue
@@ -1944,6 +1978,129 @@ func (q *FakeQuerier) GetTemplateDAUs(_ context.Context, arg database.GetTemplat
 	return rs, nil
 }
 
+func (q *FakeQuerier) GetTemplateDailyInsights(_ context.Context, arg database.GetTemplateDailyInsightsParams) ([]database.GetTemplateDailyInsightsRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	type dailyStat struct {
+		startTime, endTime time.Time
+		userSet            map[uuid.UUID]struct{}
+		templateIDSet      map[uuid.UUID]struct{}
+	}
+	dailyStats := []dailyStat{{arg.StartTime, arg.StartTime.AddDate(0, 0, 1), make(map[uuid.UUID]struct{}), make(map[uuid.UUID]struct{})}}
+	for dailyStats[len(dailyStats)-1].endTime.Before(arg.EndTime) {
+		dailyStats = append(dailyStats, dailyStat{dailyStats[len(dailyStats)-1].endTime, dailyStats[len(dailyStats)-1].endTime.AddDate(0, 0, 1), make(map[uuid.UUID]struct{}), make(map[uuid.UUID]struct{})})
+	}
+	if dailyStats[len(dailyStats)-1].endTime.After(arg.EndTime) {
+		dailyStats[len(dailyStats)-1].endTime = arg.EndTime
+	}
+
+	for _, s := range q.workspaceAgentStats {
+		if s.CreatedAt.Before(arg.StartTime) || s.CreatedAt.Equal(arg.EndTime) || s.CreatedAt.After(arg.EndTime) {
+			continue
+		}
+		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, s.TemplateID) {
+			continue
+		}
+		if s.ConnectionCount == 0 {
+			continue
+		}
+
+		for _, ds := range dailyStats {
+			if s.CreatedAt.Before(ds.startTime) || s.CreatedAt.Equal(ds.endTime) || s.CreatedAt.After(ds.endTime) {
+				continue
+			}
+			ds.userSet[s.UserID] = struct{}{}
+			ds.templateIDSet[s.TemplateID] = struct{}{}
+			break
+		}
+	}
+
+	var result []database.GetTemplateDailyInsightsRow
+	for _, ds := range dailyStats {
+		templateIDs := make([]uuid.UUID, 0, len(ds.templateIDSet))
+		for templateID := range ds.templateIDSet {
+			templateIDs = append(templateIDs, templateID)
+		}
+		slices.SortFunc(templateIDs, func(a, b uuid.UUID) bool {
+			return a.String() < b.String()
+		})
+		result = append(result, database.GetTemplateDailyInsightsRow{
+			StartTime:   ds.startTime,
+			EndTime:     ds.endTime,
+			TemplateIDs: templateIDs,
+			ActiveUsers: int64(len(ds.userSet)),
+		})
+	}
+	return result, nil
+}
+
+func (q *FakeQuerier) GetTemplateInsights(_ context.Context, arg database.GetTemplateInsightsParams) (database.GetTemplateInsightsRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.GetTemplateInsightsRow{}, err
+	}
+
+	templateIDSet := make(map[uuid.UUID]struct{})
+	appUsageIntervalsByUser := make(map[uuid.UUID]map[time.Time]*database.GetTemplateInsightsRow)
+	for _, s := range q.workspaceAgentStats {
+		if s.CreatedAt.Before(arg.StartTime) || s.CreatedAt.Equal(arg.EndTime) || s.CreatedAt.After(arg.EndTime) {
+			continue
+		}
+		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, s.TemplateID) {
+			continue
+		}
+		if s.ConnectionCount == 0 {
+			continue
+		}
+
+		templateIDSet[s.TemplateID] = struct{}{}
+		if appUsageIntervalsByUser[s.UserID] == nil {
+			appUsageIntervalsByUser[s.UserID] = make(map[time.Time]*database.GetTemplateInsightsRow)
+		}
+		t := s.CreatedAt.Truncate(5 * time.Minute)
+		if _, ok := appUsageIntervalsByUser[s.UserID][t]; !ok {
+			appUsageIntervalsByUser[s.UserID][t] = &database.GetTemplateInsightsRow{}
+		}
+
+		if s.SessionCountJetBrains > 0 {
+			appUsageIntervalsByUser[s.UserID][t].UsageJetbrainsSeconds = 300
+		}
+		if s.SessionCountVSCode > 0 {
+			appUsageIntervalsByUser[s.UserID][t].UsageVscodeSeconds = 300
+		}
+		if s.SessionCountReconnectingPTY > 0 {
+			appUsageIntervalsByUser[s.UserID][t].UsageReconnectingPtySeconds = 300
+		}
+		if s.SessionCountSSH > 0 {
+			appUsageIntervalsByUser[s.UserID][t].UsageSshSeconds = 300
+		}
+	}
+
+	templateIDs := make([]uuid.UUID, 0, len(templateIDSet))
+	for templateID := range templateIDSet {
+		templateIDs = append(templateIDs, templateID)
+	}
+	slices.SortFunc(templateIDs, func(a, b uuid.UUID) bool {
+		return a.String() < b.String()
+	})
+	result := database.GetTemplateInsightsRow{
+		TemplateIDs: templateIDs,
+		ActiveUsers: int64(len(appUsageIntervalsByUser)),
+	}
+	for _, intervals := range appUsageIntervalsByUser {
+		for _, interval := range intervals {
+			result.UsageJetbrainsSeconds += interval.UsageJetbrainsSeconds
+			result.UsageVscodeSeconds += interval.UsageVscodeSeconds
+			result.UsageReconnectingPtySeconds += interval.UsageReconnectingPtySeconds
+			result.UsageSshSeconds += interval.UsageSshSeconds
+		}
+	}
+	return result, nil
+}
+
 func (q *FakeQuerier) GetTemplateVersionByID(ctx context.Context, templateVersionID uuid.UUID) (database.TemplateVersion, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -1959,7 +2116,7 @@ func (q *FakeQuerier) GetTemplateVersionByJobID(_ context.Context, jobID uuid.UU
 		if templateVersion.JobID != jobID {
 			continue
 		}
-		return templateVersion, nil
+		return q.templateVersionWithUserNoLock(templateVersion), nil
 	}
 	return database.TemplateVersion{}, sql.ErrNoRows
 }
@@ -1979,7 +2136,7 @@ func (q *FakeQuerier) GetTemplateVersionByTemplateIDAndName(_ context.Context, a
 		if !strings.EqualFold(templateVersion.Name, arg.Name) {
 			continue
 		}
-		return templateVersion, nil
+		return q.templateVersionWithUserNoLock(templateVersion), nil
 	}
 	return database.TemplateVersion{}, sql.ErrNoRows
 }
@@ -2026,7 +2183,7 @@ func (q *FakeQuerier) GetTemplateVersionsByIDs(_ context.Context, ids []uuid.UUI
 	for _, version := range q.templateVersions {
 		for _, id := range ids {
 			if id == version.ID {
-				versions = append(versions, version)
+				versions = append(versions, q.templateVersionWithUserNoLock(version))
 				break
 			}
 		}
@@ -2050,7 +2207,7 @@ func (q *FakeQuerier) GetTemplateVersionsByTemplateID(_ context.Context, arg dat
 		if templateVersion.TemplateID.UUID != arg.TemplateID {
 			continue
 		}
-		version = append(version, templateVersion)
+		version = append(version, q.templateVersionWithUserNoLock(templateVersion))
 	}
 
 	// Database orders by created_at
@@ -2108,7 +2265,7 @@ func (q *FakeQuerier) GetTemplateVersionsCreatedAfter(_ context.Context, after t
 	versions := make([]database.TemplateVersion, 0)
 	for _, version := range q.templateVersions {
 		if version.CreatedAt.After(after) {
-			versions = append(versions, version)
+			versions = append(versions, q.templateVersionWithUserNoLock(version))
 		}
 	}
 	return versions, nil
@@ -2186,6 +2343,78 @@ func (q *FakeQuerier) GetUserCount(_ context.Context) (int64, error) {
 		}
 	}
 	return existing, nil
+}
+
+func (q *FakeQuerier) GetUserLatencyInsights(_ context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	latenciesByUserID := make(map[uuid.UUID][]float64)
+	seenTemplatesByUserID := make(map[uuid.UUID]map[uuid.UUID]struct{})
+	for _, s := range q.workspaceAgentStats {
+		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, s.TemplateID) {
+			continue
+		}
+		if !arg.StartTime.Equal(s.CreatedAt) && (s.CreatedAt.Before(arg.StartTime) || s.CreatedAt.After(arg.EndTime)) {
+			continue
+		}
+		if s.ConnectionCount == 0 {
+			continue
+		}
+		if s.ConnectionMedianLatencyMS <= 0 {
+			continue
+		}
+
+		latenciesByUserID[s.UserID] = append(latenciesByUserID[s.UserID], s.ConnectionMedianLatencyMS)
+		if seenTemplatesByUserID[s.UserID] == nil {
+			seenTemplatesByUserID[s.UserID] = make(map[uuid.UUID]struct{})
+		}
+		seenTemplatesByUserID[s.UserID][s.TemplateID] = struct{}{}
+	}
+
+	tryPercentile := func(fs []float64, p float64) float64 {
+		if len(fs) == 0 {
+			return -1
+		}
+		sort.Float64s(fs)
+		return fs[int(float64(len(fs))*p/100)]
+	}
+
+	var rows []database.GetUserLatencyInsightsRow
+	for userID, latencies := range latenciesByUserID {
+		sort.Float64s(latencies)
+		templateIDSet := seenTemplatesByUserID[userID]
+		templateIDs := make([]uuid.UUID, 0, len(templateIDSet))
+		for templateID := range templateIDSet {
+			templateIDs = append(templateIDs, templateID)
+		}
+		slices.SortFunc(templateIDs, func(a, b uuid.UUID) bool {
+			return a.String() < b.String()
+		})
+		user, err := q.getUserByIDNoLock(userID)
+		if err != nil {
+			return nil, err
+		}
+		row := database.GetUserLatencyInsightsRow{
+			UserID:                       userID,
+			Username:                     user.Username,
+			AvatarURL:                    user.AvatarURL,
+			TemplateIDs:                  templateIDs,
+			WorkspaceConnectionLatency50: tryPercentile(latencies, 50),
+			WorkspaceConnectionLatency95: tryPercentile(latencies, 95),
+		}
+		rows = append(rows, row)
+	}
+	slices.SortFunc(rows, func(a, b database.GetUserLatencyInsightsRow) bool {
+		return a.UserID.String() < b.UserID.String()
+	})
+
+	return rows, nil
 }
 
 func (q *FakeQuerier) GetUserLinkByLinkedID(_ context.Context, id string) (database.UserLink, error) {
@@ -2706,7 +2935,7 @@ func (q *FakeQuerier) GetWorkspaceBuildByJobID(_ context.Context, jobID uuid.UUI
 
 	for _, build := range q.workspaceBuilds {
 		if build.JobID == jobID {
-			return build, nil
+			return q.workspaceBuildWithUserNoLock(build), nil
 		}
 	}
 	return database.WorkspaceBuild{}, sql.ErrNoRows
@@ -2727,7 +2956,7 @@ func (q *FakeQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(_ context.Con
 		if workspaceBuild.BuildNumber != arg.BuildNumber {
 			continue
 		}
-		return workspaceBuild, nil
+		return q.workspaceBuildWithUserNoLock(workspaceBuild), nil
 	}
 	return database.WorkspaceBuild{}, sql.ErrNoRows
 }
@@ -2762,7 +2991,7 @@ func (q *FakeQuerier) GetWorkspaceBuildsByWorkspaceID(_ context.Context,
 			continue
 		}
 		if workspaceBuild.WorkspaceID == params.WorkspaceID {
-			history = append(history, workspaceBuild)
+			history = append(history, q.workspaceBuildWithUserNoLock(workspaceBuild))
 		}
 	}
 
@@ -2816,7 +3045,7 @@ func (q *FakeQuerier) GetWorkspaceBuildsCreatedAfter(_ context.Context, after ti
 	workspaceBuilds := make([]database.WorkspaceBuild, 0)
 	for _, workspaceBuild := range q.workspaceBuilds {
 		if workspaceBuild.CreatedAt.After(after) {
-			workspaceBuilds = append(workspaceBuilds, workspaceBuild)
+			workspaceBuilds = append(workspaceBuilds, q.workspaceBuildWithUserNoLock(workspaceBuild))
 		}
 	}
 	return workspaceBuilds, nil
@@ -3491,20 +3720,20 @@ func (q *FakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTempl
 	return nil
 }
 
-func (q *FakeQuerier) InsertTemplateVersion(_ context.Context, arg database.InsertTemplateVersionParams) (database.TemplateVersion, error) {
+func (q *FakeQuerier) InsertTemplateVersion(_ context.Context, arg database.InsertTemplateVersionParams) error {
 	if err := validateDatabaseType(arg); err != nil {
-		return database.TemplateVersion{}, err
+		return err
 	}
 
 	if len(arg.Message) > 1048576 {
-		return database.TemplateVersion{}, xerrors.New("message too long")
+		return xerrors.New("message too long")
 	}
 
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
 	//nolint:gosimple
-	version := database.TemplateVersion{
+	version := database.TemplateVersionTable{
 		ID:             arg.ID,
 		TemplateID:     arg.TemplateID,
 		OrganizationID: arg.OrganizationID,
@@ -3517,7 +3746,7 @@ func (q *FakeQuerier) InsertTemplateVersion(_ context.Context, arg database.Inse
 		CreatedBy:      arg.CreatedBy,
 	}
 	q.templateVersions = append(q.templateVersions, version)
-	return version, nil
+	return nil
 }
 
 func (q *FakeQuerier) InsertTemplateVersionParameter(_ context.Context, arg database.InsertTemplateVersionParameterParams) (database.TemplateVersionParameter, error) {
@@ -3848,15 +4077,15 @@ func (q *FakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 	return workspaceApp, nil
 }
 
-func (q *FakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.InsertWorkspaceBuildParams) (database.WorkspaceBuild, error) {
+func (q *FakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.InsertWorkspaceBuildParams) error {
 	if err := validateDatabaseType(arg); err != nil {
-		return database.WorkspaceBuild{}, err
+		return err
 	}
 
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	workspaceBuild := database.WorkspaceBuild{
+	workspaceBuild := database.WorkspaceBuildTable{
 		ID:                arg.ID,
 		CreatedAt:         arg.CreatedAt,
 		UpdatedAt:         arg.UpdatedAt,
@@ -3871,7 +4100,7 @@ func (q *FakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 		Reason:            arg.Reason,
 	}
 	q.workspaceBuilds = append(q.workspaceBuilds, workspaceBuild)
-	return workspaceBuild, nil
+	return nil
 }
 
 func (q *FakeQuerier) InsertWorkspaceBuildParameters(_ context.Context, arg database.InsertWorkspaceBuildParametersParams) error {
@@ -4310,9 +4539,9 @@ func (q *FakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateTemplateVersionByID(_ context.Context, arg database.UpdateTemplateVersionByIDParams) (database.TemplateVersion, error) {
+func (q *FakeQuerier) UpdateTemplateVersionByID(_ context.Context, arg database.UpdateTemplateVersionByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
-		return database.TemplateVersion{}, err
+		return err
 	}
 
 	q.mutex.Lock()
@@ -4327,9 +4556,9 @@ func (q *FakeQuerier) UpdateTemplateVersionByID(_ context.Context, arg database.
 		templateVersion.Name = arg.Name
 		templateVersion.Message = arg.Message
 		q.templateVersions[index] = templateVersion
-		return templateVersion, nil
+		return nil
 	}
-	return database.TemplateVersion{}, sql.ErrNoRows
+	return sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateTemplateVersionDescriptionByJobID(_ context.Context, arg database.UpdateTemplateVersionDescriptionByJobIDParams) error {
@@ -4773,9 +5002,9 @@ func (q *FakeQuerier) UpdateWorkspaceAutostart(_ context.Context, arg database.U
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.UpdateWorkspaceBuildByIDParams) (database.WorkspaceBuild, error) {
+func (q *FakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.UpdateWorkspaceBuildByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
-		return database.WorkspaceBuild{}, err
+		return err
 	}
 
 	q.mutex.Lock()
@@ -4790,14 +5019,14 @@ func (q *FakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.U
 		workspaceBuild.Deadline = arg.Deadline
 		workspaceBuild.MaxDeadline = arg.MaxDeadline
 		q.workspaceBuilds[index] = workspaceBuild
-		return workspaceBuild, nil
+		return nil
 	}
-	return database.WorkspaceBuild{}, sql.ErrNoRows
+	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateWorkspaceBuildCostByID(_ context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) (database.WorkspaceBuild, error) {
+func (q *FakeQuerier) UpdateWorkspaceBuildCostByID(_ context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
-		return database.WorkspaceBuild{}, err
+		return err
 	}
 
 	q.mutex.Lock()
@@ -4809,9 +5038,9 @@ func (q *FakeQuerier) UpdateWorkspaceBuildCostByID(_ context.Context, arg databa
 		}
 		workspaceBuild.DailyCost = arg.DailyCost
 		q.workspaceBuilds[index] = workspaceBuild
-		return workspaceBuild, nil
+		return nil
 	}
-	return database.WorkspaceBuild{}, sql.ErrNoRows
+	return sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateWorkspaceDeletedByID(_ context.Context, arg database.UpdateWorkspaceDeletedByIDParams) error {
@@ -5333,9 +5562,9 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 			}
 		}
 
-		if len(arg.TemplateIds) > 0 {
+		if len(arg.TemplateIDs) > 0 {
 			match := false
-			for _, id := range arg.TemplateIds {
+			for _, id := range arg.TemplateIDs {
 				if workspace.TemplateID == id {
 					match = true
 					break
