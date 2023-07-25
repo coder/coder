@@ -1076,18 +1076,18 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 			}
 
 			th := harness.NewTestHarness(strategy.toStrategy(), cleanupStrategy.toStrategy())
-			config := dashboard.Config{
-				MinWait: minWait,
-				MaxWait: maxWait,
-				Trace:   tracingEnabled,
-				Logger:  logger,
-			}
-			if err := config.Validate(); err != nil {
-				return err
-			}
 
 			for i := int64(0); i < count; i++ {
 				name := fmt.Sprintf("dashboard-%d", i)
+				config := dashboard.Config{
+					MinWait: minWait,
+					MaxWait: maxWait,
+					Trace:   tracingEnabled,
+					Logger:  logger.Named(name),
+				}
+				if err := config.Validate(); err != nil {
+					return err
+				}
 				var runner harness.Runnable = dashboard.NewRunner(client, config)
 				if tracingEnabled {
 					runner = &runnableTraceWrapper{
