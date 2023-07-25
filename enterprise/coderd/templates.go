@@ -282,18 +282,6 @@ func validateTemplateACLPerms(ctx context.Context, db database.Store, perms map[
 	return validErrs
 }
 
-func convertMinimalUser(users []database.User) []codersdk.MinimalUser {
-	minimalUsers := make([]codersdk.MinimalUser, 0, len(users))
-	for _, user := range users {
-		minimalUsers = append(minimalUsers, codersdk.MinimalUser{
-			ID:        user.ID,
-			Username:  user.Username,
-			AvatarURL: user.AvatarURL.String,
-		})
-	}
-	return minimalUsers
-}
-
 func convertTemplateUsers(tus []database.TemplateUser, orgIDsByUserIDs map[uuid.UUID][]uuid.UUID) []codersdk.TemplateUser {
 	users := make([]codersdk.TemplateUser, 0, len(tus))
 
