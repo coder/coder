@@ -15,6 +15,21 @@ import (
 	"github.com/coder/coder/scaletest/harness"
 )
 
+// rollTable is a table of actions to perform.
+// D&D nerds will feel right at home here :-)
+// Note that the order of the table is important!
+// Entries must be in ascending order.
+var allActions rollTable = []rollTableEntry{
+	{0, fetchWorkspaces, "fetch workspaces"},
+	{10, fetchUsers, "fetch users"},
+	{20, fetchTemplates, "fetch templates"},
+	{30, authCheckAsOwner, "authcheck owner"},
+	{40, authCheckAsNonOwner, "authcheck not owner"},
+	{50, fetchAuditLog, "fetch audit log"},
+	{60, fetchActiveUsers, "fetch active users"},
+	{70, fetchSuspendedUsers, "fetch suspended users"},
+}
+
 type Runner struct {
 	client *codersdk.Client
 	cfg    Config
@@ -85,7 +100,7 @@ func (r *Runner) do(ctx context.Context, act rollTableEntry, p *params) {
 		err := act.fn(ctx, p)
 		elapsed := time.Since(start)
 		if err != nil {
-			r.cfg.Logger.Error(
+			r.cfg.Logger.Error( //nolint:gocritic
 				ctx, "action failed",
 				slog.Error(err),
 				slog.F("action", act.label),
@@ -128,12 +143,6 @@ func ownedBy(myID uuid.UUID) func(check *codersdk.AuthorizationCheck) {
 func inOrg(orgID uuid.UUID) func(check *codersdk.AuthorizationCheck) {
 	return func(check *codersdk.AuthorizationCheck) {
 		check.Object.OrganizationID = orgID.String()
-	}
-}
-
-func withResourceID(id uuid.UUID) func(check *codersdk.AuthorizationCheck) {
-	return func(check *codersdk.AuthorizationCheck) {
-		check.Object.ResourceID = id.String()
 	}
 }
 

@@ -8,19 +8,6 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-// rollTable is a table of actions to perform.
-// D&D nerds will feel right at home here :-)
-// Note that the order of the table is important!
-// Entries must be in ascending order.
-var allActions rollTable = []rollTableEntry{
-	{0, fetchWorkspaces, "fetch workspaces"},
-	{10, fetchUsers, "fetch users"},
-	{20, fetchTemplates, "fetch templates"},
-	{30, authCheckAsOwner, "authcheck owner"},
-	{40, authCheckAsNonOwner, "authcheck not owner"},
-	{50, fetchAuditLog, "fetch audit log"},
-}
-
 // rollTable is a slice of rollTableEntry.
 type rollTable []rollTableEntry
 
@@ -67,6 +54,22 @@ func fetchWorkspaces(ctx context.Context, p *params) error {
 // fetchUsers fetches all users.
 func fetchUsers(ctx context.Context, p *params) error {
 	_, err := p.client.Users(ctx, codersdk.UsersRequest{})
+	return err
+}
+
+// fetchActiveUsers fetches all active users
+func fetchActiveUsers(ctx context.Context, p *params) error {
+	_, err := p.client.Users(ctx, codersdk.UsersRequest{
+		Status: codersdk.UserStatusActive,
+	})
+	return err
+}
+
+// fetchSuspendedUsers fetches all suspended users
+func fetchSuspendedUsers(ctx context.Context, p *params) error {
+	_, err := p.client.Users(ctx, codersdk.UsersRequest{
+		Status: codersdk.UserStatusSuspended,
+	})
 	return err
 }
 
