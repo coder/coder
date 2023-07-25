@@ -873,7 +873,10 @@ export const getTemplateACLAvailable = async (
   templateId: string,
   options: TypesGen.UsersRequest,
 ): Promise<TypesGen.ACLAvailable> => {
-  const url = getURLWithSearchParams(`/api/v2/templates/${templateId}/acl/available`, options)
+  const url = getURLWithSearchParams(
+    `/api/v2/templates/${templateId}/acl/available`,
+    options,
+  )
   const response = await axios.get(url.toString())
   return response.data
 }

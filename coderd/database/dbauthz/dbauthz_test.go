@@ -698,11 +698,11 @@ func (s *MethodTestSuite) TestTemplate() {
 	}))
 	s.Run("GetTemplateGroupRoles", s.Subtest(func(db database.Store, check *expects) {
 		t1 := dbgen.Template(s.T(), db, database.Template{})
-		check.Args(t1.ID).Asserts(t1, rbac.ActionRead)
+		check.Args(t1.ID).Asserts(t1, rbac.ActionUpdate)
 	}))
 	s.Run("GetTemplateUserRoles", s.Subtest(func(db database.Store, check *expects) {
 		t1 := dbgen.Template(s.T(), db, database.Template{})
-		check.Args(t1.ID).Asserts(t1, rbac.ActionRead)
+		check.Args(t1.ID).Asserts(t1, rbac.ActionUpdate)
 	}))
 	s.Run("GetTemplateVersionByID", s.Subtest(func(db database.Store, check *expects) {
 		t1 := dbgen.Template(s.T(), db, database.Template{})

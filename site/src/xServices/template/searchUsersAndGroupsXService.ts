@@ -59,8 +59,11 @@ export const searchUsersAndGroupsMachine = createMachine(
     services: {
       search: async ({ organizationId, templateID }, { query }) => {
         let users, groups
-        if(templateID && templateID !== "") {
-          const res = await getTemplateACLAvailable(templateID, queryToFilter(query))
+        if (templateID && templateID !== "") {
+          const res = await getTemplateACLAvailable(
+            templateID,
+            queryToFilter(query),
+          )
           users = res.users
           groups = res.groups
         } else {
