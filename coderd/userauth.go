@@ -965,7 +965,8 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			// a member. This is because there is no way to tell the difference
 			// between []string{} and nil for OIDC claims. IDPs omit claims
 			// if they are empty ([]string{}).
-			rolesRow = []string{}
+			// Use []interface{}{} so the next typecast works.
+			rolesRow = []interface{}{}
 		}
 
 		rolesInterface, ok := rolesRow.([]interface{})
@@ -1630,7 +1631,7 @@ func clearOAuthConvertCookie() *http.Cookie {
 func wrongLoginTypeHTTPError(user database.LoginType, params database.LoginType) httpError {
 	addedMsg := ""
 	if user == database.LoginTypePassword {
-		addedMsg = " You can convert your account to use this login type by visiting your account settings."
+		addedMsg = " Try logging in with your password."
 	}
 	return httpError{
 		code:             http.StatusForbidden,
