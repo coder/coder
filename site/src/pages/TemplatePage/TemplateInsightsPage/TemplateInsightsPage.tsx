@@ -160,7 +160,7 @@ const TemplateUsagePanel = (props: BoxProps) => {
       <PanelHeader>App&lsquo;s & IDE usage</PanelHeader>
       <PanelContent>
         {!data && <Loader sx={{ height: 200 }} />}
-        {!hasDataAvailable && <NoDataAvailable sx={{ height: 200 }} />}
+        {data && !hasDataAvailable && <NoDataAvailable sx={{ height: 200 }} />}
         {data && hasDataAvailable && (
           <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
             {data.report.apps_usage
