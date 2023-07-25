@@ -29,7 +29,6 @@ jobs:
       PR_TITLE: ${{ steps.pr_number.outputs.PR_TITLE }}
       PR_URL: ${{ steps.pr_number.outputs.PR_URL }}
       PR_BRANCH: ${{ steps.pr_number.outputs.PR_BRANCH }}
-      COMMENT_ID: ${{ steps.comment_id.outputs.comment-id }}
       CODER_BASE_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_BASE_IMAGE_TAG }}
       CODER_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_IMAGE_TAG }}
 
@@ -63,24 +62,15 @@ jobs:
           CODER_BASE_IMAGE_TAG: ghcr.io/coder/coder-preview-base:pr${{ steps.pr_number.outputs.PR_NUMBER }}
           CODER_IMAGE_TAG: ghcr.io/coder/coder-preview:pr${{ steps.pr_number.outputs.PR_NUMBER }}
 
-      - name: Find Comment
-        uses: peter-evans/find-comment@v2
-        id: fc
-        with:
-          issue-number: ${{ steps.pr_number.outputs.PR_NUMBER }}
-          comment-author: "github-actions[bot]"
-          body-includes: This deployment will be deleted when the PR is closed
-
       - name: Comment on PR
         id: comment_id
         uses: peter-evans/create-or-update-comment@v3
         with:
-          comment-id: ${{ steps.fc.outputs.comment-id }}
           issue-number: ${{ steps.pr_number.outputs.PR_NUMBER }}
-          edit-mode: replace
           body: |
             :rocket: Deploying PR ${{ steps.pr_number.outputs.PR_NUMBER }} ...
             :warning: This deployment will be deleted when the PR is closed.
+          reactions: "-1"
 
   build:
     needs: pr_commented
@@ -231,16 +221,28 @@ jobs:
         env:
           PR_DEPLOYMENT_ACCESS_URL: "https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
 
+      - name: Find Comment
+        uses: peter-evans/find-comment@v2
+        id: fc
+        with:
+          issue-number: ${{ env.PR_NUMBER }}
+          comment-author: "github-actions[bot]"
+          body-includes: This deployment will be deleted when the PR is closed
+
       - name: Comment on PR
         uses: peter-evans/create-or-update-comment@v3
         with:
           issue-number: ${{ env.PR_NUMBER }}
           edit-mode: replace
-          comment-id: ${{ needs.pr_commented.outputs.COMMENT_ID }}
+          comment-id: ${{ steps.fc.outputs.comment-id }}
           body: |
             :heavy_check_mark: Deployed PR ${{ env.PR_NUMBER }} successfully.
             :rocket: Access the deployment link [here](${{ env.PR_DEPLOYMENT_ACCESS_URL }}).
             :warning: This deployment will be deleted when the PR is closed.
-          reactions: "+1"
+          reactions: |
+            +1
+            rocket
+          reactions-edit-mode: replace
+
         env:
           PR_DEPLOYMENT_ACCESS_URL: "https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
