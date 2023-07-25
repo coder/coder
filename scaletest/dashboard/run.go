@@ -67,9 +67,21 @@ func (r *Runner) do(ctx context.Context, label string, fn func(client *codersdk.
 			r.cfg.Logger.Info(ctx, "context done, stopping")
 			return
 		case <-t.C:
-			r.cfg.Logger.Info(ctx, "running function", slog.F("fn", label))
-			if err := fn(r.client); err != nil {
-				r.cfg.Logger.Error(ctx, "function returned error", slog.Error(err), slog.F("fn", label))
+			start := time.Now()
+			err := fn(r.client)
+			elapsed := time.Since(start)
+			if err != nil {
+				r.cfg.Logger.Error(
+					ctx, "function returned error",
+					slog.Error(err),
+					slog.F("fn", label),
+					slog.F("elapsed", elapsed),
+				)
+			} else {
+				r.cfg.Logger.Info(ctx, "completed successfully",
+					slog.F("fn", label),
+					slog.F("elapsed", elapsed),
+				)
 			}
 			t.Reset(r.randWait())
 		}
