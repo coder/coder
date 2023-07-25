@@ -81,8 +81,14 @@ func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *clibas
 			}
 
 			// Prompt to confirm the action
+			var question string
+			if sdkStatus == codersdk.UserStatusDormant {
+				question = "Are you sure you want to mark this user as dormant?"
+			} else {
+				question = fmt.Sprintf("Are you sure you want to %s this user?", verb)
+			}
 			_, err = cliui.Prompt(inv, cliui.PromptOptions{
-				Text:      fmt.Sprintf("Are you sure you want to %s this user?", verb),
+				Text:      question,
 				IsConfirm: true,
 				Default:   cliui.ConfirmYes,
 			})
