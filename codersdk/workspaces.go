@@ -48,6 +48,10 @@ type Workspace struct {
 	Health WorkspaceHealth `json:"health"`
 }
 
+func (w Workspace) FullName() string {
+	return fmt.Sprintf("%s/%s", w.OwnerName, w.Name)
+}
+
 type WorkspaceHealth struct {
 	Healthy       bool        `json:"healthy" example:"false"`      // Healthy is true if the workspace is healthy.
 	FailingAgents []uuid.UUID `json:"failing_agents" format:"uuid"` // FailingAgents lists the IDs of the agents that are failing, if any.
