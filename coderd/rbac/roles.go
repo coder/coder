@@ -145,8 +145,6 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Name:        member,
 		DisplayName: "",
 		Site: Permissions(map[string][]Action{
-			// All users can read all other users and know they exist.
-			ResourceUser.Type:           {ActionRead},
 			ResourceRoleAssignment.Type: {ActionRead},
 			// All users can see the provisioner daemons.
 			ResourceProvisionerDaemon.Type: {ActionRead},
