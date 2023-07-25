@@ -522,6 +522,37 @@ Issuer URL to use for Login with OIDC.
 
 Scopes to grant when authenticating with OIDC.
 
+### --oidc-user-role-default
+
+|             |                                            |
+| ----------- | ------------------------------------------ |
+| Type        | <code>string-array</code>                  |
+| Environment | <code>$CODER_OIDC_USER_ROLE_DEFAULT</code> |
+| YAML        | <code>oidc.userRoleDefault</code>          |
+
+If user role sync is enabled, these roles are always included for all authenticated users. The 'member' role is always assigned.
+
+### --oidc-user-role-field
+
+|             |                                          |
+| ----------- | ---------------------------------------- |
+| Type        | <code>string</code>                      |
+| Environment | <code>$CODER_OIDC_USER_ROLE_FIELD</code> |
+| YAML        | <code>oidc.userRoleField</code>          |
+
+This field must be set if using the user roles sync feature. Set this to the name of the claim used to store the user's role. The roles should be sent as an array of strings.
+
+### --oidc-user-role-mapping
+
+|             |                                            |
+| ----------- | ------------------------------------------ |
+| Type        | <code>struct[map[string][]string]</code>   |
+| Environment | <code>$CODER_OIDC_USER_ROLE_MAPPING</code> |
+| YAML        | <code>oidc.userRoleMapping</code>          |
+| Default     | <code>{}</code>                            |
+
+A map of the OIDC passed in user roles and the groups in Coder it should map to. This is useful if the group names do not match. If mapped to the empty string, the role will ignored.
+
 ### --oidc-username-field
 
 |             |                                         |

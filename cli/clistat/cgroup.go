@@ -338,7 +338,7 @@ func readInt64Prefix(fs afero.Fs, path, prefix string) (int64, error) {
 
 	scn := bufio.NewScanner(bytes.NewReader(data))
 	for scn.Scan() {
-		line := scn.Text()
+		line := strings.TrimSpace(scn.Text())
 		if !strings.HasPrefix(line, prefix) {
 			continue
 		}

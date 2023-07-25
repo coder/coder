@@ -108,7 +108,7 @@ func New(options Options) Agent {
 		}
 	}
 	if options.ReportMetadataInterval == 0 {
-		options.ReportMetadataInterval = 1 * time.Minute
+		options.ReportMetadataInterval = time.Second
 	}
 	if options.ServiceBannerRefreshInterval == 0 {
 		options.ServiceBannerRefreshInterval = 2 * time.Minute
@@ -339,15 +339,19 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 	// baseInterval to run.
 	flight := trySingleflight{m: map[string]struct{}{}}
 
+	postMetadata := func(mr metadataResultAndKey) {
+		err := a.client.PostMetadata(ctx, mr.key, *mr.result)
+		if err != nil {
+			a.logger.Error(ctx, "agent failed to report metadata", slog.Error(err))
+		}
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case mr := <-metadataResults:
-			err := a.client.PostMetadata(ctx, mr.key, *mr.result)
-			if err != nil {
-				a.logger.Error(ctx, "agent failed to report metadata", slog.Error(err))
-			}
+			postMetadata(mr)
 			continue
 		case <-baseTicker.C:
 		}
@@ -409,8 +413,14 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 					if md.Interval == 0 {
 						return
 					}
+					intervalUnit := time.Second
+					// reportMetadataInterval is only less than a second in tests,
+					// so adjust the interval unit for them.
+					if a.reportMetadataInterval < time.Second {
+						intervalUnit = 100 * time.Millisecond
+					}
 					// The last collected value isn't quite stale yet, so we skip it.
-					if collectedAt.Add(a.reportMetadataInterval).After(time.Now()) {
+					if collectedAt.Add(time.Duration(md.Interval) * intervalUnit).After(time.Now()) {
 						return
 					}
 				}

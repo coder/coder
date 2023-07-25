@@ -40,7 +40,7 @@ func TestTemplateEdit(t *testing.T) {
 		name := "new-template-name"
 		displayName := "New Display Name 789"
 		desc := "lorem ipsum dolor sit amet et cetera"
-		icon := "/icons/new-icon.png"
+		icon := "/icon/new-icon.png"
 		defaultTTL := 12 * time.Hour
 		allowUserCancelWorkspaceJobs := false
 
@@ -168,7 +168,7 @@ func TestTemplateEdit(t *testing.T) {
 		// Test the cli command.
 		displayName := "New Display Name 789"
 		description := "New Description ABC"
-		icon := "/icons/new-icon.png"
+		icon := "/icon/new-icon.png"
 		cmdArgs := []string{
 			"templates",
 			"edit",
@@ -409,7 +409,7 @@ func TestTemplateEdit(t *testing.T) {
 					clitest.SetupConfig(t, proxyClient, root)
 
 					ctx := testutil.Context(t, testutil.WaitLong)
-					err = inv.WithContext(ctx).Run()
+					err := inv.WithContext(ctx).Run()
 					if c.ok {
 						require.NoError(t, err)
 					} else {

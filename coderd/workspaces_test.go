@@ -2680,14 +2680,19 @@ func TestWorkspaceLock(t *testing.T) {
 			user      = coderdtest.CreateFirstUser(t, client)
 			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-			template  = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-			_         = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+			lockedTTL = time.Minute
 		)
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.LockedTTLMillis = ptr.Ref[int64](lockedTTL.Milliseconds())
+		})
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
+		lastUsedAt := workspace.LastUsedAt
 		err := client.UpdateWorkspaceLock(ctx, workspace.ID, codersdk.UpdateWorkspaceLock{
 			Lock: true,
 		})
@@ -2695,10 +2700,14 @@ func TestWorkspaceLock(t *testing.T) {
 
 		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
 		require.NoError(t, err, "fetch provisioned workspace")
+		// The template doesn't have a locked_ttl set so this should be nil.
+		require.Nil(t, workspace.DeletingAt)
 		require.NotNil(t, workspace.LockedAt)
 		require.WithinRange(t, *workspace.LockedAt, time.Now().Add(-time.Second*10), time.Now())
+		require.Equal(t, lastUsedAt, workspace.LastUsedAt)
 
-		lastUsedAt := workspace.LastUsedAt
+		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+		lastUsedAt = workspace.LastUsedAt
 		err = client.UpdateWorkspaceLock(ctx, workspace.ID, codersdk.UpdateWorkspaceLock{
 			Lock: false,
 		})
@@ -2707,6 +2716,9 @@ func TestWorkspaceLock(t *testing.T) {
 		workspace, err = client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err, "fetch provisioned workspace")
 		require.Nil(t, workspace.LockedAt)
+		// The template doesn't have a locked_ttl set so this should be nil.
+		require.Nil(t, workspace.DeletingAt)
+		// The last_used_at should get updated when we unlock the workspace.
 		require.True(t, workspace.LastUsedAt.After(lastUsedAt))
 	})
 

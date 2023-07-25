@@ -889,6 +889,14 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 	aReq.Old = user
 
+	if user.LoginType == database.LoginTypeOIDC && api.OIDCConfig.RoleSyncEnabled() {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Cannot modify roles for OIDC users when role sync is enabled.",
+			Detail:  "'User Role Field' is set in the OIDC configuration. All role changes must come from the oidc identity provider.",
+		})
+		return
+	}
+
 	if apiKey.UserID == user.ID {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "You cannot change your own roles.",
@@ -901,7 +909,7 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updatedUser, err := api.updateSiteUserRoles(ctx, database.UpdateUserRolesParams{
+	updatedUser, err := UpdateSiteUserRoles(ctx, api.Database, database.UpdateUserRolesParams{
 		GrantedRoles: params.Roles,
 		ID:           user.ID,
 	})
@@ -929,9 +937,9 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(updatedUser, organizationIDs))
 }
 
-// updateSiteUserRoles will ensure only site wide roles are passed in as arguments.
+// UpdateSiteUserRoles will ensure only site wide roles are passed in as arguments.
 // If an organization role is included, an error is returned.
-func (api *API) updateSiteUserRoles(ctx context.Context, args database.UpdateUserRolesParams) (database.User, error) {
+func UpdateSiteUserRoles(ctx context.Context, db database.Store, args database.UpdateUserRolesParams) (database.User, error) {
 	// Enforce only site wide roles.
 	for _, r := range args.GrantedRoles {
 		if _, ok := rbac.IsOrgRole(r); ok {
@@ -943,7 +951,7 @@ func (api *API) updateSiteUserRoles(ctx context.Context, args database.UpdateUse
 		}
 	}
 
-	updatedUser, err := api.Database.UpdateUserRoles(ctx, args)
+	updatedUser, err := db.UpdateUserRoles(ctx, args)
 	if err != nil {
 		return database.User{}, xerrors.Errorf("update site roles: %w", err)
 	}

@@ -118,7 +118,7 @@ func TestWorkspaces(t *testing.T) {
 			Type:          database.ProvisionerJobTypeWorkspaceBuild,
 		})
 		require.NoError(t, err)
-		_, err = db.InsertWorkspaceBuild(context.Background(), database.InsertWorkspaceBuildParams{
+		err = db.InsertWorkspaceBuild(context.Background(), database.InsertWorkspaceBuildParams{
 			ID:          uuid.New(),
 			WorkspaceID: uuid.New(),
 			JobID:       job.ID,

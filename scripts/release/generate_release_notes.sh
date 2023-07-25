@@ -54,6 +54,9 @@ fi
 if [[ -z $new_version ]]; then
 	error "No new version specified"
 fi
+if [[ $new_version != v* ]]; then
+	error "New version must start with a v"
+fi
 if [[ -z $ref ]]; then
 	error "No ref specified"
 fi
