@@ -8271,6 +8271,26 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.MinimalUser": {
+            "type": "object",
+            "required": [
+                "id",
+                "username"
+            ],
+            "properties": {
+                "avatar_url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.OAuth2Config": {
             "type": "object",
             "properties": {
@@ -9478,7 +9498,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "created_by": {
-                    "$ref": "#/definitions/codersdk.User"
+                    "$ref": "#/definitions/codersdk.MinimalUser"
                 },
                 "id": {
                     "type": "string",
