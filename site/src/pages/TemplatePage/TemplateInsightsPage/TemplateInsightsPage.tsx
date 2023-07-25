@@ -70,14 +70,17 @@ const DailyUsersPanel = ({
 }) => {
   return (
     <Panel {...panelProps}>
-      <PanelHeader sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-        Daily Active Users
-        <HelpTooltip size="small">
-          <HelpTooltipTitle>How do we calculate DAUs?</HelpTooltipTitle>
-          <HelpTooltipText>
-            We use all workspace connection traffic to calculate DAUs.
-          </HelpTooltipText>
-        </HelpTooltip>
+      <PanelHeader>
+        <PanelTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          Daily Active Users
+          <HelpTooltip size="small">
+            <HelpTooltipTitle>How do we calculate DAUs?</HelpTooltipTitle>
+            <HelpTooltipText>
+              We use all workspace connection traffic to calculate DAUs.
+            </HelpTooltipText>
+          </HelpTooltip>
+        </PanelTitle>
+        <PanelSubtitle>Last 7 days</PanelSubtitle>
       </PanelHeader>
       <PanelContent>
         {!data && <Loader sx={{ height: "100%" }} />}
@@ -104,8 +107,17 @@ const UserLatencyPanel = (props: PanelProps) => {
 
   return (
     <Panel {...props} sx={{ overflowY: "auto", ...props.sx }}>
-      <PanelHeader sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-        Latency by user
+      <PanelHeader>
+        <PanelTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          Latency by user
+          <HelpTooltip size="small">
+            <HelpTooltipTitle>How do we calculate latency?</HelpTooltipTitle>
+            <HelpTooltipText>
+              The average latency of user connections to workspaces.
+            </HelpTooltipText>
+          </HelpTooltip>
+        </PanelTitle>
+        <PanelSubtitle>Last 7 days</PanelSubtitle>
       </PanelHeader>
       <PanelContent>
         {!data && <Loader sx={{ height: "100%" }} />}
@@ -164,7 +176,10 @@ const TemplateUsagePanel = ({
   const hasDataAvailable = validUsage && validUsage.length > 0
   return (
     <Panel {...panelProps}>
-      <PanelHeader>App&lsquo;s & IDE usage</PanelHeader>
+      <PanelHeader>
+        <PanelTitle>App&lsquo;s & IDE usage</PanelTitle>
+        <PanelSubtitle>Last 7 days</PanelSubtitle>
+      </PanelHeader>
       <PanelContent>
         {!data && <Loader sx={{ height: 200 }} />}
         {data && !hasDataAvailable && <NoDataAvailable sx={{ height: 200 }} />}
@@ -247,10 +262,17 @@ const Panel = styled(Box)(({ theme }) => ({
 type PanelProps = ComponentProps<typeof Panel>
 
 const PanelHeader = styled(Box)(({ theme }) => ({
+  padding: theme.spacing(2.5, 3, 3),
+}))
+
+const PanelTitle = styled(Box)(() => ({
   fontSize: 14,
   fontWeight: 500,
-  padding: theme.spacing(3),
-  lineHeight: 1,
+}))
+
+const PanelSubtitle = styled(Box)(({ theme }) => ({
+  fontSize: 13,
+  color: theme.palette.text.secondary,
 }))
 
 const PanelContent = styled(Box)(({ theme }) => ({
