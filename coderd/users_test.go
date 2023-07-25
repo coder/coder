@@ -1439,7 +1439,7 @@ func TestGetUsersPagination(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, res.Users, 0)
-	require.Equal(t, res.Count, -1)
+	require.Equal(t, res.Count, 0)
 }
 
 func TestPostTokens(t *testing.T) {

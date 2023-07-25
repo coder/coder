@@ -253,7 +253,7 @@ func (api *API) GetUsers(rw http.ResponseWriter, r *http.Request) ([]database.Us
 	// GetUsers does not return ErrNoRows because it uses a window function to get the count.
 	// So we need to check if the userRows is empty and return an empty array if so.
 	if len(userRows) == 0 {
-		return []database.User{}, -1, true
+		return []database.User{}, 0, true
 	}
 
 	users := database.ConvertUserRows(userRows)
