@@ -59,6 +59,8 @@ export const UsersFilter = ({
     <Filter
       presets={PRESET_FILTERS}
       learnMoreLink={docs("/admin/users#user-filtering")}
+      learnMoreLabel2="User status"
+      learnMoreLink2={docs("/admin/users#user-status")}
       isLoading={menus.status.isInitializing}
       filter={filter}
       error={error}

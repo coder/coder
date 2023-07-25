@@ -272,7 +272,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         }}
         description={
           <>
-            Do you want to mark the user {" "}
+            Do you want to mark the user{" "}
             <strong>{usernameToMarkDormant ?? ""}</strong> as dormant?
           </>
         }
