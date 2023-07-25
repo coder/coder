@@ -41,9 +41,11 @@ func (r *Runner) Run(ctx context.Context, _ string, _ io.Writer) error {
 	if len(me.OrganizationIDs) == 0 {
 		return xerrors.Errorf("user has no organizations")
 	}
-	orgID := me.OrganizationIDs[0]
+	p := &params{
+		client: r.client,
+		me:     me,
+	}
 	rolls := make(chan int)
-	// Roll a die
 	go func() {
 		t := time.NewTicker(r.randWait())
 		defer t.Stop()
@@ -52,7 +54,7 @@ func (r *Runner) Run(ctx context.Context, _ string, _ io.Writer) error {
 			case <-ctx.Done():
 				return
 			case <-t.C:
-				rolls <- rand.Intn(6)
+				rolls <- rand.Intn(allActions.max()) // nolint:gosec
 				t.Reset(r.randWait())
 			}
 		}
@@ -63,45 +65,8 @@ func (r *Runner) Run(ctx context.Context, _ string, _ io.Writer) error {
 		case <-ctx.Done():
 			return nil
 		case n := <-rolls:
-			switch n {
-			case 0:
-				go r.do(ctx, "fetch workspaces", func(client *codersdk.Client) error {
-					_, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
-					return err
-				})
-			case 1:
-				go r.do(ctx, "fetch users", func(client *codersdk.Client) error {
-					_, err := client.Users(ctx, codersdk.UsersRequest{})
-					return err
-				})
-			case 2:
-				go r.do(ctx, "fetch templates", func(client *codersdk.Client) error {
-					_, err = client.TemplatesByOrganization(ctx, orgID)
-					return err
-				})
-			case 3:
-				go r.do(ctx, "auth check - owner", func(client *codersdk.Client) error {
-					_, err := client.AuthCheck(ctx, randAuthReq(
-						ownedBy(me.ID),
-						withAction(randAction()),
-						withObjType(randObjectType()),
-						inOrg(orgID),
-					))
-					return err
-				})
-			case 4:
-				go r.do(ctx, "auth check - not owner", func(client *codersdk.Client) error {
-					_, err := client.AuthCheck(ctx, randAuthReq(
-						ownedBy(uuid.New()),
-						withAction(randAction()),
-						withObjType(randObjectType()),
-						inOrg(orgID),
-					))
-					return err
-				})
-			default:
-				r.cfg.Logger.Warn(ctx, "no action for roll - skipping my turn", slog.F("roll", n))
-			}
+			act := allActions.choose(n)
+			go r.do(ctx, act, p)
 		}
 	}
 }
@@ -110,25 +75,25 @@ func (*Runner) Cleanup(_ context.Context, _ string) error {
 	return nil
 }
 
-func (r *Runner) do(ctx context.Context, label string, fn func(client *codersdk.Client) error) {
+func (r *Runner) do(ctx context.Context, act rollTableEntry, p *params) {
 	select {
 	case <-ctx.Done():
 		r.cfg.Logger.Info(ctx, "context done, stopping")
 		return
 	default:
 		start := time.Now()
-		err := fn(r.client)
+		err := act.fn(ctx, p)
 		elapsed := time.Since(start)
 		if err != nil {
 			r.cfg.Logger.Error(
-				ctx, "function returned error",
+				ctx, "action failed",
 				slog.Error(err),
-				slog.F("fn", label),
+				slog.F("action", act.label),
 				slog.F("elapsed", elapsed),
 			)
 		} else {
 			r.cfg.Logger.Info(ctx, "completed successfully",
-				slog.F("fn", label),
+				slog.F("action", act.label),
 				slog.F("elapsed", elapsed),
 			)
 		}
