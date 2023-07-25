@@ -6,6 +6,7 @@
 SELECT
 	workspace_agent_stats.user_id,
 	users.username,
+	users.avatar_url,
 	array_agg(DISTINCT template_id)::uuid[] AS template_ids,
 	coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_50,
 	coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
@@ -17,7 +18,7 @@ WHERE
 	AND workspace_agent_stats.connection_median_latency_ms > 0
 	AND workspace_agent_stats.connection_count > 0
 	AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
-GROUP BY workspace_agent_stats.user_id, users.username
+GROUP BY workspace_agent_stats.user_id, users.username, users.avatar_url
 ORDER BY user_id ASC;
 
 -- name: GetTemplateInsights :one
@@ -94,11 +95,16 @@ WITH d AS (
 	GROUP BY ts.from_, ts.to_, was.user_id
 ), template_ids AS (
 	SELECT
-		from_,
-		array_agg(DISTINCT template_id) AS ids
-	FROM usage_by_day, unnest(template_ids) template_id
+		template_usage_by_day.from_,
+		array_agg(template_id) AS ids
+	FROM (
+		SELECT DISTINCT
+			from_,
+			unnest(template_ids) AS template_id
+		FROM usage_by_day
+	) AS template_usage_by_day
 	WHERE template_id IS NOT NULL
-	GROUP BY from_, template_ids
+	GROUP BY template_usage_by_day.from_
 )
 
 SELECT

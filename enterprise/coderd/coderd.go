@@ -75,6 +75,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}()
 
 	api.AGPL.Options.SetUserGroups = api.setUserGroups
+	api.AGPL.Options.SetUserSiteRoles = api.setUserSiteRoles
 	api.AGPL.SiteHandler.AppearanceFetcher = api.fetchAppearanceConfig
 	api.AGPL.SiteHandler.RegionsFetcher = func(ctx context.Context) (any, error) {
 		// If the user can read the workspace proxy resource, return that.
@@ -411,6 +412,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			// FeatureAdvancedTemplateScheduling.
 			codersdk.FeatureTemplateRestartRequirement: api.DefaultQuietHoursSchedule != "",
 			codersdk.FeatureWorkspaceProxy:             true,
+			codersdk.FeatureUserRoleManagement:         true,
 		})
 	if err != nil {
 		return err

@@ -560,6 +560,13 @@ export interface LoginWithPasswordResponse {
   readonly session_token: string
 }
 
+// From codersdk/users.go
+export interface MinimalUser {
+  readonly id: string
+  readonly username: string
+  readonly avatar_url: string
+}
+
 // From codersdk/deployment.go
 export interface OAuth2Config {
   readonly github: OAuth2GithubConfig
@@ -613,6 +620,12 @@ export interface OIDCConfig {
   // Named type "github.com/coder/coder/cli/clibase.Struct[map[string]string]" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly group_mapping: any
+  readonly user_role_field: string
+  // Named type "github.com/coder/coder/cli/clibase.Struct[map[string][]string]" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
+  readonly user_role_mapping: any
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
+  readonly user_roles_default: string[]
   readonly sign_in_text: string
   readonly icon_url: string
 }
@@ -978,7 +991,7 @@ export interface TemplateVersion {
   readonly message: string
   readonly job: ProvisionerJob
   readonly readme: string
-  readonly created_by: User
+  readonly created_by: MinimalUser
   readonly warnings?: TemplateVersionWarning[]
 }
 
@@ -1162,6 +1175,7 @@ export interface User {
   readonly organization_ids: string[]
   readonly roles: Role[]
   readonly avatar_url: string
+  readonly login_type: LoginType
 }
 
 // From codersdk/insights.go
@@ -1169,6 +1183,7 @@ export interface UserLatency {
   readonly template_ids: string[]
   readonly user_id: string
   readonly username: string
+  readonly avatar_url: string
   readonly latency_ms: ConnectionLatency
 }
 
@@ -1565,6 +1580,7 @@ export type FeatureName =
   | "template_rbac"
   | "template_restart_requirement"
   | "user_limit"
+  | "user_role_management"
   | "workspace_proxy"
 export const FeatureNames: FeatureName[] = [
   "advanced_template_scheduling",
@@ -1578,6 +1594,7 @@ export const FeatureNames: FeatureName[] = [
   "template_rbac",
   "template_restart_requirement",
   "user_limit",
+  "user_role_management",
   "workspace_proxy",
 ]
 

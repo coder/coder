@@ -182,6 +182,7 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group} \
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "password",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -241,6 +242,7 @@ curl -X DELETE http://coder-server:8080/api/v2/groups/{group} \
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "password",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -300,6 +302,7 @@ curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "password",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -434,6 +437,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups 
         "email": "user@example.com",
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "last_seen_at": "2019-08-24T14:15:22Z",
+        "login_type": "password",
         "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
         "roles": [
           {
@@ -473,6 +477,7 @@ Status Code **200**
 | `»» email`            | string(email)                                        | true     |              |             |
 | `»» id`               | string(uuid)                                         | true     |              |             |
 | `»» last_seen_at`     | string(date-time)                                    | false    |              |             |
+| `»» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)   | false    |              |             |
 | `»» organization_ids` | array                                                | false    |              |             |
 | `»» roles`            | array                                                | false    |              |             |
 | `»»» display_name`    | string                                               | false    |              |             |
@@ -485,10 +490,15 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property | Value       |
-| -------- | ----------- |
-| `status` | `active`    |
-| `status` | `suspended` |
+| Property     | Value       |
+| ------------ | ----------- |
+| `login_type` | `password`  |
+| `login_type` | `github`    |
+| `login_type` | `oidc`      |
+| `login_type` | `token`     |
+| `login_type` | `none`      |
+| `status`     | `active`    |
+| `status`     | `suspended` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -538,6 +548,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "password",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -598,6 +609,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "password",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -959,6 +971,7 @@ curl -X PATCH http://coder-server:8080/api/v2/scim/v2/Users/{id} \
   "email": "user@example.com",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_seen_at": "2019-08-24T14:15:22Z",
+  "login_type": "password",
   "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
   "roles": [
     {
@@ -1010,6 +1023,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl \
     "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "last_seen_at": "2019-08-24T14:15:22Z",
+    "login_type": "password",
     "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "role": "admin",
     "roles": [
@@ -1042,6 +1056,7 @@ Status Code **200**
 | `» email`            | string(email)                                            | true     |              |             |
 | `» id`               | string(uuid)                                             | true     |              |             |
 | `» last_seen_at`     | string(date-time)                                        | false    |              |             |
+| `» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)       | false    |              |             |
 | `» organization_ids` | array                                                    | false    |              |             |
 | `» role`             | [codersdk.TemplateRole](schemas.md#codersdktemplaterole) | false    |              |             |
 | `» roles`            | array                                                    | false    |              |             |
@@ -1052,12 +1067,17 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property | Value       |
-| -------- | ----------- |
-| `role`   | `admin`     |
-| `role`   | `use`       |
-| `status` | `active`    |
-| `status` | `suspended` |
+| Property     | Value       |
+| ------------ | ----------- |
+| `login_type` | `password`  |
+| `login_type` | `github`    |
+| `login_type` | `oidc`      |
+| `login_type` | `token`     |
+| `login_type` | `none`      |
+| `role`       | `admin`     |
+| `role`       | `use`       |
+| `status`     | `active`    |
+| `status`     | `suspended` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

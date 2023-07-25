@@ -8302,6 +8302,26 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.MinimalUser": {
+            "type": "object",
+            "required": [
+                "id",
+                "username"
+            ],
+            "properties": {
+                "avatar_url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.OAuth2Config": {
             "type": "object",
             "properties": {
@@ -8425,6 +8445,18 @@ const docTemplate = `{
                 },
                 "sign_in_text": {
                     "type": "string"
+                },
+                "user_role_field": {
+                    "type": "string"
+                },
+                "user_role_mapping": {
+                    "type": "object"
+                },
+                "user_roles_default": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "username_field": {
                     "type": "string"
@@ -9446,6 +9478,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "login_type": {
+                    "$ref": "#/definitions/codersdk.LoginType"
+                },
                 "organization_ids": {
                     "type": "array",
                     "items": {
@@ -9494,7 +9529,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "created_by": {
-                    "$ref": "#/definitions/codersdk.User"
+                    "$ref": "#/definitions/codersdk.MinimalUser"
                 },
                 "id": {
                     "type": "string",
@@ -9899,6 +9934,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "login_type": {
+                    "$ref": "#/definitions/codersdk.LoginType"
+                },
                 "organization_ids": {
                     "type": "array",
                     "items": {
@@ -9931,6 +9969,10 @@ const docTemplate = `{
         "codersdk.UserLatency": {
             "type": "object",
             "properties": {
+                "avatar_url": {
+                    "type": "string",
+                    "format": "uri"
+                },
                 "latency_ms": {
                     "$ref": "#/definitions/codersdk.ConnectionLatency"
                 },

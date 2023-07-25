@@ -44,6 +44,7 @@ type UserLatency struct {
 	TemplateIDs []uuid.UUID       `json:"template_ids" format:"uuid"`
 	UserID      uuid.UUID         `json:"user_id" format:"uuid"`
 	Username    string            `json:"username"`
+	AvatarURL   string            `json:"avatar_url" format:"uri"`
 	LatencyMS   ConnectionLatency `json:"latency_ms"`
 }
 
