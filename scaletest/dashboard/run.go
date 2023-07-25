@@ -2,7 +2,6 @@ package dashboard
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"math/rand"
 	"time"
@@ -44,8 +43,13 @@ func (r *Runner) Run(ctx context.Context, _ string, _ io.Writer) error {
 	}
 	orgID := me.OrganizationIDs[0]
 
-	go r.do(ctx, "auth check", func(client *codersdk.Client) error {
-		_, err := client.AuthCheck(ctx, randAuthReq(orgID))
+	go r.do(ctx, "auth check - owner", func(client *codersdk.Client) error {
+		_, err := client.AuthCheck(ctx, randAuthReq(orgID, ownedByMe(me.ID), withAction(randAction()), withObjType(randObjectType())))
+		return err
+	})
+
+	go r.do(ctx, "auth check - not owner", func(client *codersdk.Client) error {
+		_, err := client.AuthCheck(ctx, randAuthReq(orgID, ownedByMe(uuid.New()), withAction(randAction()), withObjType(randObjectType())))
 		return err
 	})
 
@@ -109,21 +113,54 @@ func (r *Runner) randWait() time.Duration {
 }
 
 // nolint: gosec
-func randAuthReq(orgID uuid.UUID) codersdk.AuthorizationRequest {
-	objType := codersdk.AllRBACResources[rand.Intn(len(codersdk.AllRBACResources))]
-	action := codersdk.AllRBACActions[rand.Intn(len(codersdk.AllRBACActions))]
-	subjectID := uuid.New().String()
-	checkName := fmt.Sprintf("%s-%s-%s", action, objType, subjectID)
+func randAuthReq(orgID uuid.UUID, mut ...func(*codersdk.AuthorizationCheck)) codersdk.AuthorizationRequest {
+	var check codersdk.AuthorizationCheck
+	for _, m := range mut {
+		m(&check)
+	}
 	return codersdk.AuthorizationRequest{
 		Checks: map[string]codersdk.AuthorizationCheck{
-			checkName: {
-				Object: codersdk.AuthorizationObject{
-					ResourceType:   objType,
-					OrganizationID: orgID.String(),
-					ResourceID:     subjectID,
-				},
-				Action: action,
-			},
+			"check": check,
 		},
 	}
+}
+
+func ownedByMe(myID uuid.UUID) func(check *codersdk.AuthorizationCheck) {
+	return func(check *codersdk.AuthorizationCheck) {
+		check.Object.OwnerID = myID.String()
+	}
+}
+
+func inOrg(orgID uuid.UUID) func(check *codersdk.AuthorizationCheck) {
+	return func(check *codersdk.AuthorizationCheck) {
+		check.Object.OrganizationID = orgID.String()
+	}
+}
+
+func withResourceID(id uuid.UUID) func(check *codersdk.AuthorizationCheck) {
+	return func(check *codersdk.AuthorizationCheck) {
+		check.Object.ResourceID = id.String()
+	}
+}
+
+func withObjType(objType codersdk.RBACResource) func(check *codersdk.AuthorizationCheck) {
+	return func(check *codersdk.AuthorizationCheck) {
+		check.Object.ResourceType = objType
+	}
+}
+
+func withAction(action string) func(check *codersdk.AuthorizationCheck) {
+	return func(check *codersdk.AuthorizationCheck) {
+		check.Action = action
+	}
+}
+
+func randAction() string {
+	// nolint:gosec
+	return codersdk.AllRBACActions[rand.Intn(len(codersdk.AllRBACActions))]
+}
+
+func randObjectType() codersdk.RBACResource {
+	// nolint:gosec
+	return codersdk.AllRBACResources[rand.Intn(len(codersdk.AllRBACResources))]
 }
