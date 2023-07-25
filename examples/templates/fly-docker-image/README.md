@@ -22,8 +22,8 @@ This template provisions a [code-server](https://github.com/coder/code-server) i
 
 ```bash
 coder templates create fly-docker-image \
-  --variable fly_api_token=$(flyctl auth token) \
-  --variable fly_org=personal
+  --var fly_api_token=$(flyctl auth token) \
+  --var fly_org=personal
 ```
 
 > If the Coder server is also running as a fly.io app, then instead of setting variable `fly_api_token` you can also set a fly.io secret with the name `FLY_API_TOKEN`

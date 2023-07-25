@@ -75,7 +75,7 @@ func (c *committer) CommitQuota(
 			return nil
 		}
 
-		_, err = s.UpdateWorkspaceBuildCostByID(ctx, database.UpdateWorkspaceBuildCostByIDParams{
+		err = s.UpdateWorkspaceBuildCostByID(ctx, database.UpdateWorkspaceBuildCostByIDParams{
 			ID:        build.ID,
 			DailyCost: request.DailyCost,
 		})

@@ -334,35 +334,49 @@ func (b *Builder) buildTx(authFunc func(action rbac.Action, object rbac.Objecter
 	if err != nil {
 		return nil, nil, BuildError{http.StatusInternalServerError, "compute build state", err}
 	}
-	workspaceBuild, err := b.store.InsertWorkspaceBuild(b.ctx, database.InsertWorkspaceBuildParams{
-		ID:                workspaceBuildID,
-		CreatedAt:         now,
-		UpdatedAt:         now,
-		WorkspaceID:       b.workspace.ID,
-		TemplateVersionID: templateVersionID,
-		BuildNumber:       buildNum,
-		ProvisionerState:  state,
-		InitiatorID:       b.initiator,
-		Transition:        b.trans,
-		JobID:             provisionerJob.ID,
-		Reason:            b.reason,
-	})
-	if err != nil {
-		return nil, nil, BuildError{http.StatusInternalServerError, "insert workspace build", err}
-	}
 
-	names, values, err := b.getParameters()
+	var workspaceBuild database.WorkspaceBuild
+	err = b.store.InTx(func(store database.Store) error {
+		err = store.InsertWorkspaceBuild(b.ctx, database.InsertWorkspaceBuildParams{
+			ID:                workspaceBuildID,
+			CreatedAt:         now,
+			UpdatedAt:         now,
+			WorkspaceID:       b.workspace.ID,
+			TemplateVersionID: templateVersionID,
+			BuildNumber:       buildNum,
+			ProvisionerState:  state,
+			InitiatorID:       b.initiator,
+			Transition:        b.trans,
+			JobID:             provisionerJob.ID,
+			Reason:            b.reason,
+		})
+		if err != nil {
+			return BuildError{http.StatusInternalServerError, "insert workspace build", err}
+		}
+
+		names, values, err := b.getParameters()
+		if err != nil {
+			// getParameters already wraps errors in BuildError
+			return err
+		}
+		err = store.InsertWorkspaceBuildParameters(b.ctx, database.InsertWorkspaceBuildParametersParams{
+			WorkspaceBuildID: workspaceBuildID,
+			Name:             names,
+			Value:            values,
+		})
+		if err != nil {
+			return BuildError{http.StatusInternalServerError, "insert workspace build parameters: %w", err}
+		}
+
+		workspaceBuild, err = store.GetWorkspaceBuildByID(b.ctx, workspaceBuildID)
+		if err != nil {
+			return BuildError{http.StatusInternalServerError, "get workspace build", err}
+		}
+
+		return nil
+	}, nil)
 	if err != nil {
-		// getParameters already wraps errors in BuildError
 		return nil, nil, err
-	}
-	err = b.store.InsertWorkspaceBuildParameters(b.ctx, database.InsertWorkspaceBuildParametersParams{
-		WorkspaceBuildID: workspaceBuildID,
-		Name:             names,
-		Value:            values,
-	})
-	if err != nil {
-		return nil, nil, BuildError{http.StatusInternalServerError, "insert workspace build parameters: %w", err}
 	}
 
 	return &workspaceBuild, &provisionerJob, nil

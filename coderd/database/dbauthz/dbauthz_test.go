@@ -810,7 +810,7 @@ func (s *MethodTestSuite) TestTemplate() {
 			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
 			Name:       tv.Name,
 			UpdatedAt:  tv.UpdatedAt,
-		}).Asserts(t1, rbac.ActionUpdate).Returns(tv)
+		}).Asserts(t1, rbac.ActionUpdate)
 	}))
 	s.Run("UpdateTemplateVersionDescriptionByJobID", s.Subtest(func(db database.Store, check *expects) {
 		jobID := uuid.New()
@@ -1242,7 +1242,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			UpdatedAt:        build.UpdatedAt,
 			Deadline:         build.Deadline,
 			ProvisionerState: []byte{},
-		}).Asserts(ws, rbac.ActionUpdate).Returns(build)
+		}).Asserts(ws, rbac.ActionUpdate)
 	}))
 	s.Run("SoftDeleteWorkspaceByID", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
@@ -1377,7 +1377,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(database.UpdateWorkspaceBuildCostByIDParams{
 			ID:        b.ID,
 			DailyCost: 10,
-		}).Asserts(rbac.ResourceSystem, rbac.ActionUpdate).Returns(o)
+		}).Asserts(rbac.ResourceSystem, rbac.ActionUpdate)
 	}))
 	s.Run("UpsertLastUpdateCheck", s.Subtest(func(db database.Store, check *expects) {
 		check.Args("value").Asserts(rbac.ResourceSystem, rbac.ActionUpdate)
