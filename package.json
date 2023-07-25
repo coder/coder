@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "chroma-js": "^2.4.2"
+  },
+  "devDependencies": {
+    "@types/chroma-js": "^2.4.0"
+  }
+}
