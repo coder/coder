@@ -2,9 +2,14 @@ package dashboard
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"math/rand"
 	"time"
+
+	"golang.org/x/xerrors"
+
+	"github.com/google/uuid"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/codersdk"
@@ -30,26 +35,35 @@ func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 }
 
 func (r *Runner) Run(ctx context.Context, _ string, _ io.Writer) error {
-	_, err := r.client.User(ctx, codersdk.Me)
+	me, err := r.client.User(ctx, codersdk.Me)
 	if err != nil {
 		return err
 	}
+	if len(me.OrganizationIDs) == 0 {
+		return xerrors.Errorf("user has no organizations")
+	}
+	orgID := me.OrganizationIDs[0]
+
+	go r.do(ctx, "auth check", func(client *codersdk.Client) error {
+		_, err := client.AuthCheck(ctx, randAuthReq(orgID))
+		return err
+	})
+
 	go r.do(ctx, "fetch workspaces", func(client *codersdk.Client) error {
 		_, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 		return err
 	})
+
 	go r.do(ctx, "fetch users", func(client *codersdk.Client) error {
 		_, err := client.Users(ctx, codersdk.UsersRequest{})
 		return err
 	})
+
 	go r.do(ctx, "fetch templates", func(client *codersdk.Client) error {
-		me, err := client.User(ctx, codersdk.Me)
-		if err != nil {
-			return err
-		}
-		_, err = client.TemplatesByOrganization(ctx, me.OrganizationIDs[0])
+		_, err = client.TemplatesByOrganization(ctx, orgID)
 		return err
 	})
+
 	<-ctx.Done()
 	return nil
 }
@@ -92,4 +106,24 @@ func (r *Runner) randWait() time.Duration {
 	// nolint:gosec // This is not for cryptographic purposes. Chill, gosec. Chill.
 	wait := time.Duration(rand.Intn(int(r.cfg.MaxWait) - int(r.cfg.MinWait)))
 	return r.cfg.MinWait + wait
+}
+
+// nolint: gosec
+func randAuthReq(orgID uuid.UUID) codersdk.AuthorizationRequest {
+	objType := codersdk.AllRBACResources[rand.Intn(len(codersdk.AllRBACResources))]
+	action := codersdk.AllRBACActions[rand.Intn(len(codersdk.AllRBACActions))]
+	subjectID := uuid.New().String()
+	checkName := fmt.Sprintf("%s-%s-%s", action, objType, subjectID)
+	return codersdk.AuthorizationRequest{
+		Checks: map[string]codersdk.AuthorizationCheck{
+			checkName: {
+				Object: codersdk.AuthorizationObject{
+					ResourceType:   objType,
+					OrganizationID: orgID.String(),
+					ResourceID:     subjectID,
+				},
+				Action: action,
+			},
+		},
+	}
 }
