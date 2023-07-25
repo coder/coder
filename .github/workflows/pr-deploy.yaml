@@ -86,9 +86,23 @@ jobs:
       CODER_IMAGE_TAG: ${{ needs.pr_commented.outputs.coder_image_tag }}
       PR_NUMBER: ${{ needs.pr_commented.outputs.pr_number }}
     steps:
+      - name: Get PR branch name
+        id: pr_branch
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const pr = await github.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: ${{ env.PR_NUMBER }}
+            });
+            return pr.data.head.ref;
+
       - name: Checkout
         uses: actions/checkout@v3
         with:
+          ref: ${{ steps.pr_branch.outputs.result }}
           fetch-depth: 0
 
       - name: Setup Node
