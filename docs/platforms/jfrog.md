@@ -1,16 +1,24 @@
 # JFrog
 
-Coder and JFrog work together to provide seamless security and compliance for
-your development environments. With Coder, you can automatically authenticate
-every workspace to use Artifactory as a package registry.
+Use Coder and JFrog together to secure your development environments in a way
+transparent to your developers' existing workflows.
 
-In this page, we'll show you how to integrate both products using Docker
-as the underlying compute. But, these concepts apply to any compute platform. The full example template can be found [here](https://github.com/coder/coder/tree/main/examples/jfrog-docker).
+This guide will demonstrate how to use JFrog Artifactory as a package registry
+within a workspace. We'll use Docker as the underlying compute. But, these concepts apply to any compute platform.
+
+The full example template can be found [here](https://github.com/coder/coder/tree/main/examples/jfrog-docker).
 
 ## Requirements
 
 - A JFrog Artifactory instance
+- An admin-level access token for Artifactory
 - 1:1 mapping of users in Coder to users in Artifactory by email address
+- An npm repository in Artifactory named "npm"
+
+<blockquote class="info">
+The admin-level access token is used to provision user tokens and is never exposed to
+developers or stored in workspaces.
+</blockquote>
 
 ## Provisioner Authentication
 
