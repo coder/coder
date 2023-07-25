@@ -152,11 +152,11 @@ jobs:
 
       - name: Setup ingress
         run: |
-          echo <<EOF
+          cat <<EOF > ingress.yaml
           apiVersion: networking.k8s.io/v1
           kind: Ingress
           metadata:
-            name: pr${{ env.PR_NUMBER }}-ingress
+            name: pr${{ env.PR_NUMBER }}
             namespace: pr${{ env.PR_NUMBER }}
             annotations:
               cert-manager.io/cluster-issuer: letsencrypt-prod
@@ -176,7 +176,7 @@ jobs:
                       name: coder
                       port:
                         number: 80
-          EOF > ingress.yaml
+          EOF
           kubectl apply -f ingress.yaml
 
       - name: Install Helm chart
@@ -189,35 +189,25 @@ jobs:
           --set coder.serviceAccount.enableDeployments=true \
           --set coder.env[0].name=CODER_ACCESS_URL \
           --set coder.env[0].value="https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}" \
-          --set coder.env[1].name=CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS \
-          --set coder.env[1].value=true \
-          --set coder.env[2].name=CODER_OAUTH2_GITHUB_CLIENT_ID \
-          --set coder.env[2].value=${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_ID }} \
-          --set coder.env[3].name=CODER_OAUTH2_GITHUB_CLIENT_SECRET \
-          --set coder.env[3].value=${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_SECRET }} \
-          --set coder.env[4].name=CODER_OAUTH2_GITHUB_ALLOWED_ORGS \
-          --set coder.env[4].value=coder \
           # Uncomment this when https://github.com/coder/coder/issues/8714 is resolved
+          # --set coder.env[1].name=CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS \
+          # --set coder.env[1].value=true \
+          # --set coder.env[2].name=CODER_OAUTH2_GITHUB_CLIENT_ID \
+          # --set coder.env[2].value=${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_ID }} \
+          # --set coder.env[3].name=CODER_OAUTH2_GITHUB_CLIENT_SECRET \
+          #--set coder.env[3].value=${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_SECRET }} \
+          #--set coder.env[4].name=CODER_OAUTH2_GITHUB_ALLOWED_ORGS \
+          #--set coder.env[4].value=coder \
           # --set coder.env[5].name=CODER_OAUTH2_GITHUB_REDIRECT_URI \
           # --set coder.env[5].value="https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}/gitauth/github/callback \
           --force
 
-      - name: Get deployment URL
-        id: deployment_url
-        run: |
-          set -euo pipefail
-          kubectl rollout status deployment/coder --namespace "pr${{ env.PR_NUMBER }}"
-          POD_NAME=$(kubectl get pods -n "pr${{ env.PR_NUMBER }}" | awk 'NR==2{print $1}')
-          CODER_ACCESS_URL=$(kubectl logs $POD_NAME -n "pr${{ env.PR_NUMBER }}" | grep "Web UI:" | awk -F ':' '{print $2":"$3}' | awk '{$1=$1};1')
-          echo "::add-mask::$CODER_ACCESS_URL"
-          echo "CODER_ACCESS_URL=$CODER_ACCESS_URL" >> $GITHUB_OUTPUT
-
       - name: Install coder-logstream-kube
         run: |
           helm repo add coder-logstream-kube https://helm.coder.com/logstream-kube
-          helm install coder-logstream-kube coder-logstream-kube/coder-logstream-kube \
+          helm upgrade --install coder-logstream-kube coder-logstream-kube/coder-logstream-kube \
             --namespace "pr${{ env.PR_NUMBER }}" \
-            --set url="${{ steps.deployment_url.outputs.CODER_ACCESS_URL }}"
+            --set url="https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
 
       - name: Send Slack notification
         run: |
@@ -226,7 +216,7 @@ jobs:
             "pr_number": "'"${{ env.PR_NUMBER }}"'",
             "pr_url": "'"${{ env.PR_URL }}"'",
             "pr_title": "'"${{ env.PR_TITLE }}"'",
-            "pr_access_url": "'"${{ steps.deployment_url.outputs.CODER_ACCESS_URL }}"'" }' ${{ secrets.PR_DEPLOYMENTS_SLACK_WEBHOOK }}
+            "pr_access_url": "'"https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"'" }' ${{ secrets.PR_DEPLOYMENTS_SLACK_WEBHOOK }}
           echo "Slack notification sent"
 
       - name: Comment on PR
@@ -237,6 +227,6 @@ jobs:
           comment-id: ${{ needs.pr_commented.outputs.COMMENT_ID }}
           body: |
             :heavy_check_mark: Deployed PR ${{ env.PR_NUMBER }} successfully.
-            :rocket: Access the deployment link [here](https://codercom.slack.com/archives/C05DNE982E8).
+            :rocket: Access the deployment link [here](${{ secrets.PR_DEPLOYMENTS_SLACK_CHANNEL_URL }}).
             :warning: This deployment will be deleted when the PR is closed.
           reactions: "+1"
