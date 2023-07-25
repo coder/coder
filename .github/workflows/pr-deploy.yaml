@@ -37,7 +37,7 @@ jobs:
       - name: Get PR number, title, and branch name
         id: pr_number
         run: |
-          set -euxo pipefail
+          set -e pipefail
           if [[ ${{ github.event_name }} == 'workflow_dispatch' ]]; then
             PR_NUMBER=${{ github.event.inputs.pr_number }}"
           else
