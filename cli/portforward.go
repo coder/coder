@@ -32,7 +32,7 @@ func (r *RootCmd) portForward() *clibase.Cmd {
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Use:     "port-forward <workspace>",
-		Short:   `Forward ports from a workspace to the local machine. Forward ports from a workspace to the local machine. For reverse port forwarding, use "coder ssh -R".`,
+		Short:   `Forward ports from a workspace to the local machine. For reverse port forwarding, use "coder ssh -R".`,
 		Aliases: []string{"tunnel"},
 		Long: formatExamples(
 			example{
