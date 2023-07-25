@@ -1003,6 +1003,7 @@
     "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "last_seen_at": "2019-08-24T14:15:22Z",
+    "login_type": "password",
     "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "roles": [
       {
@@ -1079,6 +1080,7 @@
         "email": "user@example.com",
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "last_seen_at": "2019-08-24T14:15:22Z",
+        "login_type": "password",
         "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
         "roles": [
           {
@@ -1283,6 +1285,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `initiator` |
 | `autostart` |
 | `autostop`  |
+
+## codersdk.ConnectionLatency
+
+```json
+{
+  "p50": 31.312,
+  "p95": 119.832
+}
+```
+
+### Properties
+
+| Name  | Type   | Required | Restrictions | Description |
+| ----- | ------ | -------- | ------------ | ----------- |
+| `p50` | number | false    |              |             |
+| `p95` | number | false    |              |             |
 
 ## codersdk.ConvertLoginRequest
 
@@ -1993,6 +2011,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "issuer_url": "string",
       "scopes": ["string"],
       "sign_in_text": "string",
+      "user_role_field": "string",
+      "user_role_mapping": {},
+      "user_roles_default": ["string"],
       "username_field": "string"
     },
     "pg_connection_url": "string",
@@ -2346,6 +2367,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "issuer_url": "string",
     "scopes": ["string"],
     "sign_in_text": "string",
+    "user_role_field": "string",
+    "user_role_mapping": {},
+    "user_roles_default": ["string"],
     "username_field": "string"
   },
   "pg_connection_url": "string",
@@ -2636,6 +2660,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "password",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -2852,6 +2877,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "password",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -2897,6 +2923,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `interval`  | integer | false    |              | Interval specifies the seconds between each health check.                                        |
 | `threshold` | integer | false    |              | Threshold specifies the number of consecutive failed health checks before returning "unhealthy". |
 | `url`       | string  | false    |              | URL specifies the endpoint to check for the app health.                                          |
+
+## codersdk.InsightsReportInterval
+
+```json
+"day"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value |
+| ----- |
+| `day` |
 
 ## codersdk.IssueReconnectingPTYSignedTokenRequest
 
@@ -3080,6 +3120,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | --------------- | ------ | -------- | ------------ | ----------- |
 | `session_token` | string | true     |              |             |
 
+## codersdk.MinimalUser
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description |
+| ------------ | ------ | -------- | ------------ | ----------- |
+| `avatar_url` | string | false    |              |             |
+| `id`         | string | true     |              |             |
+| `username`   | string | true     |              |             |
+
 ## codersdk.OAuth2Config
 
 ```json
@@ -3196,6 +3254,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "issuer_url": "string",
   "scopes": ["string"],
   "sign_in_text": "string",
+  "user_role_field": "string",
+  "user_role_mapping": {},
+  "user_roles_default": ["string"],
   "username_field": "string"
 }
 ```
@@ -3218,6 +3279,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `issuer_url`            | string                     | false    |              |             |
 | `scopes`                | array of string            | false    |              |             |
 | `sign_in_text`          | string                     | false    |              |             |
+| `user_role_field`       | string                     | false    |              |             |
+| `user_role_mapping`     | object                     | false    |              |             |
+| `user_roles_default`    | array of string            | false    |              |             |
 | `username_field`        | string                     | false    |              |             |
 
 ## codersdk.Organization
@@ -4058,6 +4122,44 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ------------- | ----------- |
 | `provisioner` | `terraform` |
 
+## codersdk.TemplateAppUsage
+
+```json
+{
+  "display_name": "Visual Studio Code",
+  "icon": "string",
+  "seconds": 80500,
+  "slug": "vscode",
+  "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+  "type": "builtin"
+}
+```
+
+### Properties
+
+| Name           | Type                                                   | Required | Restrictions | Description |
+| -------------- | ------------------------------------------------------ | -------- | ------------ | ----------- |
+| `display_name` | string                                                 | false    |              |             |
+| `icon`         | string                                                 | false    |              |             |
+| `seconds`      | integer                                                | false    |              |             |
+| `slug`         | string                                                 | false    |              |             |
+| `template_ids` | array of string                                        | false    |              |             |
+| `type`         | [codersdk.TemplateAppsType](#codersdktemplateappstype) | false    |              |             |
+
+## codersdk.TemplateAppsType
+
+```json
+"builtin"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value     |
+| --------- |
+| `builtin` |
+
 ## codersdk.TemplateBuildTimeStats
 
 ```json
@@ -4105,6 +4207,98 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `tags`        | array of string | false    |              |             |
 | `url`         | string          | false    |              |             |
 
+## codersdk.TemplateInsightsIntervalReport
+
+```json
+{
+  "active_users": 14,
+  "end_time": "2019-08-24T14:15:22Z",
+  "interval": "day",
+  "start_time": "2019-08-24T14:15:22Z",
+  "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"]
+}
+```
+
+### Properties
+
+| Name           | Type                                                               | Required | Restrictions | Description |
+| -------------- | ------------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `active_users` | integer                                                            | false    |              |             |
+| `end_time`     | string                                                             | false    |              |             |
+| `interval`     | [codersdk.InsightsReportInterval](#codersdkinsightsreportinterval) | false    |              |             |
+| `start_time`   | string                                                             | false    |              |             |
+| `template_ids` | array of string                                                    | false    |              |             |
+
+## codersdk.TemplateInsightsReport
+
+```json
+{
+  "active_users": 22,
+  "apps_usage": [
+    {
+      "display_name": "Visual Studio Code",
+      "icon": "string",
+      "seconds": 80500,
+      "slug": "vscode",
+      "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+      "type": "builtin"
+    }
+  ],
+  "end_time": "2019-08-24T14:15:22Z",
+  "start_time": "2019-08-24T14:15:22Z",
+  "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"]
+}
+```
+
+### Properties
+
+| Name           | Type                                                            | Required | Restrictions | Description |
+| -------------- | --------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `active_users` | integer                                                         | false    |              |             |
+| `apps_usage`   | array of [codersdk.TemplateAppUsage](#codersdktemplateappusage) | false    |              |             |
+| `end_time`     | string                                                          | false    |              |             |
+| `start_time`   | string                                                          | false    |              |             |
+| `template_ids` | array of string                                                 | false    |              |             |
+
+## codersdk.TemplateInsightsResponse
+
+```json
+{
+  "interval_reports": [
+    {
+      "active_users": 14,
+      "end_time": "2019-08-24T14:15:22Z",
+      "interval": "day",
+      "start_time": "2019-08-24T14:15:22Z",
+      "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"]
+    }
+  ],
+  "report": {
+    "active_users": 22,
+    "apps_usage": [
+      {
+        "display_name": "Visual Studio Code",
+        "icon": "string",
+        "seconds": 80500,
+        "slug": "vscode",
+        "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+        "type": "builtin"
+      }
+    ],
+    "end_time": "2019-08-24T14:15:22Z",
+    "start_time": "2019-08-24T14:15:22Z",
+    "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"]
+  }
+}
+```
+
+### Properties
+
+| Name               | Type                                                                                        | Required | Restrictions | Description |
+| ------------------ | ------------------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `interval_reports` | array of [codersdk.TemplateInsightsIntervalReport](#codersdktemplateinsightsintervalreport) | false    |              |             |
+| `report`           | [codersdk.TemplateInsightsReport](#codersdktemplateinsightsreport)                          | false    |              |             |
+
 ## codersdk.TemplateRestartRequirement
 
 ```json
@@ -4147,6 +4341,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "email": "user@example.com",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_seen_at": "2019-08-24T14:15:22Z",
+  "login_type": "password",
   "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
   "role": "admin",
   "roles": [
@@ -4169,6 +4364,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `email`            | string                                         | true     |              |             |
 | `id`               | string                                         | true     |              |             |
 | `last_seen_at`     | string                                         | false    |              |             |
+| `login_type`       | [codersdk.LoginType](#codersdklogintype)       | false    |              |             |
 | `organization_ids` | array of string                                | false    |              |             |
 | `role`             | [codersdk.TemplateRole](#codersdktemplaterole) | false    |              |             |
 | `roles`            | array of [codersdk.Role](#codersdkrole)        | false    |              |             |
@@ -4191,18 +4387,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "created_at": "2019-08-24T14:15:22Z",
   "created_by": {
     "avatar_url": "http://example.com",
-    "created_at": "2019-08-24T14:15:22Z",
-    "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "last_seen_at": "2019-08-24T14:15:22Z",
-    "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-    "roles": [
-      {
-        "display_name": "string",
-        "name": "string"
-      }
-    ],
-    "status": "active",
     "username": "string"
   },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -4239,7 +4424,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name              | Type                                                                        | Required | Restrictions | Description |
 | ----------------- | --------------------------------------------------------------------------- | -------- | ------------ | ----------- |
 | `created_at`      | string                                                                      | false    |              |             |
-| `created_by`      | [codersdk.User](#codersdkuser)                                              | false    |              |             |
+| `created_by`      | [codersdk.MinimalUser](#codersdkminimaluser)                                | false    |              |             |
 | `id`              | string                                                                      | false    |              |             |
 | `job`             | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                          | false    |              |             |
 | `message`         | string                                                                      | false    |              |             |
@@ -4664,6 +4849,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "email": "user@example.com",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_seen_at": "2019-08-24T14:15:22Z",
+  "login_type": "password",
   "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
   "roles": [
     {
@@ -4685,6 +4871,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `email`            | string                                     | true     |              |             |
 | `id`               | string                                     | true     |              |             |
 | `last_seen_at`     | string                                     | false    |              |             |
+| `login_type`       | [codersdk.LoginType](#codersdklogintype)   | false    |              |             |
 | `organization_ids` | array of string                            | false    |              |             |
 | `roles`            | array of [codersdk.Role](#codersdkrole)    | false    |              |             |
 | `status`           | [codersdk.UserStatus](#codersdkuserstatus) | false    |              |             |
@@ -4696,6 +4883,92 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | -------- | ----------- |
 | `status` | `active`    |
 | `status` | `suspended` |
+
+## codersdk.UserLatency
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "latency_ms": {
+    "p50": 31.312,
+    "p95": 119.832
+  },
+  "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name           | Type                                                     | Required | Restrictions | Description |
+| -------------- | -------------------------------------------------------- | -------- | ------------ | ----------- |
+| `avatar_url`   | string                                                   | false    |              |             |
+| `latency_ms`   | [codersdk.ConnectionLatency](#codersdkconnectionlatency) | false    |              |             |
+| `template_ids` | array of string                                          | false    |              |             |
+| `user_id`      | string                                                   | false    |              |             |
+| `username`     | string                                                   | false    |              |             |
+
+## codersdk.UserLatencyInsightsReport
+
+```json
+{
+  "end_time": "2019-08-24T14:15:22Z",
+  "start_time": "2019-08-24T14:15:22Z",
+  "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "latency_ms": {
+        "p50": 31.312,
+        "p95": 119.832
+      },
+      "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name           | Type                                                  | Required | Restrictions | Description |
+| -------------- | ----------------------------------------------------- | -------- | ------------ | ----------- |
+| `end_time`     | string                                                | false    |              |             |
+| `start_time`   | string                                                | false    |              |             |
+| `template_ids` | array of string                                       | false    |              |             |
+| `users`        | array of [codersdk.UserLatency](#codersdkuserlatency) | false    |              |             |
+
+## codersdk.UserLatencyInsightsResponse
+
+```json
+{
+  "report": {
+    "end_time": "2019-08-24T14:15:22Z",
+    "start_time": "2019-08-24T14:15:22Z",
+    "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+    "users": [
+      {
+        "avatar_url": "http://example.com",
+        "latency_ms": {
+          "p50": 31.312,
+          "p95": 119.832
+        },
+        "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+        "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+        "username": "string"
+      }
+    ]
+  }
+}
+```
+
+### Properties
+
+| Name     | Type                                                                     | Required | Restrictions | Description |
+| -------- | ------------------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `report` | [codersdk.UserLatencyInsightsReport](#codersdkuserlatencyinsightsreport) | false    |              |             |
 
 ## codersdk.UserLoginType
 

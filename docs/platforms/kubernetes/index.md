@@ -18,7 +18,7 @@ From the dashboard, import the Kubernetes starter template:
 
 In the next screen, set the following template variables:
 
-- use_kubeconfig: `false` (The ServiceAccount will authorize Coder to create pods on your cluster)
+- `use_kubeconfig`: `false` (The ServiceAccount will authorize Coder to create pods on your cluster)
 - `namespace`: `coder` (or whatever namespace you deployed Coder on)
 
 ![Variables for Kubernetes template](../../images/platforms/kubernetes/template-variables.png)

@@ -124,6 +124,7 @@ type Options struct {
 	DERPMap                     *tailcfg.DERPMap
 	SwaggerEndpoint             bool
 	SetUserGroups               func(ctx context.Context, tx database.Store, userID uuid.UUID, groupNames []string) error
+	SetUserSiteRoles            func(ctx context.Context, tx database.Store, userID uuid.UUID, roles []string) error
 	TemplateScheduleStore       *atomic.Pointer[schedule.TemplateScheduleStore]
 	UserQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
 	// AppSecurityKey is the crypto key used to sign and encrypt tokens related to
@@ -254,6 +255,14 @@ func New(options *Options) *API {
 		options.SetUserGroups = func(ctx context.Context, _ database.Store, userID uuid.UUID, groups []string) error {
 			options.Logger.Warn(ctx, "attempted to assign OIDC groups without enterprise license",
 				slog.F("user_id", userID), slog.F("groups", groups),
+			)
+			return nil
+		}
+	}
+	if options.SetUserSiteRoles == nil {
+		options.SetUserSiteRoles = func(ctx context.Context, _ database.Store, userID uuid.UUID, roles []string) error {
+			options.Logger.Warn(ctx, "attempted to assign OIDC user roles without enterprise license",
+				slog.F("user_id", userID), slog.F("roles", roles),
 			)
 			return nil
 		}
@@ -852,6 +861,8 @@ func New(options *Options) *API {
 		r.Route("/insights", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/daus", api.deploymentDAUs)
+			r.Get("/user-latency", api.insightsUserLatency)
+			r.Get("/templates", api.insightsTemplates)
 		})
 		r.Route("/debug", func(r chi.Router) {
 			r.Use(

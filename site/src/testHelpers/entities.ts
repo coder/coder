@@ -268,6 +268,7 @@ export const MockUser: TypesGen.User = {
   roles: [MockOwnerRole],
   avatar_url: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
   last_seen_at: "",
+  login_type: "password",
 }
 
 export const MockUserAdmin: TypesGen.User = {
@@ -280,6 +281,7 @@ export const MockUserAdmin: TypesGen.User = {
   roles: [MockUserAdminRole],
   avatar_url: "",
   last_seen_at: "",
+  login_type: "password",
 }
 
 export const MockUser2: TypesGen.User = {
@@ -292,6 +294,7 @@ export const MockUser2: TypesGen.User = {
   roles: [],
   avatar_url: "",
   last_seen_at: "2022-09-14T19:12:21Z",
+  login_type: "oidc",
 }
 
 export const SuspendedMockUser: TypesGen.User = {
@@ -304,6 +307,7 @@ export const SuspendedMockUser: TypesGen.User = {
   roles: [],
   avatar_url: "",
   last_seen_at: "",
+  login_type: "password",
 }
 
 export const MockProvisioner: TypesGen.ProvisionerDaemon = {

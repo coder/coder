@@ -34,6 +34,8 @@ Loading.args = {
   isLoading: true,
   roles: MockSiteRoles,
   selectedRoles: [MockUserAdminRole, MockOwnerRole],
+  userLoginType: "password",
+  oidcRoleSync: false,
 }
 Loading.parameters = {
   chromatic: { delay: 300 },
