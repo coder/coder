@@ -885,6 +885,17 @@ func TestUpdateTemplateACL(t *testing.T) {
 		err := client.UpdateTemplateACL(ctx, template.ID, req)
 		require.NoError(t, err)
 
+		// Should be able to see user 3
+		available, err := client2.TemplateACL(ctx, template.ID)
+		require.NoError(t, err)
+		userFound := false
+		for _, avail := range available.Users {
+			if avail.ID == user3.ID {
+				userFound = true
+			}
+		}
+		require.True(t, userFound, "user not found in acl available")
+
 		req = codersdk.UpdateTemplateACL{
 			UserPerms: map[string]codersdk.TemplateRole{
 				user3.ID.String(): codersdk.TemplateRoleUse,
