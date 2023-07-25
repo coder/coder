@@ -131,6 +131,22 @@ Access token:                   ...
 Default:                        true
 ```
 
+## Installing the JFrog VS Code Extension
+
+You can install the JFrog VS Code extension into workspaces automatically
+by inserting the following lines into your `startup_script`:
+
+```sh
+  # Install the JFrog VS Code extension.
+  # Find the latest version number at
+  # https://open-vsx.org/extension/JFrog/jfrog-vscode-extension.
+  JFROG_EXT_VERSION=2.4.1
+  curl -o /tmp/jfrog.vsix -L "https://open-vsx.org/api/JFrog/jfrog-vscode-extension/$JFROG_EXT_VERSION/file/JFrog.jfrog-vscode-extension-$JFROG_EXT_VERSION.vsix"
+  /tmp/code-server/bin/code-server --install-extension /tmp/jfrog.vsix
+```
+
+Note that this will method will only work if your developers use code-server.
+
 ## Configuring npm
 
 Add the following line to your `startup_script` to configure `npm` to use
