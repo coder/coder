@@ -6,11 +6,11 @@
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/derpmap \
+curl -X GET http://coder-server:8080/api/v2/derp-map \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /derpmap`
+`GET /derp-map`
 
 ### Responses
 
