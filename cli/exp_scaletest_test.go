@@ -80,7 +80,6 @@ func TestScaleTestWorkspaceTraffic(t *testing.T) {
 }
 
 // This test just validates that the CLI command accepts its known arguments.
-// A more comprehensive test is performed in dashboard/run_test.go
 func TestScaleTestDashboard(t *testing.T) {
 	t.Parallel()
 

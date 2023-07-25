@@ -13,7 +13,7 @@ import (
 // Note that the order of the table is important!
 // Entries must be in ascending order.
 var allActions rollTable = []rollTableEntry{
-	{00, fetchWorkspaces, "fetch workspaces"},
+	{0, fetchWorkspaces, "fetch workspaces"},
 	{10, fetchUsers, "fetch users"},
 	{20, fetchTemplates, "fetch templates"},
 	{30, authCheckAsOwner, "authcheck owner"},
