@@ -165,18 +165,29 @@ jobs:
             name: pr${{ env.PR_NUMBER }}
             namespace: pr${{ env.PR_NUMBER }}
             annotations:
-              cert-manager.io/cluster-issuer: letsencrypt-prod
+              cert-manager.io/cluster-issuer: letsencrypt
           spec:
             tls:
             - hosts:
               - "pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
+              - "*--pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
               secretName: pr${{ env.PR_NUMBER }}-tls
             rules:
             - host: "pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
               http:
                 paths:
                 - pathType: Prefix
-                  path: /
+                  path: "/"
+                  backend:
+                    service:
+                      name: coder
+                      port:
+                        number: 80
+            - host: "*--pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
+              http:
+                paths:
+                - pathType: Prefix
+                  path: "/"
                   backend:
                     service:
                       name: coder
