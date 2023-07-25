@@ -2369,6 +2369,7 @@ func (q *FakeQuerier) GetUserLatencyInsights(_ context.Context, arg database.Get
 		row := database.GetUserLatencyInsightsRow{
 			UserID:                       userID,
 			Username:                     user.Username,
+			AvatarURL:                    user.AvatarURL,
 			TemplateIDs:                  templateIDs,
 			WorkspaceConnectionLatency50: tryPercentile(latencies, 50),
 			WorkspaceConnectionLatency95: tryPercentile(latencies, 95),
