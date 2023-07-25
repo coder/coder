@@ -29,7 +29,6 @@ jobs:
       PR_TITLE: ${{ steps.pr_number.outputs.PR_TITLE }}
       PR_URL: ${{ steps.pr_number.outputs.PR_URL }}
       PR_BRANCH: ${{ steps.pr_number.outputs.PR_BRANCH }}
-      COMMENT_ID: ${{ steps.comment_id.outputs.comment-id }}
       CODER_BASE_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_BASE_IMAGE_TAG }}
       CODER_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_IMAGE_TAG }}
 
@@ -39,7 +38,11 @@ jobs:
         id: pr_number
         run: |
           set -euxo pipefail
-          PR_NUMBER=$(gh pr view ${{ github.event.inputs.pr_number }} --json number | jq -r '.number')
+          if [[ ${{ github.event_name }} == 'workflow_dispatch' ]]; then
+            PR_NUMBER=${{ github.event.inputs.pr_number }}"
+          else
+            PR_NUMBER=${{ github.event.issue.number }}"
+          fi
           PR_TITLE=$(gh pr view $PR_NUMBER --json title | jq -r '.title')
           PR_BRANCH=$(gh pr view $PR_NUMBER --json headRefName | jq -r '.headRefName')
           echo "PR_URL=https://github.com/coder/coder/pull/$PR_NUMBER" >> $GITHUB_OUTPUT
@@ -59,24 +62,15 @@ jobs:
           CODER_BASE_IMAGE_TAG: ghcr.io/coder/coder-preview-base:pr${{ steps.pr_number.outputs.PR_NUMBER }}
           CODER_IMAGE_TAG: ghcr.io/coder/coder-preview:pr${{ steps.pr_number.outputs.PR_NUMBER }}
 
-      - name: Find Comment
-        uses: peter-evans/find-comment@v2
-        id: fc
-        with:
-          issue-number: ${{ steps.pr_number.outputs.PR_NUMBER }}
-          comment-author: "github-actions[bot]"
-          body-includes: This deployment will be deleted when the PR is closed
-
       - name: Comment on PR
         id: comment_id
         uses: peter-evans/create-or-update-comment@v3
         with:
-          comment-id: ${{ steps.fc.outputs.comment-id }}
           issue-number: ${{ steps.pr_number.outputs.PR_NUMBER }}
-          edit-mode: replace
           body: |
             :rocket: Deploying PR ${{ steps.pr_number.outputs.PR_NUMBER }} ...
             :warning: This deployment will be deleted when the PR is closed.
+          reactions: "-1"
 
   build:
     needs: pr_commented
@@ -142,7 +136,7 @@ jobs:
         run: |
           set -euxo pipefail
           mkdir -p ~/.kube
-          echo "${{ secrets.DELIVERYBOT_KUBECONFIG }}" > ~/.kube/config
+          echo "${{ secrets.PR_DEPLOYMENTS_KUBECONFIG }}" > ~/.kube/config
           export KUBECONFIG=~/.kube/config
 
       - name: Create PR namespace
@@ -151,6 +145,35 @@ jobs:
           # try to delete the namespace, but don't fail if it doesn't exist
           kubectl delete namespace "pr${{ env.PR_NUMBER }}" || true
           kubectl create namespace "pr${{ env.PR_NUMBER }}"
+
+      - name: Setup ingress
+        run: |
+          cat <<EOF > ingress.yaml
+          apiVersion: networking.k8s.io/v1
+          kind: Ingress
+          metadata:
+            name: pr${{ env.PR_NUMBER }}
+            namespace: pr${{ env.PR_NUMBER }}
+            annotations:
+              cert-manager.io/cluster-issuer: letsencrypt
+          spec:
+            tls:
+            - hosts:
+              - "*.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
+              secretName: pr${{ env.PR_NUMBER }}-tls
+            rules:
+            - host: "pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
+              http:
+                paths:
+                - pathType: Prefix
+                  path: "/"
+                  backend:
+                    service:
+                      name: coder
+                      port:
+                        number: 80
+          EOF
+          kubectl apply -f ingress.yaml
 
       - name: Install Helm chart
         run: |
@@ -161,25 +184,30 @@ jobs:
           --set coder.service.type=ClusterIP \
           --set coder.serviceAccount.enableDeployments=true \
           --set coder.env[0].name=CODER_ACCESS_URL \
-          --set coder.env[0].value="" \
+          --set coder.env[0].value="pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}" \
+          --set coder.env[1].name=CODER_WILDCARD_ACCESS_URL \
+          --set coder.env[1].value="*--pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}" \
+          --set coder.env[2].name=CODER_EXPERIMENTS \
+          --set coder.env[2].value="*" \
+          # Uncomment this when https://github.com/coder/coder/issues/8714 is resolved
+          # --set coder.env[3].name=CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS \
+          # --set coder.env[3].value=true \
+          # --set coder.env[4].name=CODER_OAUTH2_GITHUB_CLIENT_ID \
+          # --set coder.env[4].value=${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_ID }} \
+          # --set coder.env[5].name=CODER_OAUTH2_GITHUB_CLIENT_SECRET \
+          # --set coder.env[5].value=${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_SECRET }} \
+          # --set coder.env[6].name=CODER_OAUTH2_GITHUB_ALLOWED_ORGS \
+          # --set coder.env[6].value=coder \
+          # --set coder.env[7].name=CODER_OAUTH2_GITHUB_REDIRECT_URI \
+          # --set coder.env[7].value="https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}/gitauth/github/callback \
           --force
-
-      - name: Get deployment URL
-        id: deployment_url
-        run: |
-          set -euo pipefail
-          kubectl rollout status deployment/coder --namespace "pr${{ env.PR_NUMBER }}"
-          POD_NAME=$(kubectl get pods -n "pr${{ env.PR_NUMBER }}" | awk 'NR==2{print $1}')
-          CODER_ACCESS_URL=$(kubectl logs $POD_NAME -n "pr${{ env.PR_NUMBER }}" | grep "Web UI:" | awk -F ':' '{print $2":"$3}' | awk '{$1=$1};1')
-          echo "::add-mask::$CODER_ACCESS_URL"
-          echo "CODER_ACCESS_URL=$CODER_ACCESS_URL" >> $GITHUB_OUTPUT
 
       - name: Install coder-logstream-kube
         run: |
           helm repo add coder-logstream-kube https://helm.coder.com/logstream-kube
-          helm install coder-logstream-kube coder-logstream-kube/coder-logstream-kube \
+          helm upgrade --install coder-logstream-kube coder-logstream-kube/coder-logstream-kube \
             --namespace "pr${{ env.PR_NUMBER }}" \
-            --set url="${{ steps.deployment_url.outputs.CODER_ACCESS_URL }}"
+            --set url="https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
 
       - name: Send Slack notification
         run: |
@@ -188,17 +216,33 @@ jobs:
             "pr_number": "'"${{ env.PR_NUMBER }}"'",
             "pr_url": "'"${{ env.PR_URL }}"'",
             "pr_title": "'"${{ env.PR_TITLE }}"'",
-            "pr_access_url": "'"${{ steps.deployment_url.outputs.CODER_ACCESS_URL }}"'" }' ${{ secrets.PR_DEPLOYMENTS_SLACK_WEBHOOK }}
+            "pr_access_url": "'"${{ env.PR_DEPLOYMENT_ACCESS_URL }}'" }' ${{ secrets.PR_DEPLOYMENTS_SLACK_WEBHOOK }}
           echo "Slack notification sent"
+        env:
+          PR_DEPLOYMENT_ACCESS_URL: "https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
+
+      - name: Find Comment
+        uses: peter-evans/find-comment@v2
+        id: fc
+        with:
+          issue-number: ${{ env.PR_NUMBER }}
+          comment-author: "github-actions[bot]"
+          body-includes: This deployment will be deleted when the PR is closed
 
       - name: Comment on PR
         uses: peter-evans/create-or-update-comment@v3
         with:
           issue-number: ${{ env.PR_NUMBER }}
           edit-mode: replace
-          comment-id: ${{ needs.pr_commented.outputs.COMMENT_ID }}
+          comment-id: ${{ steps.fc.outputs.comment-id }}
           body: |
             :heavy_check_mark: Deployed PR ${{ env.PR_NUMBER }} successfully.
-            :rocket: Access the deployment link [here](https://codercom.slack.com/archives/C05DNE982E8).
+            :rocket: Access the deployment link [here](${{ env.PR_DEPLOYMENT_ACCESS_URL }}).
             :warning: This deployment will be deleted when the PR is closed.
-          reactions: "+1"
+          reactions: |
+            +1
+            rocket
+          reactions-edit-mode: replace
+
+        env:
+          PR_DEPLOYMENT_ACCESS_URL: "https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
