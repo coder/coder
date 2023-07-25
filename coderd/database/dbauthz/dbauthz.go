@@ -2614,24 +2614,24 @@ func (q *querier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTe
 }
 
 func (q *querier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateGroup, error) {
-	// An actor is authorized to read template group roles if they are authorized to read the template.
+	// An actor is authorized to read template group roles if they are authorized to update the template.
 	template, err := q.db.GetTemplateByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	if err := q.authorizeContext(ctx, rbac.ActionRead, template); err != nil {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
 		return nil, err
 	}
 	return q.db.GetTemplateGroupRoles(ctx, id)
 }
 
 func (q *querier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateUser, error) {
-	// An actor is authorized to query template user roles if they are authorized to read the template.
+	// An actor is authorized to query template user roles if they are authorized to update the template.
 	template, err := q.db.GetTemplateByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	if err := q.authorizeContext(ctx, rbac.ActionRead, template); err != nil {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
 		return nil, err
 	}
 	return q.db.GetTemplateUserRoles(ctx, id)

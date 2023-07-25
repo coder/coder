@@ -2109,6 +2109,44 @@ const docTemplate = `{
                 }
             }
         },
+        "/templates/{template}/acl/available": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get template available acl users/groups",
+                "operationId": "get-template-available-acl-users-groups",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ACLAvailable"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/templates/{template}/daus": {
             "get": {
                 "security": [
@@ -6616,6 +6654,23 @@ const docTemplate = `{
                 "csp-report": {
                     "type": "object",
                     "additionalProperties": true
+                }
+            }
+        },
+        "codersdk.ACLAvailable": {
+            "type": "object",
+            "properties": {
+                "groups": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Group"
+                    }
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.MinimalUser"
+                    }
                 }
             }
         },

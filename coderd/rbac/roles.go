@@ -168,6 +168,9 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceTemplate.Type: {ActionRead},
 			ResourceAuditLog.Type: {ActionRead},
 			ResourceUser.Type:     {ActionRead},
+			ResourceGroup.Type:    {ActionRead},
+			// Org roles are not really used yet, so grant the perm at the site level.
+			ResourceOrganizationMember.Type: {ActionRead},
 		}),
 		Org:  map[string][]Permission{},
 		User: []Permission{},
@@ -186,6 +189,9 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// Needs to read all organizations since
 			ResourceOrganization.Type: {ActionRead},
 			ResourceUser.Type:         {ActionRead},
+			ResourceGroup.Type:        {ActionRead},
+			// Org roles are not really used yet, so grant the perm at the site level.
+			ResourceOrganizationMember.Type: {ActionRead},
 		}),
 		Org:  map[string][]Permission{},
 		User: []Permission{},
@@ -200,6 +206,9 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// Full perms to manage org members
 			ResourceOrganizationMember.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 			ResourceGroup.Type:              {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
+
+			// Org roles are not really used yet, so grant the perm at the site level.
+			ResourceOrganizationMember.Type: {ActionRead},
 		}),
 		Org:  map[string][]Permission{},
 		User: []Permission{},
@@ -256,11 +265,6 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				Org: map[string][]Permission{
 					organizationID: {
 						{
-							// All org members can read the other members in their org.
-							ResourceType: ResourceOrganizationMember.Type,
-							Action:       ActionRead,
-						},
-						{
 							// All org members can read the organization
 							ResourceType: ResourceOrganization.Type,
 							Action:       ActionRead,
@@ -268,10 +272,6 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 						{
 							// Can read available roles.
 							ResourceType: ResourceOrgRoleAssignment.Type,
-							Action:       ActionRead,
-						},
-						{
-							ResourceType: ResourceGroup.Type,
 							Action:       ActionRead,
 						},
 					},

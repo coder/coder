@@ -167,6 +167,13 @@ type UpdateTemplateACL struct {
 	GroupPerms map[string]TemplateRole `json:"group_perms,omitempty" example:"<user_id>>:admin,8bd26b20-f3e8-48be-a903-46bb920cf671:use"`
 }
 
+// ACLAvailable is a list of users and groups that can be added to a template
+// ACL.
+type ACLAvailable struct {
+	Users  []MinimalUser `json:"users"`
+	Groups []Group       `json:"groups"`
+}
+
 type UpdateTemplateMeta struct {
 	Name             string `json:"name,omitempty" validate:"omitempty,template_name"`
 	DisplayName      string `json:"display_name,omitempty" validate:"omitempty,template_display_name"`
