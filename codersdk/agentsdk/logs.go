@@ -82,6 +82,9 @@ func (w *startupLogsWriter) Close() error {
 // Neither Write nor Close is safe for concurrent use and must be used
 // by a single goroutine.
 func StartupLogsWriter(ctx context.Context, sender func(ctx context.Context, log ...Log) error, source codersdk.WorkspaceAgentLogSource, level codersdk.LogLevel) io.WriteCloser {
+	if source == "" {
+		source = codersdk.WorkspaceAgentLogSourceExternal
+	}
 	return &startupLogsWriter{
 		ctx:    ctx,
 		send:   sender,

@@ -28,6 +28,7 @@ func TestStartupLogsWriter_Write(t *testing.T) {
 		name       string
 		ctx        context.Context
 		level      codersdk.LogLevel
+		source     codersdk.WorkspaceAgentLogSource
 		writes     []string
 		want       []agentsdk.Log
 		wantErr    bool
@@ -38,10 +39,12 @@ func TestStartupLogsWriter_Write(t *testing.T) {
 			ctx:    context.Background(),
 			level:  codersdk.LogLevelInfo,
 			writes: []string{"hello world\n"},
+			source: codersdk.WorkspaceAgentLogSourceShutdownScript,
 			want: []agentsdk.Log{
 				{
 					Level:  codersdk.LogLevelInfo,
 					Output: "hello world",
+					Source: codersdk.WorkspaceAgentLogSourceShutdownScript,
 				},
 			},
 		},
@@ -54,10 +57,12 @@ func TestStartupLogsWriter_Write(t *testing.T) {
 				{
 					Level:  codersdk.LogLevelInfo,
 					Output: "hello world",
+					Source: codersdk.WorkspaceAgentLogSourceExternal,
 				},
 				{
 					Level:  codersdk.LogLevelInfo,
 					Output: "goodbye world",
+					Source: codersdk.WorkspaceAgentLogSourceExternal,
 				},
 			},
 		},
@@ -70,26 +75,32 @@ func TestStartupLogsWriter_Write(t *testing.T) {
 				{
 					Level:  codersdk.LogLevelInfo,
 					Output: "",
+					Source: codersdk.WorkspaceAgentLogSourceExternal,
 				},
 				{
 					Level:  codersdk.LogLevelInfo,
 					Output: "",
+					Source: codersdk.WorkspaceAgentLogSourceExternal,
 				},
 				{
 					Level:  codersdk.LogLevelInfo,
 					Output: "hello world",
+					Source: codersdk.WorkspaceAgentLogSourceExternal,
 				},
 				{
 					Level:  codersdk.LogLevelInfo,
 					Output: "",
+					Source: codersdk.WorkspaceAgentLogSourceExternal,
 				},
 				{
 					Level:  codersdk.LogLevelInfo,
 					Output: "",
+					Source: codersdk.WorkspaceAgentLogSourceExternal,
 				},
 				{
 					Level:  codersdk.LogLevelInfo,
 					Output: "goodbye world",
+					Source: codersdk.WorkspaceAgentLogSourceExternal,
 				},
 			},
 		},
@@ -102,6 +113,7 @@ func TestStartupLogsWriter_Write(t *testing.T) {
 				{
 					Level:  codersdk.LogLevelInfo,
 					Output: "hello world",
+					Source: codersdk.WorkspaceAgentLogSourceExternal,
 				},
 			},
 		},
@@ -115,10 +127,12 @@ func TestStartupLogsWriter_Write(t *testing.T) {
 				{
 					Level:  codersdk.LogLevelInfo,
 					Output: "hello world",
+					Source: codersdk.WorkspaceAgentLogSourceExternal,
 				},
 				{
 					Level:  codersdk.LogLevelInfo,
 					Output: "goodbye world",
+					Source: codersdk.WorkspaceAgentLogSourceExternal,
 				},
 			},
 		},
@@ -131,10 +145,12 @@ func TestStartupLogsWriter_Write(t *testing.T) {
 				{
 					Level:  codersdk.LogLevelInfo,
 					Output: "hello world",
+					Source: codersdk.WorkspaceAgentLogSourceExternal,
 				},
 				{
 					Level:  codersdk.LogLevelInfo,
 					Output: "goodbye world",
+					Source: codersdk.WorkspaceAgentLogSourceExternal,
 				},
 			},
 		},
@@ -147,14 +163,17 @@ func TestStartupLogsWriter_Write(t *testing.T) {
 				{
 					Level:  codersdk.LogLevelInfo,
 					Output: "hello world",
+					Source: codersdk.WorkspaceAgentLogSourceExternal,
 				},
 				{
 					Level:  codersdk.LogLevelInfo,
 					Output: "\r",
+					Source: codersdk.WorkspaceAgentLogSourceExternal,
 				},
 				{
 					Level:  codersdk.LogLevelInfo,
 					Output: "goodbye world",
+					Source: codersdk.WorkspaceAgentLogSourceExternal,
 				},
 			},
 		},
@@ -182,7 +201,7 @@ func TestStartupLogsWriter_Write(t *testing.T) {
 				got = append(got, log...)
 				return nil
 			}
-			w := agentsdk.StartupLogsWriter(tt.ctx, send, codersdk.WorkspaceAgentLogSourceExternal, tt.level)
+			w := agentsdk.StartupLogsWriter(tt.ctx, send, tt.source, tt.level)
 			for _, s := range tt.writes {
 				_, err := w.Write([]byte(s))
 				if err != nil {
