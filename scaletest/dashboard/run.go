@@ -30,6 +30,10 @@ func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 }
 
 func (r *Runner) Run(ctx context.Context, _ string, _ io.Writer) error {
+	_, err := r.client.User(ctx, codersdk.Me)
+	if err != nil {
+		return err
+	}
 	go r.do(ctx, "fetch workspaces", func(client *codersdk.Client) error {
 		_, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 		return err
