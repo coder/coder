@@ -68,7 +68,7 @@ const DailyUsersPanel = (props: BoxProps) => {
       <PanelContent>
         {!data && <Loader sx={{ height: "100%" }} />}
         {data && data.entries.length === 0 && <NoDataAvailable />}
-        {data && <DAUChart daus={data} />}
+        {data && data.entries.length > 0 && <DAUChart daus={data} />}
       </PanelContent>
     </Panel>
   )
