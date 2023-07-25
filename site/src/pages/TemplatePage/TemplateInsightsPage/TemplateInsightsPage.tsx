@@ -21,6 +21,7 @@ import chroma from "chroma-js"
 import { colors } from "theme/colors"
 import { Helmet } from "react-helmet-async"
 import { getTemplatePageTitle } from "../utils"
+import { Loader } from "components/Loader/Loader"
 
 export default function TemplateInsightsPage() {
   const { template } = useTemplateLayoutContext()
@@ -64,7 +65,11 @@ const DailyUsersPanel = (props: BoxProps) => {
           </HelpTooltipText>
         </HelpTooltip>
       </PanelHeader>
-      <PanelContent>{data && <DAUChart daus={data} />}</PanelContent>
+      <PanelContent>
+        {!data && <Loader sx={{ height: "100%" }} />}
+        {data && data.entries.length === 0 && <NoDataAvailable />}
+        {data && <DAUChart daus={data} />}
+      </PanelContent>
     </Panel>
   )
 }
@@ -81,6 +86,7 @@ const UserLatencyPanel = (props: BoxProps) => {
       }),
   })
   const theme = useTheme()
+  const users = data?.report.users
 
   return (
     <Panel {...props} sx={{ overflowY: "auto", ...props.sx }}>
@@ -88,8 +94,10 @@ const UserLatencyPanel = (props: BoxProps) => {
         Latency by user
       </PanelHeader>
       <PanelContent>
-        {data &&
-          data.report.users
+        {!data && <Loader sx={{ height: "100%" }} />}
+        {users && users.length === 0 && <NoDataAvailable />}
+        {users &&
+          users
             .sort((a, b) => b.latency_ms.p95 - a.latency_ms.p95)
             .map((row) => (
               <Box
@@ -145,11 +153,15 @@ const TemplateUsagePanel = (props: BoxProps) => {
     .scale([colors.green[8], colors.blue[8]])
     .mode("lch")
     .colors(data?.report.apps_usage.length ?? 0)
+  // The API returns a row for each app, even if the user didn't use it.
+  const hasDataAvailable = data?.report.apps_usage.some((u) => u.seconds > 0)
   return (
     <Panel {...props}>
       <PanelHeader>App&lsquo;s & IDE usage</PanelHeader>
       <PanelContent>
-        {data && (
+        {!data && <Loader sx={{ height: 200 }} />}
+        {!hasDataAvailable && <NoDataAvailable sx={{ height: 200 }} />}
+        {data && hasDataAvailable && (
           <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
             {data.report.apps_usage
               .sort((a, b) => b.seconds - a.seconds)
@@ -236,6 +248,26 @@ const PanelContent = styled(Box)(({ theme }) => ({
   padding: theme.spacing(0, 3, 3),
   flex: 1,
 }))
+
+const NoDataAvailable = (props: BoxProps) => {
+  return (
+    <Box
+      {...props}
+      sx={{
+        fontSize: 13,
+        color: (theme) => theme.palette.text.secondary,
+        textAlign: "center",
+        height: "100%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        ...props.sx,
+      }}
+    >
+      No data available
+    </Box>
+  )
+}
 
 function getTimeFor7DaysAgo(): Date {
   const sevenDaysAgo = new Date()
