@@ -117,6 +117,7 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 			TemplateIDs: row.TemplateIDs,
 			UserID:      row.UserID,
 			Username:    row.Username,
+			AvatarURL:   row.AvatarURL.String,
 			LatencyMS: codersdk.ConnectionLatency{
 				P50: row.WorkspaceConnectionLatency50,
 				P95: row.WorkspaceConnectionLatency95,
@@ -256,7 +257,7 @@ func convertTemplateInsightsBuiltinApps(usage database.GetTemplateInsightsRow) [
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: "Visual Studio Code",
 			Slug:        "vscode",
-			Icon:        "/icons/code.svg",
+			Icon:        "/icon/code.svg",
 			Seconds:     usage.UsageVscodeSeconds,
 		},
 		{
@@ -264,7 +265,7 @@ func convertTemplateInsightsBuiltinApps(usage database.GetTemplateInsightsRow) [
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: "JetBrains",
 			Slug:        "jetbrains",
-			Icon:        "/icons/intellij.svg",
+			Icon:        "/icon/intellij.svg",
 			Seconds:     usage.UsageJetbrainsSeconds,
 		},
 		{
@@ -272,7 +273,7 @@ func convertTemplateInsightsBuiltinApps(usage database.GetTemplateInsightsRow) [
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: "Web Terminal",
 			Slug:        "reconnecting-pty",
-			Icon:        "/icons/terminal.svg",
+			Icon:        "/icon/terminal.svg",
 			Seconds:     usage.UsageReconnectingPtySeconds,
 		},
 		{
@@ -280,7 +281,7 @@ func convertTemplateInsightsBuiltinApps(usage database.GetTemplateInsightsRow) [
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: "SSH",
 			Slug:        "ssh",
-			Icon:        "/icons/terminal.svg",
+			Icon:        "/icon/terminal.svg",
 			Seconds:     usage.UsageSshSeconds,
 		},
 	}

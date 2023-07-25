@@ -28,26 +28,26 @@ jobs:
       PR_NUMBER: ${{ steps.pr_number.outputs.PR_NUMBER }}
       PR_TITLE: ${{ steps.pr_number.outputs.PR_TITLE }}
       PR_URL: ${{ steps.pr_number.outputs.PR_URL }}
+      PR_BRANCH: ${{ steps.pr_number.outputs.PR_BRANCH }}
       COMMENT_ID: ${{ steps.comment_id.outputs.comment-id }}
       CODER_BASE_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_BASE_IMAGE_TAG }}
       CODER_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_IMAGE_TAG }}
 
     runs-on: "ubuntu-latest"
     steps:
-      - name: Get PR number and title
+      - name: Get PR number, title, and branch name
         id: pr_number
         run: |
           set -euxo pipefail
-          if [[ ${{ github.event_name }} == "workflow_dispatch" ]]; then
-            PR_NUMBER=${{ github.event.inputs.pr_number }}
-            PR_TITLE=$(curl -sSL -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/coder/coder/pulls/$PR_NUMBER" | jq -r '.title')
-          else
-            PR_NUMBER=${{ github.event.issue.number }}
-            PR_TITLE='${{ github.event.issue.title }}'
-          fi
+          PR_NUMBER=$(gh pr view ${{ github.event.inputs.pr_number }} --json number | jq -r '.number')
+          PR_TITLE=$(gh pr view $PR_NUMBER --json title | jq -r '.title')
+          PR_BRANCH=$(gh pr view $PR_NUMBER --json headRefName | jq -r '.headRefName')
           echo "PR_URL=https://github.com/coder/coder/pull/$PR_NUMBER" >> $GITHUB_OUTPUT
           echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_OUTPUT
           echo "PR_TITLE=$PR_TITLE" >> $GITHUB_OUTPUT
+          echo "PR_BRANCH=$PR_BRANCH" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set required tags
         id: set_tags
@@ -85,10 +85,12 @@ jobs:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
       CODER_IMAGE_TAG: ${{ needs.pr_commented.outputs.coder_image_tag }}
       PR_NUMBER: ${{ needs.pr_commented.outputs.pr_number }}
+      PR_BRANCH: ${{ needs.pr_commented.outputs.pr_branch }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
         with:
+          ref: ${{ env.PR_BRANCH }}
           fetch-depth: 0
 
       - name: Setup Node

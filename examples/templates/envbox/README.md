@@ -35,10 +35,10 @@ Coder. Consult the [migration](https://coder.com/docs/v2/latest/templates/parame
 documentation for details on how to do so.
 
 To supply values to existing existing Terraform variables you can specify the
-`--variable` flag. For example
+`-V` flag. For example
 
 ```bash
-coder templates create envbox --variable namespace="mynamespace" --variable max_cpus=2 --variable min_cpus=1 --variable max_memory=4 --variable min_memory=1
+coder templates create envbox --var namespace="mynamespace" --var max_cpus=2 --var min_cpus=1 --var max_memory=4 --var min_memory=1
 ```
 
 ## Contributions
