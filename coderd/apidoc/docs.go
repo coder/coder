@@ -2123,7 +2123,7 @@ const docTemplate = `{
                     "Enterprise"
                 ],
                 "summary": "Get template available acl users/groups",
-                "operationId": "get-template-available-acl-users-groups",
+                "operationId": "get-template-available-acl-usersgroups",
                 "parameters": [
                     {
                         "type": "string",
