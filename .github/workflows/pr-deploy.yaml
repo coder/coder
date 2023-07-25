@@ -190,18 +190,20 @@ jobs:
           --set coder.service.type=ClusterIP \
           --set coder.serviceAccount.enableDeployments=true \
           --set coder.env[0].name=CODER_ACCESS_URL \
-          --set coder.env[0].value="https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}" \
+          --set coder.env[0].value="pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}" \
+          --set coder.env[1].name=CODER_WILD_CARD_ACCESS_URL \
+          --set coder.env[1].value="*--pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}" \
           # Uncomment this when https://github.com/coder/coder/issues/8714 is resolved
-          # --set coder.env[1].name=CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS \
-          # --set coder.env[1].value=true \
-          # --set coder.env[2].name=CODER_OAUTH2_GITHUB_CLIENT_ID \
-          # --set coder.env[2].value=${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_ID }} \
-          # --set coder.env[3].name=CODER_OAUTH2_GITHUB_CLIENT_SECRET \
-          #--set coder.env[3].value=${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_SECRET }} \
-          #--set coder.env[4].name=CODER_OAUTH2_GITHUB_ALLOWED_ORGS \
-          #--set coder.env[4].value=coder \
-          # --set coder.env[5].name=CODER_OAUTH2_GITHUB_REDIRECT_URI \
-          # --set coder.env[5].value="https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}/gitauth/github/callback \
+          # --set coder.env[2].name=CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS \
+          # --set coder.env[2].value=true \
+          # --set coder.env[3].name=CODER_OAUTH2_GITHUB_CLIENT_ID \
+          # --set coder.env[3].value=${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_ID }} \
+          # --set coder.env[4].name=CODER_OAUTH2_GITHUB_CLIENT_SECRET \
+          # --set coder.env[4].value=${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_SECRET }} \
+          # --set coder.env[5].name=CODER_OAUTH2_GITHUB_ALLOWED_ORGS \
+          # --set coder.env[5].value=coder \
+          # --set coder.env[6].name=CODER_OAUTH2_GITHUB_REDIRECT_URI \
+          # --set coder.env[7].value="https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}/gitauth/github/callback \
           --force
 
       - name: Install coder-logstream-kube
@@ -218,8 +220,10 @@ jobs:
             "pr_number": "'"${{ env.PR_NUMBER }}"'",
             "pr_url": "'"${{ env.PR_URL }}"'",
             "pr_title": "'"${{ env.PR_TITLE }}"'",
-            "pr_access_url": "'"https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"'" }' ${{ secrets.PR_DEPLOYMENTS_SLACK_WEBHOOK }}
+            "pr_access_url": "'"${{ env.PR_DEPLOYMENT_ACCESS_URL }}'" }' ${{ secrets.PR_DEPLOYMENTS_SLACK_WEBHOOK }}
           echo "Slack notification sent"
+        env:
+          PR_DEPLOYMENT_ACCESS_URL: "https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
 
       - name: Comment on PR
         uses: peter-evans/create-or-update-comment@v3
@@ -229,6 +233,8 @@ jobs:
           comment-id: ${{ needs.pr_commented.outputs.COMMENT_ID }}
           body: |
             :heavy_check_mark: Deployed PR ${{ env.PR_NUMBER }} successfully.
-            :rocket: Access the deployment link [here](${{ secrets.PR_DEPLOYMENTS_SLACK_CHANNEL_URL }}).
+            :rocket: Access the deployment link [here](${{ env.PR_DEPLOYMENT_ACCESS_URL }}).
             :warning: This deployment will be deleted when the PR is closed.
           reactions: "+1"
+        env:
+          PR_DEPLOYMENT_ACCESS_URL: "https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
