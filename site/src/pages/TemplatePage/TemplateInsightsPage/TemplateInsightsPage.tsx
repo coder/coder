@@ -19,21 +19,31 @@ import { UserAvatar } from "components/UserAvatar/UserAvatar"
 import { getLatencyColor } from "utils/latency"
 import chroma from "chroma-js"
 import { colors } from "theme/colors"
+import { Helmet } from "react-helmet-async"
+import { getTemplatePageTitle } from "../utils"
 
 export default function TemplateInsightsPage() {
+  const { template } = useTemplateLayoutContext()
+
   return (
-    <Box
-      sx={{
-        display: "grid",
-        gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-        gridTemplateRows: "440px auto",
-        gap: (theme) => theme.spacing(3),
-      }}
-    >
-      <DailyUsersPanel sx={{ gridColumn: "span 2" }} />
-      <UserLatencyPanel />
-      <TemplateUsagePanel sx={{ gridColumn: "span 3" }} />
-    </Box>
+    <>
+      <Helmet>
+        <title>{getTemplatePageTitle("Insights", template)}</title>
+      </Helmet>
+
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+          gridTemplateRows: "440px auto",
+          gap: (theme) => theme.spacing(3),
+        }}
+      >
+        <DailyUsersPanel sx={{ gridColumn: "span 2" }} />
+        <UserLatencyPanel />
+        <TemplateUsagePanel sx={{ gridColumn: "span 3" }} />
+      </Box>
+    </>
   )
 }
 
