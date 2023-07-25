@@ -19,7 +19,7 @@ import (
 )
 
 // @Summary Get template available acl users/groups
-// @ID get-template-available-acl-users-groups
+// @ID get-template-available-acl-usersgroups
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
@@ -246,6 +246,9 @@ func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 
 // nolint TODO fix stupid flag.
 func validateTemplateACLPerms(ctx context.Context, db database.Store, perms map[string]codersdk.TemplateRole, field string, isUser bool) []codersdk.ValidationError {
+	// Validate requires full read access to users and groups
+	// nolint:gocritic
+	ctx = dbauthz.AsSystemRestricted(ctx)
 	var validErrs []codersdk.ValidationError
 	for k, v := range perms {
 		if err := validateTemplateRole(v); err != nil {

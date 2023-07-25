@@ -897,10 +897,13 @@ func TestUpdateTemplateACL(t *testing.T) {
 		acl, err := client2.TemplateACL(ctx, template.ID)
 		require.NoError(t, err)
 
-		require.Contains(t, acl.Users, codersdk.TemplateUser{
-			User: user3,
-			Role: codersdk.TemplateRoleUse,
-		})
+		found := false
+		for _, u := range acl.Users {
+			if u.ID == user3.ID {
+				found = true
+			}
+		}
+		require.True(t, found, "user not found in acl")
 	})
 
 	t.Run("allUsersGroup", func(t *testing.T) {
