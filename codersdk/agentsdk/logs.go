@@ -83,9 +83,10 @@ func (w *startupLogsWriter) Close() error {
 // by a single goroutine.
 func StartupLogsWriter(ctx context.Context, sender func(ctx context.Context, log ...Log) error, source codersdk.WorkspaceAgentLogSource, level codersdk.LogLevel) io.WriteCloser {
 	return &startupLogsWriter{
-		ctx:   ctx,
-		send:  sender,
-		level: level,
+		ctx:    ctx,
+		send:   sender,
+		level:  level,
+		source: source,
 	}
 }
 

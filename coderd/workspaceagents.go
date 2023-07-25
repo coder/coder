@@ -300,6 +300,7 @@ func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request)
 		CreatedAt:    createdAt,
 		Output:       output,
 		Level:        level,
+		Source:       source,
 		OutputLength: int32(outputLength),
 	})
 	if err != nil {
