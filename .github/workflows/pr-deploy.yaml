@@ -37,8 +37,8 @@ jobs:
       - name: Get PR number, title, and branch name
         id: pr_info
         run: |
-          set -e pipefail
-          if [[ ${{ github.event_name }} == 'workflow_dispatch' ]]; then
+          set -euxo pipefail
+          if [[ ${{ github.event_name }} == "workflow_dispatch" ]]; then
             PR_NUMBER=${{ github.event.inputs.pr_number }}"
           else
             PR_NUMBER=${{ github.event.issue.number }}"
@@ -68,7 +68,7 @@ jobs:
           body: |
             :rocket: Deploying PR ${{ steps.pr_info.outputs.PR_NUMBER }} ...
             :warning: This deployment will be deleted when the PR is closed.
-          reactions: "-1"
+          reactions: "+1"
 
   build:
     needs: pr_commented
@@ -237,10 +237,7 @@ jobs:
             :heavy_check_mark: Deployed PR ${{ env.PR_NUMBER }} successfully.
             :rocket: Access the deployment link [here](${{ env.PR_DEPLOYMENT_ACCESS_URL }}).
             :warning: This deployment will be deleted when the PR is closed.
-          reactions: |
-            +1
-            rocket
-          reactions-edit-mode: replace
+          reactions: rocket
 
         env:
           PR_DEPLOYMENT_ACCESS_URL: "https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
