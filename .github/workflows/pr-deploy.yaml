@@ -39,7 +39,10 @@ jobs:
         id: pr_number
         run: |
           set -euxo pipefail
-          PR_NUMBER=$(gh pr view ${{ github.event.inputs.pr_number }} --json number | jq -r '.number')
+          if [[ ${{ github.event_name }} == 'workflow_dispatch' ]]; then
+            PR_NUMBER=${{ github.event.inputs.pr_number }}"
+          else
+            PR_NUMBER=${{ github.event.issue.number }}"
           PR_TITLE=$(gh pr view $PR_NUMBER --json title | jq -r '.title')
           PR_BRANCH=$(gh pr view $PR_NUMBER --json headRefName | jq -r '.headRefName')
           echo "PR_URL=https://github.com/coder/coder/pull/$PR_NUMBER" >> $GITHUB_OUTPUT
