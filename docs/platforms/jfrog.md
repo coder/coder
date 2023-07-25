@@ -1,7 +1,6 @@
 # JFrog
 
-Use Coder and JFrog together to secure your development environments in a way
-transparent to your developers' existing workflows.
+Use Coder and JFrog together to secure your development environments without disturbing your developers' existing workflows.
 
 This guide will demonstrate how to use JFrog Artifactory as a package registry
 within a workspace. We'll use Docker as the underlying compute. But, these concepts apply to any compute platform.
