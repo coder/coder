@@ -194,7 +194,8 @@ func (w Workspace) LockedRBAC() rbac.Object {
 func (m OrganizationMember) RBACObject() rbac.Object {
 	return rbac.ResourceOrganizationMember.
 		WithID(m.UserID).
-		InOrg(m.OrganizationID)
+		InOrg(m.OrganizationID).
+		WithOwner(m.UserID.String())
 }
 
 func (m GetOrganizationIDsByMemberIDsRow) RBACObject() rbac.Object {

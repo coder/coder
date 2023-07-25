@@ -150,7 +150,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceProvisionerDaemon.Type: {ActionRead},
 		}),
 		Org: map[string][]Permission{},
-		User: append(allPermsExcept(ResourceWorkspaceLocked, ResourceUser),
+		User: append(allPermsExcept(ResourceWorkspaceLocked, ResourceUser, ResourceOrganizationMember),
 			Permissions(map[string][]Action{
 				// Users cannot do create/update/delete on themselves, but they
 				// can read their own details.
@@ -206,9 +206,6 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// Full perms to manage org members
 			ResourceOrganizationMember.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 			ResourceGroup.Type:              {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
-
-			// Org roles are not really used yet, so grant the perm at the site level.
-			ResourceOrganizationMember.Type: {ActionRead},
 		}),
 		Org:  map[string][]Permission{},
 		User: []Permission{},
@@ -276,7 +273,12 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 						},
 					},
 				},
-				User: []Permission{},
+				User: []Permission{
+					{
+						ResourceType: ResourceOrganizationMember.Type,
+						Action:       ActionRead,
+					},
+				},
 			}
 		},
 	}
