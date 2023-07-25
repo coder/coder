@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"crypto/subtle"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 
@@ -11,6 +12,7 @@ import (
 	scimjson "github.com/imulab/go-scim/pkg/v2/json"
 	"github.com/imulab/go-scim/pkg/v2/service"
 	"github.com/imulab/go-scim/pkg/v2/spec"
+	"golang.org/x/xerrors"
 
 	agpl "github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/database"
@@ -152,6 +154,23 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	//nolint:gocritic
+	user, err := api.Database.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
+		Email:    email,
+		Username: sUser.UserName,
+	})
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		_ = handlerutil.WriteError(rw, err)
+		return
+	}
+	if err == nil {
+		sUser.ID = user.ID.String()
+		sUser.UserName = user.Username
+
+		httpapi.Write(ctx, rw, http.StatusOK, sUser)
+		return
+	}
+
 	// The username is a required property in Coder. We make a best-effort
 	// attempt at using what the claims provide, but if that fails we will
 	// generate a random username.
@@ -182,7 +201,7 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	//nolint:gocritic // needed for SCIM
-	user, _, err := api.AGPL.CreateUser(dbauthz.AsSystemRestricted(ctx), api.Database, agpl.CreateUserRequest{
+	user, _, err = api.AGPL.CreateUser(dbauthz.AsSystemRestricted(ctx), api.Database, agpl.CreateUserRequest{
 		CreateUserRequest: codersdk.CreateUserRequest{
 			Username:       sUser.UserName,
 			Email:          email,
