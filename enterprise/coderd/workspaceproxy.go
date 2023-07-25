@@ -569,7 +569,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	startingRegionID, _ := getProxyDERPStartingRegionID(api.Options.DERPMap)
+	startingRegionID, _ := getProxyDERPStartingRegionID(api.Options.BaseDERPMap)
 	regionID := int32(startingRegionID) + proxy.RegionID
 
 	err := api.Database.InTx(func(db database.Store) error {

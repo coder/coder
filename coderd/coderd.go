@@ -118,10 +118,13 @@ type Options struct {
 	RealIPConfig                   *httpmw.RealIPConfig
 	TrialGenerator                 func(ctx context.Context, email string) error
 	// TLSCertificates is used to mesh DERP servers securely.
-	TLSCertificates             []tls.Certificate
-	TailnetCoordinator          tailnet.Coordinator
-	DERPServer                  *derp.Server
-	DERPMap                     *tailcfg.DERPMap
+	TLSCertificates    []tls.Certificate
+	TailnetCoordinator tailnet.Coordinator
+	DERPServer         *derp.Server
+	// BaseDERPMap is used as the base DERP map for all clients and agents.
+	// Proxies are added to this list.
+	BaseDERPMap                 *tailcfg.DERPMap
+	DERPMapUpdateFrequency      time.Duration
 	SwaggerEndpoint             bool
 	SetUserGroups               func(ctx context.Context, tx database.Store, userID uuid.UUID, groupNames []string) error
 	TemplateScheduleStore       *atomic.Pointer[schedule.TemplateScheduleStore]
@@ -237,6 +240,9 @@ func New(options *Options) *API {
 	}
 	if options.DERPServer == nil {
 		options.DERPServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger.Named("derp")))
+	}
+	if options.DERPMapUpdateFrequency == 0 {
+		options.DERPMapUpdateFrequency = 5 * time.Second
 	}
 	if options.TailnetCoordinator == nil {
 		options.TailnetCoordinator = tailnet.NewCoordinator(options.Logger)
@@ -379,7 +385,7 @@ func New(options *Options) *API {
 		api.agentProvider, err = NewServerTailnet(api.ctx,
 			options.Logger,
 			options.DERPServer,
-			options.DERPMap,
+			options.BaseDERPMap,
 			func(context.Context) (tailnet.MultiAgentConn, error) {
 				return (*api.TailnetCoordinator.Load()).ServeMultiAgent(uuid.New()), nil
 			},
@@ -1107,10 +1113,10 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 func (api *API) DERPMap() *tailcfg.DERPMap {
 	fn := api.DERPMapper.Load()
 	if fn != nil {
-		return (*fn)(api.Options.DERPMap)
+		return (*fn)(api.Options.BaseDERPMap)
 	}
 
-	return api.Options.DERPMap
+	return api.Options.BaseDERPMap
 }
 
 // nolint:revive

@@ -115,6 +115,20 @@ func (c *Client) Manifest(ctx context.Context) (Manifest, error) {
 	if err != nil {
 		return Manifest{}, err
 	}
+	err = c.rewriteDerpMap(agentMeta.DERPMap)
+	if err != nil {
+		return Manifest{}, err
+	}
+	return agentMeta, nil
+}
+
+// rewriteDerpMap rewrites the DERP map to use the access URL of the SDK as the
+// "embedded relay" access URL. The passed derp map is modified in place.
+//
+// Agents can provide an arbitrary access URL that may be different that the
+// globally configured one. This breaks the built-in DERP, which would continue
+// to reference the global access URL.
+func (c *Client) rewriteDerpMap(derpMap *tailcfg.DERPMap) error {
 	accessingPort := c.SDK.URL.Port()
 	if accessingPort == "" {
 		accessingPort = "80"
@@ -124,15 +138,9 @@ func (c *Client) Manifest(ctx context.Context) (Manifest, error) {
 	}
 	accessPort, err := strconv.Atoi(accessingPort)
 	if err != nil {
-		return Manifest{}, xerrors.Errorf("convert accessing port %q: %w", accessingPort, err)
+		return xerrors.Errorf("convert accessing port %q: %w", accessingPort, err)
 	}
-	// Agents can provide an arbitrary access URL that may be different
-	// that the globally configured one. This breaks the built-in DERP,
-	// which would continue to reference the global access URL.
-	//
-	// This converts all built-in DERPs to use the access URL that the
-	// manifest request was performed with.
-	for _, region := range agentMeta.DERPMap.Regions {
+	for _, region := range derpMap.Regions {
 		if !region.EmbeddedRelay {
 			continue
 		}
@@ -146,7 +154,7 @@ func (c *Client) Manifest(ctx context.Context) (Manifest, error) {
 			node.ForceHTTP = c.SDK.URL.Scheme == "http"
 		}
 	}
-	return agentMeta, nil
+	return nil
 }
 
 type DERPMapUpdate struct {
@@ -187,10 +195,14 @@ func (c *Client) DERPMapUpdates(ctx context.Context) (<-chan DERPMapUpdate, io.C
 	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
 	pingClosed := pingWebSocket(ctx, c.SDK.Logger(), conn, "derp map")
 
-	updates := make(chan DERPMapUpdate)
-	dec := json.NewDecoder(wsNetConn)
+	var (
+		updates       = make(chan DERPMapUpdate)
+		updatesClosed = make(chan struct{})
+		dec           = json.NewDecoder(wsNetConn)
+	)
 	go func() {
 		defer close(updates)
+		defer close(updatesClosed)
 		defer cancelFunc()
 		defer conn.Close(websocket.StatusGoingAway, "Listen closed")
 		for {
@@ -201,6 +213,13 @@ func (c *Client) DERPMapUpdates(ctx context.Context) (<-chan DERPMapUpdate, io.C
 				update.DERPMap = nil
 				return
 			}
+			err = c.rewriteDerpMap(update.DERPMap)
+			if err != nil {
+				update.Err = err
+				update.DERPMap = nil
+				return
+			}
+
 			select {
 			case updates <- update:
 			case <-ctx.Done():
@@ -212,8 +231,9 @@ func (c *Client) DERPMapUpdates(ctx context.Context) (<-chan DERPMapUpdate, io.C
 	return updates, &closer{
 		closeFunc: func() error {
 			cancelFunc()
-			_ = conn.Close(websocket.StatusGoingAway, "Listen closed")
+			_ = wsNetConn.Close()
 			<-pingClosed
+			<-updatesClosed
 			return nil
 		},
 	}, nil

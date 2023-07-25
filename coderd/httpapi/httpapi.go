@@ -151,11 +151,9 @@ func Write(ctx context.Context, rw http.ResponseWriter, status int, response int
 	enc := json.NewEncoder(rw)
 	enc.SetEscapeHTML(true)
 
-	err := enc.Encode(response)
-	if err != nil {
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	// We can't really do much about these errors, it's probably due to a
+	// dropped connection.
+	_ = enc.Encode(response)
 }
 
 func WriteIndent(ctx context.Context, rw http.ResponseWriter, status int, response interface{}) {
@@ -169,11 +167,9 @@ func WriteIndent(ctx context.Context, rw http.ResponseWriter, status int, respon
 	enc.SetEscapeHTML(true)
 	enc.SetIndent("", "\t")
 
-	err := enc.Encode(response)
-	if err != nil {
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	// We can't really do much about these errors, it's probably due to a
+	// dropped connection.
+	_ = enc.Encode(response)
 }
 
 // Read decodes JSON from the HTTP request into the value provided. It uses

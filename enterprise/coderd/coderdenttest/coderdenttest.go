@@ -86,7 +86,7 @@ func NewWithAPI(t *testing.T, options *Options) (
 		BrowserOnly:                options.BrowserOnly,
 		SCIMAPIKey:                 options.SCIMAPIKey,
 		DERPServerRelayAddress:     oop.AccessURL.String(),
-		DERPServerRegionID:         oop.DERPMap.RegionIDs()[0],
+		DERPServerRegionID:         oop.BaseDERPMap.RegionIDs()[0],
 		Options:                    oop,
 		EntitlementsUpdateInterval: options.EntitlementsUpdateInterval,
 		Keys:                       Keys,

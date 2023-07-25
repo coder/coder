@@ -477,7 +477,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				AppHostnameRegex:            appHostnameRegex,
 				Logger:                      logger.Named("coderd"),
 				Database:                    dbfake.New(),
-				DERPMap:                     derpMap,
+				BaseDERPMap:                 derpMap,
 				Pubsub:                      pubsub.NewInMemory(),
 				CacheDir:                    cacheDir,
 				GoogleTokenValidator:        googleTokenValidator,

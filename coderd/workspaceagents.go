@@ -834,8 +834,9 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	nconn := websocket.NetConn(ctx, ws, websocket.MessageBinary)
+	defer nconn.Close()
 
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(api.Options.DERPMapUpdateFrequency)
 	defer ticker.Stop()
 
 	var lastDERPMap *tailcfg.DERPMap
@@ -857,6 +858,8 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 			return
 		case <-ticker.C:
 		}
+
+		ticker.Reset(api.Options.DERPMapUpdateFrequency)
 	}
 }
 
