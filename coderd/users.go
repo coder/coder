@@ -715,7 +715,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 			return
 		}
 
-		err = api.Pubsub.Publish("licenses", []byte("add")) // FIXME PubsubEventLicenses
+		err = api.Pubsub.Publish(PubsubEventLicenses, []byte("add"))
 		if err != nil {
 			api.Logger.Error(context.Background(), "failed to publish license add", slog.Error(err))
 			// don't fail the HTTP request, since we did write it successfully to the database
