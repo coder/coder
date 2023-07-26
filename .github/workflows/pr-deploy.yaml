@@ -195,7 +195,7 @@ jobs:
               - name: "CODER_EXPERIMENTS"
                 value: "*"
               - name: "CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS"
-                value: true
+                value: "true"
               - name: "CODER_OAUTH2_GITHUB_CLIENT_ID"
                 value: "${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_ID }}"
               - name: "CODER_OAUTH2_GITHUB_CLIENT_SECRET"
