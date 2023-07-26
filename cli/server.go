@@ -1751,14 +1751,14 @@ func IsLocalhost(host string) bool {
 	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
-var _ slog.Sink = &filterSink{}
+var _ slog.Sink = &debugFilterSink{}
 
-type filterSink struct {
+type debugFilterSink struct {
 	next []slog.Sink
 	re   *regexp.Regexp
 }
 
-func (f *filterSink) compile(res []string) error {
+func (f *debugFilterSink) compile(res []string) error {
 	if len(res) == 0 {
 		return nil
 	}
@@ -1779,17 +1779,19 @@ func (f *filterSink) compile(res []string) error {
 	return nil
 }
 
-func (f *filterSink) LogEntry(ctx context.Context, ent slog.SinkEntry) {
-	logName := strings.Join(ent.LoggerNames, ".")
-	if f.re != nil && !f.re.MatchString(logName) {
-		return
+func (f *debugFilterSink) LogEntry(ctx context.Context, ent slog.SinkEntry) {
+	if ent.Level == slog.LevelDebug {
+		logName := strings.Join(ent.LoggerNames, ".")
+		if f.re != nil && !f.re.MatchString(logName) {
+			return
+		}
 	}
 	for _, sink := range f.next {
 		sink.LogEntry(ctx, ent)
 	}
 }
 
-func (f *filterSink) Sync() {
+func (f *debugFilterSink) Sync() {
 	for _, sink := range f.next {
 		sink.Sync()
 	}
@@ -1844,7 +1846,7 @@ func BuildLogger(inv *clibase.Invocation, cfg *codersdk.DeploymentValues) (slog.
 		return slog.Logger{}, nil, xerrors.New("no loggers provided")
 	}
 
-	filter := &filterSink{next: sinks}
+	filter := &debugFilterSink{next: sinks}
 
 	err = filter.compile(cfg.Logging.Filter.Value())
 	if err != nil {
