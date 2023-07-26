@@ -89,10 +89,15 @@ func (r *Runner) do(ctx context.Context, act rollTableEntry, p *params) {
 		r.cfg.Logger.Info(ctx, "context done, stopping")
 		return
 	default:
+		var errored bool
+		cancelCtx, cancel := context.WithTimeout(ctx, r.cfg.MaxWait)
+		defer cancel()
 		start := time.Now()
-		err := act.fn(ctx, p)
+		err := act.fn(cancelCtx, p)
+		cancel()
 		elapsed := time.Since(start)
 		if err != nil {
+			errored = true
 			r.cfg.Logger.Error( //nolint:gocritic
 				ctx, "action failed",
 				slog.Error(err),
@@ -109,9 +114,14 @@ func (r *Runner) do(ctx context.Context, act rollTableEntry, p *params) {
 		if apiErr, ok := codersdk.AsError(err); ok {
 			codeLabel = fmt.Sprintf("%d", apiErr.StatusCode())
 			r.metrics.Errors.WithLabelValues(act.label).Add(1)
+		} else if xerrors.Is(err, context.Canceled) {
+			codeLabel = "timeout"
 		}
 		r.metrics.DurationSeconds.WithLabelValues(act.label).Observe(elapsed.Seconds())
 		r.metrics.Statuses.WithLabelValues(act.label, codeLabel).Add(1)
+		if errored {
+			r.metrics.Errors.WithLabelValues(act.label).Add(1)
+		}
 	}
 }
 

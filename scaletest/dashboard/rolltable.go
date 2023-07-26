@@ -194,7 +194,7 @@ func fetchWorkspaceLogs(ctx context.Context, p *params) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return nil
+			return ctx.Err()
 		case l, ok := <-ch:
 			if !ok {
 				return nil
