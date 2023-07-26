@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -702,13 +701,8 @@ func (c *haCoordinator) formatAgentUpdate(id uuid.UUID, node *agpl.Node) ([]byte
 }
 
 func (c *haCoordinator) ServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 
-	_, _ = fmt.Fprintln(w, "<h1>high-availability wireguard coordinator debug</h1>")
-	_, _ = fmt.Fprintln(w, "<h4 style=\"margin-top:-25px\">warning: this only provides info from the node that served the request, if there are multiple replicas this data may be incomplete</h4>")
-
-	agpl.CoordinatorHTTPDebug(c.agentSockets, c.agentToConnectionSockets, c.agentNameCache)(w, r)
+	agpl.CoordinatorHTTPDebug(true, c.agentSockets, c.agentToConnectionSockets, c.nodes, c.agentNameCache)(w, r)
 }
