@@ -336,7 +336,7 @@ func (s *scaletestPrometheusFlags) attach(opts *clibase.OptionSet) {
 		clibase.Option{
 			Flag:        "scaletest-prometheus-wait",
 			Env:         "CODER_SCALETEST_PROMETHEUS_WAIT",
-			Default:     "5s",
+			Default:     "15s",
 			Description: "How long to wait before exiting in order to allow Prometheus metrics to be scraped.",
 			Value:       clibase.DurationOf(&s.Wait),
 		},
