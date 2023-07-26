@@ -1,3 +1,4 @@
+import Box from "@mui/material/Box"
 import { Theme } from "@mui/material/styles"
 import useTheme from "@mui/styles/useTheme"
 import * as TypesGen from "api/typesGenerated"
@@ -15,6 +16,11 @@ import {
   Tooltip,
 } from "chart.js"
 import "chartjs-adapter-date-fns"
+import {
+  HelpTooltip,
+  HelpTooltipTitle,
+  HelpTooltipText,
+} from "components/Tooltips/HelpTooltip"
 import dayjs from "dayjs"
 import { FC } from "react"
 import { Line } from "react-chartjs-2"
@@ -91,5 +97,19 @@ export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
       }}
       options={options}
     />
+  )
+}
+
+export const DAUTitle = () => {
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+      Daily Active Users
+      <HelpTooltip size="small">
+        <HelpTooltipTitle>How do we calculate DAUs?</HelpTooltipTitle>
+        <HelpTooltipText>
+          We use all workspace connection traffic to calculate DAUs.
+        </HelpTooltipText>
+      </HelpTooltip>
+    </Box>
   )
 }

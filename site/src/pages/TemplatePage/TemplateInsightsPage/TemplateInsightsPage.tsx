@@ -4,7 +4,7 @@ import { styled, useTheme } from "@mui/material/styles"
 import { BoxProps } from "@mui/system"
 import { useQuery } from "@tanstack/react-query"
 import { getInsightsTemplate, getInsightsUserLatency } from "api/api"
-import { DAUChart } from "components/DAUChart/DAUChart"
+import { DAUChart, DAUTitle } from "components/DAUChart/DAUChart"
 import { useTemplateLayoutContext } from "components/TemplateLayout/TemplateLayout"
 import {
   HelpTooltip,
@@ -93,14 +93,8 @@ const DailyUsersPanel = ({
   return (
     <Panel {...panelProps}>
       <PanelHeader>
-        <PanelTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          Daily Active Users
-          <HelpTooltip size="small">
-            <HelpTooltipTitle>How do we calculate DAUs?</HelpTooltipTitle>
-            <HelpTooltipText>
-              We use all workspace connection traffic to calculate DAUs.
-            </HelpTooltipText>
-          </HelpTooltip>
+        <PanelTitle>
+          <DAUTitle />
         </PanelTitle>
         <PanelSubtitle>Last 7 days</PanelSubtitle>
       </PanelHeader>
