@@ -474,9 +474,8 @@ func TestGroup(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		ggroup, err := client1.Group(ctx, group.ID)
-		require.NoError(t, err)
-		require.Equal(t, group, ggroup)
+		_, err = client1.Group(ctx, group.ID)
+		require.Error(t, err, "regular users cannot read groups")
 	})
 
 	t.Run("FilterDeletedUsers", func(t *testing.T) {

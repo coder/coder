@@ -259,7 +259,7 @@ neq(input.object.owner, "");
 			},
 			VariableConverter: regosql.UserConverter(),
 			ExpectedSQL: p(
-				p("'10d03e62-7703-4df5-a358-4f76577d4e2f' = ''") + " AND " + p("'' != ''") + " AND " + p("'' = ''"),
+				p("'10d03e62-7703-4df5-a358-4f76577d4e2f' = id :: text") + " AND " + p("id :: text != ''") + " AND " + p("'' = ''"),
 			),
 		},
 	}

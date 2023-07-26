@@ -195,6 +195,11 @@ var (
 	}
 )
 
+// ResourceUserObject is a helper function to create a user object for authz checks.
+func ResourceUserObject(userID uuid.UUID) Object {
+	return ResourceUser.WithID(userID).WithOwner(userID.String())
+}
+
 // Object is used to create objects for authz checks when you have none in
 // hand to run the check on.
 // An example is if you want to list all workspaces, you can create a Object

@@ -103,7 +103,7 @@ func TestCheckPermissions(t *testing.T) {
 			Client: orgAdminClient,
 			UserID: orgAdminUser.ID,
 			Check: map[string]bool{
-				readAllUsers:           true,
+				readAllUsers:           false,
 				readMyself:             true,
 				readOwnWorkspaces:      true,
 				readOrgWorkspaces:      true,
@@ -115,7 +115,7 @@ func TestCheckPermissions(t *testing.T) {
 			Client: memberClient,
 			UserID: memberUser.ID,
 			Check: map[string]bool{
-				readAllUsers:           true,
+				readAllUsers:           false,
 				readMyself:             true,
 				readOwnWorkspaces:      true,
 				readOrgWorkspaces:      false,

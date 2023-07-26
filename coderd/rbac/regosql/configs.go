@@ -42,8 +42,8 @@ func UserConverter() *sqltypes.VariableConverter {
 		// Users are never owned by an organization, so always return the empty string
 		// for the org owner.
 		sqltypes.StringVarMatcher("''", []string{"input", "object", "org_owner"}),
-		// Users never have an owner, and are only owned site wide.
-		sqltypes.StringVarMatcher("''", []string{"input", "object", "owner"}),
+		// Users are always owned by themselves.
+		sqltypes.StringVarMatcher("id :: text", []string{"input", "object", "owner"}),
 	)
 	matcher.RegisterMatcher(
 		// No ACLs on the user type
