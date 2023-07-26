@@ -15,7 +15,7 @@ import (
 	"github.com/coder/coder/scaletest/harness"
 )
 
-// rollTable is a table of actions to perform.
+// allActions is a table of actions to perform.
 // D&D nerds will feel right at home here :-)
 // Note that the order of the table is important!
 // Entries must be in ascending order.
