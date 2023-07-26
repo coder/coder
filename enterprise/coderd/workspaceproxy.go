@@ -34,7 +34,7 @@ import (
 // forceWorkspaceProxyHealthUpdate forces an update of the proxy health.
 // This is useful when a proxy is created or deleted. Errors will be logged.
 func (api *API) forceWorkspaceProxyHealthUpdate(ctx context.Context) {
-	if err := api.ProxyHealth.ForceUpdate(ctx); err != nil && !xerrors.Is(err, context.Canceled) {
+	if err := api.ProxyHealth.ForceUpdate(ctx); err != nil && !database.IsQueryCanceledError(err) && !xerrors.Is(err, context.Canceled) {
 		api.Logger.Error(ctx, "force proxy health update", slog.Error(err))
 	}
 }
