@@ -664,7 +664,7 @@ func derpMapper(logger slog.Logger, proxyHealth *proxyhealth.ProxyHealth) func(*
 					context.Background(),
 					"existing DERP region IDs are too large, proxy region IDs will not be populated in the derp map. Please ensure that all DERP region IDs are less than 2^32",
 					slog.F("largest_region_id", largestRegionID),
-					slog.F("max_region_id", 1<<32-1),
+					slog.F("max_region_id", int64(1<<32-1)),
 				)
 				return derpMap
 			}
