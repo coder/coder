@@ -158,7 +158,7 @@ func (c *haCoordinator) ServeClient(conn net.Conn, id, agentID uuid.UUID) error 
 	defer cancel()
 	logger := c.clientLogger(id, agentID)
 
-	tc := agpl.NewTrackedConn(ctx, cancel, conn, id, logger, 0)
+	tc := agpl.NewTrackedConn(ctx, cancel, conn, id, logger, "", 0)
 	defer tc.Close()
 
 	c.addClient(id, tc)
@@ -301,7 +301,7 @@ func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) err
 	}
 	// This uniquely identifies a connection that belongs to this goroutine.
 	unique := uuid.New()
-	tc := agpl.NewTrackedConn(ctx, cancel, conn, unique, logger, overwrites)
+	tc := agpl.NewTrackedConn(ctx, cancel, conn, unique, logger, name, overwrites)
 
 	// Publish all nodes on this instance that want to connect to this agent.
 	nodes := c.nodesSubscribedToAgent(id)
