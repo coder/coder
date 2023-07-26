@@ -81,6 +81,14 @@ Disable the default behavior of granting template access to the 'everyone' group
 
 Specify a set of tags to target provisioner daemons.
 
+### --var
+
+|      |                           |
+| ---- | ------------------------- |
+| Type | <code>string-array</code> |
+
+Alias of --variable.
+
 ### --variable
 
 |      |                           |
