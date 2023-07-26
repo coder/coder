@@ -179,6 +179,10 @@ const AddNewLicensePage = lazy(
 const TemplateEmbedPage = lazy(
   () => import("./pages/TemplatePage/TemplateEmbedPage/TemplateEmbedPage"),
 )
+const TemplateInsightsPage = lazy(
+  () =>
+    import("./pages/TemplatePage/TemplateInsightsPage/TemplateInsightsPage"),
+)
 
 export const AppRouter: FC = () => {
   return (
@@ -212,6 +216,7 @@ export const AppRouter: FC = () => {
                     <Route path="files" element={<TemplateFilesPage />} />
                     <Route path="versions" element={<TemplateVersionsPage />} />
                     <Route path="embed" element={<TemplateEmbedPage />} />
+                    <Route path="insights" element={<TemplateInsightsPage />} />
                   </Route>
 
                   <Route path="workspace" element={<CreateWorkspacePage />} />
