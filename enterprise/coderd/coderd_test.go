@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/coder/coder/coderd"
+	osscoderd "github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/rbac"
 
@@ -122,7 +122,7 @@ func TestEntitlements(t *testing.T) {
 			}),
 		})
 		require.NoError(t, err)
-		err = api.Pubsub.Publish(coderd.PubsubEventLicenses, []byte{})
+		err = api.Pubsub.Publish(osscoderd.PubsubEventLicenses, []byte{})
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
 			entitlements, err := client.Entitlements(context.Background())
