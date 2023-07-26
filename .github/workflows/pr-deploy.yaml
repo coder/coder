@@ -62,6 +62,7 @@ jobs:
 
       - name: Comment on PR
         id: comment_id
+        if: github.event_name == "issue_comment"
         uses: peter-evans/create-or-update-comment@v3
         with:
           issue-number: ${{ steps.pr_info.outputs.PR_NUMBER }}
@@ -232,6 +233,7 @@ jobs:
 
       - name: Find Comment
         uses: peter-evans/find-comment@v2
+        if: github.event_name == "issue_comment"
         id: fc
         with:
           issue-number: ${{ env.PR_NUMBER }}
@@ -241,6 +243,7 @@ jobs:
 
       - name: Comment on PR
         uses: peter-evans/create-or-update-comment@v3
+        if: github.event_name == "issue_comment"
         with:
           issue-number: ${{ env.PR_NUMBER }}
           edit-mode: replace
