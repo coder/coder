@@ -17,7 +17,7 @@ import (
 type Runner struct {
 	client  *codersdk.Client
 	cfg     Config
-	metrics *Metrics `json:"-"`
+	metrics *Metrics
 }
 
 var (
