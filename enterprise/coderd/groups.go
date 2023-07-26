@@ -200,10 +200,6 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		if req.DisplayName != "" {
 			updateGroupParams.DisplayName = req.DisplayName
 		}
-		// If the names are identical, then remove the display name.
-		if req.DisplayName == req.Name {
-			updateGroupParams.DisplayName = ""
-		}
 
 		group, err = tx.UpdateGroupByID(ctx, updateGroupParams)
 		if err != nil {
