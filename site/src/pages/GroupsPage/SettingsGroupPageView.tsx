@@ -35,7 +35,9 @@ const UpdateGroupForm: FC<{
   const form = useFormik<FormData>({
     initialValues: {
       name: group.name,
-      display_name: group.display_name,
+      // If these are equal, keep the display name blank. A blank display name means
+      // default to using the name.
+      display_name: group.display_name === group.name ? "" : group.display_name,
       avatar_url: group.avatar_url,
       quota_allowance: group.quota_allowance,
     },
@@ -57,6 +59,18 @@ const UpdateGroupForm: FC<{
             fullWidth
             label="Name"
           />
+          {/* We might want to always show this at some point, but for now only show if
+          the display name differs from the original name. */}
+          {group.name !== group.display_name && (
+            <TextField
+              {...getFieldHelpers("display_name")}
+              onChange={onChangeTrimmed(form)}
+              autoComplete="display_name"
+              autoFocus
+              fullWidth
+              label="Display Name"
+            />
+          )}
 
           <LazyIconField
             {...getFieldHelpers("avatar_url")}

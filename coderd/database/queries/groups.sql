@@ -49,11 +49,10 @@ VALUES
 INSERT INTO groups (
 	id,
 	name,
-	display_name,
 	organization_id
 )
 VALUES
-	(sqlc.arg(organization_id), 'Everyone', 'Everyone', sqlc.arg(organization_id)) RETURNING *;
+	(sqlc.arg(organization_id), 'Everyone', sqlc.arg(organization_id)) RETURNING *;
 
 -- name: UpdateGroupByID :one
 UPDATE

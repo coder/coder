@@ -131,11 +131,6 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		req.Name = ""
 	}
 
-	// Do not update the display name if it is the same.
-	if req.DisplayName == group.DisplayName {
-		req.DisplayName = ""
-	}
-
 	users := make([]string, 0, len(req.AddUsers)+len(req.RemoveUsers))
 	users = append(users, req.AddUsers...)
 	users = append(users, req.RemoveUsers...)
@@ -204,6 +199,10 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		}
 		if req.DisplayName != "" {
 			updateGroupParams.DisplayName = req.DisplayName
+		}
+		// If the names are identical, then remove the display name.
+		if req.DisplayName == req.Name {
+			updateGroupParams.DisplayName = ""
 		}
 
 		group, err = tx.UpdateGroupByID(ctx, updateGroupParams)
@@ -410,10 +409,15 @@ func convertGroup(g database.Group, users []database.User) codersdk.Group {
 	for _, user := range users {
 		orgs[user.ID] = []uuid.UUID{g.OrganizationID}
 	}
+	// Always default to the group name if the display name is empty
+	displayName := g.DisplayName
+	if displayName == "" {
+		displayName = g.Name
+	}
 	return codersdk.Group{
 		ID:             g.ID,
 		Name:           g.Name,
-		DisplayName:    g.DisplayName,
+		DisplayName:    displayName,
 		OrganizationID: g.OrganizationID,
 		AvatarURL:      g.AvatarURL,
 		QuotaAllowance: int(g.QuotaAllowance),
