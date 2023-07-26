@@ -188,19 +188,19 @@ jobs:
             service:
               type: ClusterIP
             env:
-              - name: CODER_ACCESS_URL
+              - name: "CODER_ACCESS_URL"
                 value: "https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
-              - name: CODER_WILDCARD_ACCESS_URL
+              - name: "CODER_WILDCARD_ACCESS_URL"
                 value: "*--pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
-              - name: CODER_EXPERIMENTS
+              - name: "CODER_EXPERIMENTS"
                 value: "*"
-              - name: CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS
+              - name: "CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS
                 value: true
-              - name: CODER_OAUTH2_GITHUB_CLIENT_ID
+              - name: "CODER_OAUTH2_GITHUB_CLIENT_ID"
                 value: "${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_ID }}"
-              - name: CODER_OAUTH2_GITHUB_CLIENT_SECRET
+              - name: "CODER_OAUTH2_GITHUB_CLIENT_SECRET"
                 value: "${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_SECRET }}"
-              - name: CODER_OAUTH2_GITHUB_ALLOWED_ORGS
+              - name: "CODER_OAUTH2_GITHUB_ALLOWED_ORGS"
                 value: "coder"
           EOF
 
