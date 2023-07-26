@@ -692,7 +692,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 			}
 		}
 
-		suspendedUser, err := api.Database.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
+		updatedUser, err := api.Database.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
 			ID:        user.ID,
 			Status:    status,
 			UpdatedAt: database.Now(),
@@ -704,7 +704,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 			})
 			return
 		}
-		aReq.New = suspendedUser
+		aReq.New = updatedUser
 
 		organizations, err := userOrganizationIDs(ctx, api, user)
 		if err != nil {
@@ -721,7 +721,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 			// don't fail the HTTP request, since we did write it successfully to the database
 		}
 
-		httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(suspendedUser, organizations))
+		httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(updatedUser, organizations))
 	}
 }
 
