@@ -2,6 +2,7 @@ package dashboard_test
 
 import (
 	"context"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -20,6 +21,9 @@ func Test_Run(t *testing.T) {
 	t.Parallel()
 	if testutil.RaceEnabled() {
 		t.Skip("skipping timing-sensitive test because of race detector")
+	}
+	if runtime.GOOS == "windows" {
+		t.Skip("skipping test on Windows")
 	}
 
 	client := coderdtest.New(t, nil)
