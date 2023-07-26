@@ -27,8 +27,7 @@ func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *clibas
 		verb = "mark as dormant"
 		pastVerb = "marked as dormant"
 		aliases = []string{"dormant"}
-		// FIXME(mtojek): short = "Update a user's status to 'dormant'. Dormant users are not counted in the license plan"
-		short = "Update a user's status to 'dormant'."
+		short = "Update a user's status to 'dormant'. Dormant users are not counted in the license plan"
 	case codersdk.UserStatusSuspended:
 		verb = "suspend"
 		pastVerb = "suspended"
