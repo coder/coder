@@ -19,14 +19,19 @@ export const selectInitialRichParametersValues = (
 
     if (parameter.options.length > 0) {
       parameterValue = parameterValue ?? parameter.options[0].value
+      const validValues = parameter.options.map((option) => option.value)
 
       if (defaultBuildParameters) {
-        const buildParameter = defaultBuildParameters.find(
+        const defaultBuildParameter = defaultBuildParameters.find(
           (p) => p.name === parameter.name,
         )
 
-        if (buildParameter) {
-          parameterValue = buildParameter?.value
+        // We don't want invalid values from default parameters to be set
+        if (
+          defaultBuildParameter &&
+          validValues.includes(defaultBuildParameter.value)
+        ) {
+          parameterValue = defaultBuildParameter?.value
         }
       }
 
