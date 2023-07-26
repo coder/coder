@@ -178,28 +178,38 @@ jobs:
           EOF
           kubectl apply -f ingress.yaml
 
+      - name: Create values.yaml
+        run: |
+          cat <<EOF > values.yaml
+          coder:
+            image:
+              repo: ${{ env.REPO }}
+              tag: pr${{ env.PR_NUMBER }}
+              pullPolicy: Always
+            service:
+              type: ClusterIP
+            env:
+              - name: CODER_ACCESS_URL
+                value: "https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
+              - name: CODER_WILDCARD_ACCESS_URL
+                value: "*--pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
+              - name: CODER_EXPERIMENTS
+                value: "*"
+              - name: CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS
+                value: true
+              - name: CODER_OAUTH2_GITHUB_CLIENT_ID
+                value: "${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_ID }}"
+              - name: CODER_OAUTH2_GITHUB_CLIENT_SECRET
+                value: "${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_SECRET }}"
+              - name: CODER_OAUTH2_GITHUB_ALLOWED_ORGS
+                value: "coder"
+          EOF
+
       - name: Install Helm chart
         run: |
-          helm upgrade --install pr${{ env.PR_NUMBER }}  ./helm \
+          helm upgrade --install pr${{ env.PR_NUMBER }} ./helm \
           --namespace "pr${{ env.PR_NUMBER }}" \
-          --set coder.image.repo=${{ env.REPO }} \
-          --set coder.image.tag=pr${{ env.PR_NUMBER }} \
-          --set coder.image.pullPolicy=Always \
-          --set coder.service.type=ClusterIP \
-          --set coder.env[0].name=CODER_ACCESS_URL \
-          --set coder.env[0].value="https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}" \
-          --set coder.env[1].name=CODER_WILDCARD_ACCESS_URL \
-          --set coder.env[1].value="*--pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}" \
-          --set coder.env[2].name=CODER_EXPERIMENTS \
-          --set coder.env[2].value="*" \
-          --set coder.env[3].name=CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS \
-          --set coder.env[3].value=true \
-          --set coder.env[4].name=CODER_OAUTH2_GITHUB_CLIENT_ID \
-          --set coder.env[4].value="${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_ID }}" \
-          --set coder.env[5].name=CODER_OAUTH2_GITHUB_CLIENT_SECRET \
-          --set coder.env[5].value="${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_SECRET }}" \
-          --set coder.env[6].name=CODER_OAUTH2_GITHUB_ALLOWED_ORGS \
-          --set coder.env[6].value="coder" \
+          -f values.yaml \
           --force
 
       - name: Install coder-logstream-kube
