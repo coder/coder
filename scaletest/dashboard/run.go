@@ -15,21 +15,6 @@ import (
 	"github.com/coder/coder/scaletest/harness"
 )
 
-// allActions is a table of actions to perform.
-// D&D nerds will feel right at home here :-)
-// Note that the order of the table is important!
-// Entries must be in ascending order.
-var allActions rollTable = []rollTableEntry{
-	{0, fetchWorkspaces, "fetch workspaces"},
-	{10, fetchUsers, "fetch users"},
-	{20, fetchTemplates, "fetch templates"},
-	{30, authCheckAsOwner, "authcheck owner"},
-	{40, authCheckAsNonOwner, "authcheck not owner"},
-	{50, fetchAuditLog, "fetch audit log"},
-	{60, fetchActiveUsers, "fetch active users"},
-	{70, fetchSuspendedUsers, "fetch suspended users"},
-}
-
 type Runner struct {
 	client *codersdk.Client
 	cfg    Config
