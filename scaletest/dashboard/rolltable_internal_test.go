@@ -11,7 +11,7 @@ func Test_allActions_ordering(t *testing.T) {
 
 	last := -1
 	for idx, entry := range DefaultActions {
-		require.Greater(t, entry.roll, last, "roll table must be in ascending order, entry %d is out of order", idx)
-		last = entry.roll
+		require.Greater(t, entry.Roll, last, "roll table must be in ascending order, entry %d is out of order", idx)
+		last = entry.Roll
 	}
 }

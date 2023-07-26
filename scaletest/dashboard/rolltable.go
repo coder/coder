@@ -12,7 +12,7 @@ import (
 // D&D nerds will feel right at home here :-)
 // Note that the order of the table is important!
 // Entries must be in ascending order.
-var DefaultActions RollTable = []rollTableEntry{
+var DefaultActions RollTable = []RollTableEntry{
 	{0, fetchWorkspaces, "fetch workspaces"},
 	{1, fetchUsers, "fetch users"},
 	{2, fetchTemplates, "fetch templates"},
@@ -34,36 +34,36 @@ var DefaultActions RollTable = []rollTableEntry{
 }
 
 // RollTable is a slice of rollTableEntry.
-type RollTable []rollTableEntry
+type RollTable []RollTableEntry
 
-// rollTableEntry is an entry in the roll table.
-type rollTableEntry struct {
-	// roll is the minimum number required to perform the action.
-	roll int
-	// fn is the function to call.
-	fn func(ctx context.Context, p *params) error
-	// label is used for logging.
-	label string
+// RollTableEntry is an entry in the roll table.
+type RollTableEntry struct {
+	// Roll is the minimum number required to perform the action.
+	Roll int
+	// Fn is the function to call.
+	Fn func(ctx context.Context, p *Params) error
+	// Label is used for logging.
+	Label string
 }
 
 // choose returns the first entry in the table that is greater than or equal to n.
-func (r RollTable) choose(n int) rollTableEntry {
+func (r RollTable) choose(n int) RollTableEntry {
 	for _, entry := range r {
-		if entry.roll >= n {
+		if entry.Roll >= n {
 			return entry
 		}
 	}
-	return rollTableEntry{}
+	return RollTableEntry{}
 }
 
 // max returns the maximum roll in the table.
 // Important: this assumes that the table is sorted in ascending order.
 func (r RollTable) max() int {
-	return r[len(r)-1].roll
+	return r[len(r)-1].Roll
 }
 
-// params is a set of parameters to pass to the actions in a rollTable.
-type params struct {
+// Params is a set of parameters to pass to the actions in a rollTable.
+type Params struct {
 	// client is the client to use for performing the action.
 	client *codersdk.Client
 	// me is the currently authenticated user. Lots of actions require this.
@@ -76,7 +76,7 @@ type params struct {
 }
 
 // fetchWorkspaces fetches all workspaces.
-func fetchWorkspaces(ctx context.Context, p *params) error {
+func fetchWorkspaces(ctx context.Context, p *Params) error {
 	ws, err := p.client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	if err != nil {
 		// store the workspaces for later use in case they change
@@ -86,7 +86,7 @@ func fetchWorkspaces(ctx context.Context, p *params) error {
 }
 
 // fetchUsers fetches all users.
-func fetchUsers(ctx context.Context, p *params) error {
+func fetchUsers(ctx context.Context, p *Params) error {
 	users, err := p.client.Users(ctx, codersdk.UsersRequest{})
 	if err != nil {
 		p.c.setUsers(users.Users)
@@ -95,7 +95,7 @@ func fetchUsers(ctx context.Context, p *params) error {
 }
 
 // fetchActiveUsers fetches all active users
-func fetchActiveUsers(ctx context.Context, p *params) error {
+func fetchActiveUsers(ctx context.Context, p *Params) error {
 	_, err := p.client.Users(ctx, codersdk.UsersRequest{
 		Status: codersdk.UserStatusActive,
 	})
@@ -103,7 +103,7 @@ func fetchActiveUsers(ctx context.Context, p *params) error {
 }
 
 // fetchSuspendedUsers fetches all suspended users
-func fetchSuspendedUsers(ctx context.Context, p *params) error {
+func fetchSuspendedUsers(ctx context.Context, p *Params) error {
 	_, err := p.client.Users(ctx, codersdk.UsersRequest{
 		Status: codersdk.UserStatusSuspended,
 	})
@@ -111,7 +111,7 @@ func fetchSuspendedUsers(ctx context.Context, p *params) error {
 }
 
 // fetchTemplates fetches all templates.
-func fetchTemplates(ctx context.Context, p *params) error {
+func fetchTemplates(ctx context.Context, p *Params) error {
 	templates, err := p.client.TemplatesByOrganization(ctx, p.me.OrganizationIDs[0])
 	if err != nil {
 		p.c.setTemplates(templates)
@@ -120,68 +120,68 @@ func fetchTemplates(ctx context.Context, p *params) error {
 }
 
 // fetchTemplateBuild fetches a single template version at random.
-func fetchTemplateVersion(ctx context.Context, p *params) error {
+func fetchTemplateVersion(ctx context.Context, p *Params) error {
 	t := p.c.randTemplate()
 	_, err := p.client.TemplateVersion(ctx, t.ActiveVersionID)
 	return err
 }
 
 // fetchWorkspace fetches a single workspace at random.
-func fetchWorkspace(ctx context.Context, p *params) error {
+func fetchWorkspace(ctx context.Context, p *Params) error {
 	w := p.c.randWorkspace()
 	_, err := p.client.WorkspaceByOwnerAndName(ctx, w.OwnerName, w.Name, codersdk.WorkspaceOptions{})
 	return err
 }
 
 // fetchWorkspaceBuild fetches a single workspace build at random.
-func fetchWorkspaceBuild(ctx context.Context, p *params) error {
+func fetchWorkspaceBuild(ctx context.Context, p *Params) error {
 	w := p.c.randWorkspace()
 	_, err := p.client.WorkspaceBuild(ctx, w.LatestBuild.ID)
 	return err
 }
 
 // fetchTemplate fetches a single template at random.
-func fetchTemplate(ctx context.Context, p *params) error {
+func fetchTemplate(ctx context.Context, p *Params) error {
 	t := p.c.randTemplate()
 	_, err := p.client.Template(ctx, t.ID)
 	return err
 }
 
 // fetchUserByID fetches a single user at random by ID.
-func fetchUserByID(ctx context.Context, p *params) error {
+func fetchUserByID(ctx context.Context, p *Params) error {
 	u := p.c.randUser()
 	_, err := p.client.User(ctx, u.ID.String())
 	return err
 }
 
 // fetchUserByUsername fetches a single user at random by username.
-func fetchUserByUsername(ctx context.Context, p *params) error {
+func fetchUserByUsername(ctx context.Context, p *Params) error {
 	u := p.c.randUser()
 	_, err := p.client.User(ctx, u.Username)
 	return err
 }
 
 // fetchDeploymentConfig fetches the deployment config.
-func fetchDeploymentConfig(ctx context.Context, p *params) error {
+func fetchDeploymentConfig(ctx context.Context, p *Params) error {
 	_, err := p.client.DeploymentConfig(ctx)
 	return err
 }
 
 // fetchWorkspaceQuotaForUser fetches the workspace quota for a random user.
-func fetchWorkspaceQuotaForUser(ctx context.Context, p *params) error {
+func fetchWorkspaceQuotaForUser(ctx context.Context, p *Params) error {
 	u := p.c.randUser()
 	_, err := p.client.WorkspaceQuota(ctx, u.ID.String())
 	return err
 }
 
 // fetchDeploymentStats fetches the deployment stats.
-func fetchDeploymentStats(ctx context.Context, p *params) error {
+func fetchDeploymentStats(ctx context.Context, p *Params) error {
 	_, err := p.client.DeploymentStats(ctx)
 	return err
 }
 
 // fetchWorkspaceLogs fetches the logs for a random workspace.
-func fetchWorkspaceLogs(ctx context.Context, p *params) error {
+func fetchWorkspaceLogs(ctx context.Context, p *Params) error {
 	w := p.c.randWorkspace()
 	ch, closer, err := p.client.WorkspaceBuildLogsAfter(ctx, w.LatestBuild.ID, 0)
 	if err != nil {
@@ -206,7 +206,7 @@ func fetchWorkspaceLogs(ctx context.Context, p *params) error {
 
 // fetchAuditLog fetches the audit log.
 // As not all users have access to the audit log, we check first.
-func fetchAuditLog(ctx context.Context, p *params) error {
+func fetchAuditLog(ctx context.Context, p *Params) error {
 	res, err := p.client.AuthCheck(ctx, codersdk.AuthorizationRequest{
 		Checks: map[string]codersdk.AuthorizationCheck{
 			"auditlog": {
@@ -236,7 +236,7 @@ func fetchAuditLog(ctx context.Context, p *params) error {
 
 // authCheckAsOwner performs an auth check as the owner of a random
 // resource type and action.
-func authCheckAsOwner(ctx context.Context, p *params) error {
+func authCheckAsOwner(ctx context.Context, p *Params) error {
 	_, err := p.client.AuthCheck(ctx, randAuthReq(
 		ownedBy(p.me.ID),
 		withAction(randAction()),
@@ -248,7 +248,7 @@ func authCheckAsOwner(ctx context.Context, p *params) error {
 
 // authCheckAsNonOwner performs an auth check as a non-owner of a random
 // resource type and action.
-func authCheckAsNonOwner(ctx context.Context, p *params) error {
+func authCheckAsNonOwner(ctx context.Context, p *Params) error {
 	_, err := p.client.AuthCheck(ctx, randAuthReq(
 		ownedBy(uuid.New()),
 		withAction(randAction()),
