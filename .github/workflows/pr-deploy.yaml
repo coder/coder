@@ -128,6 +128,7 @@ jobs:
       PR_TITLE: ${{ needs.pr_commented.outputs.PR_TITLE }}
       PR_URL: ${{ needs.pr_commented.outputs.PR_URL }}
       PR_BRANCH: ${{ needs.pr_commented.outputs.PR_BRANCH }}
+      PR_DEPLOYMENT_ACCESS_URL: "https://pr${{ needs.pr_commented.outputs.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -218,6 +219,45 @@ jobs:
             --namespace "pr${{ env.PR_NUMBER }}" \
             --set url="https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
 
+      - name: Wait 30 seconds
+        run: |
+          sleep 30
+
+      - name: Create first user, template and workspace
+        id: setup_deployment
+        run: |
+          set -euxo pipefail
+
+          # Create first user
+
+          # create a masked random password 12 characters long
+          password=$(openssl rand -base64 6 | tr -d "=+/" | cut -c1-12)
+
+          # add mask so that the password is not printed to the logs
+          echo "::add-mask::$password"
+          echo "password=$password" >> $GITHUB_OUTPUT
+
+          coder login \
+            --first-user-username ${{ env.PR_NUMBER }} \
+            --first-user-email ${{ env.PR_NUMBER }}@coder.com \
+            --first-user-password $password \
+            --first-user-trial \
+            --use-token-as-session \
+            ${{ env.PR_DEPLOYMENT_ACCESS_URL }}
+
+          # Create template
+          coder templates init --id kubernetes && cd ./kubernetes/ && coder templates create -y --variable namespace=pr${{ env.PR_NUMBER }}
+
+          # Create workspace
+          cat <<EOF > workspace.yaml
+          cpu: "2"
+          memory: "4"
+          home_disk_size: "2"
+          EOF
+
+          coder create --template="kubernetes" pr${{ env.PR_NUMBER }} --rich-parameter-file ./workspace.yaml -y
+          coder stop pr${{ env.PR_NUMBER }} -y
+
       - name: Send Slack notification
         run: |
           curl -s -o /dev/null -X POST -H 'Content-type: application/json' \
@@ -225,10 +265,11 @@ jobs:
             "pr_number": "'"${{ env.PR_NUMBER }}"'",
             "pr_url": "'"${{ env.PR_URL }}"'",
             "pr_title": "'"${{ env.PR_TITLE }}"'",
-            "pr_access_url": "'"${{ env.PR_DEPLOYMENT_ACCESS_URL }}"'" }' ${{ secrets.PR_DEPLOYMENTS_SLACK_WEBHOOK }}
+            "pr_access_url": "'"${{ env.PR_DEPLOYMENT_ACCESS_URL }}"'",
+            "pr_username": "'"${{ env.PR_NUMBER }}"'",
+            "pr_email": "'"${{ env.PR_NUMBER }}@coder.com"'",
+            "pr_password": "'"${{ steps.setup_deployment.outputs.password }}"'" }' ${{ secrets.PR_DEPLOYMENTS_SLACK_WEBHOOK }}
           echo "Slack notification sent"
-        env:
-          PR_DEPLOYMENT_ACCESS_URL: "https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
 
       - name: Find Comment
         uses: peter-evans/find-comment@v2
@@ -252,5 +293,3 @@ jobs:
             :rocket: Access the deployment link [here](${{ env.PR_DEPLOYMENT_ACCESS_URL }}).
             :warning: This deployment will be deleted when the PR is closed.
           reactions: rocket
-        env:
-          PR_DEPLOYMENT_ACCESS_URL: "https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
