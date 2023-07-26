@@ -17,6 +17,8 @@ type Config struct {
 	Trace bool `json:"trace"`
 	// Logger is the logger to use.
 	Logger slog.Logger `json:"-"`
+	// RollTable is the set of actions to perform
+	RollTable RollTable `json:"roll_table"`
 }
 
 func (c Config) Validate() error {

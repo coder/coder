@@ -62,7 +62,7 @@ func (r *Runner) Run(ctx context.Context, _ string, _ io.Writer) error {
 			case <-ctx.Done():
 				return
 			case <-t.C:
-				rolls <- rand.Intn(allActions.max() + 1) // nolint:gosec
+				rolls <- rand.Intn(r.cfg.RollTable.max() + 1) // nolint:gosec
 				t.Reset(r.randWait())
 			}
 		}
@@ -73,7 +73,7 @@ func (r *Runner) Run(ctx context.Context, _ string, _ io.Writer) error {
 		case <-ctx.Done():
 			return nil
 		case n := <-rolls:
-			act := allActions.choose(n)
+			act := r.cfg.RollTable.choose(n)
 			go r.do(ctx, act, p)
 		}
 	}

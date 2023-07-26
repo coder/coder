@@ -1098,10 +1098,11 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 			for i := int64(0); i < count; i++ {
 				name := fmt.Sprintf("dashboard-%d", i)
 				config := dashboard.Config{
-					MinWait: minWait,
-					MaxWait: maxWait,
-					Trace:   tracingEnabled,
-					Logger:  logger.Named(name),
+					MinWait:   minWait,
+					MaxWait:   maxWait,
+					Trace:     tracingEnabled,
+					Logger:    logger.Named(name),
+					RollTable: dashboard.DefaultActions,
 				}
 				if err := config.Validate(); err != nil {
 					return err

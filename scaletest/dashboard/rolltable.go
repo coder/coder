@@ -8,11 +8,11 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-// allActions is a table of actions to perform.
+// DefaultActions is a table of actions to perform.
 // D&D nerds will feel right at home here :-)
 // Note that the order of the table is important!
 // Entries must be in ascending order.
-var allActions rollTable = []rollTableEntry{
+var DefaultActions RollTable = []rollTableEntry{
 	{0, fetchWorkspaces, "fetch workspaces"},
 	{1, fetchUsers, "fetch users"},
 	{2, fetchTemplates, "fetch templates"},
@@ -33,8 +33,8 @@ var allActions rollTable = []rollTableEntry{
 	{17, fetchWorkspaceLogs, "fetch workspace logs"},
 }
 
-// rollTable is a slice of rollTableEntry.
-type rollTable []rollTableEntry
+// RollTable is a slice of rollTableEntry.
+type RollTable []rollTableEntry
 
 // rollTableEntry is an entry in the roll table.
 type rollTableEntry struct {
@@ -47,7 +47,7 @@ type rollTableEntry struct {
 }
 
 // choose returns the first entry in the table that is greater than or equal to n.
-func (r rollTable) choose(n int) rollTableEntry {
+func (r RollTable) choose(n int) rollTableEntry {
 	for _, entry := range r {
 		if entry.roll >= n {
 			return entry
@@ -58,7 +58,7 @@ func (r rollTable) choose(n int) rollTableEntry {
 
 // max returns the maximum roll in the table.
 // Important: this assumes that the table is sorted in ascending order.
-func (r rollTable) max() int {
+func (r RollTable) max() int {
 	return r[len(r)-1].roll
 }
 
