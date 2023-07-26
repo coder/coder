@@ -278,6 +278,7 @@ func TestProxyRegisterDeregister(t *testing.T) {
 				Pubsub:                   pubsub,
 				IncludeProvisionerDaemon: true,
 			},
+			ReplicaSyncUpdateInterval: time.Minute,
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureWorkspaceProxy: 1,

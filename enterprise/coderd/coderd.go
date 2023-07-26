@@ -299,10 +299,11 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		ServerName:   options.AccessURL.Hostname(),
 	}
 	api.replicaManager, err = replicasync.New(ctx, options.Logger, options.Database, options.Pubsub, &replicasync.Options{
-		ID:           api.AGPL.ID,
-		RelayAddress: options.DERPServerRelayAddress,
-		RegionID:     int32(options.DERPServerRegionID),
-		TLSConfig:    meshTLSConfig,
+		ID:             api.AGPL.ID,
+		RelayAddress:   options.DERPServerRelayAddress,
+		RegionID:       int32(options.DERPServerRegionID),
+		TLSConfig:      meshTLSConfig,
+		UpdateInterval: options.ReplicaSyncUpdateInterval,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("initialize replica: %w", err)
@@ -350,8 +351,9 @@ type Options struct {
 	SCIMAPIKey  []byte
 
 	// Used for high availability.
-	DERPServerRelayAddress string
-	DERPServerRegionID     int
+	ReplicaSyncUpdateInterval time.Duration
+	DERPServerRelayAddress    string
+	DERPServerRegionID        int
 
 	// Used for user quiet hours schedules.
 	DefaultQuietHoursSchedule string // cron schedule, if empty user quiet hours schedules are disabled

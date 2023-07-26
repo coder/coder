@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1273,9 +1274,10 @@ func TestWorkspaceAgent_UpdatedDERP(t *testing.T) {
 	require.NotNil(t, originalDerpMap)
 
 	// Change the DERP mapper to our custom one.
-	currentDerpMap := originalDerpMap
+	var currentDerpMap atomic.Pointer[tailcfg.DERPMap]
+	currentDerpMap.Store(originalDerpMap)
 	derpMapFn := func(_ *tailcfg.DERPMap) *tailcfg.DERPMap {
-		return currentDerpMap
+		return currentDerpMap.Load().Clone()
 	}
 	api.DERPMapper.Store(&derpMapFn)
 
@@ -1323,7 +1325,7 @@ func TestWorkspaceAgent_UpdatedDERP(t *testing.T) {
 	for _, node := range newDerpMap.Regions[2].Nodes {
 		node.RegionID = 2
 	}
-	currentDerpMap = newDerpMap
+	currentDerpMap.Store(newDerpMap)
 
 	// Wait for the agent's DERP map to be updated.
 	// TODO: this
