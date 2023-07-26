@@ -100,7 +100,7 @@ type PatchGroupRequest struct {
 	AddUsers       []string `json:"add_users"`
 	RemoveUsers    []string `json:"remove_users"`
 	Name           string   `json:"name"`
-	DisplayName    string   `db:"display_name" json:"display_name"`
+	DisplayName    *string  `json:"display_name"`
 	AvatarURL      *string  `json:"avatar_url"`
 	QuotaAllowance *int     `json:"quota_allowance"`
 }

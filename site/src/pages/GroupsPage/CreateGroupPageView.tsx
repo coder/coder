@@ -29,6 +29,7 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
   const form = useFormik<CreateGroupRequest>({
     initialValues: {
       name: "",
+      display_name: "",
       avatar_url: "",
       quota_allowance: 0,
     },

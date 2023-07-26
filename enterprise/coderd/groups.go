@@ -53,11 +53,6 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Default the name and display name to the same.
-	if req.DisplayName == "" {
-		req.DisplayName = req.Name
-	}
-
 	group, err := api.Database.InsertGroup(ctx, database.InsertGroupParams{
 		ID:             uuid.New(),
 		Name:           req.Name,
@@ -197,8 +192,8 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		if req.QuotaAllowance != nil {
 			updateGroupParams.QuotaAllowance = int32(*req.QuotaAllowance)
 		}
-		if req.DisplayName != "" {
-			updateGroupParams.DisplayName = req.DisplayName
+		if req.DisplayName != nil {
+			updateGroupParams.DisplayName = *req.DisplayName
 		}
 
 		group, err = tx.UpdateGroupByID(ctx, updateGroupParams)
