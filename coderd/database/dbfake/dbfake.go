@@ -3381,6 +3381,7 @@ func (q *FakeQuerier) InsertAllUsersGroup(ctx context.Context, orgID uuid.UUID) 
 	return q.InsertGroup(ctx, database.InsertGroupParams{
 		ID:             orgID,
 		Name:           database.AllUsersGroup,
+		DisplayName:    database.AllUsersGroup,
 		OrganizationID: orgID,
 	})
 }
