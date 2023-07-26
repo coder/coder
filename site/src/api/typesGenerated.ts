@@ -507,6 +507,7 @@ export interface GitSSHKey {
 export interface Group {
   readonly id: string
   readonly name: string
+  readonly display_name: string
   readonly organization_id: string
   readonly members: User[]
   readonly avatar_url: string
@@ -665,6 +666,7 @@ export interface PatchGroupRequest {
   readonly add_users: string[]
   readonly remove_users: string[]
   readonly name: string
+  readonly display_name: string
   readonly avatar_url?: string
   readonly quota_allowance?: number
 }

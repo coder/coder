@@ -1422,6 +1422,8 @@ type Group struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	AvatarURL      string    `db:"avatar_url" json:"avatar_url"`
 	QuotaAllowance int32     `db:"quota_allowance" json:"quota_allowance"`
+	// Display name is a custom, human-friendly group name that user can set. This is not required to be unique.
+	DisplayName string `db:"display_name" json:"display_name"`
 }
 
 type GroupMember struct {

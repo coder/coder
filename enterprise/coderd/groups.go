@@ -53,9 +53,14 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if req.DisplayName == "" {
+		req.DisplayName = req.Name
+	}
+
 	group, err := api.Database.InsertGroup(ctx, database.InsertGroupParams{
 		ID:             uuid.New(),
 		Name:           req.Name,
+		DisplayName:    req.DisplayName,
 		OrganizationID: org.ID,
 		AvatarURL:      req.AvatarURL,
 		QuotaAllowance: int32(req.QuotaAllowance),
@@ -125,6 +130,11 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		req.Name = ""
 	}
 
+	// Do not update the display name if it is the same.
+	if req.DisplayName == group.DisplayName {
+		req.DisplayName = ""
+	}
+
 	users := make([]string, 0, len(req.AddUsers)+len(req.RemoveUsers))
 	users = append(users, req.AddUsers...)
 	users = append(users, req.RemoveUsers...)
@@ -177,6 +187,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 			ID:             group.ID,
 			AvatarURL:      group.AvatarURL,
 			Name:           group.Name,
+			DisplayName:    group.DisplayName,
 			QuotaAllowance: group.QuotaAllowance,
 		}
 
@@ -189,6 +200,9 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		}
 		if req.QuotaAllowance != nil {
 			updateGroupParams.QuotaAllowance = int32(*req.QuotaAllowance)
+		}
+		if req.DisplayName != "" {
+			updateGroupParams.DisplayName = req.DisplayName
 		}
 
 		group, err = tx.UpdateGroupByID(ctx, updateGroupParams)
@@ -398,6 +412,7 @@ func convertGroup(g database.Group, users []database.User) codersdk.Group {
 	return codersdk.Group{
 		ID:             g.ID,
 		Name:           g.Name,
+		DisplayName:    g.DisplayName,
 		OrganizationID: g.OrganizationID,
 		AvatarURL:      g.AvatarURL,
 		QuotaAllowance: int(g.QuotaAllowance),

@@ -174,6 +174,7 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group} \
 ```json
 {
   "avatar_url": "string",
+  "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "members": [
     {
@@ -234,6 +235,7 @@ curl -X DELETE http://coder-server:8080/api/v2/groups/{group} \
 ```json
 {
   "avatar_url": "string",
+  "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "members": [
     {
@@ -294,6 +296,7 @@ curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
 ```json
 {
   "avatar_url": "string",
+  "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "members": [
     {
@@ -429,6 +432,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups 
 [
   {
     "avatar_url": "string",
+    "display_name": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "members": [
       {
@@ -470,6 +474,7 @@ Status Code **200**
 | --------------------- | ---------------------------------------------------- | -------- | ------------ | ----------- |
 | `[array item]`        | array                                                | false    |              |             |
 | `» avatar_url`        | string                                               | false    |              |             |
+| `» display_name`      | string                                               | false    |              |             |
 | `» id`                | string(uuid)                                         | false    |              |             |
 | `» members`           | array                                                | false    |              |             |
 | `»» avatar_url`       | string(uri)                                          | false    |              |             |
@@ -540,6 +545,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups
 ```json
 {
   "avatar_url": "string",
+  "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "members": [
     {
@@ -601,6 +607,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
 ```json
 {
   "avatar_url": "string",
+  "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "members": [
     {
@@ -1171,6 +1178,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
     "groups": [
       {
         "avatar_url": "string",
+        "display_name": "string",
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "members": [
           {
@@ -1234,6 +1242,7 @@ Status Code **200**
 | `[array item]`         | array                                                | false    |              |             |
 | `» groups`             | array                                                | false    |              |             |
 | `»» avatar_url`        | string                                               | false    |              |             |
+| `»» display_name`      | string                                               | false    |              |             |
 | `»» id`                | string(uuid)                                         | false    |              |             |
 | `»» members`           | array                                                | false    |              |             |
 | `»»» avatar_url`       | string(uri)                                          | false    |              |             |

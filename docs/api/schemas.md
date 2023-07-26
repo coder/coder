@@ -762,6 +762,7 @@
   "groups": [
     {
       "avatar_url": "string",
+      "display_name": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "members": [
         {
@@ -2928,6 +2929,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "avatar_url": "string",
+  "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "members": [
     {
@@ -2959,6 +2961,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name              | Type                                    | Required | Restrictions | Description |
 | ----------------- | --------------------------------------- | -------- | ------------ | ----------- |
 | `avatar_url`      | string                                  | false    |              |             |
+| `display_name`    | string                                  | false    |              |             |
 | `id`              | string                                  | false    |              |             |
 | `members`         | array of [codersdk.User](#codersdkuser) | false    |              |             |
 | `name`            | string                                  | false    |              |             |
