@@ -240,9 +240,5 @@ jobs:
             :rocket: Access the deployment link [here](${{ env.PR_DEPLOYMENT_ACCESS_URL }}).
             :warning: This deployment will be deleted when the PR is closed.
           reactions: rocket
-       env:
-         PR_DEPLOYMENT_ACCESS_URL: "https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
-
-
         env:
           PR_DEPLOYMENT_ACCESS_URL: "https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
