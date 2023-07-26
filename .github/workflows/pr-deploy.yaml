@@ -194,7 +194,7 @@ jobs:
                 value: "*--pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
               - name: "CODER_EXPERIMENTS"
                 value: "*"
-              - name: "CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS
+              - name: "CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS"
                 value: true
               - name: "CODER_OAUTH2_GITHUB_CLIENT_ID"
                 value: "${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_ID }}"
