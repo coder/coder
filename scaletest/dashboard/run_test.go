@@ -53,7 +53,7 @@ func Test_Run(t *testing.T) {
 		RollTable: testActions,
 	}
 	r := dashboard.NewRunner(client, m, cfg)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	t.Cleanup(cancel)
 	done := make(chan error)
 	go func() {
