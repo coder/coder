@@ -7838,7 +7838,8 @@ const docTemplate = `{
                 "tailnet_ha_coordinator",
                 "convert-to-oidc",
                 "single_tailnet",
-                "template_restart_requirement"
+                "template_restart_requirement",
+                "template_insights_page"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
@@ -7846,7 +7847,8 @@ const docTemplate = `{
                 "ExperimentTailnetHACoordinator",
                 "ExperimentConvertToOIDC",
                 "ExperimentSingleTailnet",
-                "ExperimentTemplateRestartRequirement"
+                "ExperimentTemplateRestartRequirement",
+                "ExperimentTemplateInsightsPage"
             ]
         },
         "codersdk.Feature": {

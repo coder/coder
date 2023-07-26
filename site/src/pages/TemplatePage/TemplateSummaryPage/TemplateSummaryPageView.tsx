@@ -8,19 +8,17 @@ import { Stack } from "components/Stack/Stack"
 import { TemplateResourcesTable } from "components/TemplateResourcesTable/TemplateResourcesTable"
 import { TemplateStats } from "components/TemplateStats/TemplateStats"
 import { FC, useEffect } from "react"
-import { DAUChart } from "../../../components/DAUChart/DAUChart"
-import { TemplateSummaryData } from "./data"
 import { useLocation, useNavigate } from "react-router-dom"
 import { TemplateVersionWarnings } from "components/TemplateVersionWarnings/TemplateVersionWarnings"
 
 export interface TemplateSummaryPageViewProps {
-  data?: TemplateSummaryData
+  resources?: WorkspaceResource[]
   template: Template
   activeVersion: TemplateVersion
 }
 
 export const TemplateSummaryPageView: FC<TemplateSummaryPageViewProps> = ({
-  data,
+  resources,
   template,
   activeVersion,
 }) => {
@@ -35,11 +33,9 @@ export const TemplateSummaryPageView: FC<TemplateSummaryPageViewProps> = ({
     }
   }, [template, navigate, location])
 
-  if (!data) {
+  if (!resources) {
     return <Loader />
   }
-
-  const { daus, resources } = data
 
   const getStartedResources = (resources: WorkspaceResource[]) => {
     return resources.filter(
@@ -51,7 +47,6 @@ export const TemplateSummaryPageView: FC<TemplateSummaryPageViewProps> = ({
     <Stack spacing={4}>
       <TemplateVersionWarnings warnings={activeVersion.warnings} />
       <TemplateStats template={template} activeVersion={activeVersion} />
-      {daus && <DAUChart daus={daus} />}
       <TemplateResourcesTable resources={getStartedResources(resources)} />
     </Stack>
   )
