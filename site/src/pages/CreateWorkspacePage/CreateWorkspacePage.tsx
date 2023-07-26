@@ -19,6 +19,12 @@ import {
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView"
 import { Loader } from "components/Loader/Loader"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
+import {
+  uniqueNamesGenerator,
+  animals,
+  colors,
+  NumberDictionary,
+} from "unique-names-generator"
 
 const CreateWorkspacePage: FC = () => {
   const organizationId = useOrganizationId()
@@ -27,13 +33,15 @@ const CreateWorkspacePage: FC = () => {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const defaultBuildParameters = getDefaultBuildParameters(searchParams)
-  const defaultName = searchParams.get("name") ?? ""
+  const mode = (searchParams.get("mode") ?? "form") as CreateWorkspaceMode
   const [createWorkspaceState, send] = useMachine(createWorkspaceMachine, {
     context: {
       organizationId,
       templateName,
-      mode: (searchParams.get("mode") ?? "form") as CreateWorkspaceMode,
+      mode,
       defaultBuildParameters,
+      defaultName:
+        mode === "auto" ? generateUniqueName() : searchParams.get("name") ?? "",
     },
     actions: {
       onCreateWorkspace: (_, event) => {
@@ -41,7 +49,7 @@ const CreateWorkspacePage: FC = () => {
       },
     },
   })
-  const { template, error, parameters, permissions, gitAuth } =
+  const { template, error, parameters, permissions, gitAuth, defaultName } =
     createWorkspaceState.context
   const title = createWorkspaceState.matches("autoCreating")
     ? "Creating workspace..."
@@ -86,6 +94,8 @@ const CreateWorkspacePage: FC = () => {
   )
 }
 
+export default CreateWorkspacePage
+
 const getDefaultBuildParameters = (
   urlSearchParams: URLSearchParams,
 ): WorkspaceBuildParameter[] => {
@@ -114,4 +124,12 @@ export const orderedTemplateParameters = (
   return [...immutables, ...mutables]
 }
 
-export default CreateWorkspacePage
+const generateUniqueName = () => {
+  const numberDictionary = NumberDictionary.generate({ min: 0, max: 99 })
+  return uniqueNamesGenerator({
+    dictionaries: [animals, colors, numberDictionary],
+    separator: "-",
+    length: 3,
+    style: "lowerCase",
+  })
+}

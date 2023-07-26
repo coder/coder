@@ -15,12 +15,6 @@ import {
   WorkspaceBuildParameter,
 } from "api/typesGenerated"
 import { assign, createMachine } from "xstate"
-import {
-  uniqueNamesGenerator,
-  animals,
-  colors,
-  NumberDictionary,
-} from "unique-names-generator"
 import { paramsUsedToCreateWorkspace } from "utils/workspace"
 import { REFRESH_GITAUTH_BROADCAST_CHANNEL } from "utils/gitAuth"
 
@@ -30,6 +24,7 @@ type CreateWorkspaceContext = {
   organizationId: string
   templateName: string
   mode: CreateWorkspaceMode
+  defaultName: string
   error?: Error | unknown
   // Form
   template?: Template
@@ -96,7 +91,7 @@ export const createWorkspaceMachine =
             },
             onError: {
               actions: ["assignError"],
-              target: "idle",
+              target: "loadingFormData",
             },
           },
         },
@@ -161,11 +156,12 @@ export const createWorkspaceMachine =
           templateName,
           organizationId,
           defaultBuildParameters,
+          defaultName,
         }) => {
           const template = await getTemplateByName(organizationId, templateName)
           return createWorkspace(organizationId, "me", {
             template_id: template.id,
-            name: generateUniqueName(),
+            name: defaultName,
             rich_parameter_values: defaultBuildParameters,
           })
         },
@@ -205,16 +201,6 @@ export const createWorkspaceMachine =
       },
     },
   )
-
-const generateUniqueName = () => {
-  const numberDictionary = NumberDictionary.generate({ min: 0, max: 99 })
-  return uniqueNamesGenerator({
-    dictionaries: [animals, colors, numberDictionary],
-    separator: "-",
-    length: 3,
-    style: "lowerCase",
-  })
-}
 
 const checkCreateWSPermissions = async (organizationId: string) => {
   // HACK: below, we pass in * for the owner_id, which is a hacky way of checking if the

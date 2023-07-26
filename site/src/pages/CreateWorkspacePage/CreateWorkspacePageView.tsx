@@ -26,6 +26,7 @@ import {
 } from "components/TemplateParameters/TemplateParameters"
 import { CreateWSPermissions } from "xServices/createWorkspace/createWorkspaceXService"
 import { GitAuth } from "components/GitAuth/GitAuth"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 export interface CreateWorkspacePageViewProps {
   error: unknown
@@ -101,6 +102,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   return (
     <FullPageHorizontalForm title="New workspace" onCancel={onCancel}>
       <HorizontalForm onSubmit={form.handleSubmit}>
+        {Boolean(error) && <ErrorAlert error={error} />}
         {/* General info */}
         <FormSection
           title="General"
