@@ -190,10 +190,18 @@ func fetchWorkspaceLogs(ctx context.Context, p *params) error {
 	defer func() {
 		_ = closer.Close()
 	}()
-	for range ch {
-		// do nothing
+	// Drain the channel.
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case l, ok := <-ch:
+			if !ok {
+				return nil
+			}
+			_ = l
+		}
 	}
-	return err
 }
 
 // fetchAuditLog fetches the audit log.
