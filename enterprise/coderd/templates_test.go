@@ -886,7 +886,7 @@ func TestUpdateTemplateACL(t *testing.T) {
 		require.NoError(t, err)
 
 		// Should be able to see user 3
-		available, err := client2.TemplateACL(ctx, template.ID)
+		available, err := client2.TemplateACLAvailable(ctx, template.ID)
 		require.NoError(t, err)
 		userFound := false
 		for _, avail := range available.Users {
