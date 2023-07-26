@@ -1451,6 +1451,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceproxies \
       {
         "created_at": "2019-08-24T14:15:22Z",
         "deleted": true,
+        "derp_enabled": true,
         "display_name": "string",
         "healthy": true,
         "icon_url": "string",
@@ -1489,6 +1490,7 @@ Status Code **200**
 | `» regions`            | array                                                                    | false    |              |                                                                                                                                                                                     |
 | `»» created_at`        | string(date-time)                                                        | false    |              |                                                                                                                                                                                     |
 | `»» deleted`           | boolean                                                                  | false    |              |                                                                                                                                                                                     |
+| `»» derp_enabled`      | boolean                                                                  | false    |              |                                                                                                                                                                                     |
 | `»» display_name`      | string                                                                   | false    |              |                                                                                                                                                                                     |
 | `»» healthy`           | boolean                                                                  | false    |              |                                                                                                                                                                                     |
 | `»» icon_url`          | string                                                                   | false    |              |                                                                                                                                                                                     |
@@ -1553,6 +1555,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceproxies \
 {
   "created_at": "2019-08-24T14:15:22Z",
   "deleted": true,
+  "derp_enabled": true,
   "display_name": "string",
   "healthy": true,
   "icon_url": "string",
@@ -1607,6 +1610,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy} \
 {
   "created_at": "2019-08-24T14:15:22Z",
   "deleted": true,
+  "derp_enabled": true,
   "display_name": "string",
   "healthy": true,
   "icon_url": "string",
@@ -1719,6 +1723,7 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy} 
 {
   "created_at": "2019-08-24T14:15:22Z",
   "deleted": true,
+  "derp_enabled": true,
   "display_name": "string",
   "healthy": true,
   "icon_url": "string",

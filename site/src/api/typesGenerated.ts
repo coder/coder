@@ -1452,6 +1452,7 @@ export interface WorkspaceOptions {
 
 // From codersdk/workspaceproxy.go
 export interface WorkspaceProxy extends Region {
+  readonly derp_enabled: boolean
   readonly status?: WorkspaceProxyStatus
   readonly created_at: string
   readonly updated_at: string

@@ -17,7 +17,9 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
+	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/codersdk"
@@ -167,69 +169,6 @@ func TestRegions(t *testing.T) {
 		require.Error(t, err)
 		require.Empty(t, regions)
 	})
-
-	t.Run("GoingAway", func(t *testing.T) {
-		t.Skip("This is flakey in CI because it relies on internal go routine timing. Should refactor.")
-		t.Parallel()
-
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentMoons),
-			"*",
-		}
-
-		db, pubsub := dbtestutil.NewDB(t)
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		client, closer, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				AppHostname:      appHostname,
-				Database:         db,
-				Pubsub:           pubsub,
-				DeploymentValues: dv,
-			},
-			// The interval is set to 1 hour so the proxy health
-			// check will never happen manually. All checks will be
-			// forced updates.
-			ProxyHealthInterval: time.Hour,
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureWorkspaceProxy: 1,
-				},
-			},
-		})
-		t.Cleanup(func() {
-			_ = closer.Close()
-		})
-
-		const proxyName = "testproxy"
-		proxy := coderdenttest.NewWorkspaceProxy(t, api, client, &coderdenttest.ProxyOptions{
-			Name: proxyName,
-		})
-		_ = proxy
-
-		require.Eventuallyf(t, func() bool {
-			proxy, err := client.WorkspaceProxyByName(ctx, proxyName)
-			if err != nil {
-				// We are testing the going away, not the initial healthy.
-				// Just force an update to change this to healthy.
-				_ = api.ProxyHealth.ForceUpdate(ctx)
-				return false
-			}
-			return proxy.Status.Status == codersdk.ProxyHealthy
-		}, testutil.WaitShort, testutil.IntervalFast, "proxy never became healthy")
-
-		_ = proxy.Close()
-		// The proxy should tell the primary on close that is is no longer healthy.
-		require.Eventuallyf(t, func() bool {
-			proxy, err := client.WorkspaceProxyByName(ctx, proxyName)
-			if err != nil {
-				return false
-			}
-			return proxy.Status.Status == codersdk.ProxyUnhealthy
-		}, testutil.WaitShort, testutil.IntervalFast, "proxy never became unhealthy after close")
-	})
 }
 
 func TestWorkspaceProxyCRUD(t *testing.T) {
@@ -318,6 +257,386 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 		require.NoError(t, err)
 		// Default proxy is always there
 		require.Len(t, proxies.Regions, 1)
+	})
+}
+
+func TestProxyRegisterDeregister(t *testing.T) {
+	t.Parallel()
+
+	setup := func(t *testing.T) (*codersdk.Client, database.Store) {
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{
+			string(codersdk.ExperimentMoons),
+			"*",
+		}
+
+		db, pubsub := dbtestutil.NewDB(t)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues:         dv,
+				Database:                 db,
+				Pubsub:                   pubsub,
+				IncludeProvisionerDaemon: true,
+			},
+			ReplicaSyncUpdateInterval: time.Minute,
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspaceProxy: 1,
+				},
+			},
+		})
+
+		return client, db
+	}
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		client, db := setup(t)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		const (
+			proxyName        = "hello"
+			proxyDisplayName = "Hello World"
+			proxyIcon        = "/emojis/flag.png"
+		)
+		createRes, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
+			Name:        proxyName,
+			DisplayName: proxyDisplayName,
+			Icon:        proxyIcon,
+		})
+		require.NoError(t, err)
+
+		proxyClient := wsproxysdk.New(client.URL)
+		proxyClient.SetSessionToken(createRes.ProxyToken)
+
+		// Register
+		req := wsproxysdk.RegisterWorkspaceProxyRequest{
+			AccessURL:           "https://proxy.coder.test",
+			WildcardHostname:    "*.proxy.coder.test",
+			DerpEnabled:         true,
+			ReplicaID:           uuid.New(),
+			ReplicaHostname:     "mars",
+			ReplicaError:        "",
+			ReplicaRelayAddress: "http://127.0.0.1:8080",
+			Version:             buildinfo.Version(),
+		}
+		registerRes1, err := proxyClient.RegisterWorkspaceProxy(ctx, req)
+		require.NoError(t, err)
+		require.NotEmpty(t, registerRes1.AppSecurityKey)
+		require.NotEmpty(t, registerRes1.DERPMeshKey)
+		require.EqualValues(t, 10001, registerRes1.DERPRegionID)
+		require.Empty(t, registerRes1.SiblingReplicas)
+
+		proxy, err := client.WorkspaceProxyByID(ctx, createRes.Proxy.ID)
+		require.NoError(t, err)
+		require.Equal(t, createRes.Proxy.ID, proxy.ID)
+		require.Equal(t, proxyName, proxy.Name)
+		require.Equal(t, proxyDisplayName, proxy.DisplayName)
+		require.Equal(t, proxyIcon, proxy.IconURL)
+		require.Equal(t, req.AccessURL, proxy.PathAppURL)
+		require.Equal(t, req.AccessURL, proxy.PathAppURL)
+		require.Equal(t, req.WildcardHostname, proxy.WildcardHostname)
+		require.Equal(t, req.DerpEnabled, proxy.DerpEnabled)
+		require.False(t, proxy.Deleted)
+
+		// Get the replica from the DB.
+		replica, err := db.GetReplicaByID(ctx, req.ReplicaID)
+		require.NoError(t, err)
+		require.Equal(t, req.ReplicaID, replica.ID)
+		require.Equal(t, req.ReplicaHostname, replica.Hostname)
+		require.Equal(t, req.ReplicaError, replica.Error)
+		require.Equal(t, req.ReplicaRelayAddress, replica.RelayAddress)
+		require.Equal(t, req.Version, replica.Version)
+		require.EqualValues(t, 10001, replica.RegionID)
+		require.False(t, replica.StoppedAt.Valid)
+		require.Zero(t, replica.DatabaseLatency)
+		require.False(t, replica.Primary)
+
+		// Re-register with most fields changed.
+		req = wsproxysdk.RegisterWorkspaceProxyRequest{
+			AccessURL:           "https://cool.proxy.coder.test",
+			WildcardHostname:    "*.cool.proxy.coder.test",
+			DerpEnabled:         false,
+			ReplicaID:           req.ReplicaID,
+			ReplicaHostname:     "venus",
+			ReplicaError:        "error",
+			ReplicaRelayAddress: "http://127.0.0.1:9090",
+			Version:             buildinfo.Version(),
+		}
+		registerRes2, err := proxyClient.RegisterWorkspaceProxy(ctx, req)
+		require.NoError(t, err)
+		require.Equal(t, registerRes1, registerRes2)
+
+		// Get the proxy to ensure nothing has changed except updated_at.
+		proxyNew, err := client.WorkspaceProxyByID(ctx, createRes.Proxy.ID)
+		require.NoError(t, err)
+		require.Equal(t, createRes.Proxy.ID, proxyNew.ID)
+		require.Equal(t, proxyName, proxyNew.Name)
+		require.Equal(t, proxyDisplayName, proxyNew.DisplayName)
+		require.Equal(t, proxyIcon, proxyNew.IconURL)
+		require.Equal(t, req.AccessURL, proxyNew.PathAppURL)
+		require.Equal(t, req.AccessURL, proxyNew.PathAppURL)
+		require.Equal(t, req.WildcardHostname, proxyNew.WildcardHostname)
+		require.Equal(t, req.DerpEnabled, proxyNew.DerpEnabled)
+		require.False(t, proxyNew.Deleted)
+
+		// Get the replica from the DB and ensure the fields have been updated,
+		// especially the updated_at.
+		replica, err = db.GetReplicaByID(ctx, req.ReplicaID)
+		require.NoError(t, err)
+		require.Equal(t, req.ReplicaID, replica.ID)
+		require.Equal(t, req.ReplicaHostname, replica.Hostname)
+		require.Equal(t, req.ReplicaError, replica.Error)
+		require.Equal(t, req.ReplicaRelayAddress, replica.RelayAddress)
+		require.Equal(t, req.Version, replica.Version)
+		require.EqualValues(t, 10001, replica.RegionID)
+		require.False(t, replica.StoppedAt.Valid)
+		require.Zero(t, replica.DatabaseLatency)
+		require.False(t, replica.Primary)
+
+		// Deregister
+		err = proxyClient.DeregisterWorkspaceProxy(ctx, wsproxysdk.DeregisterWorkspaceProxyRequest{
+			ReplicaID: req.ReplicaID,
+		})
+		require.NoError(t, err)
+
+		// Ensure the replica has been fully stopped.
+		replica, err = db.GetReplicaByID(ctx, req.ReplicaID)
+		require.NoError(t, err)
+		require.Equal(t, req.ReplicaID, replica.ID)
+		require.True(t, replica.StoppedAt.Valid)
+
+		// Re-register should fail
+		_, err = proxyClient.RegisterWorkspaceProxy(ctx, wsproxysdk.RegisterWorkspaceProxyRequest{})
+		require.Error(t, err)
+	})
+
+	t.Run("BlockMismatchingVersion", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := setup(t)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		createRes, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
+			Name: "hi",
+		})
+		require.NoError(t, err)
+
+		proxyClient := wsproxysdk.New(client.URL)
+		proxyClient.SetSessionToken(createRes.ProxyToken)
+
+		_, err = proxyClient.RegisterWorkspaceProxy(ctx, wsproxysdk.RegisterWorkspaceProxyRequest{
+			AccessURL:           "https://proxy.coder.test",
+			WildcardHostname:    "*.proxy.coder.test",
+			DerpEnabled:         true,
+			ReplicaID:           uuid.New(),
+			ReplicaHostname:     "mars",
+			ReplicaError:        "",
+			ReplicaRelayAddress: "http://127.0.0.1:8080",
+			Version:             "v0.0.0",
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Response.Message, "Version mismatch")
+	})
+
+	t.Run("ReregisterUpdateReplica", func(t *testing.T) {
+		t.Parallel()
+
+		client, db := setup(t)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		createRes, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
+			Name: "hi",
+		})
+		require.NoError(t, err)
+
+		proxyClient := wsproxysdk.New(client.URL)
+		proxyClient.SetSessionToken(createRes.ProxyToken)
+
+		req := wsproxysdk.RegisterWorkspaceProxyRequest{
+			AccessURL:           "https://proxy.coder.test",
+			WildcardHostname:    "*.proxy.coder.test",
+			DerpEnabled:         true,
+			ReplicaID:           uuid.New(),
+			ReplicaHostname:     "mars",
+			ReplicaError:        "",
+			ReplicaRelayAddress: "http://127.0.0.1:8080",
+			Version:             buildinfo.Version(),
+		}
+		_, err = proxyClient.RegisterWorkspaceProxy(ctx, req)
+		require.NoError(t, err)
+
+		// Get the replica from the DB.
+		replica, err := db.GetReplicaByID(ctx, req.ReplicaID)
+		require.NoError(t, err)
+		require.Equal(t, req.ReplicaID, replica.ID)
+
+		time.Sleep(time.Millisecond)
+
+		// Re-register with no changed fields.
+		_, err = proxyClient.RegisterWorkspaceProxy(ctx, req)
+		require.NoError(t, err)
+
+		// Get the replica from the DB and make sure updated_at has changed.
+		replica, err = db.GetReplicaByID(ctx, req.ReplicaID)
+		require.NoError(t, err)
+		require.Equal(t, req.ReplicaID, replica.ID)
+		require.Greater(t, replica.UpdatedAt.UnixNano(), replica.CreatedAt.UnixNano())
+	})
+
+	t.Run("DeregisterNonExistentReplica", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := setup(t)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		createRes, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
+			Name: "hi",
+		})
+		require.NoError(t, err)
+
+		proxyClient := wsproxysdk.New(client.URL)
+		proxyClient.SetSessionToken(createRes.ProxyToken)
+
+		err = proxyClient.DeregisterWorkspaceProxy(ctx, wsproxysdk.DeregisterWorkspaceProxyRequest{
+			ReplicaID: uuid.New(),
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
+
+	t.Run("ReturnSiblings", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := setup(t)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		createRes1, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
+			Name: "one",
+		})
+		require.NoError(t, err)
+		createRes2, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
+			Name: "two",
+		})
+		require.NoError(t, err)
+
+		// Register a replica on proxy 2. This shouldn't be returned by replicas
+		// for proxy 1.
+		proxyClient2 := wsproxysdk.New(client.URL)
+		proxyClient2.SetSessionToken(createRes2.ProxyToken)
+		_, err = proxyClient2.RegisterWorkspaceProxy(ctx, wsproxysdk.RegisterWorkspaceProxyRequest{
+			AccessURL:           "https://other.proxy.coder.test",
+			WildcardHostname:    "*.other.proxy.coder.test",
+			DerpEnabled:         true,
+			ReplicaID:           uuid.New(),
+			ReplicaHostname:     "venus",
+			ReplicaError:        "",
+			ReplicaRelayAddress: "http://127.0.0.1:9090",
+			Version:             buildinfo.Version(),
+		})
+		require.NoError(t, err)
+
+		// Register replica 1.
+		proxyClient1 := wsproxysdk.New(client.URL)
+		proxyClient1.SetSessionToken(createRes1.ProxyToken)
+		req1 := wsproxysdk.RegisterWorkspaceProxyRequest{
+			AccessURL:           "https://one.proxy.coder.test",
+			WildcardHostname:    "*.one.proxy.coder.test",
+			DerpEnabled:         true,
+			ReplicaID:           uuid.New(),
+			ReplicaHostname:     "mars1",
+			ReplicaError:        "",
+			ReplicaRelayAddress: "http://127.0.0.1:8081",
+			Version:             buildinfo.Version(),
+		}
+		registerRes1, err := proxyClient1.RegisterWorkspaceProxy(ctx, req1)
+		require.NoError(t, err)
+		require.Empty(t, registerRes1.SiblingReplicas)
+
+		// Register replica 2 and expect to get replica 1 as a sibling.
+		req2 := wsproxysdk.RegisterWorkspaceProxyRequest{
+			AccessURL:           "https://two.proxy.coder.test",
+			WildcardHostname:    "*.two.proxy.coder.test",
+			DerpEnabled:         true,
+			ReplicaID:           uuid.New(),
+			ReplicaHostname:     "mars2",
+			ReplicaError:        "",
+			ReplicaRelayAddress: "http://127.0.0.1:8082",
+			Version:             buildinfo.Version(),
+		}
+		registerRes2, err := proxyClient1.RegisterWorkspaceProxy(ctx, req2)
+		require.NoError(t, err)
+		require.Len(t, registerRes2.SiblingReplicas, 1)
+		require.Equal(t, req1.ReplicaID, registerRes2.SiblingReplicas[0].ID)
+		require.Equal(t, req1.ReplicaHostname, registerRes2.SiblingReplicas[0].Hostname)
+		require.Equal(t, req1.ReplicaRelayAddress, registerRes2.SiblingReplicas[0].RelayAddress)
+		require.EqualValues(t, 10001, registerRes2.SiblingReplicas[0].RegionID)
+
+		// Re-register replica 1 and expect to get replica 2 as a sibling.
+		registerRes1, err = proxyClient1.RegisterWorkspaceProxy(ctx, req1)
+		require.NoError(t, err)
+		require.Len(t, registerRes1.SiblingReplicas, 1)
+		require.Equal(t, req2.ReplicaID, registerRes1.SiblingReplicas[0].ID)
+		require.Equal(t, req2.ReplicaHostname, registerRes1.SiblingReplicas[0].Hostname)
+		require.Equal(t, req2.ReplicaRelayAddress, registerRes1.SiblingReplicas[0].RelayAddress)
+		require.EqualValues(t, 10001, registerRes1.SiblingReplicas[0].RegionID)
+	})
+
+	// ReturnSiblings2 tries to create 100 proxy replicas and ensures that they
+	// all return the correct number of siblings.
+	t.Run("ReturnSiblings2", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := setup(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		createRes, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
+			Name: "proxy",
+		})
+		require.NoError(t, err)
+
+		proxyClient := wsproxysdk.New(client.URL)
+		proxyClient.SetSessionToken(createRes.ProxyToken)
+
+		for i := 0; i < 100; i++ {
+			ok := false
+			for j := 0; j < 2; j++ {
+				registerRes, err := proxyClient.RegisterWorkspaceProxy(ctx, wsproxysdk.RegisterWorkspaceProxyRequest{
+					AccessURL:           "https://proxy.coder.test",
+					WildcardHostname:    "*.proxy.coder.test",
+					DerpEnabled:         true,
+					ReplicaID:           uuid.New(),
+					ReplicaHostname:     "venus",
+					ReplicaError:        "",
+					ReplicaRelayAddress: fmt.Sprintf("http://127.0.0.1:%d", 8080+i),
+					Version:             buildinfo.Version(),
+				})
+				require.NoErrorf(t, err, "register proxy %d", i)
+
+				// If the sibling replica count is wrong, try again. The impact
+				// of this not being immediate is that proxies may not function
+				// as DERP relays until they register again in 30 seconds.
+				//
+				// In the real world, replicas will not be registering this
+				// quickly. Kubernetes rolls out gradually in practice.
+				if len(registerRes.SiblingReplicas) != i {
+					t.Logf("%d: expected %d siblings, got %d", i, i, len(registerRes.SiblingReplicas))
+					time.Sleep(100 * time.Millisecond)
+					continue
+				}
+
+				ok = true
+				break
+			}
+
+			require.True(t, ok, "expected to register replica %d", i)
+		}
 	})
 }
 

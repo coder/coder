@@ -74,6 +74,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, ps pubsub.P
 		RelayAddress:    options.RelayAddress,
 		Version:         buildinfo.Version(),
 		DatabaseLatency: int32(databaseLatency.Microseconds()),
+		Primary:         true,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert replica: %w", err)
@@ -123,6 +124,20 @@ type Manager struct {
 	mutex    sync.Mutex
 	peers    []database.Replica
 	callback func()
+}
+
+func (m *Manager) ID() uuid.UUID {
+	return m.id
+}
+
+// UpdateNow synchronously updates replicas.
+func (m *Manager) UpdateNow(ctx context.Context) error {
+	return m.syncReplicas(ctx)
+}
+
+// PublishUpdate notifies all other replicas to update.
+func (m *Manager) PublishUpdate() error {
+	return m.pubsub.Publish(PubsubEvent, []byte(m.id.String()))
 }
 
 // updateInterval is used to determine a replicas state.
@@ -299,13 +314,14 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 		Version:         m.self.Version,
 		Error:           replicaError,
 		DatabaseLatency: int32(databaseLatency.Microseconds()),
+		Primary:         m.self.Primary,
 	})
 	if err != nil {
 		return xerrors.Errorf("update replica: %w", err)
 	}
 	if m.self.Error != replica.Error {
 		// Publish an update occurred!
-		err = m.pubsub.Publish(PubsubEvent, []byte(m.self.ID.String()))
+		err = m.PublishUpdate()
 		if err != nil {
 			return xerrors.Errorf("publish replica update: %w", err)
 		}
@@ -324,12 +340,17 @@ func (m *Manager) Self() database.Replica {
 	return m.self
 }
 
-// All returns every replica, including itself.
-func (m *Manager) All() []database.Replica {
+// AllPrimary returns every primary replica (not workspace proxy replicas),
+// including itself.
+func (m *Manager) AllPrimary() []database.Replica {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	replicas := make([]database.Replica, 0, len(m.peers))
 	for _, replica := range append(m.peers, m.self) {
+		if !replica.Primary {
+			continue
+		}
+
 		// When we assign the non-pointer to a
 		// variable it loses the reference.
 		replica := replica
@@ -338,18 +359,23 @@ func (m *Manager) All() []database.Replica {
 	return replicas
 }
 
-// Regional returns all replicas in the same region excluding itself.
-func (m *Manager) Regional() []database.Replica {
+// InRegion returns every replica in the given DERP region excluding itself.
+func (m *Manager) InRegion(regionID int32) []database.Replica {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	replicas := make([]database.Replica, 0)
 	for _, replica := range m.peers {
-		if replica.RegionID != m.self.RegionID {
+		if replica.RegionID != regionID {
 			continue
 		}
 		replicas = append(replicas, replica)
 	}
 	return replicas
+}
+
+// Regional returns all replicas in the same region excluding itself.
+func (m *Manager) Regional() []database.Replica {
+	return m.InRegion(m.self.RegionID)
 }
 
 // SetCallback sets a function to execute whenever new peers

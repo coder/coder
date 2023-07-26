@@ -545,6 +545,13 @@ func (m metricsStore) GetQuotaConsumedForUser(ctx context.Context, ownerID uuid.
 	return consumed, err
 }
 
+func (m metricsStore) GetReplicaByID(ctx context.Context, id uuid.UUID) (database.Replica, error) {
+	start := time.Now()
+	replica, err := m.s.GetReplicaByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetReplicaByID").Observe(time.Since(start).Seconds())
+	return replica, err
+}
+
 func (m metricsStore) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]database.Replica, error) {
 	start := time.Now()
 	replicas, err := m.s.GetReplicasUpdatedAfter(ctx, updatedAt)

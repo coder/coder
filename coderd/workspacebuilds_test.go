@@ -645,7 +645,8 @@ func TestWorkspaceBuildDebugMode(t *testing.T) {
 
 		// Create user
 		deploymentValues := coderdtest.DeploymentValues(t)
-		deploymentValues.EnableTerraformDebugMode = false
+		err := deploymentValues.EnableTerraformDebugMode.Set("false")
+		require.NoError(t, err)
 
 		adminClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, DeploymentValues: deploymentValues})
 		owner := coderdtest.CreateFirstUser(t, adminClient)
@@ -663,7 +664,7 @@ func TestWorkspaceBuildDebugMode(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := adminClient.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		_, err = adminClient.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
 			Transition:        codersdk.WorkspaceTransitionStart,
 			LogLevel:          "debug",
