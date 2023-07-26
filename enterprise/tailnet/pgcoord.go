@@ -161,7 +161,7 @@ func (c *pgCoord) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) erro
 				slog.Error(err))
 		}
 	}()
-	cIO := newConnIO(c.ctx, c.logger, c.bindings, conn, id, agent, "")
+	cIO := newConnIO(c.ctx, c.logger, c.bindings, conn, id, agent, id.String())
 	if err := sendCtx(c.ctx, c.newConnections, cIO); err != nil {
 		// can only be a context error, no need to log here.
 		return err

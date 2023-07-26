@@ -158,7 +158,7 @@ func (c *haCoordinator) ServeClient(conn net.Conn, id, agentID uuid.UUID) error 
 	defer cancel()
 	logger := c.clientLogger(id, agentID)
 
-	tc := agpl.NewTrackedConn(ctx, cancel, conn, id, logger, "", 0)
+	tc := agpl.NewTrackedConn(ctx, cancel, conn, id, logger, id.String(), 0)
 	defer tc.Close()
 
 	c.addClient(id, tc)
