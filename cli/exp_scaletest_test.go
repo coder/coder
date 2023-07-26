@@ -94,6 +94,8 @@ func TestScaleTestDashboard(t *testing.T) {
 		"--min-wait", "100ms",
 		"--max-wait", "1s",
 		"--timeout", "1s",
+		"--scaletest-prometheus-address", "127.0.0.1:0",
+		"--scaletest-prometheus-wait", "0s",
 	)
 	clitest.SetupConfig(t, client, root)
 	var stdout, stderr bytes.Buffer

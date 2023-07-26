@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"math/rand"
 	"time"
@@ -14,8 +15,9 @@ import (
 )
 
 type Runner struct {
-	client *codersdk.Client
-	cfg    Config
+	client  *codersdk.Client
+	cfg     Config
+	metrics *Metrics `json:"-"`
 }
 
 var (
@@ -23,11 +25,12 @@ var (
 	_ harness.Cleanable = &Runner{}
 )
 
-func NewRunner(client *codersdk.Client, cfg Config) *Runner {
+func NewRunner(client *codersdk.Client, metrics *Metrics, cfg Config) *Runner {
 	client.Trace = cfg.Trace
 	return &Runner{
-		client: client,
-		cfg:    cfg,
+		client:  client,
+		cfg:     cfg,
+		metrics: metrics,
 	}
 }
 
@@ -102,6 +105,13 @@ func (r *Runner) do(ctx context.Context, act rollTableEntry, p *params) {
 				slog.F("elapsed", elapsed),
 			)
 		}
+		codeLabel := "200"
+		if apiErr, ok := codersdk.AsError(err); ok {
+			codeLabel = fmt.Sprintf("%d", apiErr.StatusCode())
+			r.metrics.Errors.WithLabelValues(act.label).Add(1)
+		}
+		r.metrics.DurationSeconds.WithLabelValues(act.label).Observe(elapsed.Seconds())
+		r.metrics.Statuses.WithLabelValues(act.label, codeLabel).Add(1)
 	}
 }
 
