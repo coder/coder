@@ -46,13 +46,14 @@ func Test_Run(t *testing.T) {
 		IgnoreErrors: true,
 	})
 	m := &testMetrics{}
-	r := dashboard.NewRunner(client, m, dashboard.Config{
+	cfg := dashboard.Config{
 		MinWait:   time.Millisecond,
-		MaxWait:   100 * time.Millisecond,
+		MaxWait:   10 * time.Millisecond,
 		Logger:    log,
 		RollTable: testActions,
-	})
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	}
+	r := dashboard.NewRunner(client, m, cfg)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	t.Cleanup(cancel)
 	done := make(chan error)
 	go func() {
@@ -72,7 +73,7 @@ func Test_Run(t *testing.T) {
 	}
 
 	if assert.NotEmpty(t, m.ObservedDurations["hangs"]) {
-		assert.NotZero(t, m.ObservedDurations["hangs"][0])
+		assert.GreaterOrEqual(t, m.ObservedDurations["hangs"][0], cfg.MaxWait.Seconds())
 	}
 	assert.Zero(t, m.Errors["succeeds"])
 	assert.NotZero(t, m.Errors["fails"])
