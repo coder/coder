@@ -179,7 +179,7 @@ jobs:
 
       - name: Create values.yaml
         run: |
-          cat <<EOF > values.yaml
+          cat <<EOF > pr-deploy-values.yaml
           coder:
             image:
               repo: ${{ env.REPO }}
@@ -206,9 +206,9 @@ jobs:
 
       - name: Install Helm chart
         run: |
-          helm upgrade --install pr${{ env.PR_NUMBER }} ./helm \
+          helm upgrade --install "pr${{ env.PR_NUMBER }}" ./helm \
           --namespace "pr${{ env.PR_NUMBER }}" \
-          -f values.yaml \
+          --values ./pr-deploy-values.yaml \
           --force
 
       - name: Install coder-logstream-kube
