@@ -182,7 +182,7 @@ jobs:
           --set coder.service.type=ClusterIP \
           --set coder.serviceAccount.enableDeployments=true \
           --set coder.env[0].name=CODER_ACCESS_URL \
-          --set coder.env[0].value="pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}" \
+          --set coder.env[0].value="https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}" \
           --set coder.env[1].name=CODER_WILDCARD_ACCESS_URL \
           --set coder.env[1].value="*--pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}" \
           --set coder.env[2].name=CODER_EXPERIMENTS \
