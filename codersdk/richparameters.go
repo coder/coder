@@ -27,13 +27,25 @@ func ValidateWorkspaceBuildParameters(richParameters []TemplateVersionParameter,
 
 		err := ValidateWorkspaceBuildParameter(richParameter, buildParameter, lastBuildParameter)
 		if err != nil {
-			return xerrors.Errorf("can't validate build parameter %q: %w", richParameter.Name, err)
+			return err
 		}
 	}
 	return nil
 }
 
 func ValidateWorkspaceBuildParameter(richParameter TemplateVersionParameter, buildParameter *WorkspaceBuildParameter, lastBuildParameter *WorkspaceBuildParameter) error {
+	err := validateBuildParameter(richParameter, buildParameter, lastBuildParameter)
+	if err != nil {
+		name := richParameter.Name
+		if richParameter.DisplayName != "" {
+			name = richParameter.DisplayName
+		}
+		return xerrors.Errorf("can't validate build parameter %q: %w", name, err)
+	}
+	return nil
+}
+
+func validateBuildParameter(richParameter TemplateVersionParameter, buildParameter *WorkspaceBuildParameter, lastBuildParameter *WorkspaceBuildParameter) error {
 	var value string
 
 	if buildParameter != nil {
@@ -51,22 +63,22 @@ func ValidateWorkspaceBuildParameter(richParameter TemplateVersionParameter, bui
 	if lastBuildParameter != nil && richParameter.Type == "number" && len(richParameter.ValidationMonotonic) > 0 {
 		prev, err := strconv.Atoi(lastBuildParameter.Value)
 		if err != nil {
-			return xerrors.Errorf("Previous parameter value is not a number: %s", lastBuildParameter.Value)
+			return xerrors.Errorf("previous parameter value is not a number: %s", lastBuildParameter.Value)
 		}
 
 		current, err := strconv.Atoi(buildParameter.Value)
 		if err != nil {
-			return xerrors.Errorf("Current parameter value is not a number: %s", buildParameter.Value)
+			return xerrors.Errorf("current parameter value is not a number: %s", buildParameter.Value)
 		}
 
 		switch richParameter.ValidationMonotonic {
 		case MonotonicOrderIncreasing:
 			if prev > current {
-				return xerrors.Errorf("Parameter value must be equal or greater than previous value: %d", prev)
+				return xerrors.Errorf("parameter value must be equal or greater than previous value: %d", prev)
 			}
 		case MonotonicOrderDecreasing:
 			if prev < current {
-				return xerrors.Errorf("Parameter value must be equal or lower than previous value: %d", prev)
+				return xerrors.Errorf("parameter value must be equal or lower than previous value: %d", prev)
 			}
 		}
 	}
@@ -81,7 +93,7 @@ func ValidateWorkspaceBuildParameter(richParameter TemplateVersionParameter, bui
 		}
 
 		if !matched {
-			return xerrors.Errorf("Parameter value must match one of options: %s", parameterValuesAsArray(richParameter.Options))
+			return xerrors.Errorf("parameter value must match one of options: %s", parameterValuesAsArray(richParameter.Options))
 		}
 		return nil
 	}
