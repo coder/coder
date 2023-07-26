@@ -2,15 +2,16 @@ import { useTemplateLayoutContext } from "components/TemplateLayout/TemplateLayo
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { getTemplatePageTitle } from "../utils"
-import { useTemplateSummaryData } from "./data"
 import { TemplateSummaryPageView } from "./TemplateSummaryPageView"
+import { useQuery } from "@tanstack/react-query"
+import { getTemplateVersionResources } from "api/api"
 
 export const TemplateSummaryPage: FC = () => {
   const { template, activeVersion } = useTemplateLayoutContext()
-  const { data } = useTemplateSummaryData(
-    template.id,
-    template.active_version_id,
-  )
+  const { data: resources } = useQuery({
+    queryKey: ["templates", template.id, "resources"],
+    queryFn: () => getTemplateVersionResources(activeVersion.id),
+  })
 
   return (
     <>
@@ -18,7 +19,7 @@ export const TemplateSummaryPage: FC = () => {
         <title>{getTemplatePageTitle("Template", template)}</title>
       </Helmet>
       <TemplateSummaryPageView
-        data={data}
+        resources={resources}
         template={template}
         activeVersion={activeVersion}
       />

@@ -2109,6 +2109,44 @@ const docTemplate = `{
                 }
             }
         },
+        "/templates/{template}/acl/available": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get template available acl users/groups",
+                "operationId": "get-template-available-acl-usersgroups",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ACLAvailable"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/templates/{template}/daus": {
             "get": {
                 "security": [
@@ -6656,6 +6694,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ACLAvailable": {
+            "type": "object",
+            "properties": {
+                "groups": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Group"
+                    }
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.User"
+                    }
+                }
+            }
+        },
         "codersdk.APIKey": {
             "type": "object",
             "required": [
@@ -7875,7 +7930,8 @@ const docTemplate = `{
                 "tailnet_ha_coordinator",
                 "convert-to-oidc",
                 "single_tailnet",
-                "template_restart_requirement"
+                "template_restart_requirement",
+                "template_insights_page"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
@@ -7883,7 +7939,8 @@ const docTemplate = `{
                 "ExperimentTailnetHACoordinator",
                 "ExperimentConvertToOIDC",
                 "ExperimentSingleTailnet",
-                "ExperimentTemplateRestartRequirement"
+                "ExperimentTemplateRestartRequirement",
+                "ExperimentTemplateInsightsPage"
             ]
         },
         "codersdk.Feature": {

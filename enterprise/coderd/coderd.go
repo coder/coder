@@ -202,6 +202,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				apiKeyMiddleware,
 				httpmw.ExtractTemplateParam(api.Database),
 			)
+			r.Get("/available", api.templateAvailablePermissions)
 			r.Get("/", api.templateACL)
 			r.Patch("/", api.patchTemplateACL)
 		})
