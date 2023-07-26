@@ -127,7 +127,7 @@ export const orderedTemplateParameters = (
 const generateUniqueName = () => {
   const numberDictionary = NumberDictionary.generate({ min: 0, max: 99 })
   return uniqueNamesGenerator({
-    dictionaries: [animals, colors, numberDictionary],
+    dictionaries: [colors, animals, numberDictionary],
     separator: "-",
     length: 3,
     style: "lowerCase",
