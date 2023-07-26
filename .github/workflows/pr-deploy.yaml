@@ -187,6 +187,7 @@ jobs:
           --set coder.env[1].value="*--pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}" \
           --set coder.env[2].name=CODER_EXPERIMENTS \
           --set coder.env[2].value="*" \
+          --force
           # Uncomment this when https://github.com/coder/coder/issues/8714 is resolved
           # --set coder.env[3].name=CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS \
           # --set coder.env[3].value=true \
@@ -197,8 +198,7 @@ jobs:
           # --set coder.env[6].name=CODER_OAUTH2_GITHUB_ALLOWED_ORGS \
           # --set coder.env[6].value=coder \
           # --set coder.env[7].name=CODER_OAUTH2_GITHUB_REDIRECT_URI \
-          # --set coder.env[7].value="https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}/gitauth/github/callback \
-          --force
+          # --set coder.env[7].value="https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}/gitauth/github/callback
 
       - name: Install coder-logstream-kube
         run: |
