@@ -32,7 +32,7 @@ func Test_Run(t *testing.T) {
 		return xerrors.Errorf("failed")
 	}
 	hangingAction := func(ctx context.Context, _ *dashboard.Params) error {
-		<-ctx.Done():
+		<-ctx.Done()
 		return ctx.Err()
 	}
 
