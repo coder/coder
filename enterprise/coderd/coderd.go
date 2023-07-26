@@ -659,7 +659,7 @@ func derpMapper(logger slog.Logger, proxyHealth *proxyhealth.ProxyHealth) func(*
 			if shouldLog {
 				logger.Warn(
 					context.Background(),
-					"existing DERP region IDs are too large, proxy region IDs will not be populated in the derp map. Please ensure that all DERP region IDs are less than 2^32.",
+					"existing DERP region IDs are too large, proxy region IDs will not be populated in the derp map. Please ensure that all DERP region IDs are less than 2^32",
 					slog.F("largest_region_id", largestRegionID),
 					slog.F("max_region_id", 1<<32-1),
 				)
@@ -715,7 +715,7 @@ func derpMapper(logger slog.Logger, proxyHealth *proxyhealth.ProxyHealth) func(*
 					lastDerpConflictMutex.Unlock()
 					if shouldLog {
 						logger.Warn(context.Background(),
-							"proxy region ID or code conflict, ignoring workspace proxy for DERP map. Please change the flags on the affected proxy to use a different region ID and code.",
+							"proxy region ID or code conflict, ignoring workspace proxy for DERP map. Please change the flags on the affected proxy to use a different region ID and code",
 							slog.F("proxy_id", status.Proxy.ID),
 							slog.F("proxy_name", status.Proxy.Name),
 							slog.F("proxy_display_name", status.Proxy.DisplayName),

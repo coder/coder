@@ -303,7 +303,7 @@ func (c *Client) RegisterWorkspaceProxyLoop(ctx context.Context, opts RegisterWo
 		if deregisterErr != nil {
 			opts.Logger.Error(ctx,
 				"failed to deregister workspace proxy with Coder primary (it will be automatically deregistered shortly)",
-				slog.F("err", deregisterErr),
+				slog.Error(deregisterErr),
 			)
 		}
 
@@ -350,7 +350,7 @@ func (c *Client) RegisterWorkspaceProxyLoop(ctx context.Context, opts RegisterWo
 					slog.F("req", opts.Request),
 					slog.F("timeout", opts.AttemptTimeout),
 					slog.F("failed_attempts", failedAttempts),
-					slog.F("err", err),
+					slog.Error(err),
 				)
 
 				if failedAttempts > opts.MaxFailureCount {

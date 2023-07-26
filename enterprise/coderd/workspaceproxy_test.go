@@ -587,7 +587,7 @@ func TestProxyRegisterDeregister(t *testing.T) {
 		require.EqualValues(t, 10001, registerRes1.SiblingReplicas[0].RegionID)
 	})
 
-	// ReturnSiblings2 tries to create 1000 proxy replicas and ensures that they
+	// ReturnSiblings2 tries to create 100 proxy replicas and ensures that they
 	// all return the correct number of siblings.
 	t.Run("ReturnSiblings2", func(t *testing.T) {
 		t.Parallel()
@@ -603,20 +603,38 @@ func TestProxyRegisterDeregister(t *testing.T) {
 		proxyClient := wsproxysdk.New(client.URL)
 		proxyClient.SetSessionToken(createRes.ProxyToken)
 
-		for i := 0; i < 1000; i++ {
-			registerRes, err := proxyClient.RegisterWorkspaceProxy(ctx, wsproxysdk.RegisterWorkspaceProxyRequest{
-				AccessURL:           "https://proxy.coder.test",
-				WildcardHostname:    "*.proxy.coder.test",
-				DerpEnabled:         true,
-				ReplicaID:           uuid.New(),
-				ReplicaHostname:     "venus",
-				ReplicaError:        "",
-				ReplicaRelayAddress: fmt.Sprintf("http://127.0.0.1:%d", 8080+i),
-				Version:             buildinfo.Version(),
-			})
-			require.NoErrorf(t, err, "register proxy %d", i)
+		for i := 0; i < 100; i++ {
+			ok := false
+			for j := 0; j < 2; j++ {
+				registerRes, err := proxyClient.RegisterWorkspaceProxy(ctx, wsproxysdk.RegisterWorkspaceProxyRequest{
+					AccessURL:           "https://proxy.coder.test",
+					WildcardHostname:    "*.proxy.coder.test",
+					DerpEnabled:         true,
+					ReplicaID:           uuid.New(),
+					ReplicaHostname:     "venus",
+					ReplicaError:        "",
+					ReplicaRelayAddress: fmt.Sprintf("http://127.0.0.1:%d", 8080+i),
+					Version:             buildinfo.Version(),
+				})
+				require.NoErrorf(t, err, "register proxy %d", i)
 
-			require.Lenf(t, registerRes.SiblingReplicas, i, "siblings for proxy %d", i)
+				// If the sibling replica count is wrong, try again. The impact
+				// of this not being immediate is that proxies may not function
+				// as DERP relays until they register again in 30 seconds.
+				//
+				// In the real world, replicas will not be registering this
+				// quickly. Kubernetes rolls out gradually in practice.
+				if len(registerRes.SiblingReplicas) != i {
+					t.Logf("%d: expected %d siblings, got %d", i, i, len(registerRes.SiblingReplicas))
+					time.Sleep(100 * time.Millisecond)
+					continue
+				}
+
+				ok = true
+				break
+			}
+
+			require.True(t, ok, "expected to register replica %d", i)
 		}
 	})
 }

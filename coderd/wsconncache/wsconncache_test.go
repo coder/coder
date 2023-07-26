@@ -229,7 +229,7 @@ func (c *closer) Close() error {
 	return c.closeFunc()
 }
 
-func (c *client) DERPMapUpdates(_ context.Context) (<-chan agentsdk.DERPMapUpdate, io.Closer, error) {
+func (*client) DERPMapUpdates(_ context.Context) (<-chan agentsdk.DERPMapUpdate, io.Closer, error) {
 	closed := make(chan struct{})
 	return make(<-chan agentsdk.DERPMapUpdate), &closer{
 		closeFunc: func() error {

@@ -704,7 +704,7 @@ func (a *agent) run(ctx context.Context) error {
 	eg, egCtx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
 		a.logger.Debug(egCtx, "running tailnet connection coordinator")
-		err = a.runCoordinator(egCtx, network)
+		err := a.runCoordinator(egCtx, network)
 		if err != nil {
 			return xerrors.Errorf("run coordinator: %w", err)
 		}
@@ -713,7 +713,7 @@ func (a *agent) run(ctx context.Context) error {
 
 	eg.Go(func() error {
 		a.logger.Debug(egCtx, "running derp map subscriber")
-		err = a.runDERPMapSubscriber(egCtx, network)
+		err := a.runDERPMapSubscriber(egCtx, network)
 		if err != nil {
 			return xerrors.Errorf("run derp map subscriber: %w", err)
 		}
@@ -963,7 +963,7 @@ func (a *agent) runDERPMapSubscriber(ctx context.Context, network *tailnet.Conn)
 			if update.Err != nil {
 				return update.Err
 			}
-			if update.DERPMap != nil && !tailnet.CompareDERPMaps(a.network.DERPMap(), update.DERPMap) {
+			if update.DERPMap != nil && !tailnet.CompareDERPMaps(network.DERPMap(), update.DERPMap) {
 				a.logger.Info(ctx, "updating derp map due to detected changes")
 				network.SetDERPMap(update.DERPMap)
 			}
