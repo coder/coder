@@ -1181,7 +1181,6 @@
 
 ```json
 {
-  "convert_to_oidc_enabled": true,
   "github": {
     "enabled": true
   },
@@ -1198,12 +1197,11 @@
 
 ### Properties
 
-| Name                      | Type                                               | Required | Restrictions | Description |
-| ------------------------- | -------------------------------------------------- | -------- | ------------ | ----------- |
-| `convert_to_oidc_enabled` | boolean                                            | false    |              |             |
-| `github`                  | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
-| `oidc`                    | [codersdk.OIDCAuthMethod](#codersdkoidcauthmethod) | false    |              |             |
-| `password`                | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
+| Name       | Type                                               | Required | Restrictions | Description |
+| ---------- | -------------------------------------------------- | -------- | ------------ | ----------- |
+| `github`   | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
+| `oidc`     | [codersdk.OIDCAuthMethod](#codersdkoidcauthmethod) | false    |              |             |
+| `password` | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
 
 ## codersdk.AuthorizationCheck
 
@@ -2668,7 +2666,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `moons`                        |
 | `workspace_actions`            |
 | `tailnet_ha_coordinator`       |
-| `convert-to-oidc`              |
 | `single_tailnet`               |
 | `template_restart_requirement` |
 | `template_insights_page`       |

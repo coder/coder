@@ -28,7 +28,6 @@ SigningIn.args = {
   ...SignedOut.args,
   isSigningIn: true,
   authMethods: {
-    convert_to_oidc_enabled: false,
     password: { enabled: true },
     github: { enabled: true },
     oidc: { enabled: false, signInText: "", iconUrl: "" },
@@ -56,7 +55,6 @@ export const WithGithub = Template.bind({})
 WithGithub.args = {
   ...SignedOut.args,
   authMethods: {
-    convert_to_oidc_enabled: false,
     password: { enabled: true },
     github: { enabled: true },
     oidc: { enabled: false, signInText: "", iconUrl: "" },
@@ -67,7 +65,6 @@ export const WithOIDC = Template.bind({})
 WithOIDC.args = {
   ...SignedOut.args,
   authMethods: {
-    convert_to_oidc_enabled: false,
     password: { enabled: true },
     github: { enabled: false },
     oidc: { enabled: true, signInText: "", iconUrl: "" },
@@ -78,7 +75,6 @@ export const WithOIDCWithoutPassword = Template.bind({})
 WithOIDCWithoutPassword.args = {
   ...SignedOut.args,
   authMethods: {
-    convert_to_oidc_enabled: false,
     password: { enabled: false },
     github: { enabled: false },
     oidc: { enabled: true, signInText: "", iconUrl: "" },
@@ -89,7 +85,6 @@ export const WithoutAny = Template.bind({})
 WithoutAny.args = {
   ...SignedOut.args,
   authMethods: {
-    convert_to_oidc_enabled: false,
     password: { enabled: false },
     github: { enabled: false },
     oidc: { enabled: false, signInText: "", iconUrl: "" },
@@ -100,7 +95,6 @@ export const WithGithubAndOIDC = Template.bind({})
 WithGithubAndOIDC.args = {
   ...SignedOut.args,
   authMethods: {
-    convert_to_oidc_enabled: false,
     password: { enabled: true },
     github: { enabled: true },
     oidc: { enabled: true, signInText: "", iconUrl: "" },

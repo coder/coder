@@ -6974,9 +6974,6 @@ const docTemplate = `{
         "codersdk.AuthMethods": {
             "type": "object",
             "properties": {
-                "convert_to_oidc_enabled": {
-                    "type": "boolean"
-                },
                 "github": {
                     "$ref": "#/definitions/codersdk.AuthMethod"
                 },
@@ -7918,7 +7915,6 @@ const docTemplate = `{
                 "moons",
                 "workspace_actions",
                 "tailnet_ha_coordinator",
-                "convert-to-oidc",
                 "single_tailnet",
                 "template_restart_requirement",
                 "template_insights_page"
@@ -7927,7 +7923,6 @@ const docTemplate = `{
                 "ExperimentMoons",
                 "ExperimentWorkspaceActions",
                 "ExperimentTailnetHACoordinator",
-                "ExperimentConvertToOIDC",
                 "ExperimentSingleTailnet",
                 "ExperimentTemplateRestartRequirement",
                 "ExperimentTemplateInsightsPage"

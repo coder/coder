@@ -1838,10 +1838,6 @@ const (
 	// which is now the default.
 	ExperimentTailnetHACoordinator Experiment = "tailnet_ha_coordinator"
 
-	// ExperimentConvertToOIDC enables users to convert from password to
-	// oidc.
-	ExperimentConvertToOIDC Experiment = "convert-to-oidc"
-
 	// ExperimentSingleTailnet replaces workspace connections inside coderd to
 	// all use a single tailnet, instead of the previous behavior of creating a
 	// single tailnet for each agent.
