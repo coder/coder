@@ -97,17 +97,6 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if createUser.Trial && api.TrialGenerator != nil {
-		err = api.TrialGenerator(ctx, createUser.Email)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to generate trial",
-				Detail:  err.Error(),
-			})
-			return
-		}
-	}
-
 	err = userpassword.Validate(createUser.Password)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -118,6 +107,17 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 			}},
 		})
 		return
+	}
+
+	if createUser.Trial && api.TrialGenerator != nil {
+		err = api.TrialGenerator(ctx, createUser.Email)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to generate trial",
+				Detail:  err.Error(),
+			})
+			return
+		}
 	}
 
 	//nolint:gocritic // needed to create first user
