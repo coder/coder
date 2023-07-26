@@ -199,8 +199,6 @@ jobs:
           --set coder.env[5].value=${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_SECRET }} \
           --set coder.env[6].name=CODER_OAUTH2_GITHUB_ALLOWED_ORGS \
           --set coder.env[6].value=coder \
-          --set coder.env[7].name=CODER_OAUTH2_GITHUB_REDIRECT_URI \
-          --set coder.env[7].value="https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}/gitauth/github/callback \
           --force
 
       - name: Install coder-logstream-kube
