@@ -185,7 +185,6 @@ jobs:
           --set coder.image.tag=pr${{ env.PR_NUMBER }} \
           --set coder.image.pullPolicy=Always \
           --set coder.service.type=ClusterIP \
-          --set coder.serviceAccount.enableDeployments=true \
           --set coder.env[0].name=CODER_ACCESS_URL \
           --set coder.env[0].value="https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}" \
           --set coder.env[1].name=CODER_WILDCARD_ACCESS_URL \
