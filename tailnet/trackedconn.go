@@ -51,6 +51,7 @@ func NewTrackedConn(ctx context.Context, cancel func(), conn net.Conn, id uuid.U
 		id:         id,
 		start:      now,
 		lastWrite:  now,
+		name:       name,
 		overwrites: overwrites,
 	}
 }
