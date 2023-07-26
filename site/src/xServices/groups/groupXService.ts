@@ -183,6 +183,7 @@ export const groupMachine = createMachine(
 
         return patchGroup(group.id, {
           name: "",
+          display_name: "",
           add_users: [userId],
           remove_users: [],
         })
@@ -194,6 +195,7 @@ export const groupMachine = createMachine(
 
         return patchGroup(group.id, {
           name: "",
+          display_name: "",
           add_users: [],
           remove_users: [userId],
         })

@@ -53,6 +53,7 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Default the name and display name to the same.
 	if req.DisplayName == "" {
 		req.DisplayName = req.Name
 	}

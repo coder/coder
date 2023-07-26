@@ -1418,6 +1418,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "avatar_url": "string",
+  "display_name": "string",
   "name": "string",
   "quota_allowance": 0
 }
@@ -1428,6 +1429,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name              | Type    | Required | Restrictions | Description |
 | ----------------- | ------- | -------- | ------------ | ----------- |
 | `avatar_url`      | string  | false    |              |             |
+| `display_name`    | string  | false    |              |             |
 | `name`            | string  | false    |              |             |
 | `quota_allowance` | integer | false    |              |             |
 

@@ -526,6 +526,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups
 ```json
 {
   "avatar_url": "string",
+  "display_name": "string",
   "name": "string",
   "quota_allowance": 0
 }
