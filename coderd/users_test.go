@@ -1510,6 +1510,44 @@ func TestWorkspacesByUser(t *testing.T) {
 	})
 }
 
+func TestDormantUser(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	// Create a new user
+	newUser, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+		Email:          "test@coder.com",
+		Username:       "someone",
+		Password:       "MySecurePassword!",
+		OrganizationID: user.OrganizationID,
+	})
+	require.NoError(t, err)
+
+	// User should be dormant as they haven't logged in yet
+	users, err := client.Users(ctx, codersdk.UsersRequest{Search: newUser.Username})
+	require.NoError(t, err)
+	require.Len(t, users.Users, 1)
+	require.Equal(t, codersdk.UserStatusDormant, users.Users[0].Status)
+
+	// User logs in now
+	_, err = client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+		Email:    newUser.Email,
+		Password: "MySecurePassword!",
+	})
+	require.NoError(t, err)
+
+	// User status should be active now
+	users, err = client.Users(ctx, codersdk.UsersRequest{Search: newUser.Username})
+	require.NoError(t, err)
+	require.Len(t, users.Users, 1)
+	require.Equal(t, codersdk.UserStatusActive, users.Users[0].Status)
+}
+
 // TestSuspendedPagination is when the after_id is a suspended record.
 // The database query should still return the correct page, as the after_id
 // is in a subquery that finds the record regardless of its status.

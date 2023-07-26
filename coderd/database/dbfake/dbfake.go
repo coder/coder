@@ -3840,7 +3840,7 @@ func (q *FakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 		CreatedAt:      arg.CreatedAt,
 		UpdatedAt:      arg.UpdatedAt,
 		Username:       arg.Username,
-		Status:         database.UserStatusActive,
+		Status:         database.UserStatusDormant,
 		RBACRoles:      arg.RBACRoles,
 		LoginType:      arg.LoginType,
 	}
