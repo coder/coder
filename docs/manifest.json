@@ -858,7 +858,7 @@
         },
         {
           "title": "users mark-as-dormant",
-          "description": "Update a user's status to 'dormant'.",
+          "description": "Update a user's status to 'dormant'. Dormant users are not counted in the license plan",
           "path": "cli/users_mark-as-dormant.md"
         },
         {

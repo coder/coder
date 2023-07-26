@@ -2,7 +2,7 @@
 
 # users mark-as-dormant
 
-Update a user's status to 'dormant'.
+Update a user's status to 'dormant'. Dormant users are not counted in the license plan
 
 Aliases:
 
