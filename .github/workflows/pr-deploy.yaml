@@ -231,6 +231,7 @@ jobs:
           issue-number: ${{ env.PR_NUMBER }}
           comment-author: "github-actions[bot]"
           body-includes: This deployment will be deleted when the PR is closed
+          direction: last
 
       - name: Comment on PR
         uses: peter-evans/create-or-update-comment@v3
