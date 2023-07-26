@@ -131,12 +131,6 @@ func (c *pgCoord) ServeMultiAgent(id uuid.UUID) agpl.MultiAgentConn {
 	panic("not implemented") // TODO: Implement
 }
 
-func (*pgCoord) ServeHTTPDebug(w http.ResponseWriter, _ *http.Request) {
-	// TODO(spikecurtis) I'd like to hold off implementing this until after the rest of this is code reviewed.
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte("Coder Enterprise PostgreSQL distributed tailnet coordinator"))
-}
-
 func (c *pgCoord) Node(id uuid.UUID) *agpl.Node {
 	// In production, we only ever get this request for an agent.
 	// We're going to directly query the database, since we would only have the agent mapping stored locally if we had
@@ -167,7 +161,7 @@ func (c *pgCoord) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) erro
 				slog.Error(err))
 		}
 	}()
-	cIO := newConnIO(c.ctx, c.logger, c.bindings, conn, id, agent)
+	cIO := newConnIO(c.ctx, c.logger, c.bindings, conn, id, agent, id.String())
 	if err := sendCtx(c.ctx, c.newConnections, cIO); err != nil {
 		// can only be a context error, no need to log here.
 		return err
@@ -186,7 +180,7 @@ func (c *pgCoord) ServeAgent(conn net.Conn, id uuid.UUID, name string) error {
 		}
 	}()
 	logger := c.logger.With(slog.F("name", name))
-	cIO := newConnIO(c.ctx, logger, c.bindings, conn, uuid.Nil, id)
+	cIO := newConnIO(c.ctx, logger, c.bindings, conn, uuid.Nil, id, name)
 	if err := sendCtx(c.ctx, c.newConnections, cIO); err != nil {
 		// can only be a context error, no need to log here.
 		return err
@@ -217,8 +211,12 @@ type connIO struct {
 	bindings chan<- binding
 }
 
-func newConnIO(
-	pCtx context.Context, logger slog.Logger, bindings chan<- binding, conn net.Conn, client, agent uuid.UUID,
+func newConnIO(pCtx context.Context,
+	logger slog.Logger,
+	bindings chan<- binding,
+	conn net.Conn,
+	client, agent uuid.UUID,
+	name string,
 ) *connIO {
 	ctx, cancel := context.WithCancel(pCtx)
 	id := agent
@@ -235,7 +233,7 @@ func newConnIO(
 		client:   client,
 		agent:    agent,
 		decoder:  json.NewDecoder(conn),
-		updates:  agpl.NewTrackedConn(ctx, cancel, conn, id, logger, 0),
+		updates:  agpl.NewTrackedConn(ctx, cancel, conn, id, logger, name, 0),
 		bindings: bindings,
 	}
 	go c.recvLoop()
@@ -1290,4 +1288,10 @@ func (h *heartbeats) cleanup() {
 		return
 	}
 	h.logger.Debug(h.ctx, "cleaned up old coordinators")
+}
+
+func (*pgCoord) ServeHTTPDebug(w http.ResponseWriter, _ *http.Request) {
+	// TODO(spikecurtis) I'd like to hold off implementing this until after the rest of this is code reviewed.
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("Coder Enterprise PostgreSQL distributed tailnet coordinator"))
 }

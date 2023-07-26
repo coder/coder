@@ -262,7 +262,7 @@ func (c *coordinator) ServeClient(conn net.Conn, id, agentID uuid.UUID) error {
 	logger := c.core.clientLogger(id, agentID)
 	logger.Debug(ctx, "coordinating client")
 
-	tc := NewTrackedConn(ctx, cancel, conn, id, logger, 0)
+	tc := NewTrackedConn(ctx, cancel, conn, id, logger, id.String(), 0)
 	defer tc.Close()
 
 	c.core.addClient(id, tc)
@@ -507,7 +507,7 @@ func (c *core) initAndTrackAgent(ctx context.Context, cancel func(), conn net.Co
 		overwrites = oldAgentSocket.Overwrites() + 1
 		_ = oldAgentSocket.Close()
 	}
-	tc := NewTrackedConn(ctx, cancel, conn, unique, logger, overwrites)
+	tc := NewTrackedConn(ctx, cancel, conn, unique, logger, name, overwrites)
 	c.agentNameCache.Add(id, name)
 
 	sockets, ok := c.agentToConnectionSockets[id]
