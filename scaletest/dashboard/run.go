@@ -8,8 +8,6 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/google/uuid"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/scaletest/harness"
@@ -41,9 +39,16 @@ func (r *Runner) Run(ctx context.Context, _ string, _ io.Writer) error {
 	if len(me.OrganizationIDs) == 0 {
 		return xerrors.Errorf("user has no organizations")
 	}
+
+	c := &cache{}
+	if err := c.fill(ctx, r.client); err != nil {
+		return err
+	}
+
 	p := &params{
 		client: r.client,
 		me:     me,
+		c:      c,
 	}
 	rolls := make(chan int)
 	go func() {
@@ -54,7 +59,7 @@ func (r *Runner) Run(ctx context.Context, _ string, _ io.Writer) error {
 			case <-ctx.Done():
 				return
 			case <-t.C:
-				rolls <- rand.Intn(allActions.max()) // nolint:gosec
+				rolls <- rand.Intn(allActions.max() + 1) // nolint:gosec
 				t.Reset(r.randWait())
 			}
 		}
@@ -104,51 +109,4 @@ func (r *Runner) randWait() time.Duration {
 	// nolint:gosec // This is not for cryptographic purposes. Chill, gosec. Chill.
 	wait := time.Duration(rand.Intn(int(r.cfg.MaxWait) - int(r.cfg.MinWait)))
 	return r.cfg.MinWait + wait
-}
-
-// nolint: gosec
-func randAuthReq(mut ...func(*codersdk.AuthorizationCheck)) codersdk.AuthorizationRequest {
-	var check codersdk.AuthorizationCheck
-	for _, m := range mut {
-		m(&check)
-	}
-	return codersdk.AuthorizationRequest{
-		Checks: map[string]codersdk.AuthorizationCheck{
-			"check": check,
-		},
-	}
-}
-
-func ownedBy(myID uuid.UUID) func(check *codersdk.AuthorizationCheck) {
-	return func(check *codersdk.AuthorizationCheck) {
-		check.Object.OwnerID = myID.String()
-	}
-}
-
-func inOrg(orgID uuid.UUID) func(check *codersdk.AuthorizationCheck) {
-	return func(check *codersdk.AuthorizationCheck) {
-		check.Object.OrganizationID = orgID.String()
-	}
-}
-
-func withObjType(objType codersdk.RBACResource) func(check *codersdk.AuthorizationCheck) {
-	return func(check *codersdk.AuthorizationCheck) {
-		check.Object.ResourceType = objType
-	}
-}
-
-func withAction(action string) func(check *codersdk.AuthorizationCheck) {
-	return func(check *codersdk.AuthorizationCheck) {
-		check.Action = action
-	}
-}
-
-func randAction() string {
-	// nolint:gosec
-	return codersdk.AllRBACActions[rand.Intn(len(codersdk.AllRBACActions))]
-}
-
-func randObjectType() codersdk.RBACResource {
-	// nolint:gosec
-	return codersdk.AllRBACResources[rand.Intn(len(codersdk.AllRBACResources))]
 }

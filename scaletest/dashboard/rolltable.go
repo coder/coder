@@ -14,13 +14,23 @@ import (
 // Entries must be in ascending order.
 var allActions rollTable = []rollTableEntry{
 	{0, fetchWorkspaces, "fetch workspaces"},
-	{10, fetchUsers, "fetch users"},
-	{20, fetchTemplates, "fetch templates"},
-	{30, authCheckAsOwner, "authcheck owner"},
-	{40, authCheckAsNonOwner, "authcheck not owner"},
-	{50, fetchAuditLog, "fetch audit log"},
-	{60, fetchActiveUsers, "fetch active users"},
-	{70, fetchSuspendedUsers, "fetch suspended users"},
+	{1, fetchUsers, "fetch users"},
+	{2, fetchTemplates, "fetch templates"},
+	{3, authCheckAsOwner, "authcheck owner"},
+	{4, authCheckAsNonOwner, "authcheck not owner"},
+	{5, fetchAuditLog, "fetch audit log"},
+	{6, fetchActiveUsers, "fetch active users"},
+	{7, fetchSuspendedUsers, "fetch suspended users"},
+	{8, fetchTemplateVersion, "fetch template version"},
+	{9, fetchWorkspace, "fetch workspace"},
+	{10, fetchTemplate, "fetch template"},
+	{11, fetchUserByID, "fetch user by ID"},
+	{12, fetchUserByUsername, "fetch user by username"},
+	{13, fetchWorkspaceBuild, "fetch workspace build"},
+	{14, fetchDeploymentConfig, "fetch deployment config"},
+	{15, fetchWorkspaceQuotaForUser, "fetch workspace quota for user"},
+	{16, fetchDeploymentStats, "fetch deployment stats"},
+	{17, fetchWorkspaceLogs, "fetch workspace logs"},
 }
 
 // rollTable is a slice of rollTableEntry.
@@ -58,17 +68,29 @@ type params struct {
 	client *codersdk.Client
 	// me is the currently authenticated user. Lots of actions require this.
 	me codersdk.User
+	// For picking random resource IDs, we need to know what resources are
+	// present. We store them in a cache to avoid fetching them every time.
+	// This may seem counter-intuitive for load testing, but we want to avoid
+	// muddying results.
+	c *cache
 }
 
 // fetchWorkspaces fetches all workspaces.
 func fetchWorkspaces(ctx context.Context, p *params) error {
-	_, err := p.client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	ws, err := p.client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	if err != nil {
+		// store the workspaces for later use in case they change
+		p.c.setWorkspaces(ws.Workspaces)
+	}
 	return err
 }
 
 // fetchUsers fetches all users.
 func fetchUsers(ctx context.Context, p *params) error {
-	_, err := p.client.Users(ctx, codersdk.UsersRequest{})
+	users, err := p.client.Users(ctx, codersdk.UsersRequest{})
+	if err != nil {
+		p.c.setUsers(users.Users)
+	}
 	return err
 }
 
@@ -90,7 +112,87 @@ func fetchSuspendedUsers(ctx context.Context, p *params) error {
 
 // fetchTemplates fetches all templates.
 func fetchTemplates(ctx context.Context, p *params) error {
-	_, err := p.client.TemplatesByOrganization(ctx, p.me.OrganizationIDs[0])
+	templates, err := p.client.TemplatesByOrganization(ctx, p.me.OrganizationIDs[0])
+	if err != nil {
+		p.c.setTemplates(templates)
+	}
+	return err
+}
+
+// fetchTemplateBuild fetches a single template version at random.
+func fetchTemplateVersion(ctx context.Context, p *params) error {
+	t := p.c.randTemplate()
+	_, err := p.client.TemplateVersion(ctx, t.ActiveVersionID)
+	return err
+}
+
+// fetchWorkspace fetches a single workspace at random.
+func fetchWorkspace(ctx context.Context, p *params) error {
+	w := p.c.randWorkspace()
+	_, err := p.client.WorkspaceByOwnerAndName(ctx, w.OwnerName, w.Name, codersdk.WorkspaceOptions{})
+	return err
+}
+
+// fetchWorkspaceBuild fetches a single workspace build at random.
+func fetchWorkspaceBuild(ctx context.Context, p *params) error {
+	w := p.c.randWorkspace()
+	_, err := p.client.WorkspaceBuild(ctx, w.LatestBuild.ID)
+	return err
+}
+
+// fetchTemplate fetches a single template at random.
+func fetchTemplate(ctx context.Context, p *params) error {
+	t := p.c.randTemplate()
+	_, err := p.client.Template(ctx, t.ID)
+	return err
+}
+
+// fetchUserByID fetches a single user at random by ID.
+func fetchUserByID(ctx context.Context, p *params) error {
+	u := p.c.randUser()
+	_, err := p.client.User(ctx, u.ID.String())
+	return err
+}
+
+// fetchUserByUsername fetches a single user at random by username.
+func fetchUserByUsername(ctx context.Context, p *params) error {
+	u := p.c.randUser()
+	_, err := p.client.User(ctx, u.Username)
+	return err
+}
+
+// fetchDeploymentConfig fetches the deployment config.
+func fetchDeploymentConfig(ctx context.Context, p *params) error {
+	_, err := p.client.DeploymentConfig(ctx)
+	return err
+}
+
+// fetchWorkspaceQuotaForUser fetches the workspace quota for a random user.
+func fetchWorkspaceQuotaForUser(ctx context.Context, p *params) error {
+	u := p.c.randUser()
+	_, err := p.client.WorkspaceQuota(ctx, u.ID.String())
+	return err
+}
+
+// fetchDeploymentStats fetches the deployment stats.
+func fetchDeploymentStats(ctx context.Context, p *params) error {
+	_, err := p.client.DeploymentStats(ctx)
+	return err
+}
+
+// fetchWorkspaceLogs fetches the logs for a random workspace.
+func fetchWorkspaceLogs(ctx context.Context, p *params) error {
+	w := p.c.randWorkspace()
+	ch, closer, err := p.client.WorkspaceBuildLogsAfter(ctx, w.LatestBuild.ID, 0)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = closer.Close()
+	}()
+	for range ch {
+		// do nothing
+	}
 	return err
 }
 
@@ -146,4 +248,49 @@ func authCheckAsNonOwner(ctx context.Context, p *params) error {
 		inOrg(p.me.OrganizationIDs[0]),
 	))
 	return err
+}
+
+// nolint: gosec
+func randAuthReq(mut ...func(*codersdk.AuthorizationCheck)) codersdk.AuthorizationRequest {
+	var check codersdk.AuthorizationCheck
+	for _, m := range mut {
+		m(&check)
+	}
+	return codersdk.AuthorizationRequest{
+		Checks: map[string]codersdk.AuthorizationCheck{
+			"check": check,
+		},
+	}
+}
+
+func ownedBy(myID uuid.UUID) func(check *codersdk.AuthorizationCheck) {
+	return func(check *codersdk.AuthorizationCheck) {
+		check.Object.OwnerID = myID.String()
+	}
+}
+
+func inOrg(orgID uuid.UUID) func(check *codersdk.AuthorizationCheck) {
+	return func(check *codersdk.AuthorizationCheck) {
+		check.Object.OrganizationID = orgID.String()
+	}
+}
+
+func withObjType(objType codersdk.RBACResource) func(check *codersdk.AuthorizationCheck) {
+	return func(check *codersdk.AuthorizationCheck) {
+		check.Object.ResourceType = objType
+	}
+}
+
+func withAction(action string) func(check *codersdk.AuthorizationCheck) {
+	return func(check *codersdk.AuthorizationCheck) {
+		check.Action = action
+	}
+}
+
+func randAction() string {
+	return pick(codersdk.AllRBACActions)
+}
+
+func randObjectType() codersdk.RBACResource {
+	return pick(codersdk.AllRBACResources)
 }
