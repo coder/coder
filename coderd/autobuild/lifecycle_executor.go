@@ -178,7 +178,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 				// Lock the workspace if it has breached the template's
 				// threshold for inactivity.
 				if reason == database.BuildReasonAutolock {
-					err = tx.UpdateWorkspaceLockedDeletingAt(e.ctx, database.UpdateWorkspaceLockedDeletingAtParams{
+					ws, err = tx.UpdateWorkspaceLockedDeletingAt(e.ctx, database.UpdateWorkspaceLockedDeletingAtParams{
 						ID: ws.ID,
 						LockedAt: sql.NullTime{
 							Time:  database.Now(),

@@ -482,7 +482,7 @@ WHERE
 		)
 	) AND workspaces.deleted = 'false';
 
--- name: UpdateWorkspaceLockedDeletingAt :exec
+-- name: UpdateWorkspaceLockedDeletingAt :one
 UPDATE
 	workspaces
 SET
@@ -498,7 +498,8 @@ FROM
 WHERE
 	workspaces.template_id = templates.id
 AND
-	workspaces.id = $1;
+	workspaces.id = $1
+RETURNING workspaces.*;
 
 -- name: UpdateWorkspacesDeletingAtByTemplateID :exec
 UPDATE

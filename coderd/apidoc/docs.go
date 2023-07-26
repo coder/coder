@@ -5931,7 +5931,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
+                            "$ref": "#/definitions/codersdk.Workspace"
                         }
                     }
                 }

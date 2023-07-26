@@ -557,7 +557,7 @@ export const cancelWorkspaceBuild = async (
 export const updateWorkspaceLock = async (
   workspaceId: string,
   lock: boolean,
-): Promise<Types.Message> => {
+): Promise<TypesGen.Workspace> => {
   const data: TypesGen.UpdateWorkspaceLock = {
     lock: lock,
   }

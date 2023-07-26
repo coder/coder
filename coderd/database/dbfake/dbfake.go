@@ -5082,9 +5082,9 @@ func (q *FakeQuerier) UpdateWorkspaceLastUsedAt(_ context.Context, arg database.
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateWorkspaceLockedDeletingAt(_ context.Context, arg database.UpdateWorkspaceLockedDeletingAtParams) error {
+func (q *FakeQuerier) UpdateWorkspaceLockedDeletingAt(_ context.Context, arg database.UpdateWorkspaceLockedDeletingAtParams) (database.Workspace, error) {
 	if err := validateDatabaseType(arg); err != nil {
-		return err
+		return database.Workspace{}, err
 	}
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -5106,7 +5106,7 @@ func (q *FakeQuerier) UpdateWorkspaceLockedDeletingAt(_ context.Context, arg dat
 				}
 			}
 			if template.ID == uuid.Nil {
-				return xerrors.Errorf("unable to find workspace template")
+				return database.Workspace{}, xerrors.Errorf("unable to find workspace template")
 			}
 			if template.LockedTTL > 0 {
 				workspace.DeletingAt = sql.NullTime{
@@ -5116,9 +5116,9 @@ func (q *FakeQuerier) UpdateWorkspaceLockedDeletingAt(_ context.Context, arg dat
 			}
 		}
 		q.workspaces[index] = workspace
-		return nil
+		return workspace, nil
 	}
-	return sql.ErrNoRows
+	return database.Workspace{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateWorkspaceProxy(_ context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
