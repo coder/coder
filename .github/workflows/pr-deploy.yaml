@@ -192,13 +192,13 @@ jobs:
           --set coder.env[2].name=CODER_EXPERIMENTS \
           --set coder.env[2].value="*" \
           --set coder.env[3].name=CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS \
-          --set coder.env[3].value=true \
+          --set coder.env[3].value="true" \
           --set coder.env[4].name=CODER_OAUTH2_GITHUB_CLIENT_ID \
-          --set coder.env[4].value=${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_ID }} \
+          --set coder.env[4].value="${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_ID }}" \
           --set coder.env[5].name=CODER_OAUTH2_GITHUB_CLIENT_SECRET \
-          --set coder.env[5].value=${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_SECRET }} \
+          --set coder.env[5].value="${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_SECRET }}" \
           --set coder.env[6].name=CODER_OAUTH2_GITHUB_ALLOWED_ORGS \
-          --set coder.env[6].value=coder \
+          --set coder.env[6].value="coder" \
           --force
 
       - name: Install coder-logstream-kube
