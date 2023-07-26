@@ -691,7 +691,7 @@ func (api *API) _dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.Workspa
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:      []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 		DERPMap:        api.DERPMap(),
-		Logger:         api.Logger.Named("tailnet"),
+		Logger:         api.Logger.Named("net.tailnet"),
 		BlockEndpoints: api.DeploymentValues.DERP.Config.BlockDirect.Value(),
 	})
 	if err != nil {

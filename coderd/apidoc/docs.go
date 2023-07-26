@@ -8304,6 +8304,12 @@ const docTemplate = `{
                 "json": {
                     "type": "string"
                 },
+                "log_filter": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "stackdriver": {
                     "type": "string"
                 }

@@ -340,9 +340,10 @@ type SwaggerConfig struct {
 }
 
 type LoggingConfig struct {
-	Human       clibase.String `json:"human" typescript:",notnull"`
-	JSON        clibase.String `json:"json" typescript:",notnull"`
-	Stackdriver clibase.String `json:"stackdriver" typescript:",notnull"`
+	Filter      clibase.StringArray `json:"log_filter" typescript:",notnull"`
+	Human       clibase.String      `json:"human" typescript:",notnull"`
+	JSON        clibase.String      `json:"json" typescript:",notnull"`
+	Stackdriver clibase.String      `json:"stackdriver" typescript:",notnull"`
 }
 
 type DangerousConfig struct {
@@ -532,6 +533,16 @@ when required by your organization's security policy.`,
 		Value:       &c.RedirectToAccessURL,
 		Group:       &deploymentGroupNetworking,
 		YAML:        "redirectToAccessURL",
+	}
+	logFilter := clibase.Option{
+		Name:          "Log Filter",
+		Description:   "Filter debug logs by matching against a given regex. Use .* to match all debug logs.",
+		Flag:          "log-filter",
+		FlagShorthand: "l",
+		Env:           "CODER_LOG_FILTER",
+		Value:         &c.Logging.Filter,
+		Group:         &deploymentGroupIntrospectionLogging,
+		YAML:          "filter",
 	}
 	opts := clibase.OptionSet{
 		{
@@ -1159,7 +1170,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "Capture Logs in Traces",
-			Description: "Enables capturing of logs as events in traces. This is useful for debugging, but may result in a very large amount of events being sent to the tracing backend which may incur significant costs. If the verbose flag was supplied, debug-level logs will be included.",
+			Description: "Enables capturing of logs as events in traces. This is useful for debugging, but may result in a very large amount of events being sent to the tracing backend which may incur significant costs.",
 			Flag:        "trace-logs",
 			Env:         "CODER_TRACE_LOGS",
 			Value:       &c.Trace.CaptureLogs,
@@ -1249,12 +1260,14 @@ when required by your organization's security policy.`,
 			Flag:          "verbose",
 			Env:           "CODER_VERBOSE",
 			FlagShorthand: "v",
-
-			Value:       &c.Verbose,
-			Group:       &deploymentGroupIntrospectionLogging,
-			YAML:        "verbose",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Hidden:        true,
+			UseInstead:    []clibase.Option{logFilter},
+			Value:         &c.Verbose,
+			Group:         &deploymentGroupIntrospectionLogging,
+			YAML:          "verbose",
+			Annotations:   clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
+		logFilter,
 		{
 			Name:        "Human Log Location",
 			Description: "Output human-readable logs to a given file.",

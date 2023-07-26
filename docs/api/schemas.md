@@ -2026,6 +2026,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "logging": {
       "human": "string",
       "json": "string",
+      "log_filter": ["string"],
       "stackdriver": "string"
     },
     "max_session_expiry": 0,
@@ -2382,6 +2383,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "logging": {
     "human": "string",
     "json": "string",
+    "log_filter": ["string"],
     "stackdriver": "string"
   },
   "max_session_expiry": 0,
@@ -3119,17 +3121,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "human": "string",
   "json": "string",
+  "log_filter": ["string"],
   "stackdriver": "string"
 }
 ```
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-| ------------- | ------ | -------- | ------------ | ----------- |
-| `human`       | string | false    |              |             |
-| `json`        | string | false    |              |             |
-| `stackdriver` | string | false    |              |             |
+| Name          | Type            | Required | Restrictions | Description |
+| ------------- | --------------- | -------- | ------------ | ----------- |
+| `human`       | string          | false    |              |             |
+| `json`        | string          | false    |              |             |
+| `log_filter`  | array of string | false    |              |             |
+| `stackdriver` | string          | false    |              |             |
 
 ## codersdk.LoginType
 
