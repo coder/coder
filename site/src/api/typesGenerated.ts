@@ -550,6 +550,8 @@ export interface LinkConfig {
 
 // From codersdk/deployment.go
 export interface LoggingConfig {
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
+  readonly log_filter: string[]
   readonly human: string
   readonly json: string
   readonly stackdriver: string

@@ -1305,7 +1305,7 @@ func TestServer(t *testing.T) {
 
 			root, _ := clitest.New(t,
 				"server",
-				"--verbose",
+				"--log-filter=.*",
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
@@ -1322,7 +1322,7 @@ func TestServer(t *testing.T) {
 
 			root, _ := clitest.New(t,
 				"server",
-				"--verbose",
+				"--log-filter=.*",
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
@@ -1339,7 +1339,7 @@ func TestServer(t *testing.T) {
 
 			root, _ := clitest.New(t,
 				"server",
-				"--verbose",
+				"--log-filter=.*",
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
@@ -1359,7 +1359,7 @@ func TestServer(t *testing.T) {
 
 			inv, _ := clitest.New(t,
 				"server",
-				"--verbose",
+				"--log-filter=.*",
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
@@ -1393,7 +1393,7 @@ func TestServer(t *testing.T) {
 			// HTTP.
 			inv, _ := clitest.New(t,
 				"server",
-				"--verbose",
+				"--log-filter=.*",
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",

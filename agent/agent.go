@@ -755,7 +755,7 @@ func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *t
 	network, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:      a.wireguardAddresses(agentID),
 		DERPMap:        derpMap,
-		Logger:         a.logger.Named("tailnet"),
+		Logger:         a.logger.Named("net.tailnet"),
 		ListenPort:     a.tailnetListenPort,
 		BlockEndpoints: disableDirectConnections,
 	})
