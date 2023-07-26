@@ -61,4 +61,34 @@ func TestUserStatus(t *testing.T) {
 		require.NoError(t, err, "fetch active user")
 		require.Equal(t, codersdk.UserStatusActive, otherUser.Status, "active user")
 	})
+
+	t.Run("StatusDormant", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, codersdk.UserStatusActive, otherUser.Status, "start as active")
+
+		inv, root := clitest.New(t, "users", "dormant", otherUser.Username)
+		clitest.SetupConfig(t, client, root)
+		// Yes to the prompt
+		inv.Stdin = bytes.NewReader([]byte("yes\n"))
+		err := inv.Run()
+		require.NoError(t, err, "mark as dormant")
+
+		// Check the user status
+		otherUser, err = client.User(context.Background(), otherUser.Username)
+		require.NoError(t, err, "fetch dormant user")
+		require.Equal(t, codersdk.UserStatusDormant, otherUser.Status, "marked as dormant")
+
+		// Set back to active. Try using a uuid as well
+		inv, root = clitest.New(t, "users", "activate", otherUser.ID.String())
+		clitest.SetupConfig(t, client, root)
+		// Yes to the prompt
+		inv.Stdin = bytes.NewReader([]byte("yes\n"))
+		err = inv.Run()
+		require.NoError(t, err, "suspend user")
+
+		// Check the user status
+		otherUser, err = client.User(context.Background(), otherUser.ID.String())
+		require.NoError(t, err, "fetch active user")
+		require.Equal(t, codersdk.UserStatusActive, otherUser.Status, "active user")
+	})
 }
