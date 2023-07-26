@@ -191,8 +191,8 @@ func setupAgent(t *testing.T, manifest agentsdk.Manifest, ptyTimeout time.Durati
 		_ = conn.Close()
 	})
 	go coordinator.ServeClient(serverConn, uuid.New(), manifest.AgentID)
-	sendNode, _ := tailnet.ServeCoordinator(clientConn, func(node []*tailnet.Node) error {
-		return conn.UpdateNodes(node, false)
+	sendNode, _ := tailnet.ServeCoordinator(clientConn, func(nodes []*tailnet.Node) error {
+		return conn.UpdateNodes(nodes, false)
 	})
 	conn.SetNodeCallback(sendNode)
 	agentConn := codersdk.NewWorkspaceAgentConn(conn, codersdk.WorkspaceAgentConnOptions{
@@ -219,6 +219,24 @@ type client struct {
 
 func (c *client) Manifest(_ context.Context) (agentsdk.Manifest, error) {
 	return c.manifest, nil
+}
+
+type closer struct {
+	closeFunc func() error
+}
+
+func (c *closer) Close() error {
+	return c.closeFunc()
+}
+
+func (*client) DERPMapUpdates(_ context.Context) (<-chan agentsdk.DERPMapUpdate, io.Closer, error) {
+	closed := make(chan struct{})
+	return make(<-chan agentsdk.DERPMapUpdate), &closer{
+		closeFunc: func() error {
+			close(closed)
+			return nil
+		},
+	}, nil
 }
 
 func (c *client) Listen(_ context.Context) (net.Conn, error) {

@@ -167,6 +167,13 @@ type UpdateTemplateACL struct {
 	GroupPerms map[string]TemplateRole `json:"group_perms,omitempty" example:"<user_id>>:admin,8bd26b20-f3e8-48be-a903-46bb920cf671:use"`
 }
 
+// ACLAvailable is a list of users and groups that can be added to a template
+// ACL.
+type ACLAvailable struct {
+	Users  []User  `json:"users"`
+	Groups []Group `json:"groups"`
+}
+
 type UpdateTemplateMeta struct {
 	Name             string `json:"name,omitempty" validate:"omitempty,template_name"`
 	DisplayName      string `json:"display_name,omitempty" validate:"omitempty,template_display_name"`
@@ -249,6 +256,20 @@ func (c *Client) UpdateTemplateACL(ctx context.Context, templateID uuid.UUID, re
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// TemplateACLAvailable returns available users + groups that can be assigned template perms
+func (c *Client) TemplateACLAvailable(ctx context.Context, templateID uuid.UUID) (ACLAvailable, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/acl/available", templateID), nil)
+	if err != nil {
+		return ACLAvailable{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ACLAvailable{}, ReadBodyAsError(res)
+	}
+	var acl ACLAvailable
+	return acl, json.NewDecoder(res.Body).Decode(&acl)
 }
 
 func (c *Client) TemplateACL(ctx context.Context, templateID uuid.UUID) (TemplateACL, error) {

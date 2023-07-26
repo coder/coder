@@ -1,6 +1,9 @@
 -- name: GetReplicasUpdatedAfter :many
 SELECT * FROM replicas WHERE updated_at > $1 AND stopped_at IS NULL;
 
+-- name: GetReplicaByID :one
+SELECT * FROM replicas WHERE id = $1;
+
 -- name: InsertReplica :one
 INSERT INTO replicas (
     id,
@@ -11,8 +14,9 @@ INSERT INTO replicas (
     region_id,
     relay_address,
     version,
-    database_latency
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
+    database_latency,
+	"primary"
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;
 
 -- name: UpdateReplica :one
 UPDATE replicas SET
@@ -24,7 +28,8 @@ UPDATE replicas SET
     hostname = $7,
     version = $8,
     error = $9,
-    database_latency = $10
+    database_latency = $10,
+	"primary" = $11
 WHERE id = $1 RETURNING *;
 
 -- name: DeleteReplicasUpdatedBefore :exec

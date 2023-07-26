@@ -1717,6 +1717,120 @@ func TestAgent_Dial(t *testing.T) {
 	}
 }
 
+// TestAgent_UpdatedDERP checks that agents can handle their DERP map being
+// updated, and that clients can also handle it.
+func TestAgent_UpdatedDERP(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	originalDerpMap, _ := tailnettest.RunDERPAndSTUN(t)
+	require.NotNil(t, originalDerpMap)
+
+	coordinator := tailnet.NewCoordinator(logger)
+	defer func() {
+		_ = coordinator.Close()
+	}()
+	agentID := uuid.New()
+	statsCh := make(chan *agentsdk.Stats, 50)
+	fs := afero.NewMemMapFs()
+	client := agenttest.NewClient(t,
+		logger.Named("agent"),
+		agentID,
+		agentsdk.Manifest{
+			DERPMap: originalDerpMap,
+			// Force DERP.
+			DisableDirectConnections: true,
+		},
+		statsCh,
+		coordinator,
+	)
+	closer := agent.New(agent.Options{
+		Client:                 client,
+		Filesystem:             fs,
+		Logger:                 logger.Named("agent"),
+		ReconnectingPTYTimeout: time.Minute,
+	})
+	defer func() {
+		_ = closer.Close()
+	}()
+
+	// Setup a client connection.
+	newClientConn := func(derpMap *tailcfg.DERPMap) *codersdk.WorkspaceAgentConn {
+		conn, err := tailnet.NewConn(&tailnet.Options{
+			Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+			DERPMap:   derpMap,
+			Logger:    logger.Named("client"),
+		})
+		require.NoError(t, err)
+		clientConn, serverConn := net.Pipe()
+		serveClientDone := make(chan struct{})
+		t.Cleanup(func() {
+			_ = clientConn.Close()
+			_ = serverConn.Close()
+			_ = conn.Close()
+			<-serveClientDone
+		})
+		go func() {
+			defer close(serveClientDone)
+			err := coordinator.ServeClient(serverConn, uuid.New(), agentID)
+			assert.NoError(t, err)
+		}()
+		sendNode, _ := tailnet.ServeCoordinator(clientConn, func(nodes []*tailnet.Node) error {
+			return conn.UpdateNodes(nodes, false)
+		})
+		conn.SetNodeCallback(sendNode)
+		// Force DERP.
+		conn.SetBlockEndpoints(true)
+
+		sdkConn := codersdk.NewWorkspaceAgentConn(conn, codersdk.WorkspaceAgentConnOptions{
+			AgentID:   agentID,
+			CloseFunc: func() error { return codersdk.ErrSkipClose },
+		})
+		t.Cleanup(func() {
+			_ = sdkConn.Close()
+		})
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		if !sdkConn.AwaitReachable(ctx) {
+			t.Fatal("agent not reachable")
+		}
+
+		return sdkConn
+	}
+	conn1 := newClientConn(originalDerpMap)
+
+	// Change the DERP map.
+	newDerpMap, _ := tailnettest.RunDERPAndSTUN(t)
+	require.NotNil(t, newDerpMap)
+
+	// Change the region ID.
+	newDerpMap.Regions[2] = newDerpMap.Regions[1]
+	delete(newDerpMap.Regions, 1)
+	newDerpMap.Regions[2].RegionID = 2
+	for _, node := range newDerpMap.Regions[2].Nodes {
+		node.RegionID = 2
+	}
+
+	// Push a new DERP map to the agent.
+	err := client.PushDERPMapUpdate(agentsdk.DERPMapUpdate{
+		DERPMap: newDerpMap,
+	})
+	require.NoError(t, err)
+
+	// Connect from a second client and make sure it uses the new DERP map.
+	conn2 := newClientConn(newDerpMap)
+	require.Equal(t, []int{2}, conn2.DERPMap().RegionIDs())
+
+	// If the first client gets a DERP map update, it should be able to
+	// reconnect just fine.
+	conn1.SetDERPMap(newDerpMap)
+	require.Equal(t, []int{2}, conn1.DERPMap().RegionIDs())
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	require.True(t, conn1.AwaitReachable(ctx))
+}
+
 func TestAgent_Speedtest(t *testing.T) {
 	t.Parallel()
 	t.Skip("This test is relatively flakey because of Tailscale's speedtest code...")
@@ -1940,8 +2054,8 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 		defer close(serveClientDone)
 		coordinator.ServeClient(serverConn, uuid.New(), metadata.AgentID)
 	}()
-	sendNode, _ := tailnet.ServeCoordinator(clientConn, func(node []*tailnet.Node) error {
-		return conn.UpdateNodes(node, false)
+	sendNode, _ := tailnet.ServeCoordinator(clientConn, func(nodes []*tailnet.Node) error {
+		return conn.UpdateNodes(nodes, false)
 	})
 	conn.SetNodeCallback(sendNode)
 	agentConn := codersdk.NewWorkspaceAgentConn(conn, codersdk.WorkspaceAgentConnOptions{

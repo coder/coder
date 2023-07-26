@@ -1108,7 +1108,7 @@ func (q *querier) GetProvisionerLogsAfterID(ctx context.Context, arg database.Ge
 }
 
 func (q *querier) GetQuotaAllowanceForUser(ctx context.Context, userID uuid.UUID) (int64, error) {
-	err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUser.WithID(userID))
+	err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUserObject(userID))
 	if err != nil {
 		return -1, err
 	}
@@ -1116,11 +1116,18 @@ func (q *querier) GetQuotaAllowanceForUser(ctx context.Context, userID uuid.UUID
 }
 
 func (q *querier) GetQuotaConsumedForUser(ctx context.Context, userID uuid.UUID) (int64, error) {
-	err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUser.WithID(userID))
+	err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUserObject(userID))
 	if err != nil {
 		return -1, err
 	}
 	return q.db.GetQuotaConsumedForUser(ctx, userID)
+}
+
+func (q *querier) GetReplicaByID(ctx context.Context, id uuid.UUID) (database.Replica, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.Replica{}, err
+	}
+	return q.db.GetReplicaByID(ctx, id)
 }
 
 func (q *querier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]database.Replica, error) {
@@ -1390,7 +1397,7 @@ func (q *querier) GetUsers(ctx context.Context, arg database.GetUsersParams) ([]
 // itself.
 func (q *querier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]database.User, error) {
 	for _, uid := range ids {
-		if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUser.WithID(uid)); err != nil {
+		if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUserObject(uid)); err != nil {
 			return nil, err
 		}
 	}
@@ -1899,7 +1906,7 @@ func (q *querier) InsertUserGroupsByName(ctx context.Context, arg database.Inser
 
 // TODO: Should this be in system.go?
 func (q *querier) InsertUserLink(ctx context.Context, arg database.InsertUserLinkParams) (database.UserLink, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceUser.WithID(arg.UserID)); err != nil {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceUserObject(arg.UserID)); err != nil {
 		return database.UserLink{}, err
 	}
 	return q.db.InsertUserLink(ctx, arg)
@@ -2614,24 +2621,24 @@ func (q *querier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTe
 }
 
 func (q *querier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateGroup, error) {
-	// An actor is authorized to read template group roles if they are authorized to read the template.
+	// An actor is authorized to read template group roles if they are authorized to update the template.
 	template, err := q.db.GetTemplateByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	if err := q.authorizeContext(ctx, rbac.ActionRead, template); err != nil {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
 		return nil, err
 	}
 	return q.db.GetTemplateGroupRoles(ctx, id)
 }
 
 func (q *querier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateUser, error) {
-	// An actor is authorized to query template user roles if they are authorized to read the template.
+	// An actor is authorized to query template user roles if they are authorized to update the template.
 	template, err := q.db.GetTemplateByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	if err := q.authorizeContext(ctx, rbac.ActionRead, template); err != nil {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
 		return nil, err
 	}
 	return q.db.GetTemplateUserRoles(ctx, id)

@@ -36,6 +36,7 @@ export interface NavbarViewProps {
   onSignOut: () => void
   canViewAuditLog: boolean
   canViewDeployment: boolean
+  canViewAllUsers: boolean
   proxyContextValue?: ProxyContextValue
 }
 
@@ -52,8 +53,9 @@ const NavItems: React.FC<
     className?: string
     canViewAuditLog: boolean
     canViewDeployment: boolean
+    canViewAllUsers: boolean
   }>
-> = ({ className, canViewAuditLog, canViewDeployment }) => {
+> = ({ className, canViewAuditLog, canViewDeployment, canViewAllUsers }) => {
   const styles = useStyles()
   const location = useLocation()
 
@@ -75,11 +77,13 @@ const NavItems: React.FC<
           {Language.templates}
         </NavLink>
       </ListItem>
-      <ListItem button className={styles.item}>
-        <NavLink className={styles.link} to={USERS_LINK}>
-          {Language.users}
-        </NavLink>
-      </ListItem>
+      {canViewAllUsers && (
+        <ListItem button className={styles.item}>
+          <NavLink className={styles.link} to={USERS_LINK}>
+            {Language.users}
+          </NavLink>
+        </ListItem>
+      )}
       {canViewAuditLog && (
         <ListItem button className={styles.item}>
           <NavLink className={styles.link} to="/audit">
@@ -105,6 +109,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
   onSignOut,
   canViewAuditLog,
   canViewDeployment,
+  canViewAllUsers,
   proxyContextValue,
 }) => {
   const styles = useStyles()
@@ -142,6 +147,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
             <NavItems
               canViewAuditLog={canViewAuditLog}
               canViewDeployment={canViewDeployment}
+              canViewAllUsers={canViewAllUsers}
             />
           </div>
         </Drawer>
@@ -158,6 +164,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
           className={styles.desktopNavItems}
           canViewAuditLog={canViewAuditLog}
           canViewDeployment={canViewDeployment}
+          canViewAllUsers={canViewAllUsers}
         />
 
         <Box

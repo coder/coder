@@ -708,6 +708,7 @@ when required by your organization's security policy.`,
 			Value:       &c.DERP.Server.Enable,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "enable",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "DERP Server Region ID",
@@ -718,6 +719,7 @@ when required by your organization's security policy.`,
 			Value:       &c.DERP.Server.RegionID,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "regionID",
+			// Does not apply to external proxies as this value is generated.
 		},
 		{
 			Name:        "DERP Server Region Code",
@@ -728,6 +730,7 @@ when required by your organization's security policy.`,
 			Value:       &c.DERP.Server.RegionCode,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "regionCode",
+			// Does not apply to external proxies as we use the proxy name.
 		},
 		{
 			Name:        "DERP Server Region Name",
@@ -738,6 +741,7 @@ when required by your organization's security policy.`,
 			Value:       &c.DERP.Server.RegionName,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "regionName",
+			// Does not apply to external proxies as we use the proxy name.
 		},
 		{
 			Name:        "DERP Server STUN Addresses",
@@ -754,10 +758,12 @@ when required by your organization's security policy.`,
 			Description: "An HTTP URL that is accessible by other replicas to relay DERP traffic. Required for high availability.",
 			Flag:        "derp-server-relay-url",
 			Env:         "CODER_DERP_SERVER_RELAY_URL",
-			Annotations: clibase.Annotations{}.Mark(annotationEnterpriseKey, "true"),
 			Value:       &c.DERP.Server.RelayURL,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "relayURL",
+			Annotations: clibase.Annotations{}.
+				Mark(annotationEnterpriseKey, "true").
+				Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "Block Direct Connections",

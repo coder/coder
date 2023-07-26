@@ -106,10 +106,10 @@ func TestRolePermissions(t *testing.T) {
 		{
 			Name:     "MyUser",
 			Actions:  []rbac.Action{rbac.ActionRead},
-			Resource: rbac.ResourceUser.WithID(currentUser),
+			Resource: rbac.ResourceUserObject(currentUser),
 			AuthorizeMap: map[bool][]authSubject{
-				true:  {owner, memberMe, orgMemberMe, orgAdmin, otherOrgMember, otherOrgAdmin, templateAdmin, userAdmin},
-				false: {},
+				true:  {orgMemberMe, owner, memberMe, templateAdmin, userAdmin},
+				false: {otherOrgMember, otherOrgAdmin, orgAdmin},
 			},
 		},
 		{
@@ -281,7 +281,7 @@ func TestRolePermissions(t *testing.T) {
 		{
 			Name:     "ManageOrgMember",
 			Actions:  []rbac.Action{rbac.ActionCreate, rbac.ActionUpdate, rbac.ActionDelete},
-			Resource: rbac.ResourceOrganizationMember.WithID(currentUser).InOrg(orgID),
+			Resource: rbac.ResourceOrganizationMember.WithID(currentUser).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {owner, orgAdmin, userAdmin},
 				false: {orgMemberMe, memberMe, otherOrgAdmin, otherOrgMember, templateAdmin},
@@ -290,10 +290,10 @@ func TestRolePermissions(t *testing.T) {
 		{
 			Name:     "ReadOrgMember",
 			Actions:  []rbac.Action{rbac.ActionRead},
-			Resource: rbac.ResourceOrganizationMember.WithID(currentUser).InOrg(orgID),
+			Resource: rbac.ResourceOrganizationMember.WithID(currentUser).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]authSubject{
-				true:  {owner, orgAdmin, orgMemberMe, userAdmin},
-				false: {memberMe, otherOrgAdmin, otherOrgMember, templateAdmin},
+				true:  {owner, orgAdmin, userAdmin, orgMemberMe, templateAdmin},
+				false: {memberMe, otherOrgAdmin, otherOrgMember},
 			},
 		},
 		{
@@ -314,8 +314,8 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []rbac.Action{rbac.ActionRead},
 			Resource: rbac.ResourceGroup.WithID(groupID).InOrg(orgID),
 			AuthorizeMap: map[bool][]authSubject{
-				true:  {owner, orgAdmin, userAdmin, orgMemberMe},
-				false: {memberMe, otherOrgAdmin, otherOrgMember, templateAdmin},
+				true:  {owner, orgAdmin, userAdmin, templateAdmin},
+				false: {memberMe, otherOrgAdmin, orgMemberMe, otherOrgMember},
 			},
 		},
 		{
