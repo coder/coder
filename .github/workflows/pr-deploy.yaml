@@ -287,7 +287,8 @@ jobs:
             "pr_url": "'"${{ env.PR_URL }}"'",
             "pr_title": "'"${{ env.PR_TITLE }}"'",
             "pr_access_url": "'"${{ env.PR_DEPLOYMENT_ACCESS_URL }}"'",
-            "pr_username": "'"${{ env.PR_NUMBER }}"'",
+            "pr_actor": "'"${{ github.actor }}"'
+            "pr_username": "'"pr${{ env.PR_NUMBER }}"'",
             "pr_email": "'"${{ env.PR_NUMBER }}@coder.com"'",
             "pr_password": "'"${{ steps.setup_deployment.outputs.password }}"'" }' ${{ secrets.PR_DEPLOYMENTS_SLACK_WEBHOOK }}
           echo "Slack notification sent"
