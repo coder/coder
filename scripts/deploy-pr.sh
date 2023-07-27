@@ -6,7 +6,7 @@
 
 set -euox pipefail
 
-# if --skip-build is passed, the build step will be skipped and the last build image will be used
+# if --skip-build is passed, the build job will be skipped and the last built image will be used
 if [[ "$*" == *--skip-build* ]]; then
     skipBuild=true
 fi
