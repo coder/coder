@@ -207,7 +207,7 @@ jobs:
             --set auth.password=coder \
             --set auth.database=coder \
             --set persistence.size=10Gi
-          kubectl create secret generic coder-db-url -n coder \
+          kubectl create secret generic coder-db-url -n pr${{ env.PR_NUMBER }} \
             --from-literal=url="postgres://coder:coder@coder-db-postgresql.pr${{ env.PR_NUMBER }}.svc.cluster.local:5432/coder?sslmode=disable"
 
       - name: Create values.yaml
