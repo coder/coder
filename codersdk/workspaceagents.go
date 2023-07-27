@@ -332,6 +332,11 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 
 	agentConn = NewWorkspaceAgentConn(conn, WorkspaceAgentConnOptions{
 		AgentID: agentID,
+		// Newer agents will listen on two IPs: WorkspaceAgentIP and an IP
+		// derived from the agents UUID. We need to use the legacy
+		// WorkspaceAgentIP here since we don't know if the agent is listening
+		// on the new IP.
+		AgentIP: WorkspaceAgentIP,
 		CloseFunc: func() error {
 			cancel()
 			<-closed
