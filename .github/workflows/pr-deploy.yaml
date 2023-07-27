@@ -259,7 +259,7 @@ jobs:
           echo "password=$password" >> $GITHUB_OUTPUT
 
           /home/runner/coder login \
-            --first-user-username ${{ env.PR_NUMBER }} \
+            --first-user-username pr${{ env.PR_NUMBER }} \
             --first-user-email ${{ env.PR_NUMBER }}@coder.com \
             --first-user-password $password \
             --first-user-trial \
