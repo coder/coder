@@ -62,16 +62,23 @@ export const createTemplate = async (
 }
 
 // sshIntoWorkspace spawns a Coder SSH process and a client connected to it.
-export const sshIntoWorkspace = async (page: Page, workspace: string): Promise<ssh.Client> => {
+export const sshIntoWorkspace = async (
+  page: Page,
+  workspace: string,
+): Promise<ssh.Client> => {
   const sessionToken = await findSessionToken(page)
   return new Promise<ssh.Client>((resolve, reject) => {
-    const cp = spawn("go", ["run", coderMainPath(), "ssh", "--stdio", workspace], {
-      env: {
-        ...process.env,
-        CODER_SESSION_TOKEN: sessionToken,
-        CODER_URL: "http://localhost:3000",
+    const cp = spawn(
+      "go",
+      ["run", coderMainPath(), "ssh", "--stdio", workspace],
+      {
+        env: {
+          ...process.env,
+          CODER_SESSION_TOKEN: sessionToken,
+          CODER_URL: "http://localhost:3000",
+        },
       },
-    })
+    )
     cp.on("error", (err) => reject(err))
     const proxyStream = new Duplex({
       read: (size) => {
@@ -82,11 +89,11 @@ export const sshIntoWorkspace = async (page: Page, workspace: string): Promise<s
     // eslint-disable-next-line no-console -- Helpful for debugging
     cp.stderr.on("data", (data) => console.log(data.toString()))
     cp.stdout.on("readable", (...args) => {
-      proxyStream.emit('readable', ...args);
+      proxyStream.emit("readable", ...args)
       if (cp.stdout.readableLength > 0) {
-        proxyStream.emit("data", cp.stdout.read());
+        proxyStream.emit("data", cp.stdout.read())
       }
-    });
+    })
     const client = new ssh.Client()
     client.connect({
       sock: proxyStream,
@@ -107,7 +114,9 @@ export const startAgent = async (page: Page, token: string): Promise<void> => {
 
 // downloadCoderVersion downloads the version provided into a temporary dir and
 // caches it so subsequent calls are fast.
-export const downloadCoderVersion = async (version: string): Promise<string> => {
+export const downloadCoderVersion = async (
+  version: string,
+): Promise<string> => {
   if (version.startsWith("v")) {
     version = version.slice(1)
   }
@@ -131,15 +140,26 @@ export const downloadCoderVersion = async (version: string): Promise<string> => 
   // Runs our public install script using our options to
   // install the binary!
   await new Promise<void>((resolve, reject) => {
-    const cp = spawn("sh", ["-c", [
-      "curl", "-L", "https://coder.com/install.sh",
-      "|",
-      "sh", "-s", "--",
-      "--version", version,
-      "--method", "standalone",
-      "--prefix", tempDir,
-      "--binary-name", binaryName,
-    ].join(" ")])
+    const cp = spawn("sh", [
+      "-c",
+      [
+        "curl",
+        "-L",
+        "https://coder.com/install.sh",
+        "|",
+        "sh",
+        "-s",
+        "--",
+        "--version",
+        version,
+        "--method",
+        "standalone",
+        "--prefix",
+        tempDir,
+        "--binary-name",
+        binaryName,
+      ].join(" "),
+    ])
     // eslint-disable-next-line no-console -- Needed for debugging
     cp.stderr.on("data", (data) => console.log(data.toString()))
     cp.on("close", (code) => {
@@ -153,7 +173,12 @@ export const downloadCoderVersion = async (version: string): Promise<string> => 
   return binaryPath
 }
 
-export const startAgentWithCommand = async (page: Page, token: string, command: string, ...args: string[]): Promise<void> => {
+export const startAgentWithCommand = async (
+  page: Page,
+  token: string,
+  command: string,
+  ...args: string[]
+): Promise<void> => {
   const cp = spawn(command, [...args, "agent", "--no-reap"], {
     env: {
       ...process.env,
@@ -188,10 +213,10 @@ const coderMainPath = (): string => {
 // Allows users to more easily define properties they want for agents and resources!
 type RecursivePartial<T> = {
   [P in keyof T]?: T[P] extends (infer U)[]
-  ? RecursivePartial<U>[]
-  : T[P] extends object | undefined
-  ? RecursivePartial<T[P]>
-  : T[P]
+    ? RecursivePartial<U>[]
+    : T[P] extends object | undefined
+    ? RecursivePartial<T[P]>
+    : T[P]
 }
 
 interface EchoProvisionerResponses {

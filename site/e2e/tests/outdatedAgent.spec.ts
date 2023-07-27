@@ -1,6 +1,12 @@
 import { test } from "@playwright/test"
 import { randomUUID } from "crypto"
-import { createTemplate, createWorkspace, downloadCoderVersion, sshIntoWorkspace, startAgentWithCommand } from "../helpers"
+import {
+  createTemplate,
+  createWorkspace,
+  downloadCoderVersion,
+  sshIntoWorkspace,
+  startAgentWithCommand,
+} from "../helpers"
 
 const agentVersion = "v0.14.0"
 
@@ -38,9 +44,9 @@ test("ssh with agent " + agentVersion, async ({ page }) => {
         if (code !== 0) {
           return reject(new Error(`Command exited with code ${code}`))
         }
-        client.end();
+        client.end()
         resolve()
-      });
+      })
     })
   })
 })
