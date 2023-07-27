@@ -224,6 +224,13 @@ func User(t testing.TB, db database.Store, orig database.User) database.User {
 	})
 	require.NoError(t, err, "insert user")
 
+	user, err = db.UpdateUserStatus(genCtx, database.UpdateUserStatusParams{
+		ID:        user.ID,
+		Status:    database.UserStatusActive,
+		UpdatedAt: database.Now(),
+	})
+	require.NoError(t, err, "insert user")
+
 	if !orig.LastSeenAt.IsZero() {
 		user, err = db.UpdateUserLastSeenAt(genCtx, database.UpdateUserLastSeenAtParams{
 			ID:         user.ID,
