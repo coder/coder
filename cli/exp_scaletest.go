@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"strconv"
 	"strings"
@@ -339,6 +340,22 @@ func (s *scaletestPrometheusFlags) attach(opts *clibase.OptionSet) {
 			Default:     "15s",
 			Description: "How long to wait before exiting in order to allow Prometheus metrics to be scraped.",
 			Value:       clibase.DurationOf(&s.Wait),
+		},
+	)
+}
+
+type scaletestPprofFlags struct {
+	Address string
+}
+
+func (s *scaletestPprofFlags) attach(opts *clibase.OptionSet) {
+	*opts = append(*opts,
+		clibase.Option{
+			Flag:        "scaletest-pprof-address",
+			Env:         "CODER_SCALETEST_PPROF_ADDRESS",
+			Default:     "127.0.0.1:26060",
+			Description: "Address on which to expose scaletest pprof endpoints.",
+			Value:       clibase.StringOf(&s.Address),
 		},
 	)
 }
@@ -882,6 +899,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 		cleanupStrategy = &scaletestStrategyFlags{cleanup: true}
 		output          = &scaletestOutputFlags{}
 		prometheusFlags = &scaletestPrometheusFlags{}
+		pprofFlags      = &scaletestPprofFlags{}
 	)
 
 	cmd := &clibase.Cmd{
@@ -897,6 +915,9 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 
 			logger := slog.Make(sloghuman.Sink(io.Discard))
 			prometheusSrvClose := ServeHandler(ctx, logger, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), prometheusFlags.Address, "prometheus")
+			_ = pprof.Handler
+			pprofSrvClose := ServeHandler(ctx, logger, nil, pprofFlags.Address, "pprof")
+			defer pprofSrvClose()
 			defer prometheusSrvClose()
 
 			// Bypass rate limiting
@@ -1041,6 +1062,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 	cleanupStrategy.attach(&cmd.Options)
 	output.attach(&cmd.Options)
 	prometheusFlags.attach(&cmd.Options)
+	pprofFlags.attach(&cmd.Options)
 
 	return cmd
 }
