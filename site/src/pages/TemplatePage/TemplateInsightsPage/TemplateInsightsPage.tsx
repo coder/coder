@@ -186,7 +186,7 @@ const TemplateUsagePanel = ({
   return (
     <Panel {...panelProps}>
       <PanelHeader>
-        <PanelTitle>App&lsquo;s & IDE usage</PanelTitle>
+        <PanelTitle>App & IDE Usage</PanelTitle>
         <PanelSubtitle>Last 7 days</PanelSubtitle>
       </PanelHeader>
       <PanelContent>
@@ -244,7 +244,7 @@ const TemplateUsagePanel = ({
                       sx={{
                         fontSize: 13,
                         color: (theme) => theme.palette.text.secondary,
-                        width: 200,
+                        width: 120,
                         flexShrink: 0,
                       }}
                     >
@@ -339,13 +339,13 @@ function formatTime(seconds: number): string {
     const minutes = Math.floor(seconds / 60)
     return minutes + " minutes"
   } else {
-    const hours = Math.floor(seconds / 3600)
-    const remainingMinutes = Math.floor((seconds % 3600) / 60)
-    if (remainingMinutes === 0) {
-      return hours + " hours"
-    } else {
-      return hours + " hours, " + remainingMinutes + " minutes"
+    const hours = seconds / 3600
+    const minutes = Math.floor(seconds % 3600)
+    if (minutes === 0) {
+      return hours.toFixed(0) + " hours"
     }
+
+    return hours.toFixed(1) + " hours"
   }
 }
 

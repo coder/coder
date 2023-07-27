@@ -24,8 +24,8 @@ type TemplateVariablesContext = {
   createTemplateVersionRequest?: CreateTemplateVersionRequest
   newTemplateVersion?: TemplateVersion
 
-  getTemplateDataError?: Error | unknown
-  updateTemplateError?: Error | unknown
+  getTemplateDataError?: unknown
+  updateTemplateError?: unknown
 
   jobError?: TemplateVersion["job"]["error"]
 }

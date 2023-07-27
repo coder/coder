@@ -37,7 +37,7 @@ export interface AuditPageViewProps {
   onPageChange: (page: number) => void
   isNonInitialPage: boolean
   isAuditLogVisible: boolean
-  error?: Error | unknown
+  error?: unknown
   filterProps: ComponentProps<typeof AuditFilter>
 }
 

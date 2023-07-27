@@ -4,7 +4,7 @@ import { createMachine, assign } from "xstate"
 
 export interface ExperimentsContext {
   experiments?: Experiment[]
-  getExperimentsError?: Error | unknown
+  getExperimentsError?: unknown
 }
 
 export const experimentsMachine = createMachine(

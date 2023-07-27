@@ -17,11 +17,11 @@ import { ErrorAlert } from "components/Alert/ErrorAlert"
 export interface WorkspaceProxyViewProps {
   proxies?: Region[]
   proxyLatencies?: Record<string, ProxyLatencyReport>
-  getWorkspaceProxiesError?: Error | unknown
+  getWorkspaceProxiesError?: unknown
   isLoading: boolean
   hasLoaded: boolean
   preferredProxy?: Region
-  selectProxyError?: Error | unknown
+  selectProxyError?: unknown
 }
 
 export const WorkspaceProxyView: FC<

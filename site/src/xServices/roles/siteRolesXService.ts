@@ -10,7 +10,7 @@ export const Language = {
 type SiteRolesContext = {
   hasPermission: boolean
   roles?: TypesGen.AssignableRoles[]
-  getRolesError: Error | unknown
+  getRolesError: unknown
 }
 
 export const siteRolesMachine = createMachine(

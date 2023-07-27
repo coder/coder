@@ -28,11 +28,11 @@ const lastUsedOrNever = (lastUsed: string) => {
 
 export interface TokensPageViewProps {
   tokens?: APIKeyWithOwner[]
-  getTokensError?: Error | unknown
+  getTokensError?: unknown
   isLoading: boolean
   hasLoaded: boolean
   onDelete: (token: APIKeyWithOwner) => void
-  deleteTokenError?: Error | unknown
+  deleteTokenError?: unknown
 }
 
 export const TokensPageView: FC<
