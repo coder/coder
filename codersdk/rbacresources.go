@@ -27,6 +27,47 @@ const (
 	ResourceSystem                      RBACResource = "system"
 )
 
+const (
+	ActionCreate = "create"
+	ActionRead   = "read"
+	ActionUpdate = "update"
+	ActionDelete = "delete"
+)
+
+var (
+	AllRBACResources = []RBACResource{
+		ResourceWorkspace,
+		ResourceWorkspaceProxy,
+		ResourceWorkspaceExecution,
+		ResourceWorkspaceApplicationConnect,
+		ResourceAuditLog,
+		ResourceTemplate,
+		ResourceGroup,
+		ResourceFile,
+		ResourceProvisionerDaemon,
+		ResourceOrganization,
+		ResourceRoleAssignment,
+		ResourceOrgRoleAssignment,
+		ResourceAPIKey,
+		ResourceUser,
+		ResourceUserData,
+		ResourceOrganizationMember,
+		ResourceLicense,
+		ResourceDeploymentValues,
+		ResourceDeploymentStats,
+		ResourceReplicas,
+		ResourceDebugInfo,
+		ResourceSystem,
+	}
+
+	AllRBACActions = []string{
+		ActionCreate,
+		ActionRead,
+		ActionUpdate,
+		ActionDelete,
+	}
+)
+
 func (r RBACResource) String() string {
 	return string(r)
 }
