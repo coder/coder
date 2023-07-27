@@ -313,16 +313,18 @@ Steps to troubleshoot.
 If your OpenID Connect provider supports roles claims, you can configure Coder
 to synchronize roles in your auth provider to deployment-wide roles within Coder.
 
-To enable group sync, ensure that the `roles` claim is set by adding the correct scope to request. If role sync is enabled, the user's roles will be controlled by the OIDC provider. This means manual group additions/removals will be overwritten on the next login.
-
-Set the following in your Coder server [configuration](./configure.md):
+Set the following in your Coder server [configuration](./configure.md).
 
 ```console
+ # Depending on your identity provider configuration, you may need to explicitely request a "roles" scope
+CODER_OIDC_SCOPES=openid,profile,email,roles
+
+# The following fields are requied for role sync:
 CODER_OIDC_USER_ROLE_FIELD=roles
-CODER_OIDC_USER_ROLE_MAPPING='{"TemplateAuthors":["template-admin","user-admin"]}'
+CODER_OIDC_USER_ROLE_MAPPING='{"TemplateAuthor":["template-admin","user-admin"]}'
 ```
 
-> `CODER_OIDC_USER_ROLE_FIELD` can be used if a non-standard roles claim is used.
+> One role from your identity provider can be mapped to many roles in Coder (e.g. the example above maps to 2 roles in Coder.)
 
 ## Provider-Specific Guides
 
