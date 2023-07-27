@@ -8,6 +8,10 @@ on:
       pr_number:
         description: "PR number"
         required: true
+      skip_build:
+        description: "Skip build job"
+        required: false
+        default: false
 
 env:
   REPO: ghcr.io/coder/coder-preview
@@ -73,6 +77,9 @@ jobs:
 
   build:
     needs: pr_commented
+    # Skips the build job if the workflow was triggered by a workflow_dispatch event and the skip_build input is set to true
+    # or if the workflow was triggered by an issue_comment event and the comment body contains --skip-build
+    if: (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_build == 'false') || (github.event_name == 'issue_comment' && contains(github.event.comment.body, '--skip-build') != true)
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
@@ -120,7 +127,8 @@ jobs:
 
   deploy:
     needs: [build, pr_commented]
-    if: needs.build.result == 'success'
+    # Run deploy job only if build job was successful or skipped but not if it failed
+    if: needs.build.result != 'failure' && needs.build.result != 'cancelled'
     runs-on: "ubuntu-latest"
     env:
       CODER_IMAGE_TAG: ${{ needs.pr_commented.outputs.CODER_IMAGE_TAG }}
