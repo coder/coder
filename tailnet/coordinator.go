@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html/template"
 	"io"
 	"net"
 	"net/http"
@@ -262,7 +263,7 @@ func (c *coordinator) ServeClient(conn net.Conn, id, agentID uuid.UUID) error {
 	logger := c.core.clientLogger(id, agentID)
 	logger.Debug(ctx, "coordinating client")
 
-	tc := NewTrackedConn(ctx, cancel, conn, id, logger, 0)
+	tc := NewTrackedConn(ctx, cancel, conn, id, logger, id.String(), 0)
 	defer tc.Close()
 
 	c.core.addClient(id, tc)
@@ -507,7 +508,7 @@ func (c *core) initAndTrackAgent(ctx context.Context, cancel func(), conn net.Co
 		overwrites = oldAgentSocket.Overwrites() + 1
 		_ = oldAgentSocket.Close()
 	}
-	tc := NewTrackedConn(ctx, cancel, conn, unique, logger, overwrites)
+	tc := NewTrackedConn(ctx, cancel, conn, unique, logger, name, overwrites)
 	c.agentNameCache.Add(id, name)
 
 	sockets, ok := c.agentToConnectionSockets[id]
@@ -646,136 +647,204 @@ func (c *coordinator) ServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *core) serveHTTPDebug(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 
-	_, _ = fmt.Fprintln(w, "<h1>in-memory wireguard coordinator debug</h1>")
-
-	CoordinatorHTTPDebug(c.agentSockets, c.agentToConnectionSockets, c.agentNameCache)(w, r)
+	CoordinatorHTTPDebug(false, c.agentSockets, c.agentToConnectionSockets, c.nodes, c.agentNameCache)(w, r)
 }
 
 func CoordinatorHTTPDebug(
+	ha bool,
 	agentSocketsMap map[uuid.UUID]Queue,
 	agentToConnectionSocketsMap map[uuid.UUID]map[uuid.UUID]Queue,
+	nodesMap map[uuid.UUID]*Node,
 	agentNameCache *lru.Cache[uuid.UUID, string],
 ) func(w http.ResponseWriter, _ *http.Request) {
 	return func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+		tmpl, err := template.New("coordinator_debug").Funcs(template.FuncMap{
+			"marshal": func(v interface{}) template.JS {
+				a, err := json.MarshalIndent(v, "", "  ")
+				if err != nil {
+					//nolint:gosec
+					return template.JS(fmt.Sprintf(`{"err": %q}`, err))
+				}
+				//nolint:gosec
+				return template.JS(a)
+			},
+		}).Parse(coordinatorDebugTmpl)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(err.Error()))
+			return
+		}
+
 		now := time.Now()
-
-		type idConn struct {
-			id   uuid.UUID
-			conn Queue
-		}
-
-		{
-			_, _ = fmt.Fprintf(w, "<h2 id=agents><a href=#agents>#</a> agents: total %d</h2>\n", len(agentSocketsMap))
-			_, _ = fmt.Fprintln(w, "<ul>")
-			agentSockets := make([]idConn, 0, len(agentSocketsMap))
-
-			for id, conn := range agentSocketsMap {
-				agentSockets = append(agentSockets, idConn{id, conn})
+		data := htmlDebug{HA: ha}
+		for id, conn := range agentSocketsMap {
+			start, lastWrite := conn.Stats()
+			agent := &htmlAgent{
+				Name:         conn.Name(),
+				ID:           id,
+				CreatedAge:   now.Sub(time.Unix(start, 0)).Round(time.Second),
+				LastWriteAge: now.Sub(time.Unix(lastWrite, 0)).Round(time.Second),
+				Overwrites:   int(conn.Overwrites()),
 			}
 
-			slices.SortFunc(agentSockets, func(a, b idConn) bool {
-				return a.conn.Name() < b.conn.Name()
+			for id, conn := range agentToConnectionSocketsMap[id] {
+				start, lastWrite := conn.Stats()
+				agent.Connections = append(agent.Connections, &htmlClient{
+					Name:         conn.Name(),
+					ID:           id,
+					CreatedAge:   now.Sub(time.Unix(start, 0)).Round(time.Second),
+					LastWriteAge: now.Sub(time.Unix(lastWrite, 0)).Round(time.Second),
+				})
+			}
+			slices.SortFunc(agent.Connections, func(a, b *htmlClient) bool {
+				return a.Name < b.Name
 			})
 
-			for _, agent := range agentSockets {
-				start, lastWrite := agent.conn.Stats()
-				_, _ = fmt.Fprintf(w, "<li style=\"margin-top:4px\"><b>%s</b> (<code>%s</code>): created %v ago, write %v ago, overwrites %d </li>\n",
-					agent.conn.Name(),
-					agent.id.String(),
-					now.Sub(time.Unix(start, 0)).Round(time.Second),
-					now.Sub(time.Unix(lastWrite, 0)).Round(time.Second),
-					agent.conn.Overwrites(),
-				)
-
-				if conns := agentToConnectionSocketsMap[agent.id]; len(conns) > 0 {
-					_, _ = fmt.Fprintf(w, "<h3 style=\"margin:0px;font-size:16px;font-weight:400\">connections: total %d</h3>\n", len(conns))
-
-					connSockets := make([]idConn, 0, len(conns))
-					for id, conn := range conns {
-						connSockets = append(connSockets, idConn{id, conn})
-					}
-					slices.SortFunc(connSockets, func(a, b idConn) bool {
-						return a.id.String() < b.id.String()
-					})
-
-					_, _ = fmt.Fprintln(w, "<ul>")
-					for _, connSocket := range connSockets {
-						start, lastWrite := connSocket.conn.Stats()
-						_, _ = fmt.Fprintf(w, "<li><b>%s</b> (<code>%s</code>): created %v ago, write %v ago </li>\n",
-							connSocket.conn.Name(),
-							connSocket.id.String(),
-							now.Sub(time.Unix(start, 0)).Round(time.Second),
-							now.Sub(time.Unix(lastWrite, 0)).Round(time.Second),
-						)
-					}
-					_, _ = fmt.Fprintln(w, "</ul>")
-				}
-			}
-
-			_, _ = fmt.Fprintln(w, "</ul>")
+			data.Agents = append(data.Agents, agent)
 		}
+		slices.SortFunc(data.Agents, func(a, b *htmlAgent) bool {
+			return a.Name < b.Name
+		})
 
-		{
-			type agentConns struct {
-				id    uuid.UUID
-				conns []idConn
+		for agentID, conns := range agentToConnectionSocketsMap {
+			if len(conns) == 0 {
+				continue
 			}
 
-			missingAgents := []agentConns{}
-			for agentID, conns := range agentToConnectionSocketsMap {
-				if len(conns) == 0 {
-					continue
-				}
-
-				if _, ok := agentSocketsMap[agentID]; !ok {
-					connsSlice := make([]idConn, 0, len(conns))
-					for id, conn := range conns {
-						connsSlice = append(connsSlice, idConn{id, conn})
-					}
-					slices.SortFunc(connsSlice, func(a, b idConn) bool {
-						return a.id.String() < b.id.String()
-					})
-
-					missingAgents = append(missingAgents, agentConns{agentID, connsSlice})
-				}
-			}
-			slices.SortFunc(missingAgents, func(a, b agentConns) bool {
-				return a.id.String() < b.id.String()
-			})
-
-			_, _ = fmt.Fprintf(w, "<h2 id=missing-agents><a href=#missing-agents>#</a> missing agents: total %d</h2>\n", len(missingAgents))
-			_, _ = fmt.Fprintln(w, "<ul>")
-
-			for _, agentConns := range missingAgents {
-				agentName, ok := agentNameCache.Get(agentConns.id)
+			if _, ok := agentSocketsMap[agentID]; !ok {
+				agentName, ok := agentNameCache.Get(agentID)
 				if !ok {
 					agentName = "unknown"
 				}
-
-				_, _ = fmt.Fprintf(w, "<li style=\"margin-top:4px\"><b>%s</b> (<code>%s</code>): created ? ago, write ? ago, overwrites ? </li>\n",
-					agentName,
-					agentConns.id.String(),
-				)
-
-				_, _ = fmt.Fprintf(w, "<h3 style=\"margin:0px;font-size:16px;font-weight:400\">connections: total %d</h3>\n", len(agentConns.conns))
-				_, _ = fmt.Fprintln(w, "<ul>")
-				for _, agentConn := range agentConns.conns {
-					start, lastWrite := agentConn.conn.Stats()
-					_, _ = fmt.Fprintf(w, "<li><b>%s</b> (<code>%s</code>): created %v ago, write %v ago </li>\n",
-						agentConn.conn.Name(),
-						agentConn.id.String(),
-						now.Sub(time.Unix(start, 0)).Round(time.Second),
-						now.Sub(time.Unix(lastWrite, 0)).Round(time.Second),
-					)
+				agent := &htmlAgent{
+					Name: agentName,
+					ID:   agentID,
 				}
-				_, _ = fmt.Fprintln(w, "</ul>")
+				for id, conn := range conns {
+					start, lastWrite := conn.Stats()
+					agent.Connections = append(agent.Connections, &htmlClient{
+						Name:         conn.Name(),
+						ID:           id,
+						CreatedAge:   now.Sub(time.Unix(start, 0)).Round(time.Second),
+						LastWriteAge: now.Sub(time.Unix(lastWrite, 0)).Round(time.Second),
+					})
+				}
+				slices.SortFunc(agent.Connections, func(a, b *htmlClient) bool {
+					return a.Name < b.Name
+				})
+
+				data.MissingAgents = append(data.MissingAgents, agent)
 			}
-			_, _ = fmt.Fprintln(w, "</ul>")
+		}
+		slices.SortFunc(data.MissingAgents, func(a, b *htmlAgent) bool {
+			return a.Name < b.Name
+		})
+
+		for id, node := range nodesMap {
+			name, _ := agentNameCache.Get(id)
+			data.Nodes = append(data.Nodes, &htmlNode{
+				ID:   id,
+				Name: name,
+				Node: node,
+			})
+		}
+		slices.SortFunc(data.Nodes, func(a, b *htmlNode) bool {
+			return a.Name+a.ID.String() < b.Name+b.ID.String()
+		})
+
+		err = tmpl.Execute(w, data)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(err.Error()))
+			return
 		}
 	}
 }
+
+type htmlDebug struct {
+	HA            bool
+	Agents        []*htmlAgent
+	MissingAgents []*htmlAgent
+	Nodes         []*htmlNode
+}
+
+type htmlAgent struct {
+	Name         string
+	ID           uuid.UUID
+	CreatedAge   time.Duration
+	LastWriteAge time.Duration
+	Overwrites   int
+	Connections  []*htmlClient
+}
+
+type htmlClient struct {
+	Name         string
+	ID           uuid.UUID
+	CreatedAge   time.Duration
+	LastWriteAge time.Duration
+}
+
+type htmlNode struct {
+	ID   uuid.UUID
+	Name string
+	Node *Node
+}
+
+var coordinatorDebugTmpl = `
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+	</head>
+	<body>
+	{{- if .HA }}
+		<h1>high-availability wireguard coordinator debug</h1>
+		<h4 style="margin-top:-25px">warning: this only provides info from the node that served the request, if there are multiple replicas this data may be incomplete</h4>
+	{{- else }}
+		<h1>in-memory wireguard coordinator debug</h1>
+	{{- end }}
+
+		<h2 id=agents> <a href=#agents>#</a> agents: total {{ len .Agents }} </h2>
+		<ul>
+		{{- range .Agents }}
+			<li style="margin-top:4px">
+				<b>{{ .Name }}</b> (<code>{{ .ID }}</code>): created {{ .CreatedAge }} ago, write {{ .LastWriteAge }} ago, overwrites {{ .Overwrites }}
+				<h3 style="margin:0px;font-size:16px;font-weight:400"> connections: total {{ len .Connections}} </h3>
+				<ul>
+				{{- range .Connections }}
+					<li><b>{{ .Name }}</b> (<code>{{ .ID }}</code>): created {{ .CreatedAge }} ago, write {{ .LastWriteAge }} ago </li>
+				{{- end }}
+				</ul>
+			</li>
+		{{- end }}
+		</ul>
+
+		<h2 id=missing-agents><a href=#missing-agents>#</a> missing agents: total {{ len .MissingAgents }}</h2>
+		<ul>
+		{{- range .MissingAgents}}
+			<li style="margin-top:4px"><b>{{ .Name }}</b> (<code>{{ .ID }}</code>): created ? ago, write ? ago, overwrites ? </li>
+			<h3 style="margin:0px;font-size:16px;font-weight:400"> connections: total {{ len .Connections }} </h3>
+			<ul>
+			{{- range .Connections }}
+				<li><b>{{ .Name }}</b> (<code>{{ .ID }}</code>): created {{ .CreatedAge }} ago, write {{ .LastWriteAge }} ago </li>
+			{{- end }}
+			</ul>
+		{{- end }}
+		</ul>
+
+		<h2 id=nodes><a href=#nodes>#</a> nodes: total {{ len .Nodes }}</h2>
+		<ul>
+		{{- range .Nodes }}
+			<li style="margin-top:4px"><b>{{ .Name }}</b> (<code>{{ .ID }}</code>):
+				<span style="white-space: pre;"><code>{{ marshal .Node }}</code></span>
+			</li>
+		{{- end }}
+		</ul>
+	</body>
+</html>
+`

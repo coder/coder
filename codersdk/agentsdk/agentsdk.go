@@ -115,6 +115,20 @@ func (c *Client) Manifest(ctx context.Context) (Manifest, error) {
 	if err != nil {
 		return Manifest{}, err
 	}
+	err = c.rewriteDerpMap(agentMeta.DERPMap)
+	if err != nil {
+		return Manifest{}, err
+	}
+	return agentMeta, nil
+}
+
+// rewriteDerpMap rewrites the DERP map to use the access URL of the SDK as the
+// "embedded relay" access URL. The passed derp map is modified in place.
+//
+// Agents can provide an arbitrary access URL that may be different that the
+// globally configured one. This breaks the built-in DERP, which would continue
+// to reference the global access URL.
+func (c *Client) rewriteDerpMap(derpMap *tailcfg.DERPMap) error {
 	accessingPort := c.SDK.URL.Port()
 	if accessingPort == "" {
 		accessingPort = "80"
@@ -124,15 +138,9 @@ func (c *Client) Manifest(ctx context.Context) (Manifest, error) {
 	}
 	accessPort, err := strconv.Atoi(accessingPort)
 	if err != nil {
-		return Manifest{}, xerrors.Errorf("convert accessing port %q: %w", accessingPort, err)
+		return xerrors.Errorf("convert accessing port %q: %w", accessingPort, err)
 	}
-	// Agents can provide an arbitrary access URL that may be different
-	// that the globally configured one. This breaks the built-in DERP,
-	// which would continue to reference the global access URL.
-	//
-	// This converts all built-in DERPs to use the access URL that the
-	// manifest request was performed with.
-	for _, region := range agentMeta.DERPMap.Regions {
+	for _, region := range derpMap.Regions {
 		if !region.EmbeddedRelay {
 			continue
 		}
@@ -146,7 +154,89 @@ func (c *Client) Manifest(ctx context.Context) (Manifest, error) {
 			node.ForceHTTP = c.SDK.URL.Scheme == "http"
 		}
 	}
-	return agentMeta, nil
+	return nil
+}
+
+type DERPMapUpdate struct {
+	Err     error
+	DERPMap *tailcfg.DERPMap
+}
+
+// DERPMapUpdates connects to the DERP map updates WebSocket.
+func (c *Client) DERPMapUpdates(ctx context.Context) (<-chan DERPMapUpdate, io.Closer, error) {
+	derpMapURL, err := c.SDK.URL.Parse("/api/v2/derp-map")
+	if err != nil {
+		return nil, nil, xerrors.Errorf("parse url: %w", err)
+	}
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("create cookie jar: %w", err)
+	}
+	jar.SetCookies(derpMapURL, []*http.Cookie{{
+		Name:  codersdk.SessionTokenCookie,
+		Value: c.SDK.SessionToken(),
+	}})
+	httpClient := &http.Client{
+		Jar:       jar,
+		Transport: c.SDK.HTTPClient.Transport,
+	}
+	// nolint:bodyclose
+	conn, res, err := websocket.Dial(ctx, derpMapURL.String(), &websocket.DialOptions{
+		HTTPClient: httpClient,
+	})
+	if err != nil {
+		if res == nil {
+			return nil, nil, err
+		}
+		return nil, nil, codersdk.ReadBodyAsError(res)
+	}
+
+	ctx, cancelFunc := context.WithCancel(ctx)
+	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
+	pingClosed := pingWebSocket(ctx, c.SDK.Logger(), conn, "derp map")
+
+	var (
+		updates       = make(chan DERPMapUpdate)
+		updatesClosed = make(chan struct{})
+		dec           = json.NewDecoder(wsNetConn)
+	)
+	go func() {
+		defer close(updates)
+		defer close(updatesClosed)
+		defer cancelFunc()
+		defer conn.Close(websocket.StatusGoingAway, "Listen closed")
+		for {
+			var update DERPMapUpdate
+			err := dec.Decode(&update.DERPMap)
+			if err != nil {
+				update.Err = err
+				update.DERPMap = nil
+				return
+			}
+			err = c.rewriteDerpMap(update.DERPMap)
+			if err != nil {
+				update.Err = err
+				update.DERPMap = nil
+				return
+			}
+
+			select {
+			case updates <- update:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return updates, &closer{
+		closeFunc: func() error {
+			cancelFunc()
+			_ = wsNetConn.Close()
+			<-pingClosed
+			<-updatesClosed
+			return nil
+		},
+	}, nil
 }
 
 // Listen connects to the workspace agent coordinate WebSocket
@@ -181,50 +271,14 @@ func (c *Client) Listen(ctx context.Context) (net.Conn, error) {
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
-
-	// Ping once every 30 seconds to ensure that the websocket is alive. If we
-	// don't get a response within 30s we kill the websocket and reconnect.
-	// See: https://github.com/coder/coder/pull/5824
-	closed := make(chan struct{})
-	go func() {
-		defer close(closed)
-		tick := 30 * time.Second
-		ticker := time.NewTicker(tick)
-		defer ticker.Stop()
-		defer func() {
-			c.SDK.Logger().Debug(ctx, "coordinate pinger exited")
-		}()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case start := <-ticker.C:
-				ctx, cancel := context.WithTimeout(ctx, tick)
-
-				err := conn.Ping(ctx)
-				if err != nil {
-					c.SDK.Logger().Error(ctx, "workspace agent coordinate ping", slog.Error(err))
-
-					err := conn.Close(websocket.StatusGoingAway, "Ping failed")
-					if err != nil {
-						c.SDK.Logger().Error(ctx, "close workspace agent coordinate websocket", slog.Error(err))
-					}
-
-					cancel()
-					return
-				}
-
-				c.SDK.Logger().Debug(ctx, "got coordinate pong", slog.F("took", time.Since(start)))
-				cancel()
-			}
-		}
-	}()
+	pingClosed := pingWebSocket(ctx, c.SDK.Logger(), conn, "coordinate")
 
 	return &closeNetConn{
 		Conn: wsNetConn,
 		closeFunc: func() {
 			cancelFunc()
-			<-closed
+			_ = conn.Close(websocket.StatusGoingAway, "Listen closed")
+			<-pingClosed
 		},
 	}, nil
 }
@@ -702,4 +756,54 @@ type closeNetConn struct {
 func (c *closeNetConn) Close() error {
 	c.closeFunc()
 	return c.Conn.Close()
+}
+
+func pingWebSocket(ctx context.Context, logger slog.Logger, conn *websocket.Conn, name string) <-chan struct{} {
+	// Ping once every 30 seconds to ensure that the websocket is alive. If we
+	// don't get a response within 30s we kill the websocket and reconnect.
+	// See: https://github.com/coder/coder/pull/5824
+	closed := make(chan struct{})
+	go func() {
+		defer close(closed)
+		tick := 30 * time.Second
+		ticker := time.NewTicker(tick)
+		defer ticker.Stop()
+		defer func() {
+			logger.Debug(ctx, fmt.Sprintf("%s pinger exited", name))
+		}()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case start := <-ticker.C:
+				ctx, cancel := context.WithTimeout(ctx, tick)
+
+				err := conn.Ping(ctx)
+				if err != nil {
+					logger.Error(ctx, fmt.Sprintf("workspace agent %s ping", name), slog.Error(err))
+
+					err := conn.Close(websocket.StatusGoingAway, "Ping failed")
+					if err != nil {
+						logger.Error(ctx, fmt.Sprintf("close workspace agent %s websocket", name), slog.Error(err))
+					}
+
+					cancel()
+					return
+				}
+
+				logger.Debug(ctx, fmt.Sprintf("got %s ping", name), slog.F("took", time.Since(start)))
+				cancel()
+			}
+		}
+	}()
+
+	return closed
+}
+
+type closer struct {
+	closeFunc func() error
+}
+
+func (c *closer) Close() error {
+	return c.closeFunc()
 }

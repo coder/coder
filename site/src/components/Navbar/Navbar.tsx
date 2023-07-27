@@ -16,6 +16,7 @@ export const Navbar: FC = () => {
   const canViewAuditLog =
     featureVisibility["audit_log"] && Boolean(permissions.viewAuditLog)
   const canViewDeployment = Boolean(permissions.viewDeploymentValues)
+  const canViewAllUsers = Boolean(permissions.readAllUsers)
   const onSignOut = () => authSend("SIGN_OUT")
   const proxyContextValue = useProxy()
   const dashboard = useDashboard()
@@ -29,6 +30,7 @@ export const Navbar: FC = () => {
       onSignOut={onSignOut}
       canViewAuditLog={canViewAuditLog}
       canViewDeployment={canViewDeployment}
+      canViewAllUsers={canViewAllUsers}
       proxyContextValue={
         dashboard.experiments.includes("moons") ? proxyContextValue : undefined
       }

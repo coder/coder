@@ -6,6 +6,8 @@ import dayjs from "dayjs"
 import { createContext, FC, useContext, useEffect, useState } from "react"
 import Skeleton from "@mui/material/Skeleton"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
+import { combineClasses } from "utils/combineClasses"
+import Tooltip from "@mui/material/Tooltip"
 
 type ItemStatus = "stale" | "valid" | "loading"
 
@@ -44,22 +46,33 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
   // users that what's shown is real. If times aren't correctly synced this
   // could be buggy. But, how common is that anyways?
   const value =
-    status === "stale" || status === "loading" ? (
+    status === "loading" ? (
       <Skeleton
         width={65}
         height={12}
         variant="text"
         className={styles.skeleton}
       />
+    ) : status === "stale" ? (
+      <Tooltip title="This data is stale and no longer up to date">
+        <div
+          className={combineClasses([
+            styles.metadataValue,
+            styles.metadataStale,
+          ])}
+        >
+          {item.result.value}
+        </div>
+      </Tooltip>
     ) : (
       <div
-        className={
-          styles.metadataValue +
-          " " +
-          (item.result.error.length === 0
+        className={combineClasses([
+          styles.metadataValue,
+
+          item.result.error.length === 0
             ? styles.metadataValueSuccess
-            : styles.metadataValueError)
-        }
+            : styles.metadataValueError,
+        ])}
       >
         {item.result.value}
       </div>
@@ -224,6 +237,11 @@ const useStyles = makeStyles((theme) => ({
 
   metadataValueError: {
     color: theme.palette.error.main,
+  },
+
+  metadataStale: {
+    color: theme.palette.text.disabled,
+    cursor: "pointer",
   },
 
   skeleton: {

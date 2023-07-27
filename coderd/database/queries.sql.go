@@ -2848,7 +2848,7 @@ func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, a
 
 const getWorkspaceProxies = `-- name: GetWorkspaceProxies :many
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
 FROM
 	workspace_proxies
 WHERE
@@ -2875,6 +2875,8 @@ func (q *sqlQuerier) GetWorkspaceProxies(ctx context.Context) ([]WorkspaceProxy,
 			&i.UpdatedAt,
 			&i.Deleted,
 			&i.TokenHashedSecret,
+			&i.RegionID,
+			&i.DerpEnabled,
 		); err != nil {
 			return nil, err
 		}
@@ -2891,7 +2893,7 @@ func (q *sqlQuerier) GetWorkspaceProxies(ctx context.Context) ([]WorkspaceProxy,
 
 const getWorkspaceProxyByHostname = `-- name: GetWorkspaceProxyByHostname :one
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
 FROM
 	workspace_proxies
 WHERE
@@ -2947,13 +2949,15 @@ func (q *sqlQuerier) GetWorkspaceProxyByHostname(ctx context.Context, arg GetWor
 		&i.UpdatedAt,
 		&i.Deleted,
 		&i.TokenHashedSecret,
+		&i.RegionID,
+		&i.DerpEnabled,
 	)
 	return i, err
 }
 
 const getWorkspaceProxyByID = `-- name: GetWorkspaceProxyByID :one
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
 FROM
 	workspace_proxies
 WHERE
@@ -2976,13 +2980,15 @@ func (q *sqlQuerier) GetWorkspaceProxyByID(ctx context.Context, id uuid.UUID) (W
 		&i.UpdatedAt,
 		&i.Deleted,
 		&i.TokenHashedSecret,
+		&i.RegionID,
+		&i.DerpEnabled,
 	)
 	return i, err
 }
 
 const getWorkspaceProxyByName = `-- name: GetWorkspaceProxyByName :one
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
 FROM
 	workspace_proxies
 WHERE
@@ -3006,6 +3012,8 @@ func (q *sqlQuerier) GetWorkspaceProxyByName(ctx context.Context, name string) (
 		&i.UpdatedAt,
 		&i.Deleted,
 		&i.TokenHashedSecret,
+		&i.RegionID,
+		&i.DerpEnabled,
 	)
 	return i, err
 }
@@ -3019,13 +3027,14 @@ INSERT INTO
 		name,
 		display_name,
 		icon,
+		derp_enabled,
 		token_hashed_secret,
 		created_at,
 		updated_at,
 		deleted
 	)
 VALUES
-	($1, '', '', $2, $3, $4, $5, $6, $7, false) RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
+	($1, '', '', $2, $3, $4, $5, $6, $7, $8, false) RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
 `
 
 type InsertWorkspaceProxyParams struct {
@@ -3033,6 +3042,7 @@ type InsertWorkspaceProxyParams struct {
 	Name              string    `db:"name" json:"name"`
 	DisplayName       string    `db:"display_name" json:"display_name"`
 	Icon              string    `db:"icon" json:"icon"`
+	DerpEnabled       bool      `db:"derp_enabled" json:"derp_enabled"`
 	TokenHashedSecret []byte    `db:"token_hashed_secret" json:"token_hashed_secret"`
 	CreatedAt         time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt         time.Time `db:"updated_at" json:"updated_at"`
@@ -3044,6 +3054,7 @@ func (q *sqlQuerier) InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspa
 		arg.Name,
 		arg.DisplayName,
 		arg.Icon,
+		arg.DerpEnabled,
 		arg.TokenHashedSecret,
 		arg.CreatedAt,
 		arg.UpdatedAt,
@@ -3060,6 +3071,8 @@ func (q *sqlQuerier) InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspa
 		&i.UpdatedAt,
 		&i.Deleted,
 		&i.TokenHashedSecret,
+		&i.RegionID,
+		&i.DerpEnabled,
 	)
 	return i, err
 }
@@ -3068,22 +3081,29 @@ const registerWorkspaceProxy = `-- name: RegisterWorkspaceProxy :one
 UPDATE
 	workspace_proxies
 SET
-	url = $1,
-	wildcard_hostname = $2,
+	url = $1 :: text,
+	wildcard_hostname = $2 :: text,
+	derp_enabled = $3 :: boolean,
 	updated_at = Now()
 WHERE
-	id = $3
-RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
+	id = $4
+RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
 `
 
 type RegisterWorkspaceProxyParams struct {
 	Url              string    `db:"url" json:"url"`
 	WildcardHostname string    `db:"wildcard_hostname" json:"wildcard_hostname"`
+	DerpEnabled      bool      `db:"derp_enabled" json:"derp_enabled"`
 	ID               uuid.UUID `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error) {
-	row := q.db.QueryRowContext(ctx, registerWorkspaceProxy, arg.Url, arg.WildcardHostname, arg.ID)
+	row := q.db.QueryRowContext(ctx, registerWorkspaceProxy,
+		arg.Url,
+		arg.WildcardHostname,
+		arg.DerpEnabled,
+		arg.ID,
+	)
 	var i WorkspaceProxy
 	err := row.Scan(
 		&i.ID,
@@ -3096,6 +3116,8 @@ func (q *sqlQuerier) RegisterWorkspaceProxy(ctx context.Context, arg RegisterWor
 		&i.UpdatedAt,
 		&i.Deleted,
 		&i.TokenHashedSecret,
+		&i.RegionID,
+		&i.DerpEnabled,
 	)
 	return i, err
 }
@@ -3118,7 +3140,7 @@ SET
 	updated_at = Now()
 WHERE
 	id = $5
-RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
+RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
 `
 
 type UpdateWorkspaceProxyParams struct {
@@ -3150,6 +3172,8 @@ func (q *sqlQuerier) UpdateWorkspaceProxy(ctx context.Context, arg UpdateWorkspa
 		&i.UpdatedAt,
 		&i.Deleted,
 		&i.TokenHashedSecret,
+		&i.RegionID,
+		&i.DerpEnabled,
 	)
 	return i, err
 }
@@ -3230,8 +3254,32 @@ func (q *sqlQuerier) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt 
 	return err
 }
 
+const getReplicaByID = `-- name: GetReplicaByID :one
+SELECT id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error, "primary" FROM replicas WHERE id = $1
+`
+
+func (q *sqlQuerier) GetReplicaByID(ctx context.Context, id uuid.UUID) (Replica, error) {
+	row := q.db.QueryRowContext(ctx, getReplicaByID, id)
+	var i Replica
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.StartedAt,
+		&i.StoppedAt,
+		&i.UpdatedAt,
+		&i.Hostname,
+		&i.RegionID,
+		&i.RelayAddress,
+		&i.DatabaseLatency,
+		&i.Version,
+		&i.Error,
+		&i.Primary,
+	)
+	return i, err
+}
+
 const getReplicasUpdatedAfter = `-- name: GetReplicasUpdatedAfter :many
-SELECT id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error FROM replicas WHERE updated_at > $1 AND stopped_at IS NULL
+SELECT id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error, "primary" FROM replicas WHERE updated_at > $1 AND stopped_at IS NULL
 `
 
 func (q *sqlQuerier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]Replica, error) {
@@ -3255,6 +3303,7 @@ func (q *sqlQuerier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time
 			&i.DatabaseLatency,
 			&i.Version,
 			&i.Error,
+			&i.Primary,
 		); err != nil {
 			return nil, err
 		}
@@ -3279,8 +3328,9 @@ INSERT INTO replicas (
     region_id,
     relay_address,
     version,
-    database_latency
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error
+    database_latency,
+	"primary"
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error, "primary"
 `
 
 type InsertReplicaParams struct {
@@ -3293,6 +3343,7 @@ type InsertReplicaParams struct {
 	RelayAddress    string    `db:"relay_address" json:"relay_address"`
 	Version         string    `db:"version" json:"version"`
 	DatabaseLatency int32     `db:"database_latency" json:"database_latency"`
+	Primary         bool      `db:"primary" json:"primary"`
 }
 
 func (q *sqlQuerier) InsertReplica(ctx context.Context, arg InsertReplicaParams) (Replica, error) {
@@ -3306,6 +3357,7 @@ func (q *sqlQuerier) InsertReplica(ctx context.Context, arg InsertReplicaParams)
 		arg.RelayAddress,
 		arg.Version,
 		arg.DatabaseLatency,
+		arg.Primary,
 	)
 	var i Replica
 	err := row.Scan(
@@ -3320,6 +3372,7 @@ func (q *sqlQuerier) InsertReplica(ctx context.Context, arg InsertReplicaParams)
 		&i.DatabaseLatency,
 		&i.Version,
 		&i.Error,
+		&i.Primary,
 	)
 	return i, err
 }
@@ -3334,8 +3387,9 @@ UPDATE replicas SET
     hostname = $7,
     version = $8,
     error = $9,
-    database_latency = $10
-WHERE id = $1 RETURNING id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error
+    database_latency = $10,
+	"primary" = $11
+WHERE id = $1 RETURNING id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error, "primary"
 `
 
 type UpdateReplicaParams struct {
@@ -3349,6 +3403,7 @@ type UpdateReplicaParams struct {
 	Version         string       `db:"version" json:"version"`
 	Error           string       `db:"error" json:"error"`
 	DatabaseLatency int32        `db:"database_latency" json:"database_latency"`
+	Primary         bool         `db:"primary" json:"primary"`
 }
 
 func (q *sqlQuerier) UpdateReplica(ctx context.Context, arg UpdateReplicaParams) (Replica, error) {
@@ -3363,6 +3418,7 @@ func (q *sqlQuerier) UpdateReplica(ctx context.Context, arg UpdateReplicaParams)
 		arg.Version,
 		arg.Error,
 		arg.DatabaseLatency,
+		arg.Primary,
 	)
 	var i Replica
 	err := row.Scan(
@@ -3377,6 +3433,7 @@ func (q *sqlQuerier) UpdateReplica(ctx context.Context, arg UpdateReplicaParams)
 		&i.DatabaseLatency,
 		&i.Version,
 		&i.Error,
+		&i.Primary,
 	)
 	return i, err
 }

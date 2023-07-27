@@ -1076,6 +1076,21 @@ func (mr *MockStoreMockRecorder) GetQuotaConsumedForUser(arg0, arg1 interface{})
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetQuotaConsumedForUser", reflect.TypeOf((*MockStore)(nil).GetQuotaConsumedForUser), arg0, arg1)
 }
 
+// GetReplicaByID mocks base method.
+func (m *MockStore) GetReplicaByID(arg0 context.Context, arg1 uuid.UUID) (database.Replica, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetReplicaByID", arg0, arg1)
+	ret0, _ := ret[0].(database.Replica)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetReplicaByID indicates an expected call of GetReplicaByID.
+func (mr *MockStoreMockRecorder) GetReplicaByID(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReplicaByID", reflect.TypeOf((*MockStore)(nil).GetReplicaByID), arg0, arg1)
+}
+
 // GetReplicasUpdatedAfter mocks base method.
 func (m *MockStore) GetReplicasUpdatedAfter(arg0 context.Context, arg1 time.Time) ([]database.Replica, error) {
 	m.ctrl.T.Helper()

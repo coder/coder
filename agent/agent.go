@@ -27,6 +27,7 @@ import (
 	"github.com/spf13/afero"
 	"go.uber.org/atomic"
 	"golang.org/x/exp/slices"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
@@ -72,6 +73,7 @@ type Options struct {
 type Client interface {
 	Manifest(ctx context.Context) (agentsdk.Manifest, error)
 	Listen(ctx context.Context) (net.Conn, error)
+	DERPMapUpdates(ctx context.Context) (<-chan agentsdk.DERPMapUpdate, io.Closer, error)
 	ReportStats(ctx context.Context, log slog.Logger, statsChan <-chan *agentsdk.Stats, setInterval func(time.Duration)) (io.Closer, error)
 	PostLifecycle(ctx context.Context, state agentsdk.PostLifecycleRequest) error
 	PostAppHealth(ctx context.Context, req agentsdk.PostAppHealthsRequest) error
@@ -699,12 +701,26 @@ func (a *agent) run(ctx context.Context) error {
 		network.SetBlockEndpoints(manifest.DisableDirectConnections)
 	}
 
-	a.logger.Debug(ctx, "running tailnet connection coordinator")
-	err = a.runCoordinator(ctx, network)
-	if err != nil {
-		return xerrors.Errorf("run coordinator: %w", err)
-	}
-	return nil
+	eg, egCtx := errgroup.WithContext(ctx)
+	eg.Go(func() error {
+		a.logger.Debug(egCtx, "running tailnet connection coordinator")
+		err := a.runCoordinator(egCtx, network)
+		if err != nil {
+			return xerrors.Errorf("run coordinator: %w", err)
+		}
+		return nil
+	})
+
+	eg.Go(func() error {
+		a.logger.Debug(egCtx, "running derp map subscriber")
+		err := a.runDERPMapSubscriber(egCtx, network)
+		if err != nil {
+			return xerrors.Errorf("run derp map subscriber: %w", err)
+		}
+		return nil
+	})
+
+	return eg.Wait()
 }
 
 func (a *agent) wireguardAddresses(agentID uuid.UUID) []netip.Prefix {
@@ -739,7 +755,7 @@ func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *t
 	network, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:      a.wireguardAddresses(agentID),
 		DERPMap:        derpMap,
-		Logger:         a.logger.Named("tailnet"),
+		Logger:         a.logger.Named("net.tailnet"),
 		ListenPort:     a.tailnetListenPort,
 		BlockEndpoints: disableDirectConnections,
 	})
@@ -924,6 +940,34 @@ func (a *agent) runCoordinator(ctx context.Context, network *tailnet.Conn) error
 		return ctx.Err()
 	case err := <-errChan:
 		return err
+	}
+}
+
+// runDERPMapSubscriber runs a coordinator and returns if a reconnect should occur.
+func (a *agent) runDERPMapSubscriber(ctx context.Context, network *tailnet.Conn) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	updates, closer, err := a.client.DERPMapUpdates(ctx)
+	if err != nil {
+		return err
+	}
+	defer closer.Close()
+
+	a.logger.Info(ctx, "connected to derp map endpoint")
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case update := <-updates:
+			if update.Err != nil {
+				return update.Err
+			}
+			if update.DERPMap != nil && !tailnet.CompareDERPMaps(network.DERPMap(), update.DERPMap) {
+				a.logger.Info(ctx, "updating derp map due to detected changes")
+				network.SetDERPMap(update.DERPMap)
+			}
+		}
 	}
 }
 

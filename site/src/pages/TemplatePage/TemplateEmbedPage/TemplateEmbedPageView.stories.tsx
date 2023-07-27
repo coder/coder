@@ -20,7 +20,7 @@ const meta: Meta<typeof TemplateEmbedPageView> = {
 export default meta
 type Story = StoryObj<typeof TemplateEmbedPageView>
 
-export const Empty: Story = {
+export const NoParameters: Story = {
   args: {
     templateParameters: [],
   },

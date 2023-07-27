@@ -4,7 +4,7 @@ import { Entitlements } from "../../api/typesGenerated"
 
 export type EntitlementsContext = {
   entitlements?: Entitlements
-  getEntitlementsError?: Error | unknown
+  getEntitlementsError?: unknown
 }
 
 export const entitlementsMachine = createMachine(

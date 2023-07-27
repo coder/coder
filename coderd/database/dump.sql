@@ -427,7 +427,8 @@ CREATE TABLE replicas (
     relay_address text NOT NULL,
     database_latency integer NOT NULL,
     version text NOT NULL,
-    error text DEFAULT ''::text NOT NULL
+    error text DEFAULT ''::text NOT NULL,
+    "primary" boolean DEFAULT true NOT NULL
 );
 
 CREATE TABLE site_configs (
@@ -872,7 +873,9 @@ CREATE TABLE workspace_proxies (
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     deleted boolean NOT NULL,
-    token_hashed_secret bytea NOT NULL
+    token_hashed_secret bytea NOT NULL,
+    region_id integer NOT NULL,
+    derp_enabled boolean DEFAULT true NOT NULL
 );
 
 COMMENT ON COLUMN workspace_proxies.icon IS 'Expects an emoji character. (/emojis/1f1fa-1f1f8.png)';
@@ -884,6 +887,16 @@ COMMENT ON COLUMN workspace_proxies.wildcard_hostname IS 'Hostname with the wild
 COMMENT ON COLUMN workspace_proxies.deleted IS 'Boolean indicator of a deleted workspace proxy. Proxies are soft-deleted.';
 
 COMMENT ON COLUMN workspace_proxies.token_hashed_secret IS 'Hashed secret is used to authenticate the workspace proxy using a session token.';
+
+CREATE SEQUENCE workspace_proxies_region_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+ALTER SEQUENCE workspace_proxies_region_id_seq OWNED BY workspace_proxies.region_id;
 
 CREATE TABLE workspace_resource_metadata (
     workspace_resource_id uuid NOT NULL,
@@ -936,6 +949,8 @@ ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq':
 ALTER TABLE ONLY provisioner_job_logs ALTER COLUMN id SET DEFAULT nextval('provisioner_job_logs_id_seq'::regclass);
 
 ALTER TABLE ONLY workspace_agent_logs ALTER COLUMN id SET DEFAULT nextval('workspace_agent_startup_logs_id_seq'::regclass);
+
+ALTER TABLE ONLY workspace_proxies ALTER COLUMN region_id SET DEFAULT nextval('workspace_proxies_region_id_seq'::regclass);
 
 ALTER TABLE ONLY workspace_resource_metadata ALTER COLUMN id SET DEFAULT nextval('workspace_resource_metadata_id_seq'::regclass);
 
@@ -1067,6 +1082,9 @@ ALTER TABLE ONLY workspace_builds
 
 ALTER TABLE ONLY workspace_proxies
     ADD CONSTRAINT workspace_proxies_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY workspace_proxies
+    ADD CONSTRAINT workspace_proxies_region_id_unique UNIQUE (region_id);
 
 ALTER TABLE ONLY workspace_resource_metadata
     ADD CONSTRAINT workspace_resource_metadata_name UNIQUE (workspace_resource_id, key);

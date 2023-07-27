@@ -15,8 +15,8 @@ export const Language = {
 export interface SSHKeysPageViewProps {
   isLoading: boolean
   hasLoaded: boolean
-  getSSHKeyError?: Error | unknown
-  regenerateSSHKeyError?: Error | unknown
+  getSSHKeyError?: unknown
+  regenerateSSHKeyError?: unknown
   sshKey?: GitSSHKey
   onRegenerateClick: () => void
 }

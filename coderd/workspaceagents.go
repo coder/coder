@@ -63,7 +63,7 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	apiAgent, err := convertWorkspaceAgent(
-		api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout,
+		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
 	if err != nil {
@@ -88,7 +88,7 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 	apiAgent, err := convertWorkspaceAgent(
-		api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout,
+		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
 	if err != nil {
@@ -163,7 +163,7 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.Manifest{
 		AgentID:                  apiAgent.ID,
 		Apps:                     convertApps(dbApps),
-		DERPMap:                  api.DERPMap,
+		DERPMap:                  api.DERPMap(),
 		GitAuthConfigs:           len(api.GitAuthConfigs),
 		EnvironmentVariables:     apiAgent.EnvironmentVariables,
 		StartupScript:            apiAgent.StartupScript,
@@ -192,7 +192,7 @@ func (api *API) postWorkspaceAgentStartup(rw http.ResponseWriter, r *http.Reques
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 	apiAgent, err := convertWorkspaceAgent(
-		api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout,
+		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
 	if err != nil {
@@ -605,7 +605,7 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
 
 	apiAgent, err := convertWorkspaceAgent(
-		api.DERPMap, *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout,
+		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
 	if err != nil {
@@ -701,10 +701,12 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 // See: https://github.com/coder/coder/issues/8218
 func (api *API) _dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.WorkspaceAgentConn, error) {
 	clientConn, serverConn := net.Pipe()
+
+	derpMap := api.DERPMap()
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:      []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
-		DERPMap:        api.DERPMap,
-		Logger:         api.Logger.Named("tailnet"),
+		DERPMap:        api.DERPMap(),
+		Logger:         api.Logger.Named("net.tailnet"),
 		BlockEndpoints: api.DeploymentValues.DERP.Config.BlockDirect.Value(),
 	})
 	if err != nil {
@@ -727,14 +729,35 @@ func (api *API) _dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.Workspa
 		return left
 	})
 
-	sendNodes, _ := tailnet.ServeCoordinator(clientConn, func(node []*tailnet.Node) error {
-		err = conn.UpdateNodes(node, true)
-		if err != nil {
-			return xerrors.Errorf("update nodes: %w", err)
-		}
-		return nil
+	sendNodes, _ := tailnet.ServeCoordinator(clientConn, func(nodes []*tailnet.Node) error {
+		return conn.UpdateNodes(nodes, true)
 	})
 	conn.SetNodeCallback(sendNodes)
+
+	// Check for updated DERP map every 5 seconds.
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			lastDERPMap := derpMap
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+				}
+
+				derpMap := api.DERPMap()
+				if lastDERPMap == nil || tailnet.CompareDERPMaps(lastDERPMap, derpMap) {
+					conn.SetDERPMap(derpMap)
+					lastDERPMap = derpMap
+				}
+				ticker.Reset(5 * time.Second)
+			}
+		}
+	}()
+
 	agentConn := codersdk.NewWorkspaceAgentConn(conn, codersdk.WorkspaceAgentConnOptions{
 		AgentID: agentID,
 		AgentIP: codersdk.WorkspaceAgentIP,
@@ -758,6 +781,9 @@ func (api *API) _dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.Workspa
 	}()
 	if !agentConn.AwaitReachable(ctx) {
 		_ = agentConn.Close()
+		_ = serverConn.Close()
+		_ = clientConn.Close()
+		cancel()
 		return nil, xerrors.Errorf("agent not reachable")
 	}
 	return agentConn, nil
@@ -775,7 +801,7 @@ func (api *API) workspaceAgentConnection(rw http.ResponseWriter, r *http.Request
 	ctx := r.Context()
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceAgentConnectionInfo{
-		DERPMap:                  api.DERPMap,
+		DERPMap:                  api.DERPMap(),
 		DisableDirectConnections: api.DeploymentValues.DERP.Config.BlockDirect.Value(),
 	})
 }
@@ -795,8 +821,61 @@ func (api *API) workspaceAgentConnectionGeneric(rw http.ResponseWriter, r *http.
 	ctx := r.Context()
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceAgentConnectionInfo{
-		DERPMap: api.DERPMap,
+		DERPMap:                  api.DERPMap(),
+		DisableDirectConnections: api.DeploymentValues.DERP.Config.BlockDirect.Value(),
 	})
+}
+
+// @Summary Get DERP map updates
+// @ID get-derp-map-updates
+// @Security CoderSessionToken
+// @Tags Agents
+// @Success 101
+// @Router /derp-map [get]
+func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	api.WebsocketWaitMutex.Lock()
+	api.WebsocketWaitGroup.Add(1)
+	api.WebsocketWaitMutex.Unlock()
+	defer api.WebsocketWaitGroup.Done()
+
+	ws, err := websocket.Accept(rw, r, nil)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to accept websocket.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	nconn := websocket.NetConn(ctx, ws, websocket.MessageBinary)
+	defer nconn.Close()
+
+	ticker := time.NewTicker(api.Options.DERPMapUpdateFrequency)
+	defer ticker.Stop()
+
+	var lastDERPMap *tailcfg.DERPMap
+	for {
+		derpMap := api.DERPMap()
+		if lastDERPMap == nil || !tailnet.CompareDERPMaps(lastDERPMap, derpMap) {
+			err := json.NewEncoder(nconn).Encode(derpMap)
+			if err != nil {
+				_ = ws.Close(websocket.StatusInternalError, err.Error())
+				return
+			}
+			lastDERPMap = derpMap
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-api.ctx.Done():
+			return
+		case <-ticker.C:
+		}
+
+		ticker.Reset(api.Options.DERPMapUpdateFrequency)
+	}
 }
 
 // @Summary Coordinate workspace agent via Tailnet

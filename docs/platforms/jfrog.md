@@ -5,7 +5,7 @@ Use Coder and JFrog together to secure your development environments without dis
 This guide will demonstrate how to use JFrog Artifactory as a package registry
 within a workspace. We'll use Docker as the underlying compute. But, these concepts apply to any compute platform.
 
-The full example template can be found [here](https://github.com/coder/coder/tree/main/examples/jfrog-docker).
+The full example template can be found [here](https://github.com/coder/coder/tree/main/examples/templates/jfrog-docker).
 
 ## Requirements
 
@@ -68,7 +68,7 @@ When pushing the template, you can pass in the variables using the `-V` flag:
 coder templates push --var 'jfrog_url=https://YYY.jfrog.io' --var 'artifactory_access_token=XXX'
 ```
 
-## Installing jf
+## Installing JFrog CLI
 
 `jf` is the JFrog CLI. It can do many things across the JFrog platform, but
 we'll focus on its ability to configure package managers, as that's the relevant
@@ -80,13 +80,12 @@ The generic method of installing the JFrog CLI is the following command:
 curl -fL https://install-cli.jfrog.io | sh
 ```
 
-Other methods are listed [here](https://jfrog.com/help/r/jfrog-cli/download-and-installation).
+Other methods are listed [here](https://jfrog.com/getcli/).
 
 In our Docker-based example, we install `jf` by adding these lines to our `Dockerfile`:
 
 ```Dockerfile
-RUN curl -fL https://install-cli.jfrog.io | sh
-RUN chmod 755 $(which jf)
+RUN curl -fL https://install-cli.jfrog.io | sh && chmod 755 $(which jf)
 ```
 
 and use this `coder_agent` block:
@@ -131,6 +130,22 @@ Access token:                   ...
 Default:                        true
 ```
 
+## Installing the JFrog VS Code Extension
+
+You can install the JFrog VS Code extension into workspaces automatically
+by inserting the following lines into your `startup_script`:
+
+```sh
+  # Install the JFrog VS Code extension.
+  # Find the latest version number at
+  # https://open-vsx.org/extension/JFrog/jfrog-vscode-extension.
+  JFROG_EXT_VERSION=2.4.1
+  curl -o /tmp/jfrog.vsix -L "https://open-vsx.org/api/JFrog/jfrog-vscode-extension/$JFROG_EXT_VERSION/file/JFrog.jfrog-vscode-extension-$JFROG_EXT_VERSION.vsix"
+  /tmp/code-server/bin/code-server --install-extension /tmp/jfrog.vsix
+```
+
+Note that this method will only work if your developers use code-server.
+
 ## Configuring npm
 
 Add the following line to your `startup_script` to configure `npm` to use
@@ -155,5 +170,5 @@ supported by Artifactory.
 
 ## More reading
 
-- See the full example template [here](https://github.com/coder/coder/tree/main/examples/jfrog-docker).
+- See the full example template [here](https://github.com/coder/coder/tree/main/examples/templates/jfrog-docker).
 - To serve extensions from your own VS Code Marketplace, check out [code-marketplace](https://github.com/coder/code-marketplace#artifactory-storage).

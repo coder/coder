@@ -1,4 +1,4 @@
-name: Cleanup PR
+name: Cleanup PR deployment and image
 on:
   pull_request:
     types: [closed]

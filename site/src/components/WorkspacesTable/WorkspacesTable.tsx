@@ -19,7 +19,7 @@ export interface WorkspacesTableProps {
   workspaces?: Workspace[]
   isUsingFilter: boolean
   onUpdateWorkspace: (workspace: Workspace) => void
-  error?: Error | unknown
+  error?: unknown
 }
 
 export const WorkspacesTable: FC<WorkspacesTableProps> = ({

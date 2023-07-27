@@ -131,6 +131,39 @@ func TestScim(t *testing.T) {
 			assert.Equal(t, sUser.UserName, userRes.Users[0].Username)
 		})
 
+		t.Run("Duplicate", func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			scimAPIKey := []byte("hi")
+			client, _ := coderdenttest.New(t, &coderdenttest.Options{
+				SCIMAPIKey: scimAPIKey,
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					AccountID: "coolin",
+					Features: license.Features{
+						codersdk.FeatureSCIM: 1,
+					},
+				},
+			})
+
+			sUser := makeScimUser(t)
+			for i := 0; i < 3; i++ {
+				res, err := client.Request(ctx, "POST", "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
+				require.NoError(t, err)
+				_ = res.Body.Close()
+				assert.Equal(t, http.StatusOK, res.StatusCode)
+			}
+
+			userRes, err := client.Users(ctx, codersdk.UsersRequest{Search: sUser.Emails[0].Value})
+			require.NoError(t, err)
+			require.Len(t, userRes.Users, 1)
+
+			assert.Equal(t, sUser.Emails[0].Value, userRes.Users[0].Email)
+			assert.Equal(t, sUser.UserName, userRes.Users[0].Username)
+		})
+
 		t.Run("DomainStrips", func(t *testing.T) {
 			t.Parallel()
 
