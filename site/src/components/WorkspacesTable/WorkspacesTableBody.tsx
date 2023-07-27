@@ -14,7 +14,7 @@ interface TableBodyProps {
   workspaces?: Workspace[]
   isUsingFilter: boolean
   onUpdateWorkspace: (workspace: Workspace) => void
-  error?: Error | unknown
+  error?: unknown
 }
 
 export const WorkspacesTableBody: FC<

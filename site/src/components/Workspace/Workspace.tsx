@@ -64,7 +64,7 @@ export interface WorkspaceProps {
   canChangeVersions: boolean
   hideSSHButton?: boolean
   hideVSCodeDesktopButton?: boolean
-  workspaceErrors: Partial<Record<WorkspaceErrors, Error | unknown>>
+  workspaceErrors: Partial<Record<WorkspaceErrors, unknown>>
   buildInfo?: TypesGen.BuildInfoResponse
   sshPrefix?: string
   template?: TypesGen.Template

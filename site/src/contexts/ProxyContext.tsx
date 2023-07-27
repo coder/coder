@@ -46,7 +46,7 @@ export interface ProxyContextValue {
   // isFetched is true when the 'proxies' api call is complete.
   isFetched: boolean
   isLoading: boolean
-  error?: Error | unknown
+  error?: unknown
   // proxyLatencies is a map of proxy id to latency report. If the proxyLatencies[proxy.id] is undefined
   // then the latency has not been fetched yet. Calculations happen async for each proxy in the list.
   // Refer to the returned report for a given proxy for more information.

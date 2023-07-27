@@ -1,5 +1,5 @@
 import { makeStyles } from "@mui/styles"
-import { PropsWithChildren, FC, ReactNode } from "react"
+import { PropsWithChildren, FC } from "react"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 import { DisabledBadge, EnabledBadge } from "./Badges"
 
@@ -19,9 +19,7 @@ const NotSet: FC = () => {
   return <span className={styles.optionValue}>Not set</span>
 }
 
-export const OptionValue: FC<{ children?: ReactNode | unknown }> = ({
-  children,
-}) => {
+export const OptionValue: FC<{ children?: unknown }> = ({ children }) => {
   const styles = useStyles()
 
   if (typeof children === "boolean") {

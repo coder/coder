@@ -5,8 +5,8 @@ import { AppearanceConfig } from "../../api/typesGenerated"
 
 export type AppearanceContext = {
   appearance?: AppearanceConfig
-  getAppearanceError?: Error | unknown
-  setAppearanceError?: Error | unknown
+  getAppearanceError?: unknown
+  setAppearanceError?: unknown
   preview: boolean
 }
 
