@@ -195,16 +195,6 @@ jobs:
                       name: coder
                       port:
                         number: 80
-            - host: "*--pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
-              http:
-                paths:
-                - pathType: Prefix
-                  path: "/"
-                  backend:
-                    service:
-                      name: coder
-                      port:
-                        number: 80
           EOF
           kubectl apply -f ingress.yaml
 
