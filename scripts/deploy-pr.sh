@@ -1,32 +1,67 @@
 #!/usr/bin/env bash
-# Usage: ./deploy-pr.sh  --skip-build
+# Usage: ./deploy-pr.sh  [--skip-build -s] [--dry-run -n] [--yes -y]
 # deploys the current branch to a PR environment and posts login credentials to
 # [#pr-deployments](https://codercom.slack.com/archives/C05DNE982E8) Slack channel
-# if --skip-build is passed, the build step will be skipped and the last build image will be used
 
-set -euox pipefail
+set -euo pipefail
 
-branchName=$(gh pr view --json headRefName | jq -r .headRefName)
+# default settings
+skipBuild=false
+dryRun=false
+confirm=true
 
-if [[ "$branchName" == "main" ]]; then
-	prNumber=$(git rev-parse --short HEAD)
-else
-	prNumber=$(gh pr view --json number | jq -r .number)
+# parse arguments
+for arg in "$@"; do
+	case $arg in
+	-s | --skip-build)
+		skipBuild=true
+		shift # Remove --skip-build from processing
+		;;
+	-n | --dry-run)
+		dryRun=true
+		shift # Remove --dry-run from processing
+		;;
+	-y | --yes)
+		confirm=false
+		shift # Remove --yes from processing
+		;;
+	*)
+		shift # Remove generic argument from processing
+		;;
+	esac
+done
+
+# confirm if not passed -y or --yes
+if $confirm; then
+	read -p "Are you sure you want to deploy? (y/n) " -n 1 -r
+	echo
+	if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+		exit 1
+	fi
 fi
 
-# if --skip-build is passed, the build job will be skipped and the last built image will be used
-if [[ "$*" == *--skip-build* ]]; then
-	skipBuild=true
+# get branch name and pr number
+branchName=$(gh pr view --json headRefName | jq -r .headRefName)
+prNumber=$(gh pr view --json number | jq -r .number)
+
+if $skipBuild; then
 	#check if the image exists
-	foundTag=$(curl -fsSL https://github.com/coder/coder/pkgs/container/coder-preview | grep -o "$prNumber" | head -n 1)
-	if [ -z "${foundTag}" ]; then
+	foundTag=$(curl -fsSL https://github.com/coder/coder/pkgs/container/coder-preview | grep -o "$prNumber" | head -n 1) || true
+	echo "foundTag is: '${foundTag}'"
+	if [[ -z "${foundTag}" ]]; then
 		echo "Image not found"
 		echo "${prNumber} tag not found in ghcr.io/coder/coder-preview"
 		echo "Please remove --skip-build and try again"
 		exit 1
 	fi
-else
-	skipBuild=false
 fi
 
-gh workflow run pr-deploy.yaml --ref "${branchName}" -f pr_number="${prNumber}" -f skip_build="${skipBuild}"
+if $dryRun; then
+	echo "dry run"
+	echo "branchName: ${branchName}"
+	echo "prNumber: ${prNumber}"
+	echo "skipBuild: ${skipBuild}"
+	exit 0
+fi
+
+gh workflow run pr-deploy.yaml --ref "${branchName}" -f "pr_number=${prNumber}" -f "skip_build=${skipBuild}"
