@@ -61,8 +61,8 @@ if $dryRun; then
 	echo "branchName: ${branchName}"
 	echo "prNumber: ${prNumber}"
 	echo "skipBuild: ${skipBuild}"
-	echo "gh workflow run pr-deploy.yaml --ref "${branchName}" -f pr_number="${prNumber}" -f skip_build="${skipBuild}""
+	echo "gh workflow run pr-deploy.yaml --ref ${branchName} -f pr_number=${prNumber} -f skip_build=${skipBuild}"
 	exit 0
 fi
 
-gh workflow run pr-deploy.yaml --ref "${branchName}" -f pr_number="${prNumber}" -f skip_build="${skipBuild}"
+gh workflow run pr-deploy.yaml --ref ${branchName} -f pr_number=${prNumber} -f skip_build=${skipBuild}
