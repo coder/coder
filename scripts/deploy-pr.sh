@@ -13,3 +13,4 @@ else
     gh workflow run pr-deploy.yaml /
     --ref $branchName /
     -f pr_number=${prNumber}
+fi
