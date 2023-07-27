@@ -19,9 +19,9 @@ if [[ "$*" == *--skip-build* ]]; then
 	skipBuild=true
 	#check if the image exists
 	foundTag=$(curl -fsSL https://github.com/coder/coder/pkgs/container/coder-preview | grep -o "$prNumber" | head -n 1)
-	if [ -z "$foundTag" ]; then
+	if [ -z "${foundTag}" ]; then
 		echo "Image not found"
-		echo ""$prNumber" tag not found in ghcr.io/coder/coder-preview"
+		echo "${prNumber} tag not found in ghcr.io/coder/coder-preview"
 		echo "Please remove --skip-build and try again"
 		exit 1
 	fi
@@ -29,4 +29,4 @@ else
 	skipBuild=false
 fi
 
-gh workflow run pr-deploy.yaml --ref "$branchName" -f pr_number="$imageTag" -f skip_build="$skipBuild"
+gh workflow run pr-deploy.yaml --ref "${branchName}" -f pr_number="${prNumber}" -f skip_build="${skipBuild}"
