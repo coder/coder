@@ -73,6 +73,7 @@ jobs:
 
   build:
     needs: pr_commented
+    if: false
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
@@ -120,7 +121,8 @@ jobs:
 
   deploy:
     needs: [build, pr_commented]
-    if: needs.build.result == 'success'
+    # if: needs.build.result == 'success'
+    if: true
     runs-on: "ubuntu-latest"
     env:
       CODER_IMAGE_TAG: ${{ needs.pr_commented.outputs.CODER_IMAGE_TAG }}
@@ -162,6 +164,7 @@ jobs:
           spec:
             tls:
             - hosts:
+              - "${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
               - "*.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
               secretName: pr${{ env.PR_NUMBER }}-tls
             rules:
@@ -223,6 +226,18 @@ jobs:
         run: |
           sleep 30
 
+      - name: Get Coder binary
+        run: |
+          set -euxo pipefail
+          ARCH="$(arch)"
+          PLATFORM="$(uname | tr '[:upper:]' '[:lower:]')"
+          DEST="${HOME}/coder"
+
+          mkdir -p "$(dirname ${DEST})"
+          curl -fsSL "${{ env.PR_DEPLOYMENT_ACCESS_URL }}/bin/coder-${PLATFORM}-${ARCH}" -o "${DEST}"
+          chmod +x "${DEST}"
+          "${DEST}" version
+
       - name: Create first user, template and workspace
         id: setup_deployment
         run: |
@@ -231,7 +246,7 @@ jobs:
           # Create first user
 
           # create a masked random password 12 characters long
-          password=$(openssl rand -base64 6 | tr -d "=+/" | cut -c1-12)
+          password=$(openssl rand -base64 16 | tr -d "=+/" | cut -c1-12)
 
           # add mask so that the password is not printed to the logs
           echo "::add-mask::$password"
