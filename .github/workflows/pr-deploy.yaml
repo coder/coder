@@ -1,4 +1,4 @@
-# This action will trigger when a PR is commentted containing /review-pr by a member of the org.
+# This action will trigger when a PR is commented on with `/deploy` or when the workflow is manually triggered.
 name: Deploy PR
 on:
   issue_comment:
