@@ -198,6 +198,17 @@ jobs:
           EOF
           kubectl apply -f ingress.yaml
 
+      - name: Set up PostgreSQL database
+        run: |
+          helm install coder-db bitnami/postgresql \
+            --namespace pr${{ env.PR_NUMBER }} \
+            --set auth.username=coder \
+            --set auth.password=coder \
+            --set auth.database=coder \
+            --set persistence.size=10Gi
+          kubectl create secret generic coder-db-url -n coder \
+            --from-literal=url="postgres://coder:coder@coder-db-postgresql.pr${{ env.PR_NUMBER }}.svc.cluster.local:5432/coder?sslmode=disable"
+
       - name: Create values.yaml
         run: |
           cat <<EOF > pr-deploy-values.yaml
@@ -215,6 +226,11 @@ jobs:
                 value: "*--pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
               - name: "CODER_EXPERIMENTS"
                 value: "*"
+              - name: CODER_PG_CONNECTION_URL
+                valueFrom:
+                  secretKeyRef:
+                    name: coder-db-url
+                    key: url
               - name: "CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS"
                 value: "true"
               - name: "CODER_OAUTH2_GITHUB_CLIENT_ID"
