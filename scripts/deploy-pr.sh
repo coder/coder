@@ -6,15 +6,27 @@
 
 set -euox pipefail
 
-# if --skip-build is passed, the build job will be skipped and the last built image will be used
-if [[ "$*" == *--skip-build* ]]; then
-    skipBuild=true
-fi
-
 branchName=$(gh pr view --json headRefName | jq -r .headRefName)
 
 if [[ "$branchName" == "main" ]]; then
-	gh workflow run pr-deploy.yaml --ref $branchName -f pr_number=$(git rev-parse --short HEAD) -f skip_build=$skipBuild
+    prNumber=$(git rev-parse --short HEAD)
 else
-	gh workflow run pr-deploy.yaml --ref $branchName -f pr_number=$(gh pr view --json number | jq -r .number) -f skip_build=$skipBuild
+    prNumber=$(gh pr view --json number | jq -r .number)
 fi
+
+# if --skip-build is passed, the build job will be skipped and the last built image will be used
+if [[ "$*" == *--skip-build* ]]; then
+    skipBuild=true
+    #check if the image exists
+    foundTag=$(curl -fsSL https://github.com/coder/coder/pkgs/container/coder-preview | grep -o $prNumber | head -n 1)
+    if [ -z "$foundTag" ]; then
+        echo "Image not found"
+        echo "$prNumber tag not found in ghcr.io/coder/coder-preview"
+        echo "Please remove --skip-build and try again"
+        exit 1
+    fi
+else
+    skipBuild=false
+fi
+
+gh workflow run pr-deploy.yaml --ref $branchName -f pr_number=$imageTag -f image_tag=$imageTag -f skip_build=$skipBuild

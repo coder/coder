@@ -138,6 +138,17 @@ jobs:
       PR_BRANCH: ${{ needs.pr_commented.outputs.PR_BRANCH }}
       PR_DEPLOYMENT_ACCESS_URL: "https://pr${{ needs.pr_commented.outputs.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
     steps:
+      - name: Check if image exists
+        run: |
+          set -euxo pipefail
+          foundTag=$(curl -fsSL https://github.com/coder/coder/pkgs/container/coder-preview | grep -o ${{ env.CODER_IMAGE_TAG }} | head -n 1)
+          if [ -z "$foundTag" ]; then
+            echo "Image not found"
+            echo "${{ env.CODER_IMAGE_TAG }} not found in ghcr.io/coder/coder-preview"
+            echo "Please remove --skip-build from the comment or ./scripts/deploy-pr.sh"
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@v3
         with:
