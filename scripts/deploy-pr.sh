@@ -3,18 +3,22 @@
 # deploys the current branch to a PR environment and posts login credentials to
 # [#pr-deployments](https://codercom.slack.com/archives/C05DNE982E8) Slack channel
 # if --skip-build is passed, the build step will be skipped and the last build image will be used
+# if --yes or -y is passed, the script will not ask for confirmation before deploying
 
 set -euox pipefail
 
-branchName=$(gh pr view --json headRefName | jq -r .headRefName)
-
-if [[ "$branchName" == "main" ]]; then
-	prNumber=$(git rev-parse --short HEAD)
-else
-	prNumber=$(gh pr view --json number | jq -r .number)
+# ask for user confirmation before deploying also skip confirmation if --yes or -y is passed
+if [[ "$*" != *--yes* ]] && [[ "$*" != *-y* ]]; then
+	read -p "Are you sure you want to deploy? (y/n) " -n 1 -r
+	echo
+	if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+		exit 1
+	fi
 fi
 
-# if --skip-build is passed, the build job will be skipped and the last built image will be used
+branchName=$(gh pr view --json headRefName | jq -r .headRefName)
+prNumber=$(gh pr view --json number | jq -r .number)
+
 if [[ "$*" == *--skip-build* ]]; then
 	skipBuild=true
 	#check if the image exists
