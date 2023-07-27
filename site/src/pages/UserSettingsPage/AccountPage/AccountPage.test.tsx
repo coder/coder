@@ -38,6 +38,7 @@ describe("AccountPage", () => {
           roles: [],
           avatar_url: "",
           last_seen_at: new Date().toString(),
+          login_type: "password",
           ...data,
         }),
       )

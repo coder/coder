@@ -15,7 +15,8 @@
         "display_name": "Owner"
       }
     ],
-    "avatar_url": ""
+    "avatar_url": "",
+    "login_type": "password"
   },
   {
     "id": "[second user ID]",
@@ -28,6 +29,7 @@
       "[first org ID]"
     ],
     "roles": [],
-    "avatar_url": ""
+    "avatar_url": "",
+    "login_type": "password"
   }
 ]

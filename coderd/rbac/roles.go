@@ -145,14 +145,18 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Name:        member,
 		DisplayName: "",
 		Site: Permissions(map[string][]Action{
-			// All users can read all other users and know they exist.
-			ResourceUser.Type:           {ActionRead},
 			ResourceRoleAssignment.Type: {ActionRead},
 			// All users can see the provisioner daemons.
 			ResourceProvisionerDaemon.Type: {ActionRead},
 		}),
-		Org:  map[string][]Permission{},
-		User: allPermsExcept(ResourceWorkspaceLocked),
+		Org: map[string][]Permission{},
+		User: append(allPermsExcept(ResourceWorkspaceLocked, ResourceUser, ResourceOrganizationMember),
+			Permissions(map[string][]Action{
+				// Users cannot do create/update/delete on themselves, but they
+				// can read their own details.
+				ResourceUser.Type: {ActionRead},
+			})...,
+		),
 	}.withCachedRegoValue()
 
 	auditorRole := Role{
@@ -163,6 +167,10 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// are not in.
 			ResourceTemplate.Type: {ActionRead},
 			ResourceAuditLog.Type: {ActionRead},
+			ResourceUser.Type:     {ActionRead},
+			ResourceGroup.Type:    {ActionRead},
+			// Org roles are not really used yet, so grant the perm at the site level.
+			ResourceOrganizationMember.Type: {ActionRead},
 		}),
 		Org:  map[string][]Permission{},
 		User: []Permission{},
@@ -180,6 +188,10 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceProvisionerDaemon.Type: {ActionCreate, ActionRead, ActionUpdate, ActionDelete},
 			// Needs to read all organizations since
 			ResourceOrganization.Type: {ActionRead},
+			ResourceUser.Type:         {ActionRead},
+			ResourceGroup.Type:        {ActionRead},
+			// Org roles are not really used yet, so grant the perm at the site level.
+			ResourceOrganizationMember.Type: {ActionRead},
 		}),
 		Org:  map[string][]Permission{},
 		User: []Permission{},
@@ -250,11 +262,6 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				Org: map[string][]Permission{
 					organizationID: {
 						{
-							// All org members can read the other members in their org.
-							ResourceType: ResourceOrganizationMember.Type,
-							Action:       ActionRead,
-						},
-						{
 							// All org members can read the organization
 							ResourceType: ResourceOrganization.Type,
 							Action:       ActionRead,
@@ -264,13 +271,14 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							ResourceType: ResourceOrgRoleAssignment.Type,
 							Action:       ActionRead,
 						},
-						{
-							ResourceType: ResourceGroup.Type,
-							Action:       ActionRead,
-						},
 					},
 				},
-				User: []Permission{},
+				User: []Permission{
+					{
+						ResourceType: ResourceOrganizationMember.Type,
+						Action:       ActionRead,
+					},
+				},
 			}
 		},
 	}
@@ -283,10 +291,13 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 //	map[actor_role][assign_role]<can_assign>
 var assignRoles = map[string]map[string]bool{
 	"system": {
-		owner:     true,
-		member:    true,
-		orgAdmin:  true,
-		orgMember: true,
+		owner:         true,
+		auditor:       true,
+		member:        true,
+		orgAdmin:      true,
+		orgMember:     true,
+		templateAdmin: true,
+		userAdmin:     true,
 	},
 	owner: {
 		owner:         true,

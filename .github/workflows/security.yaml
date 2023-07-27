@@ -81,9 +81,7 @@ jobs:
             js-${{ runner.os }}-
 
       - name: Setup sqlc
-        uses: sqlc-dev/setup-sqlc@v3
-        with:
-          sqlc-version: "1.19.1"
+        uses: ./.github/actions/setup-sqlc
 
       - name: Install yq
         run: go run github.com/mikefarah/yq/v4@v4.30.6

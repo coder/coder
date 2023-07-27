@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/cryptorand"
 	"github.com/coder/coder/scaletest/agentconn"
 	"github.com/coder/coder/scaletest/createworkspaces"
+	"github.com/coder/coder/scaletest/dashboard"
 	"github.com/coder/coder/scaletest/harness"
 	"github.com/coder/coder/scaletest/reconnectingpty"
 	"github.com/coder/coder/scaletest/workspacebuild"
@@ -47,6 +48,7 @@ func (r *RootCmd) scaletestCmd() *clibase.Cmd {
 		},
 		Children: []*clibase.Cmd{
 			r.scaletestCleanup(),
+			r.scaletestDashboard(),
 			r.scaletestCreateWorkspaces(),
 			r.scaletestWorkspaceTraffic(),
 		},
@@ -315,6 +317,30 @@ func (s *scaletestOutputFlags) parse() ([]scaleTestOutput, error) {
 	}
 
 	return out, nil
+}
+
+type scaletestPrometheusFlags struct {
+	Address string
+	Wait    time.Duration
+}
+
+func (s *scaletestPrometheusFlags) attach(opts *clibase.OptionSet) {
+	*opts = append(*opts,
+		clibase.Option{
+			Flag:        "scaletest-prometheus-address",
+			Env:         "CODER_SCALETEST_PROMETHEUS_ADDRESS",
+			Default:     "0.0.0.0:21112",
+			Description: "Address on which to expose scaletest Prometheus metrics.",
+			Value:       clibase.StringOf(&s.Address),
+		},
+		clibase.Option{
+			Flag:        "scaletest-prometheus-wait",
+			Env:         "CODER_SCALETEST_PROMETHEUS_WAIT",
+			Default:     "15s",
+			Description: "How long to wait before exiting in order to allow Prometheus metrics to be scraped.",
+			Value:       clibase.DurationOf(&s.Wait),
+		},
+	)
 }
 
 func requireAdmin(ctx context.Context, client *codersdk.Client) (codersdk.User, error) {
@@ -846,17 +872,16 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 
 func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 	var (
-		tickInterval               time.Duration
-		bytesPerTick               int64
-		ssh                        bool
-		scaletestPrometheusAddress string
-		scaletestPrometheusWait    time.Duration
+		tickInterval time.Duration
+		bytesPerTick int64
+		ssh          bool
 
 		client          = &codersdk.Client{}
 		tracingFlags    = &scaletestTracingFlags{}
 		strategy        = &scaletestStrategyFlags{}
 		cleanupStrategy = &scaletestStrategyFlags{cleanup: true}
 		output          = &scaletestOutputFlags{}
+		prometheusFlags = &scaletestPrometheusFlags{}
 	)
 
 	cmd := &clibase.Cmd{
@@ -871,7 +896,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 			metrics := workspacetraffic.NewMetrics(reg, "username", "workspace_name", "agent_name")
 
 			logger := slog.Make(sloghuman.Sink(io.Discard))
-			prometheusSrvClose := ServeHandler(ctx, logger, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), scaletestPrometheusAddress, "prometheus")
+			prometheusSrvClose := ServeHandler(ctx, logger, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), prometheusFlags.Address, "prometheus")
 			defer prometheusSrvClose()
 
 			// Bypass rate limiting
@@ -905,8 +930,8 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 					_, _ = fmt.Fprintf(inv.Stderr, "\nError uploading traces: %+v\n", err)
 				}
 				// Wait for prometheus metrics to be scraped
-				_, _ = fmt.Fprintf(inv.Stderr, "Waiting %s for prometheus metrics to be scraped\n", scaletestPrometheusWait)
-				<-time.After(scaletestPrometheusWait)
+				_, _ = fmt.Fprintf(inv.Stderr, "Waiting %s for prometheus metrics to be scraped\n", prometheusFlags.Wait)
+				<-time.After(prometheusFlags.Wait)
 			}()
 			tracer := tracerProvider.Tracer(scaletestTracerName)
 
@@ -1009,19 +1034,135 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 			Description: "Send traffic over SSH.",
 			Value:       clibase.BoolOf(&ssh),
 		},
+	}
+
+	tracingFlags.attach(&cmd.Options)
+	strategy.attach(&cmd.Options)
+	cleanupStrategy.attach(&cmd.Options)
+	output.attach(&cmd.Options)
+	prometheusFlags.attach(&cmd.Options)
+
+	return cmd
+}
+
+func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
+	var (
+		count   int64
+		minWait time.Duration
+		maxWait time.Duration
+
+		client          = &codersdk.Client{}
+		tracingFlags    = &scaletestTracingFlags{}
+		strategy        = &scaletestStrategyFlags{}
+		cleanupStrategy = &scaletestStrategyFlags{cleanup: true}
+		output          = &scaletestOutputFlags{}
+		prometheusFlags = &scaletestPrometheusFlags{}
+	)
+
+	cmd := &clibase.Cmd{
+		Use:   "dashboard",
+		Short: "Generate traffic to the HTTP API to simulate use of the dashboard.",
+		Middleware: clibase.Chain(
+			r.InitClient(client),
+		),
+		Handler: func(inv *clibase.Invocation) error {
+			ctx := inv.Context()
+			logger := slog.Make(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelInfo)
+			tracerProvider, closeTracing, tracingEnabled, err := tracingFlags.provider(ctx)
+			if err != nil {
+				return xerrors.Errorf("create tracer provider: %w", err)
+			}
+			defer func() {
+				// Allow time for traces to flush even if command context is
+				// canceled. This is a no-op if tracing is not enabled.
+				_, _ = fmt.Fprintln(inv.Stderr, "\nUploading traces...")
+				if err := closeTracing(ctx); err != nil {
+					_, _ = fmt.Fprintf(inv.Stderr, "\nError uploading traces: %+v\n", err)
+				}
+				// Wait for prometheus metrics to be scraped
+				_, _ = fmt.Fprintf(inv.Stderr, "Waiting %s for prometheus metrics to be scraped\n", prometheusFlags.Wait)
+				<-time.After(prometheusFlags.Wait)
+			}()
+			tracer := tracerProvider.Tracer(scaletestTracerName)
+			outputs, err := output.parse()
+			if err != nil {
+				return xerrors.Errorf("could not parse --output flags")
+			}
+			reg := prometheus.NewRegistry()
+			prometheusSrvClose := ServeHandler(ctx, logger, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), prometheusFlags.Address, "prometheus")
+			defer prometheusSrvClose()
+			metrics := dashboard.NewMetrics(reg)
+
+			th := harness.NewTestHarness(strategy.toStrategy(), cleanupStrategy.toStrategy())
+
+			for i := int64(0); i < count; i++ {
+				name := fmt.Sprintf("dashboard-%d", i)
+				config := dashboard.Config{
+					MinWait:   minWait,
+					MaxWait:   maxWait,
+					Trace:     tracingEnabled,
+					Logger:    logger.Named(name),
+					RollTable: dashboard.DefaultActions,
+				}
+				if err := config.Validate(); err != nil {
+					return err
+				}
+				var runner harness.Runnable = dashboard.NewRunner(client, metrics, config)
+				if tracingEnabled {
+					runner = &runnableTraceWrapper{
+						tracer:   tracer,
+						spanName: name,
+						runner:   runner,
+					}
+				}
+				th.AddRun("dashboard", name, runner)
+			}
+
+			_, _ = fmt.Fprintln(inv.Stderr, "Running load test...")
+			testCtx, testCancel := strategy.toContext(ctx)
+			defer testCancel()
+			err = th.Run(testCtx)
+			if err != nil {
+				return xerrors.Errorf("run test harness (harness failure, not a test failure): %w", err)
+			}
+
+			res := th.Results()
+			for _, o := range outputs {
+				err = o.write(res, inv.Stdout)
+				if err != nil {
+					return xerrors.Errorf("write output %q to %q: %w", o.format, o.path, err)
+				}
+			}
+
+			if res.TotalFail > 0 {
+				return xerrors.New("load test failed, see above for more details")
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Options = []clibase.Option{
 		{
-			Flag:        "scaletest-prometheus-address",
-			Env:         "CODER_SCALETEST_PROMETHEUS_ADDRESS",
-			Default:     "0.0.0.0:21112",
-			Description: "Address on which to expose scaletest Prometheus metrics.",
-			Value:       clibase.StringOf(&scaletestPrometheusAddress),
+			Flag:        "count",
+			Env:         "CODER_SCALETEST_DASHBOARD_COUNT",
+			Default:     "1",
+			Description: "Number of concurrent workers.",
+			Value:       clibase.Int64Of(&count),
 		},
 		{
-			Flag:        "scaletest-prometheus-wait",
-			Env:         "CODER_SCALETEST_PROMETHEUS_WAIT",
-			Default:     "5s",
-			Description: "How long to wait before exiting in order to allow Prometheus metrics to be scraped.",
-			Value:       clibase.DurationOf(&scaletestPrometheusWait),
+			Flag:        "min-wait",
+			Env:         "CODER_SCALETEST_DASHBOARD_MIN_WAIT",
+			Default:     "100ms",
+			Description: "Minimum wait between fetches.",
+			Value:       clibase.DurationOf(&minWait),
+		},
+		{
+			Flag:        "max-wait",
+			Env:         "CODER_SCALETEST_DASHBOARD_MAX_WAIT",
+			Default:     "1s",
+			Description: "Maximum wait between fetches.",
+			Value:       clibase.DurationOf(&maxWait),
 		},
 	}
 
@@ -1029,6 +1170,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 	strategy.attach(&cmd.Options)
 	cleanupStrategy.attach(&cmd.Options)
 	output.attach(&cmd.Options)
+	prometheusFlags.attach(&cmd.Options)
 
 	return cmd
 }

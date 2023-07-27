@@ -478,7 +478,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			Name:                         "new-template-name",
 			DisplayName:                  "Displayed Name 456",
 			Description:                  "lorem ipsum dolor sit amet et cetera",
-			Icon:                         "/icons/new-icon.png",
+			Icon:                         "/icon/new-icon.png",
 			DefaultTTLMillis:             12 * time.Hour.Milliseconds(),
 			AllowUserCancelWorkspaceJobs: false,
 		}
@@ -883,7 +883,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.Description = "original description"
-			ctr.Icon = "/icons/original-icon.png"
+			ctr.Icon = "/icon/original-icon.png"
 			ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
 		})
 
@@ -950,7 +950,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.Icon = "/icons/code.png"
+			ctr.Icon = "/icon/code.png"
 		})
 		req := codersdk.UpdateTemplateMeta{
 			Icon: "",

@@ -9,12 +9,14 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -25,6 +27,7 @@ import (
 	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/tailnet/tailnettest"
 	"github.com/coder/coder/testutil"
 )
 
@@ -1246,4 +1249,104 @@ func TestWorkspaceAgent_Startup(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
 	})
+}
+
+// TestWorkspaceAgent_UpdatedDERP runs a real coderd server, with a real agent
+// and a real client, and updates the DERP map live to ensure connections still
+// work.
+func TestWorkspaceAgent_UpdatedDERP(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	dv := coderdtest.DeploymentValues(t)
+	err := dv.DERP.Config.BlockDirect.Set("true")
+	require.NoError(t, err)
+
+	client, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+		DeploymentValues:         dv,
+	})
+	defer closer.Close()
+	user := coderdtest.CreateFirstUser(t, client)
+
+	originalDerpMap := api.DERPMap()
+	require.NotNil(t, originalDerpMap)
+
+	// Change the DERP mapper to our custom one.
+	var currentDerpMap atomic.Pointer[tailcfg.DERPMap]
+	currentDerpMap.Store(originalDerpMap)
+	derpMapFn := func(_ *tailcfg.DERPMap) *tailcfg.DERPMap {
+		return currentDerpMap.Load().Clone()
+	}
+	api.DERPMapper.Store(&derpMapFn)
+
+	// Start workspace a workspace agent.
+	agentToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.ProvisionComplete,
+		ProvisionApply: echo.ProvisionApplyWithAgent(agentToken),
+	})
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	agentClient := agentsdk.New(client.URL)
+	agentClient.SetSessionToken(agentToken)
+	agentCloser := agent.New(agent.Options{
+		Client: agentClient,
+		Logger: logger.Named("agent"),
+	})
+	defer func() {
+		_ = agentCloser.Close()
+	}()
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+	agentID := resources[0].Agents[0].ID
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	// Connect from a client.
+	conn1, err := client.DialWorkspaceAgent(ctx, agentID, &codersdk.DialWorkspaceAgentOptions{
+		Logger: logger.Named("client1"),
+	})
+	require.NoError(t, err)
+	defer conn1.Close()
+	ok := conn1.AwaitReachable(ctx)
+	require.True(t, ok)
+
+	// Change the DERP map and change the region ID.
+	newDerpMap, _ := tailnettest.RunDERPAndSTUN(t)
+	require.NotNil(t, newDerpMap)
+	newDerpMap.Regions[2] = newDerpMap.Regions[1]
+	delete(newDerpMap.Regions, 1)
+	newDerpMap.Regions[2].RegionID = 2
+	for _, node := range newDerpMap.Regions[2].Nodes {
+		node.RegionID = 2
+	}
+	currentDerpMap.Store(newDerpMap)
+
+	// Wait for the agent's DERP map to be updated.
+	// TODO: this
+
+	// Wait for the DERP map to be updated on the existing client.
+	require.Eventually(t, func() bool {
+		regionIDs := conn1.Conn.DERPMap().RegionIDs()
+		return len(regionIDs) == 1 && regionIDs[0] == 2
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	// The first client should still be able to reach the agent.
+	ok = conn1.AwaitReachable(ctx)
+	require.True(t, ok)
+
+	// Connect from a second client.
+	conn2, err := client.DialWorkspaceAgent(ctx, agentID, &codersdk.DialWorkspaceAgentOptions{
+		Logger: logger.Named("client2"),
+	})
+	require.NoError(t, err)
+	defer conn2.Close()
+	ok = conn2.AwaitReachable(ctx)
+	require.True(t, ok)
+	require.Equal(t, []int{2}, conn2.DERPMap().RegionIDs())
 }

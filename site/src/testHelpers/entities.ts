@@ -79,6 +79,7 @@ export const MockPrimaryWorkspaceProxy: TypesGen.WorkspaceProxy = {
   healthy: true,
   path_app_url: "https://coder.com",
   wildcard_hostname: "*.coder.com",
+  derp_enabled: true,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
   deleted: false,
@@ -96,6 +97,7 @@ export const MockHealthyWildWorkspaceProxy: TypesGen.WorkspaceProxy = {
   healthy: true,
   path_app_url: "https://external.com",
   wildcard_hostname: "*.external.com",
+  derp_enabled: true,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
   deleted: false,
@@ -113,6 +115,7 @@ export const MockUnhealthyWildWorkspaceProxy: TypesGen.WorkspaceProxy = {
   healthy: false,
   path_app_url: "https://unhealthy.coder.com",
   wildcard_hostname: "*unhealthy..coder.com",
+  derp_enabled: true,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
   deleted: false,
@@ -138,6 +141,7 @@ export const MockWorkspaceProxies: TypesGen.WorkspaceProxy[] = [
     healthy: true,
     path_app_url: "https://cowboy.coder.com",
     wildcard_hostname: "",
+    derp_enabled: false,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     deleted: false,
@@ -268,6 +272,7 @@ export const MockUser: TypesGen.User = {
   roles: [MockOwnerRole],
   avatar_url: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
   last_seen_at: "",
+  login_type: "password",
 }
 
 export const MockUserAdmin: TypesGen.User = {
@@ -280,6 +285,7 @@ export const MockUserAdmin: TypesGen.User = {
   roles: [MockUserAdminRole],
   avatar_url: "",
   last_seen_at: "",
+  login_type: "password",
 }
 
 export const MockUser2: TypesGen.User = {
@@ -292,6 +298,7 @@ export const MockUser2: TypesGen.User = {
   roles: [],
   avatar_url: "",
   last_seen_at: "2022-09-14T19:12:21Z",
+  login_type: "oidc",
 }
 
 export const SuspendedMockUser: TypesGen.User = {
@@ -304,6 +311,7 @@ export const SuspendedMockUser: TypesGen.User = {
   roles: [],
   avatar_url: "",
   last_seen_at: "",
+  login_type: "password",
 }
 
 export const MockProvisioner: TypesGen.ProvisionerDaemon = {

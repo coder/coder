@@ -6,6 +6,8 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 )
@@ -45,6 +47,32 @@ func (api *API) setUserGroups(ctx context.Context, db database.Store, userID uui
 		})
 		if err != nil {
 			return xerrors.Errorf("insert user groups: %w", err)
+		}
+
+		return nil
+	}, nil)
+}
+
+func (api *API) setUserSiteRoles(ctx context.Context, db database.Store, userID uuid.UUID, roles []string) error {
+	api.entitlementsMu.RLock()
+	enabled := api.entitlements.Features[codersdk.FeatureUserRoleManagement].Enabled
+	api.entitlementsMu.RUnlock()
+
+	if !enabled {
+		api.Logger.Warn(ctx, "attempted to assign OIDC user roles without enterprise entitlement, roles left unchanged",
+			slog.F("user_id", userID), slog.F("roles", roles),
+		)
+		return nil
+	}
+
+	// Should this be feature protected?
+	return db.InTx(func(tx database.Store) error {
+		_, err := coderd.UpdateSiteUserRoles(ctx, db, database.UpdateUserRolesParams{
+			GrantedRoles: roles,
+			ID:           userID,
+		})
+		if err != nil {
+			return xerrors.Errorf("set user roles(%s): %w", userID.String(), err)
 		}
 
 		return nil

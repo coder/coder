@@ -74,7 +74,7 @@ func activityBumpWorkspace(ctx context.Context, log slog.Logger, db database.Sto
 			newDeadline = build.MaxDeadline
 		}
 
-		if _, err := s.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+		if err := s.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 			ID:               build.ID,
 			UpdatedAt:        database.Now(),
 			ProvisionerState: build.ProvisionerState,

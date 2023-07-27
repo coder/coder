@@ -15,6 +15,10 @@ export const getGroupSubtitle = (group: Group): string => {
     return `All users`
   }
 
+  if (!group.members) {
+    return `0 members`
+  }
+
   if (group.members.length === 1) {
     return `1 member`
   }

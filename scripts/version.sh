@@ -15,6 +15,12 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 cdroot
 
+# If in Sapling, just print the commit since we don't have tags.
+if [ -d ".sl" ]; then
+	sl log -l 1 | awk '/changeset/ { printf "0.0.0+sl-%s\n", substr($2, 0, 16) }'
+	exit 0
+fi
+
 if [[ "${CODER_FORCE_VERSION:-}" != "" ]]; then
 	echo "$CODER_FORCE_VERSION"
 	exit 0

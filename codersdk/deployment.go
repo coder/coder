@@ -40,6 +40,7 @@ const (
 	FeatureBrowserOnly                FeatureName = "browser_only"
 	FeatureSCIM                       FeatureName = "scim"
 	FeatureTemplateRBAC               FeatureName = "template_rbac"
+	FeatureUserRoleManagement         FeatureName = "user_role_management"
 	FeatureHighAvailability           FeatureName = "high_availability"
 	FeatureMultipleGitAuth            FeatureName = "multiple_git_auth"
 	FeatureExternalProvisionerDaemons FeatureName = "external_provisioner_daemons"
@@ -62,6 +63,7 @@ var FeatureNames = []FeatureName{
 	FeatureAppearance,
 	FeatureAdvancedTemplateScheduling,
 	FeatureWorkspaceProxy,
+	FeatureUserRoleManagement,
 }
 
 // Humanize returns the feature name in a human-readable format.
@@ -258,21 +260,24 @@ type OAuth2GithubConfig struct {
 }
 
 type OIDCConfig struct {
-	AllowSignups        clibase.Bool                      `json:"allow_signups" typescript:",notnull"`
-	ClientID            clibase.String                    `json:"client_id" typescript:",notnull"`
-	ClientSecret        clibase.String                    `json:"client_secret" typescript:",notnull"`
-	EmailDomain         clibase.StringArray               `json:"email_domain" typescript:",notnull"`
-	IssuerURL           clibase.String                    `json:"issuer_url" typescript:",notnull"`
-	Scopes              clibase.StringArray               `json:"scopes" typescript:",notnull"`
-	IgnoreEmailVerified clibase.Bool                      `json:"ignore_email_verified" typescript:",notnull"`
-	UsernameField       clibase.String                    `json:"username_field" typescript:",notnull"`
-	EmailField          clibase.String                    `json:"email_field" typescript:",notnull"`
-	AuthURLParams       clibase.Struct[map[string]string] `json:"auth_url_params" typescript:",notnull"`
-	IgnoreUserInfo      clibase.Bool                      `json:"ignore_user_info" typescript:",notnull"`
-	GroupField          clibase.String                    `json:"groups_field" typescript:",notnull"`
-	GroupMapping        clibase.Struct[map[string]string] `json:"group_mapping" typescript:",notnull"`
-	SignInText          clibase.String                    `json:"sign_in_text" typescript:",notnull"`
-	IconURL             clibase.URL                       `json:"icon_url" typescript:",notnull"`
+	AllowSignups        clibase.Bool                        `json:"allow_signups" typescript:",notnull"`
+	ClientID            clibase.String                      `json:"client_id" typescript:",notnull"`
+	ClientSecret        clibase.String                      `json:"client_secret" typescript:",notnull"`
+	EmailDomain         clibase.StringArray                 `json:"email_domain" typescript:",notnull"`
+	IssuerURL           clibase.String                      `json:"issuer_url" typescript:",notnull"`
+	Scopes              clibase.StringArray                 `json:"scopes" typescript:",notnull"`
+	IgnoreEmailVerified clibase.Bool                        `json:"ignore_email_verified" typescript:",notnull"`
+	UsernameField       clibase.String                      `json:"username_field" typescript:",notnull"`
+	EmailField          clibase.String                      `json:"email_field" typescript:",notnull"`
+	AuthURLParams       clibase.Struct[map[string]string]   `json:"auth_url_params" typescript:",notnull"`
+	IgnoreUserInfo      clibase.Bool                        `json:"ignore_user_info" typescript:",notnull"`
+	GroupField          clibase.String                      `json:"groups_field" typescript:",notnull"`
+	GroupMapping        clibase.Struct[map[string]string]   `json:"group_mapping" typescript:",notnull"`
+	UserRoleField       clibase.String                      `json:"user_role_field" typescript:",notnull"`
+	UserRoleMapping     clibase.Struct[map[string][]string] `json:"user_role_mapping" typescript:",notnull"`
+	UserRolesDefault    clibase.StringArray                 `json:"user_roles_default" typescript:",notnull"`
+	SignInText          clibase.String                      `json:"sign_in_text" typescript:",notnull"`
+	IconURL             clibase.URL                         `json:"icon_url" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
@@ -335,9 +340,10 @@ type SwaggerConfig struct {
 }
 
 type LoggingConfig struct {
-	Human       clibase.String `json:"human" typescript:",notnull"`
-	JSON        clibase.String `json:"json" typescript:",notnull"`
-	Stackdriver clibase.String `json:"stackdriver" typescript:",notnull"`
+	Filter      clibase.StringArray `json:"log_filter" typescript:",notnull"`
+	Human       clibase.String      `json:"human" typescript:",notnull"`
+	JSON        clibase.String      `json:"json" typescript:",notnull"`
+	Stackdriver clibase.String      `json:"stackdriver" typescript:",notnull"`
 }
 
 type DangerousConfig struct {
@@ -528,6 +534,16 @@ when required by your organization's security policy.`,
 		Group:       &deploymentGroupNetworking,
 		YAML:        "redirectToAccessURL",
 	}
+	logFilter := clibase.Option{
+		Name:          "Log Filter",
+		Description:   "Filter debug logs by matching against a given regex. Use .* to match all debug logs.",
+		Flag:          "log-filter",
+		FlagShorthand: "l",
+		Env:           "CODER_LOG_FILTER",
+		Value:         &c.Logging.Filter,
+		Group:         &deploymentGroupIntrospectionLogging,
+		YAML:          "filter",
+	}
 	opts := clibase.OptionSet{
 		{
 			Name:        "Access URL",
@@ -703,6 +719,7 @@ when required by your organization's security policy.`,
 			Value:       &c.DERP.Server.Enable,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "enable",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "DERP Server Region ID",
@@ -713,6 +730,7 @@ when required by your organization's security policy.`,
 			Value:       &c.DERP.Server.RegionID,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "regionID",
+			// Does not apply to external proxies as this value is generated.
 		},
 		{
 			Name:        "DERP Server Region Code",
@@ -723,6 +741,7 @@ when required by your organization's security policy.`,
 			Value:       &c.DERP.Server.RegionCode,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "regionCode",
+			// Does not apply to external proxies as we use the proxy name.
 		},
 		{
 			Name:        "DERP Server Region Name",
@@ -733,6 +752,7 @@ when required by your organization's security policy.`,
 			Value:       &c.DERP.Server.RegionName,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "regionName",
+			// Does not apply to external proxies as we use the proxy name.
 		},
 		{
 			Name:        "DERP Server STUN Addresses",
@@ -749,10 +769,12 @@ when required by your organization's security policy.`,
 			Description: "An HTTP URL that is accessible by other replicas to relay DERP traffic. Required for high availability.",
 			Flag:        "derp-server-relay-url",
 			Env:         "CODER_DERP_SERVER_RELAY_URL",
-			Annotations: clibase.Annotations{}.Mark(annotationEnterpriseKey, "true"),
 			Value:       &c.DERP.Server.RelayURL,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "relayURL",
+			Annotations: clibase.Annotations{}.
+				Mark(annotationEnterpriseKey, "true").
+				Mark(annotationExternalProxies, "true"),
 		},
 		{
 			Name:        "Block Direct Connections",
@@ -1044,6 +1066,38 @@ when required by your organization's security policy.`,
 			YAML:        "groupMapping",
 		},
 		{
+			Name:        "OIDC User Role Field",
+			Description: "This field must be set if using the user roles sync feature. Set this to the name of the claim used to store the user's role. The roles should be sent as an array of strings.",
+			Flag:        "oidc-user-role-field",
+			Env:         "CODER_OIDC_USER_ROLE_FIELD",
+			// This value is intentionally blank. If this is empty, then OIDC user role
+			// sync behavior is disabled.
+			Default: "",
+			Value:   &c.OIDC.UserRoleField,
+			Group:   &deploymentGroupOIDC,
+			YAML:    "userRoleField",
+		},
+		{
+			Name:        "OIDC User Role Mapping",
+			Description: "A map of the OIDC passed in user roles and the groups in Coder it should map to. This is useful if the group names do not match. If mapped to the empty string, the role will ignored.",
+			Flag:        "oidc-user-role-mapping",
+			Env:         "CODER_OIDC_USER_ROLE_MAPPING",
+			Default:     "{}",
+			Value:       &c.OIDC.UserRoleMapping,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "userRoleMapping",
+		},
+		{
+			Name:        "OIDC User Role Default",
+			Description: "If user role sync is enabled, these roles are always included for all authenticated users. The 'member' role is always assigned.",
+			Flag:        "oidc-user-role-default",
+			Env:         "CODER_OIDC_USER_ROLE_DEFAULT",
+			Default:     "",
+			Value:       &c.OIDC.UserRolesDefault,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "userRoleDefault",
+		},
+		{
 			Name:        "OpenID Connect sign in text",
 			Description: "The text to show on the OpenID Connect sign in button.",
 			Flag:        "oidc-sign-in-text",
@@ -1116,7 +1170,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "Capture Logs in Traces",
-			Description: "Enables capturing of logs as events in traces. This is useful for debugging, but may result in a very large amount of events being sent to the tracing backend which may incur significant costs. If the verbose flag was supplied, debug-level logs will be included.",
+			Description: "Enables capturing of logs as events in traces. This is useful for debugging, but may result in a very large amount of events being sent to the tracing backend which may incur significant costs.",
 			Flag:        "trace-logs",
 			Env:         "CODER_TRACE_LOGS",
 			Value:       &c.Trace.CaptureLogs,
@@ -1206,12 +1260,14 @@ when required by your organization's security policy.`,
 			Flag:          "verbose",
 			Env:           "CODER_VERBOSE",
 			FlagShorthand: "v",
-
-			Value:       &c.Verbose,
-			Group:       &deploymentGroupIntrospectionLogging,
-			YAML:        "verbose",
-			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+			Hidden:        true,
+			UseInstead:    []clibase.Option{logFilter},
+			Value:         &c.Verbose,
+			Group:         &deploymentGroupIntrospectionLogging,
+			YAML:          "verbose",
+			Annotations:   clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
+		logFilter,
 		{
 			Name:        "Human Log Location",
 			Description: "Output human-readable logs to a given file.",
@@ -1817,6 +1873,9 @@ const (
 	//   quiet hours instead of max_ttl.
 	ExperimentTemplateRestartRequirement Experiment = "template_restart_requirement"
 
+	// Insights page
+	ExperimentTemplateInsightsPage Experiment = "template_insights_page"
+
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"
 )
@@ -1825,7 +1884,9 @@ const (
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsAll = Experiments{}
+var ExperimentsAll = Experiments{
+	ExperimentTemplateInsightsPage,
+}
 
 // Experiments is a list of experiments that are enabled for the deployment.
 // Multiple experiments may be enabled at the same time.

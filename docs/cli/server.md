@@ -69,7 +69,7 @@ The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is s
 | Environment | <code>$CODER_TRACE_LOGS</code>                 |
 | YAML        | <code>introspection.tracing.captureLogs</code> |
 
-Enables capturing of logs as events in traces. This is useful for debugging, but may result in a very large amount of events being sent to the tracing backend which may incur significant costs. If the verbose flag was supplied, debug-level logs will be included.
+Enables capturing of logs as events in traces. This is useful for debugging, but may result in a very large amount of events being sent to the tracing backend which may incur significant costs.
 
 ### -c, --config
 
@@ -317,6 +317,16 @@ Output human-readable logs to a given file.
 
 Output JSON logs to a given file.
 
+### -l, --log-filter
+
+|             |                                           |
+| ----------- | ----------------------------------------- |
+| Type        | <code>string-array</code>                 |
+| Environment | <code>$CODER_LOG_FILTER</code>            |
+| YAML        | <code>introspection.logging.filter</code> |
+
+Filter debug logs by matching against a given regex. Use .\* to match all debug logs.
+
 ### --max-token-lifetime
 
 |             |                                               |
@@ -521,6 +531,37 @@ Issuer URL to use for Login with OIDC.
 | Default     | <code>openid,profile,email</code> |
 
 Scopes to grant when authenticating with OIDC.
+
+### --oidc-user-role-default
+
+|             |                                            |
+| ----------- | ------------------------------------------ |
+| Type        | <code>string-array</code>                  |
+| Environment | <code>$CODER_OIDC_USER_ROLE_DEFAULT</code> |
+| YAML        | <code>oidc.userRoleDefault</code>          |
+
+If user role sync is enabled, these roles are always included for all authenticated users. The 'member' role is always assigned.
+
+### --oidc-user-role-field
+
+|             |                                          |
+| ----------- | ---------------------------------------- |
+| Type        | <code>string</code>                      |
+| Environment | <code>$CODER_OIDC_USER_ROLE_FIELD</code> |
+| YAML        | <code>oidc.userRoleField</code>          |
+
+This field must be set if using the user roles sync feature. Set this to the name of the claim used to store the user's role. The roles should be sent as an array of strings.
+
+### --oidc-user-role-mapping
+
+|             |                                            |
+| ----------- | ------------------------------------------ |
+| Type        | <code>struct[map[string][]string]</code>   |
+| Environment | <code>$CODER_OIDC_USER_ROLE_MAPPING</code> |
+| YAML        | <code>oidc.userRoleMapping</code>          |
+| Default     | <code>{}</code>                            |
+
+A map of the OIDC passed in user roles and the groups in Coder it should map to. This is useful if the group names do not match. If mapped to the empty string, the role will ignored.
 
 ### --oidc-username-field
 
@@ -916,16 +957,6 @@ Enables trace exporting to Honeycomb.io using the provided API Key.
 | Default     | <code>false</code>               |
 
 Periodically check for new releases of Coder and inform the owner. The check is performed once per day.
-
-### -v, --verbose
-
-|             |                                            |
-| ----------- | ------------------------------------------ |
-| Type        | <code>bool</code>                          |
-| Environment | <code>$CODER_VERBOSE</code>                |
-| YAML        | <code>introspection.logging.verbose</code> |
-
-Output debug-level logs.
 
 ### --wildcard-access-url
 

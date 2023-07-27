@@ -28,7 +28,7 @@ type TemplateVersion struct {
 	Message        string         `json:"message"`
 	Job            ProvisionerJob `json:"job"`
 	Readme         string         `json:"readme"`
-	CreatedBy      User           `json:"created_by"`
+	CreatedBy      MinimalUser    `json:"created_by"`
 
 	Warnings []TemplateVersionWarning `json:"warnings,omitempty" enums:"DEPRECATED_PARAMETERS"`
 }

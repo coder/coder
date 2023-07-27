@@ -140,9 +140,6 @@ func (d *Detector) Start() {
 				if stats.Error != nil && !xerrors.As(stats.Error, &acquireLockError{}) {
 					d.log.Warn(d.ctx, "error running workspace build hang detector once", slog.Error(stats.Error))
 				}
-				if len(stats.TerminatedJobIDs) != 0 {
-					d.log.Warn(d.ctx, "detected (and terminated) hung provisioner jobs", slog.F("job_ids", stats.TerminatedJobIDs))
-				}
 				if d.stats != nil {
 					select {
 					case <-d.ctx.Done():
@@ -251,7 +248,10 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 			}
 		}
 
-		log.Info(ctx, "detected hung (>5m) provisioner job, forcefully terminating")
+		log.Warn(
+			ctx, "detected hung provisioner job, forcefully terminating",
+			"threshold", HungJobDuration,
+		)
 
 		// First, get the latest logs from the build so we can make sure
 		// our messages are in the latest stage.
@@ -332,7 +332,7 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 					return xerrors.Errorf("get previous workspace build: %w", err)
 				}
 				if err == nil {
-					_, err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+					err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 						ID:               build.ID,
 						UpdatedAt:        database.Now(),
 						ProvisionerState: prevBuild.ProvisionerState,
