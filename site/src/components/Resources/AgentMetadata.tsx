@@ -56,17 +56,19 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
       />
     ) : status === "stale" ? (
       <Tooltip title="This data is stale and no longer up to date">
-        <div
+        <Box
+          sx={{ width: `${item.result.value.length}ch` }}
           className={combineClasses([
             styles.metadataValue,
             styles.metadataStale,
           ])}
         >
           {item.result.value}
-        </div>
+        </Box>
       </Tooltip>
     ) : (
-      <div
+      <Box
+        sx={{ width: `${item.result.value.length}ch` }}
         className={combineClasses([
           styles.metadataValue,
           item.result.error.length === 0
@@ -75,7 +77,7 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
         ])}
       >
         {item.result.value}
-      </div>
+      </Box>
     )
 
   return (
@@ -83,7 +85,7 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
       <div className={styles.metadataLabel}>
         {item.description.display_name}
       </div>
-      <Box sx={{ width: `${item.result.value.length}ch` }}>{value}</Box>
+      <Box>{value}</Box>
     </div>
   )
 }
