@@ -86,17 +86,19 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"locked_ttl":                       ActionTrack,
 	},
 	&database.TemplateVersion{}: {
-		"id":                 ActionTrack,
-		"template_id":        ActionTrack,
-		"organization_id":    ActionIgnore, // Never changes.
-		"created_at":         ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
-		"updated_at":         ActionIgnore, // Changes, but is implicit and not helpful in a diff.
-		"name":               ActionTrack,
-		"message":            ActionIgnore, // Never changes after creation.
-		"readme":             ActionTrack,
-		"job_id":             ActionIgnore, // Not helpful in a diff because jobs aren't tracked in audit logs.
-		"created_by":         ActionTrack,
-		"git_auth_providers": ActionIgnore, // Not helpful because this can only change when new versions are added.
+		"id":                    ActionTrack,
+		"template_id":           ActionTrack,
+		"organization_id":       ActionIgnore, // Never changes.
+		"created_at":            ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
+		"updated_at":            ActionIgnore, // Changes, but is implicit and not helpful in a diff.
+		"name":                  ActionTrack,
+		"message":               ActionIgnore, // Never changes after creation.
+		"readme":                ActionTrack,
+		"job_id":                ActionIgnore, // Not helpful in a diff because jobs aren't tracked in audit logs.
+		"created_by":            ActionTrack,
+		"git_auth_providers":    ActionIgnore, // Not helpful because this can only change when new versions are added.
+		"created_by_avatar_url": ActionIgnore,
+		"created_by_username":   ActionIgnore,
 	},
 	&database.User{}: {
 		"id":                   ActionTrack,
@@ -129,20 +131,22 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"deleting_at":        ActionTrack,
 	},
 	&database.WorkspaceBuild{}: {
-		"id":                  ActionIgnore,
-		"created_at":          ActionIgnore,
-		"updated_at":          ActionIgnore,
-		"workspace_id":        ActionIgnore,
-		"template_version_id": ActionTrack,
-		"build_number":        ActionIgnore,
-		"transition":          ActionIgnore,
-		"initiator_id":        ActionIgnore,
-		"provisioner_state":   ActionIgnore,
-		"job_id":              ActionIgnore,
-		"deadline":            ActionIgnore,
-		"reason":              ActionIgnore,
-		"daily_cost":          ActionIgnore,
-		"max_deadline":        ActionIgnore,
+		"id":                      ActionIgnore,
+		"created_at":              ActionIgnore,
+		"updated_at":              ActionIgnore,
+		"workspace_id":            ActionIgnore,
+		"template_version_id":     ActionTrack,
+		"build_number":            ActionIgnore,
+		"transition":              ActionIgnore,
+		"initiator_id":            ActionIgnore,
+		"provisioner_state":       ActionIgnore,
+		"job_id":                  ActionIgnore,
+		"deadline":                ActionIgnore,
+		"reason":                  ActionIgnore,
+		"daily_cost":              ActionIgnore,
+		"max_deadline":            ActionIgnore,
+		"initiator_by_avatar_url": ActionIgnore,
+		"initiator_by_username":   ActionIgnore,
 	},
 	&database.AuditableGroup{}: {
 		"id":              ActionTrack,
@@ -193,6 +197,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"updated_at":          ActionIgnore,
 		"deleted":             ActionIgnore,
 		"token_hashed_secret": ActionSecret,
+		"derp_enabled":        ActionTrack,
+		"region_id":           ActionTrack,
 	},
 }
 

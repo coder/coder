@@ -42,6 +42,19 @@ rules:
     - patch
     - update
     - watch
+  - apiGroups:
+    - apps
+    resources:
+    - deployments
+    verbs:
+    - create
+    - delete
+    - deletecollection
+    - get
+    - list
+    - patch
+    - update
+    - watch
 ---
 # Source: coder/templates/rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1

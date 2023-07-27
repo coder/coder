@@ -1539,6 +1539,7 @@ type Replica struct {
 	DatabaseLatency int32        `db:"database_latency" json:"database_latency"`
 	Version         string       `db:"version" json:"version"`
 	Error           string       `db:"error" json:"error"`
+	Primary         bool         `db:"primary" json:"primary"`
 }
 
 type SiteConfig struct {
@@ -1593,7 +1594,7 @@ type Template struct {
 	LockedTTL                    int64           `db:"locked_ttl" json:"locked_ttl"`
 	RestartRequirementDaysOfWeek int16           `db:"restart_requirement_days_of_week" json:"restart_requirement_days_of_week"`
 	RestartRequirementWeeks      int64           `db:"restart_requirement_weeks" json:"restart_requirement_weeks"`
-	CreatedByAvatarURL           string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
+	CreatedByAvatarURL           sql.NullString  `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername            string          `db:"created_by_username" json:"created_by_username"`
 }
 
@@ -1631,20 +1632,21 @@ type TemplateTable struct {
 	RestartRequirementWeeks int64 `db:"restart_requirement_weeks" json:"restart_requirement_weeks"`
 }
 
+// Joins in the username + avatar url of the created by user.
 type TemplateVersion struct {
-	ID             uuid.UUID     `db:"id" json:"id"`
-	TemplateID     uuid.NullUUID `db:"template_id" json:"template_id"`
-	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
-	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
-	Name           string        `db:"name" json:"name"`
-	Readme         string        `db:"readme" json:"readme"`
-	JobID          uuid.UUID     `db:"job_id" json:"job_id"`
-	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
-	// IDs of Git auth providers for a specific template version
-	GitAuthProviders []string `db:"git_auth_providers" json:"git_auth_providers"`
-	// Message describing the changes in this version of the template, similar to a Git commit message. Like a commit message, this should be a short, high-level description of the changes in this version of the template. This message is immutable and should not be updated after the fact.
-	Message string `db:"message" json:"message"`
+	ID                 uuid.UUID      `db:"id" json:"id"`
+	TemplateID         uuid.NullUUID  `db:"template_id" json:"template_id"`
+	OrganizationID     uuid.UUID      `db:"organization_id" json:"organization_id"`
+	CreatedAt          time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt          time.Time      `db:"updated_at" json:"updated_at"`
+	Name               string         `db:"name" json:"name"`
+	Readme             string         `db:"readme" json:"readme"`
+	JobID              uuid.UUID      `db:"job_id" json:"job_id"`
+	CreatedBy          uuid.UUID      `db:"created_by" json:"created_by"`
+	GitAuthProviders   []string       `db:"git_auth_providers" json:"git_auth_providers"`
+	Message            string         `db:"message" json:"message"`
+	CreatedByAvatarURL sql.NullString `db:"created_by_avatar_url" json:"created_by_avatar_url"`
+	CreatedByUsername  string         `db:"created_by_username" json:"created_by_username"`
 }
 
 type TemplateVersionParameter struct {
@@ -1681,6 +1683,22 @@ type TemplateVersionParameter struct {
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
 	// The value of an ephemeral parameter will not be preserved between consecutive workspace builds.
 	Ephemeral bool `db:"ephemeral" json:"ephemeral"`
+}
+
+type TemplateVersionTable struct {
+	ID             uuid.UUID     `db:"id" json:"id"`
+	TemplateID     uuid.NullUUID `db:"template_id" json:"template_id"`
+	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
+	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
+	Name           string        `db:"name" json:"name"`
+	Readme         string        `db:"readme" json:"readme"`
+	JobID          uuid.UUID     `db:"job_id" json:"job_id"`
+	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
+	// IDs of Git auth providers for a specific template version
+	GitAuthProviders []string `db:"git_auth_providers" json:"git_auth_providers"`
+	// Message describing the changes in this version of the template, similar to a Git commit message. Like a commit message, this should be a short, high-level description of the changes in this version of the template. This message is immutable and should not be updated after the fact.
+	Message string `db:"message" json:"message"`
 }
 
 type TemplateVersionVariable struct {
@@ -1858,7 +1876,35 @@ type WorkspaceApp struct {
 	External             bool               `db:"external" json:"external"`
 }
 
+// Joins in the username + avatar url of the initiated by user.
 type WorkspaceBuild struct {
+	ID                   uuid.UUID           `db:"id" json:"id"`
+	CreatedAt            time.Time           `db:"created_at" json:"created_at"`
+	UpdatedAt            time.Time           `db:"updated_at" json:"updated_at"`
+	WorkspaceID          uuid.UUID           `db:"workspace_id" json:"workspace_id"`
+	TemplateVersionID    uuid.UUID           `db:"template_version_id" json:"template_version_id"`
+	BuildNumber          int32               `db:"build_number" json:"build_number"`
+	Transition           WorkspaceTransition `db:"transition" json:"transition"`
+	InitiatorID          uuid.UUID           `db:"initiator_id" json:"initiator_id"`
+	ProvisionerState     []byte              `db:"provisioner_state" json:"provisioner_state"`
+	JobID                uuid.UUID           `db:"job_id" json:"job_id"`
+	Deadline             time.Time           `db:"deadline" json:"deadline"`
+	Reason               BuildReason         `db:"reason" json:"reason"`
+	DailyCost            int32               `db:"daily_cost" json:"daily_cost"`
+	MaxDeadline          time.Time           `db:"max_deadline" json:"max_deadline"`
+	InitiatorByAvatarUrl sql.NullString      `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
+	InitiatorByUsername  string              `db:"initiator_by_username" json:"initiator_by_username"`
+}
+
+type WorkspaceBuildParameter struct {
+	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
+	// Parameter name
+	Name string `db:"name" json:"name"`
+	// Parameter value
+	Value string `db:"value" json:"value"`
+}
+
+type WorkspaceBuildTable struct {
 	ID                uuid.UUID           `db:"id" json:"id"`
 	CreatedAt         time.Time           `db:"created_at" json:"created_at"`
 	UpdatedAt         time.Time           `db:"updated_at" json:"updated_at"`
@@ -1873,14 +1919,6 @@ type WorkspaceBuild struct {
 	Reason            BuildReason         `db:"reason" json:"reason"`
 	DailyCost         int32               `db:"daily_cost" json:"daily_cost"`
 	MaxDeadline       time.Time           `db:"max_deadline" json:"max_deadline"`
-}
-
-type WorkspaceBuildParameter struct {
-	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
-	// Parameter name
-	Name string `db:"name" json:"name"`
-	// Parameter value
-	Value string `db:"value" json:"value"`
 }
 
 type WorkspaceProxy struct {
@@ -1899,6 +1937,8 @@ type WorkspaceProxy struct {
 	Deleted bool `db:"deleted" json:"deleted"`
 	// Hashed secret is used to authenticate the workspace proxy using a session token.
 	TokenHashedSecret []byte `db:"token_hashed_secret" json:"token_hashed_secret"`
+	RegionID          int32  `db:"region_id" json:"region_id"`
+	DerpEnabled       bool   `db:"derp_enabled" json:"derp_enabled"`
 }
 
 type WorkspaceResource struct {

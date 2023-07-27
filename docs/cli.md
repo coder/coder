@@ -23,40 +23,40 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 
 ## Subcommands
 
-| Name                                                   | Purpose                                                                                                                                                    |
-| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [<code>config-ssh</code>](./cli/config-ssh.md)         | Add an SSH Host entry for your workspaces "ssh coder.workspace"                                                                                            |
-| [<code>create</code>](./cli/create.md)                 | Create a workspace                                                                                                                                         |
-| [<code>delete</code>](./cli/delete.md)                 | Delete a workspace                                                                                                                                         |
-| [<code>dotfiles</code>](./cli/dotfiles.md)             | Personalize your workspace by applying a canonical dotfiles repository                                                                                     |
-| [<code>features</code>](./cli/features.md)             | List Enterprise features                                                                                                                                   |
-| [<code>groups</code>](./cli/groups.md)                 | Manage groups                                                                                                                                              |
-| [<code>licenses</code>](./cli/licenses.md)             | Add, delete, and list licenses                                                                                                                             |
-| [<code>list</code>](./cli/list.md)                     | List workspaces                                                                                                                                            |
-| [<code>login</code>](./cli/login.md)                   | Authenticate with Coder deployment                                                                                                                         |
-| [<code>logout</code>](./cli/logout.md)                 | Unauthenticate your local session                                                                                                                          |
-| [<code>netcheck</code>](./cli/netcheck.md)             | Print network debug information for DERP and STUN                                                                                                          |
-| [<code>ping</code>](./cli/ping.md)                     | Ping a workspace                                                                                                                                           |
-| [<code>port-forward</code>](./cli/port-forward.md)     | Forward ports from a workspace to the local machine. Forward ports from a workspace to the local machine. For reverse port forwarding, use "coder ssh -R". |
-| [<code>provisionerd</code>](./cli/provisionerd.md)     | Manage provisioner daemons                                                                                                                                 |
-| [<code>publickey</code>](./cli/publickey.md)           | Output your Coder public key used for Git operations                                                                                                       |
-| [<code>rename</code>](./cli/rename.md)                 | Rename a workspace                                                                                                                                         |
-| [<code>reset-password</code>](./cli/reset-password.md) | Directly connect to the database to reset a user's password                                                                                                |
-| [<code>restart</code>](./cli/restart.md)               | Restart a workspace                                                                                                                                        |
-| [<code>schedule</code>](./cli/schedule.md)             | Schedule automated start and stop times for workspaces                                                                                                     |
-| [<code>server</code>](./cli/server.md)                 | Start a Coder server                                                                                                                                       |
-| [<code>show</code>](./cli/show.md)                     | Display details of a workspace's resources and agents                                                                                                      |
-| [<code>speedtest</code>](./cli/speedtest.md)           | Run upload and download tests from your machine to a workspace                                                                                             |
-| [<code>ssh</code>](./cli/ssh.md)                       | Start a shell into a workspace                                                                                                                             |
-| [<code>start</code>](./cli/start.md)                   | Start a workspace                                                                                                                                          |
-| [<code>stat</code>](./cli/stat.md)                     | Show resource usage for the current workspace.                                                                                                             |
-| [<code>state</code>](./cli/state.md)                   | Manually manage Terraform state to fix broken workspaces                                                                                                   |
-| [<code>stop</code>](./cli/stop.md)                     | Stop a workspace                                                                                                                                           |
-| [<code>templates</code>](./cli/templates.md)           | Manage templates                                                                                                                                           |
-| [<code>tokens</code>](./cli/tokens.md)                 | Manage personal access tokens                                                                                                                              |
-| [<code>update</code>](./cli/update.md)                 | Will update and start a given workspace if it is out of date                                                                                               |
-| [<code>users</code>](./cli/users.md)                   | Manage users                                                                                                                                               |
-| [<code>version</code>](./cli/version.md)               | Show coder version                                                                                                                                         |
+| Name                                                   | Purpose                                                                                               |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| [<code>config-ssh</code>](./cli/config-ssh.md)         | Add an SSH Host entry for your workspaces "ssh coder.workspace"                                       |
+| [<code>create</code>](./cli/create.md)                 | Create a workspace                                                                                    |
+| [<code>delete</code>](./cli/delete.md)                 | Delete a workspace                                                                                    |
+| [<code>dotfiles</code>](./cli/dotfiles.md)             | Personalize your workspace by applying a canonical dotfiles repository                                |
+| [<code>features</code>](./cli/features.md)             | List Enterprise features                                                                              |
+| [<code>groups</code>](./cli/groups.md)                 | Manage groups                                                                                         |
+| [<code>licenses</code>](./cli/licenses.md)             | Add, delete, and list licenses                                                                        |
+| [<code>list</code>](./cli/list.md)                     | List workspaces                                                                                       |
+| [<code>login</code>](./cli/login.md)                   | Authenticate with Coder deployment                                                                    |
+| [<code>logout</code>](./cli/logout.md)                 | Unauthenticate your local session                                                                     |
+| [<code>netcheck</code>](./cli/netcheck.md)             | Print network debug information for DERP and STUN                                                     |
+| [<code>ping</code>](./cli/ping.md)                     | Ping a workspace                                                                                      |
+| [<code>port-forward</code>](./cli/port-forward.md)     | Forward ports from a workspace to the local machine. For reverse port forwarding, use "coder ssh -R". |
+| [<code>provisionerd</code>](./cli/provisionerd.md)     | Manage provisioner daemons                                                                            |
+| [<code>publickey</code>](./cli/publickey.md)           | Output your Coder public key used for Git operations                                                  |
+| [<code>rename</code>](./cli/rename.md)                 | Rename a workspace                                                                                    |
+| [<code>reset-password</code>](./cli/reset-password.md) | Directly connect to the database to reset a user's password                                           |
+| [<code>restart</code>](./cli/restart.md)               | Restart a workspace                                                                                   |
+| [<code>schedule</code>](./cli/schedule.md)             | Schedule automated start and stop times for workspaces                                                |
+| [<code>server</code>](./cli/server.md)                 | Start a Coder server                                                                                  |
+| [<code>show</code>](./cli/show.md)                     | Display details of a workspace's resources and agents                                                 |
+| [<code>speedtest</code>](./cli/speedtest.md)           | Run upload and download tests from your machine to a workspace                                        |
+| [<code>ssh</code>](./cli/ssh.md)                       | Start a shell into a workspace                                                                        |
+| [<code>start</code>](./cli/start.md)                   | Start a workspace                                                                                     |
+| [<code>stat</code>](./cli/stat.md)                     | Show resource usage for the current workspace.                                                        |
+| [<code>state</code>](./cli/state.md)                   | Manually manage Terraform state to fix broken workspaces                                              |
+| [<code>stop</code>](./cli/stop.md)                     | Stop a workspace                                                                                      |
+| [<code>templates</code>](./cli/templates.md)           | Manage templates                                                                                      |
+| [<code>tokens</code>](./cli/tokens.md)                 | Manage personal access tokens                                                                         |
+| [<code>update</code>](./cli/update.md)                 | Will update and start a given workspace if it is out of date                                          |
+| [<code>users</code>](./cli/users.md)                   | Manage users                                                                                          |
+| [<code>version</code>](./cli/version.md)               | Show coder version                                                                                    |
 
 ## Options
 

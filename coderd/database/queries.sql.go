@@ -1545,6 +1545,7 @@ const getUserLatencyInsights = `-- name: GetUserLatencyInsights :many
 SELECT
 	workspace_agent_stats.user_id,
 	users.username,
+	users.avatar_url,
 	array_agg(DISTINCT template_id)::uuid[] AS template_ids,
 	coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_50,
 	coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
@@ -1556,7 +1557,7 @@ WHERE
 	AND workspace_agent_stats.connection_median_latency_ms > 0
 	AND workspace_agent_stats.connection_count > 0
 	AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN template_id = ANY($3::uuid[]) ELSE TRUE END
-GROUP BY workspace_agent_stats.user_id, users.username
+GROUP BY workspace_agent_stats.user_id, users.username, users.avatar_url
 ORDER BY user_id ASC
 `
 
@@ -1567,11 +1568,12 @@ type GetUserLatencyInsightsParams struct {
 }
 
 type GetUserLatencyInsightsRow struct {
-	UserID                       uuid.UUID   `db:"user_id" json:"user_id"`
-	Username                     string      `db:"username" json:"username"`
-	TemplateIDs                  []uuid.UUID `db:"template_ids" json:"template_ids"`
-	WorkspaceConnectionLatency50 float64     `db:"workspace_connection_latency_50" json:"workspace_connection_latency_50"`
-	WorkspaceConnectionLatency95 float64     `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
+	UserID                       uuid.UUID      `db:"user_id" json:"user_id"`
+	Username                     string         `db:"username" json:"username"`
+	AvatarURL                    sql.NullString `db:"avatar_url" json:"avatar_url"`
+	TemplateIDs                  []uuid.UUID    `db:"template_ids" json:"template_ids"`
+	WorkspaceConnectionLatency50 float64        `db:"workspace_connection_latency_50" json:"workspace_connection_latency_50"`
+	WorkspaceConnectionLatency95 float64        `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
 }
 
 // GetUserLatencyInsights returns the median and 95th percentile connection
@@ -1590,6 +1592,7 @@ func (q *sqlQuerier) GetUserLatencyInsights(ctx context.Context, arg GetUserLate
 		if err := rows.Scan(
 			&i.UserID,
 			&i.Username,
+			&i.AvatarURL,
 			pq.Array(&i.TemplateIDs),
 			&i.WorkspaceConnectionLatency50,
 			&i.WorkspaceConnectionLatency95,
@@ -2845,7 +2848,7 @@ func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, a
 
 const getWorkspaceProxies = `-- name: GetWorkspaceProxies :many
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
 FROM
 	workspace_proxies
 WHERE
@@ -2872,6 +2875,8 @@ func (q *sqlQuerier) GetWorkspaceProxies(ctx context.Context) ([]WorkspaceProxy,
 			&i.UpdatedAt,
 			&i.Deleted,
 			&i.TokenHashedSecret,
+			&i.RegionID,
+			&i.DerpEnabled,
 		); err != nil {
 			return nil, err
 		}
@@ -2888,7 +2893,7 @@ func (q *sqlQuerier) GetWorkspaceProxies(ctx context.Context) ([]WorkspaceProxy,
 
 const getWorkspaceProxyByHostname = `-- name: GetWorkspaceProxyByHostname :one
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
 FROM
 	workspace_proxies
 WHERE
@@ -2944,13 +2949,15 @@ func (q *sqlQuerier) GetWorkspaceProxyByHostname(ctx context.Context, arg GetWor
 		&i.UpdatedAt,
 		&i.Deleted,
 		&i.TokenHashedSecret,
+		&i.RegionID,
+		&i.DerpEnabled,
 	)
 	return i, err
 }
 
 const getWorkspaceProxyByID = `-- name: GetWorkspaceProxyByID :one
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
 FROM
 	workspace_proxies
 WHERE
@@ -2973,13 +2980,15 @@ func (q *sqlQuerier) GetWorkspaceProxyByID(ctx context.Context, id uuid.UUID) (W
 		&i.UpdatedAt,
 		&i.Deleted,
 		&i.TokenHashedSecret,
+		&i.RegionID,
+		&i.DerpEnabled,
 	)
 	return i, err
 }
 
 const getWorkspaceProxyByName = `-- name: GetWorkspaceProxyByName :one
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
 FROM
 	workspace_proxies
 WHERE
@@ -3003,6 +3012,8 @@ func (q *sqlQuerier) GetWorkspaceProxyByName(ctx context.Context, name string) (
 		&i.UpdatedAt,
 		&i.Deleted,
 		&i.TokenHashedSecret,
+		&i.RegionID,
+		&i.DerpEnabled,
 	)
 	return i, err
 }
@@ -3016,13 +3027,14 @@ INSERT INTO
 		name,
 		display_name,
 		icon,
+		derp_enabled,
 		token_hashed_secret,
 		created_at,
 		updated_at,
 		deleted
 	)
 VALUES
-	($1, '', '', $2, $3, $4, $5, $6, $7, false) RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
+	($1, '', '', $2, $3, $4, $5, $6, $7, $8, false) RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
 `
 
 type InsertWorkspaceProxyParams struct {
@@ -3030,6 +3042,7 @@ type InsertWorkspaceProxyParams struct {
 	Name              string    `db:"name" json:"name"`
 	DisplayName       string    `db:"display_name" json:"display_name"`
 	Icon              string    `db:"icon" json:"icon"`
+	DerpEnabled       bool      `db:"derp_enabled" json:"derp_enabled"`
 	TokenHashedSecret []byte    `db:"token_hashed_secret" json:"token_hashed_secret"`
 	CreatedAt         time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt         time.Time `db:"updated_at" json:"updated_at"`
@@ -3041,6 +3054,7 @@ func (q *sqlQuerier) InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspa
 		arg.Name,
 		arg.DisplayName,
 		arg.Icon,
+		arg.DerpEnabled,
 		arg.TokenHashedSecret,
 		arg.CreatedAt,
 		arg.UpdatedAt,
@@ -3057,6 +3071,8 @@ func (q *sqlQuerier) InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspa
 		&i.UpdatedAt,
 		&i.Deleted,
 		&i.TokenHashedSecret,
+		&i.RegionID,
+		&i.DerpEnabled,
 	)
 	return i, err
 }
@@ -3065,22 +3081,29 @@ const registerWorkspaceProxy = `-- name: RegisterWorkspaceProxy :one
 UPDATE
 	workspace_proxies
 SET
-	url = $1,
-	wildcard_hostname = $2,
+	url = $1 :: text,
+	wildcard_hostname = $2 :: text,
+	derp_enabled = $3 :: boolean,
 	updated_at = Now()
 WHERE
-	id = $3
-RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
+	id = $4
+RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
 `
 
 type RegisterWorkspaceProxyParams struct {
 	Url              string    `db:"url" json:"url"`
 	WildcardHostname string    `db:"wildcard_hostname" json:"wildcard_hostname"`
+	DerpEnabled      bool      `db:"derp_enabled" json:"derp_enabled"`
 	ID               uuid.UUID `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error) {
-	row := q.db.QueryRowContext(ctx, registerWorkspaceProxy, arg.Url, arg.WildcardHostname, arg.ID)
+	row := q.db.QueryRowContext(ctx, registerWorkspaceProxy,
+		arg.Url,
+		arg.WildcardHostname,
+		arg.DerpEnabled,
+		arg.ID,
+	)
 	var i WorkspaceProxy
 	err := row.Scan(
 		&i.ID,
@@ -3093,6 +3116,8 @@ func (q *sqlQuerier) RegisterWorkspaceProxy(ctx context.Context, arg RegisterWor
 		&i.UpdatedAt,
 		&i.Deleted,
 		&i.TokenHashedSecret,
+		&i.RegionID,
+		&i.DerpEnabled,
 	)
 	return i, err
 }
@@ -3115,7 +3140,7 @@ SET
 	updated_at = Now()
 WHERE
 	id = $5
-RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
+RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
 `
 
 type UpdateWorkspaceProxyParams struct {
@@ -3147,6 +3172,8 @@ func (q *sqlQuerier) UpdateWorkspaceProxy(ctx context.Context, arg UpdateWorkspa
 		&i.UpdatedAt,
 		&i.Deleted,
 		&i.TokenHashedSecret,
+		&i.RegionID,
+		&i.DerpEnabled,
 	)
 	return i, err
 }
@@ -3227,8 +3254,32 @@ func (q *sqlQuerier) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt 
 	return err
 }
 
+const getReplicaByID = `-- name: GetReplicaByID :one
+SELECT id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error, "primary" FROM replicas WHERE id = $1
+`
+
+func (q *sqlQuerier) GetReplicaByID(ctx context.Context, id uuid.UUID) (Replica, error) {
+	row := q.db.QueryRowContext(ctx, getReplicaByID, id)
+	var i Replica
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.StartedAt,
+		&i.StoppedAt,
+		&i.UpdatedAt,
+		&i.Hostname,
+		&i.RegionID,
+		&i.RelayAddress,
+		&i.DatabaseLatency,
+		&i.Version,
+		&i.Error,
+		&i.Primary,
+	)
+	return i, err
+}
+
 const getReplicasUpdatedAfter = `-- name: GetReplicasUpdatedAfter :many
-SELECT id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error FROM replicas WHERE updated_at > $1 AND stopped_at IS NULL
+SELECT id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error, "primary" FROM replicas WHERE updated_at > $1 AND stopped_at IS NULL
 `
 
 func (q *sqlQuerier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]Replica, error) {
@@ -3252,6 +3303,7 @@ func (q *sqlQuerier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time
 			&i.DatabaseLatency,
 			&i.Version,
 			&i.Error,
+			&i.Primary,
 		); err != nil {
 			return nil, err
 		}
@@ -3276,8 +3328,9 @@ INSERT INTO replicas (
     region_id,
     relay_address,
     version,
-    database_latency
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error
+    database_latency,
+	"primary"
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error, "primary"
 `
 
 type InsertReplicaParams struct {
@@ -3290,6 +3343,7 @@ type InsertReplicaParams struct {
 	RelayAddress    string    `db:"relay_address" json:"relay_address"`
 	Version         string    `db:"version" json:"version"`
 	DatabaseLatency int32     `db:"database_latency" json:"database_latency"`
+	Primary         bool      `db:"primary" json:"primary"`
 }
 
 func (q *sqlQuerier) InsertReplica(ctx context.Context, arg InsertReplicaParams) (Replica, error) {
@@ -3303,6 +3357,7 @@ func (q *sqlQuerier) InsertReplica(ctx context.Context, arg InsertReplicaParams)
 		arg.RelayAddress,
 		arg.Version,
 		arg.DatabaseLatency,
+		arg.Primary,
 	)
 	var i Replica
 	err := row.Scan(
@@ -3317,6 +3372,7 @@ func (q *sqlQuerier) InsertReplica(ctx context.Context, arg InsertReplicaParams)
 		&i.DatabaseLatency,
 		&i.Version,
 		&i.Error,
+		&i.Primary,
 	)
 	return i, err
 }
@@ -3331,8 +3387,9 @@ UPDATE replicas SET
     hostname = $7,
     version = $8,
     error = $9,
-    database_latency = $10
-WHERE id = $1 RETURNING id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error
+    database_latency = $10,
+	"primary" = $11
+WHERE id = $1 RETURNING id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error, "primary"
 `
 
 type UpdateReplicaParams struct {
@@ -3346,6 +3403,7 @@ type UpdateReplicaParams struct {
 	Version         string       `db:"version" json:"version"`
 	Error           string       `db:"error" json:"error"`
 	DatabaseLatency int32        `db:"database_latency" json:"database_latency"`
+	Primary         bool         `db:"primary" json:"primary"`
 }
 
 func (q *sqlQuerier) UpdateReplica(ctx context.Context, arg UpdateReplicaParams) (Replica, error) {
@@ -3360,6 +3418,7 @@ func (q *sqlQuerier) UpdateReplica(ctx context.Context, arg UpdateReplicaParams)
 		arg.Version,
 		arg.Error,
 		arg.DatabaseLatency,
+		arg.Primary,
 	)
 	var i Replica
 	err := row.Scan(
@@ -3374,6 +3433,7 @@ func (q *sqlQuerier) UpdateReplica(ctx context.Context, arg UpdateReplicaParams)
 		&i.DatabaseLatency,
 		&i.Version,
 		&i.Error,
+		&i.Primary,
 	)
 	return i, err
 }
@@ -4475,13 +4535,13 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 
 const getPreviousTemplateVersion = `-- name: GetPreviousTemplateVersion :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message, created_by_avatar_url, created_by_username
 FROM
-	template_versions
+	template_version_with_user AS template_versions
 WHERE
 	created_at < (
 		SELECT created_at
-		FROM template_versions AS tv
+		FROM template_version_with_user AS tv
 		WHERE tv.organization_id = $1 AND tv.name = $2 AND tv.template_id = $3
 	)
 	AND organization_id = $1
@@ -4511,15 +4571,17 @@ func (q *sqlQuerier) GetPreviousTemplateVersion(ctx context.Context, arg GetPrev
 		&i.CreatedBy,
 		pq.Array(&i.GitAuthProviders),
 		&i.Message,
+		&i.CreatedByAvatarURL,
+		&i.CreatedByUsername,
 	)
 	return i, err
 }
 
 const getTemplateVersionByID = `-- name: GetTemplateVersionByID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message, created_by_avatar_url, created_by_username
 FROM
-	template_versions
+	template_version_with_user AS template_versions
 WHERE
 	id = $1
 `
@@ -4539,15 +4601,17 @@ func (q *sqlQuerier) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (
 		&i.CreatedBy,
 		pq.Array(&i.GitAuthProviders),
 		&i.Message,
+		&i.CreatedByAvatarURL,
+		&i.CreatedByUsername,
 	)
 	return i, err
 }
 
 const getTemplateVersionByJobID = `-- name: GetTemplateVersionByJobID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message, created_by_avatar_url, created_by_username
 FROM
-	template_versions
+	template_version_with_user AS template_versions
 WHERE
 	job_id = $1
 `
@@ -4567,15 +4631,17 @@ func (q *sqlQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.U
 		&i.CreatedBy,
 		pq.Array(&i.GitAuthProviders),
 		&i.Message,
+		&i.CreatedByAvatarURL,
+		&i.CreatedByUsername,
 	)
 	return i, err
 }
 
 const getTemplateVersionByTemplateIDAndName = `-- name: GetTemplateVersionByTemplateIDAndName :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message, created_by_avatar_url, created_by_username
 FROM
-	template_versions
+	template_version_with_user AS template_versions
 WHERE
 	template_id = $1
 	AND "name" = $2
@@ -4601,15 +4667,17 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 		&i.CreatedBy,
 		pq.Array(&i.GitAuthProviders),
 		&i.Message,
+		&i.CreatedByAvatarURL,
+		&i.CreatedByUsername,
 	)
 	return i, err
 }
 
 const getTemplateVersionsByIDs = `-- name: GetTemplateVersionsByIDs :many
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message, created_by_avatar_url, created_by_username
 FROM
-	template_versions
+	template_version_with_user AS template_versions
 WHERE
 	id = ANY($1 :: uuid [ ])
 `
@@ -4635,6 +4703,8 @@ func (q *sqlQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UU
 			&i.CreatedBy,
 			pq.Array(&i.GitAuthProviders),
 			&i.Message,
+			&i.CreatedByAvatarURL,
+			&i.CreatedByUsername,
 		); err != nil {
 			return nil, err
 		}
@@ -4651,9 +4721,9 @@ func (q *sqlQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UU
 
 const getTemplateVersionsByTemplateID = `-- name: GetTemplateVersionsByTemplateID :many
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message, created_by_avatar_url, created_by_username
 FROM
-	template_versions
+	template_version_with_user AS template_versions
 WHERE
 	template_id = $1 :: uuid
 	AND CASE
@@ -4717,6 +4787,8 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 			&i.CreatedBy,
 			pq.Array(&i.GitAuthProviders),
 			&i.Message,
+			&i.CreatedByAvatarURL,
+			&i.CreatedByUsername,
 		); err != nil {
 			return nil, err
 		}
@@ -4732,7 +4804,7 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 }
 
 const getTemplateVersionsCreatedAfter = `-- name: GetTemplateVersionsCreatedAfter :many
-SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message FROM template_versions WHERE created_at > $1
+SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message, created_by_avatar_url, created_by_username FROM template_version_with_user AS template_versions WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]TemplateVersion, error) {
@@ -4756,6 +4828,8 @@ func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, create
 			&i.CreatedBy,
 			pq.Array(&i.GitAuthProviders),
 			&i.Message,
+			&i.CreatedByAvatarURL,
+			&i.CreatedByUsername,
 		); err != nil {
 			return nil, err
 		}
@@ -4770,7 +4844,7 @@ func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, create
 	return items, nil
 }
 
-const insertTemplateVersion = `-- name: InsertTemplateVersion :one
+const insertTemplateVersion = `-- name: InsertTemplateVersion :exec
 INSERT INTO
 	template_versions (
 		id,
@@ -4785,7 +4859,7 @@ INSERT INTO
 		created_by
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 `
 
 type InsertTemplateVersionParams struct {
@@ -4801,8 +4875,8 @@ type InsertTemplateVersionParams struct {
 	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
 }
 
-func (q *sqlQuerier) InsertTemplateVersion(ctx context.Context, arg InsertTemplateVersionParams) (TemplateVersion, error) {
-	row := q.db.QueryRowContext(ctx, insertTemplateVersion,
+func (q *sqlQuerier) InsertTemplateVersion(ctx context.Context, arg InsertTemplateVersionParams) error {
+	_, err := q.db.ExecContext(ctx, insertTemplateVersion,
 		arg.ID,
 		arg.TemplateID,
 		arg.OrganizationID,
@@ -4814,24 +4888,10 @@ func (q *sqlQuerier) InsertTemplateVersion(ctx context.Context, arg InsertTempla
 		arg.JobID,
 		arg.CreatedBy,
 	)
-	var i TemplateVersion
-	err := row.Scan(
-		&i.ID,
-		&i.TemplateID,
-		&i.OrganizationID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Name,
-		&i.Readme,
-		&i.JobID,
-		&i.CreatedBy,
-		pq.Array(&i.GitAuthProviders),
-		&i.Message,
-	)
-	return i, err
+	return err
 }
 
-const updateTemplateVersionByID = `-- name: UpdateTemplateVersionByID :one
+const updateTemplateVersionByID = `-- name: UpdateTemplateVersionByID :exec
 UPDATE
 	template_versions
 SET
@@ -4840,7 +4900,7 @@ SET
 	name = $4,
 	message = $5
 WHERE
-	id = $1 RETURNING id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message
+	id = $1
 `
 
 type UpdateTemplateVersionByIDParams struct {
@@ -4851,29 +4911,15 @@ type UpdateTemplateVersionByIDParams struct {
 	Message    string        `db:"message" json:"message"`
 }
 
-func (q *sqlQuerier) UpdateTemplateVersionByID(ctx context.Context, arg UpdateTemplateVersionByIDParams) (TemplateVersion, error) {
-	row := q.db.QueryRowContext(ctx, updateTemplateVersionByID,
+func (q *sqlQuerier) UpdateTemplateVersionByID(ctx context.Context, arg UpdateTemplateVersionByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateTemplateVersionByID,
 		arg.ID,
 		arg.TemplateID,
 		arg.UpdatedAt,
 		arg.Name,
 		arg.Message,
 	)
-	var i TemplateVersion
-	err := row.Scan(
-		&i.ID,
-		&i.TemplateID,
-		&i.OrganizationID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Name,
-		&i.Readme,
-		&i.JobID,
-		&i.CreatedBy,
-		pq.Array(&i.GitAuthProviders),
-		&i.Message,
-	)
-	return i, err
+	return err
 }
 
 const updateTemplateVersionDescriptionByJobID = `-- name: UpdateTemplateVersionDescriptionByJobID :exec
@@ -7441,9 +7487,9 @@ func (q *sqlQuerier) InsertWorkspaceBuildParameters(ctx context.Context, arg Ins
 
 const getLatestWorkspaceBuildByWorkspaceID = `-- name: GetLatestWorkspaceBuildByWorkspaceID :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline, initiator_by_avatar_url, initiator_by_username
 FROM
-	workspace_builds
+	workspace_build_with_user AS workspace_builds
 WHERE
 	workspace_id = $1
 ORDER BY
@@ -7470,22 +7516,24 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, w
 		&i.Reason,
 		&i.DailyCost,
 		&i.MaxDeadline,
+		&i.InitiatorByAvatarUrl,
+		&i.InitiatorByUsername,
 	)
 	return i, err
 }
 
 const getLatestWorkspaceBuilds = `-- name: GetLatestWorkspaceBuilds :many
-SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.build_number, wb.transition, wb.initiator_id, wb.provisioner_state, wb.job_id, wb.deadline, wb.reason, wb.daily_cost, wb.max_deadline
+SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.build_number, wb.transition, wb.initiator_id, wb.provisioner_state, wb.job_id, wb.deadline, wb.reason, wb.daily_cost, wb.max_deadline, wb.initiator_by_avatar_url, wb.initiator_by_username
 FROM (
     SELECT
         workspace_id, MAX(build_number) as max_build_number
     FROM
-        workspace_builds
+		workspace_build_with_user AS workspace_builds
     GROUP BY
         workspace_id
 ) m
 JOIN
-    workspace_builds wb
+	 workspace_build_with_user AS wb
 ON m.workspace_id = wb.workspace_id AND m.max_build_number = wb.build_number
 `
 
@@ -7513,6 +7561,8 @@ func (q *sqlQuerier) GetLatestWorkspaceBuilds(ctx context.Context) ([]WorkspaceB
 			&i.Reason,
 			&i.DailyCost,
 			&i.MaxDeadline,
+			&i.InitiatorByAvatarUrl,
+			&i.InitiatorByUsername,
 		); err != nil {
 			return nil, err
 		}
@@ -7528,19 +7578,19 @@ func (q *sqlQuerier) GetLatestWorkspaceBuilds(ctx context.Context) ([]WorkspaceB
 }
 
 const getLatestWorkspaceBuildsByWorkspaceIDs = `-- name: GetLatestWorkspaceBuildsByWorkspaceIDs :many
-SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.build_number, wb.transition, wb.initiator_id, wb.provisioner_state, wb.job_id, wb.deadline, wb.reason, wb.daily_cost, wb.max_deadline
+SELECT wb.id, wb.created_at, wb.updated_at, wb.workspace_id, wb.template_version_id, wb.build_number, wb.transition, wb.initiator_id, wb.provisioner_state, wb.job_id, wb.deadline, wb.reason, wb.daily_cost, wb.max_deadline, wb.initiator_by_avatar_url, wb.initiator_by_username
 FROM (
     SELECT
         workspace_id, MAX(build_number) as max_build_number
     FROM
-        workspace_builds
+		workspace_build_with_user AS workspace_builds
     WHERE
         workspace_id = ANY($1 :: uuid [ ])
     GROUP BY
         workspace_id
 ) m
 JOIN
-    workspace_builds wb
+	 workspace_build_with_user AS wb
 ON m.workspace_id = wb.workspace_id AND m.max_build_number = wb.build_number
 `
 
@@ -7568,6 +7618,8 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context,
 			&i.Reason,
 			&i.DailyCost,
 			&i.MaxDeadline,
+			&i.InitiatorByAvatarUrl,
+			&i.InitiatorByUsername,
 		); err != nil {
 			return nil, err
 		}
@@ -7584,9 +7636,9 @@ func (q *sqlQuerier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context,
 
 const getWorkspaceBuildByID = `-- name: GetWorkspaceBuildByID :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline, initiator_by_avatar_url, initiator_by_username
 FROM
-	workspace_builds
+	workspace_build_with_user AS workspace_builds
 WHERE
 	id = $1
 LIMIT
@@ -7611,15 +7663,17 @@ func (q *sqlQuerier) GetWorkspaceBuildByID(ctx context.Context, id uuid.UUID) (W
 		&i.Reason,
 		&i.DailyCost,
 		&i.MaxDeadline,
+		&i.InitiatorByAvatarUrl,
+		&i.InitiatorByUsername,
 	)
 	return i, err
 }
 
 const getWorkspaceBuildByJobID = `-- name: GetWorkspaceBuildByJobID :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline, initiator_by_avatar_url, initiator_by_username
 FROM
-	workspace_builds
+	workspace_build_with_user AS workspace_builds
 WHERE
 	job_id = $1
 LIMIT
@@ -7644,15 +7698,17 @@ func (q *sqlQuerier) GetWorkspaceBuildByJobID(ctx context.Context, jobID uuid.UU
 		&i.Reason,
 		&i.DailyCost,
 		&i.MaxDeadline,
+		&i.InitiatorByAvatarUrl,
+		&i.InitiatorByUsername,
 	)
 	return i, err
 }
 
 const getWorkspaceBuildByWorkspaceIDAndBuildNumber = `-- name: GetWorkspaceBuildByWorkspaceIDAndBuildNumber :one
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline, initiator_by_avatar_url, initiator_by_username
 FROM
-	workspace_builds
+	workspace_build_with_user AS workspace_builds
 WHERE
 	workspace_id = $1
 	AND build_number = $2
@@ -7681,15 +7737,17 @@ func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Co
 		&i.Reason,
 		&i.DailyCost,
 		&i.MaxDeadline,
+		&i.InitiatorByAvatarUrl,
+		&i.InitiatorByUsername,
 	)
 	return i, err
 }
 
 const getWorkspaceBuildsByWorkspaceID = `-- name: GetWorkspaceBuildsByWorkspaceID :many
 SELECT
-	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline
+	id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline, initiator_by_avatar_url, initiator_by_username
 FROM
-	workspace_builds
+	workspace_build_with_user AS workspace_builds
 WHERE
 	workspace_builds.workspace_id = $1
 	AND workspace_builds.created_at > $2
@@ -7757,6 +7815,8 @@ func (q *sqlQuerier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg Ge
 			&i.Reason,
 			&i.DailyCost,
 			&i.MaxDeadline,
+			&i.InitiatorByAvatarUrl,
+			&i.InitiatorByUsername,
 		); err != nil {
 			return nil, err
 		}
@@ -7772,7 +7832,7 @@ func (q *sqlQuerier) GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg Ge
 }
 
 const getWorkspaceBuildsCreatedAfter = `-- name: GetWorkspaceBuildsCreatedAfter :many
-SELECT id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline FROM workspace_builds WHERE created_at > $1
+SELECT id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline, initiator_by_avatar_url, initiator_by_username FROM workspace_build_with_user WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetWorkspaceBuildsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceBuild, error) {
@@ -7799,6 +7859,8 @@ func (q *sqlQuerier) GetWorkspaceBuildsCreatedAfter(ctx context.Context, created
 			&i.Reason,
 			&i.DailyCost,
 			&i.MaxDeadline,
+			&i.InitiatorByAvatarUrl,
+			&i.InitiatorByUsername,
 		); err != nil {
 			return nil, err
 		}
@@ -7813,7 +7875,7 @@ func (q *sqlQuerier) GetWorkspaceBuildsCreatedAfter(ctx context.Context, created
 	return items, nil
 }
 
-const insertWorkspaceBuild = `-- name: InsertWorkspaceBuild :one
+const insertWorkspaceBuild = `-- name: InsertWorkspaceBuild :exec
 INSERT INTO
 	workspace_builds (
 		id,
@@ -7831,7 +7893,7 @@ INSERT INTO
 		reason
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 `
 
 type InsertWorkspaceBuildParams struct {
@@ -7850,8 +7912,8 @@ type InsertWorkspaceBuildParams struct {
 	Reason            BuildReason         `db:"reason" json:"reason"`
 }
 
-func (q *sqlQuerier) InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspaceBuildParams) (WorkspaceBuild, error) {
-	row := q.db.QueryRowContext(ctx, insertWorkspaceBuild,
+func (q *sqlQuerier) InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspaceBuildParams) error {
+	_, err := q.db.ExecContext(ctx, insertWorkspaceBuild,
 		arg.ID,
 		arg.CreatedAt,
 		arg.UpdatedAt,
@@ -7866,27 +7928,10 @@ func (q *sqlQuerier) InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspa
 		arg.MaxDeadline,
 		arg.Reason,
 	)
-	var i WorkspaceBuild
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.WorkspaceID,
-		&i.TemplateVersionID,
-		&i.BuildNumber,
-		&i.Transition,
-		&i.InitiatorID,
-		&i.ProvisionerState,
-		&i.JobID,
-		&i.Deadline,
-		&i.Reason,
-		&i.DailyCost,
-		&i.MaxDeadline,
-	)
-	return i, err
+	return err
 }
 
-const updateWorkspaceBuildByID = `-- name: UpdateWorkspaceBuildByID :one
+const updateWorkspaceBuildByID = `-- name: UpdateWorkspaceBuildByID :exec
 UPDATE
 	workspace_builds
 SET
@@ -7895,7 +7940,7 @@ SET
 	deadline = $4,
 	max_deadline = $5
 WHERE
-	id = $1 RETURNING id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline
+	id = $1
 `
 
 type UpdateWorkspaceBuildByIDParams struct {
@@ -7906,41 +7951,24 @@ type UpdateWorkspaceBuildByIDParams struct {
 	MaxDeadline      time.Time `db:"max_deadline" json:"max_deadline"`
 }
 
-func (q *sqlQuerier) UpdateWorkspaceBuildByID(ctx context.Context, arg UpdateWorkspaceBuildByIDParams) (WorkspaceBuild, error) {
-	row := q.db.QueryRowContext(ctx, updateWorkspaceBuildByID,
+func (q *sqlQuerier) UpdateWorkspaceBuildByID(ctx context.Context, arg UpdateWorkspaceBuildByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceBuildByID,
 		arg.ID,
 		arg.UpdatedAt,
 		arg.ProvisionerState,
 		arg.Deadline,
 		arg.MaxDeadline,
 	)
-	var i WorkspaceBuild
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.WorkspaceID,
-		&i.TemplateVersionID,
-		&i.BuildNumber,
-		&i.Transition,
-		&i.InitiatorID,
-		&i.ProvisionerState,
-		&i.JobID,
-		&i.Deadline,
-		&i.Reason,
-		&i.DailyCost,
-		&i.MaxDeadline,
-	)
-	return i, err
+	return err
 }
 
-const updateWorkspaceBuildCostByID = `-- name: UpdateWorkspaceBuildCostByID :one
+const updateWorkspaceBuildCostByID = `-- name: UpdateWorkspaceBuildCostByID :exec
 UPDATE
 	workspace_builds
 SET
 	daily_cost = $2
 WHERE
-	id = $1 RETURNING id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline
+	id = $1
 `
 
 type UpdateWorkspaceBuildCostByIDParams struct {
@@ -7948,26 +7976,9 @@ type UpdateWorkspaceBuildCostByIDParams struct {
 	DailyCost int32     `db:"daily_cost" json:"daily_cost"`
 }
 
-func (q *sqlQuerier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg UpdateWorkspaceBuildCostByIDParams) (WorkspaceBuild, error) {
-	row := q.db.QueryRowContext(ctx, updateWorkspaceBuildCostByID, arg.ID, arg.DailyCost)
-	var i WorkspaceBuild
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.WorkspaceID,
-		&i.TemplateVersionID,
-		&i.BuildNumber,
-		&i.Transition,
-		&i.InitiatorID,
-		&i.ProvisionerState,
-		&i.JobID,
-		&i.Deadline,
-		&i.Reason,
-		&i.DailyCost,
-		&i.MaxDeadline,
-	)
-	return i, err
+func (q *sqlQuerier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg UpdateWorkspaceBuildCostByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceBuildCostByID, arg.ID, arg.DailyCost)
+	return err
 }
 
 const getWorkspaceResourceByID = `-- name: GetWorkspaceResourceByID :one

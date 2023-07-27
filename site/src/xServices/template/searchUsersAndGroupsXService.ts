@@ -1,4 +1,4 @@
-import { getGroups, getUsers } from "api/api"
+import { getGroups, getTemplateACLAvailable, getUsers } from "api/api"
 import { Group, User } from "api/typesGenerated"
 import { queryToFilter } from "utils/filters"
 import { everyOneGroup } from "utils/groups"
@@ -15,6 +15,7 @@ export const searchUsersAndGroupsMachine = createMachine(
     schema: {
       context: {} as {
         organizationId: string
+        templateID?: string
         userResults: User[]
         groupResults: Group[]
       },
@@ -56,16 +57,29 @@ export const searchUsersAndGroupsMachine = createMachine(
   },
   {
     services: {
-      search: async ({ organizationId }, { query }) => {
-        const [userRes, groups] = await Promise.all([
-          getUsers(queryToFilter(query)),
-          getGroups(organizationId),
-        ])
+      search: async ({ organizationId, templateID }, { query }) => {
+        let users, groups
+        if (templateID && templateID !== "") {
+          const res = await getTemplateACLAvailable(
+            templateID,
+            queryToFilter(query),
+          )
+          users = res.users
+          groups = res.groups
+        } else {
+          const [userRes, groupsRes] = await Promise.all([
+            getUsers(queryToFilter(query)),
+            getGroups(organizationId),
+          ])
+
+          users = userRes.users
+          groups = groupsRes
+        }
 
         // The Everyone groups is not returned by the API so we have to add it
         // manually
         return {
-          users: userRes.users,
+          users: users,
           groups: [everyOneGroup(organizationId), ...groups],
         }
       },

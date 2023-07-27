@@ -56,6 +56,7 @@
     "canvas": "2.11.0",
     "chart.js": "3.9.1",
     "chartjs-adapter-date-fns": "3.0.0",
+    "chroma-js": "2.4.2",
     "color-convert": "2.0.1",
     "cron-parser": "4.7.0",
     "cronstrue": "2.28.0",
@@ -94,6 +95,7 @@
     "ts-prune": "0.10.3",
     "tzdata": "1.0.30",
     "ua-parser-js": "1.0.33",
+    "unique-names-generator": "4.7.1",
     "uuid": "9.0.0",
     "vite": "4.4.2",
     "xstate": "4.38.1",
@@ -116,6 +118,7 @@
     "@testing-library/jest-dom": "5.17.0",
     "@testing-library/react": "14.0.0",
     "@testing-library/user-event": "14.4.3",
+    "@types/chroma-js": "2.4.0",
     "@types/jest": "29.5.2",
     "@types/node": "14.18.22",
     "@types/react": "18.2.6",
@@ -155,7 +158,7 @@
     "storybook-addon-react-router-v6": "1.0.2",
     "storybook-react-context": "0.6.0",
     "ts-proto": "1.156.0",
-    "typescript": "4.8.2",
+    "typescript": "5.1.6",
     "vite-plugin-checker": "0.6.0"
   },
   "browserslist": [

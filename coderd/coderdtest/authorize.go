@@ -116,7 +116,7 @@ func (RBACAsserter) convertObjects(t *testing.T, objs ...interface{}) []rbac.Obj
 		case codersdk.TemplateVersion:
 			robj = rbac.ResourceTemplate.InOrg(obj.OrganizationID)
 		case codersdk.User:
-			robj = rbac.ResourceUser.WithID(obj.ID)
+			robj = rbac.ResourceUserObject(obj.ID)
 		case codersdk.Workspace:
 			robj = rbac.ResourceWorkspace.WithID(obj.ID).InOrg(obj.OrganizationID).WithOwner(obj.OwnerID.String())
 		default:

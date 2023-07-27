@@ -40,7 +40,7 @@ func TestTemplateEdit(t *testing.T) {
 		name := "new-template-name"
 		displayName := "New Display Name 789"
 		desc := "lorem ipsum dolor sit amet et cetera"
-		icon := "/icons/new-icon.png"
+		icon := "/icon/new-icon.png"
 		defaultTTL := 12 * time.Hour
 		allowUserCancelWorkspaceJobs := false
 
@@ -168,7 +168,7 @@ func TestTemplateEdit(t *testing.T) {
 		// Test the cli command.
 		displayName := "New Display Name 789"
 		description := "New Description ABC"
-		icon := "/icons/new-icon.png"
+		icon := "/icon/new-icon.png"
 		cmdArgs := []string{
 			"templates",
 			"edit",
@@ -355,9 +355,9 @@ func TestTemplateEdit(t *testing.T) {
 
 				// Otherwise, proxy the request to the real API server.
 				rp := httputil.NewSingleHostReverseProxy(client.URL)
-				rp.Transport = &http.Transport{
-					DisableKeepAlives: true,
-				}
+				tp := &http.Transport{}
+				defer tp.CloseIdleConnections()
+				rp.Transport = tp
 				rp.ServeHTTP(w, r)
 			}))
 			t.Cleanup(proxy.Close)
@@ -367,6 +367,7 @@ func TestTemplateEdit(t *testing.T) {
 			require.NoError(t, err)
 			proxyClient := codersdk.New(proxyURL)
 			proxyClient.SetSessionToken(client.SessionToken())
+			t.Cleanup(proxyClient.HTTPClient.CloseIdleConnections)
 
 			cases := []struct {
 				name  string
@@ -484,9 +485,9 @@ func TestTemplateEdit(t *testing.T) {
 
 				// Otherwise, proxy the request to the real API server.
 				rp := httputil.NewSingleHostReverseProxy(client.URL)
-				rp.Transport = &http.Transport{
-					DisableKeepAlives: true,
-				}
+				tp := &http.Transport{}
+				defer tp.CloseIdleConnections()
+				rp.Transport = tp
 				rp.ServeHTTP(w, r)
 			}))
 			defer proxy.Close()
@@ -496,6 +497,7 @@ func TestTemplateEdit(t *testing.T) {
 			require.NoError(t, err)
 			proxyClient := codersdk.New(proxyURL)
 			proxyClient.SetSessionToken(client.SessionToken())
+			t.Cleanup(proxyClient.HTTPClient.CloseIdleConnections)
 
 			// Test the cli command.
 			cmdArgs := []string{
@@ -604,9 +606,9 @@ func TestTemplateEdit(t *testing.T) {
 
 				// Otherwise, proxy the request to the real API server.
 				rp := httputil.NewSingleHostReverseProxy(client.URL)
-				rp.Transport = &http.Transport{
-					DisableKeepAlives: true,
-				}
+				tp := &http.Transport{}
+				defer tp.CloseIdleConnections()
+				rp.Transport = tp
 				rp.ServeHTTP(w, r)
 			}))
 			defer proxy.Close()
@@ -616,6 +618,7 @@ func TestTemplateEdit(t *testing.T) {
 			require.NoError(t, err)
 			proxyClient := codersdk.New(proxyURL)
 			proxyClient.SetSessionToken(client.SessionToken())
+			t.Cleanup(proxyClient.HTTPClient.CloseIdleConnections)
 
 			// Test the cli command.
 			cmdArgs := []string{
@@ -695,9 +698,9 @@ func TestTemplateEdit(t *testing.T) {
 
 				// Otherwise, proxy the request to the real API server.
 				rp := httputil.NewSingleHostReverseProxy(client.URL)
-				rp.Transport = &http.Transport{
-					DisableKeepAlives: true,
-				}
+				tp := &http.Transport{}
+				defer tp.CloseIdleConnections()
+				rp.Transport = tp
 				rp.ServeHTTP(w, r)
 			}))
 			defer proxy.Close()
@@ -707,6 +710,7 @@ func TestTemplateEdit(t *testing.T) {
 			require.NoError(t, err)
 			proxyClient := codersdk.New(proxyURL)
 			proxyClient.SetSessionToken(client.SessionToken())
+			t.Cleanup(proxyClient.HTTPClient.CloseIdleConnections)
 
 			// Test the cli command.
 			cmdArgs := []string{
@@ -831,9 +835,9 @@ func TestTemplateEdit(t *testing.T) {
 
 				// Otherwise, proxy the request to the real API server.
 				rp := httputil.NewSingleHostReverseProxy(client.URL)
-				rp.Transport = &http.Transport{
-					DisableKeepAlives: true,
-				}
+				tp := &http.Transport{}
+				defer tp.CloseIdleConnections()
+				rp.Transport = tp
 				rp.ServeHTTP(w, r)
 			}))
 			defer proxy.Close()
@@ -843,6 +847,7 @@ func TestTemplateEdit(t *testing.T) {
 			require.NoError(t, err)
 			proxyClient := codersdk.New(proxyURL)
 			proxyClient.SetSessionToken(client.SessionToken())
+			t.Cleanup(proxyClient.HTTPClient.CloseIdleConnections)
 
 			// Test the cli command with --allow-user-autostart.
 			cmdArgs := []string{
@@ -940,9 +945,9 @@ func TestTemplateEdit(t *testing.T) {
 
 				// Otherwise, proxy the request to the real API server.
 				rp := httputil.NewSingleHostReverseProxy(client.URL)
-				rp.Transport = &http.Transport{
-					DisableKeepAlives: true,
-				}
+				tp := &http.Transport{}
+				defer tp.CloseIdleConnections()
+				rp.Transport = tp
 				rp.ServeHTTP(w, r)
 			}))
 			defer proxy.Close()
@@ -952,6 +957,7 @@ func TestTemplateEdit(t *testing.T) {
 			require.NoError(t, err)
 			proxyClient := codersdk.New(proxyURL)
 			proxyClient.SetSessionToken(client.SessionToken())
+			t.Cleanup(proxyClient.HTTPClient.CloseIdleConnections)
 
 			// Test the cli command.
 			cmdArgs := []string{

@@ -24,7 +24,7 @@ func (api *API) replicas(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	replicas := api.replicaManager.All()
+	replicas := api.replicaManager.AllPrimary()
 	res := make([]codersdk.Replica, 0, len(replicas))
 	for _, replica := range replicas {
 		res = append(res, convertReplica(replica))

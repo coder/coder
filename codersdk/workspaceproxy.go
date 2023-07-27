@@ -47,7 +47,8 @@ type ProxyHealthReport struct {
 
 type WorkspaceProxy struct {
 	// Extends Region with extra information
-	Region `table:"region,recursive_inline"`
+	Region      `table:"region,recursive_inline"`
+	DerpEnabled bool `json:"derp_enabled" table:"derp_enabled"`
 
 	// Status is the latest status check of the proxy. This will be empty for deleted
 	// proxies. This value can be used to determine if a workspace proxy is healthy

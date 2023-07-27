@@ -2,7 +2,7 @@
 SELECT
 	*
 FROM
-	workspace_builds
+	workspace_build_with_user AS workspace_builds
 WHERE
 	id = $1
 LIMIT
@@ -12,20 +12,20 @@ LIMIT
 SELECT
 	*
 FROM
-	workspace_builds
+	workspace_build_with_user AS workspace_builds
 WHERE
 	job_id = $1
 LIMIT
 	1;
 
 -- name: GetWorkspaceBuildsCreatedAfter :many
-SELECT * FROM workspace_builds WHERE created_at > $1;
+SELECT * FROM workspace_build_with_user WHERE created_at > $1;
 
 -- name: GetWorkspaceBuildByWorkspaceIDAndBuildNumber :one
 SELECT
 	*
 FROM
-	workspace_builds
+	workspace_build_with_user AS workspace_builds
 WHERE
 	workspace_id = $1
 	AND build_number = $2;
@@ -34,7 +34,7 @@ WHERE
 SELECT
 	*
 FROM
-	workspace_builds
+	workspace_build_with_user AS workspace_builds
 WHERE
 	workspace_builds.workspace_id = $1
 	AND workspace_builds.created_at > @since
@@ -67,7 +67,7 @@ LIMIT
 SELECT
 	*
 FROM
-	workspace_builds
+	workspace_build_with_user AS workspace_builds
 WHERE
 	workspace_id = $1
 ORDER BY
@@ -81,14 +81,14 @@ FROM (
     SELECT
         workspace_id, MAX(build_number) as max_build_number
     FROM
-        workspace_builds
+		workspace_build_with_user AS workspace_builds
     WHERE
         workspace_id = ANY(@ids :: uuid [ ])
     GROUP BY
         workspace_id
 ) m
 JOIN
-    workspace_builds wb
+	 workspace_build_with_user AS wb
 ON m.workspace_id = wb.workspace_id AND m.max_build_number = wb.build_number;
 
 -- name: GetLatestWorkspaceBuilds :many
@@ -97,15 +97,15 @@ FROM (
     SELECT
         workspace_id, MAX(build_number) as max_build_number
     FROM
-        workspace_builds
+		workspace_build_with_user AS workspace_builds
     GROUP BY
         workspace_id
 ) m
 JOIN
-    workspace_builds wb
+	 workspace_build_with_user AS wb
 ON m.workspace_id = wb.workspace_id AND m.max_build_number = wb.build_number;
 
--- name: InsertWorkspaceBuild :one
+-- name: InsertWorkspaceBuild :exec
 INSERT INTO
 	workspace_builds (
 		id,
@@ -123,9 +123,9 @@ INSERT INTO
 		reason
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13);
 
--- name: UpdateWorkspaceBuildByID :one
+-- name: UpdateWorkspaceBuildByID :exec
 UPDATE
 	workspace_builds
 SET
@@ -134,13 +134,13 @@ SET
 	deadline = $4,
 	max_deadline = $5
 WHERE
-	id = $1 RETURNING *;
+	id = $1;
 
--- name: UpdateWorkspaceBuildCostByID :one
+-- name: UpdateWorkspaceBuildCostByID :exec
 UPDATE
 	workspace_builds
 SET
 	daily_cost = $2
 WHERE
-	id = $1 RETURNING *;
+	id = $1;
 
