@@ -145,9 +145,20 @@ jobs:
           if [ -z "$foundTag" ]; then
             echo "Image not found"
             echo "${{ env.CODER_IMAGE_TAG }} not found in ghcr.io/coder/coder-preview"
-            echo "Please remove --skip-build from the comment or ./scripts/deploy-pr.sh"
+            echo "Please remove --skip-build from the comment and try again"
             exit 1
           fi
+
+      - name: Add DNS record to Cloudflare
+        run: |
+          curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records" \
+          -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
+          -H "Content-Type:application/json" \
+          --data '{"type":"A","name":"*.pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}","content":"${{ secrets.PR_DEPLOYMENTS_CLUSTER_IP_1 }}","ttl":1,"proxied":false}'
+          curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records" \
+          -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
+          -H "Content-Type:application/json" \
+          --data '{"type":"A","name":"*.pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}","content":"${{ secrets.PR_DEPLOYMENTS_CLUSTER_IP_2 }}","ttl":1,"proxied":false}'
 
       - name: Checkout
         uses: actions/checkout@v3

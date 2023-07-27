@@ -48,3 +48,10 @@ jobs:
       - name: "Remove PR namespace"
         run: |
           kubectl delete namespace "pr${{ steps.pr_number.outputs.PR_NUMBER }}" || echo "namespace not found"
+
+      - name: "Remove DNS record"
+        run: |
+          curl -X DELETE "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records" \
+          -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
+          -H "Content-Type:application/json" \
+          --data '{"type":"A","name":"*.pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}","content":"${{ secrets.PR_DEPLOYMENTS_CLUSTER_IP_1 }}","ttl":1,"proxied":false}'
