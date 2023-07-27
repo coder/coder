@@ -582,7 +582,7 @@ jobs:
           projectToken: 695c25b6cb65
           workingDir: "./site"
           # Prevent excessive build runs on minor version changes
-          skip: '@(renovate/**|dependabot/**)'
+          skip: "@(renovate/**|dependabot/**)"
           # Run TurboSnap to trace file dependencies to related stories
           # and tell chromatic to only take snapshots of relevent stories
           onlyChanged: true
