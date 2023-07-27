@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: ./deploy-pr.sh  --skip-build
+# Usage: ./deploy-pr.sh  --skip-build[os -s] --dry-run[or -n] --yes[or -y]
 # deploys the current branch to a PR environment and posts login credentials to
 # [#pr-deployments](https://codercom.slack.com/archives/C05DNE982E8) Slack channel
 # if --skip-build is passed, the build step will be skipped and the last build image will be used
@@ -19,7 +19,7 @@ fi
 branchName=$(gh pr view --json headRefName | jq -r .headRefName)
 prNumber=$(gh pr view --json number | jq -r .number)
 
-if [[ "$*" == *--skip-build* ]]; then
+if [[ "$*" == *--skip-build* ]] || [[ "$*" == *-s* ]]; then
 	skipBuild=true
 	#check if the image exists
 	foundTag=$(curl -fsSL https://github.com/coder/coder/pkgs/container/coder-preview | grep -o "$prNumber" | head -n 1) || true
