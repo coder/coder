@@ -128,7 +128,7 @@ jobs:
   deploy:
     needs: [build, pr_commented]
     # Run deploy job only if build job was successful or skipped
-    if: always() && !failed() && !cancelled()
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: "ubuntu-latest"
     env:
       CODER_IMAGE_TAG: ${{ needs.pr_commented.outputs.CODER_IMAGE_TAG }}
