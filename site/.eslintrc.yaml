@@ -75,8 +75,6 @@ rules:
   "@typescript-eslint/restrict-template-expressions": "off"
   # TODO: Investigate whether to enable this rule & fix and/or disable all its complaints
   "@typescript-eslint/unbound-method": "off"
-  # TODO: Investigate whether to enable this rule & fix and/or disable all its complaints
-  "@typescript-eslint/no-redundant-type-constituents": "off"
   # We're disabling the `no-namespace` rule to use a pattern of defining an interface,
   # and then defining functions that operate on that data via namespace. This is helpful for
   # dealing with immutable objects. This is a common pattern that shows up in some other
