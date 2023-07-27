@@ -46,7 +46,7 @@ export const filterByMaxTokenLifetime = (
 
   // otherwise only return options that are less than or equal to the max lifetime
   return lifetimeDayPresets.filter(
-    (lifetime) => lifetime.value <= maxTokenLifetime / NANO_HOUR / 24,
+    (lifetime) => Number(lifetime.value) <= maxTokenLifetime / NANO_HOUR / 24,
   )
 }
 
