@@ -133,7 +133,7 @@ const UserLatencyPanel = ({
         {users && users.length === 0 && <NoDataAvailable />}
         {users &&
           users
-            .sort((a, b) => b.latency_ms.p95 - a.latency_ms.p95)
+            .sort((a, b) => b.latency_ms.p50 - a.latency_ms.p50)
             .map((row) => (
               <Box
                 key={row.user_id}
@@ -153,13 +153,13 @@ const UserLatencyPanel = ({
                 </Box>
                 <Box
                   sx={{
-                    color: getLatencyColor(theme, row.latency_ms.p95),
+                    color: getLatencyColor(theme, row.latency_ms.p50),
                     fontWeight: 500,
                     fontSize: 13,
                     textAlign: "right",
                   }}
                 >
-                  {row.latency_ms.p95.toFixed(0)}ms
+                  {row.latency_ms.p50.toFixed(0)}ms
                 </Box>
               </Box>
             ))}

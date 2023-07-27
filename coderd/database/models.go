@@ -1543,6 +1543,7 @@ type Replica struct {
 	DatabaseLatency int32        `db:"database_latency" json:"database_latency"`
 	Version         string       `db:"version" json:"version"`
 	Error           string       `db:"error" json:"error"`
+	Primary         bool         `db:"primary" json:"primary"`
 }
 
 type SiteConfig struct {
@@ -1940,6 +1941,8 @@ type WorkspaceProxy struct {
 	Deleted bool `db:"deleted" json:"deleted"`
 	// Hashed secret is used to authenticate the workspace proxy using a session token.
 	TokenHashedSecret []byte `db:"token_hashed_secret" json:"token_hashed_secret"`
+	RegionID          int32  `db:"region_id" json:"region_id"`
+	DerpEnabled       bool   `db:"derp_enabled" json:"derp_enabled"`
 }
 
 type WorkspaceResource struct {

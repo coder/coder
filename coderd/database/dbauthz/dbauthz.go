@@ -1123,6 +1123,13 @@ func (q *querier) GetQuotaConsumedForUser(ctx context.Context, userID uuid.UUID)
 	return q.db.GetQuotaConsumedForUser(ctx, userID)
 }
 
+func (q *querier) GetReplicaByID(ctx context.Context, id uuid.UUID) (database.Replica, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.Replica{}, err
+	}
+	return q.db.GetReplicaByID(ctx, id)
+}
+
 func (q *querier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]database.Replica, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err

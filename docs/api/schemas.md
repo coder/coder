@@ -2028,6 +2028,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "logging": {
       "human": "string",
       "json": "string",
+      "log_filter": ["string"],
       "stackdriver": "string"
     },
     "max_session_expiry": 0,
@@ -2384,6 +2385,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "logging": {
     "human": "string",
     "json": "string",
+    "log_filter": ["string"],
     "stackdriver": "string"
   },
   "max_session_expiry": 0,
@@ -3121,17 +3123,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "human": "string",
   "json": "string",
+  "log_filter": ["string"],
   "stackdriver": "string"
 }
 ```
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-| ------------- | ------ | -------- | ------------ | ----------- |
-| `human`       | string | false    |              |             |
-| `json`        | string | false    |              |             |
-| `stackdriver` | string | false    |              |             |
+| Name          | Type            | Required | Restrictions | Description |
+| ------------- | --------------- | -------- | ------------ | ----------- |
+| `human`       | string          | false    |              |             |
+| `json`        | string          | false    |              |             |
+| `log_filter`  | array of string | false    |              |             |
+| `stackdriver` | string          | false    |              |             |
 
 ## codersdk.LoginType
 
@@ -3817,6 +3821,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     {
       "created_at": "2019-08-24T14:15:22Z",
       "deleted": true,
+      "derp_enabled": true,
       "display_name": "string",
       "healthy": true,
       "icon_url": "string",
@@ -5998,6 +6003,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "created_at": "2019-08-24T14:15:22Z",
   "deleted": true,
+  "derp_enabled": true,
   "display_name": "string",
   "healthy": true,
   "icon_url": "string",
@@ -6023,6 +6029,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | ------------------- | -------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `created_at`        | string                                                         | false    |              |                                                                                                                                                                                    |
 | `deleted`           | boolean                                                        | false    |              |                                                                                                                                                                                    |
+| `derp_enabled`      | boolean                                                        | false    |              |                                                                                                                                                                                    |
 | `display_name`      | string                                                         | false    |              |                                                                                                                                                                                    |
 | `healthy`           | boolean                                                        | false    |              |                                                                                                                                                                                    |
 | `icon_url`          | string                                                         | false    |              |                                                                                                                                                                                    |
@@ -7360,6 +7367,20 @@ _None_
 | `found`  | boolean | false    |              |             |
 | `legacy` | boolean | false    |              |             |
 
+## wsproxysdk.DeregisterWorkspaceProxyRequest
+
+```json
+{
+  "replica_id": "string"
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description                                                                                                                                                                                       |
+| ------------ | ------ | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `replica_id` | string | false    |              | Replica ID is a unique identifier for the replica of the proxy that is deregistering. It should be generated by the client on startup and should've already been passed to the register endpoint. |
+
 ## wsproxysdk.IssueSignedAppTokenResponse
 
 ```json
@@ -7379,27 +7400,56 @@ _None_
 ```json
 {
   "access_url": "string",
+  "derp_enabled": true,
+  "hostname": "string",
+  "replica_error": "string",
+  "replica_id": "string",
+  "replica_relay_address": "string",
+  "version": "string",
   "wildcard_hostname": "string"
 }
 ```
 
 ### Properties
 
-| Name                | Type   | Required | Restrictions | Description                                                                   |
-| ------------------- | ------ | -------- | ------------ | ----------------------------------------------------------------------------- |
-| `access_url`        | string | false    |              | Access URL that hits the workspace proxy api.                                 |
-| `wildcard_hostname` | string | false    |              | Wildcard hostname that the workspace proxy api is serving for subdomain apps. |
+| Name                                                                                              | Type    | Required | Restrictions | Description                                                                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------- | ------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `access_url`                                                                                      | string  | false    |              | Access URL that hits the workspace proxy api.                                                                                                                                                            |
+| `derp_enabled`                                                                                    | boolean | false    |              | Derp enabled indicates whether the proxy should be included in the DERP map or not.                                                                                                                      |
+| `hostname`                                                                                        | string  | false    |              | Hostname is the OS hostname of the machine that the proxy is running on. This is only used for tracking purposes in the replicas table.                                                                  |
+| `replica_error`                                                                                   | string  | false    |              | Replica error is the error that the replica encountered when trying to dial it's peers. This is stored in the replicas table for debugging purposes but does not affect the proxy's ability to register. |
+| This value is only stored on subsequent requests to the register endpoint, not the first request. |
+| `replica_id`                                                                                      | string  | false    |              | Replica ID is a unique identifier for the replica of the proxy that is registering. It should be generated by the client on startup and persisted (in memory only) until the process is restarted.       |
+| `replica_relay_address`                                                                           | string  | false    |              | Replica relay address is the DERP address of the replica that other replicas may use to connect internally for DERP meshing.                                                                             |
+| `version`                                                                                         | string  | false    |              | Version is the Coder version of the proxy.                                                                                                                                                               |
+| `wildcard_hostname`                                                                               | string  | false    |              | Wildcard hostname that the workspace proxy api is serving for subdomain apps.                                                                                                                            |
 
 ## wsproxysdk.RegisterWorkspaceProxyResponse
 
 ```json
 {
-  "app_security_key": "string"
+  "app_security_key": "string",
+  "derp_mesh_key": "string",
+  "derp_region_id": 0,
+  "sibling_replicas": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "database_latency": 0,
+      "error": "string",
+      "hostname": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "region_id": 0,
+      "relay_address": "string"
+    }
+  ]
 }
 ```
 
 ### Properties
 
-| Name               | Type   | Required | Restrictions | Description |
-| ------------------ | ------ | -------- | ------------ | ----------- |
-| `app_security_key` | string | false    |              |             |
+| Name               | Type                                          | Required | Restrictions | Description                                                                            |
+| ------------------ | --------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------- |
+| `app_security_key` | string                                        | false    |              |                                                                                        |
+| `derp_mesh_key`    | string                                        | false    |              |                                                                                        |
+| `derp_region_id`   | integer                                       | false    |              |                                                                                        |
+| `sibling_replicas` | array of [codersdk.Replica](#codersdkreplica) | false    |              | Sibling replicas is a list of all other replicas of the proxy that have not timed out. |
