@@ -86,7 +86,7 @@
     "react-router-dom": "6.14.1",
     "react-syntax-highlighter": "15.5.0",
     "react-use": "17.4.0",
-    "react-virtualized-auto-sizer": "1.0.7",
+    "react-virtualized-auto-sizer": "1.0.20",
     "react-window": "1.8.8",
     "remark-gfm": "3.0.1",
     "rollup-plugin-visualizer": "5.9.0",
