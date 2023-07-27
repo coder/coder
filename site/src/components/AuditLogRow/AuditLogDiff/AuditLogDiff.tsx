@@ -19,7 +19,7 @@ const getDiffValue = (value: unknown): string => {
     return "null"
   }
 
-  return value.toString()
+  return String(value)
 }
 
 export const AuditLogDiff: FC<{ diff: AuditLog["diff"] }> = ({ diff }) => {

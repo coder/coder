@@ -43,7 +43,7 @@ export const CreateTokenPage: FC = () => {
     queryFn: getTokenConfig,
   })
 
-  const [formError, setFormError] = useState<unknown | undefined>(undefined)
+  const [formError, setFormError] = useState<unknown>(undefined)
 
   const onCreateSuccess = () => {
     displaySuccess(t("createToken.createSuccess"))

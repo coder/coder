@@ -11,7 +11,7 @@ type LogsContext = {
   // Used to reference logs before + after.
   timeCursor: Date
   build?: WorkspaceBuild
-  getBuildError?: Error | unknown
+  getBuildError?: unknown
   // Logs
   logs?: ProvisionerJobLog[]
 }

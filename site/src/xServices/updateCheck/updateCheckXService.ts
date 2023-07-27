@@ -6,7 +6,7 @@ import { checks, Permissions } from "xServices/auth/authXService"
 export interface UpdateCheckContext {
   permissions: Permissions
   updateCheck?: UpdateCheckResponse
-  error?: Error | unknown
+  error?: unknown
 }
 
 export type UpdateCheckEvent = { type: "DISMISS" }
