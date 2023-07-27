@@ -222,19 +222,28 @@ jobs:
             --namespace "pr${{ env.PR_NUMBER }}" \
             --set url="https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
 
-      - name: Wait 30 seconds
-        run: |
-          sleep 30
-
       - name: Get Coder binary
         run: |
           set -euxo pipefail
           ARCH="$(arch)"
           PLATFORM="$(uname | tr '[:upper:]' '[:lower:]')"
           DEST="${HOME}/coder"
+          URL="${{ env.PR_DEPLOYMENT_ACCESS_URL }}/bin/coder-${PLATFORM}-${ARCH}"
 
           mkdir -p "$(dirname ${DEST})"
-          curl -fsSL "${{ env.PR_DEPLOYMENT_ACCESS_URL }}/bin/coder-${PLATFORM}-${ARCH}" -o "${DEST}"
+
+          COUNT=0
+          until $(curl --output /dev/null --silent --head --fail "$URL"); do
+              printf '.'
+              sleep 5
+              COUNT=$((COUNT+1))
+              if [ $COUNT -ge 60 ]; then
+                echo "Timed out waiting for URL to be available"
+                exit 1
+              fi
+          done
+
+          curl -fsSL "$URL" -o "${DEST}"
           chmod +x "${DEST}"
           "${DEST}" version
 
