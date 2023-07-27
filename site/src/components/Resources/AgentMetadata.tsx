@@ -8,6 +8,7 @@ import Skeleton from "@mui/material/Skeleton"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 import { combineClasses } from "utils/combineClasses"
 import Tooltip from "@mui/material/Tooltip"
+import Box from "@mui/material/Box"
 
 type ItemStatus = "stale" | "valid" | "loading"
 
@@ -68,7 +69,6 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
       <div
         className={combineClasses([
           styles.metadataValue,
-
           item.result.error.length === 0
             ? styles.metadataValueSuccess
             : styles.metadataValueError,
@@ -83,7 +83,7 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
       <div className={styles.metadataLabel}>
         {item.description.display_name}
       </div>
-      <div>{value}</div>
+      <Box sx={{ width: `${item.result.value.length}ch` }}>{value}</Box>
     </div>
   )
 }
@@ -99,7 +99,7 @@ export const AgentMetadataView: FC<AgentMetadataViewProps> = ({ metadata }) => {
   }
   return (
     <div className={styles.root}>
-      <Stack alignItems="baseline" direction="row" spacing={6}>
+      <Stack alignItems="baseline" direction="row" spacing={4}>
         {metadata.map((m) => {
           if (m.description === undefined) {
             throw new Error("Metadata item description is undefined")
@@ -229,6 +229,7 @@ const useStyles = makeStyles((theme) => ({
     whiteSpace: "nowrap",
     maxWidth: "16em",
     fontSize: 14,
+    flexShrink: 0,
   },
 
   metadataValueSuccess: {
