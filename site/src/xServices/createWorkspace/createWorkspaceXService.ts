@@ -25,7 +25,7 @@ type CreateWorkspaceContext = {
   templateName: string
   mode: CreateWorkspaceMode
   defaultName: string
-  error?: Error | unknown
+  error?: unknown
   // Form
   template?: Template
   parameters?: TemplateVersionParameter[]

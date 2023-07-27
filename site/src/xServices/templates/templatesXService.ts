@@ -8,7 +8,7 @@ export interface TemplatesContext {
   permissions: Permissions
   templates?: TypesGen.Template[]
   examples?: TypesGen.TemplateExample[]
-  error?: Error | unknown
+  error?: unknown
 }
 
 export const templatesMachine = createMachine(
