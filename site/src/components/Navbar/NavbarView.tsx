@@ -300,7 +300,7 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
           <Typography
             component="p"
             sx={{
-              fontSize: "inherit",
+              fontSize: 13,
               color: (theme) => theme.palette.text.secondary,
               lineHeight: "inherit",
               marginTop: 0.5,
@@ -311,43 +311,49 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
           </Typography>
         </Box>
         <Divider sx={{ borderColor: (theme) => theme.palette.divider }} />
-        {proxyContextValue.proxies?.map((proxy) => (
-          <MenuItem
-            onClick={() => {
-              if (!proxy.healthy) {
-                displayError("Please select a healthy workspace proxy.")
-                closeMenu()
-                return
-              }
+        {proxyContextValue.proxies
+          ?.sort((a, b) => {
+            const latencyA = latencies?.[a.id]?.latencyMS ?? Infinity
+            const latencyB = latencies?.[b.id]?.latencyMS ?? Infinity
+            return latencyA - latencyB
+          })
+          .map((proxy) => (
+            <MenuItem
+              onClick={() => {
+                if (!proxy.healthy) {
+                  displayError("Please select a healthy workspace proxy.")
+                  closeMenu()
+                  return
+                }
 
-              proxyContextValue.setProxy(proxy)
-              closeMenu()
-            }}
-            key={proxy.id}
-            selected={proxy.id === selectedProxy?.id}
-            sx={{
-              fontSize: 14,
-            }}
-          >
-            <Box display="flex" gap={3} alignItems="center" width="100%">
-              <Box width={14} height={14} lineHeight={0}>
-                <Box
-                  component="img"
-                  src={proxy.icon_url}
-                  alt=""
-                  sx={{ objectFit: "contain" }}
-                  width="100%"
-                  height="100%"
+                proxyContextValue.setProxy(proxy)
+                closeMenu()
+              }}
+              key={proxy.id}
+              selected={proxy.id === selectedProxy?.id}
+              sx={{
+                fontSize: 14,
+              }}
+            >
+              <Box display="flex" gap={3} alignItems="center" width="100%">
+                <Box width={14} height={14} lineHeight={0}>
+                  <Box
+                    component="img"
+                    src={proxy.icon_url}
+                    alt=""
+                    sx={{ objectFit: "contain" }}
+                    width="100%"
+                    height="100%"
+                  />
+                </Box>
+                {proxy.display_name}
+                <ProxyStatusLatency
+                  latency={latencies?.[proxy.id]?.latencyMS}
+                  isLoading={proxyLatencyLoading(proxy)}
                 />
               </Box>
-              {proxy.display_name}
-              <ProxyStatusLatency
-                latency={latencies?.[proxy.id]?.latencyMS}
-                isLoading={proxyLatencyLoading(proxy)}
-              />
-            </Box>
-          </MenuItem>
-        ))}
+            </MenuItem>
+          ))}
         <Divider sx={{ borderColor: (theme) => theme.palette.divider }} />
         {Boolean(permissions.editWorkspaceProxies) && (
           <MenuItem
