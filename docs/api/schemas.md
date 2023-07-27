@@ -699,7 +699,6 @@
 ```json
 {
   "active": true,
-  "dormant": true,
   "emails": [
     {
       "display": "string",
@@ -727,7 +726,6 @@
 | Name             | Type               | Required | Restrictions | Description |
 | ---------------- | ------------------ | -------- | ------------ | ----------- |
 | `active`         | boolean            | false    |              |             |
-| `dormant`        | boolean            | false    |              |             |
 | `emails`         | array of object    | false    |              |             |
 | `» display`      | string             | false    |              |             |
 | `» primary`      | boolean            | false    |              |             |

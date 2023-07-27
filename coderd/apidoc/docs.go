@@ -4148,7 +4148,7 @@ const docTemplate = `{
                     "Users"
                 ],
                 "summary": "Mark user account as dormant",
-                "operationId": "dormant-user-account",
+                "operationId": "mark-user-account-as-dormant",
                 "parameters": [
                     {
                         "type": "string",
@@ -6649,9 +6649,6 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "active": {
-                    "type": "boolean"
-                },
-                "dormant": {
                     "type": "boolean"
                 },
                 "emails": {
