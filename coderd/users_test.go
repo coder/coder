@@ -1097,14 +1097,40 @@ func TestPutUserDormant(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		client.User(ctx, codersdk.Me)
 		_, err := client.UpdateUserStatus(ctx, codersdk.Me, codersdk.UserStatusDormant)
 
 		require.ErrorContains(t, err, "cannot mark own user as dormant")
 	})
 }
 
-// FIXME Activate dormant account
+func TestActivateDormantUser(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, nil)
+
+	// Create users
+	me := coderdtest.CreateFirstUser(t, client)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	anotherUser, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+		Email:          "coder@coder.com",
+		Username:       "coder",
+		Password:       "SomeStrongPassword!",
+		OrganizationID: me.OrganizationID,
+	})
+	require.NoError(t, err)
+
+	// Ensure that new user has dormant account
+	require.Equal(t, codersdk.UserStatusDormant, anotherUser.Status)
+
+	// Activate user account
+	_, err = client.UpdateUserStatus(ctx, anotherUser.Username, codersdk.UserStatusActive)
+	require.NoError(t, err)
+
+	// Verify if the account is active now
+	anotherUser, err = client.User(ctx, anotherUser.Username)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.UserStatusActive, anotherUser.Status)
+}
 
 func TestGetUser(t *testing.T) {
 	t.Parallel()
@@ -1426,17 +1452,21 @@ func TestGetUsers(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		bruno, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
-			Email:          "bruno@email.com",
-			Username:       "bruno",
+		_, err = client.UpdateUserStatus(ctx, alice.Username, codersdk.UserStatusSuspended)
+		require.NoError(t, err)
+
+		// Tom will be active
+		tom, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+			Email:          "tom@email.com",
+			Username:       "tom",
 			Password:       "MySecurePassword!",
 			OrganizationID: first.OrganizationID,
 		})
 		require.NoError(t, err)
-		active = append(active, bruno)
 
-		_, err = client.UpdateUserStatus(ctx, alice.Username, codersdk.UserStatusSuspended)
+		tom, err = client.UpdateUserStatus(ctx, tom.Username, codersdk.UserStatusActive)
 		require.NoError(t, err)
+		active = append(active, tom)
 
 		res, err := client.Users(ctx, codersdk.UsersRequest{
 			Status: codersdk.UserStatusActive,

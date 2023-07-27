@@ -671,7 +671,24 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 		defer commitAudit()
 		aReq.Old = user
 
-		if status == database.UserStatusSuspended {
+		if status == database.UserStatusDormant {
+			// There are some manual protections when marking a user as dormant to
+			// prevent certain situations.
+			switch {
+			case user.ID == apiKey.UserID:
+				// User can't mark themselves as dormant, as they are active now.
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "You cannot mark own user as dormant.",
+				})
+				return
+			case slice.Contains(user.RBACRoles, rbac.RoleOwner()):
+				// You can't mark an owner account as dormant
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: fmt.Sprintf("You cannot mark a user as dormant with the %q role. You must remove the role first.", rbac.RoleOwner()),
+				})
+				return
+			}
+		} else if status == database.UserStatusSuspended {
 			// There are some manual protections when suspending a user to
 			// prevent certain situations.
 			switch {
