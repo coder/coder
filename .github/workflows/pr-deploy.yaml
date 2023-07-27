@@ -260,7 +260,7 @@ jobs:
           echo "::add-mask::$password"
           echo "password=$password" >> $GITHUB_OUTPUT
 
-          coder login \
+          /home/runner/coder login \
             --first-user-username ${{ env.PR_NUMBER }} \
             --first-user-email ${{ env.PR_NUMBER }}@coder.com \
             --first-user-password $password \
@@ -269,7 +269,7 @@ jobs:
             ${{ env.PR_DEPLOYMENT_ACCESS_URL }}
 
           # Create template
-          coder templates init --id kubernetes && cd ./kubernetes/ && coder templates create -y --variable namespace=pr${{ env.PR_NUMBER }}
+          /home/runner/coder templates init --id kubernetes && cd ./kubernetes/ && /home/runner/coder templates create -y --variable namespace=pr${{ env.PR_NUMBER }}
 
           # Create workspace
           cat <<EOF > workspace.yaml
@@ -278,8 +278,8 @@ jobs:
           home_disk_size: "2"
           EOF
 
-          coder create --template="kubernetes" pr${{ env.PR_NUMBER }} --rich-parameter-file ./workspace.yaml -y
-          coder stop pr${{ env.PR_NUMBER }} -y
+          /home/runner/coder create --template="kubernetes" pr${{ env.PR_NUMBER }} --rich-parameter-file ./workspace.yaml -y
+          /home/runner/coder stop pr${{ env.PR_NUMBER }} -y
 
       - name: Send Slack notification
         run: |
