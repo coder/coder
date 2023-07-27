@@ -110,10 +110,9 @@ type SCIMUser struct {
 		Type    string `json:"type"`
 		Display string `json:"display"`
 	} `json:"emails"`
-	Active  bool          `json:"active"`
-	Dormant bool          `json:"dormant"`
-	Groups  []interface{} `json:"groups"`
-	Meta    struct {
+	Active bool          `json:"active"`
+	Groups []interface{} `json:"groups"`
+	Meta   struct {
 		ResourceType string `json:"resourceType"`
 	} `json:"meta"`
 }
@@ -265,8 +264,6 @@ func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 	var status database.UserStatus
 	if sUser.Active {
 		status = database.UserStatusActive
-	} else if sUser.Dormant {
-		status = database.UserStatusDormant
 	} else {
 		status = database.UserStatusSuspended
 	}

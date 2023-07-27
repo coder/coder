@@ -631,7 +631,7 @@ func (api *API) putSuspendUserAccount() func(rw http.ResponseWriter, r *http.Req
 }
 
 // @Summary Mark user account as dormant
-// @ID dormant-user-account
+// @ID mark-user-account-as-dormant
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users

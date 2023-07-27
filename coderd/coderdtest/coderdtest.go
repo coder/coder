@@ -581,6 +581,12 @@ func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationI
 		other.HTTPClient.CloseIdleConnections()
 	})
 
+	if user.Status == codersdk.UserStatusDormant {
+		// Refresh user account which should be active now.
+		user, err = other.User(context.Background(), user.Username)
+		require.NoError(t, err)
+	}
+
 	if len(roles) > 0 {
 		// Find the roles for the org vs the site wide roles
 		orgRoles := make(map[string][]string)
