@@ -105,9 +105,12 @@ export const DAUTitle = () => {
     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
       Daily Active Users
       <HelpTooltip size="small">
-        <HelpTooltipTitle>How do we calculate DAUs?</HelpTooltipTitle>
+        <HelpTooltipTitle>
+          How do we calculate daily active users?
+        </HelpTooltipTitle>
         <HelpTooltipText>
-          We use all workspace connection traffic to calculate DAUs.
+          When a connection is initiated to a user{"'"}s workspace they are
+          considered a daily active user. e.g. apps, web terminal, SSH
         </HelpTooltipText>
       </HelpTooltip>
     </Box>
