@@ -581,7 +581,7 @@ func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationI
 		other.HTTPClient.CloseIdleConnections()
 	})
 
-	if user.Status == codersdk.UserStatusDormant {
+	if !req.DisableLogin && user.Status == codersdk.UserStatusDormant {
 		// Refresh user account which should be active now.
 		user, err = other.User(context.Background(), user.Username)
 		require.NoError(t, err)
