@@ -1,4 +1,4 @@
-import { expect, Page } from "@playwright/test"
+import { expect, Page, TestInfo } from "@playwright/test"
 import { spawn } from "child_process"
 import { randomUUID } from "crypto"
 import path from "path"
@@ -71,7 +71,55 @@ export const startAgent = async (page: Page, token: string): Promise<void> => {
     "coder",
     "main.go",
   )
-  const cp = spawn("go", ["run", coderMain, "agent", "--no-reap"], {
+  return startAgentWithCommand(page, token, "go", "run", coderMain)
+}
+
+export const downloadCoderVersion = async (testInfo: TestInfo, version: string): Promise<string> => {
+  if (version.startsWith("v")) {
+    version = version.slice(1)
+  }
+
+  const binaryName = "coder-e2e-" + version
+  const tempDir = "/tmp"
+  // The install script adds `./bin` automatically to the path :shrug:
+  const binaryPath = path.join(tempDir, "bin", binaryName)
+
+  const exists = await new Promise<boolean>((resolve) => {
+    const cp = spawn(binaryPath, ["version"])
+    cp.on("close", (code) => {
+      resolve(code === 0)
+    })
+    cp.on("error", () => resolve(false))
+  })
+  if (exists) {
+    return binaryPath
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const cp = spawn("sh", ["-c", [
+      "curl", "-L", "https://coder.com/install.sh",
+      "|",
+      "sh", "-s", "--",
+      "--version", version,
+      "--method", "standalone",
+      "--prefix", tempDir,
+      "--binary-name", binaryName,
+    ].join(" ")])
+    cp.stderr.on("data", (data) => testInfo.stderr.push(data))
+    cp.stdout.on("data", (data) => testInfo.stdout.push(data))
+    cp.on("close", (code) => {
+      if (code === 0) {
+        resolve()
+      } else {
+        reject(new Error("curl failed with code " + code))
+      }
+    })
+  })
+  return binaryPath
+}
+
+export const startAgentWithCommand = async (page: Page, token: string, command: string, ...args: string[]): Promise<void> => {
+  const cp = spawn(command, [...args, "agent", "--no-reap"], {
     env: {
       ...process.env,
       CODER_AGENT_URL: "http://localhost:" + port,
@@ -93,10 +141,10 @@ export const startAgent = async (page: Page, token: string): Promise<void> => {
 // Allows users to more easily define properties they want for agents and resources!
 type RecursivePartial<T> = {
   [P in keyof T]?: T[P] extends (infer U)[]
-    ? RecursivePartial<U>[]
-    : T[P] extends object | undefined
-    ? RecursivePartial<T[P]>
-    : T[P]
+  ? RecursivePartial<U>[]
+  : T[P] extends object | undefined
+  ? RecursivePartial<T[P]>
+  : T[P]
 }
 
 interface EchoProvisionerResponses {
@@ -258,4 +306,13 @@ export const createServer = async (
   const e = express()
   await new Promise<void>((r) => e.listen(port, r))
   return e
+}
+
+export const findSessionToken = async (page: Page): Promise<string> => {
+  const cookies = await page.context().cookies()
+  const sessionCookie = cookies.find((c) => c.name === "coder_session_token")
+  if (!sessionCookie) {
+    throw new Error("session token not found")
+  }
+  return sessionCookie.value
 }
