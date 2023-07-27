@@ -530,6 +530,25 @@ const docTemplate = `{
                 }
             }
         },
+        "/derp-map": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get DERP map updates",
+                "operationId": "get-derp-map-updates",
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    }
+                }
+            }
+        },
         "/entitlements": {
             "get": {
                 "security": [
@@ -2104,6 +2123,44 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/templates/{template}/acl/available": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get template available acl users/groups",
+                "operationId": "get-template-available-acl-usersgroups",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ACLAvailable"
+                            }
                         }
                     }
                 }
@@ -5343,27 +5400,35 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaceproxies/me/goingaway": {
+        "/workspaceproxies/me/deregister": {
             "post": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
                 ],
-                "produces": [
+                "consumes": [
                     "application/json"
                 ],
                 "tags": [
                     "Enterprise"
                 ],
-                "summary": "Workspace proxy going away",
-                "operationId": "workspace-proxy-going-away",
-                "responses": {
-                    "201": {
-                        "description": "Created",
+                "summary": "Deregister workspace proxy",
+                "operationId": "deregister-workspace-proxy",
+                "parameters": [
+                    {
+                        "description": "Deregister workspace proxy request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
+                            "$ref": "#/definitions/wsproxysdk.DeregisterWorkspaceProxyRequest"
                         }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 },
                 "x-apidocgen": {
@@ -5433,7 +5498,7 @@ const docTemplate = `{
                 "operationId": "register-workspace-proxy",
                 "parameters": [
                     {
-                        "description": "Issue signed app token request",
+                        "description": "Register workspace proxy request",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -6616,6 +6681,23 @@ const docTemplate = `{
                 "csp-report": {
                     "type": "object",
                     "additionalProperties": true
+                }
+            }
+        },
+        "codersdk.ACLAvailable": {
+            "type": "object",
+            "properties": {
+                "groups": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Group"
+                    }
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.User"
+                    }
                 }
             }
         },
@@ -7838,7 +7920,8 @@ const docTemplate = `{
                 "tailnet_ha_coordinator",
                 "convert-to-oidc",
                 "single_tailnet",
-                "template_restart_requirement"
+                "template_restart_requirement",
+                "template_insights_page"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
@@ -7846,7 +7929,8 @@ const docTemplate = `{
                 "ExperimentTailnetHACoordinator",
                 "ExperimentConvertToOIDC",
                 "ExperimentSingleTailnet",
-                "ExperimentTemplateRestartRequirement"
+                "ExperimentTemplateRestartRequirement",
+                "ExperimentTemplateInsightsPage"
             ]
         },
         "codersdk.Feature": {
@@ -8219,6 +8303,12 @@ const docTemplate = `{
                 },
                 "json": {
                     "type": "string"
+                },
+                "log_filter": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "stackdriver": {
                     "type": "string"
@@ -10713,6 +10803,9 @@ const docTemplate = `{
                 "deleted": {
                     "type": "boolean"
                 },
+                "derp_enabled": {
+                    "type": "boolean"
+                },
                 "display_name": {
                     "type": "string"
                 },
@@ -11412,6 +11505,15 @@ const docTemplate = `{
                 }
             }
         },
+        "wsproxysdk.DeregisterWorkspaceProxyRequest": {
+            "type": "object",
+            "properties": {
+                "replica_id": {
+                    "description": "ReplicaID is a unique identifier for the replica of the proxy that is\nderegistering. It should be generated by the client on startup and\nshould've already been passed to the register endpoint.",
+                    "type": "string"
+                }
+            }
+        },
         "wsproxysdk.IssueSignedAppTokenResponse": {
             "type": "object",
             "properties": {
@@ -11428,6 +11530,30 @@ const docTemplate = `{
                     "description": "AccessURL that hits the workspace proxy api.",
                     "type": "string"
                 },
+                "derp_enabled": {
+                    "description": "DerpEnabled indicates whether the proxy should be included in the DERP\nmap or not.",
+                    "type": "boolean"
+                },
+                "hostname": {
+                    "description": "ReplicaHostname is the OS hostname of the machine that the proxy is running\non.  This is only used for tracking purposes in the replicas table.",
+                    "type": "string"
+                },
+                "replica_error": {
+                    "description": "ReplicaError is the error that the replica encountered when trying to\ndial it's peers. This is stored in the replicas table for debugging\npurposes but does not affect the proxy's ability to register.\n\nThis value is only stored on subsequent requests to the register\nendpoint, not the first request.",
+                    "type": "string"
+                },
+                "replica_id": {
+                    "description": "ReplicaID is a unique identifier for the replica of the proxy that is\nregistering. It should be generated by the client on startup and\npersisted (in memory only) until the process is restarted.",
+                    "type": "string"
+                },
+                "replica_relay_address": {
+                    "description": "ReplicaRelayAddress is the DERP address of the replica that other\nreplicas may use to connect internally for DERP meshing.",
+                    "type": "string"
+                },
+                "version": {
+                    "description": "Version is the Coder version of the proxy.",
+                    "type": "string"
+                },
                 "wildcard_hostname": {
                     "description": "WildcardHostname that the workspace proxy api is serving for subdomain apps.",
                     "type": "string"
@@ -11439,6 +11565,19 @@ const docTemplate = `{
             "properties": {
                 "app_security_key": {
                     "type": "string"
+                },
+                "derp_mesh_key": {
+                    "type": "string"
+                },
+                "derp_region_id": {
+                    "type": "integer"
+                },
+                "sibling_replicas": {
+                    "description": "SiblingReplicas is a list of all other replicas of the proxy that have\nnot timed out.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Replica"
+                    }
                 }
             }
         }

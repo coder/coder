@@ -15,6 +15,7 @@ import {
 import { useQuery } from "@tanstack/react-query"
 import { AuthorizationRequest } from "api/typesGenerated"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
+import { useDashboard } from "components/Dashboard/DashboardProvider"
 
 const templatePermissions = (
   templateId: string,
@@ -71,6 +72,12 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
     queryKey: ["template", templateName],
     queryFn: () => fetchTemplate(orgId, templateName),
   })
+  const dashboard = useDashboard()
+  const hasInsightsEnabled =
+    dashboard.experiments.includes("template_insights_page") ||
+    process.env.NODE_ENV === "development"
+  const shouldShowInsights =
+    hasInsightsEnabled && data?.permissions?.canUpdateTemplate
 
   if (error) {
     return (
@@ -157,6 +164,19 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
             >
               Embed
             </NavLink>
+            {shouldShowInsights && (
+              <NavLink
+                to={`/templates/${templateName}/insights`}
+                className={({ isActive }) =>
+                  combineClasses([
+                    styles.tabItem,
+                    isActive ? styles.tabItemActive : undefined,
+                  ])
+                }
+              >
+                Insights
+              </NavLink>
+            )}
           </Stack>
         </Margins>
       </div>

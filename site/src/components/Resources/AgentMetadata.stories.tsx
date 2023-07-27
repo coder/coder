@@ -57,7 +57,7 @@ Example.args = {
     {
       result: {
         ...resultDefaults,
-        value: "cant see it",
+        value: "stale value",
         age: 300,
       },
       description: {
@@ -76,18 +76,7 @@ Example.args = {
       description: {
         ...descriptionDefaults,
         display_name: "Error",
-      },
-    },
-    {
-      result: {
-        ...resultDefaults,
-        value: "oops",
-        error: "fatal error",
-      },
-      description: {
-        ...descriptionDefaults,
-        display_name: "Error",
-        key: "stale",
+        key: "error",
       },
     },
     {

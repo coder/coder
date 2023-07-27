@@ -97,17 +97,6 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if createUser.Trial && api.TrialGenerator != nil {
-		err = api.TrialGenerator(ctx, createUser.Email)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to generate trial",
-				Detail:  err.Error(),
-			})
-			return
-		}
-	}
-
 	err = userpassword.Validate(createUser.Password)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -118,6 +107,17 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 			}},
 		})
 		return
+	}
+
+	if createUser.Trial && api.TrialGenerator != nil {
+		err = api.TrialGenerator(ctx, createUser.Email)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to generate trial",
+				Detail:  err.Error(),
+			})
+			return
+		}
 	}
 
 	//nolint:gocritic // needed to create first user
@@ -183,54 +183,8 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 // @Router /users [get]
 func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	query := r.URL.Query().Get("q")
-	params, errs := searchquery.Users(query)
-	if len(errs) > 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid user search query.",
-			Validations: errs,
-		})
-		return
-	}
-
-	paginationParams, ok := parsePagination(rw, r)
+	users, userCount, ok := api.GetUsers(rw, r)
 	if !ok {
-		return
-	}
-
-	userRows, err := api.Database.GetUsers(ctx, database.GetUsersParams{
-		AfterID:        paginationParams.AfterID,
-		Search:         params.Search,
-		Status:         params.Status,
-		RbacRole:       params.RbacRole,
-		LastSeenBefore: params.LastSeenBefore,
-		LastSeenAfter:  params.LastSeenAfter,
-		OffsetOpt:      int32(paginationParams.Offset),
-		LimitOpt:       int32(paginationParams.Limit),
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching users.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	// GetUsers does not return ErrNoRows because it uses a window function to get the count.
-	// So we need to check if the userRows is empty and return an empty array if so.
-	if len(userRows) == 0 {
-		httpapi.Write(ctx, rw, http.StatusOK, codersdk.GetUsersResponse{
-			Users: []codersdk.User{},
-			Count: 0,
-		})
-		return
-	}
-
-	users, err := AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, database.ConvertUserRows(userRows))
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching users.",
-			Detail:  err.Error(),
-		})
 		return
 	}
 
@@ -257,8 +211,53 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, codersdk.GetUsersResponse{
 		Users: convertUsers(users, organizationIDsByUserID),
-		Count: int(userRows[0].Count),
+		Count: int(userCount),
 	})
+}
+
+func (api *API) GetUsers(rw http.ResponseWriter, r *http.Request) ([]database.User, int64, bool) {
+	ctx := r.Context()
+	query := r.URL.Query().Get("q")
+	params, errs := searchquery.Users(query)
+	if len(errs) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid user search query.",
+			Validations: errs,
+		})
+		return nil, -1, false
+	}
+
+	paginationParams, ok := parsePagination(rw, r)
+	if !ok {
+		return nil, -1, false
+	}
+
+	userRows, err := api.Database.GetUsers(ctx, database.GetUsersParams{
+		AfterID:        paginationParams.AfterID,
+		Search:         params.Search,
+		Status:         params.Status,
+		RbacRole:       params.RbacRole,
+		LastSeenBefore: params.LastSeenBefore,
+		LastSeenAfter:  params.LastSeenAfter,
+		OffsetOpt:      int32(paginationParams.Offset),
+		LimitOpt:       int32(paginationParams.Limit),
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching users.",
+			Detail:  err.Error(),
+		})
+		return nil, -1, false
+	}
+
+	// GetUsers does not return ErrNoRows because it uses a window function to get the count.
+	// So we need to check if the userRows is empty and return an empty array if so.
+	if len(userRows) == 0 {
+		return []database.User{}, 0, true
+	}
+
+	users := database.ConvertUserRows(userRows)
+	return users, userRows[0].Count, true
 }
 
 // Creates a new user.
