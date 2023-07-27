@@ -200,6 +200,7 @@ jobs:
 
       - name: Set up PostgreSQL database
         run: |
+          helm repo add bitnami https://charts.bitnami.com/bitnami
           helm install coder-db bitnami/postgresql \
             --namespace pr${{ env.PR_NUMBER }} \
             --set auth.username=coder \
