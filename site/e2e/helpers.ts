@@ -342,7 +342,10 @@ const createTemplateVersionTar = async (
       Provision_Response.encode(response as Provision_Response).finish(),
     )
   })
-  return Buffer.from((await tar.write()) as ArrayBuffer)
+  const tarFile = await tar.write()
+  return Buffer.from(
+    tarFile instanceof Blob ? await tarFile.arrayBuffer() : tarFile,
+  )
 }
 
 const randomName = () => {
