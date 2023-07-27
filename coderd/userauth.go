@@ -1305,6 +1305,20 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			}
 		}
 
+		// Activate dormant user on sigin
+		if user.Status == database.UserStatusDormant {
+			//nolint:gocritic // System needs to update status of the user account (dormant -> active).
+			user, err = tx.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
+				ID:        user.ID,
+				Status:    database.UserStatusActive,
+				UpdatedAt: database.Now(),
+			})
+			if err != nil {
+				logger.Error(ctx, "unable to update user status to active", slog.Error(err))
+				return xerrors.Errorf("update user status: %w", err)
+			}
+		}
+
 		if link.UserID == uuid.Nil {
 			//nolint:gocritic
 			link, err = tx.InsertUserLink(dbauthz.AsSystemRestricted(ctx), database.InsertUserLinkParams{
