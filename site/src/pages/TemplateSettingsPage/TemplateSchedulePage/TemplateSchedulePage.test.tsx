@@ -76,6 +76,10 @@ const fillAndSubmitForm = async ({
     FooterFormLanguage.defaultSubmitLabel,
   )
   await user.click(submitButton)
+
+  // User needs to confirm inactivity and locked ttl
+  const confirmButton = await screen.findByTestId("confirm-button")
+  await user.click(confirmButton)
 }
 
 describe("TemplateSchedulePage", () => {

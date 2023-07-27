@@ -341,7 +341,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                 inputProps={{ min: 0, step: "any" }}
                 label="Time until cleanup (days)"
                 type="number"
-                aria-label="Failure Cleanup"
               />
             </FormFields>
           </FormSection>
@@ -375,7 +374,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                 inputProps={{ min: 0, step: "any" }}
                 label="Time until cleanup (days)"
                 type="number"
-                aria-label="Inactivity Cleanup"
               />
             </FormFields>
           </FormSection>
@@ -407,7 +405,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                 inputProps={{ min: 0, step: "any" }}
                 label="Time until cleanup (days)"
                 type="number"
-                aria-label="Locked Cleanup"
               />
             </FormFields>
           </FormSection>
