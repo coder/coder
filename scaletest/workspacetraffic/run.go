@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -196,7 +197,7 @@ func writeRandomDataPTY(dst io.Writer, size int64, tick <-chan time.Time) error 
 		ptyReq = codersdk.ReconnectingPTYRequest{}
 	)
 	for range tick {
-		ptyReq.Data = mustRandomComment(size - 1)
+		ptyReq.Data = mustRandomEchoCommand(size - 7) // echo %s\n
 		if err := enc.Encode(ptyReq); err != nil {
 			if xerrors.Is(err, context.Canceled) {
 				return nil
@@ -215,8 +216,8 @@ func writeRandomDataPTY(dst io.Writer, size int64, tick <-chan time.Time) error 
 
 func writeRandomDataSSH(dst io.Writer, size int64, tick <-chan time.Time) error {
 	for range tick {
-		payload := mustRandomComment(size - 1)
-		if _, err := dst.Write([]byte(payload + "\r\n")); err != nil {
+		payload := mustRandomEchoCommand(size - 7) // echo %s\n
+		if _, err := dst.Write([]byte(payload)); err != nil {
 			if xerrors.Is(err, context.Canceled) {
 				return nil
 			}
@@ -232,10 +233,12 @@ func writeRandomDataSSH(dst io.Writer, size int64, tick <-chan time.Time) error 
 	return nil
 }
 
-// mustRandomComment returns a random string prefixed by a #.
+// mustRandomEchoCommand returns a command that echoes a random string.
 // This allows us to send data both to and from a workspace agent
 // while placing minimal load upon the workspace itself.
-func mustRandomComment(l int64) string {
+func mustRandomEchoCommand(l int64) string {
+	var sb strings.Builder
+	sb.WriteString("echo ")
 	if l < 1 {
 		l = 1
 	}
@@ -243,6 +246,7 @@ func mustRandomComment(l int64) string {
 	if err != nil {
 		panic(err)
 	}
-	// THIS IS A LOAD-BEARING OCTOTHORPE. DO NOT REMOVE.
-	return "#" + randStr
+	sb.WriteString(randStr)
+	sb.WriteRune('\n')
+	return sb.String()
 }
