@@ -225,10 +225,9 @@ jobs:
       - name: Get Coder binary
         run: |
           set -euxo pipefail
-          ARCH="$(arch)"
-          PLATFORM="$(uname | tr '[:upper:]' '[:lower:]')"
+
           DEST="${HOME}/coder"
-          URL="${{ env.PR_DEPLOYMENT_ACCESS_URL }}/bin/coder-${PLATFORM}-${ARCH}"
+          URL="${{ env.PR_DEPLOYMENT_ACCESS_URL }}/bin/coder-linux-amd64"
 
           mkdir -p "$(dirname ${DEST})"
 
