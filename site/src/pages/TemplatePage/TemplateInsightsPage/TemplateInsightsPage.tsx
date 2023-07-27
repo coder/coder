@@ -120,9 +120,9 @@ const UserLatencyPanel = ({
         <PanelTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           Latency by user
           <HelpTooltip size="small">
-            <HelpTooltipTitle>How do we calculate latency?</HelpTooltipTitle>
+            <HelpTooltipTitle>How is latency calculated?</HelpTooltipTitle>
             <HelpTooltipText>
-              The average latency of user connections to workspaces.
+              The median round trip time of user connections to workspaces.
             </HelpTooltipText>
           </HelpTooltip>
         </PanelTitle>
