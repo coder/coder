@@ -122,7 +122,7 @@ jobs:
   deploy:
     needs: [build, pr_commented]
     # if: needs.build.result == 'success'
-    if: true
+    if: always() && needs.build.result == 'success' || needs.build.result == 'skipped'
     runs-on: "ubuntu-latest"
     env:
       CODER_IMAGE_TAG: ${{ needs.pr_commented.outputs.CODER_IMAGE_TAG }}
