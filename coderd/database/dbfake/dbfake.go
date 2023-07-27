@@ -1820,6 +1820,19 @@ func (q *FakeQuerier) GetQuotaConsumedForUser(_ context.Context, userID uuid.UUI
 	return sum, nil
 }
 
+func (q *FakeQuerier) GetReplicaByID(_ context.Context, id uuid.UUID) (database.Replica, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, replica := range q.replicas {
+		if replica.ID == id {
+			return replica, nil
+		}
+	}
+
+	return database.Replica{}, sql.ErrNoRows
+}
+
 func (q *FakeQuerier) GetReplicasUpdatedAfter(_ context.Context, updatedAt time.Time) ([]database.Replica, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -3684,6 +3697,7 @@ func (q *FakeQuerier) InsertReplica(_ context.Context, arg database.InsertReplic
 		RelayAddress:    arg.RelayAddress,
 		Version:         arg.Version,
 		DatabaseLatency: arg.DatabaseLatency,
+		Primary:         arg.Primary,
 	}
 	q.replicas = append(q.replicas, replica)
 	return replica, nil
@@ -4125,9 +4139,13 @@ func (q *FakeQuerier) InsertWorkspaceProxy(_ context.Context, arg database.Inser
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
+	lastRegionID := int32(0)
 	for _, p := range q.workspaceProxies {
 		if !p.Deleted && p.Name == arg.Name {
 			return database.WorkspaceProxy{}, errDuplicateKey
+		}
+		if p.RegionID > lastRegionID {
+			lastRegionID = p.RegionID
 		}
 	}
 
@@ -4136,7 +4154,9 @@ func (q *FakeQuerier) InsertWorkspaceProxy(_ context.Context, arg database.Inser
 		Name:              arg.Name,
 		DisplayName:       arg.DisplayName,
 		Icon:              arg.Icon,
+		DerpEnabled:       arg.DerpEnabled,
 		TokenHashedSecret: arg.TokenHashedSecret,
+		RegionID:          lastRegionID + 1,
 		CreatedAt:         arg.CreatedAt,
 		UpdatedAt:         arg.UpdatedAt,
 		Deleted:           false,
@@ -4208,6 +4228,7 @@ func (q *FakeQuerier) RegisterWorkspaceProxy(_ context.Context, arg database.Reg
 		if p.ID == arg.ID {
 			p.Url = arg.Url
 			p.WildcardHostname = arg.WildcardHostname
+			p.DerpEnabled = arg.DerpEnabled
 			p.UpdatedAt = database.Now()
 			q.workspaceProxies[i] = p
 			return p, nil
@@ -4419,6 +4440,7 @@ func (q *FakeQuerier) UpdateReplica(_ context.Context, arg database.UpdateReplic
 		replica.Version = arg.Version
 		replica.Error = arg.Error
 		replica.DatabaseLatency = arg.DatabaseLatency
+		replica.Primary = arg.Primary
 		q.replicas[index] = replica
 		return replica, nil
 	}

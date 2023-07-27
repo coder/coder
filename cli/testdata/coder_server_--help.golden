@@ -83,11 +83,12 @@ Use a YAML configuration file when your server launch become unwieldy.
       --log-json string, $CODER_LOGGING_JSON
           Output JSON logs to a given file.
 
+  -l, --log-filter string-array, $CODER_LOG_FILTER
+          Filter debug logs by matching against a given regex. Use .* to match
+          all debug logs.
+
       --log-stackdriver string, $CODER_LOGGING_STACKDRIVER
           Output Stackdriver compatible logs to a given file.
-
-  -v, --verbose bool, $CODER_VERBOSE
-          Output debug-level logs.
 
 [1mIntrospection / Prometheus Options[0m 
       --prometheus-address host:port, $CODER_PROMETHEUS_ADDRESS (default: 127.0.0.1:2112)
@@ -106,8 +107,7 @@ Use a YAML configuration file when your server launch become unwieldy.
       --trace-logs bool, $CODER_TRACE_LOGS
           Enables capturing of logs as events in traces. This is useful for
           debugging, but may result in a very large amount of events being sent
-          to the tracing backend which may incur significant costs. If the
-          verbose flag was supplied, debug-level logs will be included.
+          to the tracing backend which may incur significant costs.
 
       --trace bool, $CODER_TRACE_ENABLE
           Whether application tracing data is collected. It exports to a backend

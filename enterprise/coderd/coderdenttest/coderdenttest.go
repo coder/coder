@@ -55,6 +55,7 @@ type Options struct {
 	NoDefaultQuietHoursSchedule bool
 	DontAddLicense              bool
 	DontAddFirstUser            bool
+	ReplicaSyncUpdateInterval   time.Duration
 }
 
 // New constructs a codersdk client connected to an in-memory Enterprise API instance.
@@ -86,7 +87,8 @@ func NewWithAPI(t *testing.T, options *Options) (
 		BrowserOnly:                options.BrowserOnly,
 		SCIMAPIKey:                 options.SCIMAPIKey,
 		DERPServerRelayAddress:     oop.AccessURL.String(),
-		DERPServerRegionID:         oop.DERPMap.RegionIDs()[0],
+		DERPServerRegionID:         oop.BaseDERPMap.RegionIDs()[0],
+		ReplicaSyncUpdateInterval:  options.ReplicaSyncUpdateInterval,
 		Options:                    oop,
 		EntitlementsUpdateInterval: options.EntitlementsUpdateInterval,
 		Keys:                       Keys,

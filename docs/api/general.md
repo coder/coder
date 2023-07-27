@@ -236,6 +236,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "logging": {
       "human": "string",
       "json": "string",
+      "log_filter": ["string"],
       "stackdriver": "string"
     },
     "max_session_expiry": 0,
