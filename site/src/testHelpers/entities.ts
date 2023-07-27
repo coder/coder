@@ -314,6 +314,19 @@ export const SuspendedMockUser: TypesGen.User = {
   login_type: "password",
 }
 
+export const DormantMockUser: TypesGen.User = {
+  id: "dormant-mock-user",
+  username: "DormantMockUser",
+  email: "iamdormant@coder.com",
+  created_at: "",
+  status: "dormant",
+  organization_ids: [MockOrganization.id],
+  roles: [],
+  avatar_url: "",
+  last_seen_at: "",
+  login_type: "password",
+}
+
 export const MockProvisioner: TypesGen.ProvisionerDaemon = {
   created_at: "",
   id: "test-provisioner",

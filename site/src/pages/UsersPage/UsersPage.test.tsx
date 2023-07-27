@@ -118,6 +118,32 @@ const activateUser = async (setupActionSpies: () => void) => {
   fireEvent.click(confirmButton)
 }
 
+const markUserDormant = async (setupActionSpies: () => void) => {
+  const moreButtons = await screen.findAllByLabelText("more")
+  const markAsDormantMoreButton = moreButtons[1]
+  fireEvent.click(markAsDormantMoreButton)
+
+  const menu = screen.getByRole("menu")
+  const text = t("markUserDormantMenuItem", { ns: "usersPage" })
+  const markAsDormant = within(menu).getByText(text)
+  fireEvent.click(markAsDormant)
+
+  // Check if the confirm message is displayed
+  const confirmDialog = screen.getByRole("dialog")
+  expect(confirmDialog).toHaveTextContent(
+    `Do you want to mark the user TestUser2 as dormant?`,
+  )
+
+  // Setup spies to check the actions after
+  setupActionSpies()
+
+  // Click on the "Confirm" button
+  const confirmButton = within(confirmDialog).getByText(
+    UsersPageLanguage.markUserDormantDialogAction,
+  )
+  fireEvent.click(confirmButton)
+}
+
 const resetUserPassword = async (setupActionSpies: () => void) => {
   const moreButtons = await screen.findAllByLabelText("more")
   const firstMoreButton = moreButtons[0]
@@ -341,6 +367,50 @@ describe("UsersPage", () => {
         // Check if the API was called correctly
         expect(API.activateUser).toBeCalledTimes(1)
         expect(API.activateUser).toBeCalledWith(SuspendedMockUser.id)
+      })
+    })
+  })
+
+  describe("mark user as dormant", () => {
+    describe("when user is successfully marked as dormant", () => {
+      it("shows a success message and refreshes the page", async () => {
+        renderPage()
+
+        await markUserDormant(() => {
+          jest.spyOn(API, "markUserDormant").mockResolvedValueOnce({
+            ...MockUser2,
+            status: "dormant",
+          })
+          jest.spyOn(API, "getUsers").mockImplementationOnce(() =>
+            Promise.resolve({
+              users: [MockUser, MockUser2],
+              count: 2,
+            }),
+          )
+        })
+
+        // Check if the success message is displayed
+        await screen.findByText(usersXServiceLanguage.markUserDormantSuccess)
+
+        // Check if the API was called correctly
+        expect(API.markUserDormant).toBeCalledTimes(1)
+        expect(API.markUserDormant).toBeCalledWith(MockUser2.id)
+      })
+    })
+    describe("when can't mark user as dormant", () => {
+      it("shows an error message", async () => {
+        renderPage()
+
+        await markUserDormant(() => {
+          jest.spyOn(API, "markUserDormant").mockRejectedValueOnce({})
+        })
+
+        // Check if the error message is displayed
+        await screen.findByText(usersXServiceLanguage.markUserDormantError)
+
+        // Check if the API was called correctly
+        expect(API.markUserDormant).toBeCalledTimes(1)
+        expect(API.markUserDormant).toBeCalledWith(MockUser2.id)
       })
     })
   })
