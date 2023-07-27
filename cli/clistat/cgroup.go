@@ -22,7 +22,7 @@ const (
 	// CFS period for cgroup in MICROseconds
 	cgroupV1CFSPeriodUs = "/sys/fs/cgroup/cpu,cpuacct/cpu.cfs_period_us"
 	// Maximum memory usable by cgroup in bytes
-	cgroupV1MemoryMaxUsageBytes = "/sys/fs/cgroup/memory/memory.max_usage_in_bytes"
+	cgroupV1MemoryMaxUsageBytes = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
 	// Current memory usage of cgroup in bytes
 	cgroupV1MemoryUsageBytes = "/sys/fs/cgroup/memory/memory.usage_in_bytes"
 	// Other memory stats - we are interested in total_inactive_file
