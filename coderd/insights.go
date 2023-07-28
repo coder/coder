@@ -154,10 +154,6 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 // @Router /insights/templates [get]
 func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceDeploymentValues) {
-		httpapi.Forbidden(rw)
-		return
-	}
 
 	p := httpapi.NewQueryParamParser().
 		Required("start_time").
