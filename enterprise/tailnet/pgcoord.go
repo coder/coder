@@ -1336,7 +1336,8 @@ func (c *pgCoord) htmlDebug(ctx context.Context) (agpl.HTMLDebug, error) {
 
 	for _, agent := range agents {
 		htmlAgent := &agpl.HTMLAgent{
-			ID:           agent.ID,
+			ID: agent.ID,
+			// Name: ??, TODO: get agent names
 			LastWriteAge: now.Sub(agent.UpdatedAt).Round(time.Second),
 		}
 		for _, conn := range clients[agent.ID] {
@@ -1356,7 +1357,8 @@ func (c *pgCoord) htmlDebug(ctx context.Context) (agpl.HTMLDebug, error) {
 
 		data.Agents = append(data.Agents, htmlAgent)
 		data.Nodes = append(data.Nodes, &agpl.HTMLNode{
-			ID:   agent.ID,
+			ID: agent.ID,
+			// Name: ??, TODO: get agent names
 			Node: agent.Node,
 		})
 	}
