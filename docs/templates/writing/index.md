@@ -61,3 +61,40 @@ resource "docker_container" "workspace" {
 ```
 
 Agents can also run startup scripts, set environment variables, and provide metadata about the workspace (e.g. CPU usage). Read the [coder_agent docs](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script) for more details.
+
+### coder_app
+
+Web apps that are running inside the workspace (e.g. `http://localhost:8080`) can be forwarded to the Coder dashboard with the `coder_app` resource. This is commonly used for [web IDEs](../ides/web-ides.md) such as code-server, RStudio, and JupyterLab. External apps, such as links to internal wikis or cloud consoles can also be embedded here.
+
+Apps are rendered on the workspace page:
+
+![]()
+
+
+```hcl
+# coder_agent will install and start code-server
+resource "coder_agent" "main" {
+  # ...
+  startup_script =<<EOF
+  curl -L https://code-server.dev/install.sh | sh
+  code-server --port 8080 &
+  EOF
+}
+
+# expose code-server on workspace via a coder_app
+resource "coder_app" "code-server" {
+  icon = "/icon/code.svg"
+  name = "code-server"
+  slug = "code"
+  url = "http://localhost:8080"
+}
+
+# link to an external site
+resource "coder_app" "getting-started" {
+  icon     = "/icon/help.svg"
+  name     = "getting-started"
+  slug     = "getting-started"
+  url      = "https://wiki.example.com/coder/quickstart"
+  external = true
+}
+```
