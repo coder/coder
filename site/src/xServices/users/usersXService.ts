@@ -37,30 +37,30 @@ export interface UsersContext {
   // Get users
   users?: TypesGen.User[]
   filter: string
-  getUsersError?: Error | unknown
+  getUsersError?: unknown
   // Suspend user
   userIdToSuspend?: TypesGen.User["id"]
   usernameToSuspend?: TypesGen.User["username"]
-  suspendUserError?: Error | unknown
+  suspendUserError?: unknown
   // Delete user
   userIdToDelete?: TypesGen.User["id"]
   usernameToDelete?: TypesGen.User["username"]
-  deleteUserError?: Error | unknown
+  deleteUserError?: unknown
   // Activate user
   userIdToActivate?: TypesGen.User["id"]
   usernameToActivate?: TypesGen.User["username"]
-  activateUserError?: Error | unknown
+  activateUserError?: unknown
   // Mark user dormant
   userIdToMarkDormant?: TypesGen.User["id"]
   usernameToMarkDormant?: TypesGen.User["username"]
   markUserDormantError?: Error | unknown
   // Reset user password
   userIdToResetPassword?: TypesGen.User["id"]
-  resetUserPasswordError?: Error | unknown
+  resetUserPasswordError?: unknown
   newUserPassword?: string
   // Update user roles
   userIdToUpdateRoles?: TypesGen.User["id"]
-  updateUserRolesError?: Error | unknown
+  updateUserRolesError?: unknown
   paginationContext: PaginationContext
   paginationRef: PaginationMachineRef
   count: number

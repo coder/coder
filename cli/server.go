@@ -1148,7 +1148,7 @@ func PrintDeprecatedOptions() clibase.MiddlewareFunc {
 					continue
 				}
 
-				if opt.Value.String() == opt.Default {
+				if opt.ValueSource == clibase.ValueSourceNone || opt.ValueSource == clibase.ValueSourceDefault {
 					continue
 				}
 

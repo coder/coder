@@ -4,7 +4,7 @@ import * as API from "api/api"
 
 export interface AuthMethodsContext {
   authMethods?: TypeGen.AuthMethods
-  error?: Error | unknown
+  error?: unknown
 }
 
 export const authMethodsXService = createMachine(
