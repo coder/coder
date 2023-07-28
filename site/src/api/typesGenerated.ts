@@ -1563,7 +1563,7 @@ export type Experiment =
   | "convert-to-oidc"
   | "moons"
   | "single_tailnet"
-  | "tailnet_ha_coordinator"
+  | "tailnet_pg_coordinator"
   | "template_insights_page"
   | "template_restart_requirement"
   | "workspace_actions"
@@ -1571,7 +1571,7 @@ export const Experiments: Experiment[] = [
   "convert-to-oidc",
   "moons",
   "single_tailnet",
-  "tailnet_ha_coordinator",
+  "tailnet_pg_coordinator",
   "template_insights_page",
   "template_restart_requirement",
   "workspace_actions",
