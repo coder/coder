@@ -139,6 +139,11 @@
       "icon_path": "./images/icons/picture.svg",
       "children": [
         {
+          "title": "Writing templates",
+          "description": "Learn how to create & modify Coder templates",
+          "path": "./templates/writing/index.md"
+        },
+        {
           "title": "Resource Persistence",
           "description": "Learn how resource persistence works in Coder",
           "path": "./templates/resource-persistence.md",
