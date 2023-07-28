@@ -903,6 +903,14 @@ func (q *FakeQuerier) GetActiveUserCount(_ context.Context) (int64, error) {
 	return active, nil
 }
 
+func (*FakeQuerier) GetAllTailnetAgents(_ context.Context) ([]database.TailnetAgent, error) {
+	return nil, ErrUnimplemented
+}
+
+func (*FakeQuerier) GetAllTailnetClients(_ context.Context) ([]database.TailnetClient, error) {
+	return nil, ErrUnimplemented
+}
+
 func (q *FakeQuerier) GetAppSecurityKey(_ context.Context) (string, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

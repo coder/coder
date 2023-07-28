@@ -237,6 +237,20 @@ func (m metricsStore) GetActiveUserCount(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+func (m metricsStore) GetAllTailnetAgents(ctx context.Context) ([]database.TailnetAgent, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAllTailnetAgents(ctx)
+	m.queryLatencies.WithLabelValues("GetAllTailnetAgents").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) GetAllTailnetClients(ctx context.Context) ([]database.TailnetClient, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAllTailnetClients(ctx)
+	m.queryLatencies.WithLabelValues("GetAllTailnetClients").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetAppSecurityKey(ctx context.Context) (string, error) {
 	start := time.Now()
 	key, err := m.s.GetAppSecurityKey(ctx)

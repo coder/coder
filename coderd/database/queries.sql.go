@@ -3694,6 +3694,74 @@ func (q *sqlQuerier) DeleteTailnetClient(ctx context.Context, arg DeleteTailnetC
 	return i, err
 }
 
+const getAllTailnetAgents = `-- name: GetAllTailnetAgents :many
+SELECT id, coordinator_id, updated_at, node
+FROM tailnet_agents
+`
+
+func (q *sqlQuerier) GetAllTailnetAgents(ctx context.Context) ([]TailnetAgent, error) {
+	rows, err := q.db.QueryContext(ctx, getAllTailnetAgents)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TailnetAgent
+	for rows.Next() {
+		var i TailnetAgent
+		if err := rows.Scan(
+			&i.ID,
+			&i.CoordinatorID,
+			&i.UpdatedAt,
+			&i.Node,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAllTailnetClients = `-- name: GetAllTailnetClients :many
+SELECT id, coordinator_id, agent_id, updated_at, node
+FROM tailnet_clients
+ORDER BY agent_id
+`
+
+func (q *sqlQuerier) GetAllTailnetClients(ctx context.Context) ([]TailnetClient, error) {
+	rows, err := q.db.QueryContext(ctx, getAllTailnetClients)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TailnetClient
+	for rows.Next() {
+		var i TailnetClient
+		if err := rows.Scan(
+			&i.ID,
+			&i.CoordinatorID,
+			&i.AgentID,
+			&i.UpdatedAt,
+			&i.Node,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTailnetAgents = `-- name: GetTailnetAgents :many
 SELECT id, coordinator_id, updated_at, node
 FROM tailnet_agents
