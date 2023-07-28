@@ -162,11 +162,11 @@ func (m metricsStore) DeleteLicense(ctx context.Context, id int32) (int32, error
 	return licenseID, err
 }
 
-func (m metricsStore) DeleteOldWorkspaceAgentStartupLogs(ctx context.Context) error {
+func (m metricsStore) DeleteOldWorkspaceAgentLogs(ctx context.Context) error {
 	start := time.Now()
-	err := m.s.DeleteOldWorkspaceAgentStartupLogs(ctx)
-	m.queryLatencies.WithLabelValues("DeleteOldWorkspaceAgentStartupLogs").Observe(time.Since(start).Seconds())
-	return err
+	r0 := m.s.DeleteOldWorkspaceAgentLogs(ctx)
+	m.queryLatencies.WithLabelValues("DeleteOldWorkspaceAgentLogs").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m metricsStore) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
@@ -781,18 +781,18 @@ func (m metricsStore) GetWorkspaceAgentLifecycleStateByID(ctx context.Context, i
 	return r0, r1
 }
 
+func (m metricsStore) GetWorkspaceAgentLogsAfter(ctx context.Context, arg database.GetWorkspaceAgentLogsAfterParams) ([]database.WorkspaceAgentLog, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentLogsAfter(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentLogsAfter").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentMetadatum, error) {
 	start := time.Now()
 	metadata, err := m.s.GetWorkspaceAgentMetadata(ctx, workspaceAgentID)
 	m.queryLatencies.WithLabelValues("GetWorkspaceAgentMetadata").Observe(time.Since(start).Seconds())
 	return metadata, err
-}
-
-func (m metricsStore) GetWorkspaceAgentStartupLogsAfter(ctx context.Context, arg database.GetWorkspaceAgentStartupLogsAfterParams) ([]database.WorkspaceAgentStartupLog, error) {
-	start := time.Now()
-	logs, err := m.s.GetWorkspaceAgentStartupLogsAfter(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetWorkspaceAgentStartupLogsAfter").Observe(time.Since(start).Seconds())
-	return logs, err
 }
 
 func (m metricsStore) GetWorkspaceAgentStats(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentStatsRow, error) {
@@ -1194,18 +1194,18 @@ func (m metricsStore) InsertWorkspaceAgent(ctx context.Context, arg database.Ins
 	return agent, err
 }
 
+func (m metricsStore) InsertWorkspaceAgentLogs(ctx context.Context, arg database.InsertWorkspaceAgentLogsParams) ([]database.WorkspaceAgentLog, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertWorkspaceAgentLogs(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentLogs").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) InsertWorkspaceAgentMetadata(ctx context.Context, arg database.InsertWorkspaceAgentMetadataParams) error {
 	start := time.Now()
 	err := m.s.InsertWorkspaceAgentMetadata(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentMetadata").Observe(time.Since(start).Seconds())
 	return err
-}
-
-func (m metricsStore) InsertWorkspaceAgentStartupLogs(ctx context.Context, arg database.InsertWorkspaceAgentStartupLogsParams) ([]database.WorkspaceAgentStartupLog, error) {
-	start := time.Now()
-	logs, err := m.s.InsertWorkspaceAgentStartupLogs(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentStartupLogs").Observe(time.Since(start).Seconds())
-	return logs, err
 }
 
 func (m metricsStore) InsertWorkspaceAgentStat(ctx context.Context, arg database.InsertWorkspaceAgentStatParams) (database.WorkspaceAgentStat, error) {
@@ -1481,6 +1481,13 @@ func (m metricsStore) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context
 	return r0
 }
 
+func (m metricsStore) UpdateWorkspaceAgentLogOverflowByID(ctx context.Context, arg database.UpdateWorkspaceAgentLogOverflowByIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspaceAgentLogOverflowByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceAgentLogOverflowByID").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) UpdateWorkspaceAgentMetadata(ctx context.Context, arg database.UpdateWorkspaceAgentMetadataParams) error {
 	start := time.Now()
 	err := m.s.UpdateWorkspaceAgentMetadata(ctx, arg)
@@ -1492,13 +1499,6 @@ func (m metricsStore) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg d
 	start := time.Now()
 	err := m.s.UpdateWorkspaceAgentStartupByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateWorkspaceAgentStartupByID").Observe(time.Since(start).Seconds())
-	return err
-}
-
-func (m metricsStore) UpdateWorkspaceAgentStartupLogOverflowByID(ctx context.Context, arg database.UpdateWorkspaceAgentStartupLogOverflowByIDParams) error {
-	start := time.Now()
-	err := m.s.UpdateWorkspaceAgentStartupLogOverflowByID(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateWorkspaceAgentStartupLogOverflowByID").Observe(time.Since(start).Seconds())
 	return err
 }
 
