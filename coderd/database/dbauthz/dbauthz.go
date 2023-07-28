@@ -784,6 +784,20 @@ func (q *querier) GetActiveUserCount(ctx context.Context) (int64, error) {
 	return q.db.GetActiveUserCount(ctx)
 }
 
+func (q *querier) GetAllTailnetAgents(ctx context.Context) ([]database.TailnetAgent, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
+		return []database.TailnetAgent{}, err
+	}
+	return q.db.GetAllTailnetAgents(ctx)
+}
+
+func (q *querier) GetAllTailnetClients(ctx context.Context) ([]database.TailnetClient, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
+		return []database.TailnetClient{}, err
+	}
+	return q.db.GetAllTailnetClients(ctx)
+}
+
 func (q *querier) GetAppSecurityKey(ctx context.Context) (string, error) {
 	// No authz checks
 	return q.db.GetAppSecurityKey(ctx)
