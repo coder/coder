@@ -8,7 +8,7 @@ Haven't written Terraform before? Check out Hashicorp's [Getting Started Guides]
 
 There are some key concepts you should consider when writing templates.
 
-## Coder Terraform Provider
+### Coder Terraform Provider
 
 The [Coder Terraform provider](https://registry.terraform.io/providers/coder/coder/latest) makes it possible for standard Terraform resources (e.g. `docker_container`) to connect to Coder. Additionally, the provider lets you to customize the behavior of workspaces using your template.
 
