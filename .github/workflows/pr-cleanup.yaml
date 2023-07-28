@@ -37,7 +37,7 @@ jobs:
         run: |
           set -euxo pipefail
           mkdir -p ~/.kube
-          echo "${{ secrets.DELIVERYBOT_KUBECONFIG }}" > ~/.kube/config
+          echo "${{ secrets.PR_DEPLOYMENTS_KUBECONFIG }}" > ~/.kube/config
           export KUBECONFIG=~/.kube/config
 
       - name: Delete helm release
