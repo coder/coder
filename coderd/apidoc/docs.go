@@ -8021,7 +8021,7 @@ const docTemplate = `{
             "enum": [
                 "moons",
                 "workspace_actions",
-                "tailnet_ha_coordinator",
+                "tailnet_pg_coordinator",
                 "convert-to-oidc",
                 "single_tailnet",
                 "template_restart_requirement",
@@ -8030,7 +8030,7 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "ExperimentMoons",
                 "ExperimentWorkspaceActions",
-                "ExperimentTailnetHACoordinator",
+                "ExperimentTailnetPGCoordinator",
                 "ExperimentConvertToOIDC",
                 "ExperimentSingleTailnet",
                 "ExperimentTemplateRestartRequirement",
