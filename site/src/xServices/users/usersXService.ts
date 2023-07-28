@@ -53,7 +53,7 @@ export interface UsersContext {
   // Mark user dormant
   userIdToMarkDormant?: TypesGen.User["id"]
   usernameToMarkDormant?: TypesGen.User["username"]
-  markUserDormantError?: Error | unknown
+  markUserDormantError?: unknown
   // Reset user password
   userIdToResetPassword?: TypesGen.User["id"]
   resetUserPasswordError?: unknown
