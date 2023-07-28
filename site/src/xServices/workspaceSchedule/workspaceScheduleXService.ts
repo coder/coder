@@ -9,7 +9,7 @@ import * as TypesGen from "../../api/typesGenerated"
 type Permissions = Record<keyof ReturnType<typeof permissionsToCheck>, boolean>
 
 export interface WorkspaceScheduleContext {
-  getWorkspaceError?: Error | unknown
+  getWorkspaceError?: unknown
   /**
    * Each workspace has their own schedule (start and ttl). For this reason, we
    * re-fetch the workspace to ensure we're up-to-date. As a result, this
@@ -17,10 +17,10 @@ export interface WorkspaceScheduleContext {
    */
   workspace: TypesGen.Workspace
   template?: TypesGen.Template
-  getTemplateError?: Error | unknown
+  getTemplateError?: unknown
   permissions?: Permissions
-  checkPermissionsError?: Error | unknown
-  submitScheduleError?: Error | unknown
+  checkPermissionsError?: unknown
+  submitScheduleError?: unknown
   autostopChanged?: boolean
   shouldRestartWorkspace?: boolean
 }

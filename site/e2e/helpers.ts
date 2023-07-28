@@ -15,6 +15,8 @@ import {
   Resource,
 } from "./provisionerGenerated"
 import { port } from "./playwright.config"
+import * as ssh from "ssh2"
+import { Duplex } from "stream"
 
 // createWorkspace creates a workspace for a template.
 // It does not wait for it to be running, but it does navigate to the page.
@@ -59,19 +61,125 @@ export const createTemplate = async (
   return name
 }
 
+// sshIntoWorkspace spawns a Coder SSH process and a client connected to it.
+export const sshIntoWorkspace = async (
+  page: Page,
+  workspace: string,
+): Promise<ssh.Client> => {
+  const sessionToken = await findSessionToken(page)
+  return new Promise<ssh.Client>((resolve, reject) => {
+    const cp = spawn(
+      "go",
+      ["run", coderMainPath(), "ssh", "--stdio", workspace],
+      {
+        env: {
+          ...process.env,
+          CODER_SESSION_TOKEN: sessionToken,
+          CODER_URL: "http://localhost:3000",
+        },
+      },
+    )
+    cp.on("error", (err) => reject(err))
+    const proxyStream = new Duplex({
+      read: (size) => {
+        return cp.stdout.read(Math.min(size, cp.stdout.readableLength))
+      },
+      write: cp.stdin.write.bind(cp.stdin),
+    })
+    // eslint-disable-next-line no-console -- Helpful for debugging
+    cp.stderr.on("data", (data) => console.log(data.toString()))
+    cp.stdout.on("readable", (...args) => {
+      proxyStream.emit("readable", ...args)
+      if (cp.stdout.readableLength > 0) {
+        proxyStream.emit("data", cp.stdout.read())
+      }
+    })
+    const client = new ssh.Client()
+    client.connect({
+      sock: proxyStream,
+      username: "coder",
+    })
+    client.on("error", (err) => reject(err))
+    client.on("ready", () => {
+      resolve(client)
+    })
+  })
+}
+
 // startAgent runs the coder agent with the provided token.
 // It awaits the agent to be ready before returning.
 export const startAgent = async (page: Page, token: string): Promise<void> => {
-  const coderMain = path.join(
-    __dirname,
-    "..",
-    "..",
-    "enterprise",
-    "cmd",
-    "coder",
-    "main.go",
-  )
-  const cp = spawn("go", ["run", coderMain, "agent", "--no-reap"], {
+  return startAgentWithCommand(page, token, "go", "run", coderMainPath())
+}
+
+// downloadCoderVersion downloads the version provided into a temporary dir and
+// caches it so subsequent calls are fast.
+export const downloadCoderVersion = async (
+  version: string,
+): Promise<string> => {
+  if (version.startsWith("v")) {
+    version = version.slice(1)
+  }
+
+  const binaryName = "coder-e2e-" + version
+  const tempDir = "/tmp"
+  // The install script adds `./bin` automatically to the path :shrug:
+  const binaryPath = path.join(tempDir, "bin", binaryName)
+
+  const exists = await new Promise<boolean>((resolve) => {
+    const cp = spawn(binaryPath, ["version"])
+    cp.on("close", (code) => {
+      resolve(code === 0)
+    })
+    cp.on("error", () => resolve(false))
+  })
+  if (exists) {
+    return binaryPath
+  }
+
+  // Runs our public install script using our options to
+  // install the binary!
+  await new Promise<void>((resolve, reject) => {
+    const cp = spawn("sh", [
+      "-c",
+      [
+        "curl",
+        "-L",
+        "https://coder.com/install.sh",
+        "|",
+        "sh",
+        "-s",
+        "--",
+        "--version",
+        version,
+        "--method",
+        "standalone",
+        "--prefix",
+        tempDir,
+        "--binary-name",
+        binaryName,
+      ].join(" "),
+    ])
+    // eslint-disable-next-line no-console -- Needed for debugging
+    cp.stderr.on("data", (data) => console.log(data.toString()))
+    cp.on("close", (code) => {
+      if (code === 0) {
+        resolve()
+      } else {
+        reject(new Error("curl failed with code " + code))
+      }
+    })
+  })
+  return binaryPath
+}
+
+export const startAgentWithCommand = async (
+  page: Page,
+  token: string,
+  command: string,
+  ...args: string[]
+): Promise<void> => {
+  const cp = spawn(command, [...args, "agent", "--no-reap"], {
     env: {
       ...process.env,
       CODER_AGENT_URL: "http://localhost:" + port,
@@ -88,6 +196,18 @@ export const startAgent = async (page: Page, token: string): Promise<void> => {
   } catch (ex: any) {
     throw new Error(ex.toString() + "\n" + buffer.toString())
   }
+}
+
+const coderMainPath = (): string => {
+  return path.join(
+    __dirname,
+    "..",
+    "..",
+    "enterprise",
+    "cmd",
+    "coder",
+    "main.go",
+  )
 }
 
 // Allows users to more easily define properties they want for agents and resources!
@@ -222,7 +342,10 @@ const createTemplateVersionTar = async (
       Provision_Response.encode(response as Provision_Response).finish(),
     )
   })
-  return Buffer.from((await tar.write()) as ArrayBuffer)
+  const tarFile = await tar.write()
+  return Buffer.from(
+    tarFile instanceof Blob ? await tarFile.arrayBuffer() : tarFile,
+  )
 }
 
 const randomName = () => {
@@ -258,4 +381,13 @@ export const createServer = async (
   const e = express()
   await new Promise<void>((r) => e.listen(port, r))
   return e
+}
+
+const findSessionToken = async (page: Page): Promise<string> => {
+  const cookies = await page.context().cookies()
+  const sessionCookie = cookies.find((c) => c.name === "coder_session_token")
+  if (!sessionCookie) {
+    throw new Error("session token not found")
+  }
+  return sessionCookie.value
 }

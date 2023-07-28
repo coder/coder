@@ -1,4 +1,4 @@
-# This action will trigger when a PR is commentted containing /review-pr by a member of the org.
+# This action will trigger when a PR is commented on with `/deploy-pr` or when the workflow is manually triggered.
 name: Deploy PR
 on:
   issue_comment:
@@ -128,7 +128,7 @@ jobs:
   deploy:
     needs: [build, pr_commented]
     # Run deploy job only if build job was successful or skipped
-    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && needs.pr_commented.result == 'success'
     runs-on: "ubuntu-latest"
     env:
       CODER_IMAGE_TAG: ${{ needs.pr_commented.outputs.CODER_IMAGE_TAG }}
@@ -198,6 +198,18 @@ jobs:
           EOF
           kubectl apply -f ingress.yaml
 
+      - name: Set up PostgreSQL database
+        run: |
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm install coder-db bitnami/postgresql \
+            --namespace pr${{ env.PR_NUMBER }} \
+            --set auth.username=coder \
+            --set auth.password=coder \
+            --set auth.database=coder \
+            --set persistence.size=10Gi
+          kubectl create secret generic coder-db-url -n pr${{ env.PR_NUMBER }} \
+            --from-literal=url="postgres://coder:coder@coder-db-postgresql.pr${{ env.PR_NUMBER }}.svc.cluster.local:5432/coder?sslmode=disable"
+
       - name: Create values.yaml
         run: |
           cat <<EOF > pr-deploy-values.yaml
@@ -215,6 +227,11 @@ jobs:
                 value: "*--pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
               - name: "CODER_EXPERIMENTS"
                 value: "*"
+              - name: CODER_PG_CONNECTION_URL
+                valueFrom:
+                  secretKeyRef:
+                    name: coder-db-url
+                    key: url
               - name: "CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS"
                 value: "true"
               - name: "CODER_OAUTH2_GITHUB_CLIENT_ID"
