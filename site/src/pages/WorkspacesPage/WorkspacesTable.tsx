@@ -43,7 +43,6 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
   workspaces,
   isUsingFilter,
   onUpdateWorkspace,
-  error,
 }) => {
   const { t } = useTranslation("workspacesPage")
   const styles = useStyles()
@@ -61,7 +60,6 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
           </TableRow>
         </TableHead>
         <TableBody>
-          {Boolean(error) && <TableEmpty message={t("emptyResultsMessage")} />}
           {!workspaces && <TableLoaderSkeleton columns={5} useAvatarData />}
           {workspaces && workspaces.length === 0 && (
             <ChooseOne>
