@@ -394,6 +394,8 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 	}
 
 	if roles.Status == database.UserStatusDormant {
+		// If coder confirms that the dormant user is valid, it can switch their account to active.
+		// nolint:gocritic
 		u, err := cfg.DB.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
 			ID:        key.UserID,
 			Status:    database.UserStatusActive,
