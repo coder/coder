@@ -3,12 +3,19 @@ import { watchAgentMetadata } from "api/api"
 import { WorkspaceAgent, WorkspaceAgentMetadata } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
 import dayjs from "dayjs"
-import { createContext, FC, useContext, useEffect, useState } from "react"
+import {
+  createContext,
+  FC,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react"
 import Skeleton from "@mui/material/Skeleton"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 import { combineClasses } from "utils/combineClasses"
 import Tooltip from "@mui/material/Tooltip"
-import Box from "@mui/material/Box"
+import Box, { BoxProps } from "@mui/material/Box"
 
 type ItemStatus = "stale" | "valid" | "loading"
 
@@ -56,19 +63,17 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
       />
     ) : status === "stale" ? (
       <Tooltip title="This data is stale and no longer up to date">
-        <Box
-          sx={{ width: `${item.result.value.length}ch` }}
+        <StaticWidth
           className={combineClasses([
             styles.metadataValue,
             styles.metadataStale,
           ])}
         >
           {item.result.value}
-        </Box>
+        </StaticWidth>
       </Tooltip>
     ) : (
-      <Box
-        sx={{ width: `${item.result.value.length}ch` }}
+      <StaticWidth
         className={combineClasses([
           styles.metadataValue,
           item.result.error.length === 0
@@ -77,7 +82,7 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
         ])}
       >
         {item.result.value}
-      </Box>
+      </StaticWidth>
     )
 
   return (
@@ -101,7 +106,7 @@ export const AgentMetadataView: FC<AgentMetadataViewProps> = ({ metadata }) => {
   }
   return (
     <div className={styles.root}>
-      <Stack alignItems="baseline" direction="row" spacing={4}>
+      <Stack alignItems="baseline" direction="row" spacing={6}>
         {metadata.map((m) => {
           if (m.description === undefined) {
             throw new Error("Metadata item description is undefined")
@@ -192,6 +197,24 @@ export const AgentMetadataSkeleton: FC = () => {
   )
 }
 
+const StaticWidth = (props: BoxProps) => {
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!ref.current) {
+      return
+    }
+
+    const currentWidth = ref.current.getBoundingClientRect().width
+    ref.current.style.width = "auto"
+    const autoWidth = ref.current.getBoundingClientRect().width
+    ref.current.style.width =
+      autoWidth > currentWidth ? `${autoWidth}px` : `${currentWidth}px`
+  }, [props.children])
+
+  return <Box {...props} ref={ref} />
+}
+
 // These are more or less copied from
 // site/src/components/Resources/ResourceCard.tsx
 const useStyles = makeStyles((theme) => ({
@@ -231,7 +254,6 @@ const useStyles = makeStyles((theme) => ({
     whiteSpace: "nowrap",
     maxWidth: "16em",
     fontSize: 14,
-    flexShrink: 0,
   },
 
   metadataValueSuccess: {
