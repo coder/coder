@@ -116,6 +116,7 @@ func TestInsertWorkspaceAgentLogs(t *testing.T) {
 		CreatedAt: []time.Time{database.Now()},
 		Output:    []string{"first"},
 		Level:     []database.LogLevel{database.LogLevelInfo},
+		Source:    []database.WorkspaceAgentLogSource{database.WorkspaceAgentLogSourceExternal},
 		// 1 MB is the max
 		OutputLength: 1 << 20,
 	})
@@ -127,6 +128,7 @@ func TestInsertWorkspaceAgentLogs(t *testing.T) {
 		CreatedAt:    []time.Time{database.Now()},
 		Output:       []string{"second"},
 		Level:        []database.LogLevel{database.LogLevelInfo},
+		Source:       []database.WorkspaceAgentLogSource{database.WorkspaceAgentLogSourceExternal},
 		OutputLength: 1,
 	})
 	require.True(t, database.IsWorkspaceAgentLogsLimitError(err))
