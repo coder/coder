@@ -238,7 +238,7 @@ func writeRandomDataSSH(dst io.Writer, size int64, tick <-chan time.Time) error 
 // while placing minimal load upon the workspace itself.
 func mustRandomEchoCommand(l int64) string {
 	var sb strings.Builder
-	sb.WriteString("echo ")
+	_, _ = sb.WriteString("echo ")
 	if l < 1 {
 		l = 1
 	}
@@ -246,7 +246,7 @@ func mustRandomEchoCommand(l int64) string {
 	if err != nil {
 		panic(err)
 	}
-	sb.WriteString(randStr)
-	sb.WriteRune('\n')
+	_, _ = sb.WriteString(randStr)
+	_, _ = sb.WriteRune('\n')
 	return sb.String()
 }
