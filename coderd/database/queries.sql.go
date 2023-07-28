@@ -3730,6 +3730,7 @@ func (q *sqlQuerier) GetAllTailnetAgents(ctx context.Context) ([]TailnetAgent, e
 const getAllTailnetClients = `-- name: GetAllTailnetClients :many
 SELECT id, coordinator_id, agent_id, updated_at, node
 FROM tailnet_clients
+ORDER BY agent_id
 `
 
 func (q *sqlQuerier) GetAllTailnetClients(ctx context.Context) ([]TailnetClient, error) {
