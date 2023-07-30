@@ -343,7 +343,7 @@ jobs:
               "pr_number": "'"${{ env.PR_NUMBER }}"'",
               "pr_url": "'"${{ env.PR_URL }}"'",
               "pr_title": "'"${{ env.PR_TITLE }}"'",
-              "pr_access_url": "'"${{ env.PR_DEPLOYMENT_ACCESS_URL }}"'",
+              "pr_access_url": "'"https://${{ env.PR_DEPLOYMENT_ACCESS_URL }}"'",
               "pr_username": "'"pr${{ env.PR_NUMBER }}"'",
               "pr_email": "'"pr${{ env.PR_NUMBER }}@coder.com"'",
               "pr_password": "'"${{ steps.setup_deployment.outputs.password }}"'",
@@ -371,6 +371,6 @@ jobs:
           comment-id: ${{ steps.fc.outputs.comment-id }}
           body: |
             :heavy_check_mark: Deployed PR ${{ env.PR_NUMBER }} successfully.
-            :rocket: Access the deployment link [here](${{ env.PR_DEPLOYMENT_ACCESS_URL }}).
+            :rocket: Access the deployment link [here](https://${{ env.PR_DEPLOYMENT_ACCESS_URL }}).
             :warning: This deployment will be deleted when the PR is closed.
           reactions: rocket
