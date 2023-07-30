@@ -9,24 +9,43 @@ set -euo pipefail
 skipBuild=false
 dryRun=false
 confirm=true
+experiments=""
 
 # parse arguments
-for arg in "$@"; do
-	case $arg in
+while (("$#")); do
+	case "$1" in
 	-s | --skip-build)
 		skipBuild=true
-		shift # Remove --skip-build from processing
+		shift
 		;;
 	-n | --dry-run)
 		dryRun=true
-		shift # Remove --dry-run from processing
+		shift
+		;;
+	-e | --experiments)
+		if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
+			experiments="$2"
+			shift
+		else
+			echo "Error: Argument for $1 is missing" >&2
+			exit 1
+		fi
+		shift
 		;;
 	-y | --yes)
 		confirm=false
-		shift # Remove --yes from processing
+		shift
+		;;
+	--)
+		shift
+		break
+		;;
+	-* | --*)
+		echo "Error: Unsupported flag $1" >&2
+		exit 1
 		;;
 	*)
-		shift # Remove generic argument from processing
+		shift
 		;;
 	esac
 done
@@ -61,6 +80,7 @@ if $dryRun; then
 	echo "branchName: ${branchName}"
 	echo "prNumber: ${prNumber}"
 	echo "skipBuild: ${skipBuild}"
+	echo "experiments: ${experiments}"
 	exit 0
 fi
 

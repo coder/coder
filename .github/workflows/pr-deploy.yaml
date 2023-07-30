@@ -7,11 +7,18 @@ on:
     inputs:
       pr_number:
         description: "PR number"
+        type: number
         required: true
       skip_build:
         description: "Skip build job"
         required: false
+        type: boolean
         default: false
+      experiments:
+        description: "Experiments to enable"
+        required: false
+        type: string
+        default: "*"
 
 env:
   REPO: ghcr.io/coder/coder-preview
@@ -229,6 +236,20 @@ jobs:
           kubectl create secret generic coder-db-url -n pr${{ env.PR_NUMBER }} \
             --from-literal=url="postgres://coder:coder@coder-db-postgresql.pr${{ env.PR_NUMBER }}.svc.cluster.local:5432/coder?sslmode=disable"
 
+      - name: Get experiments
+        id: get_experiments
+        run: |
+          set -euxo pipefail
+          if [[ ${{ github.event_name }} == "workflow_dispatch" ]]; then
+            experiments=${{ github.event.inputs.experiments }}
+          else
+            experiments=$(echo "${{ github.event.comment.body }}" | grep -oP '(?<=--experiments ).*')
+            if [ -z "$experiments" ]; then
+              experiments="*"
+            fi
+          fi
+          echo "experiments=$experiments" >> $GITHUB_OUTPUT
+
       - name: Create values.yaml
         run: |
           cat <<EOF > pr-deploy-values.yaml
@@ -245,7 +266,7 @@ jobs:
               - name: "CODER_WILDCARD_ACCESS_URL"
                 value: "*.${{ env.PR_DEPLOYMENT_ACCESS_URL }}"
               - name: "CODER_EXPERIMENTS"
-                value: "*"
+                value: "${{ steps.get_experiments.outputs.experiments }}"
               - name: CODER_PG_CONNECTION_URL
                 valueFrom:
                   secretKeyRef:
