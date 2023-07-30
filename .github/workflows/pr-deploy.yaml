@@ -296,7 +296,7 @@ jobs:
           curl -fsSL "$URL" -o "${DEST}"
           chmod +x "${DEST}"
           "${DEST}" version
-          mv "${DEST}" /home/usr/bin/coder
+          mv "${DEST}" /usr/local/bin/coder
 
       - name: Create first user, template and workspace
         id: setup_deployment
