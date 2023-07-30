@@ -151,10 +151,12 @@ jobs:
 
       - name: Add DNS record to Cloudflare
         run: |
-          curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records" \
+          (
+            curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records" \
           -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
           -H "Content-Type:application/json" \
           --data '{"type":"CNAME","name":"*.${{ env.PR_DEPLOYMENT_ACCESS_URL }}","content":"${{ env.PR_DEPLOYMENT_ACCESS_URL }}","ttl":1,"proxied":false}'
+          )
 
       - name: Checkout
         uses: actions/checkout@v3
