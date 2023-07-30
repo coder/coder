@@ -16,21 +16,21 @@ export const workspaceAgentLogsMachine = createMachine(
     schema: {
       events: {} as
         | {
-            type: "ADD_STARTUP_LOGS"
+            type: "ADD_LOGS"
             logs: LineWithID[]
           }
         | {
-            type: "FETCH_STARTUP_LOGS"
+            type: "FETCH_LOGS"
           }
         | {
-            type: "STARTUP_DONE"
+            type: "DONE"
           },
       context: {} as {
         agentID: string
-        startupLogs?: LineWithID[]
+        logs?: LineWithID[]
       },
       services: {} as {
-        getStartupLogs: {
+        getLogs: {
           data: LineWithID[]
         }
       },
@@ -40,29 +40,29 @@ export const workspaceAgentLogsMachine = createMachine(
     states: {
       waiting: {
         on: {
-          FETCH_STARTUP_LOGS: "loading",
+          FETCH_LOGS: "loading",
         },
       },
       loading: {
         invoke: {
-          src: "getStartupLogs",
+          src: "getLogs",
           onDone: {
-            target: "watchStartupLogs",
-            actions: ["assignStartupLogs"],
+            target: "watchLogs",
+            actions: ["assignLogs"],
           },
         },
       },
-      watchStartupLogs: {
-        id: "watchingStartupLogs",
+      watchLogs: {
+        id: "watchingLogs",
         invoke: {
-          id: "streamStartupLogs",
-          src: "streamStartupLogs",
+          id: "streamLogs",
+          src: "streamLogs",
         },
         on: {
-          ADD_STARTUP_LOGS: {
-            actions: "addStartupLogs",
+          ADD_LOGS: {
+            actions: "addLogs",
           },
-          STARTUP_DONE: {
+          DONE: {
             target: "loaded",
           },
         },
@@ -74,8 +74,8 @@ export const workspaceAgentLogsMachine = createMachine(
   },
   {
     services: {
-      getStartupLogs: (ctx) =>
-        API.getWorkspaceAgentStartupLogs(ctx.agentID).then((data) =>
+      getLogs: (ctx) =>
+        API.getWorkspaceAgentLogs(ctx.agentID).then((data) =>
           data.map((log) => ({
             id: log.id,
             level: log.level || "info",
@@ -83,17 +83,17 @@ export const workspaceAgentLogsMachine = createMachine(
             time: log.created_at,
           })),
         ),
-      streamStartupLogs: (ctx) => async (callback) => {
+      streamLogs: (ctx) => async (callback) => {
         let after = 0
-        if (ctx.startupLogs && ctx.startupLogs.length > 0) {
-          after = ctx.startupLogs[ctx.startupLogs.length - 1].id
+        if (ctx.logs && ctx.logs.length > 0) {
+          after = ctx.logs[ctx.logs.length - 1].id
         }
 
-        const socket = API.watchStartupLogs(ctx.agentID, {
+        const socket = API.watchWorkspaceAgentLogs(ctx.agentID, {
           after,
           onMessage: (logs) => {
             callback({
-              type: "ADD_STARTUP_LOGS",
+              type: "ADD_LOGS",
               logs: logs.map((log) => ({
                 id: log.id,
                 level: log.level || "info",
@@ -103,7 +103,7 @@ export const workspaceAgentLogsMachine = createMachine(
             })
           },
           onDone: () => {
-            callback({ type: "STARTUP_DONE" })
+            callback({ type: "DONE" })
           },
           onError: (error) => {
             console.error(error)
@@ -116,12 +116,12 @@ export const workspaceAgentLogsMachine = createMachine(
       },
     },
     actions: {
-      assignStartupLogs: assign({
-        startupLogs: (_, { data }) => data,
+      assignLogs: assign({
+        logs: (_, { data }) => data,
       }),
-      addStartupLogs: assign({
-        startupLogs: (context, event) => {
-          const previousLogs = context.startupLogs ?? []
+      addLogs: assign({
+        logs: (context, event) => {
+          const previousLogs = context.logs ?? []
           return [...previousLogs, ...event.logs]
         },
       }),
