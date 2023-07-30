@@ -57,7 +57,7 @@ jobs:
           -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
           -H "Content-Type:application/json" | jq -r '.result[0].id')
 
-          set::add-mask $record_id
+          echo "::add-mask:$record_id"
 
           # Delete the record
           curl -X DELETE "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records/$recrd_id" \
