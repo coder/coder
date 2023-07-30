@@ -184,16 +184,39 @@ jobs:
           kubectl delete namespace "pr${{ env.PR_NUMBER }}" || true
           kubectl create namespace "pr${{ env.PR_NUMBER }}"
 
+      - name: Check and Create Certificate
+        run: |
+          # Using kubectl to check if a Certificate resource already exists
+          # we are doing this to avoid letsenrypt rate limits
+          if ! kubectl get certificate pr${{ env.PR_NUMBER }}-tls -n pr${{ env.PR_NUMBER }} > /dev/null 2>&1; then
+            echo "Certificate doesn't exist. Creating a new one."
+            cat <<EOF | kubectl apply -f -
+            apiVersion: cert-manager.io/v1
+            kind: Certificate
+            metadata:
+              name: pr${{ env.PR_NUMBER }}-tls
+              namespace: pr${{ env.PR_NUMBER }}
+            spec:
+              secretName: pr${{ env.PR_NUMBER }}-tls
+              issuerRef:
+                name: letsencrypt
+                kind: ClusterIssuer
+              dnsNames:
+              - "${{ env.PR_DEPLOYMENT_ACCESS_URL }}"
+              - "*.${{ env.PR_DEPLOYMENT_ACCESS_URL }}"
+            EOF
+          else
+            echo "Certificate exists."
+          fi
+
       - name: Setup ingress
         run: |
-          cat <<EOF > ingress.yaml
+          cat <<EOF > kubectl apply -f -
           apiVersion: networking.k8s.io/v1
           kind: Ingress
           metadata:
             name: pr${{ env.PR_NUMBER }}
             namespace: pr${{ env.PR_NUMBER }}
-            annotations:
-              cert-manager.io/cluster-issuer: letsencrypt
           spec:
             tls:
             - hosts:
@@ -222,7 +245,6 @@ jobs:
                       port:
                         number: 80
           EOF
-          kubectl apply -f ingress.yaml
 
       - name: Set up PostgreSQL database
         run: |
@@ -257,6 +279,15 @@ jobs:
               pullPolicy: Always
             service:
               type: ClusterIP
+            ingress:
+              enable: true
+              className: traefik
+              host: ${{ env.PR_DEPLOYMENT_ACCESS_URL }}
+              wildcardHost: "*.${{ env.PR_DEPLOYMENT_ACCESS_URL }}"
+              tls:
+                enable: true
+                secretName: pr${{ env.PR_NUMBER }}-tls
+                wildcardSecretName: pr${{ env.PR_NUMBER }}-tls
             env:
               - name: "CODER_ACCESS_URL"
                 value: "https://${{ env.PR_DEPLOYMENT_ACCESS_URL }}"
