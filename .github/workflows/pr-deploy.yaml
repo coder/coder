@@ -343,7 +343,7 @@ jobs:
               "pr_title": "'"${{ env.PR_TITLE }}"'",
               "pr_access_url": "'"${{ env.PR_DEPLOYMENT_ACCESS_URL }}"'",
               "pr_username": "'"pr${{ env.PR_NUMBER }}"'",
-              "pr_email": "'"${{ env.PR_NUMBER }}@coder.com"'",
+              "pr_email": "'"pr${{ env.PR_NUMBER }}@coder.com"'",
               "pr_password": "'"${{ steps.setup_deployment.outputs.password }}"'",
               "pr_actor": "'"${{ github.actor }}"'"
             }' \
