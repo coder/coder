@@ -321,7 +321,7 @@ jobs:
             https://${{ env.PR_DEPLOYMENT_ACCESS_URL }}
 
           # Create template
-          coder templates init --id kubernetes && cd ./kubernetes/ && /home/runner/coder templates create -y --variable namespace=pr${{ env.PR_NUMBER }}
+          coder templates init --id kubernetes && cd ./kubernetes/ && coder templates create -y --variable namespace=pr${{ env.PR_NUMBER }}
 
           # Create workspace
           cat <<EOF > workspace.yaml
