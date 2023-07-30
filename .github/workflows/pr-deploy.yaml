@@ -136,7 +136,7 @@ jobs:
       PR_TITLE: ${{ needs.pr_commented.outputs.PR_TITLE }}
       PR_URL: ${{ needs.pr_commented.outputs.PR_URL }}
       PR_BRANCH: ${{ needs.pr_commented.outputs.PR_BRANCH }}
-      PR_DEPLOYMENT_ACCESS_URL: "https://pr${{ needs.pr_commented.outputs.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
+      PR_DEPLOYMENT_ACCESS_URL: "pr${{ needs.pr_commented.outputs.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
     steps:
       - name: Check if image exists
         run: |
@@ -154,11 +154,7 @@ jobs:
           curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records" \
           -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
           -H "Content-Type:application/json" \
-          --data '{"type":"A","name":"*.pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}","content":"${{ secrets.PR_DEPLOYMENTS_CLUSTER_IP_1 }}","ttl":1,"proxied":false}'
-          curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records" \
-          -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
-          -H "Content-Type:application/json" \
-          --data '{"type":"A","name":"*.pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}","content":"${{ secrets.PR_DEPLOYMENTS_CLUSTER_IP_2 }}","ttl":1,"proxied":false}'
+          --data '{"type":"CNAME","name":"*.${{ env.PR_DEPLOYMENT_ACCESS_URL }}","content":"${{ env.PR_DEPLOYMENT_ACCESS_URL }}","ttl":1,"proxied":false}'
 
       - name: Checkout
         uses: actions/checkout@v3
@@ -192,11 +188,21 @@ jobs:
           spec:
             tls:
             - hosts:
-              - "${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
-              - "*.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
+              - "${{ env.PR_DEPLOYMENT_ACCESS_URL }}"
+              - "*.${{ env.PR_DEPLOYMENT_ACCESS_URL }}"
               secretName: pr${{ env.PR_NUMBER }}-tls
             rules:
-            - host: "pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
+            - host: "${{ env.PR_DEPLOYMENT_ACCESS_URL }}"
+              http:
+                paths:
+                - pathType: Prefix
+                  path: "/"
+                  backend:
+                    service:
+                      name: coder
+                      port:
+                        number: 80
+            - host: "*.${{ env.PR_DEPLOYMENT_ACCESS_URL }}"
               http:
                 paths:
                 - pathType: Prefix
@@ -233,9 +239,9 @@ jobs:
               type: ClusterIP
             env:
               - name: "CODER_ACCESS_URL"
-                value: "https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
+                value: "https://${{ env.PR_DEPLOYMENT_ACCESS_URL }}"
               - name: "CODER_WILDCARD_ACCESS_URL"
-                value: "*--pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
+                value: "*.${{ env.PR_DEPLOYMENT_ACCESS_URL }}"
               - name: "CODER_EXPERIMENTS"
                 value: "*"
               - name: CODER_PG_CONNECTION_URL
@@ -272,7 +278,7 @@ jobs:
           set -euxo pipefail
 
           DEST="${HOME}/coder"
-          URL="${{ env.PR_DEPLOYMENT_ACCESS_URL }}/bin/coder-linux-amd64"
+          URL="https://${{ env.PR_DEPLOYMENT_ACCESS_URL }}/bin/coder-linux-amd64"
 
           mkdir -p "$(dirname ${DEST})"
 
@@ -290,6 +296,7 @@ jobs:
           curl -fsSL "$URL" -o "${DEST}"
           chmod +x "${DEST}"
           "${DEST}" version
+          mv "${DEST}" /home/usr/bin/coder
 
       - name: Create first user, template and workspace
         id: setup_deployment
@@ -305,16 +312,16 @@ jobs:
           echo "::add-mask::$password"
           echo "password=$password" >> $GITHUB_OUTPUT
 
-          /home/runner/coder login \
+          coder login \
             --first-user-username pr${{ env.PR_NUMBER }} \
-            --first-user-email ${{ env.PR_NUMBER }}@coder.com \
+            --first-user-email pr${{ env.PR_NUMBER }}@coder.com \
             --first-user-password $password \
             --first-user-trial \
             --use-token-as-session \
-            ${{ env.PR_DEPLOYMENT_ACCESS_URL }}
+            https://${{ env.PR_DEPLOYMENT_ACCESS_URL }}
 
           # Create template
-          /home/runner/coder templates init --id kubernetes && cd ./kubernetes/ && /home/runner/coder templates create -y --variable namespace=pr${{ env.PR_NUMBER }}
+          coder templates init --id kubernetes && cd ./kubernetes/ && /home/runner/coder templates create -y --variable namespace=pr${{ env.PR_NUMBER }}
 
           # Create workspace
           cat <<EOF > workspace.yaml
@@ -323,8 +330,8 @@ jobs:
           home_disk_size: "2"
           EOF
 
-          /home/runner/coder create --template="kubernetes" pr${{ env.PR_NUMBER }} --rich-parameter-file ./workspace.yaml -y
-          /home/runner/coder stop pr${{ env.PR_NUMBER }} -y
+          coder create --template="kubernetes" pr${{ env.PR_NUMBER }} --rich-parameter-file ./workspace.yaml -y
+          coder stop pr${{ env.PR_NUMBER }} -y
 
       - name: Send Slack notification
         run: |

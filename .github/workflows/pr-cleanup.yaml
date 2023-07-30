@@ -37,7 +37,7 @@ jobs:
         run: |
           set -euxo pipefail
           mkdir -p ~/.kube
-          echo "${{ secrets.DELIVERYBOT_KUBECONFIG }}" > ~/.kube/config
+          echo "${{ secrets.PR_DEPLOYMENTS_KUBECONFIG }}" > ~/.kube/config
           export KUBECONFIG=~/.kube/config
 
       - name: Delete helm release
@@ -49,9 +49,17 @@ jobs:
         run: |
           kubectl delete namespace "pr${{ steps.pr_number.outputs.PR_NUMBER }}" || echo "namespace not found"
 
-      - name: "Remove DNS record"
+      - name: "Remove DNS records"
         run: |
-          curl -X DELETE "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records" \
+          set -euxo pipefail
+          # Get identifier for the record
+          record_id=$(curl -X GET "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records?name=*.pr${{ steps.pr_number.outputs.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}" \
           -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
-          -H "Content-Type:application/json" \
-          --data '{"type":"A","name":"*.pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}","content":"${{ secrets.PR_DEPLOYMENTS_CLUSTER_IP_1 }}","ttl":1,"proxied":false}'
+          -H "Content-Type:application/json" | jq -r '.result[0].id')
+
+          set::add-mask $record_id
+
+          # Delete the record
+          curl -X DELETE "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records/$recrd_id" \
+          -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
+          -H "Content-Type:application/json"
