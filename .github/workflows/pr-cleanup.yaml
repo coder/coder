@@ -55,11 +55,13 @@ jobs:
           # Get identifier for the record
           record_id=$(curl -X GET "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records?name=*.pr${{ steps.pr_number.outputs.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}" \
           -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
-          -H "Content-Type:application/json" | jq -r '.result[0].id')
+          -H "Content-Type:application/json" | jq -r '.result[0].id') || echo "DNS record not found"
 
-          echo "::add-mask:$record_id"
+          echo "::add-mask::$record_id"
 
           # Delete the record
-          curl -X DELETE "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records/$record_id" \
-          -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
-          -H "Content-Type:application/json"
+          (
+            curl -X DELETE "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records/$record_id" \
+            -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type:application/json"
+          ) || echo "DNS record not found"
