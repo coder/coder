@@ -243,10 +243,7 @@ jobs:
           if [[ ${{ github.event_name }} == "workflow_dispatch" ]]; then
             experiments=${{ github.event.inputs.experiments }}
           else
-            experiments=$(echo "${{ github.event.comment.body }}" | grep -oP '(?<=--experiments ).*')
-            if [ -z "$experiments" ]; then
-              experiments="*"
-            fi
+            experiments=$(echo "${{ github.event.comment.body }}" | grep -oP '(?<=--experiments )[^ ]+')
           fi
           echo "experiments=$experiments" >> $GITHUB_OUTPUT
 
@@ -266,7 +263,7 @@ jobs:
               - name: "CODER_WILDCARD_ACCESS_URL"
                 value: "*.${{ env.PR_DEPLOYMENT_ACCESS_URL }}"
               - name: "CODER_EXPERIMENTS"
-                value: "${{ steps.get_experiments.outputs.experiments }}"
+                value: "*,${{ steps.get_experiments.outputs.experiments }}"
               - name: CODER_PG_CONNECTION_URL
                 valueFrom:
                   secretKeyRef:
