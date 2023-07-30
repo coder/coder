@@ -315,7 +315,7 @@ jobs:
           echo "password=$password" >> $GITHUB_OUTPUT
 
           coder login \
-            --first-user-username pr${{ env.PR_NUMBER }} \
+            --first-user-username test \
             --first-user-email pr${{ env.PR_NUMBER }}@coder.com \
             --first-user-password $password \
             --first-user-trial \
@@ -332,8 +332,8 @@ jobs:
           home_disk_size: "2"
           EOF
 
-          coder create --template="kubernetes" pr${{ env.PR_NUMBER }} --rich-parameter-file ./workspace.yaml -y
-          coder stop pr${{ env.PR_NUMBER }} -y
+          coder create --template="kubernetes" test --rich-parameter-file ./workspace.yaml -y
+          coder stop test -y
 
       - name: Send Slack notification
         run: |
@@ -344,7 +344,7 @@ jobs:
               "pr_url": "'"${{ env.PR_URL }}"'",
               "pr_title": "'"${{ env.PR_TITLE }}"'",
               "pr_access_url": "'"https://${{ env.PR_DEPLOYMENT_ACCESS_URL }}"'",
-              "pr_username": "'"pr${{ env.PR_NUMBER }}"'",
+              "pr_username": "'"test"'",
               "pr_email": "'"pr${{ env.PR_NUMBER }}@coder.com"'",
               "pr_password": "'"${{ steps.setup_deployment.outputs.password }}"'",
               "pr_actor": "'"${{ github.actor }}"'"
