@@ -112,7 +112,7 @@ func (r *DERPReport) Run(ctx context.Context, opts *DERPReportOptions) {
 		mu.Unlock()
 	}
 	nc := &netcheck.Client{
-		PortMapper: portmapper.NewClient(tslogger.WithPrefix(ncLogf, "portmap: "), nil),
+		PortMapper: portmapper.NewClient(tslogger.WithPrefix(ncLogf, "portmap: "), nil, nil),
 		Logf:       tslogger.WithPrefix(ncLogf, "netcheck: "),
 	}
 	ncReport, netcheckErr := nc.GetReport(ctx, opts.DERPMap)
@@ -172,7 +172,7 @@ func (r *DERPNodeReport) derpURL() *url.URL {
 	if r.Node.HostName == "" {
 		derpURL.Host = r.Node.IPv4
 	}
-	if r.Node.DERPPort != 0 {
+	if r.Node.DERPPort != 0 && !(r.Node.DERPPort == 443 && derpURL.Scheme == "https") && !(r.Node.DERPPort == 80 && derpURL.Scheme == "http") {
 		derpURL.Host = fmt.Sprintf("%s:%d", derpURL.Host, r.Node.DERPPort)
 	}
 
