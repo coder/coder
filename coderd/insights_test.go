@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"testing"
 	"time"
 
@@ -482,6 +483,9 @@ func TestTemplateInsights_RBAC(t *testing.T) {
 					TemplateIDs: templateIDs,
 				})
 				require.Error(t, err)
+				var apiErr *codersdk.Error
+				require.ErrorAs(t, err, &apiErr)
+				require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 			})
 		})
 	}
@@ -582,6 +586,9 @@ func TestUserLatencyInsights_RBAC(t *testing.T) {
 					TemplateIDs: templateIDs,
 				})
 				require.Error(t, err)
+				var apiErr *codersdk.Error
+				require.ErrorAs(t, err, &apiErr)
+				require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 			})
 		})
 	}

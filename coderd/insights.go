@@ -97,9 +97,7 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		if httpapi.Is404Error(err) {
-			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-				Message: "Template not found or forbidden access.",
-			})
+			httpapi.ResourceNotFound(rw)
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -218,9 +216,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	}, nil)
 	if httpapi.Is404Error(err) {
-		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-			Message: "Template not found or forbidden access.",
-		})
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 	if err != nil {
