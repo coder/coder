@@ -5,7 +5,7 @@ export const VSCodeIcon = (props: SvgIconProps) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
       <mask
         id="vscode_mask0"
-        mask-type="alpha"
+        style={{ maskType: "alpha" }}
         maskUnits="userSpaceOnUse"
         x="0"
         y="0"

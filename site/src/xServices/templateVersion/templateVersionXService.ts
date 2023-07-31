@@ -18,7 +18,7 @@ export interface TemplateVersionMachineContext {
   template?: Template
   currentVersion?: TemplateVersion
   currentFiles?: TemplateVersionFiles
-  error?: Error | unknown
+  error?: unknown
   // Get file diffs
   previousVersion?: TemplateVersion
   previousFiles?: TemplateVersionFiles

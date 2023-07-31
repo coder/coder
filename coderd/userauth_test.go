@@ -20,7 +20,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
@@ -796,7 +795,6 @@ func TestUserOIDC(t *testing.T) {
 		config.AllowSignups = true
 
 		cfg := coderdtest.DeploymentValues(t)
-		cfg.Experiments = clibase.StringArray{string(codersdk.ExperimentConvertToOIDC)}
 		client := coderdtest.New(t, &coderdtest.Options{
 			Auditor:          auditor,
 			OIDCConfig:       config,

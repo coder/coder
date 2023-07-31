@@ -153,8 +153,8 @@ type WorkspaceAgent struct {
 	StartupScript               string                              `json:"startup_script,omitempty"`
 	StartupScriptBehavior       WorkspaceAgentStartupScriptBehavior `json:"startup_script_behavior"`
 	StartupScriptTimeoutSeconds int32                               `json:"startup_script_timeout_seconds"` // StartupScriptTimeoutSeconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.
-	StartupLogsLength           int32                               `json:"startup_logs_length"`
-	StartupLogsOverflowed       bool                                `json:"startup_logs_overflowed"`
+	LogsLength                  int32                               `json:"logs_length"`
+	LogsOverflowed              bool                                `json:"logs_overflowed"`
 	Directory                   string                              `json:"directory,omitempty"`
 	ExpandedDirectory           string                              `json:"expanded_directory,omitempty"`
 	Version                     string                              `json:"version"`
@@ -189,24 +189,32 @@ type WorkspaceAgentConnectionInfo struct {
 	DisableDirectConnections bool             `json:"disable_direct_connections"`
 }
 
-func (c *Client) WorkspaceAgentConnectionInfo(ctx context.Context) (*WorkspaceAgentConnectionInfo, error) {
+func (c *Client) WorkspaceAgentConnectionInfoGeneric(ctx context.Context) (WorkspaceAgentConnectionInfo, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/connection", nil)
 	if err != nil {
-		return nil, err
+		return WorkspaceAgentConnectionInfo{}, err
 	}
 	defer res.Body.Close()
-
 	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
+		return WorkspaceAgentConnectionInfo{}, ReadBodyAsError(res)
 	}
 
-	var info WorkspaceAgentConnectionInfo
-	err = json.NewDecoder(res.Body).Decode(&info)
+	var connInfo WorkspaceAgentConnectionInfo
+	return connInfo, json.NewDecoder(res.Body).Decode(&connInfo)
+}
+
+func (c *Client) WorkspaceAgentConnectionInfo(ctx context.Context, agentID uuid.UUID) (WorkspaceAgentConnectionInfo, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/connection", agentID), nil)
 	if err != nil {
-		return nil, xerrors.Errorf("decode connection info: %w", err)
+		return WorkspaceAgentConnectionInfo{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return WorkspaceAgentConnectionInfo{}, ReadBodyAsError(res)
 	}
 
-	return &info, nil
+	var connInfo WorkspaceAgentConnectionInfo
+	return connInfo, json.NewDecoder(res.Body).Decode(&connInfo)
 }
 
 // @typescript-ignore DialWorkspaceAgentOptions
@@ -221,18 +229,10 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 	if options == nil {
 		options = &DialWorkspaceAgentOptions{}
 	}
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/connection", agentID), nil)
+
+	connInfo, err := c.WorkspaceAgentConnectionInfo(ctx, agentID)
 	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
-	}
-	var connInfo WorkspaceAgentConnectionInfo
-	err = json.NewDecoder(res.Body).Decode(&connInfo)
-	if err != nil {
-		return nil, xerrors.Errorf("decode conn info: %w", err)
+		return nil, xerrors.Errorf("get connection info: %w", err)
 	}
 	if connInfo.DisableDirectConnections {
 		options.BlockEndpoints = true
@@ -262,43 +262,44 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 		}
 	}()
 
-	coordinateURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/coordinate", agentID))
-	if err != nil {
-		return nil, xerrors.Errorf("parse url: %w", err)
-	}
-	coordinateHeaders := make(http.Header)
+	headers := make(http.Header)
 	tokenHeader := SessionTokenHeader
 	if c.SessionTokenHeader != "" {
 		tokenHeader = c.SessionTokenHeader
 	}
-	coordinateHeaders.Set(tokenHeader, c.SessionToken())
+	headers.Set(tokenHeader, c.SessionToken())
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
 		if err != nil {
 			cancel()
 		}
 	}()
-	closed := make(chan struct{})
-	first := make(chan error)
+
+	coordinateURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/coordinate", agentID))
+	if err != nil {
+		return nil, xerrors.Errorf("parse url: %w", err)
+	}
+	closedCoordinator := make(chan struct{})
+	firstCoordinator := make(chan error)
 	go func() {
-		defer close(closed)
+		defer close(closedCoordinator)
 		isFirst := true
 		for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
 			options.Logger.Debug(ctx, "connecting")
 			// nolint:bodyclose
 			ws, res, err := websocket.Dial(ctx, coordinateURL.String(), &websocket.DialOptions{
 				HTTPClient: c.HTTPClient,
-				HTTPHeader: coordinateHeaders,
+				HTTPHeader: headers,
 				// Need to disable compression to avoid a data-race.
 				CompressionMode: websocket.CompressionDisabled,
 			})
 			if isFirst {
 				if res != nil && res.StatusCode == http.StatusConflict {
-					first <- ReadBodyAsError(res)
+					firstCoordinator <- ReadBodyAsError(res)
 					return
 				}
 				isFirst = false
-				close(first)
+				close(firstCoordinator)
 			}
 			if err != nil {
 				if errors.Is(err, context.Canceled) {
@@ -325,16 +326,86 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 			_ = ws.Close(websocket.StatusGoingAway, "")
 		}
 	}()
-	err = <-first
+
+	derpMapURL, err := c.URL.Parse("/api/v2/derp-map")
+	if err != nil {
+		return nil, xerrors.Errorf("parse url: %w", err)
+	}
+	closedDerpMap := make(chan struct{})
+	firstDerpMap := make(chan error)
+	go func() {
+		defer close(closedDerpMap)
+		isFirst := true
+		for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
+			options.Logger.Debug(ctx, "connecting to server for derp map updates")
+			// nolint:bodyclose
+			ws, res, err := websocket.Dial(ctx, derpMapURL.String(), &websocket.DialOptions{
+				HTTPClient: c.HTTPClient,
+				HTTPHeader: headers,
+				// Need to disable compression to avoid a data-race.
+				CompressionMode: websocket.CompressionDisabled,
+			})
+			if isFirst {
+				if res != nil && res.StatusCode == http.StatusConflict {
+					firstDerpMap <- ReadBodyAsError(res)
+					return
+				}
+				isFirst = false
+				close(firstDerpMap)
+			}
+			if err != nil {
+				if errors.Is(err, context.Canceled) {
+					return
+				}
+				options.Logger.Debug(ctx, "failed to dial", slog.Error(err))
+				continue
+			}
+
+			var (
+				nconn = websocket.NetConn(ctx, ws, websocket.MessageBinary)
+				dec   = json.NewDecoder(nconn)
+			)
+			for {
+				var derpMap tailcfg.DERPMap
+				err := dec.Decode(&derpMap)
+				if xerrors.Is(err, context.Canceled) {
+					_ = ws.Close(websocket.StatusGoingAway, "")
+					return
+				}
+				if err != nil {
+					options.Logger.Debug(ctx, "failed to decode derp map", slog.Error(err))
+					_ = ws.Close(websocket.StatusGoingAway, "")
+					return
+				}
+
+				if !tailnet.CompareDERPMaps(conn.DERPMap(), &derpMap) {
+					options.Logger.Debug(ctx, "updating derp map due to detected changes")
+					conn.SetDERPMap(&derpMap)
+				}
+			}
+		}
+	}()
+
+	err = <-firstCoordinator
+	if err != nil {
+		return nil, err
+	}
+	err = <-firstDerpMap
 	if err != nil {
 		return nil, err
 	}
 
 	agentConn = NewWorkspaceAgentConn(conn, WorkspaceAgentConnOptions{
 		AgentID: agentID,
+		// Newer agents will listen on two IPs: WorkspaceAgentIP and an IP
+		// derived from the agents UUID. We need to use the legacy
+		// WorkspaceAgentIP here since we don't know if the agent is listening
+		// on the new IP.
+		AgentIP: WorkspaceAgentIP,
 		CloseFunc: func() error {
 			cancel()
-			<-closed
+			<-closedCoordinator
+			<-closedDerpMap
 			return conn.Close()
 		},
 	})
@@ -557,7 +628,7 @@ func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.
 }
 
 //nolint:revive // Follow is a control flag on the server as well.
-func (c *Client) WorkspaceAgentStartupLogsAfter(ctx context.Context, agentID uuid.UUID, after int64, follow bool) (<-chan []WorkspaceAgentStartupLog, io.Closer, error) {
+func (c *Client) WorkspaceAgentLogsAfter(ctx context.Context, agentID uuid.UUID, after int64, follow bool) (<-chan []WorkspaceAgentLog, io.Closer, error) {
 	var queryParams []string
 	if after != 0 {
 		queryParams = append(queryParams, fmt.Sprintf("after=%d", after))
@@ -569,7 +640,7 @@ func (c *Client) WorkspaceAgentStartupLogsAfter(ctx context.Context, agentID uui
 	if len(queryParams) > 0 {
 		query = "?" + strings.Join(queryParams, "&")
 	}
-	reqURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/startup-logs%s", agentID, query))
+	reqURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/logs%s", agentID, query))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -585,13 +656,13 @@ func (c *Client) WorkspaceAgentStartupLogsAfter(ctx context.Context, agentID uui
 			return nil, nil, ReadBodyAsError(resp)
 		}
 
-		var logs []WorkspaceAgentStartupLog
+		var logs []WorkspaceAgentLog
 		err = json.NewDecoder(resp.Body).Decode(&logs)
 		if err != nil {
 			return nil, nil, xerrors.Errorf("decode startup logs: %w", err)
 		}
 
-		ch := make(chan []WorkspaceAgentStartupLog, 1)
+		ch := make(chan []WorkspaceAgentLog, 1)
 		ch <- logs
 		close(ch)
 		return ch, closeFunc(func() error { return nil }), nil
@@ -619,7 +690,7 @@ func (c *Client) WorkspaceAgentStartupLogsAfter(ctx context.Context, agentID uui
 		}
 		return nil, nil, ReadBodyAsError(res)
 	}
-	logChunks := make(chan []WorkspaceAgentStartupLog)
+	logChunks := make(chan []WorkspaceAgentLog)
 	closed := make(chan struct{})
 	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageText)
 	decoder := json.NewDecoder(wsNetConn)
@@ -628,7 +699,7 @@ func (c *Client) WorkspaceAgentStartupLogsAfter(ctx context.Context, agentID uui
 		defer close(logChunks)
 		defer conn.Close(websocket.StatusGoingAway, "")
 		for {
-			var logs []WorkspaceAgentStartupLog
+			var logs []WorkspaceAgentLog
 			err = decoder.Decode(&logs)
 			if err != nil {
 				return
@@ -673,7 +744,7 @@ const (
 	GitProviderBitBucket   GitProvider = "bitbucket"
 )
 
-type WorkspaceAgentStartupLog struct {
+type WorkspaceAgentLog struct {
 	ID        int64     `json:"id"`
 	CreatedAt time.Time `json:"created_at" format:"date-time"`
 	Output    string    `json:"output"`
@@ -684,4 +755,15 @@ type AgentSubsystem string
 
 const (
 	AgentSubsystemEnvbox AgentSubsystem = "envbox"
+)
+
+type WorkspaceAgentLogSource string
+
+const (
+	WorkspaceAgentLogSourceStartupScript  WorkspaceAgentLogSource = "startup_script"
+	WorkspaceAgentLogSourceShutdownScript WorkspaceAgentLogSource = "shutdown_script"
+	WorkspaceAgentLogSourceKubernetes     WorkspaceAgentLogSource = "kubernetes"
+	WorkspaceAgentLogSourceEnvbox         WorkspaceAgentLogSource = "envbox"
+	WorkspaceAgentLogSourceEnvbuilder     WorkspaceAgentLogSource = "envbuilder"
+	WorkspaceAgentLogSourceExternal       WorkspaceAgentLogSource = "external"
 )

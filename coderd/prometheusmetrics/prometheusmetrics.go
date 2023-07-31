@@ -142,7 +142,7 @@ func Workspaces(ctx context.Context, registerer prometheus.Registerer, db databa
 }
 
 // Agents tracks the total number of workspaces with labels on status.
-func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, coordinator *atomic.Pointer[tailnet.Coordinator], derpMap *tailcfg.DERPMap, agentInactiveDisconnectTimeout, duration time.Duration) (func(), error) {
+func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, coordinator *atomic.Pointer[tailnet.Coordinator], derpMapFn func() *tailcfg.DERPMap, agentInactiveDisconnectTimeout, duration time.Duration) (func(), error) {
 	if duration == 0 {
 		duration = 1 * time.Minute
 	}
@@ -223,6 +223,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 
 			logger.Debug(ctx, "agent metrics collection is starting")
 			timer := prometheus.NewTimer(metricsCollectorAgents)
+			derpMap := derpMapFn()
 
 			workspaceRows, err := db.GetWorkspaces(ctx, database.GetWorkspacesParams{
 				AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),

@@ -198,6 +198,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"updated_at":          ActionIgnore,
 		"deleted":             ActionIgnore,
 		"token_hashed_secret": ActionSecret,
+		"derp_enabled":        ActionTrack,
+		"region_id":           ActionTrack,
 	},
 }
 

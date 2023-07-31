@@ -129,7 +129,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		AllowedIPs: options.Addresses,
 	}
 
-	wireguardMonitor, err := monitor.New(Logger(options.Logger.Named("wgmonitor")))
+	wireguardMonitor, err := monitor.New(Logger(options.Logger.Named("net.wgmonitor")))
 	if err != nil {
 		return nil, xerrors.Errorf("create wireguard link monitor: %w", err)
 	}
@@ -141,9 +141,9 @@ func NewConn(options *Options) (conn *Conn, err error) {
 
 	IP()
 	dialer := &tsdial.Dialer{
-		Logf: Logger(options.Logger.Named("tsdial")),
+		Logf: Logger(options.Logger.Named("net.tsdial")),
 	}
-	wireguardEngine, err := wgengine.NewUserspaceEngine(Logger(options.Logger.Named("wgengine")), wgengine.Config{
+	wireguardEngine, err := wgengine.NewUserspaceEngine(Logger(options.Logger.Named("net.wgengine")), wgengine.Config{
 		LinkMonitor: wireguardMonitor,
 		Dialer:      dialer,
 		ListenPort:  options.ListenPort,
@@ -183,7 +183,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	netMap.SelfNode.DiscoKey = magicConn.DiscoPublicKey()
 
 	netStack, err := netstack.Create(
-		Logger(options.Logger.Named("netstack")),
+		Logger(options.Logger.Named("net.netstack")),
 		tunDevice,
 		wireguardEngine,
 		magicConn,
@@ -216,7 +216,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		localIPs,
 		logIPs,
 		nil,
-		Logger(options.Logger.Named("packet-filter")),
+		Logger(options.Logger.Named("net.packet-filter")),
 	))
 
 	dialContext, dialCancel := context.WithCancel(context.Background())
@@ -495,7 +495,7 @@ func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 }
 
 func (c *Conn) reconfig() error {
-	cfg, err := nmcfg.WGCfg(c.netMap, Logger(c.logger.Named("wgconfig")), netmap.AllowSingleHosts, "")
+	cfg, err := nmcfg.WGCfg(c.netMap, Logger(c.logger.Named("net.wgconfig")), netmap.AllowSingleHosts, "")
 	if err != nil {
 		return xerrors.Errorf("update wireguard config: %w", err)
 	}

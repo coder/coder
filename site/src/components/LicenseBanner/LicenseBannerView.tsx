@@ -65,7 +65,7 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
           <Expander expanded={showDetails} setExpanded={setShowDetails}>
             <ul className={styles.list}>
               {messages.map((message) => (
-                <li className={styles.listItem} key={`${message}`}>
+                <li className={styles.listItem} key={message}>
                   {message}
                 </li>
               ))}

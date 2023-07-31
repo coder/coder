@@ -2,10 +2,13 @@ import CheckOutlined from "@mui/icons-material/CheckOutlined"
 import FileCopyOutlined from "@mui/icons-material/FileCopyOutlined"
 import Box from "@mui/material/Box"
 import Button from "@mui/material/Button"
+import FormControlLabel from "@mui/material/FormControlLabel"
+import Radio from "@mui/material/Radio"
+import RadioGroup from "@mui/material/RadioGroup"
 import { useQuery } from "@tanstack/react-query"
 import { getTemplateVersionRichParameters } from "api/api"
 import { Template, TemplateVersionParameter } from "api/typesGenerated"
-import { VerticalForm } from "components/Form/Form"
+import { FormSection, VerticalForm } from "components/Form/Form"
 import { Loader } from "components/Loader/Loader"
 import { useTemplateLayoutContext } from "components/TemplateLayout/TemplateLayout"
 import {
@@ -21,7 +24,7 @@ import {
   selectInitialRichParametersValues,
   workspaceBuildParameterValue,
 } from "utils/richParameters"
-import { paramUsedToCreateWorkspace } from "utils/workspace"
+import { paramsUsedToCreateWorkspace } from "utils/workspace"
 
 type ButtonValues = Record<string, string>
 
@@ -40,7 +43,7 @@ const TemplateEmbedPage = () => {
       <TemplateEmbedPageView
         template={template}
         templateParameters={templateParameters?.filter(
-          paramUsedToCreateWorkspace,
+          paramsUsedToCreateWorkspace,
         )}
       />
     </>
@@ -51,7 +54,9 @@ export const TemplateEmbedPageView: FC<{
   template: Template
   templateParameters?: TemplateVersionParameter[]
 }> = ({ template, templateParameters }) => {
-  const [buttonValues, setButtonValues] = useState<ButtonValues>({})
+  const [buttonValues, setButtonValues] = useState<ButtonValues>({
+    mode: "manual",
+  })
   const initialRichParametersValues = templateParameters
     ? selectInitialRichParametersValues(templateParameters)
     : undefined
@@ -92,20 +97,48 @@ export const TemplateEmbedPageView: FC<{
         <Loader />
       ) : (
         <Box display="flex" alignItems="flex-start" gap={6}>
-          {templateParameters.length > 0 && (
-            <Box flex={1} maxWidth={400}>
-              <VerticalForm>
-                <MutableTemplateParametersSection
-                  templateParameters={templateParameters}
-                  getInputProps={getInputProps}
-                />
-                <ImmutableTemplateParametersSection
-                  templateParameters={templateParameters}
-                  getInputProps={getInputProps}
-                />
-              </VerticalForm>
-            </Box>
-          )}
+          <Box flex={1} maxWidth={400}>
+            <VerticalForm>
+              <FormSection
+                title="Creation mode"
+                description="By changing the mode to automatic, when the user clicks the button, the workspace will be created automatically instead of showing a form to the user."
+              >
+                <RadioGroup
+                  defaultValue={buttonValues.mode}
+                  onChange={(_, v) => {
+                    setButtonValues((buttonValues) => ({
+                      ...buttonValues,
+                      mode: v,
+                    }))
+                  }}
+                >
+                  <FormControlLabel
+                    value="manual"
+                    control={<Radio size="small" />}
+                    label="Manual"
+                  />
+                  <FormControlLabel
+                    value="auto"
+                    control={<Radio size="small" />}
+                    label="Automatic"
+                  />
+                </RadioGroup>
+              </FormSection>
+
+              {templateParameters.length > 0 && (
+                <>
+                  <MutableTemplateParametersSection
+                    templateParameters={templateParameters}
+                    getInputProps={getInputProps}
+                  />
+                  <ImmutableTemplateParametersSection
+                    templateParameters={templateParameters}
+                    getInputProps={getInputProps}
+                  />
+                </>
+              )}
+            </VerticalForm>
+          </Box>
           <Box
             display="flex"
             height={{

@@ -142,7 +142,6 @@ curl -X GET http://coder-server:8080/api/v2/users/authmethods \
 
 ```json
 {
-  "convert_to_oidc_enabled": true,
   "github": {
     "enabled": true
   },

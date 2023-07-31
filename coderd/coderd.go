@@ -118,10 +118,13 @@ type Options struct {
 	RealIPConfig                   *httpmw.RealIPConfig
 	TrialGenerator                 func(ctx context.Context, email string) error
 	// TLSCertificates is used to mesh DERP servers securely.
-	TLSCertificates             []tls.Certificate
-	TailnetCoordinator          tailnet.Coordinator
-	DERPServer                  *derp.Server
-	DERPMap                     *tailcfg.DERPMap
+	TLSCertificates    []tls.Certificate
+	TailnetCoordinator tailnet.Coordinator
+	DERPServer         *derp.Server
+	// BaseDERPMap is used as the base DERP map for all clients and agents.
+	// Proxies are added to this list.
+	BaseDERPMap                 *tailcfg.DERPMap
+	DERPMapUpdateFrequency      time.Duration
 	SwaggerEndpoint             bool
 	SetUserGroups               func(ctx context.Context, tx database.Store, userID uuid.UUID, groupNames []string) error
 	SetUserSiteRoles            func(ctx context.Context, tx database.Store, userID uuid.UUID, roles []string) error
@@ -236,11 +239,14 @@ func New(options *Options) *API {
 	if options.PrometheusRegistry == nil {
 		options.PrometheusRegistry = prometheus.NewRegistry()
 	}
-	if options.TailnetCoordinator == nil {
-		options.TailnetCoordinator = tailnet.NewCoordinator(options.Logger)
-	}
 	if options.DERPServer == nil {
 		options.DERPServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger.Named("derp")))
+	}
+	if options.DERPMapUpdateFrequency == 0 {
+		options.DERPMapUpdateFrequency = 5 * time.Second
+	}
+	if options.TailnetCoordinator == nil {
+		options.TailnetCoordinator = tailnet.NewCoordinator(options.Logger)
 	}
 	if options.Auditor == nil {
 		options.Auditor = audit.NewNop()
@@ -280,22 +286,6 @@ func New(options *Options) *API {
 	if options.UserQuietHoursScheduleStore.Load() == nil {
 		v := schedule.NewAGPLUserQuietHoursScheduleStore()
 		options.UserQuietHoursScheduleStore.Store(&v)
-	}
-	if options.HealthcheckFunc == nil {
-		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *healthcheck.Report {
-			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
-				DB:        options.Database,
-				AccessURL: options.AccessURL,
-				DERPMap:   options.DERPMap.Clone(),
-				APIKey:    apiKey,
-			})
-		}
-	}
-	if options.HealthcheckTimeout == 0 {
-		options.HealthcheckTimeout = 30 * time.Second
-	}
-	if options.HealthcheckRefresh == 0 {
-		options.HealthcheckRefresh = 10 * time.Minute
 	}
 
 	siteCacheDir := options.CacheDir
@@ -376,6 +366,22 @@ func New(options *Options) *API {
 			*options.UpdateCheckOptions,
 		)
 	}
+	if options.HealthcheckFunc == nil {
+		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *healthcheck.Report {
+			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
+				DB:        options.Database,
+				AccessURL: options.AccessURL,
+				DERPMap:   api.DERPMap(),
+				APIKey:    apiKey,
+			})
+		}
+	}
+	if options.HealthcheckTimeout == 0 {
+		options.HealthcheckTimeout = 30 * time.Second
+	}
+	if options.HealthcheckRefresh == 0 {
+		options.HealthcheckRefresh = 10 * time.Minute
+	}
 
 	var oidcAuthURLParams map[string]string
 	if options.OIDCConfig != nil {
@@ -388,7 +394,7 @@ func New(options *Options) *API {
 		api.agentProvider, err = NewServerTailnet(api.ctx,
 			options.Logger,
 			options.DERPServer,
-			options.DERPMap,
+			options.BaseDERPMap,
 			func(context.Context) (tailnet.MultiAgentConn, error) {
 				return (*api.TailnetCoordinator.Load()).ServeMultiAgent(uuid.New()), nil
 			},
@@ -543,6 +549,10 @@ func New(options *Options) *API {
 		r.Group(func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/regions", api.regions)
+		})
+		r.Route("/derp-map", func(r chi.Router) {
+			// r.Use(apiKeyMiddleware)
+			r.Get("/", api.derpMapUpdates)
 		})
 		r.Route("/deployment", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
@@ -766,7 +776,8 @@ func New(options *Options) *API {
 				// New agents will use /me/manifest instead.
 				r.Get("/metadata", api.workspaceAgentManifest)
 				r.Post("/startup", api.postWorkspaceAgentStartup)
-				r.Patch("/startup-logs", api.patchWorkspaceAgentStartupLogs)
+				r.Patch("/startup-logs", api.patchWorkspaceAgentLogsDeprecated)
+				r.Patch("/logs", api.patchWorkspaceAgentLogs)
 				r.Post("/app-health", api.postWorkspaceAppHealth)
 				r.Get("/gitauth", api.workspaceAgentsGitAuth)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
@@ -790,7 +801,8 @@ func New(options *Options) *API {
 				)
 				r.Get("/", api.workspaceAgent)
 				r.Get("/watch-metadata", api.watchWorkspaceAgentMetadata)
-				r.Get("/startup-logs", api.workspaceAgentStartupLogs)
+				r.Get("/startup-logs", api.workspaceAgentLogsDeprecated)
+				r.Get("/logs", api.workspaceAgentLogs)
 				r.Get("/listening-ports", api.workspaceAgentListeningPorts)
 				r.Get("/connection", api.workspaceAgentConnection)
 				r.Get("/coordinate", api.workspaceAgentClientCoordinate)
@@ -953,6 +965,8 @@ type API struct {
 	// UserQuietHoursScheduleStore is a pointer to an atomic pointer for the
 	// same reason as TemplateScheduleStore.
 	UserQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
+	// DERPMapper mutates the DERPMap to include workspace proxies.
+	DERPMapper atomic.Pointer[func(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap]
 
 	HTTPAuth *HTTPAuthorizer
 
@@ -1105,6 +1119,15 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 	}()
 
 	return proto.NewDRPCProvisionerDaemonClient(clientSession), nil
+}
+
+func (api *API) DERPMap() *tailcfg.DERPMap {
+	fn := api.DERPMapper.Load()
+	if fn != nil {
+		return (*fn)(api.Options.BaseDERPMap)
+	}
+
+	return api.Options.BaseDERPMap
 }
 
 // nolint:revive

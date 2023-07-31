@@ -181,8 +181,8 @@ const signOut = async () => {
   } as UnauthenticatedData
 }
 export interface AuthContext {
-  error?: Error | unknown
-  updateProfileError?: Error | unknown
+  error?: unknown
+  updateProfileError?: unknown
   data?: AuthData
 }
 

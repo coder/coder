@@ -31,7 +31,7 @@ export const ServiceBannerView: React.FC<ServiceBannerViewProps> = ({
   ]
   return (
     <div
-      className={`${styles.container}`}
+      className={styles.container}
       style={{ backgroundColor: backgroundColor }}
     >
       {preview && <Pill text="Preview" type="info" lightBorder />}

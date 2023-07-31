@@ -16,7 +16,7 @@ const validationSchema = Yup.object({
 
 export type CreateGroupPageViewProps = {
   onSubmit: (data: CreateGroupRequest) => void
-  formErrors: unknown | undefined
+  formErrors?: unknown
   isLoading: boolean
 }
 

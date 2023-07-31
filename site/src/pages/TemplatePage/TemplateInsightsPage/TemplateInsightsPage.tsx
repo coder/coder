@@ -120,9 +120,9 @@ const UserLatencyPanel = ({
         <PanelTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           Latency by user
           <HelpTooltip size="small">
-            <HelpTooltipTitle>How do we calculate latency?</HelpTooltipTitle>
+            <HelpTooltipTitle>How is latency calculated?</HelpTooltipTitle>
             <HelpTooltipText>
-              The average latency of user connections to workspaces.
+              The median round trip time of user connections to workspaces.
             </HelpTooltipText>
           </HelpTooltip>
         </PanelTitle>
@@ -133,7 +133,7 @@ const UserLatencyPanel = ({
         {users && users.length === 0 && <NoDataAvailable />}
         {users &&
           users
-            .sort((a, b) => b.latency_ms.p95 - a.latency_ms.p95)
+            .sort((a, b) => b.latency_ms.p50 - a.latency_ms.p50)
             .map((row) => (
               <Box
                 key={row.user_id}
@@ -153,13 +153,13 @@ const UserLatencyPanel = ({
                 </Box>
                 <Box
                   sx={{
-                    color: getLatencyColor(theme, row.latency_ms.p95),
+                    color: getLatencyColor(theme, row.latency_ms.p50),
                     fontWeight: 500,
                     fontSize: 13,
                     textAlign: "right",
                   }}
                 >
-                  {row.latency_ms.p95.toFixed(0)}ms
+                  {row.latency_ms.p50.toFixed(0)}ms
                 </Box>
               </Box>
             ))}
@@ -186,7 +186,7 @@ const TemplateUsagePanel = ({
   return (
     <Panel {...panelProps}>
       <PanelHeader>
-        <PanelTitle>App&lsquo;s & IDE usage</PanelTitle>
+        <PanelTitle>App & IDE Usage</PanelTitle>
         <PanelSubtitle>Last 7 days</PanelSubtitle>
       </PanelHeader>
       <PanelContent>
@@ -244,7 +244,7 @@ const TemplateUsagePanel = ({
                       sx={{
                         fontSize: 13,
                         color: (theme) => theme.palette.text.secondary,
-                        width: 200,
+                        width: 120,
                         flexShrink: 0,
                       }}
                     >
@@ -339,13 +339,13 @@ function formatTime(seconds: number): string {
     const minutes = Math.floor(seconds / 60)
     return minutes + " minutes"
   } else {
-    const hours = Math.floor(seconds / 3600)
-    const remainingMinutes = Math.floor((seconds % 3600) / 60)
-    if (remainingMinutes === 0) {
-      return hours + " hours"
-    } else {
-      return hours + " hours, " + remainingMinutes + " minutes"
+    const hours = seconds / 3600
+    const minutes = Math.floor(seconds % 3600)
+    if (minutes === 0) {
+      return hours.toFixed(0) + " hours"
     }
+
+    return hours.toFixed(1) + " hours"
   }
 }
 
