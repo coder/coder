@@ -494,12 +494,15 @@ func TestUserLatencyInsights_RBAC(t *testing.T) {
 	today := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 
 	type test struct {
-		interval codersdk.InsightsReportInterval
+		interval     codersdk.InsightsReportInterval
+		withTemplate bool
 	}
 
 	tests := []test{
-		{codersdk.InsightsReportIntervalDay},
-		{""},
+		{codersdk.InsightsReportIntervalDay, true},
+		{codersdk.InsightsReportIntervalDay, false},
+		{"", true},
+		{"", false},
 	}
 
 	for _, tt := range tests {
@@ -511,14 +514,22 @@ func TestUserLatencyInsights_RBAC(t *testing.T) {
 				t.Parallel()
 
 				client := coderdtest.New(t, &coderdtest.Options{})
-				_ = coderdtest.CreateFirstUser(t, client)
+				admin := coderdtest.CreateFirstUser(t, client)
 
 				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 				defer cancel()
 
+				var templateIDs []uuid.UUID
+				if tt.withTemplate {
+					version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
+					template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
+					templateIDs = append(templateIDs, template.ID)
+				}
+
 				_, err := client.UserLatencyInsights(ctx, codersdk.UserLatencyInsightsRequest{
-					StartTime: today,
-					EndTime:   time.Now().UTC().Truncate(time.Hour).Add(time.Hour), // Round up to include the current hour.
+					StartTime:   today,
+					EndTime:     time.Now().UTC().Truncate(time.Hour).Add(time.Hour), // Round up to include the current hour.
+					TemplateIDs: templateIDs,
 				})
 				require.NoError(t, err)
 			})
@@ -533,9 +544,17 @@ func TestUserLatencyInsights_RBAC(t *testing.T) {
 				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 				defer cancel()
 
+				var templateIDs []uuid.UUID
+				if tt.withTemplate {
+					version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
+					template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
+					templateIDs = append(templateIDs, template.ID)
+				}
+
 				_, err := templateAdmin.UserLatencyInsights(ctx, codersdk.UserLatencyInsightsRequest{
-					StartTime: today,
-					EndTime:   time.Now().UTC().Truncate(time.Hour).Add(time.Hour), // Round up to include the current hour.
+					StartTime:   today,
+					EndTime:     time.Now().UTC().Truncate(time.Hour).Add(time.Hour), // Round up to include the current hour.
+					TemplateIDs: templateIDs,
 				})
 				require.NoError(t, err)
 			})
@@ -550,9 +569,17 @@ func TestUserLatencyInsights_RBAC(t *testing.T) {
 				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 				defer cancel()
 
+				var templateIDs []uuid.UUID
+				if tt.withTemplate {
+					version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
+					template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
+					templateIDs = append(templateIDs, template.ID)
+				}
+
 				_, err := regular.UserLatencyInsights(ctx, codersdk.UserLatencyInsightsRequest{
-					StartTime: today,
-					EndTime:   time.Now().UTC().Truncate(time.Hour).Add(time.Hour), // Round up to include the current hour.
+					StartTime:   today,
+					EndTime:     time.Now().UTC().Truncate(time.Hour).Add(time.Hour), // Round up to include the current hour.
+					TemplateIDs: templateIDs,
 				})
 				require.Error(t, err)
 			})
