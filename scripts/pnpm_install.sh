@@ -23,10 +23,8 @@ if [[ -n ${CI:-} ]]; then
 		# Install dependencies from lockfile, ensuring builds are fully
 		# reproducible
 		--frozen-lockfile
-		# Suppress progress information
-		--silent
-		# Disable interactive prompts for build
-		--non-interactive
+		# Disable interactive prompts.
+		--reporter append-only
 	)
 fi
 
