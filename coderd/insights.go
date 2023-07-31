@@ -187,6 +187,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 
 	var usage database.GetTemplateInsightsRow
 	var dailyUsage []database.GetTemplateDailyInsightsRow
+
 	// Use a transaction to ensure that we get consistent data between
 	// the full and interval report.
 	err := api.Database.InTx(func(db database.Store) error {
@@ -214,6 +215,12 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 
 		return nil
 	}, nil)
+	if httpapi.Is404Error(err) {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "Template not found or forbidden access.",
+		})
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching template insights.",
