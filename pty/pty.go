@@ -47,7 +47,7 @@ type PTY interface {
 	// uses the output stream for writing.
 	//
 	// The same stream could be read to validate output.
-	Output() ReadWriter
+	Output() io.ReadWriter
 
 	// Input handles TTY input.
 	//
@@ -55,7 +55,7 @@ type PTY interface {
 	// uses the PTY input for reading.
 	//
 	// The same stream would be used to provide user input: pty.Input().Write(...)
-	Input() ReadWriter
+	Input() io.ReadWriter
 }
 
 // Process represents a process running in a PTY.  We need to trigger special processing on the PTY
@@ -118,18 +118,18 @@ func New(opts ...Option) (PTY, error) {
 	return newPty(opts...)
 }
 
-// ReadWriter is an implementation of io.ReadWriter that wraps two separate
+// readWriter is an implementation of io.ReadWriter that wraps two separate
 // underlying file descriptors, one for reading and one for writing, and allows
 // them to be accessed separately.
-type ReadWriter struct {
+type readWriter struct {
 	Reader io.Reader
 	Writer io.Writer
 }
 
-func (rw ReadWriter) Read(p []byte) (int, error) {
+func (rw readWriter) Read(p []byte) (int, error) {
 	return rw.Reader.Read(p)
 }
 
-func (rw ReadWriter) Write(p []byte) (int, error) {
+func (rw readWriter) Write(p []byte) (int, error) {
 	return rw.Writer.Write(p)
 }

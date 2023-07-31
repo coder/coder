@@ -182,9 +182,9 @@ func TestPasswordTerminalState(t *testing.T) {
 	cmd := exec.Command(os.Args[0], "-test.run=TestPasswordTerminalState") //nolint:gosec
 	cmd.Env = append(os.Environ(), "TEST_SUBPROCESS=1")
 	// connect the child process's stdio to the PTY directly, not via a pipe
-	cmd.Stdin = ptty.Input().Reader
-	cmd.Stdout = ptty.Output().Writer
-	cmd.Stderr = ptty.Output().Writer
+	cmd.Stdin = ptty.Input().(io.Reader)
+	cmd.Stdout = ptty.Output().(io.Writer)
+	cmd.Stderr = ptty.Output().(io.Writer)
 	err := cmd.Start()
 	require.NoError(t, err)
 	process := cmd.Process

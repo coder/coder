@@ -92,8 +92,8 @@ func (p *otherPty) Name() string {
 	return p.name
 }
 
-func (p *otherPty) Input() ReadWriter {
-	return ReadWriter{
+func (p *otherPty) Input() io.ReadWriter {
+	return readWriter{
 		Reader: p.tty,
 		Writer: p.pty,
 	}
@@ -103,8 +103,8 @@ func (p *otherPty) InputWriter() io.Writer {
 	return p.pty
 }
 
-func (p *otherPty) Output() ReadWriter {
-	return ReadWriter{
+func (p *otherPty) Output() io.ReadWriter {
+	return readWriter{
 		Reader: &ptmReader{p.pty},
 		Writer: p.tty,
 	}

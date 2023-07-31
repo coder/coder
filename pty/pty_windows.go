@@ -103,8 +103,8 @@ func (p *ptyWindows) Name() string {
 	return ""
 }
 
-func (p *ptyWindows) Output() ReadWriter {
-	return ReadWriter{
+func (p *ptyWindows) Output() io.ReadWriter {
+	return readWriter{
 		Reader: p.outputRead,
 		Writer: p.outputWrite,
 	}
@@ -114,8 +114,8 @@ func (p *ptyWindows) OutputReader() io.Reader {
 	return p.outputRead
 }
 
-func (p *ptyWindows) Input() ReadWriter {
-	return ReadWriter{
+func (p *ptyWindows) Input() io.ReadWriter {
+	return readWriter{
 		Reader: p.inputRead,
 		Writer: p.inputWrite,
 	}
