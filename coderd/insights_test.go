@@ -390,16 +390,20 @@ func TestTemplateInsights_RBAC(t *testing.T) {
 	today := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 
 	type test struct {
-		interval codersdk.InsightsReportInterval
+		interval     codersdk.InsightsReportInterval
+		withTemplate bool
 	}
 
 	tests := []test{
-		{codersdk.InsightsReportIntervalDay},
-		{""},
+		{codersdk.InsightsReportIntervalDay, true},
+		{codersdk.InsightsReportIntervalDay, false},
+		{"", true},
+		{"", false},
 	}
 
 	for _, tt := range tests {
 		tt := tt
+
 		t.Run(fmt.Sprintf("with interval=%q", tt.interval), func(t *testing.T) {
 			t.Parallel()
 
@@ -407,15 +411,23 @@ func TestTemplateInsights_RBAC(t *testing.T) {
 				t.Parallel()
 
 				client := coderdtest.New(t, &coderdtest.Options{})
-				_ = coderdtest.CreateFirstUser(t, client)
+				admin := coderdtest.CreateFirstUser(t, client)
 
 				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 				defer cancel()
 
+				var templateIDs []uuid.UUID
+				if tt.withTemplate {
+					version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
+					template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
+					templateIDs = append(templateIDs, template.ID)
+				}
+
 				_, err := client.TemplateInsights(ctx, codersdk.TemplateInsightsRequest{
-					StartTime: today.AddDate(0, 0, -1),
-					EndTime:   today,
-					Interval:  tt.interval,
+					StartTime:   today.AddDate(0, 0, -1),
+					EndTime:     today,
+					Interval:    tt.interval,
+					TemplateIDs: templateIDs,
 				})
 				require.NoError(t, err)
 			})
@@ -430,10 +442,18 @@ func TestTemplateInsights_RBAC(t *testing.T) {
 				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 				defer cancel()
 
+				var templateIDs []uuid.UUID
+				if tt.withTemplate {
+					version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
+					template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
+					templateIDs = append(templateIDs, template.ID)
+				}
+
 				_, err := templateAdmin.TemplateInsights(ctx, codersdk.TemplateInsightsRequest{
-					StartTime: today.AddDate(0, 0, -1),
-					EndTime:   today,
-					Interval:  tt.interval,
+					StartTime:   today.AddDate(0, 0, -1),
+					EndTime:     today,
+					Interval:    tt.interval,
+					TemplateIDs: templateIDs,
 				})
 				require.NoError(t, err)
 			})
@@ -448,10 +468,18 @@ func TestTemplateInsights_RBAC(t *testing.T) {
 				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 				defer cancel()
 
+				var templateIDs []uuid.UUID
+				if tt.withTemplate {
+					version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
+					template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
+					templateIDs = append(templateIDs, template.ID)
+				}
+
 				_, err := regular.TemplateInsights(ctx, codersdk.TemplateInsightsRequest{
-					StartTime: today.AddDate(0, 0, -1),
-					EndTime:   today,
-					Interval:  tt.interval,
+					StartTime:   today.AddDate(0, 0, -1),
+					EndTime:     today,
+					Interval:    tt.interval,
+					TemplateIDs: templateIDs,
 				})
 				require.Error(t, err)
 			})
