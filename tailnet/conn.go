@@ -292,7 +292,8 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		server.sendNode()
 	})
 
-	netStack.GetTCPHandlerForFlow = server.getTCPHandlerForFlow
+	netStack.ForwardTCPIn = server.forwardTCP
+	netStack.ForwardTCPSockOpts = server.forwardTCPSockOpts
 
 	err = netStack.Start(nil)
 	if err != nil {
@@ -797,11 +798,29 @@ func (c *Conn) DialContextUDP(ctx context.Context, ipp netip.AddrPort) (*gonet.U
 	return c.netStack.DialContextUDP(ctx, ipp)
 }
 
-func (c *Conn) getTCPHandlerForFlow(_, dst netip.AddrPort) (func(net.Conn), []tcpip.SettableSocketOption, bool) {
-	var (
-		port = dst.Port()
-		opts = []tcpip.SettableSocketOption{}
-	)
+func (c *Conn) forwardTCP(conn net.Conn, port uint16) {
+	c.mutex.Lock()
+	ln, ok := c.listeners[listenKey{"tcp", "", fmt.Sprint(port)}]
+	c.mutex.Unlock()
+	if !ok {
+		c.forwardTCPToLocal(conn, port)
+		return
+	}
+
+	t := time.NewTimer(time.Second)
+	defer t.Stop()
+	select {
+	case ln.conn <- conn:
+		return
+	case <-ln.closed:
+	case <-c.closed:
+	case <-t.C:
+	}
+	_ = conn.Close()
+}
+
+func (*Conn) forwardTCPSockOpts(port uint16) []tcpip.SettableSocketOption {
+	opts := []tcpip.SettableSocketOption{}
 
 	// See: https://github.com/tailscale/tailscale/blob/c7cea825aea39a00aca71ea02bab7266afc03e7c/wgengine/netstack/netstack.go#L888
 	if port == WorkspaceAgentSSHPort || port == 22 {
@@ -809,27 +828,7 @@ func (c *Conn) getTCPHandlerForFlow(_, dst netip.AddrPort) (func(net.Conn), []tc
 		opts = append(opts, &opt)
 	}
 
-	c.mutex.Lock()
-	ln, ok := c.listeners[listenKey{"tcp", "", fmt.Sprint(port)}]
-	c.mutex.Unlock()
-	if !ok {
-		return func(conn net.Conn) {
-			c.forwardTCPToLocal(conn, port)
-		}, opts, true
-	}
-
-	return func(conn net.Conn) {
-		t := time.NewTimer(time.Second)
-		defer t.Stop()
-		select {
-		case ln.conn <- conn:
-			return
-		case <-ln.closed:
-		case <-c.closed:
-		case <-t.C:
-		}
-		_ = conn.Close()
-	}, opts, true
+	return opts
 }
 
 func (c *Conn) forwardTCPToLocal(conn net.Conn, port uint16) {

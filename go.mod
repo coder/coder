@@ -36,7 +36,7 @@ replace github.com/dlclark/regexp2 => github.com/dlclark/regexp2 v1.7.0
 
 // There are a few minor changes we make to Tailscale that we're slowly upstreaming. Compare here:
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
-replace tailscale.com => github.com/coder/tailscale v0.0.0-20230522123520-74712221d00f
+replace tailscale.com => github.com/coder/tailscale v0.0.0-20230731105344-d1b7f8087191
 
 // Use our tempfork of gvisor that includes a fix for TCP connection stalls:
 // https://github.com/coder/coder/issues/7388
