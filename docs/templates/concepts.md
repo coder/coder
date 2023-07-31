@@ -1,4 +1,4 @@
-# Template structure
+# Template concepts
 
 Coder templates are written in [Terraform](https://terraform.io). All Terraform modules, resources, and properties can be provisioned by Coder. The Coder server essentially runs a `terraform apply` every time a workspace is created/started/stopped.
 
@@ -6,7 +6,7 @@ Haven't written Terraform before? Check out Hashicorp's [Getting Started Guides]
 
 ## Architecture
 
-This is a simplified diagram of our [Kubernetes example template](https://github.com/coder/coder/tree/main/examples/templates/kubernetes). Keep reading for a breakdown of each concept.
+This is a simplified diagram of our [Kubernetes example template](https://github.com/coder/coder/blob/main/examples/templates/kubernetes/main.tf). Keep reading for a breakdown of each concept.
 
 ![Template architecture](https://user-images.githubusercontent.com/22407953/257021139-8c95a731-c131-4c4d-85cc-eed6a52e015c.png)
 
@@ -24,7 +24,7 @@ terraform {
 }
 ```
 
-## coder_agent
+### coder_agent
 
 All templates need to create & run a Coder agent in order for developers to connect to their workspaces. The Coder agent is a service that runs inside the compute aspect of your workspace (typically a VM or container). You do not need to have any open ports, but the compute will need `curl` access to the Coder server.
 
@@ -45,7 +45,7 @@ resource "kubernetes_deployment" "workspace" {
 
 Agents can also run startup scripts, set environment variables, and provide [metadata](../agent-metadata.md) about the workspace (e.g. CPU usage). Read the [coder_agent docs](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script) for more details.
 
-## coder_workspace
+### coder_workspace
 
 This data source provides details about the state of a workspace, such as its name, owner, and whether the workspace is being started or stopped.
 
@@ -64,7 +64,7 @@ resource "kubernetes_deployment" "workspace" {
 resource "docker_volume" "projects" {}
 ```
 
-## coder_app
+### coder_app
 
 Web apps that are running inside the workspace (e.g. `http://localhost:8080`) can be forwarded to the Coder dashboard with the `coder_app` resource. This is commonly used for [web IDEs](../../ides/web-ides.md) such as code-server, RStudio, and JupyterLab. External apps, such as links to internal wikis or cloud consoles can also be embedded here.
 
@@ -104,4 +104,51 @@ resource "coder_app" "getting-started" {
 }
 ```
 
-Lorem ipsum
+### coder_parameter
+
+Parameters are inputs that users fill in when creating their workspace.
+
+![Parameters in templates](https://user-images.githubusercontent.com/22407953/256707889-18baf2be-2dae-4eb2-ae89-71e5b00248f8.png)
+
+```hcl
+data "coder_parameter" "repo" {
+  name         = "repo"
+  display_name = "Repository (auto)"
+  order        = 1
+  description  = "Select a repository to automatically clone and start working with a devcontainer."
+  mutable      = true
+  option {
+    name        = "vercel/next.js"
+    description = "The React Framework"
+    value       = "https://github.com/vercel/next.js"
+  }
+  option {
+    name        = "home-assistant/core"
+    description = "🏡 Open source home automation that puts local control and privacy first."
+    value       = "https://github.com/home-assistant/core"
+  }
+  # ...
+}
+```
+
+## Terraform variables
+
+Variables for templates are supported and can be managed in template settings.
+
+![Template variables](https://user-images.githubusercontent.com/22407953/257079273-af4720c4-1aee-4451-8fd9-82a8c579f289.png)
+
+> Per-workspace settings can be defined via [Parameters](./parameters.md).
+
+## Best practices
+
+Before making major changes or creating your own template, we recommend reading these best practices:
+
+- [Resource Persistence](./resource-persistence.md): Control which resources are persistent/ephemeral and avoid accidental disk deletion.
+- [Provider Authentication](./provider-authentication.md): Securely authenticate with cloud APIs with Terraform
+- [Change Management](./change-management.md): Manage Coder templates in git with CI/CD pipelines.
+
+## Use cases
+
+- [Devcontainers](./devcontainers.md): Add devcontainer support to your Coder templates.
+- [Docker in Workspaces](./docker-in-workspaces.md): Add docker-in-Docker support or even run system-level services.
+- [Open in Coder](./open-in-coder.md): Auto-create a workspace from your GitHub repository or internal wiki with deep links.

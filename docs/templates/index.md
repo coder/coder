@@ -48,4 +48,5 @@ Paramaters let users customize their individual workspaces:
 
 ## Next steps
 
-- [Writing templates](./writing/index.md)
+- [Template structure](./structure.md)
+- [Template structure](./structure.md)

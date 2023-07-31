@@ -139,46 +139,61 @@
       "icon_path": "./images/icons/picture.svg",
       "children": [
         {
-          "title": "Writing templates",
-          "description": "Learn how to create & modify Coder templates",
-          "path": "./templates/writing/index.md"
+          "title": "Templates & Terraform",
+          "description": "Learn what makes up a template",
+          "path": "./templates/concepts.md",
+          "children": [
+            {
+              "title": "Parameters",
+              "description": "Use parameters to customize templates",
+              "path": "./templates/parameters.md",
+              "icon_path": "./images/icons/code.svg"
+            },
+            {
+              "title": "Terraform Modules",
+              "description": "Reuse code across Coder templates",
+              "path": "./templates/modules.md"
+            },
+            {
+              "title": "Agent Metadata",
+              "description": "Learn how to expose live agent information to users",
+              "path": "./templates/agent-metadata.md",
+              "icon_path": "./images/icons/table-rows.svg"
+            },
+            {
+              "title": "Resource Metadata",
+              "description": "Learn how to expose resource data to users",
+              "path": "./templates/resource-metadata.md",
+              "icon_path": "./images/icons/table-rows.svg"
+            }
+          ]
         },
         {
-          "title": "Resource Persistence",
-          "description": "Learn how resource persistence works in Coder",
-          "path": "./templates/resource-persistence.md",
-          "icon_path": "./images/icons/infinity.svg"
+          "title": "Best Practices",
+          "description": "Best practices for writing/managing templates",
+          "path": "./templates/best-practices.md",
+          "children": [
+            {
+              "title": "Provider Authentication",
+              "description": "Learn how to authenticate the provisioner",
+              "path": "./templates/authentication.md",
+              "icon_path": "./images/icons/key.svg"
+            },
+            {
+              "title": "Resource Persistence",
+              "description": "Learn how resource persistence works in Coder",
+              "path": "./templates/resource-persistence.md",
+              "icon_path": "./images/icons/infinity.svg"
+            },
+            {
+              "title": "Change Management",
+              "description": "Learn how to source-control templates with git and CI",
+              "path": "./templates/change-management.md",
+              "icon_path": "./images/icons/git.svg"
+            }
+          ]
         },
-        {
-          "title": "Provider Authentication",
-          "description": "Learn how to authenticate the provisioner",
-          "path": "./templates/authentication.md",
-          "icon_path": "./images/icons/key.svg"
-        },
-        {
-          "title": "Change Management",
-          "description": "Learn how to source-control templates with git and CI",
-          "path": "./templates/change-management.md",
-          "icon_path": "./images/icons/git.svg"
-        },
-        {
-          "title": "Resource Metadata",
-          "description": "Learn how to expose resource data to users",
-          "path": "./templates/resource-metadata.md",
-          "icon_path": "./images/icons/table-rows.svg"
-        },
-        {
-          "title": "Agent Metadata",
-          "description": "Learn how to expose live agent information to users",
-          "path": "./templates/agent-metadata.md",
-          "icon_path": "./images/icons/table-rows.svg"
-        },
-        {
-          "title": "Parameters",
-          "description": "Use parameters to customize templates",
-          "path": "./templates/parameters.md",
-          "icon_path": "./images/icons/code.svg"
-        },
+
         {
           "title": "Open in Coder",
           "description": "Learn how to add an \"Open in Coder\" button to your repos",
@@ -196,11 +211,6 @@
           "description": "Use devcontainers in workspaces",
           "path": "./templates/devcontainers.md",
           "state": "alpha"
-        },
-        {
-          "title": "Terraform Modules",
-          "description": "Reuse code across Coder templates",
-          "path": "./templates/modules.md"
         }
       ]
     },
