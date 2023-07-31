@@ -10,13 +10,17 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Install pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: 8
     - name: Setup Node
       uses: buildjet/setup-node@v3
       with:
         node-version: 18.17.0
         # See https://github.com/actions/setup-node#caching-global-packages-data
-        cache: "yarn"
-        cache-dependency-path: ${{ inputs.directory }}/yarn.lock
+        cache: "pnpm"
+        cache-dependency-path: ${{ inputs.directory }}/pnpm-lock.yaml
     - name: Install node_modules
       shell: bash
       run: ../scripts/yarn_install.sh

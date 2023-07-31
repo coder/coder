@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 #
-# Run "yarn install" with flags appropriate to the environment (local
+# Run "pnpm install" with flags appropriate to the environment (local
 # development vs build system). The install is always run within the current
 # directory.
 #
-# Usage: yarn_install.sh [optional extra flags]
+# Usage: pnpm_install.sh [optional extra flags]
 
 set -euo pipefail
 
-yarn_flags=(
+pnpm_flags=(
 	# Do not execute install scripts
 	# TODO: check if build works properly with this enabled
 	# --ignore-scripts
@@ -19,7 +19,7 @@ yarn_flags=(
 )
 
 if [[ -n ${CI:-} ]]; then
-	yarn_flags+=(
+	pnpm_flags+=(
 		# Install dependencies from lockfile, ensuring builds are fully
 		# reproducible
 		--frozen-lockfile
@@ -31,7 +31,7 @@ if [[ -n ${CI:-} ]]; then
 fi
 
 # Append whatever is specified on the command line
-yarn_flags+=("$@")
+pnpm_flags+=("$@")
 
-echo "+ yarn install ${yarn_flags[*]}"
-yarn install "${yarn_flags[@]}"
+echo "+ pnpm install ${pnpm_flags[*]}"
+pnpm install "${pnpm_flags[@]}"

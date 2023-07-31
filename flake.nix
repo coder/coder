@@ -49,6 +49,7 @@
             terraform
             typos
             yarn
+            pnpm
             yq
             zip
             zstd

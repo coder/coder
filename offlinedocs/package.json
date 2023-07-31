@@ -3,13 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "yarn copy-images && next dev",
+    "dev": "pnpm copy-images && next dev",
     "build": "next build",
     "start": "next start",
-    "export": "yarn copy-images && next build && next export",
+    "export": "pnpm copy-images && next build && next export",
     "copy-images": "sh ./scripts/copyImages.sh",
-    "lint": "yarn run lint:types",
-    "lint:fix": "FIX=true yarn lint",
+    "lint": "pnpm run lint:types",
+    "lint:fix": "FIX=true pnpm lint",
     "lint:types": "tsc --noEmit",
     "format:check": "prettier --cache --check './**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'",
     "format:write": "prettier --cache --write './**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'"
