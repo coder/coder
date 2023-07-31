@@ -64,13 +64,6 @@ type OAuthConvertStateClaims struct {
 // @Success 201 {object} codersdk.OAuthConversionResponse
 // @Router /users/{user}/convert-login [post]
 func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
-	if !api.Experiments.Enabled(codersdk.ExperimentConvertToOIDC) {
-		httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
-			Message: "Oauth conversion is not allowed, contact an administrator to turn on this feature.",
-		})
-		return
-	}
-
 	var (
 		user              = httpmw.UserParam(r)
 		ctx               = r.Context()
@@ -455,7 +448,6 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.AuthMethods{
-		ConvertToOIDCEnabled: api.Experiments.Enabled(codersdk.ExperimentConvertToOIDC),
 		Password: codersdk.AuthMethod{
 			Enabled: !api.DeploymentValues.DisablePasswordAuth.Value(),
 		},
@@ -1498,11 +1490,6 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 
 	oauthConvertAudit.UserID = claims.UserID
 	oauthConvertAudit.Old = user
-
-	// If we do not allow converting to oauth, return an error.
-	if !api.Experiments.Enabled(codersdk.ExperimentConvertToOIDC) {
-		return database.User{}, wrongLoginTypeHTTPError(user.LoginType, params.LoginType)
-	}
 
 	if claims.RegisteredClaims.Issuer != api.DeploymentID {
 		return database.User{}, httpError{
