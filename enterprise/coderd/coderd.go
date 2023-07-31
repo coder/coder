@@ -535,10 +535,10 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		var coordinator agpltailnet.Coordinator
 		if enabled {
 			var haCoordinator agpltailnet.Coordinator
-			if api.AGPL.Experiments.Enabled(codersdk.ExperimentTailnetHACoordinator) {
-				haCoordinator, err = tailnet.NewCoordinator(api.Logger, api.Pubsub)
-			} else {
+			if api.AGPL.Experiments.Enabled(codersdk.ExperimentTailnetPGCoordinator) {
 				haCoordinator, err = tailnet.NewPGCoord(api.ctx, api.Logger, api.Pubsub, api.Database)
+			} else {
+				haCoordinator, err = tailnet.NewCoordinator(api.Logger, api.Pubsub)
 			}
 			if err != nil {
 				api.Logger.Error(ctx, "unable to set up high availability coordinator", slog.Error(err))
@@ -664,7 +664,7 @@ func derpMapper(logger slog.Logger, proxyHealth *proxyhealth.ProxyHealth) func(*
 					context.Background(),
 					"existing DERP region IDs are too large, proxy region IDs will not be populated in the derp map. Please ensure that all DERP region IDs are less than 2^32",
 					slog.F("largest_region_id", largestRegionID),
-					slog.F("max_region_id", 1<<32-1),
+					slog.F("max_region_id", int64(1<<32-1)),
 				)
 				return derpMap
 			}

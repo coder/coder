@@ -5,7 +5,7 @@ import { WorkspaceQuota } from "../../api/typesGenerated"
 export type QuotaContext = {
   username: string
   quota?: WorkspaceQuota
-  getQuotaError?: Error | unknown
+  getQuotaError?: unknown
 }
 
 export const quotaMachine = createMachine(

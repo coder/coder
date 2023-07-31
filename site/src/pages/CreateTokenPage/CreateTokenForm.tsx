@@ -25,8 +25,8 @@ import { Stack } from "components/Stack/Stack"
 interface CreateTokenFormProps {
   form: FormikContextType<CreateTokenData>
   maxTokenLifetime?: number
-  formError: Error | unknown
-  setFormError: (arg0: Error | unknown) => void
+  formError: unknown
+  setFormError: (arg0: unknown) => void
   isCreating: boolean
   creationFailed: boolean
 }

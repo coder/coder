@@ -555,8 +555,8 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   lifecycle_state: "starting",
   login_before_ready: false, // Deprecated.
   startup_script_behavior: "blocking",
-  startup_logs_length: 0,
-  startup_logs_overflowed: false,
+  logs_length: 0,
+  logs_overflowed: false,
   startup_script_timeout_seconds: 120,
   shutdown_script_timeout_seconds: 120,
   subsystem: "envbox",
@@ -1788,7 +1788,7 @@ export const MockDeploymentSSH: TypesGen.SSHConfigResponse = {
   ssh_config_options: {},
 }
 
-export const MockStartupLogs: TypesGen.WorkspaceAgentStartupLog[] = [
+export const MockWorkspaceAgentLogs: TypesGen.WorkspaceAgentLog[] = [
   {
     id: 166663,
     created_at: "2023-05-04T11:30:41.402072Z",

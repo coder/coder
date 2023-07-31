@@ -213,8 +213,8 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 
 		agentClient := agentsdk.New(client.URL)
 		agentClient.SetSessionToken(authToken)
-		err := agentClient.PatchStartupLogs(ctx, agentsdk.PatchStartupLogs{
-			Logs: []agentsdk.StartupLog{
+		err := agentClient.PatchLogs(ctx, agentsdk.PatchLogs{
+			Logs: []agentsdk.Log{
 				{
 					CreatedAt: database.Now(),
 					Output:    "testing",
@@ -227,12 +227,12 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		logs, closer, err := client.WorkspaceAgentStartupLogsAfter(ctx, build.Resources[0].Agents[0].ID, 0, true)
+		logs, closer, err := client.WorkspaceAgentLogsAfter(ctx, build.Resources[0].Agents[0].ID, 0, true)
 		require.NoError(t, err)
 		defer func() {
 			_ = closer.Close()
 		}()
-		var logChunk []codersdk.WorkspaceAgentStartupLog
+		var logChunk []codersdk.WorkspaceAgentLog
 		select {
 		case <-ctx.Done():
 		case logChunk = <-logs:
@@ -280,8 +280,8 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 
 		agentClient := agentsdk.New(client.URL)
 		agentClient.SetSessionToken(authToken)
-		err = agentClient.PatchStartupLogs(ctx, agentsdk.PatchStartupLogs{
-			Logs: []agentsdk.StartupLog{{
+		err = agentClient.PatchLogs(ctx, agentsdk.PatchLogs{
+			Logs: []agentsdk.Log{{
 				CreatedAt: database.Now(),
 				Output:    strings.Repeat("a", (1<<20)+1),
 			}},
@@ -299,7 +299,7 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 				t.FailNow()
 			case update = <-updates:
 			}
-			if update.LatestBuild.Resources[0].Agents[0].StartupLogsOverflowed {
+			if update.LatestBuild.Resources[0].Agents[0].LogsOverflowed {
 				break
 			}
 		}

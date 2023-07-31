@@ -69,7 +69,7 @@ func Test_parseInsightsStartAndEndTime(t *testing.T) {
 				endTime:   thisHourRoundUp.Format(layout),
 			},
 			wantStartTime: time.Date(2023, 7, today.Day(), 0, 0, 0, 0, time.UTC),
-			wantEndTime:   time.Date(2023, 7, today.Day(), thisHourRoundUp.Hour(), 0, 0, 0, time.UTC),
+			wantEndTime:   time.Date(2023, 7, thisHourRoundUp.Day(), thisHourRoundUp.Hour(), 0, 0, 0, time.UTC),
 			wantOk:        true,
 		},
 		{

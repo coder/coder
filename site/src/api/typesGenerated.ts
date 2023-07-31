@@ -549,6 +549,8 @@ export interface LinkConfig {
 
 // From codersdk/deployment.go
 export interface LoggingConfig {
+  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
+  readonly log_filter: string[]
   readonly human: string
   readonly json: string
   readonly stackdriver: string
@@ -1299,8 +1301,8 @@ export interface WorkspaceAgent {
   readonly startup_script?: string
   readonly startup_script_behavior: WorkspaceAgentStartupScriptBehavior
   readonly startup_script_timeout_seconds: number
-  readonly startup_logs_length: number
-  readonly startup_logs_overflowed: boolean
+  readonly logs_length: number
+  readonly logs_overflowed: boolean
   readonly directory?: string
   readonly expanded_directory?: string
   readonly version: string
@@ -1334,6 +1336,14 @@ export interface WorkspaceAgentListeningPortsResponse {
 }
 
 // From codersdk/workspaceagents.go
+export interface WorkspaceAgentLog {
+  readonly id: number
+  readonly created_at: string
+  readonly output: string
+  readonly level: LogLevel
+}
+
+// From codersdk/workspaceagents.go
 export interface WorkspaceAgentMetadata {
   readonly result: WorkspaceAgentMetadataResult
   readonly description: WorkspaceAgentMetadataDescription
@@ -1354,14 +1364,6 @@ export interface WorkspaceAgentMetadataResult {
   readonly age: number
   readonly value: string
   readonly error: string
-}
-
-// From codersdk/workspaceagents.go
-export interface WorkspaceAgentStartupLog {
-  readonly id: number
-  readonly created_at: string
-  readonly output: string
-  readonly level: LogLevel
 }
 
 // From codersdk/workspaceapps.go
@@ -1559,14 +1561,14 @@ export const Entitlements: Entitlement[] = [
 export type Experiment =
   | "moons"
   | "single_tailnet"
-  | "tailnet_ha_coordinator"
+  | "tailnet_pg_coordinator"
   | "template_insights_page"
   | "template_restart_requirement"
   | "workspace_actions"
 export const Experiments: Experiment[] = [
   "moons",
   "single_tailnet",
-  "tailnet_ha_coordinator",
+  "tailnet_pg_coordinator",
   "template_insights_page",
   "template_restart_requirement",
   "workspace_actions",
@@ -1813,6 +1815,23 @@ export const WorkspaceAgentLifecycles: WorkspaceAgentLifecycle[] = [
   "start_error",
   "start_timeout",
   "starting",
+]
+
+// From codersdk/workspaceagents.go
+export type WorkspaceAgentLogSource =
+  | "envbox"
+  | "envbuilder"
+  | "external"
+  | "kubernetes"
+  | "shutdown_script"
+  | "startup_script"
+export const WorkspaceAgentLogSources: WorkspaceAgentLogSource[] = [
+  "envbox",
+  "envbuilder",
+  "external",
+  "kubernetes",
+  "shutdown_script",
+  "startup_script",
 ]
 
 // From codersdk/workspaceagents.go

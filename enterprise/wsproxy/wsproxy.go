@@ -178,7 +178,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		ServerName:   opts.AccessURL.Hostname(),
 	}
 
-	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(opts.Logger.Named("derp")))
+	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(opts.Logger.Named("net.derp")))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	r := chi.NewRouter()
@@ -186,11 +186,11 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		Options:            opts,
 		Handler:            r,
 		DashboardURL:       opts.DashboardURL,
-		Logger:             opts.Logger.Named("workspace-proxy"),
+		Logger:             opts.Logger.Named("net.workspace-proxy"),
 		TracerProvider:     opts.Tracing,
 		PrometheusRegistry: opts.PrometheusRegistry,
 		SDKClient:          client,
-		derpMesh:           derpmesh.New(opts.Logger.Named("derpmesh"), derpServer, meshTLSConfig),
+		derpMesh:           derpmesh.New(opts.Logger.Named("net.derpmesh"), derpServer, meshTLSConfig),
 		ctx:                ctx,
 		cancel:             cancel,
 	}

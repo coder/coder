@@ -153,8 +153,8 @@ type WorkspaceAgent struct {
 	StartupScript               string                              `json:"startup_script,omitempty"`
 	StartupScriptBehavior       WorkspaceAgentStartupScriptBehavior `json:"startup_script_behavior"`
 	StartupScriptTimeoutSeconds int32                               `json:"startup_script_timeout_seconds"` // StartupScriptTimeoutSeconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.
-	StartupLogsLength           int32                               `json:"startup_logs_length"`
-	StartupLogsOverflowed       bool                                `json:"startup_logs_overflowed"`
+	LogsLength                  int32                               `json:"logs_length"`
+	LogsOverflowed              bool                                `json:"logs_overflowed"`
 	Directory                   string                              `json:"directory,omitempty"`
 	ExpandedDirectory           string                              `json:"expanded_directory,omitempty"`
 	Version                     string                              `json:"version"`
@@ -397,6 +397,11 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 
 	agentConn = NewWorkspaceAgentConn(conn, WorkspaceAgentConnOptions{
 		AgentID: agentID,
+		// Newer agents will listen on two IPs: WorkspaceAgentIP and an IP
+		// derived from the agents UUID. We need to use the legacy
+		// WorkspaceAgentIP here since we don't know if the agent is listening
+		// on the new IP.
+		AgentIP: WorkspaceAgentIP,
 		CloseFunc: func() error {
 			cancel()
 			<-closedCoordinator
@@ -623,7 +628,7 @@ func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.
 }
 
 //nolint:revive // Follow is a control flag on the server as well.
-func (c *Client) WorkspaceAgentStartupLogsAfter(ctx context.Context, agentID uuid.UUID, after int64, follow bool) (<-chan []WorkspaceAgentStartupLog, io.Closer, error) {
+func (c *Client) WorkspaceAgentLogsAfter(ctx context.Context, agentID uuid.UUID, after int64, follow bool) (<-chan []WorkspaceAgentLog, io.Closer, error) {
 	var queryParams []string
 	if after != 0 {
 		queryParams = append(queryParams, fmt.Sprintf("after=%d", after))
@@ -635,7 +640,7 @@ func (c *Client) WorkspaceAgentStartupLogsAfter(ctx context.Context, agentID uui
 	if len(queryParams) > 0 {
 		query = "?" + strings.Join(queryParams, "&")
 	}
-	reqURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/startup-logs%s", agentID, query))
+	reqURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/logs%s", agentID, query))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -651,13 +656,13 @@ func (c *Client) WorkspaceAgentStartupLogsAfter(ctx context.Context, agentID uui
 			return nil, nil, ReadBodyAsError(resp)
 		}
 
-		var logs []WorkspaceAgentStartupLog
+		var logs []WorkspaceAgentLog
 		err = json.NewDecoder(resp.Body).Decode(&logs)
 		if err != nil {
 			return nil, nil, xerrors.Errorf("decode startup logs: %w", err)
 		}
 
-		ch := make(chan []WorkspaceAgentStartupLog, 1)
+		ch := make(chan []WorkspaceAgentLog, 1)
 		ch <- logs
 		close(ch)
 		return ch, closeFunc(func() error { return nil }), nil
@@ -685,7 +690,7 @@ func (c *Client) WorkspaceAgentStartupLogsAfter(ctx context.Context, agentID uui
 		}
 		return nil, nil, ReadBodyAsError(res)
 	}
-	logChunks := make(chan []WorkspaceAgentStartupLog)
+	logChunks := make(chan []WorkspaceAgentLog)
 	closed := make(chan struct{})
 	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageText)
 	decoder := json.NewDecoder(wsNetConn)
@@ -694,7 +699,7 @@ func (c *Client) WorkspaceAgentStartupLogsAfter(ctx context.Context, agentID uui
 		defer close(logChunks)
 		defer conn.Close(websocket.StatusGoingAway, "")
 		for {
-			var logs []WorkspaceAgentStartupLog
+			var logs []WorkspaceAgentLog
 			err = decoder.Decode(&logs)
 			if err != nil {
 				return
@@ -739,7 +744,7 @@ const (
 	GitProviderBitBucket   GitProvider = "bitbucket"
 )
 
-type WorkspaceAgentStartupLog struct {
+type WorkspaceAgentLog struct {
 	ID        int64     `json:"id"`
 	CreatedAt time.Time `json:"created_at" format:"date-time"`
 	Output    string    `json:"output"`
@@ -750,4 +755,15 @@ type AgentSubsystem string
 
 const (
 	AgentSubsystemEnvbox AgentSubsystem = "envbox"
+)
+
+type WorkspaceAgentLogSource string
+
+const (
+	WorkspaceAgentLogSourceStartupScript  WorkspaceAgentLogSource = "startup_script"
+	WorkspaceAgentLogSourceShutdownScript WorkspaceAgentLogSource = "shutdown_script"
+	WorkspaceAgentLogSourceKubernetes     WorkspaceAgentLogSource = "kubernetes"
+	WorkspaceAgentLogSourceEnvbox         WorkspaceAgentLogSource = "envbox"
+	WorkspaceAgentLogSourceEnvbuilder     WorkspaceAgentLogSource = "envbuilder"
+	WorkspaceAgentLogSourceExternal       WorkspaceAgentLogSource = "external"
 )

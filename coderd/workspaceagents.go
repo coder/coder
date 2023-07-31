@@ -234,20 +234,20 @@ func (api *API) postWorkspaceAgentStartup(rw http.ResponseWriter, r *http.Reques
 	httpapi.Write(ctx, rw, http.StatusOK, nil)
 }
 
-// @Summary Patch workspace agent startup logs
-// @ID patch-workspace-agent-startup-logs
+// @Summary Patch workspace agent logs
+// @ID patch-workspace-agent-logs
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Agents
-// @Param request body agentsdk.PatchStartupLogs true "Startup logs"
+// @Param request body agentsdk.PatchLogs true "logs"
 // @Success 200 {object} codersdk.Response
-// @Router /workspaceagents/me/startup-logs [patch]
-func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Request) {
+// @Router /workspaceagents/me/logs [patch]
+func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 
-	var req agentsdk.PatchStartupLogs
+	var req agentsdk.PatchLogs
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
@@ -260,6 +260,7 @@ func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.R
 	createdAt := make([]time.Time, 0)
 	output := make([]string, 0)
 	level := make([]database.LogLevel, 0)
+	source := make([]database.WorkspaceAgentLogSource, 0)
 	outputLength := 0
 	for _, logEntry := range req.Logs {
 		createdAt = append(createdAt, logEntry.CreatedAt)
@@ -278,39 +279,54 @@ func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.R
 			return
 		}
 		level = append(level, parsedLevel)
+
+		if logEntry.Source == "" {
+			// Default to "startup_script" to support older agents that didn't have the source field.
+			logEntry.Source = codersdk.WorkspaceAgentLogSourceStartupScript
+		}
+		parsedSource := database.WorkspaceAgentLogSource(logEntry.Source)
+		if !parsedSource.Valid() {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid log source provided.",
+				Detail:  fmt.Sprintf("invalid log source: %q", logEntry.Source),
+			})
+			return
+		}
+		source = append(source, parsedSource)
 	}
 
-	logs, err := api.Database.InsertWorkspaceAgentStartupLogs(ctx, database.InsertWorkspaceAgentStartupLogsParams{
+	logs, err := api.Database.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
 		AgentID:      workspaceAgent.ID,
 		CreatedAt:    createdAt,
 		Output:       output,
 		Level:        level,
+		Source:       source,
 		OutputLength: int32(outputLength),
 	})
 	if err != nil {
-		if !database.IsStartupLogsLimitError(err) {
+		if !database.IsWorkspaceAgentLogsLimitError(err) {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to upload startup logs",
+				Message: "Failed to upload logs",
 				Detail:  err.Error(),
 			})
 			return
 		}
-		if workspaceAgent.StartupLogsOverflowed {
+		if workspaceAgent.LogsOverflowed {
 			httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
-				Message: "Startup logs limit exceeded",
+				Message: "Logs limit exceeded",
 				Detail:  err.Error(),
 			})
 			return
 		}
-		err := api.Database.UpdateWorkspaceAgentStartupLogOverflowByID(ctx, database.UpdateWorkspaceAgentStartupLogOverflowByIDParams{
-			ID:                    workspaceAgent.ID,
-			StartupLogsOverflowed: true,
+		err := api.Database.UpdateWorkspaceAgentLogOverflowByID(ctx, database.UpdateWorkspaceAgentLogOverflowByIDParams{
+			ID:             workspaceAgent.ID,
+			LogsOverflowed: true,
 		})
 		if err != nil {
 			// We don't want to return here, because the agent will retry
 			// on failure and this isn't a huge deal. The overflow state
 			// is just a hint to the user that the logs are incomplete.
-			api.Logger.Warn(ctx, "failed to update workspace agent startup log overflow", slog.Error(err))
+			api.Logger.Warn(ctx, "failed to update workspace agent log overflow", slog.Error(err))
 		}
 
 		resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
@@ -334,7 +350,7 @@ func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.R
 		api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
 
 		httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
-			Message: "Startup logs limit exceeded",
+			Message: "Logs limit exceeded",
 		})
 		return
 	}
@@ -343,11 +359,11 @@ func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.R
 
 	// Publish by the lowest log ID inserted so the
 	// log stream will fetch everything from that point.
-	api.publishWorkspaceAgentStartupLogsUpdate(ctx, workspaceAgent.ID, agentsdk.StartupLogsNotifyMessage{
+	api.publishWorkspaceAgentLogsUpdate(ctx, workspaceAgent.ID, agentsdk.LogsNotifyMessage{
 		CreatedAfter: lowestLogID - 1,
 	})
 
-	if workspaceAgent.StartupLogsLength == 0 {
+	if workspaceAgent.LogsLength == 0 {
 		// If these are the first logs being appended, we publish a UI update
 		// to notify the UI that logs are now available.
 		resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
@@ -374,11 +390,10 @@ func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.R
 	httpapi.Write(ctx, rw, http.StatusOK, nil)
 }
 
-// workspaceAgentStartupLogs returns the logs sent from a workspace agent
-// during startup.
+// workspaceAgentLogs returns the logs associated with a workspace agent
 //
-// @Summary Get startup logs by workspace agent
-// @ID get-startup-logs-by-workspace-agent
+// @Summary Get logs by workspace agent
+// @ID get-logs-by-workspace-agent
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Agents
@@ -387,9 +402,9 @@ func (api *API) patchWorkspaceAgentStartupLogs(rw http.ResponseWriter, r *http.R
 // @Param after query int false "After log id"
 // @Param follow query bool false "Follow log stream"
 // @Param no_compression query bool false "Disable compression for WebSocket connection"
-// @Success 200 {array} codersdk.WorkspaceAgentStartupLog
-// @Router /workspaceagents/{workspaceagent}/startup-logs [get]
-func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Request) {
+// @Success 200 {array} codersdk.WorkspaceAgentLog
+// @Router /workspaceagents/{workspaceagent}/logs [get]
+func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	// This mostly copies how provisioner job logs are streamed!
 	var (
 		ctx            = r.Context()
@@ -416,7 +431,7 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	logs, err := api.Database.GetWorkspaceAgentStartupLogsAfter(ctx, database.GetWorkspaceAgentStartupLogsAfterParams{
+	logs, err := api.Database.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
 		AgentID:      workspaceAgent.ID,
 		CreatedAfter: after,
 	})
@@ -431,11 +446,11 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 	if logs == nil {
-		logs = []database.WorkspaceAgentStartupLog{}
+		logs = []database.WorkspaceAgentLog{}
 	}
 
 	if !follow {
-		httpapi.Write(ctx, rw, http.StatusOK, convertWorkspaceAgentStartupLogs(logs))
+		httpapi.Write(ctx, rw, http.StatusOK, convertWorkspaceAgentLogs(logs))
 		return
 	}
 
@@ -472,7 +487,7 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 
 	// The Go stdlib JSON encoder appends a newline character after message write.
 	encoder := json.NewEncoder(wsNetConn)
-	err = encoder.Encode(convertWorkspaceAgentStartupLogs(logs))
+	err = encoder.Encode(convertWorkspaceAgentLogs(logs))
 	if err != nil {
 		return
 	}
@@ -488,7 +503,7 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 	notifyCh <- struct{}{}
 
 	// Subscribe early to prevent missing log events.
-	closeSubscribe, err := api.Pubsub.Subscribe(agentsdk.StartupLogsNotifyChannel(workspaceAgent.ID), func(_ context.Context, _ []byte) {
+	closeSubscribe, err := api.Pubsub.Subscribe(agentsdk.LogsNotifyChannel(workspaceAgent.ID), func(_ context.Context, _ []byte) {
 		// The message is not important, we're tracking lastSentLogID manually.
 		select {
 		case notifyCh <- struct{}{}:
@@ -497,7 +512,7 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to subscribe to startup logs.",
+			Message: "Failed to subscribe to logs.",
 			Detail:  err.Error(),
 		})
 		return
@@ -505,7 +520,7 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 	defer closeSubscribe()
 
 	// Buffer size controls the log prefetch capacity.
-	bufferedLogs := make(chan []database.WorkspaceAgentStartupLog, 8)
+	bufferedLogs := make(chan []database.WorkspaceAgentLog, 8)
 	// Check at least once per minute in case we didn't receive a pubsub message.
 	recheckInterval := time.Minute
 	t := time.NewTicker(recheckInterval)
@@ -523,7 +538,7 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 				t.Reset(recheckInterval)
 			}
 
-			logs, err := api.Database.GetWorkspaceAgentStartupLogsAfter(ctx, database.GetWorkspaceAgentStartupLogsAfterParams{
+			logs, err := api.Database.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
 				AgentID:      workspaceAgent.ID,
 				CreatedAfter: lastSentLogID,
 			})
@@ -531,7 +546,7 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 				if xerrors.Is(err, context.Canceled) {
 					return
 				}
-				logger.Warn(ctx, "failed to get workspace agent startup logs after", slog.Error(err))
+				logger.Warn(ctx, "failed to get workspace agent logs after", slog.Error(err))
 				continue
 			}
 			if len(logs) == 0 {
@@ -569,7 +584,7 @@ func (api *API) workspaceAgentStartupLogs(rw http.ResponseWriter, r *http.Reques
 				}
 				return
 			}
-			err = encoder.Encode(convertWorkspaceAgentStartupLogs(logs))
+			err = encoder.Encode(convertWorkspaceAgentLogs(logs))
 			if err != nil {
 				return
 			}
@@ -691,7 +706,7 @@ func (api *API) _dialWorkspaceAgentTailnet(agentID uuid.UUID) (*codersdk.Workspa
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:      []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
 		DERPMap:        api.DERPMap(),
-		Logger:         api.Logger.Named("tailnet"),
+		Logger:         api.Logger.Named("net.tailnet"),
 		BlockEndpoints: api.DeploymentValues.DERP.Config.BlockDirect.Value(),
 	})
 	if err != nil {
@@ -1244,8 +1259,8 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		StartupScript:                dbAgent.StartupScript.String,
 		StartupScriptBehavior:        codersdk.WorkspaceAgentStartupScriptBehavior(dbAgent.StartupScriptBehavior),
 		StartupScriptTimeoutSeconds:  dbAgent.StartupScriptTimeoutSeconds,
-		StartupLogsLength:            dbAgent.StartupLogsLength,
-		StartupLogsOverflowed:        dbAgent.StartupLogsOverflowed,
+		LogsLength:                   dbAgent.LogsLength,
+		LogsOverflowed:               dbAgent.LogsOverflowed,
 		Version:                      dbAgent.Version,
 		EnvironmentVariables:         envs,
 		Directory:                    dbAgent.Directory,
@@ -2076,16 +2091,16 @@ func websocketNetConn(ctx context.Context, conn *websocket.Conn, msgType websock
 	}
 }
 
-func convertWorkspaceAgentStartupLogs(logs []database.WorkspaceAgentStartupLog) []codersdk.WorkspaceAgentStartupLog {
-	sdk := make([]codersdk.WorkspaceAgentStartupLog, 0, len(logs))
+func convertWorkspaceAgentLogs(logs []database.WorkspaceAgentLog) []codersdk.WorkspaceAgentLog {
+	sdk := make([]codersdk.WorkspaceAgentLog, 0, len(logs))
 	for _, logEntry := range logs {
-		sdk = append(sdk, convertWorkspaceAgentStartupLog(logEntry))
+		sdk = append(sdk, convertWorkspaceAgentLog(logEntry))
 	}
 	return sdk
 }
 
-func convertWorkspaceAgentStartupLog(logEntry database.WorkspaceAgentStartupLog) codersdk.WorkspaceAgentStartupLog {
-	return codersdk.WorkspaceAgentStartupLog{
+func convertWorkspaceAgentLog(logEntry database.WorkspaceAgentLog) codersdk.WorkspaceAgentLog {
+	return codersdk.WorkspaceAgentLog{
 		ID:        logEntry.ID,
 		CreatedAt: logEntry.CreatedAt,
 		Output:    logEntry.Output,

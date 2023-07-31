@@ -1,7 +1,7 @@
 import {
   checkAuthorization,
   createWorkspace,
-  getTemplates,
+  getTemplateByName,
   getTemplateVersionGitAuth,
   getTemplateVersionRichParameters,
 } from "api/api"
@@ -12,38 +12,33 @@ import {
   TemplateVersionParameter,
   User,
   Workspace,
+  WorkspaceBuildParameter,
 } from "api/typesGenerated"
 import { assign, createMachine } from "xstate"
+import { paramsUsedToCreateWorkspace } from "utils/workspace"
+import { REFRESH_GITAUTH_BROADCAST_CHANNEL } from "utils/gitAuth"
 
-export const REFRESH_GITAUTH_BROADCAST_CHANNEL = "gitauth_refresh"
+export type CreateWorkspaceMode = "form" | "auto"
 
 type CreateWorkspaceContext = {
   organizationId: string
-  owner: User | null
   templateName: string
-  templates?: Template[]
-  selectedTemplate?: Template
-  templateParameters?: TemplateVersionParameter[]
-  templateGitAuth?: TemplateVersionGitAuth[]
-  createWorkspaceRequest?: CreateWorkspaceRequest
-  createdWorkspace?: Workspace
-  createWorkspaceError?: Error | unknown
-  getTemplatesError?: Error | unknown
-  getTemplateParametersError?: Error | unknown
-  getTemplateGitAuthError?: Error | unknown
+  mode: CreateWorkspaceMode
+  defaultName: string
+  error?: unknown
+  // Form
+  template?: Template
+  parameters?: TemplateVersionParameter[]
   permissions?: Record<string, boolean>
-  checkPermissionsError?: Error | unknown
+  gitAuth?: TemplateVersionGitAuth[]
+  // Used on auto-create
+  defaultBuildParameters?: WorkspaceBuildParameter[]
 }
 
 type CreateWorkspaceEvent = {
   type: "CREATE_WORKSPACE"
   request: CreateWorkspaceRequest
-  owner: User | null
-}
-
-type SelectOwnerEvent = {
-  type: "SELECT_OWNER"
-  owner: User | null
+  owner: User
 }
 
 type RefreshGitAuthEvent = {
@@ -59,117 +54,79 @@ export const createWorkspaceMachine =
       tsTypes: {} as import("./createWorkspaceXService.typegen").Typegen0,
       schema: {
         context: {} as CreateWorkspaceContext,
-        events: {} as
-          | CreateWorkspaceEvent
-          | SelectOwnerEvent
-          | RefreshGitAuthEvent,
+        events: {} as CreateWorkspaceEvent | RefreshGitAuthEvent,
         services: {} as {
-          getTemplates: {
-            data: Template[]
-          }
-          getTemplateGitAuth: {
-            data: TemplateVersionGitAuth[]
-          }
-          getTemplateParameters: {
-            data: TemplateVersionParameter[]
+          loadFormData: {
+            data: {
+              template: Template
+              permissions: CreateWSPermissions
+              parameters: TemplateVersionParameter[]
+              gitAuth: TemplateVersionGitAuth[]
+            }
           }
           createWorkspace: {
             data: Workspace
           }
+          autoCreateWorkspace: {
+            data: Workspace
+          }
         },
       },
-      initial: "gettingTemplates",
+      initial: "checkingMode",
       states: {
-        gettingTemplates: {
-          entry: "clearGetTemplatesError",
+        checkingMode: {
+          always: [
+            {
+              target: "autoCreating",
+              cond: ({ mode }) => mode === "auto",
+            },
+            { target: "loadingFormData" },
+          ],
+        },
+        autoCreating: {
           invoke: {
-            src: "getTemplates",
-            onDone: [
-              {
-                actions: ["assignTemplates"],
-                cond: "areTemplatesEmpty",
+            src: "autoCreateWorkspace",
+            onDone: {
+              actions: ["onCreateWorkspace"],
+            },
+            onError: {
+              actions: ["assignError"],
+              target: "loadingFormData",
+            },
+          },
+        },
+        loadingFormData: {
+          invoke: {
+            src: "loadFormData",
+            onDone: {
+              target: "idle",
+              actions: ["assignFormData"],
+            },
+            onError: {
+              target: "loadError",
+              actions: ["assignError"],
+            },
+          },
+        },
+        idle: {
+          invoke: [
+            {
+              src: () => (callback) => {
+                const channel = watchGitAuthRefresh(() => {
+                  callback("REFRESH_GITAUTH")
+                })
+                return () => channel.close()
               },
-              {
-                actions: ["assignTemplates", "assignSelectedTemplate"],
-                target: "gettingTemplateParameters",
-              },
-            ],
-            onError: {
-              actions: ["assignGetTemplatesError"],
-              target: "error",
             },
-          },
-        },
-        gettingTemplateParameters: {
-          entry: "clearGetTemplateParametersError",
-          invoke: {
-            src: "getTemplateParameters",
-            onDone: {
-              actions: ["assignTemplateParameters"],
-              target: "checkingPermissions",
-            },
-            onError: {
-              actions: ["assignGetTemplateParametersError"],
-              target: "error",
-            },
-          },
-        },
-        checkingPermissions: {
-          entry: "clearCheckPermissionsError",
-          invoke: {
-            src: "checkPermissions",
-            id: "checkPermissions",
-            onDone: {
-              actions: "assignPermissions",
-              target: "gettingTemplateGitAuth",
-            },
-            onError: {
-              actions: ["assignCheckPermissionsError"],
-            },
-          },
-        },
-        gettingTemplateGitAuth: {
-          entry: "clearTemplateGitAuthError",
-          invoke: {
-            src: "getTemplateGitAuth",
-            onDone: {
-              actions: ["assignTemplateGitAuth"],
-              target: "fillingParams",
-            },
-            onError: {
-              actions: ["assignTemplateGitAuthError"],
-              target: "error",
-            },
-          },
-        },
-        fillingParams: {
-          invoke: {
-            id: "listenForRefreshGitAuth",
-            src: () => (callback) => {
-              // eslint-disable-next-line compat/compat -- It actually is supported... not sure why eslint is complaining.
-              const bc = new BroadcastChannel(REFRESH_GITAUTH_BROADCAST_CHANNEL)
-              bc.addEventListener("message", () => {
-                callback("REFRESH_GITAUTH")
-              })
-              return () => bc.close()
-            },
-          },
+          ],
           on: {
             CREATE_WORKSPACE: {
-              actions: ["assignCreateWorkspaceRequest", "assignOwner"],
               target: "creatingWorkspace",
-            },
-            SELECT_OWNER: {
-              actions: ["assignOwner"],
-              target: ["fillingParams"],
-            },
-            REFRESH_GITAUTH: {
-              target: "gettingTemplateGitAuth",
             },
           },
         },
         creatingWorkspace: {
-          entry: "clearCreateWorkspaceError",
+          entry: "clearError",
           invoke: {
             src: "createWorkspace",
             onDone: {
@@ -177,137 +134,100 @@ export const createWorkspaceMachine =
               target: "created",
             },
             onError: {
-              actions: ["assignCreateWorkspaceError"],
-              target: "fillingParams",
+              actions: ["assignError"],
+              target: "idle",
             },
           },
         },
         created: {
           type: "final",
         },
-        error: {},
+        loadError: {
+          type: "final",
+        },
       },
     },
     {
       services: {
-        getTemplates: (context) => getTemplates(context.organizationId),
-        getTemplateGitAuth: (context) => {
-          const { selectedTemplate } = context
-
-          if (!selectedTemplate) {
-            throw new Error("No selected template")
-          }
-
-          return getTemplateVersionGitAuth(selectedTemplate.active_version_id)
+        createWorkspace: ({ organizationId }, { request, owner }) => {
+          return createWorkspace(organizationId, owner.id, request)
         },
-        getTemplateParameters: (context) => {
-          const { selectedTemplate } = context
-
-          if (!selectedTemplate) {
-            throw new Error("No selected template")
-          }
-
-          return getTemplateVersionRichParameters(
-            selectedTemplate.active_version_id,
-          )
-        },
-        checkPermissions: async (context) => {
-          if (!context.organizationId) {
-            throw new Error("No organization ID")
-          }
-
-          // HACK: below, we pass in * for the owner_id, which is a hacky way of checking if the
-          // current user can create a workspace on behalf of anyone within the org (only org owners should be able to do this).
-          // This pattern should not be replicated outside of this narrow use case.
-          const permissionsToCheck = {
-            createWorkspaceForUser: {
-              object: {
-                resource_type: "workspace",
-                organization_id: `${context.organizationId}`,
-                owner_id: "*",
-              },
-              action: "create",
-            },
-          } as const
-
-          return checkAuthorization({
-            checks: permissionsToCheck,
+        autoCreateWorkspace: async ({
+          templateName,
+          organizationId,
+          defaultBuildParameters,
+          defaultName,
+        }) => {
+          const template = await getTemplateByName(organizationId, templateName)
+          return createWorkspace(organizationId, "me", {
+            template_id: template.id,
+            name: defaultName,
+            rich_parameter_values: defaultBuildParameters,
           })
         },
-        createWorkspace: (context) => {
-          const { createWorkspaceRequest, organizationId, owner } = context
+        loadFormData: async ({ templateName, organizationId }) => {
+          const [template, permissions] = await Promise.all([
+            getTemplateByName(organizationId, templateName),
+            checkCreateWSPermissions(organizationId),
+          ])
+          const [parameters, gitAuth] = await Promise.all([
+            getTemplateVersionRichParameters(template.active_version_id).then(
+              (p) => p.filter(paramsUsedToCreateWorkspace),
+            ),
+            getTemplateVersionGitAuth(template.active_version_id),
+          ])
 
-          if (!createWorkspaceRequest) {
-            throw new Error("No create workspace request")
+          return {
+            template,
+            permissions,
+            parameters,
+            gitAuth,
           }
-
-          return createWorkspace(
-            organizationId,
-            owner?.id ?? "me",
-            createWorkspaceRequest,
-          )
         },
       },
-      guards: {
-        areTemplatesEmpty: (_, event) => event.data.length === 0,
-      },
       actions: {
-        assignTemplates: assign({
-          templates: (_, event) => event.data,
+        assignFormData: assign((ctx, event) => {
+          return {
+            ...ctx,
+            ...event.data,
+          }
         }),
-        assignSelectedTemplate: assign({
-          selectedTemplate: (ctx, event) => {
-            const templates = event.data.filter(
-              (template) => template.name === ctx.templateName,
-            )
-            return templates.length > 0 ? templates[0] : undefined
-          },
+        assignError: assign({
+          error: (_, event) => event.data,
         }),
-        assignTemplateParameters: assign({
-          templateParameters: (_, event) => event.data,
-        }),
-        assignPermissions: assign({
-          permissions: (_, event) => event.data as Record<string, boolean>,
-        }),
-        assignCheckPermissionsError: assign({
-          checkPermissionsError: (_, event) => event.data,
-        }),
-        clearCheckPermissionsError: assign({
-          checkPermissionsError: (_) => undefined,
-        }),
-        assignCreateWorkspaceRequest: assign({
-          createWorkspaceRequest: (_, event) => event.request,
-        }),
-        assignOwner: assign({
-          owner: (_, event) => event.owner,
-        }),
-        assignCreateWorkspaceError: assign({
-          createWorkspaceError: (_, event) => event.data,
-        }),
-        clearCreateWorkspaceError: assign({
-          createWorkspaceError: (_) => undefined,
-        }),
-        assignGetTemplatesError: assign({
-          getTemplatesError: (_, event) => event.data,
-        }),
-        clearGetTemplatesError: assign({
-          getTemplatesError: (_) => undefined,
-        }),
-        assignGetTemplateParametersError: assign({
-          getTemplateParametersError: (_, event) => event.data,
-        }),
-        clearGetTemplateParametersError: assign({
-          getTemplateParametersError: (_) => undefined,
-        }),
-        clearTemplateGitAuthError: assign({
-          getTemplateGitAuthError: (_) => undefined,
-        }),
-        assignTemplateGitAuthError: assign({
-          getTemplateGitAuthError: (_, event) => event.data,
-        }),
-        assignTemplateGitAuth: assign({
-          templateGitAuth: (_, event) => event.data,
+        clearError: assign({
+          error: (_) => undefined,
         }),
       },
     },
   )
+
+const checkCreateWSPermissions = async (organizationId: string) => {
+  // HACK: below, we pass in * for the owner_id, which is a hacky way of checking if the
+  // current user can create a workspace on behalf of anyone within the org (only org owners should be able to do this).
+  // This pattern should not be replicated outside of this narrow use case.
+  const permissionsToCheck = {
+    createWorkspaceForUser: {
+      object: {
+        resource_type: "workspace",
+        organization_id: organizationId,
+        owner_id: "*",
+      },
+      action: "create",
+    },
+  } as const
+
+  return checkAuthorization({
+    checks: permissionsToCheck,
+  }) as Promise<Record<keyof typeof permissionsToCheck, boolean>>
+}
+
+export const watchGitAuthRefresh = (callback: () => void) => {
+  const bc = new BroadcastChannel(REFRESH_GITAUTH_BROADCAST_CHANNEL)
+  bc.addEventListener("message", callback)
+  return bc
+}
+
+export type CreateWSPermissions = Awaited<
+  ReturnType<typeof checkCreateWSPermissions>
+>

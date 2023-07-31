@@ -1,27 +1,47 @@
 import { useMachine } from "@xstate/react"
-import { TemplateVersionParameter } from "api/typesGenerated"
+import {
+  Template,
+  TemplateVersionGitAuth,
+  TemplateVersionParameter,
+  WorkspaceBuildParameter,
+} from "api/typesGenerated"
 import { useMe } from "hooks/useMe"
 import { useOrganizationId } from "hooks/useOrganizationId"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { pageTitle } from "utils/page"
-import { createWorkspaceMachine } from "xServices/createWorkspace/createWorkspaceXService"
 import {
-  CreateWorkspaceErrors,
-  CreateWorkspacePageView,
-} from "./CreateWorkspacePageView"
+  CreateWSPermissions,
+  CreateWorkspaceMode,
+  createWorkspaceMachine,
+} from "xServices/createWorkspace/createWorkspaceXService"
+import { CreateWorkspacePageView } from "./CreateWorkspacePageView"
+import { Loader } from "components/Loader/Loader"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
+import {
+  uniqueNamesGenerator,
+  animals,
+  colors,
+  NumberDictionary,
+} from "unique-names-generator"
 
 const CreateWorkspacePage: FC = () => {
   const organizationId = useOrganizationId()
   const { template: templateName } = useParams() as { template: string }
-  const navigate = useNavigate()
   const me = useMe()
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const defaultBuildParameters = getDefaultBuildParameters(searchParams)
+  const mode = (searchParams.get("mode") ?? "form") as CreateWorkspaceMode
   const [createWorkspaceState, send] = useMachine(createWorkspaceMachine, {
     context: {
       organizationId,
       templateName,
-      owner: me,
+      mode,
+      defaultBuildParameters,
+      defaultName:
+        mode === "auto" ? generateUniqueName() : searchParams.get("name") ?? "",
     },
     actions: {
       onCreateWorkspace: (_, event) => {
@@ -29,83 +49,65 @@ const CreateWorkspacePage: FC = () => {
       },
     },
   })
-  const {
-    templates,
-    templateParameters,
-    templateGitAuth,
-    selectedTemplate,
-    getTemplateGitAuthError,
-    getTemplatesError,
-    createWorkspaceError,
-    permissions,
-    owner,
-  } = createWorkspaceState.context
-  const [searchParams] = useSearchParams()
-  const defaultParameterValues = getDefaultParameterValues(searchParams)
-  const name = getName(searchParams)
+  const { template, error, parameters, permissions, gitAuth, defaultName } =
+    createWorkspaceState.context
+  const title = createWorkspaceState.matches("autoCreating")
+    ? "Creating workspace..."
+    : "Create Workspace"
 
   return (
     <>
       <Helmet>
-        <title>{pageTitle("Create Workspace")}</title>
+        <title>{pageTitle(title)}</title>
       </Helmet>
-      <CreateWorkspacePageView
-        name={name}
-        defaultParameterValues={defaultParameterValues}
-        loadingTemplates={createWorkspaceState.matches("gettingTemplates")}
-        creatingWorkspace={createWorkspaceState.matches("creatingWorkspace")}
-        hasTemplateErrors={createWorkspaceState.matches("error")}
-        templateName={templateName}
-        templates={templates}
-        selectedTemplate={selectedTemplate}
-        templateParameters={orderedTemplateParameters(templateParameters)}
-        templateGitAuth={templateGitAuth}
-        createWorkspaceErrors={{
-          [CreateWorkspaceErrors.GET_TEMPLATES_ERROR]: getTemplatesError,
-          [CreateWorkspaceErrors.CREATE_WORKSPACE_ERROR]: createWorkspaceError,
-          [CreateWorkspaceErrors.GET_TEMPLATE_GITAUTH_ERROR]:
-            getTemplateGitAuthError,
-        }}
-        canCreateForUser={permissions?.createWorkspaceForUser}
-        owner={owner}
-        setOwner={(user) => {
-          send({
-            type: "SELECT_OWNER",
-            owner: user,
-          })
-        }}
-        onCancel={() => {
-          // Go back
-          navigate(-1)
-        }}
-        onSubmit={(request) => {
-          send({
-            type: "CREATE_WORKSPACE",
-            request,
-            owner,
-          })
-        }}
-      />
+      {Boolean(
+        createWorkspaceState.matches("loadingFormData") ||
+          createWorkspaceState.matches("autoCreating"),
+      ) && <Loader />}
+      {createWorkspaceState.matches("loadError") && (
+        <ErrorAlert error={error} />
+      )}
+      {createWorkspaceState.matches("idle") && (
+        <CreateWorkspacePageView
+          defaultName={defaultName}
+          defaultOwner={me}
+          defaultBuildParameters={defaultBuildParameters}
+          error={error}
+          template={template as Template}
+          gitAuth={gitAuth as TemplateVersionGitAuth[]}
+          permissions={permissions as CreateWSPermissions}
+          parameters={parameters as TemplateVersionParameter[]}
+          creatingWorkspace={createWorkspaceState.matches("creatingWorkspace")}
+          onCancel={() => {
+            navigate(-1)
+          }}
+          onSubmit={(request, owner) => {
+            send({
+              type: "CREATE_WORKSPACE",
+              request,
+              owner,
+            })
+          }}
+        />
+      )}
     </>
   )
 }
 
-const getName = (urlSearchParams: URLSearchParams): string => {
-  return urlSearchParams.get("name") ?? ""
-}
+export default CreateWorkspacePage
 
-const getDefaultParameterValues = (
+const getDefaultBuildParameters = (
   urlSearchParams: URLSearchParams,
-): Record<string, string> => {
-  const paramValues: Record<string, string> = {}
+): WorkspaceBuildParameter[] => {
+  const buildValues: WorkspaceBuildParameter[] = []
   Array.from(urlSearchParams.keys())
     .filter((key) => key.startsWith("param."))
     .forEach((key) => {
-      const paramName = key.replace("param.", "")
-      const paramValue = urlSearchParams.get(key)
-      paramValues[paramName] = paramValue ?? ""
+      const name = key.replace("param.", "")
+      const value = urlSearchParams.get(key) ?? ""
+      buildValues.push({ name, value })
     })
-  return paramValues
+  return buildValues
 }
 
 export const orderedTemplateParameters = (
@@ -122,4 +124,12 @@ export const orderedTemplateParameters = (
   return [...immutables, ...mutables]
 }
 
-export default CreateWorkspacePage
+const generateUniqueName = () => {
+  const numberDictionary = NumberDictionary.generate({ min: 0, max: 99 })
+  return uniqueNamesGenerator({
+    dictionaries: [colors, animals, numberDictionary],
+    separator: "-",
+    length: 3,
+    style: "lowerCase",
+  })
+}

@@ -3,7 +3,7 @@ import * as API from "../../api/api"
 import * as TypesGen from "../../api/typesGenerated"
 
 export interface BuildInfoContext {
-  getBuildInfoError?: Error | unknown
+  getBuildInfoError?: unknown
   buildInfo?: TypesGen.BuildInfoResponse
 }
 
