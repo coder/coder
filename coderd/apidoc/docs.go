@@ -4565,6 +4565,45 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/me/logs": {
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Patch workspace agent logs",
+                "operationId": "patch-workspace-agent-logs",
+                "parameters": [
+                    {
+                        "description": "logs",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agentsdk.PatchLogs"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaceagents/me/manifest": {
             "get": {
                 "security": [
@@ -4764,16 +4803,16 @@ const docTemplate = `{
                 "tags": [
                     "Agents"
                 ],
-                "summary": "Patch workspace agent startup logs",
-                "operationId": "patch-workspace-agent-startup-logs",
+                "summary": "Removed: Patch workspace agent logs",
+                "operationId": "removed-patch-workspace-agent-logs",
                 "parameters": [
                     {
-                        "description": "Startup logs",
+                        "description": "logs",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/agentsdk.PatchStartupLogs"
+                            "$ref": "#/definitions/agentsdk.PatchLogs"
                         }
                     }
                 ],
@@ -4959,6 +4998,68 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/{workspaceagent}/logs": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get logs by workspace agent",
+                "operationId": "get-logs-by-workspace-agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Before log id",
+                        "name": "before",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "After log id",
+                        "name": "after",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Follow log stream",
+                        "name": "follow",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Disable compression for WebSocket connection",
+                        "name": "no_compression",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.WorkspaceAgentLog"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/workspaceagents/{workspaceagent}/pty": {
             "get": {
                 "security": [
@@ -5001,8 +5102,8 @@ const docTemplate = `{
                 "tags": [
                     "Agents"
                 ],
-                "summary": "Get startup logs by workspace agent",
-                "operationId": "get-startup-logs-by-workspace-agent",
+                "summary": "Removed: Get logs by workspace agent",
+                "operationId": "removed-get-logs-by-workspace-agent",
                 "parameters": [
                     {
                         "type": "string",
@@ -5043,7 +5144,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.WorkspaceAgentStartupLog"
+                                "$ref": "#/definitions/codersdk.WorkspaceAgentLog"
                             }
                         }
                     }
@@ -6213,6 +6314,23 @@ const docTemplate = `{
                 }
             }
         },
+        "agentsdk.Log": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "level": {
+                    "$ref": "#/definitions/codersdk.LogLevel"
+                },
+                "output": {
+                    "type": "string"
+                },
+                "source": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentLogSource"
+                }
+            }
+        },
         "agentsdk.Manifest": {
             "type": "object",
             "properties": {
@@ -6270,13 +6388,13 @@ const docTemplate = `{
                 }
             }
         },
-        "agentsdk.PatchStartupLogs": {
+        "agentsdk.PatchLogs": {
             "type": "object",
             "properties": {
                 "logs": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/agentsdk.StartupLog"
+                        "$ref": "#/definitions/agentsdk.Log"
                     }
                 }
             }
@@ -6333,20 +6451,6 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.AgentSubsystem"
                 },
                 "version": {
-                    "type": "string"
-                }
-            }
-        },
-        "agentsdk.StartupLog": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string"
-                },
-                "level": {
-                    "$ref": "#/definitions/codersdk.LogLevel"
-                },
-                "output": {
                     "type": "string"
                 }
             }
@@ -7917,7 +8021,7 @@ const docTemplate = `{
             "enum": [
                 "moons",
                 "workspace_actions",
-                "tailnet_ha_coordinator",
+                "tailnet_pg_coordinator",
                 "convert-to-oidc",
                 "single_tailnet",
                 "template_restart_requirement",
@@ -7926,7 +8030,7 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "ExperimentMoons",
                 "ExperimentWorkspaceActions",
-                "ExperimentTailnetHACoordinator",
+                "ExperimentTailnetPGCoordinator",
                 "ExperimentConvertToOIDC",
                 "ExperimentSingleTailnet",
                 "ExperimentTemplateRestartRequirement",
@@ -10325,6 +10429,12 @@ const docTemplate = `{
                     "description": "Deprecated: Use StartupScriptBehavior instead.",
                     "type": "boolean"
                 },
+                "logs_length": {
+                    "type": "integer"
+                },
+                "logs_overflowed": {
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -10348,12 +10458,6 @@ const docTemplate = `{
                 "started_at": {
                     "type": "string",
                     "format": "date-time"
-                },
-                "startup_logs_length": {
-                    "type": "integer"
-                },
-                "startup_logs_overflowed": {
-                    "type": "boolean"
                 },
                 "startup_script": {
                     "type": "string"
@@ -10462,6 +10566,43 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.WorkspaceAgentLog": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "level": {
+                    "$ref": "#/definitions/codersdk.LogLevel"
+                },
+                "output": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentLogSource": {
+            "type": "string",
+            "enum": [
+                "startup_script",
+                "shutdown_script",
+                "kubernetes",
+                "envbox",
+                "envbuilder",
+                "external"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceAgentLogSourceStartupScript",
+                "WorkspaceAgentLogSourceShutdownScript",
+                "WorkspaceAgentLogSourceKubernetes",
+                "WorkspaceAgentLogSourceEnvbox",
+                "WorkspaceAgentLogSourceEnvbuilder",
+                "WorkspaceAgentLogSourceExternal"
+            ]
+        },
         "codersdk.WorkspaceAgentMetadataDescription": {
             "type": "object",
             "properties": {
@@ -10479,24 +10620,6 @@ const docTemplate = `{
                 },
                 "timeout": {
                     "type": "integer"
-                }
-            }
-        },
-        "codersdk.WorkspaceAgentStartupLog": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "level": {
-                    "$ref": "#/definitions/codersdk.LogLevel"
-                },
-                "output": {
-                    "type": "string"
                 }
             }
         },
