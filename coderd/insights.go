@@ -64,10 +64,6 @@ func (api *API) deploymentDAUs(rw http.ResponseWriter, r *http.Request) {
 // @Router /insights/user-latency [get]
 func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceDeploymentValues) {
-		httpapi.Forbidden(rw)
-		return
-	}
 
 	p := httpapi.NewQueryParamParser().
 		Required("start_time").
@@ -100,6 +96,12 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 		TemplateIDs: templateIDs,
 	})
 	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: "Template not found or forbidden access.",
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user latency.",
 			Detail:  err.Error(),

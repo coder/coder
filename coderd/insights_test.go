@@ -383,7 +383,7 @@ func TestTemplateInsights_BadRequest(t *testing.T) {
 	assert.Error(t, err, "want error for bad interval")
 }
 
-func TestTemplateInsightsRBAC(t *testing.T) {
+func TestTemplateInsights_RBAC(t *testing.T) {
 	t.Parallel()
 
 	y, m, d := time.Now().UTC().Date()
@@ -452,6 +452,79 @@ func TestTemplateInsightsRBAC(t *testing.T) {
 					StartTime: today.AddDate(0, 0, -1),
 					EndTime:   today,
 					Interval:  tt.interval,
+				})
+				require.Error(t, err)
+			})
+		})
+	}
+}
+
+func TestUserLatencyInsights_RBAC(t *testing.T) {
+	t.Parallel()
+
+	y, m, d := time.Now().UTC().Date()
+	today := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+
+	type test struct {
+		interval codersdk.InsightsReportInterval
+	}
+
+	tests := []test{
+		{codersdk.InsightsReportIntervalDay},
+		{""},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(fmt.Sprintf("with interval=%q", tt.interval), func(t *testing.T) {
+			t.Parallel()
+
+			t.Run("AsOwner", func(t *testing.T) {
+				t.Parallel()
+
+				client := coderdtest.New(t, &coderdtest.Options{})
+				_ = coderdtest.CreateFirstUser(t, client)
+
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+				defer cancel()
+
+				_, err := client.UserLatencyInsights(ctx, codersdk.UserLatencyInsightsRequest{
+					StartTime: today,
+					EndTime:   time.Now().UTC().Truncate(time.Hour).Add(time.Hour), // Round up to include the current hour.
+				})
+				require.NoError(t, err)
+			})
+			t.Run("AsTemplateAdmin", func(t *testing.T) {
+				t.Parallel()
+
+				client := coderdtest.New(t, &coderdtest.Options{})
+				admin := coderdtest.CreateFirstUser(t, client)
+
+				templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleTemplateAdmin())
+
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+				defer cancel()
+
+				_, err := templateAdmin.UserLatencyInsights(ctx, codersdk.UserLatencyInsightsRequest{
+					StartTime: today,
+					EndTime:   time.Now().UTC().Truncate(time.Hour).Add(time.Hour), // Round up to include the current hour.
+				})
+				require.NoError(t, err)
+			})
+			t.Run("AsRegularUser", func(t *testing.T) {
+				t.Parallel()
+
+				client := coderdtest.New(t, &coderdtest.Options{})
+				admin := coderdtest.CreateFirstUser(t, client)
+
+				regular, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+				defer cancel()
+
+				_, err := regular.UserLatencyInsights(ctx, codersdk.UserLatencyInsightsRequest{
+					StartTime: today,
+					EndTime:   time.Now().UTC().Truncate(time.Hour).Add(time.Hour), // Round up to include the current hour.
 				})
 				require.Error(t, err)
 			})

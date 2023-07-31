@@ -1205,7 +1205,6 @@ func (q *querier) GetTemplateDailyInsights(ctx context.Context, arg database.Get
 			return nil, err
 		}
 	}
-
 	if len(arg.TemplateIDs) == 0 {
 		if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
 			return nil, err
@@ -1225,7 +1224,6 @@ func (q *querier) GetTemplateInsights(ctx context.Context, arg database.GetTempl
 			return database.GetTemplateInsightsRow{}, err
 		}
 	}
-
 	if len(arg.TemplateIDs) == 0 {
 		if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
 			return database.GetTemplateInsightsRow{}, err
@@ -1401,8 +1399,20 @@ func (q *querier) GetUserCount(ctx context.Context) (int64, error) {
 }
 
 func (q *querier) GetUserLatencyInsights(ctx context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
+	for _, templateID := range arg.TemplateIDs {
+		template, err := q.db.GetTemplateByID(ctx, templateID)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
+			return nil, err
+		}
+	}
+	if len(arg.TemplateIDs) == 0 {
+		if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
+			return nil, err
+		}
 	}
 	return q.db.GetUserLatencyInsights(ctx, arg)
 }
