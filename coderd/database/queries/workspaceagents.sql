@@ -140,43 +140,44 @@ FROM
 WHERE
 	workspace_agent_id = $1;
 
--- name: UpdateWorkspaceAgentStartupLogOverflowByID :exec
+-- name: UpdateWorkspaceAgentLogOverflowByID :exec
 UPDATE
 	workspace_agents
 SET
-	startup_logs_overflowed = $2
+	logs_overflowed = $2
 WHERE
 	id = $1;
 
--- name: GetWorkspaceAgentStartupLogsAfter :many
+-- name: GetWorkspaceAgentLogsAfter :many
 SELECT
 	*
 FROM
-	workspace_agent_startup_logs
+	workspace_agent_logs
 WHERE
 	agent_id = $1
 	AND (
 		id > @created_after
 	) ORDER BY id ASC;
 
--- name: InsertWorkspaceAgentStartupLogs :many
+-- name: InsertWorkspaceAgentLogs :many
 WITH new_length AS (
 	UPDATE workspace_agents SET
-	startup_logs_length = startup_logs_length + @output_length WHERE workspace_agents.id = @agent_id
+	logs_length = logs_length + @output_length WHERE workspace_agents.id = @agent_id
 )
 INSERT INTO
-		workspace_agent_startup_logs (agent_id, created_at, output, level)
+		workspace_agent_logs (agent_id, created_at, output, level, source)
 	SELECT
 		@agent_id :: uuid AS agent_id,
 		unnest(@created_at :: timestamptz [ ]) AS created_at,
 		unnest(@output :: VARCHAR(1024) [ ]) AS output,
-		unnest(@level :: log_level [ ]) AS level
-	RETURNING workspace_agent_startup_logs.*;
+		unnest(@level :: log_level [ ]) AS level,
+		unnest(@source :: workspace_agent_log_source [ ]) AS source
+	RETURNING workspace_agent_logs.*;
 
 -- If an agent hasn't connected in the last 7 days, we purge it's logs.
 -- Logs can take up a lot of space, so it's important we clean up frequently.
--- name: DeleteOldWorkspaceAgentStartupLogs :exec
-DELETE FROM workspace_agent_startup_logs WHERE agent_id IN
+-- name: DeleteOldWorkspaceAgentLogs :exec
+DELETE FROM workspace_agent_logs WHERE agent_id IN
 	(SELECT id FROM workspace_agents WHERE last_connected_at IS NOT NULL
 		AND last_connected_at < NOW() - INTERVAL '7 day');
 

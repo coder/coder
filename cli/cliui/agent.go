@@ -16,7 +16,7 @@ var errAgentShuttingDown = xerrors.New("agent is shutting down")
 type AgentOptions struct {
 	FetchInterval time.Duration
 	Fetch         func(ctx context.Context, agentID uuid.UUID) (codersdk.WorkspaceAgent, error)
-	FetchLogs     func(ctx context.Context, agentID uuid.UUID, after int64, follow bool) (<-chan []codersdk.WorkspaceAgentStartupLog, io.Closer, error)
+	FetchLogs     func(ctx context.Context, agentID uuid.UUID, after int64, follow bool) (<-chan []codersdk.WorkspaceAgentLog, io.Closer, error)
 	Wait          bool // If true, wait for the agent to be ready (startup script).
 }
 
@@ -29,8 +29,8 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 		opts.FetchInterval = 500 * time.Millisecond
 	}
 	if opts.FetchLogs == nil {
-		opts.FetchLogs = func(_ context.Context, _ uuid.UUID, _ int64, _ bool) (<-chan []codersdk.WorkspaceAgentStartupLog, io.Closer, error) {
-			c := make(chan []codersdk.WorkspaceAgentStartupLog)
+		opts.FetchLogs = func(_ context.Context, _ uuid.UUID, _ int64, _ bool) (<-chan []codersdk.WorkspaceAgentLog, io.Closer, error) {
+			c := make(chan []codersdk.WorkspaceAgentLog)
 			close(c)
 			return c, closeFunc(func() error { return nil }), nil
 		}
@@ -137,7 +137,7 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 				}
 				defer logsCloser.Close()
 
-				var lastLog codersdk.WorkspaceAgentStartupLog
+				var lastLog codersdk.WorkspaceAgentLog
 				fetchedAgentWhileFollowing := fetchedAgent
 				if !follow {
 					fetchedAgentWhileFollowing = nil

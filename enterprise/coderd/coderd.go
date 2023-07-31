@@ -535,10 +535,10 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		var coordinator agpltailnet.Coordinator
 		if enabled {
 			var haCoordinator agpltailnet.Coordinator
-			if api.AGPL.Experiments.Enabled(codersdk.ExperimentTailnetHACoordinator) {
-				haCoordinator, err = tailnet.NewCoordinator(api.Logger, api.Pubsub)
-			} else {
+			if api.AGPL.Experiments.Enabled(codersdk.ExperimentTailnetPGCoordinator) {
 				haCoordinator, err = tailnet.NewPGCoord(api.ctx, api.Logger, api.Pubsub, api.Database)
+			} else {
+				haCoordinator, err = tailnet.NewCoordinator(api.Logger, api.Pubsub)
 			}
 			if err != nil {
 				api.Logger.Error(ctx, "unable to set up high availability coordinator", slog.Error(err))

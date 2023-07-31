@@ -1173,6 +1173,76 @@ func AllWorkspaceAgentLifecycleStateValues() []WorkspaceAgentLifecycleState {
 	}
 }
 
+type WorkspaceAgentLogSource string
+
+const (
+	WorkspaceAgentLogSourceStartupScript  WorkspaceAgentLogSource = "startup_script"
+	WorkspaceAgentLogSourceShutdownScript WorkspaceAgentLogSource = "shutdown_script"
+	WorkspaceAgentLogSourceKubernetesLogs WorkspaceAgentLogSource = "kubernetes_logs"
+	WorkspaceAgentLogSourceEnvbox         WorkspaceAgentLogSource = "envbox"
+	WorkspaceAgentLogSourceEnvbuilder     WorkspaceAgentLogSource = "envbuilder"
+	WorkspaceAgentLogSourceExternal       WorkspaceAgentLogSource = "external"
+)
+
+func (e *WorkspaceAgentLogSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceAgentLogSource(s)
+	case string:
+		*e = WorkspaceAgentLogSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceAgentLogSource: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceAgentLogSource struct {
+	WorkspaceAgentLogSource WorkspaceAgentLogSource `json:"workspace_agent_log_source"`
+	Valid                   bool                    `json:"valid"` // Valid is true if WorkspaceAgentLogSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceAgentLogSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceAgentLogSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceAgentLogSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceAgentLogSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceAgentLogSource), nil
+}
+
+func (e WorkspaceAgentLogSource) Valid() bool {
+	switch e {
+	case WorkspaceAgentLogSourceStartupScript,
+		WorkspaceAgentLogSourceShutdownScript,
+		WorkspaceAgentLogSourceKubernetesLogs,
+		WorkspaceAgentLogSourceEnvbox,
+		WorkspaceAgentLogSourceEnvbuilder,
+		WorkspaceAgentLogSourceExternal:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceAgentLogSourceValues() []WorkspaceAgentLogSource {
+	return []WorkspaceAgentLogSource{
+		WorkspaceAgentLogSourceStartupScript,
+		WorkspaceAgentLogSourceShutdownScript,
+		WorkspaceAgentLogSourceKubernetesLogs,
+		WorkspaceAgentLogSourceEnvbox,
+		WorkspaceAgentLogSourceEnvbuilder,
+		WorkspaceAgentLogSourceExternal,
+	}
+}
+
 type WorkspaceAgentSubsystem string
 
 const (
@@ -1810,16 +1880,25 @@ type WorkspaceAgent struct {
 	// The number of seconds to wait for the shutdown script to complete. If the script does not complete within this time, the agent lifecycle will be marked as shutdown_timeout.
 	ShutdownScriptTimeoutSeconds int32 `db:"shutdown_script_timeout_seconds" json:"shutdown_script_timeout_seconds"`
 	// Total length of startup logs
-	StartupLogsLength int32 `db:"startup_logs_length" json:"startup_logs_length"`
+	LogsLength int32 `db:"logs_length" json:"logs_length"`
 	// Whether the startup logs overflowed in length
-	StartupLogsOverflowed bool                    `db:"startup_logs_overflowed" json:"startup_logs_overflowed"`
-	Subsystem             WorkspaceAgentSubsystem `db:"subsystem" json:"subsystem"`
+	LogsOverflowed bool                    `db:"logs_overflowed" json:"logs_overflowed"`
+	Subsystem      WorkspaceAgentSubsystem `db:"subsystem" json:"subsystem"`
 	// When startup script behavior is non-blocking, the workspace will be ready and accessible upon agent connection, when it is blocking, workspace will wait for the startup script to complete before becoming ready and accessible.
 	StartupScriptBehavior StartupScriptBehavior `db:"startup_script_behavior" json:"startup_script_behavior"`
 	// The time the agent entered the starting lifecycle state
 	StartedAt sql.NullTime `db:"started_at" json:"started_at"`
 	// The time the agent entered the ready or start_error lifecycle state
 	ReadyAt sql.NullTime `db:"ready_at" json:"ready_at"`
+}
+
+type WorkspaceAgentLog struct {
+	AgentID   uuid.UUID               `db:"agent_id" json:"agent_id"`
+	CreatedAt time.Time               `db:"created_at" json:"created_at"`
+	Output    string                  `db:"output" json:"output"`
+	ID        int64                   `db:"id" json:"id"`
+	Level     LogLevel                `db:"level" json:"level"`
+	Source    WorkspaceAgentLogSource `db:"source" json:"source"`
 }
 
 type WorkspaceAgentMetadatum struct {
@@ -1832,14 +1911,6 @@ type WorkspaceAgentMetadatum struct {
 	Timeout          int64     `db:"timeout" json:"timeout"`
 	Interval         int64     `db:"interval" json:"interval"`
 	CollectedAt      time.Time `db:"collected_at" json:"collected_at"`
-}
-
-type WorkspaceAgentStartupLog struct {
-	AgentID   uuid.UUID `db:"agent_id" json:"agent_id"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
-	Output    string    `db:"output" json:"output"`
-	ID        int64     `db:"id" json:"id"`
-	Level     LogLevel  `db:"level" json:"level"`
 }
 
 type WorkspaceAgentStat struct {

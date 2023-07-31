@@ -157,6 +157,26 @@
 | ---------------- | ------ | -------- | ------------ | ----------- |
 | `json_web_token` | string | true     |              |             |
 
+## agentsdk.Log
+
+```json
+{
+  "created_at": "string",
+  "level": "trace",
+  "output": "string",
+  "source": "startup_script"
+}
+```
+
+### Properties
+
+| Name         | Type                                                                 | Required | Restrictions | Description |
+| ------------ | -------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `created_at` | string                                                               | false    |              |             |
+| `level`      | [codersdk.LogLevel](#codersdkloglevel)                               | false    |              |             |
+| `output`     | string                                                               | false    |              |             |
+| `source`     | [codersdk.WorkspaceAgentLogSource](#codersdkworkspaceagentlogsource) | false    |              |             |
+
 ## agentsdk.Manifest
 
 ```json
@@ -277,7 +297,7 @@
 | `startup_script_timeout`     | integer                                                                                           | false    |              |                                                                                                                                                            |
 | `vscode_port_proxy_uri`      | string                                                                                            | false    |              |                                                                                                                                                            |
 
-## agentsdk.PatchStartupLogs
+## agentsdk.PatchLogs
 
 ```json
 {
@@ -285,7 +305,8 @@
     {
       "created_at": "string",
       "level": "trace",
-      "output": "string"
+      "output": "string",
+      "source": "startup_script"
     }
   ]
 }
@@ -293,9 +314,9 @@
 
 ### Properties
 
-| Name   | Type                                                | Required | Restrictions | Description |
-| ------ | --------------------------------------------------- | -------- | ------------ | ----------- |
-| `logs` | array of [agentsdk.StartupLog](#agentsdkstartuplog) | false    |              |             |
+| Name   | Type                                  | Required | Restrictions | Description |
+| ------ | ------------------------------------- | -------- | ------------ | ----------- |
+| `logs` | array of [agentsdk.Log](#agentsdklog) | false    |              |             |
 
 ## agentsdk.PostAppHealthsRequest
 
@@ -368,24 +389,6 @@
 | `expanded_directory` | string                                             | false    |              |             |
 | `subsystem`          | [codersdk.AgentSubsystem](#codersdkagentsubsystem) | false    |              |             |
 | `version`            | string                                             | false    |              |             |
-
-## agentsdk.StartupLog
-
-```json
-{
-  "created_at": "string",
-  "level": "trace",
-  "output": "string"
-}
-```
-
-### Properties
-
-| Name         | Type                                   | Required | Restrictions | Description |
-| ------------ | -------------------------------------- | -------- | ------------ | ----------- |
-| `created_at` | string                                 | false    |              |             |
-| `level`      | [codersdk.LogLevel](#codersdkloglevel) | false    |              |             |
-| `output`     | string                                 | false    |              |             |
 
 ## agentsdk.Stats
 
@@ -2669,7 +2672,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ------------------------------ |
 | `moons`                        |
 | `workspace_actions`            |
-| `tailnet_ha_coordinator`       |
+| `tailnet_pg_coordinator`       |
 | `convert-to-oidc`              |
 | `single_tailnet`               |
 | `template_restart_requirement` |
@@ -5241,6 +5244,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             },
             "lifecycle_state": "created",
             "login_before_ready": true,
+            "logs_length": 0,
+            "logs_overflowed": true,
             "name": "string",
             "operating_system": "string",
             "ready_at": "2019-08-24T14:15:22Z",
@@ -5248,8 +5253,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "shutdown_script": "string",
             "shutdown_script_timeout_seconds": 0,
             "started_at": "2019-08-24T14:15:22Z",
-            "startup_logs_length": 0,
-            "startup_logs_overflowed": true,
             "startup_script": "string",
             "startup_script_behavior": "blocking",
             "startup_script_timeout_seconds": 0,
@@ -5382,6 +5385,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   },
   "lifecycle_state": "created",
   "login_before_ready": true,
+  "logs_length": 0,
+  "logs_overflowed": true,
   "name": "string",
   "operating_system": "string",
   "ready_at": "2019-08-24T14:15:22Z",
@@ -5389,8 +5394,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "shutdown_script": "string",
   "shutdown_script_timeout_seconds": 0,
   "started_at": "2019-08-24T14:15:22Z",
-  "startup_logs_length": 0,
-  "startup_logs_overflowed": true,
   "startup_script": "string",
   "startup_script_behavior": "blocking",
   "startup_script_timeout_seconds": 0,
@@ -5424,6 +5427,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | » `[any property]`                | [codersdk.DERPRegion](#codersdkderpregion)                                                   | false    |              |                                                                                                                                                                                                            |
 | `lifecycle_state`                 | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle)                         | false    |              |                                                                                                                                                                                                            |
 | `login_before_ready`              | boolean                                                                                      | false    |              | Deprecated: Use StartupScriptBehavior instead.                                                                                                                                                             |
+| `logs_length`                     | integer                                                                                      | false    |              |                                                                                                                                                                                                            |
+| `logs_overflowed`                 | boolean                                                                                      | false    |              |                                                                                                                                                                                                            |
 | `name`                            | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `operating_system`                | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `ready_at`                        | string                                                                                       | false    |              |                                                                                                                                                                                                            |
@@ -5431,8 +5436,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `shutdown_script`                 | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `shutdown_script_timeout_seconds` | integer                                                                                      | false    |              |                                                                                                                                                                                                            |
 | `started_at`                      | string                                                                                       | false    |              |                                                                                                                                                                                                            |
-| `startup_logs_length`             | integer                                                                                      | false    |              |                                                                                                                                                                                                            |
-| `startup_logs_overflowed`         | boolean                                                                                      | false    |              |                                                                                                                                                                                                            |
 | `startup_script`                  | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `startup_script_behavior`         | [codersdk.WorkspaceAgentStartupScriptBehavior](#codersdkworkspaceagentstartupscriptbehavior) | false    |              |                                                                                                                                                                                                            |
 | `startup_script_timeout_seconds`  | integer                                                                                      | false    |              | Startup script timeout seconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout. |
@@ -5584,6 +5587,45 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | ------- | ------------------------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `ports` | array of [codersdk.WorkspaceAgentListeningPort](#codersdkworkspaceagentlisteningport) | false    |              | If there are no ports in the list, nothing should be displayed in the UI. There must not be a "no ports available" message or anything similar, as there will always be no ports displayed on platforms where our port detection logic is unsupported. |
 
+## codersdk.WorkspaceAgentLog
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": 0,
+  "level": "trace",
+  "output": "string"
+}
+```
+
+### Properties
+
+| Name         | Type                                   | Required | Restrictions | Description |
+| ------------ | -------------------------------------- | -------- | ------------ | ----------- |
+| `created_at` | string                                 | false    |              |             |
+| `id`         | integer                                | false    |              |             |
+| `level`      | [codersdk.LogLevel](#codersdkloglevel) | false    |              |             |
+| `output`     | string                                 | false    |              |             |
+
+## codersdk.WorkspaceAgentLogSource
+
+```json
+"startup_script"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value             |
+| ----------------- |
+| `startup_script`  |
+| `shutdown_script` |
+| `kubernetes`      |
+| `envbox`          |
+| `envbuilder`      |
+| `external`        |
+
 ## codersdk.WorkspaceAgentMetadataDescription
 
 ```json
@@ -5605,26 +5647,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `key`          | string  | false    |              |             |
 | `script`       | string  | false    |              |             |
 | `timeout`      | integer | false    |              |             |
-
-## codersdk.WorkspaceAgentStartupLog
-
-```json
-{
-  "created_at": "2019-08-24T14:15:22Z",
-  "id": 0,
-  "level": "trace",
-  "output": "string"
-}
-```
-
-### Properties
-
-| Name         | Type                                   | Required | Restrictions | Description |
-| ------------ | -------------------------------------- | -------- | ------------ | ----------- |
-| `created_at` | string                                 | false    |              |             |
-| `id`         | integer                                | false    |              |             |
-| `level`      | [codersdk.LogLevel](#codersdkloglevel) | false    |              |             |
-| `output`     | string                                 | false    |              |             |
 
 ## codersdk.WorkspaceAgentStartupScriptBehavior
 
@@ -5821,6 +5843,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           },
           "lifecycle_state": "created",
           "login_before_ready": true,
+          "logs_length": 0,
+          "logs_overflowed": true,
           "name": "string",
           "operating_system": "string",
           "ready_at": "2019-08-24T14:15:22Z",
@@ -5828,8 +5852,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "shutdown_script": "string",
           "shutdown_script_timeout_seconds": 0,
           "started_at": "2019-08-24T14:15:22Z",
-          "startup_logs_length": 0,
-          "startup_logs_overflowed": true,
           "startup_script": "string",
           "startup_script_behavior": "blocking",
           "startup_script_timeout_seconds": 0,
@@ -6130,6 +6152,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       },
       "lifecycle_state": "created",
       "login_before_ready": true,
+      "logs_length": 0,
+      "logs_overflowed": true,
       "name": "string",
       "operating_system": "string",
       "ready_at": "2019-08-24T14:15:22Z",
@@ -6137,8 +6161,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "shutdown_script": "string",
       "shutdown_script_timeout_seconds": 0,
       "started_at": "2019-08-24T14:15:22Z",
-      "startup_logs_length": 0,
-      "startup_logs_overflowed": true,
       "startup_script": "string",
       "startup_script_behavior": "blocking",
       "startup_script_timeout_seconds": 0,
@@ -6342,6 +6364,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 },
                 "lifecycle_state": "created",
                 "login_before_ready": true,
+                "logs_length": 0,
+                "logs_overflowed": true,
                 "name": "string",
                 "operating_system": "string",
                 "ready_at": "2019-08-24T14:15:22Z",
@@ -6349,8 +6373,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 "shutdown_script": "string",
                 "shutdown_script_timeout_seconds": 0,
                 "started_at": "2019-08-24T14:15:22Z",
-                "startup_logs_length": 0,
-                "startup_logs_overflowed": true,
                 "startup_script": "string",
                 "startup_script_behavior": "blocking",
                 "startup_script_timeout_seconds": 0,
