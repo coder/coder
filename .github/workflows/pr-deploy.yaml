@@ -209,43 +209,6 @@ jobs:
             echo "Certificate exists."
           fi
 
-      - name: Setup ingress
-        run: |
-          cat <<EOF > kubectl apply -f -
-          apiVersion: networking.k8s.io/v1
-          kind: Ingress
-          metadata:
-            name: pr${{ env.PR_NUMBER }}
-            namespace: pr${{ env.PR_NUMBER }}
-          spec:
-            tls:
-            - hosts:
-              - "${{ env.PR_DEPLOYMENT_ACCESS_URL }}"
-              - "*.${{ env.PR_DEPLOYMENT_ACCESS_URL }}"
-              secretName: pr${{ env.PR_NUMBER }}-tls
-            rules:
-            - host: "${{ env.PR_DEPLOYMENT_ACCESS_URL }}"
-              http:
-                paths:
-                - pathType: Prefix
-                  path: "/"
-                  backend:
-                    service:
-                      name: coder
-                      port:
-                        number: 80
-            - host: "*.${{ env.PR_DEPLOYMENT_ACCESS_URL }}"
-              http:
-                paths:
-                - pathType: Prefix
-                  path: "/"
-                  backend:
-                    service:
-                      name: coder
-                      port:
-                        number: 80
-          EOF
-
       - name: Set up PostgreSQL database
         run: |
           helm repo add bitnami https://charts.bitnami.com/bitnami
