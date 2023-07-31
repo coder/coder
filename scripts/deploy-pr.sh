@@ -40,7 +40,7 @@ while (("$#")); do
 		shift
 		break
 		;;
-	-* | --*)
+	--*)
 		echo "Error: Unsupported flag $1" >&2
 		exit 1
 		;;
