@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"testing"
 	"time"
@@ -388,114 +389,72 @@ func TestTemplateInsightsRBAC(t *testing.T) {
 	y, m, d := time.Now().UTC().Date()
 	today := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 
-	t.Run("IntervalDay", func(t *testing.T) {
-		t.Parallel()
+	type test struct {
+		interval codersdk.InsightsReportInterval
+	}
 
-		t.Run("AsOwner", func(t *testing.T) {
+	tests := []test{
+		{codersdk.InsightsReportIntervalDay},
+		{""},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(fmt.Sprintf("with interval=%q", tt.interval), func(t *testing.T) {
 			t.Parallel()
 
-			client := coderdtest.New(t, &coderdtest.Options{})
-			_ = coderdtest.CreateFirstUser(t, client)
+			t.Run("AsOwner", func(t *testing.T) {
+				t.Parallel()
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-			defer cancel()
+				client := coderdtest.New(t, &coderdtest.Options{})
+				_ = coderdtest.CreateFirstUser(t, client)
 
-			_, err := client.TemplateInsights(ctx, codersdk.TemplateInsightsRequest{
-				StartTime: today.AddDate(0, 0, -1),
-				EndTime:   today,
-				Interval:  "day",
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+				defer cancel()
+
+				_, err := client.TemplateInsights(ctx, codersdk.TemplateInsightsRequest{
+					StartTime: today.AddDate(0, 0, -1),
+					EndTime:   today,
+					Interval:  tt.interval,
+				})
+				require.NoError(t, err)
 			})
-			require.NoError(t, err)
-		})
-		t.Run("AsTemplateAdmin", func(t *testing.T) {
-			t.Parallel()
+			t.Run("AsTemplateAdmin", func(t *testing.T) {
+				t.Parallel()
 
-			client := coderdtest.New(t, &coderdtest.Options{})
-			admin := coderdtest.CreateFirstUser(t, client)
+				client := coderdtest.New(t, &coderdtest.Options{})
+				admin := coderdtest.CreateFirstUser(t, client)
 
-			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleTemplateAdmin())
+				templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleTemplateAdmin())
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-			defer cancel()
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+				defer cancel()
 
-			_, err := templateAdmin.TemplateInsights(ctx, codersdk.TemplateInsightsRequest{
-				StartTime: today.AddDate(0, 0, -1),
-				EndTime:   today,
-				Interval:  "day",
+				_, err := templateAdmin.TemplateInsights(ctx, codersdk.TemplateInsightsRequest{
+					StartTime: today.AddDate(0, 0, -1),
+					EndTime:   today,
+					Interval:  tt.interval,
+				})
+				require.NoError(t, err)
 			})
-			require.NoError(t, err)
-		})
-		t.Run("AsRegularUser", func(t *testing.T) {
-			t.Parallel()
+			t.Run("AsRegularUser", func(t *testing.T) {
+				t.Parallel()
 
-			client := coderdtest.New(t, &coderdtest.Options{})
-			admin := coderdtest.CreateFirstUser(t, client)
+				client := coderdtest.New(t, &coderdtest.Options{})
+				admin := coderdtest.CreateFirstUser(t, client)
 
-			regular, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+				regular, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-			defer cancel()
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+				defer cancel()
 
-			_, err := regular.TemplateInsights(ctx, codersdk.TemplateInsightsRequest{
-				StartTime: today.AddDate(0, 0, -1),
-				EndTime:   today,
-				Interval:  "day",
+				_, err := regular.TemplateInsights(ctx, codersdk.TemplateInsightsRequest{
+					StartTime: today.AddDate(0, 0, -1),
+					EndTime:   today,
+					Interval:  tt.interval,
+				})
+				require.Error(t, err)
 			})
-			require.Error(t, err)
 		})
-	})
-
-	t.Run("IntervalNone", func(t *testing.T) {
-		t.Parallel()
-
-		t.Run("AsOwner", func(t *testing.T) {
-			t.Parallel()
-
-			client := coderdtest.New(t, &coderdtest.Options{})
-			_ = coderdtest.CreateFirstUser(t, client)
-
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-			defer cancel()
-
-			_, err := client.TemplateInsights(ctx, codersdk.TemplateInsightsRequest{
-				StartTime: today.AddDate(0, 0, -1),
-				EndTime:   today,
-			})
-			require.NoError(t, err)
-		})
-		t.Run("AsTemplateAdmin", func(t *testing.T) {
-			t.Parallel()
-
-			client := coderdtest.New(t, &coderdtest.Options{})
-			admin := coderdtest.CreateFirstUser(t, client)
-
-			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleTemplateAdmin())
-
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-			defer cancel()
-
-			_, err := templateAdmin.TemplateInsights(ctx, codersdk.TemplateInsightsRequest{
-				StartTime: today.AddDate(0, 0, -1),
-				EndTime:   today,
-			})
-			require.NoError(t, err)
-		})
-		t.Run("AsRegularUser", func(t *testing.T) {
-			t.Parallel()
-
-			client := coderdtest.New(t, &coderdtest.Options{})
-			admin := coderdtest.CreateFirstUser(t, client)
-
-			regular, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
-
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-			defer cancel()
-
-			_, err := regular.TemplateInsights(ctx, codersdk.TemplateInsightsRequest{
-				StartTime: today.AddDate(0, 0, -1),
-				EndTime:   today,
-			})
-			require.Error(t, err)
-		})
-	})
+	}
 }
