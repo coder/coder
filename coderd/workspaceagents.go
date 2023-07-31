@@ -1374,6 +1374,8 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 // @Success 200 {object} agentsdk.StatsResponse
 // @Router /workspaceagents/me/report-stats [post]
 func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Request) {
+	// TODO: here: instead of inserting directly, we should queue up the stats for
+	// periodic batch insert.
 	ctx := r.Context()
 
 	workspaceAgent := httpmw.WorkspaceAgent(r)
@@ -1456,6 +1458,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 	})
 	if api.Options.UpdateAgentMetrics != nil {
 		errGroup.Go(func() error {
+			// TODO(Cian): why do we need to look up the user each time we post stats?
 			user, err := api.Database.GetUserByID(ctx, workspace.OwnerID)
 			if err != nil {
 				return xerrors.Errorf("can't get user: %w", err)
