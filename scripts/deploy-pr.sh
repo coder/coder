@@ -23,7 +23,7 @@ while (("$#")); do
 		shift
 		;;
 	-e | --experiments)
-		if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
+		if [ -n "$2" ] && [ "${2:0:1}" != "-" ]; then
 			experiments="$2"
 			shift
 		else
