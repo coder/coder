@@ -1328,7 +1328,14 @@ func TestWorkspaceAgent_UpdatedDERP(t *testing.T) {
 	currentDerpMap.Store(newDerpMap)
 
 	// Wait for the agent's DERP map to be updated.
-	// TODO: this
+	require.Eventually(t, func() bool {
+		conn := agentCloser.TailnetConn()
+		if conn == nil {
+			return false
+		}
+		regionIDs := conn.DERPMap().RegionIDs()
+		return len(regionIDs) == 1 && regionIDs[0] == 2
+	}, testutil.WaitLong, testutil.IntervalFast)
 
 	// Wait for the DERP map to be updated on the existing client.
 	require.Eventually(t, func() bool {

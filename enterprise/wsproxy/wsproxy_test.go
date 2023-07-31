@@ -185,24 +185,24 @@ resourceLoop:
 		require.Equal(t, "coder_best-proxy", proxy1Region.RegionCode)
 		require.Equal(t, 10001, proxy1Region.RegionID)
 		require.False(t, proxy1Region.EmbeddedRelay)
-		require.Len(t, proxy1Region.Nodes, 1)
-		require.Equal(t, "10001a", proxy1Region.Nodes[0].Name)
-		require.Equal(t, 10001, proxy1Region.Nodes[0].RegionID)
-		require.Equal(t, proxyAPI1.Options.AccessURL.Hostname(), proxy1Region.Nodes[0].HostName)
-		require.Equal(t, proxyAPI1.Options.AccessURL.Port(), fmt.Sprint(proxy1Region.Nodes[0].DERPPort))
-		require.Equal(t, proxyAPI1.Options.AccessURL.Scheme == "http", proxy1Region.Nodes[0].ForceHTTP)
+		require.Len(t, proxy1Region.Nodes, 2) // proxy + stun
+		require.Equal(t, "10001a", proxy1Region.Nodes[1].Name)
+		require.Equal(t, 10001, proxy1Region.Nodes[1].RegionID)
+		require.Equal(t, proxyAPI1.Options.AccessURL.Hostname(), proxy1Region.Nodes[1].HostName)
+		require.Equal(t, proxyAPI1.Options.AccessURL.Port(), fmt.Sprint(proxy1Region.Nodes[1].DERPPort))
+		require.Equal(t, proxyAPI1.Options.AccessURL.Scheme == "http", proxy1Region.Nodes[1].ForceHTTP)
 
 		// The second proxy region:
 		require.Equal(t, "worst-proxy", proxy2Region.RegionName)
 		require.Equal(t, "coder_worst-proxy", proxy2Region.RegionCode)
 		require.Equal(t, 10002, proxy2Region.RegionID)
 		require.False(t, proxy2Region.EmbeddedRelay)
-		require.Len(t, proxy2Region.Nodes, 1)
-		require.Equal(t, "10002a", proxy2Region.Nodes[0].Name)
-		require.Equal(t, 10002, proxy2Region.Nodes[0].RegionID)
-		require.Equal(t, proxyAPI2.Options.AccessURL.Hostname(), proxy2Region.Nodes[0].HostName)
-		require.Equal(t, proxyAPI2.Options.AccessURL.Port(), fmt.Sprint(proxy2Region.Nodes[0].DERPPort))
-		require.Equal(t, proxyAPI2.Options.AccessURL.Scheme == "http", proxy2Region.Nodes[0].ForceHTTP)
+		require.Len(t, proxy2Region.Nodes, 2) // proxy + stun
+		require.Equal(t, "10002a", proxy2Region.Nodes[1].Name)
+		require.Equal(t, 10002, proxy2Region.Nodes[1].RegionID)
+		require.Equal(t, proxyAPI2.Options.AccessURL.Hostname(), proxy2Region.Nodes[1].HostName)
+		require.Equal(t, proxyAPI2.Options.AccessURL.Port(), fmt.Sprint(proxy2Region.Nodes[1].DERPPort))
+		require.Equal(t, proxyAPI2.Options.AccessURL.Scheme == "http", proxy2Region.Nodes[1].ForceHTTP)
 	})
 
 	t.Run("ConnectDERP", func(t *testing.T) {
