@@ -50,8 +50,8 @@ func Test_parseInsightsStartAndEndTime(t *testing.T) {
 				startTime: today.Format(layout),
 				endTime:   thisHour.Format(layout),
 			},
-			wantStartTime: time.Date(2023, 7, today.Day(), 0, 0, 0, 0, time.UTC),
-			wantEndTime:   time.Date(2023, 7, today.Day(), thisHour.Hour(), 0, 0, 0, time.UTC),
+			wantStartTime: time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, time.UTC),
+			wantEndTime:   time.Date(today.Year(), today.Month(), today.Day(), thisHour.Hour(), 0, 0, 0, time.UTC),
 			wantOk:        true,
 		},
 		{
@@ -68,8 +68,8 @@ func Test_parseInsightsStartAndEndTime(t *testing.T) {
 				startTime: today.Format(layout),
 				endTime:   thisHourRoundUp.Format(layout),
 			},
-			wantStartTime: time.Date(2023, 7, today.Day(), 0, 0, 0, 0, time.UTC),
-			wantEndTime:   time.Date(2023, 7, thisHourRoundUp.Day(), thisHourRoundUp.Hour(), 0, 0, 0, time.UTC),
+			wantStartTime: time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, time.UTC),
+			wantEndTime:   time.Date(today.Year(), today.Month(), thisHourRoundUp.Day(), thisHourRoundUp.Hour(), 0, 0, 0, time.UTC),
 			wantOk:        true,
 		},
 		{
