@@ -25,8 +25,6 @@ export const Language = {
   deleteUserError: "Error deleting user.",
   activateUserSuccess: "Successfully activated the user.",
   activateUserError: "Error activating user.",
-  markUserDormantSuccess: "Successfully marked the user account as dormant.",
-  markUserDormantError: "Error marking user account as dormant.",
   resetUserPasswordSuccess: "Successfully updated the user password.",
   resetUserPasswordError: "Error on resetting the user password.",
   updateUserRolesSuccess: "Successfully updated the user roles.",
@@ -50,10 +48,6 @@ export interface UsersContext {
   userIdToActivate?: TypesGen.User["id"]
   usernameToActivate?: TypesGen.User["username"]
   activateUserError?: unknown
-  // Mark user dormant
-  userIdToMarkDormant?: TypesGen.User["id"]
-  usernameToMarkDormant?: TypesGen.User["username"]
-  markUserDormantError?: unknown
   // Reset user password
   userIdToResetPassword?: TypesGen.User["id"]
   resetUserPasswordError?: unknown
@@ -92,14 +86,6 @@ export type UsersEvent =
     }
   | { type: "CONFIRM_USER_ACTIVATION" }
   | { type: "CANCEL_USER_ACTIVATION" }
-  // Mark as dormant events
-  | {
-      type: "MARK_USER_DORMANT"
-      userId: TypesGen.User["id"]
-      username: TypesGen.User["username"]
-    }
-  | { type: "CONFIRM_USER_DORMANT" }
-  | { type: "CANCEL_USER_DORMANT" }
   // Reset password events
   | { type: "RESET_USER_PASSWORD"; userId: TypesGen.User["id"] }
   | { type: "CONFIRM_USER_PASSWORD_RESET" }
@@ -137,9 +123,6 @@ export const usersMachine =
             data: undefined
           }
           activateUser: {
-            data: TypesGen.User
-          }
-          markUserDormant: {
             data: TypesGen.User
           }
           updateUserPassword: {
@@ -204,10 +187,6 @@ export const usersMachine =
               target: "confirmUserActivation",
               actions: "assignUserToActivate",
             },
-            MARK_USER_DORMANT: {
-              target: "confirmUserDormant",
-              actions: "assignUserToMarkDormant",
-            },
             RESET_USER_PASSWORD: {
               target: "confirmUserPasswordReset",
               actions: [
@@ -247,16 +226,6 @@ export const usersMachine =
               target: "activatingUser",
             },
             CANCEL_USER_ACTIVATION: {
-              target: "idle",
-            },
-          },
-        },
-        confirmUserDormant: {
-          on: {
-            CONFIRM_USER_DORMANT: {
-              target: "markingUserDormant",
-            },
-            CANCEL_USER_DORMANT: {
               target: "idle",
             },
           },
@@ -319,28 +288,6 @@ export const usersMachine =
                 actions: [
                   "assignActivateUserError",
                   "displayActivatedErrorMessage",
-                ],
-              },
-            ],
-          },
-        },
-        markingUserDormant: {
-          entry: "clearMarkUserDormantError",
-          invoke: {
-            src: "markUserDormant",
-            id: "markUserDormant",
-            onDone: [
-              {
-                target: "gettingUsers",
-                actions: "displayMarkUserDormantSuccess",
-              },
-            ],
-            onError: [
-              {
-                target: "idle",
-                actions: [
-                  "assignMarkUserDormantError",
-                  "displayMarkUserDormantErrorMessage",
                 ],
               },
             ],
@@ -435,12 +382,6 @@ export const usersMachine =
 
           return API.activateUser(context.userIdToActivate)
         },
-        markUserDormant: (context) => {
-          if (!context.userIdToMarkDormant) {
-            throw new Error("userIdToMarkDormant is undefined")
-          }
-          return API.markUserDormant(context.userIdToMarkDormant)
-        },
         resetUserPassword: (context) => {
           if (!context.userIdToResetPassword) {
             throw new Error("userIdToResetPassword is undefined")
@@ -472,8 +413,6 @@ export const usersMachine =
           usernameToDelete: (_) => undefined,
           userIdToActivate: (_) => undefined,
           usernameToActivate: (_) => undefined,
-          userIdToMarkDormant: (_) => undefined,
-          usernameToMarkDormant: (_) => undefined,
           userIdToResetPassword: (_) => undefined,
           userIdToUpdateRoles: (_) => undefined,
         }),
@@ -499,10 +438,6 @@ export const usersMachine =
           userIdToActivate: (_, event) => event.userId,
           usernameToActivate: (_, event) => event.username,
         }),
-        assignUserToMarkDormant: assign({
-          userIdToMarkDormant: (_, event) => event.userId,
-          usernameToMarkDormant: (_, event) => event.username,
-        }),
         assignUserIdToResetPassword: assign({
           userIdToResetPassword: (_, event) => event.userId,
         }),
@@ -521,9 +456,6 @@ export const usersMachine =
         }),
         assignActivateUserError: assign({
           activateUserError: (_, event) => event.data,
-        }),
-        assignMarkUserDormantError: assign({
-          markUserDormantError: (_, event) => event.data,
         }),
         assignResetUserPasswordError: assign({
           resetUserPasswordError: (_, event) => event.data,
@@ -544,9 +476,6 @@ export const usersMachine =
         }),
         clearActivateUserError: assign({
           activateUserError: (_) => undefined,
-        }),
-        clearMarkUserDormantError: assign({
-          markUserDormantError: (_) => undefined,
         }),
         clearResetUserPasswordError: assign({
           resetUserPasswordError: (_) => undefined,
@@ -581,16 +510,6 @@ export const usersMachine =
           const message = getErrorMessage(
             context.activateUserError,
             Language.activateUserError,
-          )
-          displayError(message)
-        },
-        displayMarkUserDormantSuccess: () => {
-          displaySuccess(Language.markUserDormantSuccess)
-        },
-        displayMarkUserDormantErrorMessage: (context) => {
-          const message = getErrorMessage(
-            context.markUserDormantError,
-            Language.markUserDormantError,
           )
           displayError(message)
         },
