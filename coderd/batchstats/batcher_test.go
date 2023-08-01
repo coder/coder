@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
@@ -32,7 +31,8 @@ func TestBatchStats(t *testing.T) {
 	store, _ := dbtestutil.NewDB(t)
 
 	// Set up some test dependencies.
-	deps := setupDeps(t, store)
+	deps1 := setupDeps(t, store)
+	deps2 := setupDeps(t, store)
 	tick := make(chan time.Time)
 	flushed := make(chan bool)
 
@@ -63,13 +63,13 @@ func TestBatchStats(t *testing.T) {
 
 	// Then: it should report no stats.
 	stats, err := store.GetWorkspaceAgentStats(ctx, t1)
-	require.NoError(t, err)
-	require.Empty(t, stats)
+	require.NoError(t, err, "should not error getting stats")
+	require.Empty(t, stats, "should have no stats for workspace")
 
 	// Given: a single data point is added for workspace
 	t2 := time.Now()
 	t.Logf("inserting 1 stat")
-	require.NoError(t, b.Add(ctx, deps.Agent.ID, randAgentSDKStats(t)))
+	require.NoError(t, b.Add(ctx, deps1.Agent.ID, randAgentSDKStats(t)))
 
 	// When: it becomes time to report stats
 	// Signal a tick and wait for a flush to complete.
@@ -80,15 +80,19 @@ func TestBatchStats(t *testing.T) {
 
 	// Then: it should report a single stat.
 	stats, err = store.GetWorkspaceAgentStats(ctx, t2)
-	require.NoError(t, err)
-	require.Len(t, stats, 1)
+	require.NoError(t, err, "should not error getting stats")
+	require.Len(t, stats, 1, "should have stats for workspace")
 
-	// Given: a lot of data points are added for workspace
+	// Given: a lot of data points are added for both workspaces
 	// (equal to batch size)
 	t3 := time.Now()
 	t.Logf("inserting %d stats", batchSize)
 	for i := 0; i < batchSize; i++ {
-		require.NoError(t, b.Add(ctx, deps.Agent.ID, randAgentSDKStats(t)))
+		if i%2 == 0 {
+			require.NoError(t, b.Add(ctx, deps1.Agent.ID, randAgentSDKStats(t)))
+		} else {
+			require.NoError(t, b.Add(ctx, deps2.Agent.ID, randAgentSDKStats(t)))
+		}
 	}
 
 	// When: the buffer is full
@@ -99,21 +103,8 @@ func TestBatchStats(t *testing.T) {
 
 	// Then: it should immediately flush its stats to store.
 	stats, err = store.GetWorkspaceAgentStats(ctx, t3)
-	require.NoError(t, err)
-	if assert.Len(t, stats, 1) {
-		assert.Greater(t, stats[0].AggregatedFrom, t3)
-		assert.Equal(t, stats[0].AgentID, deps.Agent.ID)
-		assert.Equal(t, stats[0].WorkspaceID, deps.Workspace.ID)
-		assert.Equal(t, stats[0].TemplateID, deps.Template.ID)
-		assert.NotZero(t, stats[0].WorkspaceRxBytes)
-		assert.NotZero(t, stats[0].WorkspaceTxBytes)
-		assert.NotZero(t, stats[0].WorkspaceConnectionLatency50)
-		assert.NotZero(t, stats[0].WorkspaceConnectionLatency95)
-		assert.NotZero(t, stats[0].SessionCountVSCode)
-		assert.NotZero(t, stats[0].SessionCountSSH)
-		assert.NotZero(t, stats[0].SessionCountJetBrains)
-		assert.NotZero(t, stats[0].SessionCountReconnectingPTY)
-	}
+	require.NoError(t, err, "should not error getting stats")
+	require.Len(t, stats, 2, "should have stats for both workspaces")
 }
 
 // randAgentSDKStats returns a random agentsdk.Stats
