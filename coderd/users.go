@@ -12,8 +12,6 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/db2sdk"
@@ -659,24 +657,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 		defer commitAudit()
 		aReq.Old = user
 
-		if status == database.UserStatusDormant {
-			// There are some manual protections when marking a user as dormant to
-			// prevent certain situations.
-			switch {
-			case user.ID == apiKey.UserID:
-				// User can't mark themselves as dormant, as they are active now.
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "You cannot mark own user as dormant.",
-				})
-				return
-			case slice.Contains(user.RBACRoles, rbac.RoleOwner()):
-				// You can't mark an owner account as dormant
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: fmt.Sprintf("You cannot mark a user as dormant with the %q role. You must remove the role first.", rbac.RoleOwner()),
-				})
-				return
-			}
-		} else if status == database.UserStatusSuspended {
+		if status == database.UserStatusSuspended {
 			// There are some manual protections when suspending a user to
 			// prevent certain situations.
 			switch {
@@ -696,7 +677,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 			}
 		}
 
-		updatedUser, err := api.Database.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
+		suspendedUser, err := api.Database.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
 			ID:        user.ID,
 			Status:    status,
 			UpdatedAt: database.Now(),
@@ -708,7 +689,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 			})
 			return
 		}
-		aReq.New = updatedUser
+		aReq.New = suspendedUser
 
 		organizations, err := userOrganizationIDs(ctx, api, user)
 		if err != nil {
@@ -719,13 +700,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 			return
 		}
 
-		err = api.Pubsub.Publish(PubsubEventLicenses, []byte("add"))
-		if err != nil {
-			api.Logger.Error(context.Background(), "failed to publish license add", slog.Error(err))
-			// don't fail the HTTP request, since we did write it successfully to the database
-		}
-
-		httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(updatedUser, organizations))
+		httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(suspendedUser, organizations))
 	}
 }
 

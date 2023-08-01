@@ -28,6 +28,10 @@ import (
 	"github.com/coder/coder/enterprise/coderd/license"
 )
 
+const (
+	PubsubEventLicenses = "licenses"
+)
+
 // key20220812 is the Coder license public key with id 2022-08-12 used to validate licenses signed
 // by our signing infrastructure
 //
@@ -137,7 +141,7 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	err = api.Pubsub.Publish(coderd.PubsubEventLicenses, []byte("add"))
+	err = api.Pubsub.Publish(PubsubEventLicenses, []byte("add"))
 	if err != nil {
 		api.Logger.Error(context.Background(), "failed to publish license add", slog.Error(err))
 		// don't fail the HTTP request, since we did write it successfully to the database
@@ -252,7 +256,7 @@ func (api *API) deleteLicense(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	err = api.Pubsub.Publish(coderd.PubsubEventLicenses, []byte("delete"))
+	err = api.Pubsub.Publish(PubsubEventLicenses, []byte("delete"))
 	if err != nil {
 		api.Logger.Error(context.Background(), "failed to publish license delete", slog.Error(err))
 		// don't fail the HTTP request, since we did write it successfully to the database

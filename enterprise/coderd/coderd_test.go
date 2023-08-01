@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 
-	osscoderd "github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/rbac"
 
@@ -21,6 +20,7 @@ import (
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/enterprise/audit"
+	"github.com/coder/coder/enterprise/coderd"
 	"github.com/coder/coder/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/enterprise/coderd/license"
 	"github.com/coder/coder/testutil"
@@ -122,7 +122,7 @@ func TestEntitlements(t *testing.T) {
 			}),
 		})
 		require.NoError(t, err)
-		err = api.Pubsub.Publish(osscoderd.PubsubEventLicenses, []byte{})
+		err = api.Pubsub.Publish(coderd.PubsubEventLicenses, []byte{})
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
 			entitlements, err := client.Entitlements(context.Background())
