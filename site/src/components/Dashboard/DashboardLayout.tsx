@@ -16,6 +16,9 @@ import Box from "@mui/material/Box"
 import InfoOutlined from "@mui/icons-material/InfoOutlined"
 import Button from "@mui/material/Button"
 import { docs } from "utils/docs"
+import { HealthBanner } from "./HealthBanner"
+import { useQuery } from "@tanstack/react-query"
+import { getHealth } from "api/api"
 
 export const DashboardLayout: FC = () => {
   const styles = useStyles()
@@ -27,9 +30,14 @@ export const DashboardLayout: FC = () => {
   })
   const { updateCheck } = updateCheckState.context
   const canViewDeployment = Boolean(permissions.viewDeploymentValues)
+  const { data: healthStatus } = useQuery({
+    queryKey: ["health"],
+    queryFn: () => getHealth(),
+  })
 
   return (
     <>
+      {healthStatus && !healthStatus.data.healthy && <HealthBanner />}
       <ServiceBanner />
       {canViewDeployment && <LicenseBanner />}
 
