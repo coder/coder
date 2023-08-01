@@ -635,9 +635,6 @@ type workspaceBuildsData struct {
 
 func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.Workspace, workspaceBuilds []database.WorkspaceBuild) (workspaceBuildsData, error) {
 	userIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
-	for _, build := range workspaceBuilds {
-		userIDs = append(userIDs, build.InitiatorID)
-	}
 	for _, workspace := range workspaces {
 		userIDs = append(userIDs, workspace.OwnerID)
 	}
