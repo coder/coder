@@ -1405,3 +1405,12 @@ export const getInsightsTemplate = async (
   const response = await axios.get(`/api/v2/insights/templates?${params}`)
   return response.data
 }
+
+export const getHealth = () => {
+  return axios.get<{
+    derp: { healthy: boolean }
+    access_url: { healthy: boolean }
+    websocket: { healthy: boolean }
+    database: { healthy: boolean }
+  }>("/api/v2/debug/health")
+}
