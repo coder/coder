@@ -76,7 +76,7 @@ func TestDERP(t *testing.T) {
 
 				assert.False(t, node.STUN.Enabled)
 				assert.False(t, node.STUN.CanSTUN)
-				assert.NoError(t, node.STUN.Error)
+				assert.Nil(t, node.STUN.Error)
 			}
 		}
 	})
@@ -120,7 +120,7 @@ func TestDERP(t *testing.T) {
 
 				assert.True(t, node.STUN.Enabled)
 				assert.True(t, node.STUN.CanSTUN)
-				assert.NoError(t, node.STUN.Error)
+				assert.Nil(t, node.STUN.Error)
 			}
 		}
 	})
@@ -185,7 +185,7 @@ func TestDERP(t *testing.T) {
 
 				assert.False(t, node.STUN.Enabled)
 				assert.False(t, node.STUN.CanSTUN)
-				assert.NoError(t, node.STUN.Error)
+				assert.Nil(t, node.STUN.Error)
 			}
 		}
 	})
@@ -227,7 +227,7 @@ func TestDERP(t *testing.T) {
 
 				assert.True(t, node.STUN.Enabled)
 				assert.True(t, node.STUN.CanSTUN)
-				assert.NoError(t, node.STUN.Error)
+				assert.Nil(t, node.STUN.Error)
 			}
 		}
 	})

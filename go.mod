@@ -356,7 +356,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.16.0 // indirect
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
 	go4.org/mem v0.0.0-20210711025021-927187094b94 // indirect
-	golang.org/x/text v0.11.0 // indirect
+	golang.org/x/text v0.11.0
 	golang.org/x/time v0.3.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20230215201556-9c5414ab4bde // indirect

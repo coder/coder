@@ -11258,7 +11258,9 @@ const docTemplate = `{
                 "enabled": {
                     "type": "boolean"
                 },
-                "error": {}
+                "error": {
+                    "type": "string"
+                }
             }
         },
         "healthcheck.DatabaseReport": {
@@ -11271,6 +11273,9 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "latency": {
+                    "type": "string"
+                },
+                "latency_ms": {
                     "type": "integer"
                 },
                 "reachable": {
@@ -11317,25 +11322,17 @@ const docTemplate = `{
         "healthcheck.WebsocketReport": {
             "type": "object",
             "properties": {
-                "error": {
-                    "type": "string"
-                },
-                "healthy": {
-                    "type": "boolean"
-                },
-                "response": {
-                    "$ref": "#/definitions/healthcheck.WebsocketResponse"
-                }
-            }
-        },
-        "healthcheck.WebsocketResponse": {
-            "type": "object",
-            "properties": {
                 "body": {
                     "type": "string"
                 },
                 "code": {
                     "type": "integer"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "healthy": {
+                    "type": "boolean"
                 }
             }
         },
