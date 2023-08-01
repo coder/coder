@@ -3,15 +3,18 @@ package batchstats
 import (
 	"context"
 	"encoding/json"
-	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 	"os"
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+	"golang.org/x/xerrors"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/codersdk/agentsdk"
 )
 
@@ -33,6 +36,8 @@ type Batcher struct {
 	ticker <-chan time.Time
 	// flushLever is used to signal the flusher to flush the buffer immediately.
 	flushLever chan struct{}
+	// flushed is used during testing to signal that a flush has completed.
+	flushed chan struct{}
 }
 
 // Option is a functional option for configuring a Batcher.
@@ -66,6 +71,13 @@ func WithLogger(log slog.Logger) Option {
 	}
 }
 
+// With Flushed sets the channel to use for signaling that a flush has completed.
+func WithFlushed(ch chan struct{}) Option {
+	return func(b *Batcher) {
+		b.flushed = ch
+	}
+}
+
 // New creates a new Batcher.
 func New(opts ...Option) (*Batcher, error) {
 	b := &Batcher{}
@@ -96,10 +108,13 @@ func (b *Batcher) Add(
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
+	// TODO(Cian): add a specific dbauthz context for this.
+	authCtx := dbauthz.AsSystemRestricted(ctx)
 	now := database.Now()
-	ws, err := b.store.GetWorkspaceByAgentID(ctx, agentID)
+	// TODO(Cian): cache agentID -> workspaceID?
+	ws, err := b.store.GetWorkspaceByAgentID(authCtx, agentID)
 	if err != nil {
-		return err
+		return xerrors.Errorf("get workspace by agent id: %w", err)
 	}
 	payload, err := json.Marshal(st.ConnectionsByProto)
 	if err != nil {
@@ -133,17 +148,18 @@ func (b *Batcher) Add(
 
 // Run runs the batcher.
 func (b *Batcher) Run(ctx context.Context) {
+	authCtx := dbauthz.AsSystemRestricted(ctx)
 	for {
 		select {
 		case tick := <-b.ticker:
-			b.flush(ctx, tick)
+			b.flush(authCtx, tick)
 		case <-b.flushLever:
 			// If the flush lever is depressed, flush the buffer immediately.
 			b.log.Warn(ctx, "flushing due to full buffer", slog.F("count", len(b.buf)))
-			b.flush(ctx, database.Now())
+			b.flush(authCtx, database.Now())
 		case <-ctx.Done():
 			b.log.Warn(ctx, "context done, flushing before exit")
-			b.flush(ctx, database.Now())
+			b.flush(authCtx, database.Now())
 			return
 		}
 	}
@@ -151,22 +167,26 @@ func (b *Batcher) Run(ctx context.Context) {
 
 // flush flushes the batcher's buffer.
 func (b *Batcher) flush(ctx context.Context, now time.Time) {
+	// TODO(Cian): After flushing, should we somehow reset the ticker?
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	// TODO(Cian): After flushing, should we somehow reset the ticker?
-
+	defer func() {
+		// Notify that a flush has completed.
+		if b.flushed != nil {
+			b.flushed <- struct{}{}
+		}
+	}()
 	if len(b.buf) == 0 {
 		b.log.Debug(ctx, "nothing to flush")
 		return
 	}
 
-	b.log.Debug(context.Background(), "flushing buffer", slog.F("count", len(b.buf)))
+	b.log.Debug(ctx, "flushing buffer", slog.F("count", len(b.buf)))
 	// TODO(cian): update the query to batch-insert multiple stats
-	for range b.buf {
-		if _, err := b.store.InsertWorkspaceAgentStat(ctx, database.InsertWorkspaceAgentStatParams{
-			// TODO: fill
-		}); err != nil {
-			b.log.Error(context.Background(), "insert workspace agent stat", slog.Error(err))
+	for _, p := range b.buf {
+		if _, err := b.store.InsertWorkspaceAgentStat(ctx, p); err != nil {
+			b.log.Error(ctx, "insert workspace agent stat", slog.Error(err))
 		}
 	}
+
 }

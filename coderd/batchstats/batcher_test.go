@@ -2,17 +2,18 @@ package batchstats_test
 
 import (
 	"context"
-	"github.com/coder/coder/codersdk/agentsdk"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/coderd/batchstats"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/database/dbtestutil"
+	"github.com/coder/coder/codersdk/agentsdk"
 )
 
 func TestBatchStats(t *testing.T) {
@@ -22,22 +23,23 @@ func TestBatchStats(t *testing.T) {
 	t.Cleanup(cancel)
 	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	store, _ := dbtestutil.NewDB(t)
-	ws1 := dbgen.Workspace(t, store, database.Workspace{
-		LastUsedAt: time.Now().Add(-time.Hour),
-	})
-	ws2 := dbgen.Workspace(t, store, database.Workspace{
-		LastUsedAt: time.Now().Add(-time.Hour),
-	})
-	// TODO: link to ws1 and ws2
-	agt1 := dbgen.WorkspaceAgent(t, store, database.WorkspaceAgent{})
-	agt2 := dbgen.WorkspaceAgent(t, store, database.WorkspaceAgent{})
+
+	// Set up some test dependencies.
+	deps1 := setupDeps(t, store)
+	ws1, err := store.GetWorkspaceByID(ctx, deps1.Workspace.ID)
+	deps2 := setupDeps(t, store)
+	require.NoError(t, err)
+	ws2, err := store.GetWorkspaceByID(ctx, deps2.Workspace.ID)
+	require.NoError(t, err)
 	startedAt := time.Now()
 	tick := make(chan time.Time)
+	flushed := make(chan struct{})
 
 	b, err := batchstats.New(
 		batchstats.WithStore(store),
 		batchstats.WithLogger(log),
 		batchstats.WithTicker(tick),
+		batchstats.WithFlushed(flushed),
 	)
 	require.NoError(t, err)
 
@@ -51,6 +53,7 @@ func TestBatchStats(t *testing.T) {
 	}()
 	t1 := time.Now()
 	tick <- t1
+	<-flushed // Wait for a flush to complete.
 
 	// Then: it should report no stats.
 	stats, err := store.GetWorkspaceAgentStats(ctx, startedAt)
@@ -66,13 +69,14 @@ func TestBatchStats(t *testing.T) {
 	require.Equal(t, ws2.LastUsedAt, updated2.LastUsedAt)
 
 	// When: a single data point is added for ws1
-	require.NoError(t, b.Add(ctx, agt1.ID, randAgentSDKStats(t)))
+	require.NoError(t, b.Add(ctx, deps1.Agent.ID, randAgentSDKStats(t)))
 	// And it becomes time to report stats
 	t2 := time.Now()
 	tick <- t2
+	<-flushed // Wait for a flush to complete.
 
 	// Then: it should report a single stat.
-	stats, err = store.GetWorkspaceAgentStats(ctx, startedAt)
+	stats, err = store.GetWorkspaceAgentStats(ctx, t1)
 	require.NoError(t, err)
 	require.Len(t, stats, 1)
 
@@ -87,14 +91,16 @@ func TestBatchStats(t *testing.T) {
 
 	// When: a lot of data points are added for both ws1 and ws2
 	// (equal to batch size)
-	t3 := time.Now()
 	for i := 0; i < batchstats.DefaultBatchSize; i++ {
 		if i%2 == 0 {
-			require.NoError(t, b.Add(ctx, agt1.ID, randAgentSDKStats(t)))
+			require.NoError(t, b.Add(ctx, deps1.Agent.ID, randAgentSDKStats(t)))
 		} else {
-			require.NoError(t, b.Add(ctx, agt2.ID, randAgentSDKStats(t)))
+			require.NoError(t, b.Add(ctx, deps2.Agent.ID, randAgentSDKStats(t)))
 		}
 	}
+	t3 := time.Now()
+	tick <- t3
+	<-flushed // Wait for a flush to complete.
 
 	// Then: it should immediately flush its stats to store.
 	stats, err = store.GetWorkspaceAgentStats(ctx, t3)
@@ -120,35 +126,7 @@ func randAgentSDKStats(t *testing.T, opts ...func(*agentsdk.Stats)) agentsdk.Sta
 	return s
 }
 
-// randInsertWorkspaceAgentStatParams returns a random InsertWorkspaceAgentStatParams
-func randInsertWorkspaceAgentStatParams(t *testing.T, opts ...func(params *database.InsertWorkspaceAgentStatParams)) database.InsertWorkspaceAgentStatParams {
-	t.Helper()
-	p := database.InsertWorkspaceAgentStatParams{
-		ID:                          uuid.New(),
-		CreatedAt:                   time.Now(),
-		UserID:                      uuid.New(),
-		WorkspaceID:                 uuid.New(),
-		TemplateID:                  uuid.New(),
-		AgentID:                     uuid.New(),
-		ConnectionsByProto:          []byte(`{"tcp": 1}`),
-		ConnectionCount:             1,
-		RxPackets:                   1,
-		RxBytes:                     1,
-		TxPackets:                   1,
-		TxBytes:                     1,
-		SessionCountVSCode:          1,
-		SessionCountJetBrains:       1,
-		SessionCountReconnectingPTY: 0,
-		SessionCountSSH:             0,
-		ConnectionMedianLatencyMS:   0,
-	}
-	for _, opt := range opts {
-		opt(&p)
-	}
-	return p
-}
-
-//type InsertWorkspaceAgentStatParams struct {
+// type InsertWorkspaceAgentStatParams struct {
 //	ID                          uuid.UUID       `db:"id" json:"id"`
 //	CreatedAt                   time.Time       `db:"created_at" json:"created_at"`
 //	UserID                      uuid.UUID       `db:"user_id" json:"user_id"`
@@ -168,7 +146,7 @@ func randInsertWorkspaceAgentStatParams(t *testing.T, opts ...func(params *datab
 //	ConnectionMedianLatencyMS   float64         `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
 //}
 
-//type GetWorkspaceAgentStatsRow struct {
+// type GetWorkspaceAgentStatsRow struct {
 //	UserID                       uuid.UUID `db:"user_id" json:"user_id"`
 //	AgentID                      uuid.UUID `db:"agent_id" json:"agent_id"`
 //	WorkspaceID                  uuid.UUID `db:"workspace_id" json:"workspace_id"`
@@ -184,3 +162,47 @@ func randInsertWorkspaceAgentStatParams(t *testing.T, opts ...func(params *datab
 //	SessionCountJetBrains        int64     `db:"session_count_jetbrains" json:"session_count_jetbrains"`
 //	SessionCountReconnectingPTY  int64     `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
 //}
+
+type deps struct {
+	Agent     database.WorkspaceAgent
+	Template  database.Template
+	User      database.User
+	Workspace database.Workspace
+}
+
+func setupDeps(t *testing.T, store database.Store) deps {
+	t.Helper()
+
+	user := dbgen.User(t, store, database.User{})
+	tv := dbgen.TemplateVersion(t, store, database.TemplateVersion{})
+	tpl := dbgen.Template(t, store, database.Template{
+		CreatedBy:       user.ID,
+		ActiveVersionID: tv.ID,
+	})
+	ws := dbgen.Workspace(t, store, database.Workspace{
+		TemplateID: tpl.ID,
+		OwnerID:    user.ID,
+		LastUsedAt: time.Now().Add(-time.Hour),
+	})
+	pj := dbgen.ProvisionerJob(t, store, database.ProvisionerJob{
+		InitiatorID: user.ID,
+	})
+	_ = dbgen.WorkspaceBuild(t, store, database.WorkspaceBuild{
+		TemplateVersionID: tv.ID,
+		WorkspaceID:       ws.ID,
+		JobID:             pj.ID,
+	})
+	res := dbgen.WorkspaceResource(t, store, database.WorkspaceResource{
+		Transition: database.WorkspaceTransitionStart,
+		JobID:      pj.ID,
+	})
+	agt := dbgen.WorkspaceAgent(t, store, database.WorkspaceAgent{
+		ResourceID: res.ID,
+	})
+	return deps{
+		Agent:     agt,
+		Template:  tpl,
+		User:      user,
+		Workspace: ws,
+	}
+}
