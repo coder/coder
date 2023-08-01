@@ -866,6 +866,7 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 			lastDERPMap = derpMap
 		}
 
+		ticker.Reset(api.Options.DERPMapUpdateFrequency)
 		select {
 		case <-ctx.Done():
 			return
@@ -873,8 +874,6 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 			return
 		case <-ticker.C:
 		}
-
-		ticker.Reset(api.Options.DERPMapUpdateFrequency)
 	}
 }
 
