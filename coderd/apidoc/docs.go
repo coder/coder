@@ -8021,7 +8021,8 @@ const docTemplate = `{
                 "tailnet_pg_coordinator",
                 "single_tailnet",
                 "template_restart_requirement",
-                "template_insights_page"
+                "template_insights_page",
+                "deployment_health_page"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
@@ -8029,7 +8030,8 @@ const docTemplate = `{
                 "ExperimentTailnetPGCoordinator",
                 "ExperimentSingleTailnet",
                 "ExperimentTemplateRestartRequirement",
-                "ExperimentTemplateInsightsPage"
+                "ExperimentTemplateInsightsPage",
+                "ExperimentDeploymentHealthPage"
             ]
         },
         "codersdk.Feature": {
