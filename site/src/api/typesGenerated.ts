@@ -110,7 +110,6 @@ export interface AuthMethod {
 
 // From codersdk/users.go
 export interface AuthMethods {
-  readonly convert_to_oidc_enabled: boolean
   readonly password: AuthMethod
   readonly github: AuthMethod
   readonly oidc: OIDCAuthMethod
@@ -1560,7 +1559,6 @@ export const Entitlements: Entitlement[] = [
 
 // From codersdk/deployment.go
 export type Experiment =
-  | "convert-to-oidc"
   | "moons"
   | "single_tailnet"
   | "tailnet_pg_coordinator"
@@ -1568,7 +1566,6 @@ export type Experiment =
   | "template_restart_requirement"
   | "workspace_actions"
 export const Experiments: Experiment[] = [
-  "convert-to-oidc",
   "moons",
   "single_tailnet",
   "tailnet_pg_coordinator",
