@@ -149,6 +149,37 @@ func TestPatchGroup(t *testing.T) {
 		require.Equal(t, 20, group.QuotaAllowance)
 	})
 
+	t.Run("DisplayNameUnchanged", func(t *testing.T) {
+		t.Parallel()
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
+		}})
+		const displayName = "foobar"
+		ctx := testutil.Context(t, testutil.WaitLong)
+		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name:           "hi",
+			AvatarURL:      "https://example.com",
+			QuotaAllowance: 10,
+			DisplayName:    displayName,
+		})
+		require.NoError(t, err)
+		require.Equal(t, 10, group.QuotaAllowance)
+
+		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			Name:           "bye",
+			AvatarURL:      ptr.Ref("https://google.com"),
+			QuotaAllowance: ptr.Ref(20),
+		})
+		require.NoError(t, err)
+		require.Equal(t, displayName, group.DisplayName)
+		require.Equal(t, "bye", group.Name)
+		require.Equal(t, "https://google.com", group.AvatarURL)
+		require.Equal(t, 20, group.QuotaAllowance)
+	})
+
 	// The FE sends a request from the edit page where the old name == new name.
 	// This should pass since it's not really an error to update a group name
 	// to itself.
