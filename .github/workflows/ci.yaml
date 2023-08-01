@@ -695,3 +695,46 @@ jobs:
           fi
 
           echo "Required checks have passed"
+
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    env:
+      DOCKER_CLI_EXPERIMENTAL: "enabled"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Setup sqlc
+        uses: ./.github/actions/setup-sqlc
+
+      - name: GHCR Login
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Linux amd64 Docker image
+        run: |
+          set -euxo pipefail
+          go mod download
+          make gen/mark-fresh
+          export DOCKER_IMAGE_NO_PREREQUISITES=true
+          version="$(./scripts/version.sh)"
+          export CODER_IMAGE_BUILD_BASE_TAG="$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")"
+          make -j build/coder_linux_amd64
+          ./scripts/build_docker.sh \
+            --arch amd64 \
+            --target ghcr.io/coder/coder:latest \
+            --version $version \
+            --push \
+            build/coder_linux_amd64
