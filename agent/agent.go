@@ -85,6 +85,8 @@ type Client interface {
 
 type Agent interface {
 	HTTPDebug() http.Handler
+	// TailnetConn may be nil.
+	TailnetConn() *tailnet.Conn
 	io.Closer
 }
 
@@ -198,6 +200,10 @@ type agent struct {
 
 	prometheusRegistry *prometheus.Registry
 	metrics            *agentMetrics
+}
+
+func (a *agent) TailnetConn() *tailnet.Conn {
+	return a.network
 }
 
 func (a *agent) init(ctx context.Context) {
