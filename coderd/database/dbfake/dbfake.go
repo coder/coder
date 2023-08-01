@@ -2701,8 +2701,12 @@ func (q *FakeQuerier) GetWorkspaceAgentStats(_ context.Context, createdAfter tim
 	}
 
 	statByAgent := map[uuid.UUID]database.GetWorkspaceAgentStatsRow{}
-	for _, agentStat := range latestAgentStats {
-		stat := statByAgent[agentStat.AgentID]
+	for agentID, agentStat := range latestAgentStats {
+		stat := statByAgent[agentID]
+		stat.AgentID = agentStat.AgentID
+		stat.TemplateID = agentStat.TemplateID
+		stat.UserID = agentStat.UserID
+		stat.WorkspaceID = agentStat.WorkspaceID
 		stat.SessionCountVSCode += agentStat.SessionCountVSCode
 		stat.SessionCountJetBrains += agentStat.SessionCountJetBrains
 		stat.SessionCountReconnectingPTY += agentStat.SessionCountReconnectingPTY
