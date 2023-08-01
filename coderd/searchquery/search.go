@@ -118,6 +118,11 @@ func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectT
 
 	if _, ok := values["deleting_by"]; ok {
 		postFilter.DeletingBy = ptr.Ref(parser.Time(values, time.Time{}, "deleting_by", "2006-01-02"))
+		// We want to make sure to grab locked workspaces since they
+		// are omitted by default.
+		if filter.LockedAt.IsZero() {
+			filter.LockedAt = time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
+		}
 	}
 
 	parser.ErrorExcessParams(values)

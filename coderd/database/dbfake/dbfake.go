@@ -5562,6 +5562,16 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 			}
 		}
 
+		// We omit locked workspaces by default.
+		if arg.LockedAt.IsZero() && workspace.LockedAt.Valid {
+			continue
+		}
+
+		// Filter out workspaces that are locked after the timestamp.
+		if !arg.LockedAt.IsZero() && workspace.LockedAt.Time.Before(arg.LockedAt) {
+			continue
+		}
+
 		if len(arg.TemplateIDs) > 0 {
 			match := false
 			for _, id := range arg.TemplateIDs {
