@@ -258,8 +258,6 @@ func (c *Client) UpdateUserStatus(ctx context.Context, user string, status UserS
 	switch status {
 	case UserStatusActive:
 		path += "activate"
-	case UserStatusDormant:
-		path += "dormant"
 	case UserStatusSuspended:
 		path += "suspend"
 	default:

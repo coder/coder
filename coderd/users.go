@@ -630,18 +630,6 @@ func (api *API) putSuspendUserAccount() func(rw http.ResponseWriter, r *http.Req
 	return api.putUserStatus(database.UserStatusSuspended)
 }
 
-// @Summary Mark user account as dormant
-// @ID mark-user-account-as-dormant
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Users
-// @Param user path string true "User ID, name, or me"
-// @Success 200 {object} codersdk.User
-// @Router /users/{user}/status/dormant [put]
-func (api *API) putDormantUserAccount() func(rw http.ResponseWriter, r *http.Request) {
-	return api.putUserStatus(database.UserStatusDormant)
-}
-
 // @Summary Activate user account
 // @ID activate-user-account
 // @Security CoderSessionToken

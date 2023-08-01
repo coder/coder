@@ -3640,36 +3640,6 @@
         }
       }
     },
-    "/users/{user}/status/dormant": {
-      "put": {
-        "security": [
-          {
-            "CoderSessionToken": []
-          }
-        ],
-        "produces": ["application/json"],
-        "tags": ["Users"],
-        "summary": "Mark user account as dormant",
-        "operationId": "mark-user-account-as-dormant",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "User ID, name, or me",
-            "name": "user",
-            "in": "path",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "schema": {
-              "$ref": "#/definitions/codersdk.User"
-            }
-          }
-        }
-      }
-    },
     "/users/{user}/status/suspend": {
       "put": {
         "security": [

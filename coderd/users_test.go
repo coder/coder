@@ -1048,61 +1048,6 @@ func TestPutUserSuspend(t *testing.T) {
 	})
 }
 
-func TestPutUserDormant(t *testing.T) {
-	t.Parallel()
-
-	t.Run("MarkOwnerAsDormant", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		me := coderdtest.CreateFirstUser(t, client)
-		_, user := coderdtest.CreateAnotherUser(t, client, me.OrganizationID, rbac.RoleOwner())
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		_, err := client.UpdateUserStatus(ctx, user.Username, codersdk.UserStatusDormant)
-		require.Error(t, err, "cannot mark owners as dormant")
-	})
-
-	t.Run("MarkAnotherUserDormant", func(t *testing.T) {
-		t.Parallel()
-		auditor := audit.NewMock()
-		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
-		numLogs := len(auditor.AuditLogs())
-
-		me := coderdtest.CreateFirstUser(t, client)
-		numLogs++ // add an audit log for user create
-		numLogs++ // add an audit log for login
-
-		_, user := coderdtest.CreateAnotherUser(t, client, me.OrganizationID)
-		numLogs++ // add an audit log for user create
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		user, err := client.UpdateUserStatus(ctx, user.Username, codersdk.UserStatusDormant)
-		require.NoError(t, err)
-		require.Equal(t, user.Status, codersdk.UserStatusDormant)
-		numLogs++ // add an audit log for user update
-
-		require.Len(t, auditor.AuditLogs(), numLogs)
-		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[numLogs-1].Action)
-	})
-
-	t.Run("MarkOwnUserDormant", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		coderdtest.CreateFirstUser(t, client)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		_, err := client.UpdateUserStatus(ctx, codersdk.Me, codersdk.UserStatusDormant)
-
-		require.ErrorContains(t, err, "cannot mark own user as dormant")
-	})
-}
-
 func TestActivateDormantUser(t *testing.T) {
 	t.Parallel()
 	client := coderdtest.New(t, nil)

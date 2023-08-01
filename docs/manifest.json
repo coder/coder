@@ -857,11 +857,6 @@
           "path": "cli/users_list.md"
         },
         {
-          "title": "users mark-as-dormant",
-          "description": "Update a user's status to 'dormant'. Dormant users are not counted in the license plan",
-          "path": "cli/users_mark-as-dormant.md"
-        },
-        {
           "title": "users show",
           "description": "Show a single user. Use 'me' to indicate the currently authenticated user.",
           "path": "cli/users_show.md"

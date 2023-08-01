@@ -23,11 +23,6 @@ func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *clibas
 		pastVerb = "activated"
 		aliases = []string{"active"}
 		short = "Update a user's status to 'active'. Active users can fully interact with the platform"
-	case codersdk.UserStatusDormant:
-		verb = "mark as dormant"
-		pastVerb = "marked as dormant"
-		aliases = []string{"dormant"}
-		short = "Update a user's status to 'dormant'. Dormant users are not counted in the license plan"
 	case codersdk.UserStatusSuspended:
 		verb = "suspend"
 		pastVerb = "suspended"
@@ -41,12 +36,12 @@ func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *clibas
 
 	var columns []string
 	cmd := &clibase.Cmd{
-		Use:     fmt.Sprintf("%s <username|user_id>", strings.ReplaceAll(verb, " ", "-")),
+		Use:     fmt.Sprintf("%s <username|user_id>", verb),
 		Short:   short,
 		Aliases: aliases,
 		Long: formatExamples(
 			example{
-				Command: fmt.Sprintf("coder users %s example_user", strings.ReplaceAll(verb, " ", "-")),
+				Command: fmt.Sprintf("coder users %s example_user", verb),
 			},
 		),
 		Middleware: clibase.Chain(
@@ -80,14 +75,8 @@ func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *clibas
 			}
 
 			// Prompt to confirm the action
-			var question string
-			if sdkStatus == codersdk.UserStatusDormant {
-				question = "Are you sure you want to mark this user as dormant?"
-			} else {
-				question = fmt.Sprintf("Are you sure you want to %s this user?", verb)
-			}
 			_, err = cliui.Prompt(inv, cliui.PromptOptions{
-				Text:      question,
+				Text:      fmt.Sprintf("Are you sure you want to %s this user?", verb),
 				IsConfirm: true,
 				Default:   cliui.ConfirmYes,
 			})
