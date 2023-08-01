@@ -14,6 +14,9 @@ dependencies:
   '@emotion/styled':
     specifier: '11'
     version: 11.11.0(@emotion/react@11.11.1)(@types/react@18.2.17)(react@18.2.0)
+  '@types/lodash':
+    specifier: 4.14.196
+    version: 4.14.196
   archiver:
     specifier: 5.3.1
     version: 5.3.1

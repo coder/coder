@@ -18,6 +18,7 @@
     "@chakra-ui/react": "2.8.0",
     "@emotion/react": "11",
     "@emotion/styled": "11",
+    "@types/lodash": "4.14.196",
     "archiver": "5.3.1",
     "framer-motion": "10",
     "front-matter": "4.0.2",
