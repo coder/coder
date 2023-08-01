@@ -466,7 +466,6 @@ gen: \
 	.prettierignore \
 	site/.prettierrc.yaml \
 	site/.prettierignore \
-	site/.eslintignore
 .PHONY: gen
 
 # Mark all generated files as fresh so make thinks they're up-to-date. This is

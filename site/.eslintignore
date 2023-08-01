@@ -78,3 +78,5 @@ stats/
 
 # Generated files shouldn't be formatted.
 e2e/provisionerGenerated.ts
+
+**/pnpm-lock.yaml
