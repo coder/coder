@@ -30,7 +30,7 @@ curl https://coder.example.com/api/v2/workspaces?q=owner:me \
 
 ## Documentation
 
-We publish an [API reference](../api/index.md) in our documentation. You can also enable a [Swagger endpoint](../cli/server#--swagger-enable) on your Coder deployment.
+We publish an [API reference](../api/index.md) in our documentation. You can also enable a [Swagger endpoint](../cli/server.md#--swagger-enable) on your Coder deployment.
 
 ## Use cases
 
@@ -44,10 +44,10 @@ We strive to keep the following use cases up to date, but please note that chang
 
 Workspace agents have a special token that can send logs, metrics, and workspace activity.
 
-- [Custom workspace logs](../api/agents.md#patch-workspace-agent-startup-logs): Expose messages prior to the Coder init script running (e.g. pulling image, VM starting, restoring snapshot). [coder-logstream-kube](https://github.com/coder/coder-logstream-kube) uses this to show Kubernetes events, such as image pulls or ResourceQuota restrictions.
+- [Custom workspace logs](../api/agents.md#patch-workspace-agent-logs): Expose messages prior to the Coder init script running (e.g. pulling image, VM starting, restoring snapshot). [coder-logstream-kube](https://github.com/coder/coder-logstream-kube) uses this to show Kubernetes events, such as image pulls or ResourceQuota restrictions.
 
   ```sh
-  curl -X PATCH https://coder.example.com/api/v2/workspaceagents/me/startup-logs \
+  curl -X PATCH https://coder.example.com/api/v2/workspaceagents/me/logs \
   -H "Coder-Session-Token: $CODER_AGENT_TOKEN" \
   -d "{
     \"logs\": [

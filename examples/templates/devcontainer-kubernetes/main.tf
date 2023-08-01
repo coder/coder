@@ -98,6 +98,7 @@ resource "kubernetes_persistent_volume_claim" "workspaces" {
       "coder.workspace_name_at_creation" = data.coder_workspace.me.name
     }
   }
+  wait_until_bound = false
   spec {
     access_modes = ["ReadWriteOnce"]
     resources {

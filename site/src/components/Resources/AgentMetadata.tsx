@@ -3,9 +3,19 @@ import { watchAgentMetadata } from "api/api"
 import { WorkspaceAgent, WorkspaceAgentMetadata } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
 import dayjs from "dayjs"
-import { createContext, FC, useContext, useEffect, useState } from "react"
+import {
+  createContext,
+  FC,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react"
 import Skeleton from "@mui/material/Skeleton"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
+import { combineClasses } from "utils/combineClasses"
+import Tooltip from "@mui/material/Tooltip"
+import Box, { BoxProps } from "@mui/material/Box"
 
 type ItemStatus = "stale" | "valid" | "loading"
 
@@ -44,25 +54,35 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
   // users that what's shown is real. If times aren't correctly synced this
   // could be buggy. But, how common is that anyways?
   const value =
-    status === "stale" || status === "loading" ? (
+    status === "loading" ? (
       <Skeleton
         width={65}
         height={12}
         variant="text"
         className={styles.skeleton}
       />
+    ) : status === "stale" ? (
+      <Tooltip title="This data is stale and no longer up to date">
+        <StaticWidth
+          className={combineClasses([
+            styles.metadataValue,
+            styles.metadataStale,
+          ])}
+        >
+          {item.result.value}
+        </StaticWidth>
+      </Tooltip>
     ) : (
-      <div
-        className={
-          styles.metadataValue +
-          " " +
-          (item.result.error.length === 0
+      <StaticWidth
+        className={combineClasses([
+          styles.metadataValue,
+          item.result.error.length === 0
             ? styles.metadataValueSuccess
-            : styles.metadataValueError)
-        }
+            : styles.metadataValueError,
+        ])}
       >
         {item.result.value}
-      </div>
+      </StaticWidth>
     )
 
   return (
@@ -70,7 +90,7 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
       <div className={styles.metadataLabel}>
         {item.description.display_name}
       </div>
-      <div>{value}</div>
+      <Box>{value}</Box>
     </div>
   )
 }
@@ -177,6 +197,24 @@ export const AgentMetadataSkeleton: FC = () => {
   )
 }
 
+const StaticWidth = (props: BoxProps) => {
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!ref.current) {
+      return
+    }
+
+    const currentWidth = ref.current.getBoundingClientRect().width
+    ref.current.style.width = "auto"
+    const autoWidth = ref.current.getBoundingClientRect().width
+    ref.current.style.width =
+      autoWidth > currentWidth ? `${autoWidth}px` : `${currentWidth}px`
+  }, [props.children])
+
+  return <Box {...props} ref={ref} />
+}
+
 // These are more or less copied from
 // site/src/components/Resources/ResourceCard.tsx
 const useStyles = makeStyles((theme) => ({
@@ -224,6 +262,11 @@ const useStyles = makeStyles((theme) => ({
 
   metadataValueError: {
     color: theme.palette.error.main,
+  },
+
+  metadataStale: {
+    color: theme.palette.text.disabled,
+    cursor: "pointer",
   },
 
   skeleton: {

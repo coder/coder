@@ -2,10 +2,17 @@ package tracing
 
 import (
 	"bufio"
+	"flag"
+	"fmt"
+	"log"
 	"net"
 	"net/http"
+	"runtime"
+	"strings"
 
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/buildinfo"
 )
 
 var (
@@ -22,7 +29,8 @@ type StatusWriter struct {
 	Hijacked     bool
 	responseBody []byte
 
-	wroteHeader bool
+	wroteHeader      bool
+	wroteHeaderStack string
 }
 
 func StatusWriterMiddleware(next http.Handler) http.Handler {
@@ -33,6 +41,20 @@ func StatusWriterMiddleware(next http.Handler) http.Handler {
 }
 
 func (w *StatusWriter) WriteHeader(status int) {
+	if buildinfo.IsDev() || flag.Lookup("test.v") != nil {
+		if w.wroteHeader {
+			stack := getStackString(2)
+			wroteHeaderStack := w.wroteHeaderStack
+			if wroteHeaderStack == "" {
+				wroteHeaderStack = "unknown"
+			}
+			// It's fine that this logs to stdlib logger since it only happens
+			// in dev builds and tests.
+			log.Printf("duplicate call to (*StatusWriter.).WriteHeader(%d):\n\nstack: %s\n\nheader written at: %s", status, stack, wroteHeaderStack)
+		} else {
+			w.wroteHeaderStack = getStackString(2)
+		}
+	}
 	if !w.wroteHeader {
 		w.Status = status
 		w.wroteHeader = true
@@ -88,4 +110,21 @@ func (w *StatusWriter) Flush() {
 		panic("http.ResponseWriter is not http.Flusher")
 	}
 	f.Flush()
+}
+
+func getStackString(skip int) string {
+	// Get up to 5 callers, skipping this one and the skip count.
+	pcs := make([]uintptr, 5)
+	got := runtime.Callers(skip+1, pcs)
+	frames := runtime.CallersFrames(pcs[:got])
+
+	callers := []string{}
+	for {
+		frame, more := frames.Next()
+		callers = append(callers, fmt.Sprintf("%s:%v", frame.File, frame.Line))
+		if !more {
+			break
+		}
+	}
+	return strings.Join(callers, " -> ")
 }

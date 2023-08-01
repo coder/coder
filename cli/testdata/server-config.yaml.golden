@@ -183,14 +183,17 @@ introspection:
     enable: false
     # Enables capturing of logs as events in traces. This is useful for debugging, but
     # may result in a very large amount of events being sent to the tracing backend
-    # which may incur significant costs. If the verbose flag was supplied, debug-level
-    # logs will be included.
+    # which may incur significant costs.
     # (default: <unset>, type: bool)
     captureLogs: false
   logging:
     # Output debug-level logs.
     # (default: <unset>, type: bool)
     verbose: false
+    # Filter debug logs by matching against a given regex. Use .* to match all debug
+    # logs.
+    # (default: <unset>, type: string-array)
+    filter: []
     # Output human-readable logs to a given file.
     # (default: /dev/stderr, type: string)
     humanPath: /dev/stderr
@@ -268,6 +271,20 @@ oidc:
   # for when OIDC providers only return group IDs.
   # (default: {}, type: struct[map[string]string])
   groupMapping: {}
+  # This field must be set if using the user roles sync feature. Set this to the
+  # name of the claim used to store the user's role. The roles should be sent as an
+  # array of strings.
+  # (default: <unset>, type: string)
+  userRoleField: ""
+  # A map of the OIDC passed in user roles and the groups in Coder it should map to.
+  # This is useful if the group names do not match. If mapped to the empty string,
+  # the role will ignored.
+  # (default: {}, type: struct[map[string][]string])
+  userRoleMapping: {}
+  # If user role sync is enabled, these roles are always included for all
+  # authenticated users. The 'member' role is always assigned.
+  # (default: <unset>, type: string-array)
+  userRoleDefault: []
   # The text to show on the OpenID Connect sign in button.
   # (default: OpenID Connect, type: string)
   signInText: OpenID Connect

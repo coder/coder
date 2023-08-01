@@ -8,6 +8,12 @@ import { Stack } from "components/Stack/Stack"
 import Checkbox from "@mui/material/Checkbox"
 import UserIcon from "@mui/icons-material/PersonOutline"
 import { Role } from "api/typesGenerated"
+import {
+  HelpTooltip,
+  HelpTooltipText,
+  HelpTooltipTitle,
+} from "components/Tooltips/HelpTooltip"
+import { Maybe } from "components/Conditionals/Maybe"
 
 const Option: React.FC<{
   value: string
@@ -46,6 +52,8 @@ export interface EditRolesButtonProps {
   selectedRoles: Role[]
   onChange: (roles: Role["name"][]) => void
   defaultIsOpen?: boolean
+  oidcRoleSync: boolean
+  userLoginType: string
 }
 
 export const EditRolesButton: FC<EditRolesButtonProps> = ({
@@ -54,6 +62,8 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
   onChange,
   isLoading,
   defaultIsOpen = false,
+  userLoginType,
+  oidcRoleSync,
 }) => {
   const styles = useStyles()
   const { t } = useTranslation("usersPage")
@@ -71,17 +81,30 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
     onChange([...selectedRoleNames, roleName])
   }
 
+  const canSetRoles =
+    userLoginType !== "oidc" || (userLoginType === "oidc" && !oidcRoleSync)
+
   return (
     <>
-      <IconButton
-        ref={anchorRef}
-        size="small"
-        className={styles.editButton}
-        title={t("editUserRolesTooltip") || ""}
-        onClick={() => setIsOpen(true)}
-      >
-        <EditSquare />
-      </IconButton>
+      <Maybe condition={canSetRoles}>
+        <IconButton
+          ref={anchorRef}
+          size="small"
+          className={styles.editButton}
+          title={t("editUserRolesTooltip") || ""}
+          onClick={() => setIsOpen(true)}
+        >
+          <EditSquare />
+        </IconButton>
+      </Maybe>
+      <Maybe condition={!canSetRoles}>
+        <HelpTooltip size="small">
+          <HelpTooltipTitle>Externally controlled</HelpTooltipTitle>
+          <HelpTooltipText>
+            Roles for this user are controlled by the OIDC identity provider.
+          </HelpTooltipText>
+        </HelpTooltip>
+      </Maybe>
 
       <Popover
         id={id}

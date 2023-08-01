@@ -530,6 +530,25 @@ const docTemplate = `{
                 }
             }
         },
+        "/derp-map": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get DERP map updates",
+                "operationId": "get-derp-map-updates",
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    }
+                }
+            }
+        },
         "/entitlements": {
             "get": {
                 "security": [
@@ -2104,6 +2123,44 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/templates/{template}/acl/available": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get template available acl users/groups",
+                "operationId": "get-template-available-acl-usersgroups",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ACLAvailable"
+                            }
                         }
                     }
                 }
@@ -4508,6 +4565,45 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/me/logs": {
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Patch workspace agent logs",
+                "operationId": "patch-workspace-agent-logs",
+                "parameters": [
+                    {
+                        "description": "logs",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agentsdk.PatchLogs"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaceagents/me/manifest": {
             "get": {
                 "security": [
@@ -4707,16 +4803,16 @@ const docTemplate = `{
                 "tags": [
                     "Agents"
                 ],
-                "summary": "Patch workspace agent startup logs",
-                "operationId": "patch-workspace-agent-startup-logs",
+                "summary": "Removed: Patch workspace agent logs",
+                "operationId": "removed-patch-workspace-agent-logs",
                 "parameters": [
                     {
-                        "description": "Startup logs",
+                        "description": "logs",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/agentsdk.PatchStartupLogs"
+                            "$ref": "#/definitions/agentsdk.PatchLogs"
                         }
                     }
                 ],
@@ -4902,6 +4998,68 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/{workspaceagent}/logs": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get logs by workspace agent",
+                "operationId": "get-logs-by-workspace-agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Before log id",
+                        "name": "before",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "After log id",
+                        "name": "after",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Follow log stream",
+                        "name": "follow",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Disable compression for WebSocket connection",
+                        "name": "no_compression",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.WorkspaceAgentLog"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/workspaceagents/{workspaceagent}/pty": {
             "get": {
                 "security": [
@@ -4944,8 +5102,8 @@ const docTemplate = `{
                 "tags": [
                     "Agents"
                 ],
-                "summary": "Get startup logs by workspace agent",
-                "operationId": "get-startup-logs-by-workspace-agent",
+                "summary": "Removed: Get logs by workspace agent",
+                "operationId": "removed-get-logs-by-workspace-agent",
                 "parameters": [
                     {
                         "type": "string",
@@ -4986,7 +5144,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.WorkspaceAgentStartupLog"
+                                "$ref": "#/definitions/codersdk.WorkspaceAgentLog"
                             }
                         }
                     }
@@ -5343,27 +5501,35 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaceproxies/me/goingaway": {
+        "/workspaceproxies/me/deregister": {
             "post": {
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
                 ],
-                "produces": [
+                "consumes": [
                     "application/json"
                 ],
                 "tags": [
                     "Enterprise"
                 ],
-                "summary": "Workspace proxy going away",
-                "operationId": "workspace-proxy-going-away",
-                "responses": {
-                    "201": {
-                        "description": "Created",
+                "summary": "Deregister workspace proxy",
+                "operationId": "deregister-workspace-proxy",
+                "parameters": [
+                    {
+                        "description": "Deregister workspace proxy request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
+                            "$ref": "#/definitions/wsproxysdk.DeregisterWorkspaceProxyRequest"
                         }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 },
                 "x-apidocgen": {
@@ -5433,7 +5599,7 @@ const docTemplate = `{
                 "operationId": "register-workspace-proxy",
                 "parameters": [
                     {
-                        "description": "Issue signed app token request",
+                        "description": "Register workspace proxy request",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -6148,6 +6314,23 @@ const docTemplate = `{
                 }
             }
         },
+        "agentsdk.Log": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "level": {
+                    "$ref": "#/definitions/codersdk.LogLevel"
+                },
+                "output": {
+                    "type": "string"
+                },
+                "source": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentLogSource"
+                }
+            }
+        },
         "agentsdk.Manifest": {
             "type": "object",
             "properties": {
@@ -6205,13 +6388,13 @@ const docTemplate = `{
                 }
             }
         },
-        "agentsdk.PatchStartupLogs": {
+        "agentsdk.PatchLogs": {
             "type": "object",
             "properties": {
                 "logs": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/agentsdk.StartupLog"
+                        "$ref": "#/definitions/agentsdk.Log"
                     }
                 }
             }
@@ -6268,20 +6451,6 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.AgentSubsystem"
                 },
                 "version": {
-                    "type": "string"
-                }
-            }
-        },
-        "agentsdk.StartupLog": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string"
-                },
-                "level": {
-                    "$ref": "#/definitions/codersdk.LogLevel"
-                },
-                "output": {
                     "type": "string"
                 }
             }
@@ -6619,6 +6788,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ACLAvailable": {
+            "type": "object",
+            "properties": {
+                "groups": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Group"
+                    }
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.User"
+                    }
+                }
+            }
+        },
         "codersdk.APIKey": {
             "type": "object",
             "required": [
@@ -6892,9 +7078,6 @@ const docTemplate = `{
         "codersdk.AuthMethods": {
             "type": "object",
             "properties": {
-                "convert_to_oidc_enabled": {
-                    "type": "boolean"
-                },
                 "github": {
                     "$ref": "#/definitions/codersdk.AuthMethod"
                 },
@@ -7835,18 +8018,18 @@ const docTemplate = `{
             "enum": [
                 "moons",
                 "workspace_actions",
-                "tailnet_ha_coordinator",
-                "convert-to-oidc",
+                "tailnet_pg_coordinator",
                 "single_tailnet",
-                "template_restart_requirement"
+                "template_restart_requirement",
+                "template_insights_page"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
                 "ExperimentWorkspaceActions",
-                "ExperimentTailnetHACoordinator",
-                "ExperimentConvertToOIDC",
+                "ExperimentTailnetPGCoordinator",
                 "ExperimentSingleTailnet",
-                "ExperimentTemplateRestartRequirement"
+                "ExperimentTemplateRestartRequirement",
+                "ExperimentTemplateInsightsPage"
             ]
         },
         "codersdk.Feature": {
@@ -8220,6 +8403,12 @@ const docTemplate = `{
                 "json": {
                     "type": "string"
                 },
+                "log_filter": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "stackdriver": {
                     "type": "string"
                 }
@@ -8265,6 +8454,26 @@ const docTemplate = `{
             ],
             "properties": {
                 "session_token": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.MinimalUser": {
+            "type": "object",
+            "required": [
+                "id",
+                "username"
+            ],
+            "properties": {
+                "avatar_url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "username": {
                     "type": "string"
                 }
             }
@@ -8392,6 +8601,18 @@ const docTemplate = `{
                 },
                 "sign_in_text": {
                     "type": "string"
+                },
+                "user_role_field": {
+                    "type": "string"
+                },
+                "user_role_mapping": {
+                    "type": "object"
+                },
+                "user_roles_default": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "username_field": {
                     "type": "string"
@@ -9460,6 +9681,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "login_type": {
+                    "$ref": "#/definitions/codersdk.LoginType"
+                },
                 "organization_ids": {
                     "type": "array",
                     "items": {
@@ -9508,7 +9732,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "created_by": {
-                    "$ref": "#/definitions/codersdk.User"
+                    "$ref": "#/definitions/codersdk.MinimalUser"
                 },
                 "id": {
                     "type": "string",
@@ -9913,6 +10137,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "login_type": {
+                    "$ref": "#/definitions/codersdk.LoginType"
+                },
                 "organization_ids": {
                     "type": "array",
                     "items": {
@@ -9945,6 +10172,10 @@ const docTemplate = `{
         "codersdk.UserLatency": {
             "type": "object",
             "properties": {
+                "avatar_url": {
+                    "type": "string",
+                    "format": "uri"
+                },
                 "latency_ms": {
                     "$ref": "#/definitions/codersdk.ConnectionLatency"
                 },
@@ -10240,6 +10471,12 @@ const docTemplate = `{
                     "description": "Deprecated: Use StartupScriptBehavior instead.",
                     "type": "boolean"
                 },
+                "logs_length": {
+                    "type": "integer"
+                },
+                "logs_overflowed": {
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -10263,12 +10500,6 @@ const docTemplate = `{
                 "started_at": {
                     "type": "string",
                     "format": "date-time"
-                },
-                "startup_logs_length": {
-                    "type": "integer"
-                },
-                "startup_logs_overflowed": {
-                    "type": "boolean"
                 },
                 "startup_script": {
                     "type": "string"
@@ -10377,6 +10608,43 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.WorkspaceAgentLog": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "level": {
+                    "$ref": "#/definitions/codersdk.LogLevel"
+                },
+                "output": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentLogSource": {
+            "type": "string",
+            "enum": [
+                "startup_script",
+                "shutdown_script",
+                "kubernetes",
+                "envbox",
+                "envbuilder",
+                "external"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceAgentLogSourceStartupScript",
+                "WorkspaceAgentLogSourceShutdownScript",
+                "WorkspaceAgentLogSourceKubernetes",
+                "WorkspaceAgentLogSourceEnvbox",
+                "WorkspaceAgentLogSourceEnvbuilder",
+                "WorkspaceAgentLogSourceExternal"
+            ]
+        },
         "codersdk.WorkspaceAgentMetadataDescription": {
             "type": "object",
             "properties": {
@@ -10394,24 +10662,6 @@ const docTemplate = `{
                 },
                 "timeout": {
                     "type": "integer"
-                }
-            }
-        },
-        "codersdk.WorkspaceAgentStartupLog": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "level": {
-                    "$ref": "#/definitions/codersdk.LogLevel"
-                },
-                "output": {
-                    "type": "string"
                 }
             }
         },
@@ -10716,6 +10966,9 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "deleted": {
+                    "type": "boolean"
+                },
+                "derp_enabled": {
                     "type": "boolean"
                 },
                 "display_name": {
@@ -11417,6 +11670,15 @@ const docTemplate = `{
                 }
             }
         },
+        "wsproxysdk.DeregisterWorkspaceProxyRequest": {
+            "type": "object",
+            "properties": {
+                "replica_id": {
+                    "description": "ReplicaID is a unique identifier for the replica of the proxy that is\nderegistering. It should be generated by the client on startup and\nshould've already been passed to the register endpoint.",
+                    "type": "string"
+                }
+            }
+        },
         "wsproxysdk.IssueSignedAppTokenResponse": {
             "type": "object",
             "properties": {
@@ -11433,6 +11695,30 @@ const docTemplate = `{
                     "description": "AccessURL that hits the workspace proxy api.",
                     "type": "string"
                 },
+                "derp_enabled": {
+                    "description": "DerpEnabled indicates whether the proxy should be included in the DERP\nmap or not.",
+                    "type": "boolean"
+                },
+                "hostname": {
+                    "description": "ReplicaHostname is the OS hostname of the machine that the proxy is running\non.  This is only used for tracking purposes in the replicas table.",
+                    "type": "string"
+                },
+                "replica_error": {
+                    "description": "ReplicaError is the error that the replica encountered when trying to\ndial it's peers. This is stored in the replicas table for debugging\npurposes but does not affect the proxy's ability to register.\n\nThis value is only stored on subsequent requests to the register\nendpoint, not the first request.",
+                    "type": "string"
+                },
+                "replica_id": {
+                    "description": "ReplicaID is a unique identifier for the replica of the proxy that is\nregistering. It should be generated by the client on startup and\npersisted (in memory only) until the process is restarted.",
+                    "type": "string"
+                },
+                "replica_relay_address": {
+                    "description": "ReplicaRelayAddress is the DERP address of the replica that other\nreplicas may use to connect internally for DERP meshing.",
+                    "type": "string"
+                },
+                "version": {
+                    "description": "Version is the Coder version of the proxy.",
+                    "type": "string"
+                },
                 "wildcard_hostname": {
                     "description": "WildcardHostname that the workspace proxy api is serving for subdomain apps.",
                     "type": "string"
@@ -11444,6 +11730,19 @@ const docTemplate = `{
             "properties": {
                 "app_security_key": {
                     "type": "string"
+                },
+                "derp_mesh_key": {
+                    "type": "string"
+                },
+                "derp_region_id": {
+                    "type": "integer"
+                },
+                "sibling_replicas": {
+                    "description": "SiblingReplicas is a list of all other replicas of the proxy that have\nnot timed out.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Replica"
+                    }
                 }
             }
         }

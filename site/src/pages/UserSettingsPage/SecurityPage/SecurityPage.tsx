@@ -53,17 +53,13 @@ export const SecurityPage: FC = () => {
           },
         },
       }}
-      oidc={
-        authMethods.convert_to_oidc_enabled
-          ? {
-              section: {
-                authMethods,
-                userLoginType,
-                ...singleSignOnSection,
-              },
-            }
-          : undefined
-      }
+      oidc={{
+        section: {
+          authMethods,
+          userLoginType,
+          ...singleSignOnSection,
+        },
+      }}
     />
   )
 }

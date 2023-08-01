@@ -10,11 +10,13 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/tailnet"
+	"github.com/coder/coder/testutil"
 )
 
 func NewClient(t testing.TB,
@@ -28,12 +30,13 @@ func NewClient(t testing.TB,
 		manifest.AgentID = agentID
 	}
 	return &Client{
-		t:           t,
-		logger:      logger.Named("client"),
-		agentID:     agentID,
-		manifest:    manifest,
-		statsChan:   statsChan,
-		coordinator: coordinator,
+		t:              t,
+		logger:         logger.Named("client"),
+		agentID:        agentID,
+		manifest:       manifest,
+		statsChan:      statsChan,
+		coordinator:    coordinator,
+		derpMapUpdates: make(chan agentsdk.DERPMapUpdate),
 	}
 }
 
@@ -52,7 +55,8 @@ type Client struct {
 	mu              sync.Mutex // Protects following.
 	lifecycleStates []codersdk.WorkspaceAgentLifecycle
 	startup         agentsdk.PostStartupRequest
-	logs            []agentsdk.StartupLog
+	logs            []agentsdk.Log
+	derpMapUpdates  chan agentsdk.DERPMapUpdate
 }
 
 func (c *Client) Manifest(_ context.Context) (agentsdk.Manifest, error) {
@@ -157,13 +161,13 @@ func (c *Client) PostStartup(ctx context.Context, startup agentsdk.PostStartupRe
 	return nil
 }
 
-func (c *Client) GetStartupLogs() []agentsdk.StartupLog {
+func (c *Client) GetStartupLogs() []agentsdk.Log {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.logs
 }
 
-func (c *Client) PatchStartupLogs(ctx context.Context, logs agentsdk.PatchStartupLogs) error {
+func (c *Client) PatchLogs(ctx context.Context, logs agentsdk.PatchLogs) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.PatchWorkspaceLogs != nil {
@@ -189,6 +193,26 @@ func (c *Client) GetServiceBanner(ctx context.Context) (codersdk.ServiceBannerCo
 		return c.GetServiceBannerFunc()
 	}
 	return codersdk.ServiceBannerConfig{}, nil
+}
+
+func (c *Client) PushDERPMapUpdate(update agentsdk.DERPMapUpdate) error {
+	timer := time.NewTimer(testutil.WaitShort)
+	defer timer.Stop()
+	select {
+	case c.derpMapUpdates <- update:
+	case <-timer.C:
+		return xerrors.New("timeout waiting to push derp map update")
+	}
+
+	return nil
+}
+
+func (c *Client) DERPMapUpdates(_ context.Context) (<-chan agentsdk.DERPMapUpdate, io.Closer, error) {
+	closed := make(chan struct{})
+	return c.derpMapUpdates, closeFunc(func() error {
+		close(closed)
+		return nil
+	}), nil
 }
 
 type closeFunc func() error

@@ -4,14 +4,14 @@ import * as Types from "../../api/types"
 import * as TypesGen from "../../api/typesGenerated"
 
 export interface TerminalContext {
-  workspaceError?: Error | unknown
+  workspaceError?: unknown
   workspace?: TypesGen.Workspace
   workspaceAgent?: TypesGen.WorkspaceAgent
-  workspaceAgentError?: Error | unknown
+  workspaceAgentError?: unknown
   websocket?: WebSocket
-  websocketError?: Error | unknown
+  websocketError?: unknown
   websocketURL?: string
-  websocketURLError?: Error | unknown
+  websocketURLError?: unknown
 
   // Assigned by connecting!
   // The workspace agent is entirely optional.  If the agent is omitted the

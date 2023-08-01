@@ -657,7 +657,7 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 			}
 
 			if jobType.WorkspaceBuild.State != nil {
-				_, err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+				err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 					ID:               input.WorkspaceBuildID,
 					UpdatedAt:        database.Now(),
 					ProvisionerState: jobType.WorkspaceBuild.State,
@@ -941,7 +941,7 @@ func (server *Server) CompleteJob(ctx context.Context, completed *proto.Complete
 			if err != nil {
 				return xerrors.Errorf("update provisioner job: %w", err)
 			}
-			_, err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+			err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 				ID:               workspaceBuild.ID,
 				Deadline:         autoStop.Deadline,
 				MaxDeadline:      autoStop.MaxDeadline,

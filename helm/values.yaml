@@ -75,7 +75,7 @@ coder:
     workspacePerms: true
     # coder.serviceAccount.enableDeployments -- Provides the service account permission
     # to manage Kubernetes deployments.
-    enableDeployments: false
+    enableDeployments: true
     # coder.serviceAccount.annotations -- The Coder service account annotations.
     annotations: {}
     # coder.serviceAccount.name -- The service account name
@@ -166,11 +166,11 @@ coder:
   resources:
     {}
     # limits:
-    #   cpu: 100m
-    #   memory: 128Mi
+    #   cpu: 2000m
+    #   memory: 4096Mi
     # requests:
-    #   cpu: 100m
-    #   memory: 128Mi
+    #   cpu: 2000m
+    #   memory: 4096Mi
 
   # coder.certs -- CA bundles to mount inside the Coder pod.
   certs:

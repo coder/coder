@@ -1,17 +1,23 @@
 name: "Setup Node"
 description: |
   Sets up the node environment for tests, builds, etc.
+inputs:
+  directory:
+    description: |
+      The directory to run the setup in.
+    required: false
+    default: "site"
 runs:
   using: "composite"
   steps:
     - name: Setup Node
       uses: buildjet/setup-node@v3
       with:
-        node-version: 16.20.1
+        node-version: 18.17.0
         # See https://github.com/actions/setup-node#caching-global-packages-data
         cache: "yarn"
-        cache-dependency-path: "site/yarn.lock"
+        cache-dependency-path: ${{ inputs.directory }}/yarn.lock
     - name: Install node_modules
       shell: bash
       run: ../scripts/yarn_install.sh
-      working-directory: site
+      working-directory: ${{ inputs.directory }}

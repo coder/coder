@@ -1095,6 +1095,8 @@ func TestServer(t *testing.T) {
 			require.False(t, deploymentConfig.Values.OIDC.IgnoreUserInfo.Value())
 			require.Empty(t, deploymentConfig.Values.OIDC.GroupField.Value())
 			require.Empty(t, deploymentConfig.Values.OIDC.GroupMapping.Value)
+			require.Empty(t, deploymentConfig.Values.OIDC.UserRoleField.Value())
+			require.Empty(t, deploymentConfig.Values.OIDC.UserRoleMapping.Value)
 			require.Equal(t, "OpenID Connect", deploymentConfig.Values.OIDC.SignInText.Value())
 			require.Empty(t, deploymentConfig.Values.OIDC.IconURL.Value())
 		})
@@ -1303,7 +1305,7 @@ func TestServer(t *testing.T) {
 
 			root, _ := clitest.New(t,
 				"server",
-				"--verbose",
+				"--log-filter=.*",
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
@@ -1320,7 +1322,7 @@ func TestServer(t *testing.T) {
 
 			root, _ := clitest.New(t,
 				"server",
-				"--verbose",
+				"--log-filter=.*",
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
@@ -1337,7 +1339,7 @@ func TestServer(t *testing.T) {
 
 			root, _ := clitest.New(t,
 				"server",
-				"--verbose",
+				"--log-filter=.*",
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
@@ -1357,7 +1359,7 @@ func TestServer(t *testing.T) {
 
 			inv, _ := clitest.New(t,
 				"server",
-				"--verbose",
+				"--log-filter=.*",
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
@@ -1391,7 +1393,7 @@ func TestServer(t *testing.T) {
 			// HTTP.
 			inv, _ := clitest.New(t,
 				"server",
-				"--verbose",
+				"--log-filter=.*",
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",

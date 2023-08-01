@@ -193,6 +193,18 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 				}
 
 				_, _ = fmt.Fprintf(inv.Stdout, "Running %s...\n", script)
+
+				// Check if the script is executable and notify on error
+				scriptPath := filepath.Join(dotfilesDir, script)
+				fi, err := os.Stat(scriptPath)
+				if err != nil {
+					return xerrors.Errorf("stat %s: %w", scriptPath, err)
+				}
+
+				if fi.Mode()&0o111 == 0 {
+					return xerrors.Errorf("script %q is not executable. See https://coder.com/docs/v2/latest/dotfiles for information on how to resolve the issue.", script)
+				}
+
 				// it is safe to use a variable command here because it's from
 				// a filtered list of pre-approved install scripts
 				// nolint:gosec

@@ -64,13 +64,6 @@ type OAuthConvertStateClaims struct {
 // @Success 201 {object} codersdk.OAuthConversionResponse
 // @Router /users/{user}/convert-login [post]
 func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
-	if !api.Experiments.Enabled(codersdk.ExperimentConvertToOIDC) {
-		httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
-			Message: "Oauth conversion is not allowed, contact an administrator to turn on this feature.",
-		})
-		return
-	}
-
 	var (
 		user              = httpmw.UserParam(r)
 		ctx               = r.Context()
@@ -455,7 +448,6 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.AuthMethods{
-		ConvertToOIDCEnabled: api.Experiments.Enabled(codersdk.ExperimentConvertToOIDC),
 		Password: codersdk.AuthMethod{
 			Enabled: !api.DeploymentValues.DisablePasswordAuth.Value(),
 		},
@@ -684,10 +676,25 @@ type OIDCConfig struct {
 	// to groups within Coder.
 	// map[oidcGroupName]coderGroupName
 	GroupMapping map[string]string
+	// UserRoleField selects the claim field to be used as the created user's
+	// roles. If the field is the empty string, then no role updates
+	// will ever come from the OIDC provider.
+	UserRoleField string
+	// UserRoleMapping controls how groups returned by the OIDC provider get mapped
+	// to roles within Coder.
+	// map[oidcRoleName][]coderRoleName
+	UserRoleMapping map[string][]string
+	// UserRolesDefault is the default set of roles to assign to a user if role sync
+	// is enabled.
+	UserRolesDefault []string
 	// SignInText is the text to display on the OIDC login button
 	SignInText string
 	// IconURL points to the URL of an icon to display on the OIDC login button
 	IconURL string
+}
+
+func (cfg OIDCConfig) RoleSyncEnabled() bool {
+	return cfg.UserRoleField != ""
 }
 
 // @Summary OpenID Connect Callback
@@ -942,6 +949,63 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	roles := api.OIDCConfig.UserRolesDefault
+	if api.OIDCConfig.RoleSyncEnabled() {
+		rolesRow, ok := claims[api.OIDCConfig.UserRoleField]
+		if !ok {
+			// If no claim is provided than we can assume the user is just
+			// a member. This is because there is no way to tell the difference
+			// between []string{} and nil for OIDC claims. IDPs omit claims
+			// if they are empty ([]string{}).
+			// Use []interface{}{} so the next typecast works.
+			rolesRow = []interface{}{}
+		}
+
+		rolesInterface, ok := rolesRow.([]interface{})
+		if !ok {
+			api.Logger.Error(ctx, "oidc claim user roles field was an unknown type",
+				slog.F("type", fmt.Sprintf("%T", rolesRow)),
+			)
+			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+				Status:       http.StatusInternalServerError,
+				HideStatus:   true,
+				Title:        "Login disabled until OIDC config is fixed",
+				Description:  fmt.Sprintf("Roles claim must be an array of strings, type found: %T. Disabling role sync will allow login to proceed.", rolesRow),
+				RetryEnabled: false,
+				DashboardURL: "/login",
+			})
+			return
+		}
+
+		api.Logger.Debug(ctx, "roles returned in oidc claims",
+			slog.F("len", len(rolesInterface)),
+			slog.F("roles", rolesInterface),
+		)
+		for _, roleInterface := range rolesInterface {
+			role, ok := roleInterface.(string)
+			if !ok {
+				api.Logger.Error(ctx, "invalid oidc user role type",
+					slog.F("type", fmt.Sprintf("%T", rolesRow)),
+				)
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: fmt.Sprintf("Invalid user role type. Expected string, got: %T", roleInterface),
+				})
+				return
+			}
+
+			if mappedRoles, ok := api.OIDCConfig.UserRoleMapping[role]; ok {
+				if len(mappedRoles) == 0 {
+					continue
+				}
+				// Mapped roles are added to the list of roles
+				roles = append(roles, mappedRoles...)
+				continue
+			}
+
+			roles = append(roles, role)
+		}
+	}
+
 	// If a new user is authenticating for the first time
 	// the audit action is 'register', not 'login'
 	if user.ID == uuid.Nil {
@@ -959,6 +1023,8 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		Username:     username,
 		AvatarURL:    picture,
 		UsingGroups:  usingGroups,
+		UsingRoles:   api.OIDCConfig.RoleSyncEnabled(),
+		Roles:        roles,
 		Groups:       groups,
 	}).SetInitAuditRequest(func(params *audit.RequestParams) (*audit.Request[database.User], func()) {
 		return audit.InitRequest[database.User](rw, params)
@@ -1045,6 +1111,10 @@ type oauthLoginParams struct {
 	// to the Groups provided.
 	UsingGroups bool
 	Groups      []string
+	// Is UsingRoles is true, then the user will be assigned
+	// the roles provided.
+	UsingRoles bool
+	Roles      []string
 
 	commitLock       sync.Mutex
 	initAuditRequest func(params *audit.RequestParams) *audit.Request[database.User]
@@ -1108,6 +1178,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		ctx     = r.Context()
 		user    database.User
 		cookies []*http.Cookie
+		logger  = api.Logger.Named(userAuthLoggerName)
 	)
 
 	var isConvertLoginType bool
@@ -1245,6 +1316,37 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			err := api.Options.SetUserGroups(dbauthz.AsSystemRestricted(ctx), tx, user.ID, params.Groups)
 			if err != nil {
 				return xerrors.Errorf("set user groups: %w", err)
+			}
+		}
+
+		// Ensure roles are correct.
+		if params.UsingRoles {
+			ignored := make([]string, 0)
+			filtered := make([]string, 0, len(params.Roles))
+			for _, role := range params.Roles {
+				if _, err := rbac.RoleByName(role); err == nil {
+					filtered = append(filtered, role)
+				} else {
+					ignored = append(ignored, role)
+				}
+			}
+
+			//nolint:gocritic
+			err := api.Options.SetUserSiteRoles(dbauthz.AsSystemRestricted(ctx), tx, user.ID, filtered)
+			if err != nil {
+				return httpError{
+					code:             http.StatusBadRequest,
+					msg:              "Invalid roles through OIDC claim",
+					detail:           fmt.Sprintf("Error from role assignment attempt: %s", err.Error()),
+					renderStaticPage: true,
+				}
+			}
+			if len(ignored) > 0 {
+				logger.Debug(ctx, "OIDC roles ignored in assignment",
+					slog.F("ignored", ignored),
+					slog.F("assigned", filtered),
+					slog.F("user_id", user.ID),
+				)
 			}
 		}
 
@@ -1389,11 +1491,6 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 	oauthConvertAudit.UserID = claims.UserID
 	oauthConvertAudit.Old = user
 
-	// If we do not allow converting to oauth, return an error.
-	if !api.Experiments.Enabled(codersdk.ExperimentConvertToOIDC) {
-		return database.User{}, wrongLoginTypeHTTPError(user.LoginType, params.LoginType)
-	}
-
 	if claims.RegisteredClaims.Issuer != api.DeploymentID {
 		return database.User{}, httpError{
 			code: http.StatusForbidden,
@@ -1521,7 +1618,7 @@ func clearOAuthConvertCookie() *http.Cookie {
 func wrongLoginTypeHTTPError(user database.LoginType, params database.LoginType) httpError {
 	addedMsg := ""
 	if user == database.LoginTypePassword {
-		addedMsg = " You can convert your account to use this login type by visiting your account settings."
+		addedMsg = " Try logging in with your password."
 	}
 	return httpError{
 		code:             http.StatusForbidden,

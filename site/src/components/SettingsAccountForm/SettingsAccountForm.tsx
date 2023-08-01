@@ -31,7 +31,7 @@ export interface AccountFormProps {
   isLoading: boolean
   initialValues: AccountFormValues
   onSubmit: (values: AccountFormValues) => void
-  updateProfileError?: Error | unknown
+  updateProfileError?: unknown
   // initialTouched is only used for testing the error state of the form.
   initialTouched?: FormikTouched<AccountFormValues>
 }

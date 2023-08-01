@@ -35,6 +35,8 @@ jobs:
       ts: ${{ steps.filter.outputs.ts }}
       k8s: ${{ steps.filter.outputs.k8s }}
       ci: ${{ steps.filter.outputs.ci }}
+      offlinedocs-only: ${{ steps.filter.outputs.offlinedocs_count == steps.filter.outputs.all_count }}
+      offlinedocs: ${{ steps.filter.outputs.offlinedocs }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -85,7 +87,6 @@ jobs:
             ts:
               - "site/**"
               - "Makefile"
-              - "offlinedocs/**"
             k8s:
               - "helm/**"
               - "scripts/Dockerfile"
@@ -94,11 +95,16 @@ jobs:
             ci:
               - ".github/actions/**"
               - ".github/workflows/ci.yaml"
+            offlinedocs:
+              - "offlinedocs/**"
+
       - id: debug
         run: |
           echo "${{ toJSON(steps.filter )}}"
 
   lint:
+    needs: changes
+    if: needs.changes.outputs.offlinedocs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     steps:
       - name: Checkout
@@ -164,9 +170,7 @@ jobs:
         uses: ./.github/actions/setup-go
 
       - name: Setup sqlc
-        uses: sqlc-dev/setup-sqlc@v3
-        with:
-          sqlc-version: "1.19.1"
+        uses: ./.github/actions/setup-sqlc
 
       - name: go install tools
         run: |
@@ -196,8 +200,10 @@ jobs:
         run: ./scripts/check_unstaged.sh
 
   fmt:
+    needs: changes
+    if: needs.changes.outputs.offlinedocs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
-    timeout-minutes: 5
+    timeout-minutes: 7
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -569,10 +575,17 @@ jobs:
         with:
           buildScriptName: "storybook:build"
           exitOnceUploaded: true
+          # This will prevent CI from failing when Chromatic detects visual changes
+          exitZeroOnChanges: true
           # Chromatic states its fine to make this token public. See:
           # https://www.chromatic.com/docs/github-actions#forked-repositories
           projectToken: 695c25b6cb65
           workingDir: "./site"
+          # Prevent excessive build runs on minor version changes
+          skip: "@(renovate/**|dependabot/**)"
+          # Run TurboSnap to trace file dependencies to related stories
+          # and tell chromatic to only take snapshots of relevent stories
+          onlyChanged: true
 
       # This is a separate step for mainline only that auto accepts and changes
       # instead of holding CI up. Since we squash/merge, this is defensive to
@@ -588,13 +601,77 @@ jobs:
           STORYBOOK: true
         with:
           autoAcceptChanges: true
+          # This will prevent CI from failing when Chromatic detects visual changes
+          exitZeroOnChanges: true
           buildScriptName: "storybook:build"
           projectToken: 695c25b6cb65
           workingDir: "./site"
+          # Run TurboSnap to trace file dependencies to related stories
+          # and tell chromatic to only take snapshots of relevent stories
+          onlyChanged: true
+
+  offlinedocs:
+    name: offlinedocs
+    needs: changes
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    if: needs.changes.outputs.offlinedocs == 'true' || needs.changes.outputs.ci == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+        with:
+          directory: offlinedocs
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Install go tools
+        run: |
+          go install github.com/golang/mock/mockgen@v1.6.0
+
+      - name: Setup sqlc
+        uses: sqlc-dev/setup-sqlc@v3
+        with:
+          sqlc-version: "1.19.1"
+
+      - name: Install dependencies
+        run: |
+          cd offlinedocs
+          yarn
+          # Install prettier globally
+          prettier_version=$(jq -r '.devDependencies.prettier' < package.json)
+          yarn global add "prettier@${prettier_version}"
+
+      - name: Format
+        run: |
+          cd offlinedocs
+          yarn format:check
+
+      - name: Lint
+        run: |
+          cd offlinedocs
+          yarn lint
+
+      - name: Build
+        run: |
+          version="$(./scripts/version.sh)"
+          make -j build/coder_docs_"$version".tgz
 
   required:
     runs-on: ubuntu-latest
-    needs: [fmt, lint, gen, test-go, test-go-pg, test-go-race, test-js]
+    needs:
+      - fmt
+      - lint
+      - gen
+      - test-go
+      - test-go-pg
+      - test-go-race
+      - test-js
+      - offlinedocs
     # Allow this job to run even if the needed jobs fail, are skipped or
     # cancelled.
     if: always()

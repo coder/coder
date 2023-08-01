@@ -157,6 +157,26 @@
 | ---------------- | ------ | -------- | ------------ | ----------- |
 | `json_web_token` | string | true     |              |             |
 
+## agentsdk.Log
+
+```json
+{
+  "created_at": "string",
+  "level": "trace",
+  "output": "string",
+  "source": "startup_script"
+}
+```
+
+### Properties
+
+| Name         | Type                                                                 | Required | Restrictions | Description |
+| ------------ | -------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `created_at` | string                                                               | false    |              |             |
+| `level`      | [codersdk.LogLevel](#codersdkloglevel)                               | false    |              |             |
+| `output`     | string                                                               | false    |              |             |
+| `source`     | [codersdk.WorkspaceAgentLogSource](#codersdkworkspaceagentlogsource) | false    |              |             |
+
 ## agentsdk.Manifest
 
 ```json
@@ -277,7 +297,7 @@
 | `startup_script_timeout`     | integer                                                                                           | false    |              |                                                                                                                                                            |
 | `vscode_port_proxy_uri`      | string                                                                                            | false    |              |                                                                                                                                                            |
 
-## agentsdk.PatchStartupLogs
+## agentsdk.PatchLogs
 
 ```json
 {
@@ -285,7 +305,8 @@
     {
       "created_at": "string",
       "level": "trace",
-      "output": "string"
+      "output": "string",
+      "source": "startup_script"
     }
   ]
 }
@@ -293,9 +314,9 @@
 
 ### Properties
 
-| Name   | Type                                                | Required | Restrictions | Description |
-| ------ | --------------------------------------------------- | -------- | ------------ | ----------- |
-| `logs` | array of [agentsdk.StartupLog](#agentsdkstartuplog) | false    |              |             |
+| Name   | Type                                  | Required | Restrictions | Description |
+| ------ | ------------------------------------- | -------- | ------------ | ----------- |
+| `logs` | array of [agentsdk.Log](#agentsdklog) | false    |              |             |
 
 ## agentsdk.PostAppHealthsRequest
 
@@ -368,24 +389,6 @@
 | `expanded_directory` | string                                             | false    |              |             |
 | `subsystem`          | [codersdk.AgentSubsystem](#codersdkagentsubsystem) | false    |              |             |
 | `version`            | string                                             | false    |              |             |
-
-## agentsdk.StartupLog
-
-```json
-{
-  "created_at": "string",
-  "level": "trace",
-  "output": "string"
-}
-```
-
-### Properties
-
-| Name         | Type                                   | Required | Restrictions | Description |
-| ------------ | -------------------------------------- | -------- | ------------ | ----------- |
-| `created_at` | string                                 | false    |              |             |
-| `level`      | [codersdk.LogLevel](#codersdkloglevel) | false    |              |             |
-| `output`     | string                                 | false    |              |             |
 
 ## agentsdk.Stats
 
@@ -755,6 +758,67 @@
 | ------------ | ------ | -------- | ------------ | ----------- |
 | `csp-report` | object | false    |              |             |
 
+## codersdk.ACLAvailable
+
+```json
+{
+  "groups": [
+    {
+      "avatar_url": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "members": [
+        {
+          "avatar_url": "http://example.com",
+          "created_at": "2019-08-24T14:15:22Z",
+          "email": "user@example.com",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "last_seen_at": "2019-08-24T14:15:22Z",
+          "login_type": "password",
+          "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+          "roles": [
+            {
+              "display_name": "string",
+              "name": "string"
+            }
+          ],
+          "status": "active",
+          "username": "string"
+        }
+      ],
+      "name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "quota_allowance": 0
+    }
+  ],
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "password",
+      "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+      "roles": [
+        {
+          "display_name": "string",
+          "name": "string"
+        }
+      ],
+      "status": "active",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name     | Type                                      | Required | Restrictions | Description |
+| -------- | ----------------------------------------- | -------- | ------------ | ----------- |
+| `groups` | array of [codersdk.Group](#codersdkgroup) | false    |              |             |
+| `users`  | array of [codersdk.User](#codersdkuser)   | false    |              |             |
+
 ## codersdk.APIKey
 
 ```json
@@ -1000,6 +1064,7 @@
     "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "last_seen_at": "2019-08-24T14:15:22Z",
+    "login_type": "password",
     "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "roles": [
       {
@@ -1076,6 +1141,7 @@
         "email": "user@example.com",
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "last_seen_at": "2019-08-24T14:15:22Z",
+        "login_type": "password",
         "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
         "roles": [
           {
@@ -1118,7 +1184,6 @@
 
 ```json
 {
-  "convert_to_oidc_enabled": true,
   "github": {
     "enabled": true
   },
@@ -1135,12 +1200,11 @@
 
 ### Properties
 
-| Name                      | Type                                               | Required | Restrictions | Description |
-| ------------------------- | -------------------------------------------------- | -------- | ------------ | ----------- |
-| `convert_to_oidc_enabled` | boolean                                            | false    |              |             |
-| `github`                  | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
-| `oidc`                    | [codersdk.OIDCAuthMethod](#codersdkoidcauthmethod) | false    |              |             |
-| `password`                | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
+| Name       | Type                                               | Required | Restrictions | Description |
+| ---------- | -------------------------------------------------- | -------- | ------------ | ----------- |
+| `github`   | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
+| `oidc`     | [codersdk.OIDCAuthMethod](#codersdkoidcauthmethod) | false    |              |             |
+| `password` | [codersdk.AuthMethod](#codersdkauthmethod)         | false    |              |             |
 
 ## codersdk.AuthorizationCheck
 
@@ -1963,6 +2027,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "logging": {
       "human": "string",
       "json": "string",
+      "log_filter": ["string"],
       "stackdriver": "string"
     },
     "max_session_expiry": 0,
@@ -2006,6 +2071,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "issuer_url": "string",
       "scopes": ["string"],
       "sign_in_text": "string",
+      "user_role_field": "string",
+      "user_role_mapping": {},
+      "user_roles_default": ["string"],
       "username_field": "string"
     },
     "pg_connection_url": "string",
@@ -2316,6 +2384,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "logging": {
     "human": "string",
     "json": "string",
+    "log_filter": ["string"],
     "stackdriver": "string"
   },
   "max_session_expiry": 0,
@@ -2359,6 +2428,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "issuer_url": "string",
     "scopes": ["string"],
     "sign_in_text": "string",
+    "user_role_field": "string",
+    "user_role_mapping": {},
+    "user_roles_default": ["string"],
     "username_field": "string"
   },
   "pg_connection_url": "string",
@@ -2598,10 +2670,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ------------------------------ |
 | `moons`                        |
 | `workspace_actions`            |
-| `tailnet_ha_coordinator`       |
-| `convert-to-oidc`              |
+| `tailnet_pg_coordinator`       |
 | `single_tailnet`               |
 | `template_restart_requirement` |
+| `template_insights_page`       |
 
 ## codersdk.Feature
 
@@ -2649,6 +2721,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "password",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -2865,6 +2938,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "password",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -3047,17 +3121,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "human": "string",
   "json": "string",
+  "log_filter": ["string"],
   "stackdriver": "string"
 }
 ```
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-| ------------- | ------ | -------- | ------------ | ----------- |
-| `human`       | string | false    |              |             |
-| `json`        | string | false    |              |             |
-| `stackdriver` | string | false    |              |             |
+| Name          | Type            | Required | Restrictions | Description |
+| ------------- | --------------- | -------- | ------------ | ----------- |
+| `human`       | string          | false    |              |             |
+| `json`        | string          | false    |              |             |
+| `log_filter`  | array of string | false    |              |             |
+| `stackdriver` | string          | false    |              |             |
 
 ## codersdk.LoginType
 
@@ -3106,6 +3182,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name            | Type   | Required | Restrictions | Description |
 | --------------- | ------ | -------- | ------------ | ----------- |
 | `session_token` | string | true     |              |             |
+
+## codersdk.MinimalUser
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description |
+| ------------ | ------ | -------- | ------------ | ----------- |
+| `avatar_url` | string | false    |              |             |
+| `id`         | string | true     |              |             |
+| `username`   | string | true     |              |             |
 
 ## codersdk.OAuth2Config
 
@@ -3223,6 +3317,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "issuer_url": "string",
   "scopes": ["string"],
   "sign_in_text": "string",
+  "user_role_field": "string",
+  "user_role_mapping": {},
+  "user_roles_default": ["string"],
   "username_field": "string"
 }
 ```
@@ -3245,6 +3342,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `issuer_url`            | string                     | false    |              |             |
 | `scopes`                | array of string            | false    |              |             |
 | `sign_in_text`          | string                     | false    |              |             |
+| `user_role_field`       | string                     | false    |              |             |
+| `user_role_mapping`     | object                     | false    |              |             |
+| `user_roles_default`    | array of string            | false    |              |             |
 | `username_field`        | string                     | false    |              |             |
 
 ## codersdk.Organization
@@ -3719,6 +3819,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     {
       "created_at": "2019-08-24T14:15:22Z",
       "deleted": true,
+      "derp_enabled": true,
       "display_name": "string",
       "healthy": true,
       "icon_url": "string",
@@ -4397,6 +4498,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "email": "user@example.com",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_seen_at": "2019-08-24T14:15:22Z",
+  "login_type": "password",
   "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
   "role": "admin",
   "roles": [
@@ -4419,6 +4521,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `email`            | string                                         | true     |              |             |
 | `id`               | string                                         | true     |              |             |
 | `last_seen_at`     | string                                         | false    |              |             |
+| `login_type`       | [codersdk.LoginType](#codersdklogintype)       | false    |              |             |
 | `organization_ids` | array of string                                | false    |              |             |
 | `role`             | [codersdk.TemplateRole](#codersdktemplaterole) | false    |              |             |
 | `roles`            | array of [codersdk.Role](#codersdkrole)        | false    |              |             |
@@ -4441,18 +4544,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "created_at": "2019-08-24T14:15:22Z",
   "created_by": {
     "avatar_url": "http://example.com",
-    "created_at": "2019-08-24T14:15:22Z",
-    "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "last_seen_at": "2019-08-24T14:15:22Z",
-    "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-    "roles": [
-      {
-        "display_name": "string",
-        "name": "string"
-      }
-    ],
-    "status": "active",
     "username": "string"
   },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -4489,7 +4581,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name              | Type                                                                        | Required | Restrictions | Description |
 | ----------------- | --------------------------------------------------------------------------- | -------- | ------------ | ----------- |
 | `created_at`      | string                                                                      | false    |              |             |
-| `created_by`      | [codersdk.User](#codersdkuser)                                              | false    |              |             |
+| `created_by`      | [codersdk.MinimalUser](#codersdkminimaluser)                                | false    |              |             |
 | `id`              | string                                                                      | false    |              |             |
 | `job`             | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                          | false    |              |             |
 | `message`         | string                                                                      | false    |              |             |
@@ -4914,6 +5006,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "email": "user@example.com",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_seen_at": "2019-08-24T14:15:22Z",
+  "login_type": "password",
   "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
   "roles": [
     {
@@ -4935,6 +5028,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `email`            | string                                     | true     |              |             |
 | `id`               | string                                     | true     |              |             |
 | `last_seen_at`     | string                                     | false    |              |             |
+| `login_type`       | [codersdk.LoginType](#codersdklogintype)   | false    |              |             |
 | `organization_ids` | array of string                            | false    |              |             |
 | `roles`            | array of [codersdk.Role](#codersdkrole)    | false    |              |             |
 | `status`           | [codersdk.UserStatus](#codersdkuserstatus) | false    |              |             |
@@ -4951,6 +5045,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "avatar_url": "http://example.com",
   "latency_ms": {
     "p50": 31.312,
     "p95": 119.832
@@ -4965,6 +5060,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name           | Type                                                     | Required | Restrictions | Description |
 | -------------- | -------------------------------------------------------- | -------- | ------------ | ----------- |
+| `avatar_url`   | string                                                   | false    |              |             |
 | `latency_ms`   | [codersdk.ConnectionLatency](#codersdkconnectionlatency) | false    |              |             |
 | `template_ids` | array of string                                          | false    |              |             |
 | `user_id`      | string                                                   | false    |              |             |
@@ -4979,6 +5075,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
   "users": [
     {
+      "avatar_url": "http://example.com",
       "latency_ms": {
         "p50": 31.312,
         "p95": 119.832
@@ -5010,6 +5107,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "users": [
       {
+        "avatar_url": "http://example.com",
         "latency_ms": {
           "p50": 31.312,
           "p95": 119.832
@@ -5235,6 +5333,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             },
             "lifecycle_state": "created",
             "login_before_ready": true,
+            "logs_length": 0,
+            "logs_overflowed": true,
             "name": "string",
             "operating_system": "string",
             "ready_at": "2019-08-24T14:15:22Z",
@@ -5242,8 +5342,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "shutdown_script": "string",
             "shutdown_script_timeout_seconds": 0,
             "started_at": "2019-08-24T14:15:22Z",
-            "startup_logs_length": 0,
-            "startup_logs_overflowed": true,
             "startup_script": "string",
             "startup_script_behavior": "blocking",
             "startup_script_timeout_seconds": 0,
@@ -5376,6 +5474,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   },
   "lifecycle_state": "created",
   "login_before_ready": true,
+  "logs_length": 0,
+  "logs_overflowed": true,
   "name": "string",
   "operating_system": "string",
   "ready_at": "2019-08-24T14:15:22Z",
@@ -5383,8 +5483,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "shutdown_script": "string",
   "shutdown_script_timeout_seconds": 0,
   "started_at": "2019-08-24T14:15:22Z",
-  "startup_logs_length": 0,
-  "startup_logs_overflowed": true,
   "startup_script": "string",
   "startup_script_behavior": "blocking",
   "startup_script_timeout_seconds": 0,
@@ -5418,6 +5516,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | » `[any property]`                | [codersdk.DERPRegion](#codersdkderpregion)                                                   | false    |              |                                                                                                                                                                                                            |
 | `lifecycle_state`                 | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle)                         | false    |              |                                                                                                                                                                                                            |
 | `login_before_ready`              | boolean                                                                                      | false    |              | Deprecated: Use StartupScriptBehavior instead.                                                                                                                                                             |
+| `logs_length`                     | integer                                                                                      | false    |              |                                                                                                                                                                                                            |
+| `logs_overflowed`                 | boolean                                                                                      | false    |              |                                                                                                                                                                                                            |
 | `name`                            | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `operating_system`                | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `ready_at`                        | string                                                                                       | false    |              |                                                                                                                                                                                                            |
@@ -5425,8 +5525,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `shutdown_script`                 | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `shutdown_script_timeout_seconds` | integer                                                                                      | false    |              |                                                                                                                                                                                                            |
 | `started_at`                      | string                                                                                       | false    |              |                                                                                                                                                                                                            |
-| `startup_logs_length`             | integer                                                                                      | false    |              |                                                                                                                                                                                                            |
-| `startup_logs_overflowed`         | boolean                                                                                      | false    |              |                                                                                                                                                                                                            |
 | `startup_script`                  | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `startup_script_behavior`         | [codersdk.WorkspaceAgentStartupScriptBehavior](#codersdkworkspaceagentstartupscriptbehavior) | false    |              |                                                                                                                                                                                                            |
 | `startup_script_timeout_seconds`  | integer                                                                                      | false    |              | Startup script timeout seconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout. |
@@ -5578,6 +5676,45 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | ------- | ------------------------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `ports` | array of [codersdk.WorkspaceAgentListeningPort](#codersdkworkspaceagentlisteningport) | false    |              | If there are no ports in the list, nothing should be displayed in the UI. There must not be a "no ports available" message or anything similar, as there will always be no ports displayed on platforms where our port detection logic is unsupported. |
 
+## codersdk.WorkspaceAgentLog
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": 0,
+  "level": "trace",
+  "output": "string"
+}
+```
+
+### Properties
+
+| Name         | Type                                   | Required | Restrictions | Description |
+| ------------ | -------------------------------------- | -------- | ------------ | ----------- |
+| `created_at` | string                                 | false    |              |             |
+| `id`         | integer                                | false    |              |             |
+| `level`      | [codersdk.LogLevel](#codersdkloglevel) | false    |              |             |
+| `output`     | string                                 | false    |              |             |
+
+## codersdk.WorkspaceAgentLogSource
+
+```json
+"startup_script"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value             |
+| ----------------- |
+| `startup_script`  |
+| `shutdown_script` |
+| `kubernetes`      |
+| `envbox`          |
+| `envbuilder`      |
+| `external`        |
+
 ## codersdk.WorkspaceAgentMetadataDescription
 
 ```json
@@ -5599,26 +5736,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `key`          | string  | false    |              |             |
 | `script`       | string  | false    |              |             |
 | `timeout`      | integer | false    |              |             |
-
-## codersdk.WorkspaceAgentStartupLog
-
-```json
-{
-  "created_at": "2019-08-24T14:15:22Z",
-  "id": 0,
-  "level": "trace",
-  "output": "string"
-}
-```
-
-### Properties
-
-| Name         | Type                                   | Required | Restrictions | Description |
-| ------------ | -------------------------------------- | -------- | ------------ | ----------- |
-| `created_at` | string                                 | false    |              |             |
-| `id`         | integer                                | false    |              |             |
-| `level`      | [codersdk.LogLevel](#codersdkloglevel) | false    |              |             |
-| `output`     | string                                 | false    |              |             |
 
 ## codersdk.WorkspaceAgentStartupScriptBehavior
 
@@ -5815,6 +5932,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           },
           "lifecycle_state": "created",
           "login_before_ready": true,
+          "logs_length": 0,
+          "logs_overflowed": true,
           "name": "string",
           "operating_system": "string",
           "ready_at": "2019-08-24T14:15:22Z",
@@ -5822,8 +5941,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "shutdown_script": "string",
           "shutdown_script_timeout_seconds": 0,
           "started_at": "2019-08-24T14:15:22Z",
-          "startup_logs_length": 0,
-          "startup_logs_overflowed": true,
           "startup_script": "string",
           "startup_script_behavior": "blocking",
           "startup_script_timeout_seconds": 0,
@@ -5995,6 +6112,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "created_at": "2019-08-24T14:15:22Z",
   "deleted": true,
+  "derp_enabled": true,
   "display_name": "string",
   "healthy": true,
   "icon_url": "string",
@@ -6020,6 +6138,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | ------------------- | -------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `created_at`        | string                                                         | false    |              |                                                                                                                                                                                    |
 | `deleted`           | boolean                                                        | false    |              |                                                                                                                                                                                    |
+| `derp_enabled`      | boolean                                                        | false    |              |                                                                                                                                                                                    |
 | `display_name`      | string                                                         | false    |              |                                                                                                                                                                                    |
 | `healthy`           | boolean                                                        | false    |              |                                                                                                                                                                                    |
 | `icon_url`          | string                                                         | false    |              |                                                                                                                                                                                    |
@@ -6122,6 +6241,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       },
       "lifecycle_state": "created",
       "login_before_ready": true,
+      "logs_length": 0,
+      "logs_overflowed": true,
       "name": "string",
       "operating_system": "string",
       "ready_at": "2019-08-24T14:15:22Z",
@@ -6129,8 +6250,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "shutdown_script": "string",
       "shutdown_script_timeout_seconds": 0,
       "started_at": "2019-08-24T14:15:22Z",
-      "startup_logs_length": 0,
-      "startup_logs_overflowed": true,
       "startup_script": "string",
       "startup_script_behavior": "blocking",
       "startup_script_timeout_seconds": 0,
@@ -6334,6 +6453,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 },
                 "lifecycle_state": "created",
                 "login_before_ready": true,
+                "logs_length": 0,
+                "logs_overflowed": true,
                 "name": "string",
                 "operating_system": "string",
                 "ready_at": "2019-08-24T14:15:22Z",
@@ -6341,8 +6462,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 "shutdown_script": "string",
                 "shutdown_script_timeout_seconds": 0,
                 "started_at": "2019-08-24T14:15:22Z",
-                "startup_logs_length": 0,
-                "startup_logs_overflowed": true,
                 "startup_script": "string",
                 "startup_script_behavior": "blocking",
                 "startup_script_timeout_seconds": 0,
@@ -7357,6 +7476,20 @@ _None_
 | `found`  | boolean | false    |              |             |
 | `legacy` | boolean | false    |              |             |
 
+## wsproxysdk.DeregisterWorkspaceProxyRequest
+
+```json
+{
+  "replica_id": "string"
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description                                                                                                                                                                                       |
+| ------------ | ------ | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `replica_id` | string | false    |              | Replica ID is a unique identifier for the replica of the proxy that is deregistering. It should be generated by the client on startup and should've already been passed to the register endpoint. |
+
 ## wsproxysdk.IssueSignedAppTokenResponse
 
 ```json
@@ -7376,27 +7509,56 @@ _None_
 ```json
 {
   "access_url": "string",
+  "derp_enabled": true,
+  "hostname": "string",
+  "replica_error": "string",
+  "replica_id": "string",
+  "replica_relay_address": "string",
+  "version": "string",
   "wildcard_hostname": "string"
 }
 ```
 
 ### Properties
 
-| Name                | Type   | Required | Restrictions | Description                                                                   |
-| ------------------- | ------ | -------- | ------------ | ----------------------------------------------------------------------------- |
-| `access_url`        | string | false    |              | Access URL that hits the workspace proxy api.                                 |
-| `wildcard_hostname` | string | false    |              | Wildcard hostname that the workspace proxy api is serving for subdomain apps. |
+| Name                                                                                              | Type    | Required | Restrictions | Description                                                                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------- | ------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `access_url`                                                                                      | string  | false    |              | Access URL that hits the workspace proxy api.                                                                                                                                                            |
+| `derp_enabled`                                                                                    | boolean | false    |              | Derp enabled indicates whether the proxy should be included in the DERP map or not.                                                                                                                      |
+| `hostname`                                                                                        | string  | false    |              | Hostname is the OS hostname of the machine that the proxy is running on. This is only used for tracking purposes in the replicas table.                                                                  |
+| `replica_error`                                                                                   | string  | false    |              | Replica error is the error that the replica encountered when trying to dial it's peers. This is stored in the replicas table for debugging purposes but does not affect the proxy's ability to register. |
+| This value is only stored on subsequent requests to the register endpoint, not the first request. |
+| `replica_id`                                                                                      | string  | false    |              | Replica ID is a unique identifier for the replica of the proxy that is registering. It should be generated by the client on startup and persisted (in memory only) until the process is restarted.       |
+| `replica_relay_address`                                                                           | string  | false    |              | Replica relay address is the DERP address of the replica that other replicas may use to connect internally for DERP meshing.                                                                             |
+| `version`                                                                                         | string  | false    |              | Version is the Coder version of the proxy.                                                                                                                                                               |
+| `wildcard_hostname`                                                                               | string  | false    |              | Wildcard hostname that the workspace proxy api is serving for subdomain apps.                                                                                                                            |
 
 ## wsproxysdk.RegisterWorkspaceProxyResponse
 
 ```json
 {
-  "app_security_key": "string"
+  "app_security_key": "string",
+  "derp_mesh_key": "string",
+  "derp_region_id": 0,
+  "sibling_replicas": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "database_latency": 0,
+      "error": "string",
+      "hostname": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "region_id": 0,
+      "relay_address": "string"
+    }
+  ]
 }
 ```
 
 ### Properties
 
-| Name               | Type   | Required | Restrictions | Description |
-| ------------------ | ------ | -------- | ------------ | ----------- |
-| `app_security_key` | string | false    |              |             |
+| Name               | Type                                          | Required | Restrictions | Description                                                                            |
+| ------------------ | --------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------- |
+| `app_security_key` | string                                        | false    |              |                                                                                        |
+| `derp_mesh_key`    | string                                        | false    |              |                                                                                        |
+| `derp_region_id`   | integer                                       | false    |              |                                                                                        |
+| `sibling_replicas` | array of [codersdk.Replica](#codersdkreplica) | false    |              | Sibling replicas is a list of all other replicas of the proxy that have not timed out. |

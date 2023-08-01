@@ -1,5 +1,7 @@
 # Generated files
 coderd/apidoc/docs.go linguist-generated=true
+docs/api/*.md linguist-generated=true
+docs/cli/*.md linguist-generated=true
 coderd/apidoc/swagger.json linguist-generated=true
 coderd/database/dump.sql linguist-generated=true
 peerbroker/proto/*.go linguist-generated=true
@@ -9,3 +11,4 @@ provisionersdk/proto/*.go linguist-generated=true
 *.tfstate.json linguist-generated=true
 *.tfstate.dot linguist-generated=true
 *.tfplan.dot linguist-generated=true
+site/src/api/typesGenerated.ts linguist-generated=true

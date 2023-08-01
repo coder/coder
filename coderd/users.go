@@ -97,17 +97,6 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if createUser.Trial && api.TrialGenerator != nil {
-		err = api.TrialGenerator(ctx, createUser.Email)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to generate trial",
-				Detail:  err.Error(),
-			})
-			return
-		}
-	}
-
 	err = userpassword.Validate(createUser.Password)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -118,6 +107,17 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 			}},
 		})
 		return
+	}
+
+	if createUser.Trial && api.TrialGenerator != nil {
+		err = api.TrialGenerator(ctx, createUser.Email)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to generate trial",
+				Detail:  err.Error(),
+			})
+			return
+		}
 	}
 
 	//nolint:gocritic // needed to create first user
@@ -183,54 +183,8 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 // @Router /users [get]
 func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	query := r.URL.Query().Get("q")
-	params, errs := searchquery.Users(query)
-	if len(errs) > 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid user search query.",
-			Validations: errs,
-		})
-		return
-	}
-
-	paginationParams, ok := parsePagination(rw, r)
+	users, userCount, ok := api.GetUsers(rw, r)
 	if !ok {
-		return
-	}
-
-	userRows, err := api.Database.GetUsers(ctx, database.GetUsersParams{
-		AfterID:        paginationParams.AfterID,
-		Search:         params.Search,
-		Status:         params.Status,
-		RbacRole:       params.RbacRole,
-		LastSeenBefore: params.LastSeenBefore,
-		LastSeenAfter:  params.LastSeenAfter,
-		OffsetOpt:      int32(paginationParams.Offset),
-		LimitOpt:       int32(paginationParams.Limit),
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching users.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	// GetUsers does not return ErrNoRows because it uses a window function to get the count.
-	// So we need to check if the userRows is empty and return an empty array if so.
-	if len(userRows) == 0 {
-		httpapi.Write(ctx, rw, http.StatusOK, codersdk.GetUsersResponse{
-			Users: []codersdk.User{},
-			Count: 0,
-		})
-		return
-	}
-
-	users, err := AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, database.ConvertUserRows(userRows))
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching users.",
-			Detail:  err.Error(),
-		})
 		return
 	}
 
@@ -257,8 +211,53 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 	render.Status(r, http.StatusOK)
 	render.JSON(rw, r, codersdk.GetUsersResponse{
 		Users: convertUsers(users, organizationIDsByUserID),
-		Count: int(userRows[0].Count),
+		Count: int(userCount),
 	})
+}
+
+func (api *API) GetUsers(rw http.ResponseWriter, r *http.Request) ([]database.User, int64, bool) {
+	ctx := r.Context()
+	query := r.URL.Query().Get("q")
+	params, errs := searchquery.Users(query)
+	if len(errs) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid user search query.",
+			Validations: errs,
+		})
+		return nil, -1, false
+	}
+
+	paginationParams, ok := parsePagination(rw, r)
+	if !ok {
+		return nil, -1, false
+	}
+
+	userRows, err := api.Database.GetUsers(ctx, database.GetUsersParams{
+		AfterID:        paginationParams.AfterID,
+		Search:         params.Search,
+		Status:         params.Status,
+		RbacRole:       params.RbacRole,
+		LastSeenBefore: params.LastSeenBefore,
+		LastSeenAfter:  params.LastSeenAfter,
+		OffsetOpt:      int32(paginationParams.Offset),
+		LimitOpt:       int32(paginationParams.Limit),
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching users.",
+			Detail:  err.Error(),
+		})
+		return nil, -1, false
+	}
+
+	// GetUsers does not return ErrNoRows because it uses a window function to get the count.
+	// So we need to check if the userRows is empty and return an empty array if so.
+	if len(userRows) == 0 {
+		return []database.User{}, 0, true
+	}
+
+	users := database.ConvertUserRows(userRows)
+	return users, userRows[0].Count, true
 }
 
 // Creates a new user.
@@ -889,6 +888,14 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 	aReq.Old = user
 
+	if user.LoginType == database.LoginTypeOIDC && api.OIDCConfig.RoleSyncEnabled() {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Cannot modify roles for OIDC users when role sync is enabled.",
+			Detail:  "'User Role Field' is set in the OIDC configuration. All role changes must come from the oidc identity provider.",
+		})
+		return
+	}
+
 	if apiKey.UserID == user.ID {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "You cannot change your own roles.",
@@ -901,7 +908,7 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updatedUser, err := api.updateSiteUserRoles(ctx, database.UpdateUserRolesParams{
+	updatedUser, err := UpdateSiteUserRoles(ctx, api.Database, database.UpdateUserRolesParams{
 		GrantedRoles: params.Roles,
 		ID:           user.ID,
 	})
@@ -929,9 +936,9 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(updatedUser, organizationIDs))
 }
 
-// updateSiteUserRoles will ensure only site wide roles are passed in as arguments.
+// UpdateSiteUserRoles will ensure only site wide roles are passed in as arguments.
 // If an organization role is included, an error is returned.
-func (api *API) updateSiteUserRoles(ctx context.Context, args database.UpdateUserRolesParams) (database.User, error) {
+func UpdateSiteUserRoles(ctx context.Context, db database.Store, args database.UpdateUserRolesParams) (database.User, error) {
 	// Enforce only site wide roles.
 	for _, r := range args.GrantedRoles {
 		if _, ok := rbac.IsOrgRole(r); ok {
@@ -943,7 +950,7 @@ func (api *API) updateSiteUserRoles(ctx context.Context, args database.UpdateUse
 		}
 	}
 
-	updatedUser, err := api.Database.UpdateUserRoles(ctx, args)
+	updatedUser, err := db.UpdateUserRoles(ctx, args)
 	if err != nil {
 		return database.User{}, xerrors.Errorf("update site roles: %w", err)
 	}

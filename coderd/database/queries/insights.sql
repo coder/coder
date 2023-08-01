@@ -6,6 +6,7 @@
 SELECT
 	workspace_agent_stats.user_id,
 	users.username,
+	users.avatar_url,
 	array_agg(DISTINCT template_id)::uuid[] AS template_ids,
 	coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_50,
 	coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
@@ -17,14 +18,15 @@ WHERE
 	AND workspace_agent_stats.connection_median_latency_ms > 0
 	AND workspace_agent_stats.connection_count > 0
 	AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
-GROUP BY workspace_agent_stats.user_id, users.username
+GROUP BY workspace_agent_stats.user_id, users.username, users.avatar_url
 ORDER BY user_id ASC;
 
 -- name: GetTemplateInsights :one
 -- GetTemplateInsights has a granularity of 5 minutes where if a session/app was
 -- in use, we will add 5 minutes to the total usage for that session (per user).
 WITH d AS (
-	SELECT generate_series(@start_time::timestamptz, @end_time::timestamptz, '5 minute'::interval) AS d
+	-- Subtract 1 second from end_time to avoid including the next interval in the results.
+	SELECT generate_series(@start_time::timestamptz, (@end_time::timestamptz) - '1 second'::interval, '5 minute'::interval) AS d
 ), ts AS (
 	SELECT
 		d::timestamptz AS from_,
@@ -71,7 +73,8 @@ FROM usage_by_user;
 -- interval/template, it will be included in the results with 0 active users.
 WITH d AS (
 	-- sqlc workaround, use SELECT generate_series instead of SELECT * FROM generate_series.
-	SELECT generate_series(@start_time::timestamptz, @end_time::timestamptz, '1 day'::interval) AS d
+	-- Subtract 1 second from end_time to avoid including the next interval in the results.
+	SELECT generate_series(@start_time::timestamptz, (@end_time::timestamptz) - '1 second'::interval, '1 day'::interval) AS d
 ), ts AS (
 	SELECT
 		d::timestamptz AS from_,
@@ -91,17 +94,25 @@ WITH d AS (
 	)
 	GROUP BY ts.from_, ts.to_, was.user_id
 ), template_ids AS (
-	SELECT array_agg(DISTINCT template_id) AS ids
-	FROM usage_by_day, unnest(template_ids) template_id
+	SELECT
+		template_usage_by_day.from_,
+		array_agg(template_id) AS ids
+	FROM (
+		SELECT DISTINCT
+			from_,
+			unnest(template_ids) AS template_id
+		FROM usage_by_day
+	) AS template_usage_by_day
 	WHERE template_id IS NOT NULL
+	GROUP BY template_usage_by_day.from_
 )
 
 SELECT
 	from_ AS start_time,
 	to_ AS end_time,
-	COALESCE((SELECT ids FROM template_ids), '{}')::uuid[] AS template_ids,
+	COALESCE((SELECT template_ids.ids FROM template_ids WHERE template_ids.from_ = usage_by_day.from_), '{}')::uuid[] AS template_ids,
 	COUNT(DISTINCT user_id) AS active_users
-FROM usage_by_day, unnest(template_ids) as template_id
+FROM usage_by_day
 GROUP BY from_, to_;
 
 

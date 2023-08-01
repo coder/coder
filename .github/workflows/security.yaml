@@ -81,9 +81,7 @@ jobs:
             js-${{ runner.os }}-
 
       - name: Setup sqlc
-        uses: sqlc-dev/setup-sqlc@v3
-        with:
-          sqlc-version: "1.19.1"
+        uses: ./.github/actions/setup-sqlc
 
       - name: Install yq
         run: go run github.com/mikefarah/yq/v4@v4.30.6
@@ -128,21 +126,11 @@ jobs:
 
       - name: Run Prisma Cloud image scan
         uses: PaloAltoNetworks/prisma-cloud-scan@v1
-        if: false
         with:
           pcc_console_url: ${{ secrets.PRISMA_CLOUD_URL }}
           pcc_user: ${{ secrets.PRISMA_CLOUD_ACCESS_KEY }}
           pcc_pass: ${{ secrets.PRISMA_CLOUD_SECRET_KEY }}
           image_name: ${{ steps.build.outputs.image }}
-
-      - name: Scan image
-        id: sysdig-scan
-        uses: sysdiglabs/scan-action@v3
-        with:
-          image-tag: ${{ steps.build.outputs.image }}
-          sysdig-secure-token: ${{ secrets.SYSDIG_API_TOKEN }}
-          input-type: docker-daemon
-          sysdig-secure-url: https://app.us4.sysdig.com
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@41f05d9ecffa2ed3f1580af306000f734b733e54

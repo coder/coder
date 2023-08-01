@@ -80,6 +80,14 @@ Specify a name for the new template version. It will be automatically generated 
 
 Specify a set of tags to target provisioner daemons.
 
+### --var
+
+|      |                           |
+| ---- | ------------------------- |
+| Type | <code>string-array</code> |
+
+Alias of --variable.
+
 ### --variable
 
 |      |                           |

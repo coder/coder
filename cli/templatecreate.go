@@ -171,6 +171,11 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			Value:       clibase.StringArrayOf(&variables),
 		},
 		{
+			Flag:        "var",
+			Description: "Alias of --variable.",
+			Value:       clibase.StringArrayOf(&variables),
+		},
+		{
 			Flag:        "provisioner-tag",
 			Description: "Specify a set of tags to target provisioner daemons.",
 			Value:       clibase.StringArrayOf(&provisionerTags),

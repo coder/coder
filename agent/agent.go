@@ -27,6 +27,7 @@ import (
 	"github.com/spf13/afero"
 	"go.uber.org/atomic"
 	"golang.org/x/exp/slices"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
@@ -72,12 +73,13 @@ type Options struct {
 type Client interface {
 	Manifest(ctx context.Context) (agentsdk.Manifest, error)
 	Listen(ctx context.Context) (net.Conn, error)
+	DERPMapUpdates(ctx context.Context) (<-chan agentsdk.DERPMapUpdate, io.Closer, error)
 	ReportStats(ctx context.Context, log slog.Logger, statsChan <-chan *agentsdk.Stats, setInterval func(time.Duration)) (io.Closer, error)
 	PostLifecycle(ctx context.Context, state agentsdk.PostLifecycleRequest) error
 	PostAppHealth(ctx context.Context, req agentsdk.PostAppHealthsRequest) error
 	PostStartup(ctx context.Context, req agentsdk.PostStartupRequest) error
 	PostMetadata(ctx context.Context, key string, req agentsdk.PostMetadataRequest) error
-	PatchStartupLogs(ctx context.Context, req agentsdk.PatchStartupLogs) error
+	PatchLogs(ctx context.Context, req agentsdk.PatchLogs) error
 	GetServiceBanner(ctx context.Context) (codersdk.ServiceBannerConfig, error)
 }
 
@@ -699,12 +701,26 @@ func (a *agent) run(ctx context.Context) error {
 		network.SetBlockEndpoints(manifest.DisableDirectConnections)
 	}
 
-	a.logger.Debug(ctx, "running tailnet connection coordinator")
-	err = a.runCoordinator(ctx, network)
-	if err != nil {
-		return xerrors.Errorf("run coordinator: %w", err)
-	}
-	return nil
+	eg, egCtx := errgroup.WithContext(ctx)
+	eg.Go(func() error {
+		a.logger.Debug(egCtx, "running tailnet connection coordinator")
+		err := a.runCoordinator(egCtx, network)
+		if err != nil {
+			return xerrors.Errorf("run coordinator: %w", err)
+		}
+		return nil
+	})
+
+	eg.Go(func() error {
+		a.logger.Debug(egCtx, "running derp map subscriber")
+		err := a.runDERPMapSubscriber(egCtx, network)
+		if err != nil {
+			return xerrors.Errorf("run derp map subscriber: %w", err)
+		}
+		return nil
+	})
+
+	return eg.Wait()
 }
 
 func (a *agent) wireguardAddresses(agentID uuid.UUID) []netip.Prefix {
@@ -739,7 +755,7 @@ func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *t
 	network, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:      a.wireguardAddresses(agentID),
 		DERPMap:        derpMap,
-		Logger:         a.logger.Named("tailnet"),
+		Logger:         a.logger.Named("net.tailnet"),
 		ListenPort:     a.tailnetListenPort,
 		BlockEndpoints: disableDirectConnections,
 	})
@@ -927,6 +943,34 @@ func (a *agent) runCoordinator(ctx context.Context, network *tailnet.Conn) error
 	}
 }
 
+// runDERPMapSubscriber runs a coordinator and returns if a reconnect should occur.
+func (a *agent) runDERPMapSubscriber(ctx context.Context, network *tailnet.Conn) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	updates, closer, err := a.client.DERPMapUpdates(ctx)
+	if err != nil {
+		return err
+	}
+	defer closer.Close()
+
+	a.logger.Info(ctx, "connected to derp map endpoint")
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case update := <-updates:
+			if update.Err != nil {
+				return update.Err
+			}
+			if update.DERPMap != nil && !tailnet.CompareDERPMaps(network.DERPMap(), update.DERPMap) {
+				a.logger.Info(ctx, "updating derp map due to detected changes")
+				network.SetDERPMap(update.DERPMap)
+			}
+		}
+	}
+}
+
 func (a *agent) runStartupScript(ctx context.Context, script string) error {
 	return a.runScript(ctx, "startup", script)
 }
@@ -962,7 +1006,7 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) (err er
 
 	var stdout, stderr io.Writer = fileWriter, fileWriter
 	if lifecycle == "startup" {
-		send, flushAndClose := agentsdk.StartupLogsSender(a.client.PatchStartupLogs, logger)
+		send, flushAndClose := agentsdk.LogsSender(a.client.PatchLogs, logger)
 		// If ctx is canceled here (or in a writer below), we may be
 		// discarding logs, but that's okay because we're shutting down
 		// anyway. We could consider creating a new context here if we
@@ -973,9 +1017,9 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) (err er
 			}
 		}()
 
-		infoW := agentsdk.StartupLogsWriter(ctx, send, codersdk.LogLevelInfo)
+		infoW := agentsdk.StartupLogsWriter(ctx, send, codersdk.WorkspaceAgentLogSourceStartupScript, codersdk.LogLevelInfo)
 		defer infoW.Close()
-		errW := agentsdk.StartupLogsWriter(ctx, send, codersdk.LogLevelError)
+		errW := agentsdk.StartupLogsWriter(ctx, send, codersdk.WorkspaceAgentLogSourceStartupScript, codersdk.LogLevelError)
 		defer errW.Close()
 
 		stdout = io.MultiWriter(fileWriter, infoW)

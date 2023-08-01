@@ -43,10 +43,12 @@ const renderWorkspacePage = async () => {
   jest
     .spyOn(api, "getDeploymentValues")
     .mockResolvedValueOnce(MockDeploymentConfig)
-  jest.spyOn(api, "watchStartupLogs").mockImplementation((_, options) => {
-    options.onDone()
-    return new WebSocket("")
-  })
+  jest
+    .spyOn(api, "watchWorkspaceAgentLogs")
+    .mockImplementation((_, options) => {
+      options.onDone()
+      return new WebSocket("")
+    })
   renderWithAuth(<WorkspacePage />, {
     route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
     path: "/:username/:workspace",
@@ -410,5 +412,81 @@ describe("WorkspacePage", () => {
 
     await renderWorkspacePage()
     await screen.findByTestId("error-unsupported-workspaces")
+  })
+
+  it("restart the workspace with one time parameters when having the confirmation dialog", async () => {
+    window.localStorage.removeItem(`${MockUser.id}_ignoredWarnings`)
+    jest.spyOn(api, "getWorkspaceParameters").mockResolvedValue({
+      templateVersionRichParameters: [
+        {
+          ...MockTemplateVersionParameter1,
+          ephemeral: true,
+          name: "rebuild",
+          description: "Rebuild",
+          required: false,
+        },
+      ],
+      buildParameters: [{ name: "rebuild", value: "false" }],
+    })
+    const restartWorkspaceSpy = jest.spyOn(api, "restartWorkspace")
+    const user = userEvent.setup()
+    await renderWorkspacePage()
+    await user.click(screen.getByTestId("build-parameters-button"))
+    const buildParametersForm = await screen.findByTestId(
+      "build-parameters-form",
+    )
+    const rebuildField = within(buildParametersForm).getByLabelText("Rebuild", {
+      exact: false,
+    })
+    await user.clear(rebuildField)
+    await user.type(rebuildField, "true")
+    await user.click(screen.getByTestId("build-parameters-submit"))
+    await user.click(screen.getByTestId("confirm-button"))
+    await waitFor(() => {
+      expect(restartWorkspaceSpy).toBeCalledWith({
+        workspace: MockWorkspace,
+        buildParameters: [{ name: "rebuild", value: "true" }],
+      })
+    })
+  })
+
+  it("restart the workspace with one time parameters without the confirmation dialog", async () => {
+    window.localStorage.setItem(
+      `${MockUser.id}_ignoredWarnings`,
+      JSON.stringify({
+        restart: new Date().toISOString(),
+      }),
+    )
+    jest.spyOn(api, "getWorkspaceParameters").mockResolvedValue({
+      templateVersionRichParameters: [
+        {
+          ...MockTemplateVersionParameter1,
+          ephemeral: true,
+          name: "rebuild",
+          description: "Rebuild",
+          required: false,
+        },
+      ],
+      buildParameters: [{ name: "rebuild", value: "false" }],
+    })
+    const restartWorkspaceSpy = jest.spyOn(api, "restartWorkspace")
+    const user = userEvent.setup()
+    await renderWorkspacePage()
+    await user.click(screen.getByTestId("build-parameters-button"))
+    const buildParametersForm = await screen.findByTestId(
+      "build-parameters-form",
+    )
+    const rebuildField = within(buildParametersForm).getByLabelText("Rebuild", {
+      exact: false,
+    })
+    await user.clear(rebuildField)
+    await user.type(rebuildField, "true")
+    await user.click(screen.getByTestId("build-parameters-submit"))
+    await waitFor(() => {
+      expect(restartWorkspaceSpy).toBeCalledWith({
+        workspace: MockWorkspace,
+        buildParameters: [{ name: "rebuild", value: "true" }],
+      })
+    })
   })
 })

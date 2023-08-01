@@ -98,7 +98,11 @@ export const useProxyLatency = (
         // This prevents fetching latencies too often.
         // 1. Fetch the latest stored latency for the given proxy.
         // 2. If the latest latency is after the latestFetchRequest, then skip the latency check.
-        if (storedLatencies && storedLatencies[proxy.id]) {
+        if (
+          storedLatencies &&
+          storedLatencies[proxy.id] &&
+          storedLatencies[proxy.id].length > 0
+        ) {
           const fetchRequestDate = new Date(latestFetchRequest)
           const latest = storedLatencies[proxy.id].reduce((prev, next) =>
             prev.at > next.at ? prev : next,
@@ -131,7 +135,7 @@ export const useProxyLatency = (
     // dispatchProxyLatenciesGuarded will assign the latency to the proxy
     // via the reducer. But it will only do so if the performance entry is
     // a resource entry that we care about.
-    const dispatchProxyLatenciesGuarded = (entry: PerformanceEntry): void => {
+    const dispatchProxyLatenciesGuarded = (entry: PerformanceEntry) => {
       if (entry.entryType !== "resource") {
         // We should never get these, but just in case.
         return
@@ -204,7 +208,7 @@ export const useProxyLatency = (
     })
 
     // When all the proxy requests finish
-    Promise.all(proxyRequests)
+    void Promise.all(proxyRequests)
       // TODO: If there is an error on any request, we might want to store some indicator of that?
       .finally(() => {
         // takeRecords will return any entries that were not called via the callback yet.

@@ -47,6 +47,7 @@ export const BuildParametersPopover = ({
   return (
     <>
       <Button
+        data-testid="build-parameters-button"
         disabled={disabled}
         color="neutral"
         sx={{ px: 0 }}
@@ -159,7 +160,7 @@ const Form = ({
   const getFieldHelpers = getFormHelpers(form)
 
   return (
-    <form onSubmit={form.handleSubmit}>
+    <form onSubmit={form.handleSubmit} data-testid="build-parameters-form">
       <FormFields>
         {ephemeralParameters.map((parameter, index) => {
           return (
@@ -182,6 +183,7 @@ const Form = ({
       </FormFields>
       <Box sx={{ py: 3, pb: 1 }}>
         <Button
+          data-testid="build-parameters-submit"
           type="submit"
           variant="contained"
           color="primary"

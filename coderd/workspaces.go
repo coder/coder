@@ -884,7 +884,7 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.New("Cannot extend workspace: deadline is beyond max deadline imposed by template")
 		}
 
-		if _, err := s.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+		if err := s.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 			ID:               build.ID,
 			UpdatedAt:        build.UpdatedAt,
 			ProvisionerState: build.ProvisionerState,
@@ -1251,13 +1251,13 @@ func (api *API) publishWorkspaceUpdate(ctx context.Context, workspaceID uuid.UUI
 	}
 }
 
-func (api *API) publishWorkspaceAgentStartupLogsUpdate(ctx context.Context, workspaceAgentID uuid.UUID, m agentsdk.StartupLogsNotifyMessage) {
+func (api *API) publishWorkspaceAgentLogsUpdate(ctx context.Context, workspaceAgentID uuid.UUID, m agentsdk.LogsNotifyMessage) {
 	b, err := json.Marshal(m)
 	if err != nil {
-		api.Logger.Warn(ctx, "failed to marshal startup logs notify message", slog.F("workspace_agent_id", workspaceAgentID), slog.Error(err))
+		api.Logger.Warn(ctx, "failed to marshal logs notify message", slog.F("workspace_agent_id", workspaceAgentID), slog.Error(err))
 	}
-	err = api.Pubsub.Publish(agentsdk.StartupLogsNotifyChannel(workspaceAgentID), b)
+	err = api.Pubsub.Publish(agentsdk.LogsNotifyChannel(workspaceAgentID), b)
 	if err != nil {
-		api.Logger.Warn(ctx, "failed to publish workspace agent startup logs update", slog.F("workspace_agent_id", workspaceAgentID), slog.Error(err))
+		api.Logger.Warn(ctx, "failed to publish workspace agent logs update", slog.F("workspace_agent_id", workspaceAgentID), slog.Error(err))
 	}
 }

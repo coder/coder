@@ -34,6 +34,9 @@ Create a template from the current directory or as specified by flag
       --provisioner-tag string-array
           Specify a set of tags to target provisioner daemons.
 
+      --var string-array
+          Alias of --variable.
+
       --variable string-array
           Specify a set of values for Terraform-managed variables.
 

@@ -59,12 +59,12 @@ export interface WorkspaceContext {
   build?: TypesGen.WorkspaceBuild
   // Builds
   builds?: TypesGen.WorkspaceBuild[]
-  getBuildsError?: Error | unknown
+  getBuildsError?: unknown
   missedParameters?: TypesGen.TemplateVersionParameter[]
   // error creating a new WorkspaceBuild
-  buildError?: Error | unknown
+  buildError?: unknown
   cancellationMessage?: Types.Message
-  cancellationError?: Error | unknown
+  cancellationError?: unknown
   // debug
   createBuildLogLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"]
   // SSH Config
@@ -92,7 +92,7 @@ export type WorkspaceEvent =
       checkRefresh?: boolean
       data?: TypesGen.ServerSentEvent["data"]
     }
-  | { type: "EVENT_SOURCE_ERROR"; error: Error | unknown }
+  | { type: "EVENT_SOURCE_ERROR"; error: unknown }
   | { type: "INCREASE_DEADLINE"; hours: number }
   | { type: "DECREASE_DEADLINE"; hours: number }
   | { type: "RETRY_BUILD" }

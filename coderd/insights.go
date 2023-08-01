@@ -65,10 +65,6 @@ func (api *API) deploymentDAUs(rw http.ResponseWriter, r *http.Request) {
 // @Router /insights/user-latency [get]
 func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceDeploymentValues) {
-		httpapi.Forbidden(rw)
-		return
-	}
 
 	p := httpapi.NewQueryParamParser().
 		Required("start_time").
@@ -101,6 +97,10 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 		TemplateIDs: templateIDs,
 	})
 	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user latency.",
 			Detail:  err.Error(),
@@ -118,6 +118,7 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 			TemplateIDs: row.TemplateIDs,
 			UserID:      row.UserID,
 			Username:    row.Username,
+			AvatarURL:   row.AvatarURL.String,
 			LatencyMS: codersdk.ConnectionLatency{
 				P50: row.WorkspaceConnectionLatency50,
 				P95: row.WorkspaceConnectionLatency95,
@@ -154,10 +155,6 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 // @Router /insights/templates [get]
 func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceDeploymentValues) {
-		httpapi.Forbidden(rw)
-		return
-	}
 
 	p := httpapi.NewQueryParamParser().
 		Required("start_time").
@@ -191,6 +188,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 
 	var usage database.GetTemplateInsightsRow
 	var dailyUsage []database.GetTemplateDailyInsightsRow
+
 	// Use a transaction to ensure that we get consistent data between
 	// the full and interval report.
 	err := api.Database.InTx(func(tx database.Store) error {
@@ -218,6 +216,10 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 
 		return nil
 	}, nil)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching template insights.",
@@ -282,7 +284,7 @@ func convertTemplateInsightsBuiltinApps(usage database.GetTemplateInsightsRow) [
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: "Visual Studio Code",
 			Slug:        "vscode",
-			Icon:        "/icons/code.svg",
+			Icon:        "/icon/code.svg",
 			Seconds:     usage.UsageVscodeSeconds,
 		},
 		{
@@ -290,7 +292,7 @@ func convertTemplateInsightsBuiltinApps(usage database.GetTemplateInsightsRow) [
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: "JetBrains",
 			Slug:        "jetbrains",
-			Icon:        "/icons/intellij.svg",
+			Icon:        "/icon/intellij.svg",
 			Seconds:     usage.UsageJetbrainsSeconds,
 		},
 		{
@@ -298,7 +300,7 @@ func convertTemplateInsightsBuiltinApps(usage database.GetTemplateInsightsRow) [
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: "Web Terminal",
 			Slug:        "reconnecting-pty",
-			Icon:        "/icons/terminal.svg",
+			Icon:        "/icon/terminal.svg",
 			Seconds:     usage.UsageReconnectingPtySeconds,
 		},
 		{
@@ -306,7 +308,7 @@ func convertTemplateInsightsBuiltinApps(usage database.GetTemplateInsightsRow) [
 			Type:        codersdk.TemplateAppsTypeBuiltin,
 			DisplayName: "SSH",
 			Slug:        "ssh",
-			Icon:        "/icons/terminal.svg",
+			Icon:        "/icon/terminal.svg",
 			Seconds:     usage.UsageSshSeconds,
 		},
 	}
