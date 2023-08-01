@@ -4337,6 +4337,28 @@ func (q *FakeQuerier) UpdateGroupByID(_ context.Context, arg database.UpdateGrou
 	return database.Group{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdateInactiveUsersToDormant(ctx context.Context, lastSeenAfter time.Time) ([]database.UpdateInactiveUsersToDormantRow, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	var updated []database.UpdateInactiveUsersToDormantRow
+	for index, user := range q.users {
+		if user.Status == database.UserStatusActive && user.LastSeenAt.Before(lastSeenAfter) {
+			q.users[index].Status = database.UserStatusDormant
+			updated = append(updated, database.UpdateInactiveUsersToDormantRow{
+				ID:         user.ID,
+				Email:      user.Email,
+				LastSeenAt: user.LastSeenAt,
+			})
+		}
+	}
+
+	if len(updated) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return updated, nil
+}
+
 func (q *FakeQuerier) UpdateMemberRoles(_ context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.OrganizationMember{}, err

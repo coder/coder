@@ -250,3 +250,14 @@ SET
 WHERE
 	id = $1
 RETURNING *;
+
+
+-- name: UpdateInactiveUsersToDormant :many
+UPDATE
+    users
+SET
+    user_status = 'dormant'::user_status
+WHERE
+    last_seen_at < @last_seen_after :: timestamp
+    AND user_status = 'active'::user_status
+RETURNING id, email, last_seen_at;
