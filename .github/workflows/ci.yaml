@@ -626,14 +626,6 @@ jobs:
         with:
           sqlc-version: "1.19.1"
 
-      - name: Install dependencies
-        run: |
-          cd offlinedocs
-          pnpm i
-          # Install prettier globally
-          prettier_version=$(jq -r '.devDependencies.prettier' < package.json)
-          pnpm global add "prettier@${prettier_version}"
-
       - name: Format
         run: |
           cd offlinedocs
