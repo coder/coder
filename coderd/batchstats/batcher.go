@@ -37,7 +37,7 @@ type Batcher struct {
 	// flushLever is used to signal the flusher to flush the buffer immediately.
 	flushLever chan struct{}
 	// flushed is used during testing to signal that a flush has completed.
-	flushed chan struct{}
+	flushed chan<- bool
 }
 
 // Option is a functional option for configuring a Batcher.
@@ -72,7 +72,9 @@ func WithLogger(log slog.Logger) Option {
 }
 
 // With Flushed sets the channel to use for signaling that a flush has completed.
-func WithFlushed(ch chan struct{}) Option {
+// This is only used for testing.
+// True signifies that a flush was forced.
+func WithFlushed(ch chan bool) Option {
 	return func(b *Batcher) {
 		b.flushed = ch
 	}
@@ -84,6 +86,7 @@ func New(opts ...Option) (*Batcher, error) {
 	buf := make([]database.InsertWorkspaceAgentStatParams, 0, DefaultBatchSize)
 	b.buf = buf
 	b.log = slog.Make(sloghuman.Sink(os.Stderr))
+	b.flushLever = make(chan struct{}, 1) // Buffered so that it doesn't block.
 	for _, opt := range opts {
 		opt(b)
 	}
@@ -126,6 +129,7 @@ func (b *Batcher) Add(
 	}
 	p := database.InsertWorkspaceAgentStatParams{
 		ID:                          uuid.New(),
+		AgentID:                     agentID,
 		CreatedAt:                   now,
 		WorkspaceID:                 ws.ID,
 		UserID:                      ws.OwnerID,
@@ -143,6 +147,10 @@ func (b *Batcher) Add(
 		ConnectionMedianLatencyMS:   st.ConnectionMedianLatencyMS,
 	}
 	b.buf = append(b.buf, p)
+	if len(b.buf) == cap(b.buf) {
+		// If the buffer is full, signal the flusher to flush immediately.
+		b.flushLever <- struct{}{}
+	}
 	return nil
 }
 
@@ -151,37 +159,38 @@ func (b *Batcher) Run(ctx context.Context) {
 	authCtx := dbauthz.AsSystemRestricted(ctx)
 	for {
 		select {
-		case tick := <-b.ticker:
-			b.flush(authCtx, tick)
+		case <-b.ticker:
+			b.flush(authCtx, false, "scheduled")
 		case <-b.flushLever:
 			// If the flush lever is depressed, flush the buffer immediately.
-			b.log.Warn(ctx, "flushing due to full buffer", slog.F("count", len(b.buf)))
-			b.flush(authCtx, database.Now())
+			b.flush(authCtx, true, "full buffer")
 		case <-ctx.Done():
 			b.log.Warn(ctx, "context done, flushing before exit")
-			b.flush(authCtx, database.Now())
+			b.flush(authCtx, true, "exit")
 			return
 		}
 	}
 }
 
 // flush flushes the batcher's buffer.
-func (b *Batcher) flush(ctx context.Context, now time.Time) {
+func (b *Batcher) flush(ctx context.Context, forced bool, reason string) {
 	// TODO(Cian): After flushing, should we somehow reset the ticker?
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	defer func() {
 		// Notify that a flush has completed.
 		if b.flushed != nil {
-			b.flushed <- struct{}{}
+			b.flushed <- forced
+			b.log.Debug(ctx, "notify flush")
 		}
 	}()
+
+	b.log.Debug(ctx, "flushing buffer", slog.F("count", len(b.buf)), slog.F("forced", forced))
 	if len(b.buf) == 0 {
 		b.log.Debug(ctx, "nothing to flush")
 		return
 	}
 
-	b.log.Debug(ctx, "flushing buffer", slog.F("count", len(b.buf)))
 	// TODO(cian): update the query to batch-insert multiple stats
 	for _, p := range b.buf {
 		if _, err := b.store.InsertWorkspaceAgentStat(ctx, p); err != nil {
@@ -189,4 +198,6 @@ func (b *Batcher) flush(ctx context.Context, now time.Time) {
 		}
 	}
 
+	// Reset the buffer.
+	b.buf = b.buf[:0]
 }

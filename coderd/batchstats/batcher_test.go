@@ -5,44 +5,47 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/coderd/batchstats"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/database/dbtestutil"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk/agentsdk"
+	"github.com/coder/coder/cryptorand"
 )
 
 func TestBatchStats(t *testing.T) {
+	var (
+		batchSize = batchstats.DefaultBatchSize
+	)
 	t.Parallel()
 	// Given: a fresh batcher with no data
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	store, _ := dbtestutil.NewDB(t)
 
 	// Set up some test dependencies.
-	deps1 := setupDeps(t, store)
-	ws1, err := store.GetWorkspaceByID(ctx, deps1.Workspace.ID)
-	deps2 := setupDeps(t, store)
-	require.NoError(t, err)
-	ws2, err := store.GetWorkspaceByID(ctx, deps2.Workspace.ID)
-	require.NoError(t, err)
-	startedAt := time.Now()
+	deps := setupDeps(t, store)
 	tick := make(chan time.Time)
-	flushed := make(chan struct{})
+	flushed := make(chan bool)
 
 	b, err := batchstats.New(
 		batchstats.WithStore(store),
+		batchstats.WithBatchSize(batchSize),
 		batchstats.WithLogger(log),
 		batchstats.WithTicker(tick),
 		batchstats.WithFlushed(flushed),
 	)
 	require.NoError(t, err)
 
+	// Given: no data points are added for workspace
 	// When: it becomes time to report stats
 	done := make(chan struct{})
 	t.Cleanup(func() {
@@ -52,79 +55,111 @@ func TestBatchStats(t *testing.T) {
 		b.Run(ctx)
 	}()
 	t1 := time.Now()
+	// Signal a tick and wait for a flush to complete.
 	tick <- t1
-	<-flushed // Wait for a flush to complete.
+	f := <-flushed
+	require.False(t, f, "flush should not have been forced")
+	t.Logf("flush 1 completed")
 
 	// Then: it should report no stats.
-	stats, err := store.GetWorkspaceAgentStats(ctx, startedAt)
+	stats, err := store.GetWorkspaceAgentStats(ctx, t1)
 	require.NoError(t, err)
 	require.Empty(t, stats)
 
-	// Then: workspace last used time should not be updated
-	updated1, err := store.GetWorkspaceByID(ctx, ws1.ID)
-	require.NoError(t, err)
-	require.Equal(t, ws1.LastUsedAt, updated1.LastUsedAt)
-	updated2, err := store.GetWorkspaceByID(ctx, ws2.ID)
-	require.NoError(t, err)
-	require.Equal(t, ws2.LastUsedAt, updated2.LastUsedAt)
-
-	// When: a single data point is added for ws1
-	require.NoError(t, b.Add(ctx, deps1.Agent.ID, randAgentSDKStats(t)))
-	// And it becomes time to report stats
+	// Given: a single data point is added for workspace
 	t2 := time.Now()
+	t.Logf("inserting 1 stat")
+	require.NoError(t, b.Add(ctx, deps.Agent.ID, randAgentSDKStats(t)))
+
+	// When: it becomes time to report stats
+	// Signal a tick and wait for a flush to complete.
 	tick <- t2
-	<-flushed // Wait for a flush to complete.
+	f = <-flushed // Wait for a flush to complete.
+	require.False(t, f, "flush should not have been forced")
+	t.Logf("flush 2 completed")
 
 	// Then: it should report a single stat.
-	stats, err = store.GetWorkspaceAgentStats(ctx, t1)
+	stats, err = store.GetWorkspaceAgentStats(ctx, t2)
 	require.NoError(t, err)
 	require.Len(t, stats, 1)
 
-	// Then: ws1 last used time should be updated
-	updated1, err = store.GetWorkspaceByID(ctx, ws1.ID)
-	require.NoError(t, err)
-	require.NotEqual(t, ws1.LastUsedAt, updated1.LastUsedAt)
-	// And: ws2 last used time should not be updated
-	updated2, err = store.GetWorkspaceByID(ctx, ws2.ID)
-	require.NoError(t, err)
-	require.Equal(t, ws2.LastUsedAt, updated2.LastUsedAt)
-
-	// When: a lot of data points are added for both ws1 and ws2
+	// Given: a lot of data points are added for workspace
 	// (equal to batch size)
-	for i := 0; i < batchstats.DefaultBatchSize; i++ {
-		if i%2 == 0 {
-			require.NoError(t, b.Add(ctx, deps1.Agent.ID, randAgentSDKStats(t)))
-		} else {
-			require.NoError(t, b.Add(ctx, deps2.Agent.ID, randAgentSDKStats(t)))
-		}
-	}
 	t3 := time.Now()
-	tick <- t3
-	<-flushed // Wait for a flush to complete.
+	t.Logf("inserting %d stats", batchSize)
+	for i := 0; i < batchSize; i++ {
+		require.NoError(t, b.Add(ctx, deps.Agent.ID, randAgentSDKStats(t)))
+	}
+
+	// When: the buffer is full
+	// Wait for a flush to complete. This should be forced by filling the buffer.
+	f = <-flushed
+	require.True(t, f, "flush should have been forced")
+	t.Logf("flush 3 completed")
 
 	// Then: it should immediately flush its stats to store.
 	stats, err = store.GetWorkspaceAgentStats(ctx, t3)
 	require.NoError(t, err)
-	require.Len(t, stats, batchstats.DefaultBatchSize)
-
-	// Then: ws1 and ws2 last used time should be updated
-	updated1, err = store.GetWorkspaceByID(ctx, ws1.ID)
-	require.NoError(t, err)
-	require.NotEqual(t, ws1.LastUsedAt, updated1.LastUsedAt)
-	updated2, err = store.GetWorkspaceByID(ctx, ws2.ID)
-	require.NoError(t, err)
-	require.NotEqual(t, ws2.LastUsedAt, updated2.LastUsedAt)
+	if assert.Len(t, stats, 1) {
+		assert.Greater(t, stats[0].AggregatedFrom, t3)
+		assert.Equal(t, stats[0].AgentID, deps.Agent.ID)
+		assert.Equal(t, stats[0].WorkspaceID, deps.Workspace.ID)
+		assert.Equal(t, stats[0].TemplateID, deps.Template.ID)
+		assert.NotZero(t, stats[0].WorkspaceRxBytes)
+		assert.NotZero(t, stats[0].WorkspaceTxBytes)
+		assert.NotZero(t, stats[0].WorkspaceConnectionLatency50)
+		assert.NotZero(t, stats[0].WorkspaceConnectionLatency95)
+		assert.NotZero(t, stats[0].SessionCountVSCode)
+		assert.NotZero(t, stats[0].SessionCountSSH)
+		assert.NotZero(t, stats[0].SessionCountJetBrains)
+		assert.NotZero(t, stats[0].SessionCountReconnectingPTY)
+	}
 }
 
 // randAgentSDKStats returns a random agentsdk.Stats
 func randAgentSDKStats(t *testing.T, opts ...func(*agentsdk.Stats)) agentsdk.Stats {
 	t.Helper()
-	var s agentsdk.Stats
+	s := agentsdk.Stats{
+		ConnectionsByProto: map[string]int64{
+			"ssh":              mustRandInt64n(t, 9) + 1,
+			"vscode":           mustRandInt64n(t, 9) + 1,
+			"jetbrains":        mustRandInt64n(t, 9) + 1,
+			"reconnecting_pty": mustRandInt64n(t, 9) + 1,
+		},
+		ConnectionCount:             mustRandInt64n(t, 99) + 1,
+		ConnectionMedianLatencyMS:   float64(mustRandInt64n(t, 99) + 1),
+		RxPackets:                   mustRandInt64n(t, 99) + 1,
+		RxBytes:                     mustRandInt64n(t, 99) + 1,
+		TxPackets:                   mustRandInt64n(t, 99) + 1,
+		TxBytes:                     mustRandInt64n(t, 99) + 1,
+		SessionCountVSCode:          mustRandInt64n(t, 9) + 1,
+		SessionCountJetBrains:       mustRandInt64n(t, 9) + 1,
+		SessionCountReconnectingPTY: mustRandInt64n(t, 9) + 1,
+		SessionCountSSH:             mustRandInt64n(t, 9) + 1,
+		Metrics:                     []agentsdk.AgentMetric{},
+	}
 	for _, opt := range opts {
 		opt(&s)
 	}
 	return s
 }
+
+// type Stats struct {
+// 	ConnectionsByProto map[string]int64 `json:"connections_by_proto"`
+// 	ConnectionCount int64 `json:"connection_count"`
+// 	ConnectionMedianLatencyMS float64 `json:"connection_median_latency_ms"`
+// 	RxPackets int64 `json:"rx_packets"`
+// 	RxBytes int64 `json:"rx_bytes"`
+// 	TxPackets int64 `json:"tx_packets"`
+// 	TxBytes int64 `json:"tx_bytes"`
+// 	SessionCountVSCode int64 `json:"session_count_vscode"`
+// 	SessionCountJetBrains int64 `json:"session_count_jetbrains"`
+// 	SessionCountReconnectingPTY int64 `json:"session_count_reconnecting_pty"`
+// 	SessionCountSSH int64 `json:"session_count_ssh"`
+
+// 	// Metrics collected by the agent
+// 	Metrics []AgentMetric `json:"metrics"`
+// }
 
 // type InsertWorkspaceAgentStatParams struct {
 //	ID                          uuid.UUID       `db:"id" json:"id"`
@@ -173,19 +208,32 @@ type deps struct {
 func setupDeps(t *testing.T, store database.Store) deps {
 	t.Helper()
 
+	org := dbgen.Organization(t, store, database.Organization{})
 	user := dbgen.User(t, store, database.User{})
-	tv := dbgen.TemplateVersion(t, store, database.TemplateVersion{})
+	_, err := store.InsertOrganizationMember(context.Background(), database.InsertOrganizationMemberParams{
+		OrganizationID: org.ID,
+		UserID:         user.ID,
+		Roles:          []string{rbac.RoleOrgMember(org.ID)},
+	})
+	require.NoError(t, err)
+	tv := dbgen.TemplateVersion(t, store, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
 	tpl := dbgen.Template(t, store, database.Template{
 		CreatedBy:       user.ID,
+		OrganizationID:  org.ID,
 		ActiveVersionID: tv.ID,
 	})
 	ws := dbgen.Workspace(t, store, database.Workspace{
-		TemplateID: tpl.ID,
-		OwnerID:    user.ID,
-		LastUsedAt: time.Now().Add(-time.Hour),
+		TemplateID:     tpl.ID,
+		OwnerID:        user.ID,
+		OrganizationID: org.ID,
+		LastUsedAt:     time.Now().Add(-time.Hour),
 	})
 	pj := dbgen.ProvisionerJob(t, store, database.ProvisionerJob{
-		InitiatorID: user.ID,
+		InitiatorID:    user.ID,
+		OrganizationID: org.ID,
 	})
 	_ = dbgen.WorkspaceBuild(t, store, database.WorkspaceBuild{
 		TemplateVersionID: tv.ID,
@@ -205,4 +253,11 @@ func setupDeps(t *testing.T, store database.Store) deps {
 		User:      user,
 		Workspace: ws,
 	}
+}
+
+func mustRandInt64n(t *testing.T, n int64) int64 {
+	t.Helper()
+	i, err := cryptorand.Intn(int(n))
+	require.NoError(t, err)
+	return int64(i)
 }
