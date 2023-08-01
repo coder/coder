@@ -299,7 +299,7 @@ CREATE TABLE groups (
     display_name text DEFAULT ''::text NOT NULL
 );
 
-COMMENT ON COLUMN groups.display_name IS 'Display name is a custom, human-friendly group name that user can set. This is not required to be unique.';
+COMMENT ON COLUMN groups.display_name IS 'Display name is a custom, human-friendly group name that user can set. This is not required to be unique and can be the empty string.';
 
 CREATE TABLE licenses (
     id integer NOT NULL,
