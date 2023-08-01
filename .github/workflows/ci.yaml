@@ -227,7 +227,7 @@ jobs:
           cd site
           mv package.json package.json.bak
           jq '{dependencies: {prettier: .devDependencies.prettier}}' < package.json.bak > package.json
-          yarn --frozen-lockfile
+          pnpm --frozen-lockfile i
           mv package.json.bak package.json
 
       - name: Install shfmt
@@ -492,7 +492,7 @@ jobs:
       - name: Setup Node
         uses: ./.github/actions/setup-node
 
-      - run: yarn test:ci --max-workers $(nproc)
+      - run: pnpm test:ci --max-workers $(nproc)
         working-directory: site
 
       - name: Check code coverage
@@ -531,10 +531,10 @@ jobs:
           sudo npm install -g prettier
           make -B site/out/index.html
 
-      - run: yarn playwright:install
+      - run: pnpm playwright:install
         working-directory: site
 
-      - run: yarn playwright:test
+      - run: pnpm playwright:test
         env:
           DEBUG: pw:api
         working-directory: site
@@ -641,20 +641,20 @@ jobs:
       - name: Install dependencies
         run: |
           cd offlinedocs
-          yarn
+          pnpm i
           # Install prettier globally
           prettier_version=$(jq -r '.devDependencies.prettier' < package.json)
-          yarn global add "prettier@${prettier_version}"
+          pnpm global add "prettier@${prettier_version}"
 
       - name: Format
         run: |
           cd offlinedocs
-          yarn format:check
+          pnpm format:check
 
       - name: Lint
         run: |
           cd offlinedocs
-          yarn lint
+          pnpm lint
 
       - name: Build
         run: |
