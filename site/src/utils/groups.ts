@@ -3,7 +3,7 @@ import { Group } from "api/typesGenerated"
 export const everyOneGroup = (organizationId: string): Group => ({
   id: organizationId,
   name: "Everyone",
-  display_name: "Everyone",
+  display_name: "",
   organization_id: organizationId,
   members: [],
   avatar_url: "",

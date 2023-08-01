@@ -253,11 +253,11 @@ export const TemplatePermissionsPageView: FC<
                         <AvatarData
                           avatar={
                             <GroupAvatar
-                              name={group.display_name}
+                              name={group.display_name || group.name}
                               avatarURL={group.avatar_url}
                             />
                           }
-                          title={group.display_name}
+                          title={group.display_name || group.name}
                           subtitle={getGroupSubtitle(group)}
                         />
                       </TableCell>

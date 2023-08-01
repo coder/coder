@@ -35,8 +35,6 @@ const UpdateGroupForm: FC<{
   const form = useFormik<FormData>({
     initialValues: {
       name: group.name,
-      // If these are equal, keep the display name blank. A blank display name means
-      // default to using the name.
       display_name: group.display_name,
       avatar_url: group.avatar_url,
       quota_allowance: group.quota_allowance,

@@ -102,7 +102,9 @@ export const GroupPage: React.FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle(group?.display_name ?? "Loading...")}</title>
+        <title>
+          {pageTitle((group?.display_name || group?.name) ?? "Loading...")}
+        </title>
       </Helmet>
       <ChooseOne>
         <Cond condition={isLoading}>
@@ -128,10 +130,14 @@ export const GroupPage: React.FC = () => {
                 </Maybe>
               }
             >
-              <PageHeaderTitle>{group?.display_name}</PageHeaderTitle>
+              <PageHeaderTitle>
+                {group?.display_name || group?.name}
+              </PageHeaderTitle>
               <PageHeaderSubtitle>
                 {/* Show the name if it differs from the display name. */}
-                {group?.display_name !== group?.name ? group?.name : ""}{" "}
+                {group?.display_name && group?.display_name !== group?.name
+                  ? group?.name
+                  : ""}{" "}
               </PageHeaderSubtitle>
             </PageHeader>
 

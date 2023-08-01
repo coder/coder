@@ -400,15 +400,11 @@ func convertGroup(g database.Group, users []database.User) codersdk.Group {
 	for _, user := range users {
 		orgs[user.ID] = []uuid.UUID{g.OrganizationID}
 	}
-	// Always default to the group name if the display name is empty
-	displayName := g.DisplayName
-	if displayName == "" {
-		displayName = g.Name
-	}
+
 	return codersdk.Group{
 		ID:             g.ID,
 		Name:           g.Name,
-		DisplayName:    displayName,
+		DisplayName:    g.DisplayName,
 		OrganizationID: g.OrganizationID,
 		AvatarURL:      g.AvatarURL,
 		QuotaAllowance: int(g.QuotaAllowance),

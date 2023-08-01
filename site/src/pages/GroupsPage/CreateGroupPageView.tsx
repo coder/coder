@@ -53,6 +53,17 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
               label="Name"
             />
             <TextField
+              {...getFieldHelpers(
+                "display_name",
+                "Optional: keep empty to default to the name.",
+              )}
+              onChange={onChangeTrimmed(form)}
+              autoComplete="display_name"
+              autoFocus
+              fullWidth
+              label="Display Name"
+            />
+            <TextField
               {...getFieldHelpers("avatar_url")}
               onChange={onChangeTrimmed(form)}
               autoComplete="avatar url"
