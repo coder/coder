@@ -316,10 +316,10 @@ to synchronize roles in your auth provider to deployment-wide roles within Coder
 Set the following in your Coder server [configuration](./configure.md).
 
 ```console
- # Depending on your identity provider configuration, you may need to explicitely request a "roles" scope
+ # Depending on your identity provider configuration, you may need to explicitly request a "roles" scope
 CODER_OIDC_SCOPES=openid,profile,email,roles
 
-# The following fields are requied for role sync:
+# The following fields are required for role sync:
 CODER_OIDC_USER_ROLE_FIELD=roles
 CODER_OIDC_USER_ROLE_MAPPING='{"TemplateAuthor":["template-admin","user-admin"]}'
 ```
