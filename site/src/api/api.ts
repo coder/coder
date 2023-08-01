@@ -1408,6 +1408,9 @@ export const getInsightsTemplate = async (
 
 export const getHealth = () => {
   return axios.get<{
+    healthy: boolean
+    time: string
+    coder_version: string
     derp: { healthy: boolean }
     access_url: { healthy: boolean }
     websocket: { healthy: boolean }
