@@ -2147,7 +2147,7 @@ func (q *FakeQuerier) GetTemplateParameterInsights(ctx context.Context, arg data
 	defer q.mutex.RUnlock()
 
 	// WITH latest_workspace_builds ...
-	latestWorkspaceBuilds := make(map[uuid.UUID]database.WorkspaceBuild)
+	latestWorkspaceBuilds := make(map[uuid.UUID]database.WorkspaceBuildTable)
 	for _, wb := range q.workspaceBuilds {
 		if wb.CreatedAt.Before(arg.StartTime) || wb.CreatedAt.Equal(arg.EndTime) || wb.CreatedAt.After(arg.EndTime) {
 			continue
