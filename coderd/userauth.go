@@ -330,7 +330,7 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 		if err != nil {
 			logger.Error(ctx, "unable to update user status to active", slog.Error(err))
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error.",
+				Message: "Internal error occurred. Try again later, or contact an admin for assistance.",
 			})
 			return user, database.GetAuthorizationUserRolesRow{}, false
 		}
