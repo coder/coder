@@ -578,7 +578,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 	if initial, changed, enabled := featureChanged(codersdk.FeatureWorkspaceProxy); shouldUpdate(initial, changed, enabled) {
 		if enabled {
-			fn := derpMapper(api.Logger, api.ProxyHealth)
+			fn := derpMapper(api.Logger, api.DeploymentValues, api.ProxyHealth)
 			api.AGPL.DERPMapper.Store(&fn)
 		} else {
 			api.AGPL.DERPMapper.Store(nil)
@@ -643,7 +643,7 @@ var (
 	lastDerpConflictLog   time.Time
 )
 
-func derpMapper(logger slog.Logger, proxyHealth *proxyhealth.ProxyHealth) func(*tailcfg.DERPMap) *tailcfg.DERPMap {
+func derpMapper(logger slog.Logger, cfg *codersdk.DeploymentValues, proxyHealth *proxyhealth.ProxyHealth) func(*tailcfg.DERPMap) *tailcfg.DERPMap {
 	return func(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap {
 		derpMap = derpMap.Clone()
 
@@ -718,7 +718,7 @@ func derpMapper(logger slog.Logger, proxyHealth *proxyhealth.ProxyHealth) func(*
 					lastDerpConflictMutex.Unlock()
 					if shouldLog {
 						logger.Warn(context.Background(),
-							"proxy region ID or code conflict, ignoring workspace proxy for DERP map. Please change the flags on the affected proxy to use a different region ID and code",
+							"proxy region ID or code conflict, ignoring workspace proxy for DERP map",
 							slog.F("proxy_id", status.Proxy.ID),
 							slog.F("proxy_name", status.Proxy.Name),
 							slog.F("proxy_display_name", status.Proxy.DisplayName),
@@ -733,20 +733,43 @@ func derpMapper(logger slog.Logger, proxyHealth *proxyhealth.ProxyHealth) func(*
 				}
 			}
 
+			var stunNodes []*tailcfg.DERPNode
+			if !cfg.DERP.Config.BlockDirect.Value() {
+				stunNodes, err = agpltailnet.STUNNodes(regionID, cfg.DERP.Server.STUNAddresses)
+				if err != nil {
+					// Log a warning if we haven't logged one in the last
+					// minute.
+					lastDerpConflictMutex.Lock()
+					shouldLog := lastDerpConflictLog.IsZero() || time.Since(lastDerpConflictLog) > time.Minute
+					if shouldLog {
+						lastDerpConflictLog = time.Now()
+					}
+					lastDerpConflictMutex.Unlock()
+					if shouldLog {
+						logger.Error(context.Background(), "failed to calculate STUN nodes", slog.Error(err))
+					}
+
+					// No continue because we can keep going.
+					stunNodes = []*tailcfg.DERPNode{}
+				}
+			}
+
+			nodes := append(stunNodes, &tailcfg.DERPNode{
+				Name:      fmt.Sprintf("%da", regionID),
+				RegionID:  regionID,
+				HostName:  u.Hostname(),
+				DERPPort:  portInt,
+				STUNPort:  -1,
+				ForceHTTP: u.Scheme == "http",
+			})
+
 			derpMap.Regions[regionID] = &tailcfg.DERPRegion{
 				// EmbeddedRelay ONLY applies to the primary.
 				EmbeddedRelay: false,
 				RegionID:      regionID,
 				RegionCode:    regionCode,
 				RegionName:    status.Proxy.Name,
-				Nodes: []*tailcfg.DERPNode{{
-					Name:      fmt.Sprintf("%da", regionID),
-					RegionID:  regionID,
-					HostName:  u.Hostname(),
-					DERPPort:  portInt,
-					STUNPort:  -1,
-					ForceHTTP: u.Scheme == "http",
-				}},
+				Nodes:         nodes,
 			}
 		}
 
