@@ -37,6 +37,7 @@ func TestCreateGroup(t *testing.T) {
 		require.Equal(t, "hi", group.Name)
 		require.Equal(t, "https://example.com", group.AvatarURL)
 		require.Empty(t, group.Members)
+		require.Empty(t, group.DisplayName)
 		require.NotEqual(t, uuid.Nil.String(), group.ID.String())
 	})
 
@@ -124,11 +125,13 @@ func TestPatchGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		}})
+		const displayName = "foobar"
 		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name:           "hi",
 			AvatarURL:      "https://example.com",
 			QuotaAllowance: 10,
+			DisplayName:    "",
 		})
 		require.NoError(t, err)
 		require.Equal(t, 10, group.QuotaAllowance)
@@ -137,8 +140,10 @@ func TestPatchGroup(t *testing.T) {
 			Name:           "bye",
 			AvatarURL:      ptr.Ref("https://google.com"),
 			QuotaAllowance: ptr.Ref(20),
+			DisplayName:    ptr.Ref(displayName),
 		})
 		require.NoError(t, err)
+		require.Equal(t, displayName, group.DisplayName)
 		require.Equal(t, "bye", group.Name)
 		require.Equal(t, "https://google.com", group.AvatarURL)
 		require.Equal(t, 20, group.QuotaAllowance)
