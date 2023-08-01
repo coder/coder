@@ -135,60 +135,7 @@ func randAgentSDKStats(t *testing.T, opts ...func(*agentsdk.Stats)) agentsdk.Sta
 	return s
 }
 
-// type Stats struct {
-// 	ConnectionsByProto map[string]int64 `json:"connections_by_proto"`
-// 	ConnectionCount int64 `json:"connection_count"`
-// 	ConnectionMedianLatencyMS float64 `json:"connection_median_latency_ms"`
-// 	RxPackets int64 `json:"rx_packets"`
-// 	RxBytes int64 `json:"rx_bytes"`
-// 	TxPackets int64 `json:"tx_packets"`
-// 	TxBytes int64 `json:"tx_bytes"`
-// 	SessionCountVSCode int64 `json:"session_count_vscode"`
-// 	SessionCountJetBrains int64 `json:"session_count_jetbrains"`
-// 	SessionCountReconnectingPTY int64 `json:"session_count_reconnecting_pty"`
-// 	SessionCountSSH int64 `json:"session_count_ssh"`
-
-// 	// Metrics collected by the agent
-// 	Metrics []AgentMetric `json:"metrics"`
-// }
-
-// type InsertWorkspaceAgentStatParams struct {
-//	ID                          uuid.UUID       `db:"id" json:"id"`
-//	CreatedAt                   time.Time       `db:"created_at" json:"created_at"`
-//	UserID                      uuid.UUID       `db:"user_id" json:"user_id"`
-//	WorkspaceID                 uuid.UUID       `db:"workspace_id" json:"workspace_id"`
-//	TemplateID                  uuid.UUID       `db:"template_id" json:"template_id"`
-//	AgentID                     uuid.UUID       `db:"agent_id" json:"agent_id"`
-//	ConnectionsByProto          json.RawMessage `db:"connections_by_proto" json:"connections_by_proto"`
-//	ConnectionCount             int64           `db:"connection_count" json:"connection_count"`
-//	RxPackets                   int64           `db:"rx_packets" json:"rx_packets"`
-//	RxBytes                     int64           `db:"rx_bytes" json:"rx_bytes"`
-//	TxPackets                   int64           `db:"tx_packets" json:"tx_packets"`
-//	TxBytes                     int64           `db:"tx_bytes" json:"tx_bytes"`
-//	SessionCountVSCode          int64           `db:"session_count_vscode" json:"session_count_vscode"`
-//	SessionCountJetBrains       int64           `db:"session_count_jetbrains" json:"session_count_jetbrains"`
-//	SessionCountReconnectingPTY int64           `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
-//	SessionCountSSH             int64           `db:"session_count_ssh" json:"session_count_ssh"`
-//	ConnectionMedianLatencyMS   float64         `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
-//}
-
-// type GetWorkspaceAgentStatsRow struct {
-//	UserID                       uuid.UUID `db:"user_id" json:"user_id"`
-//	AgentID                      uuid.UUID `db:"agent_id" json:"agent_id"`
-//	WorkspaceID                  uuid.UUID `db:"workspace_id" json:"workspace_id"`
-//	TemplateID                   uuid.UUID `db:"template_id" json:"template_id"`
-//	AggregatedFrom               time.Time `db:"aggregated_from" json:"aggregated_from"`
-//	WorkspaceRxBytes             int64     `db:"workspace_rx_bytes" json:"workspace_rx_bytes"`
-//	WorkspaceTxBytes             int64     `db:"workspace_tx_bytes" json:"workspace_tx_bytes"`
-//	WorkspaceConnectionLatency50 float64   `db:"workspace_connection_latency_50" json:"workspace_connection_latency_50"`
-//	WorkspaceConnectionLatency95 float64   `db:"workspace_connection_latency_95" json:"workspace_connection_latency_95"`
-//	AgentID_2                    uuid.UUID `db:"agent_id_2" json:"agent_id_2"`
-//	SessionCountVSCode           int64     `db:"session_count_vscode" json:"session_count_vscode"`
-//	SessionCountSSH              int64     `db:"session_count_ssh" json:"session_count_ssh"`
-//	SessionCountJetBrains        int64     `db:"session_count_jetbrains" json:"session_count_jetbrains"`
-//	SessionCountReconnectingPTY  int64     `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
-//}
-
+// deps is a set of test dependencies.
 type deps struct {
 	Agent     database.WorkspaceAgent
 	Template  database.Template
@@ -196,6 +143,10 @@ type deps struct {
 	Workspace database.Workspace
 }
 
+// setupDeps sets up a set of test dependencies.
+// It creates an organization, user, template, workspace, and agent
+// along with all the other miscellaneous plumbing required to link
+// them together.
 func setupDeps(t *testing.T, store database.Store) deps {
 	t.Helper()
 
@@ -246,6 +197,7 @@ func setupDeps(t *testing.T, store database.Store) deps {
 	}
 }
 
+// mustRandInt64n returns a random int64 in the range [0, n).
 func mustRandInt64n(t *testing.T, n int64) int64 {
 	t.Helper()
 	i, err := cryptorand.Intn(int(n))
