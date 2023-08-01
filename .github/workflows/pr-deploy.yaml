@@ -188,14 +188,14 @@ jobs:
         run: |
           # Using kubectl to check if a Certificate resource already exists
           # we are doing this to avoid letsenrypt rate limits
-          if ! kubectl get certificate pr${{ env.PR_NUMBER }}-tls -n pr${{ env.PR_NUMBER }} > /dev/null 2>&1; then
+          if ! kubectl get certificate pr${{ env.PR_NUMBER }}-tls -n pr-deployment-certs > /dev/null 2>&1; then
             echo "Certificate doesn't exist. Creating a new one."
             cat <<EOF | kubectl apply -f -
             apiVersion: cert-manager.io/v1
             kind: Certificate
             metadata:
               name: pr${{ env.PR_NUMBER }}-tls
-              namespace: pr${{ env.PR_NUMBER }}
+              namespace: pr-deployment-certs
             spec:
               secretName: pr${{ env.PR_NUMBER }}-tls
               issuerRef:
@@ -206,7 +206,9 @@ jobs:
               - "*.${{ env.PR_DEPLOYMENT_ACCESS_URL }}"
           EOF
           else
-            echo "Certificate exists."
+            echo "Certificate exists. Skipping certificate creation."
+            echo "Copy certificate from pr-deployment-certs to pr${{ env.PR_NUMBER }} namespace"
+            kubectl get secret pr${{ env.PR_NUMBER }}-tls -n pr-deployment-certs -o yaml | sed 's/pr-deployment-certs/pr${{ env.PR_NUMBER }}/g' | kubectl apply -f -
           fi
 
       - name: Set up PostgreSQL database
