@@ -1,7 +1,6 @@
 import { useAuth } from "components/AuthProvider/AuthProvider"
 import { FC } from "react"
-import { Navigate, useLocation } from "react-router"
-import { Outlet } from "react-router-dom"
+import { Outlet, Navigate, useLocation } from "react-router-dom"
 import { embedRedirect } from "../../utils/redirect"
 import { FullScreenLoader } from "../Loader/FullScreenLoader"
 import { DashboardProvider } from "components/Dashboard/DashboardProvider"
