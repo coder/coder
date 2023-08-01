@@ -208,7 +208,9 @@ jobs:
           else
             echo "Certificate exists. Skipping certificate creation."
             echo "Copy certificate from pr-deployment-certs to pr${{ env.PR_NUMBER }} namespace"
-            kubectl get secret pr${{ env.PR_NUMBER }}-tls -n pr-deployment-certs -o yaml | sed 's/pr-deployment-certs/pr${{ env.PR_NUMBER }}/g' | kubectl apply -f -
+            kubectl get secret pr${{ env.PR_NUMBER }}-tls -n pr-deployment-certs -o json |
+            jq 'del(.metadata.namespace,.metadata.creationTimestamp,.metadata.resourceVersion,.metadata.selfLink,.metadata.uid,.metadata.managedFields)' |
+            kubectl -n pr${{ env.PR_NUMBER }} apply -f -
           fi
 
       - name: Set up PostgreSQL database
