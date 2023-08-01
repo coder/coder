@@ -7245,6 +7245,72 @@ func (q *sqlQuerier) InsertWorkspaceAgentStat(ctx context.Context, arg InsertWor
 	return i, err
 }
 
+const insertWorkspaceAgentStats = `-- name: InsertWorkspaceAgentStats :exec
+INSERT INTO
+	workspace_agent_stats
+SELECT
+	unnest($1 :: uuid[]) AS id,
+	unnest($2 :: timestamptz[]) AS created_at,
+	unnest($3 :: uuid[]) AS user_id,
+	unnest($4 :: uuid[]) AS workspace_id,
+	unnest($5 :: uuid[]) AS template_id,
+	unnest($6 :: uuid[]) AS agent_id,
+	unnest($7 :: jsonb[]) AS connections_by_proto,
+	unnest($8 :: bigint[]) AS connection_count,
+	unnest($9 :: bigint[]) AS rx_packets,
+	unnest($10 :: bigint[]) AS rx_bytes,
+	unnest($11 :: bigint[]) AS tx_packets,
+	unnest($12 :: bigint[]) AS tx_bytes,
+	unnest($13 :: bigint[]) AS session_count_vscode,
+	unnest($14 :: bigint[]) AS session_count_jetbrains,
+	unnest($15 :: bigint[]) AS session_count_reconnecting_pty,
+	unnest($16 :: bigint[]) AS session_count_ssh,
+	unnest($17 :: double precision[]) AS connection_median_latency_ms
+`
+
+type InsertWorkspaceAgentStatsParams struct {
+	ID                          []uuid.UUID       `db:"id" json:"id"`
+	CreatedAt                   []time.Time       `db:"created_at" json:"created_at"`
+	UserID                      []uuid.UUID       `db:"user_id" json:"user_id"`
+	WorkspaceID                 []uuid.UUID       `db:"workspace_id" json:"workspace_id"`
+	TemplateID                  []uuid.UUID       `db:"template_id" json:"template_id"`
+	AgentID                     []uuid.UUID       `db:"agent_id" json:"agent_id"`
+	ConnectionsByProto          []json.RawMessage `db:"connections_by_proto" json:"connections_by_proto"`
+	ConnectionCount             []int64           `db:"connection_count" json:"connection_count"`
+	RxPackets                   []int64           `db:"rx_packets" json:"rx_packets"`
+	RxBytes                     []int64           `db:"rx_bytes" json:"rx_bytes"`
+	TxPackets                   []int64           `db:"tx_packets" json:"tx_packets"`
+	TxBytes                     []int64           `db:"tx_bytes" json:"tx_bytes"`
+	SessionCountVSCode          []int64           `db:"session_count_vscode" json:"session_count_vscode"`
+	SessionCountJetBrains       []int64           `db:"session_count_jetbrains" json:"session_count_jetbrains"`
+	SessionCountReconnectingPTY []int64           `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
+	SessionCountSSH             []int64           `db:"session_count_ssh" json:"session_count_ssh"`
+	ConnectionMedianLatencyMS   []float64         `db:"connection_median_latency_ms" json:"connection_median_latency_ms"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceAgentStats(ctx context.Context, arg InsertWorkspaceAgentStatsParams) error {
+	_, err := q.db.ExecContext(ctx, insertWorkspaceAgentStats,
+		pq.Array(arg.ID),
+		pq.Array(arg.CreatedAt),
+		pq.Array(arg.UserID),
+		pq.Array(arg.WorkspaceID),
+		pq.Array(arg.TemplateID),
+		pq.Array(arg.AgentID),
+		pq.Array(arg.ConnectionsByProto),
+		pq.Array(arg.ConnectionCount),
+		pq.Array(arg.RxPackets),
+		pq.Array(arg.RxBytes),
+		pq.Array(arg.TxPackets),
+		pq.Array(arg.TxBytes),
+		pq.Array(arg.SessionCountVSCode),
+		pq.Array(arg.SessionCountJetBrains),
+		pq.Array(arg.SessionCountReconnectingPTY),
+		pq.Array(arg.SessionCountSSH),
+		pq.Array(arg.ConnectionMedianLatencyMS),
+	)
+	return err
+}
+
 const getWorkspaceAppByAgentIDAndSlug = `-- name: GetWorkspaceAppByAgentIDAndSlug :one
 SELECT id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external FROM workspace_apps WHERE agent_id = $1 AND slug = $2
 `

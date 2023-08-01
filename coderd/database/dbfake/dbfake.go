@@ -4070,6 +4070,15 @@ func (q *FakeQuerier) InsertWorkspaceAgentStat(_ context.Context, p database.Ins
 	return stat, nil
 }
 
+func (q *FakeQuerier) InsertWorkspaceAgentStats(ctx context.Context, arg database.InsertWorkspaceAgentStatsParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.WorkspaceApp{}, err
