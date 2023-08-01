@@ -218,18 +218,6 @@ jobs:
           cache: false
           go-version: 1.20.6
 
-      - name: Install prettier
-        # We only need prettier for fmt, so do not install all dependencies.
-        # There is no way to install a single package with yarn, so we have to
-        # make a new package.json with only prettier listed as a dependency.
-        # Then running `yarn` will only install prettier.
-        run: |
-          cd site
-          mv package.json package.json.bak
-          jq '{dependencies: {prettier: .devDependencies.prettier}}' < package.json.bak > package.json
-          pnpm --frozen-lockfile i
-          mv package.json.bak package.json
-
       - name: Install shfmt
         run: go install mvdan.cc/sh/v3/cmd/shfmt@v3.5.0
 
