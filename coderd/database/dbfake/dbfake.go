@@ -4337,7 +4337,7 @@ func (q *FakeQuerier) UpdateGroupByID(_ context.Context, arg database.UpdateGrou
 	return database.Group{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateInactiveUsersToDormant(ctx context.Context, lastSeenAfter time.Time) ([]database.UpdateInactiveUsersToDormantRow, error) {
+func (q *FakeQuerier) UpdateInactiveUsersToDormant(_ context.Context, lastSeenAfter time.Time) ([]database.UpdateInactiveUsersToDormantRow, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
