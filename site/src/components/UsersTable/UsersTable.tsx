@@ -26,7 +26,6 @@ export interface UsersTableProps {
   isLoading?: boolean
   onSuspendUser: (user: TypesGen.User) => void
   onActivateUser: (user: TypesGen.User) => void
-  onMarkUserDormant: (user: TypesGen.User) => void
   onDeleteUser: (user: TypesGen.User) => void
   onListWorkspaces: (user: TypesGen.User) => void
   onViewActivity: (user: TypesGen.User) => void
@@ -48,7 +47,6 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
   onListWorkspaces,
   onViewActivity,
   onActivateUser,
-  onMarkUserDormant,
   onResetUserPassword,
   onUpdateUserRoles,
   isUpdatingUserRoles,
@@ -87,7 +85,6 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
             canViewActivity={canViewActivity}
             isUpdatingUserRoles={isUpdatingUserRoles}
             onActivateUser={onActivateUser}
-            onMarkUserDormant={onMarkUserDormant}
             onDeleteUser={onDeleteUser}
             onListWorkspaces={onListWorkspaces}
             onViewActivity={onViewActivity}
