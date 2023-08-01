@@ -17,6 +17,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
@@ -1031,7 +1032,9 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 		return workspaceData{}, xerrors.Errorf("get templates: %w", err)
 	}
 
-	builds, err := api.Database.GetLatestWorkspaceBuildsByWorkspaceIDs(ctx, workspaceIDs)
+	// This query must be run as system restricted to be efficient.
+	// nolint:gocritic
+	builds, err := api.Database.GetLatestWorkspaceBuildsByWorkspaceIDs(dbauthz.AsSystemRestricted(ctx), workspaceIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceData{}, xerrors.Errorf("get workspace builds: %w", err)
 	}
