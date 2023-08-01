@@ -382,7 +382,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
             </FormFields>
           </FormSection>
           <FormSection
-            title="Locked TTL"
+            title="Deletion Grace Period"
             description="When enabled, Coder will permanently delete workspaces that have been locked for a specified number of days."
           >
             <FormFields>

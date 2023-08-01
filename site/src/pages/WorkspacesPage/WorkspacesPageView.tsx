@@ -33,6 +33,7 @@ export const Language = {
 export interface WorkspacesPageViewProps {
   error: unknown
   workspaces?: Workspace[]
+  lockedWorkspaces?: Workspace[]
   count?: number
   filterProps: ComponentProps<typeof WorkspacesFilter>
   page: number
@@ -45,6 +46,7 @@ export const WorkspacesPageView: FC<
   React.PropsWithChildren<WorkspacesPageViewProps>
 > = ({
   workspaces,
+  lockedWorkspaces,
   error,
   limit,
   count,
@@ -55,25 +57,12 @@ export const WorkspacesPageView: FC<
 }) => {
   const { saveLocal, getLocal } = useLocalStorage()
 
-  const workspacesDeletionScheduled = workspaces
+  const workspacesDeletionScheduled = lockedWorkspaces
     ?.filter((workspace) => workspace.deleting_at)
     .map((workspace) => workspace.id)
 
   const hasLockedWorkspace =
-    workspaces?.find((workspace) => workspace.locked_at) != undefined
-
-  const hasLockedFilter = (): boolean => {
-    for (const key in filterProps.filter.values) {
-      if (key == "locked_at") {
-        return true
-      }
-    }
-    return false
-  }
-
-  const shownWorkspaces = !hasLockedFilter()
-    ? workspaces?.filter((workspace) => !workspace.locked_at)
-    : workspaces
+    lockedWorkspaces !== undefined && lockedWorkspaces.length > 0
 
   return (
     <Margins>
@@ -100,7 +89,7 @@ export const WorkspacesPageView: FC<
         </Maybe>
         {/* <ImpendingDeletionBanner/> determines its own visibility */}
         <LockedWorkspaceBanner
-          workspaces={workspaces}
+          workspaces={lockedWorkspaces}
           shouldRedisplayBanner={hasLockedWorkspace}
           onDismiss={() =>
             saveLocal(
@@ -116,13 +105,13 @@ export const WorkspacesPageView: FC<
 
       <PaginationStatus
         isLoading={!workspaces && !error}
-        showing={shownWorkspaces?.length ?? 0}
+        showing={workspaces?.length ?? 0}
         total={count ?? 0}
         label="workspaces"
       />
 
       <WorkspacesTable
-        workspaces={shownWorkspaces}
+        workspaces={workspaces}
         isUsingFilter={filterProps.filter.used}
         onUpdateWorkspace={onUpdateWorkspace}
         error={error}

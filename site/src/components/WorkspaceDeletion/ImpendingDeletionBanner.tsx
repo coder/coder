@@ -1,5 +1,4 @@
 import { Workspace } from "api/typesGenerated"
-import { displayImpendingDeletion } from "./utils"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
 import { Alert } from "components/Alert/Alert"
 import { formatDistanceToNow, differenceInDays, add, format } from "date-fns"
