@@ -11190,6 +11190,9 @@ const docTemplate = `{
                     "$ref": "#/definitions/derp.ServerInfoMessage"
                 },
                 "round_trip_ping": {
+                    "type": "string"
+                },
+                "round_trip_ping_ms": {
                     "type": "integer"
                 },
                 "stun": {

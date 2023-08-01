@@ -57,7 +57,8 @@ type DERPNodeReport struct {
 
 	ServerInfo          derp.ServerInfoMessage `json:"node_info"`
 	CanExchangeMessages bool                   `json:"can_exchange_messages"`
-	RoundTripPing       time.Duration          `json:"round_trip_ping"`
+	RoundTripPing       string                 `json:"round_trip_ping"`
+	RoundTripPingMs     int                    `json:"round_trip_ping_ms"`
 	UsesWebsocket       bool                   `json:"uses_websocket"`
 	ClientLogs          [][]string             `json:"client_logs"`
 	ClientErrs          [][]string             `json:"client_errs"`
@@ -256,7 +257,9 @@ func (r *DERPNodeReport) doExchangeMessage(ctx context.Context) {
 
 		r.mu.Lock()
 		r.CanExchangeMessages = true
-		r.RoundTripPing = time.Since(*t)
+		rtt := time.Since(*t)
+		r.RoundTripPing = rtt.String()
+		r.RoundTripPingMs = int(rtt.Milliseconds())
 		r.mu.Unlock()
 
 		cancel()

@@ -6501,7 +6501,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "tokenBucketBytesBurst": 0,
     "tokenBucketBytesPerSecond": 0
   },
-  "round_trip_ping": 0,
+  "round_trip_ping": "string",
+  "round_trip_ping_ms": 0,
   "stun": {
     "canSTUN": true,
     "enabled": true,
@@ -6522,7 +6523,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `healthy`               | boolean                                                  | false    |              |             |
 | `node`                  | [tailcfg.DERPNode](#tailcfgderpnode)                     | false    |              |             |
 | `node_info`             | [derp.ServerInfoMessage](#derpserverinfomessage)         | false    |              |             |
-| `round_trip_ping`       | integer                                                  | false    |              |             |
+| `round_trip_ping`       | string                                                   | false    |              |             |
+| `round_trip_ping_ms`    | integer                                                  | false    |              |             |
 | `stun`                  | [healthcheck.DERPStunReport](#healthcheckderpstunreport) | false    |              |             |
 | `uses_websocket`        | boolean                                                  | false    |              |             |
 
@@ -6557,7 +6559,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "tokenBucketBytesBurst": 0,
         "tokenBucketBytesPerSecond": 0
       },
-      "round_trip_ping": 0,
+      "round_trip_ping": "string",
+      "round_trip_ping_ms": 0,
       "stun": {
         "canSTUN": true,
         "enabled": true,
@@ -6668,7 +6671,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "tokenBucketBytesBurst": 0,
             "tokenBucketBytesPerSecond": 0
           },
-          "round_trip_ping": 0,
+          "round_trip_ping": "string",
+          "round_trip_ping_ms": 0,
           "stun": {
             "canSTUN": true,
             "enabled": true,
@@ -6729,7 +6733,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "tokenBucketBytesBurst": 0,
             "tokenBucketBytesPerSecond": 0
           },
-          "round_trip_ping": 0,
+          "round_trip_ping": "string",
+          "round_trip_ping_ms": 0,
           "stun": {
             "canSTUN": true,
             "enabled": true,
@@ -6902,7 +6907,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "tokenBucketBytesBurst": 0,
               "tokenBucketBytesPerSecond": 0
             },
-            "round_trip_ping": 0,
+            "round_trip_ping": "string",
+            "round_trip_ping_ms": 0,
             "stun": {
               "canSTUN": true,
               "enabled": true,
@@ -6963,7 +6969,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "tokenBucketBytesBurst": 0,
               "tokenBucketBytesPerSecond": 0
             },
-            "round_trip_ping": 0,
+            "round_trip_ping": "string",
+            "round_trip_ping_ms": 0,
             "stun": {
               "canSTUN": true,
               "enabled": true,
