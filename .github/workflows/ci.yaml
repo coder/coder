@@ -516,7 +516,6 @@ jobs:
 
       - name: Build
         run: |
-          sudo npm install -g prettier
           make -B site/out/index.html
 
       - run: pnpm playwright:install

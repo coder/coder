@@ -531,6 +531,7 @@ provisionerd/proto/provisionerd.pb.go: provisionerd/proto/provisionerd.proto
 
 site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go')
 	go run scripts/apitypings/main.go > site/src/api/typesGenerated.ts
+	cd site
 	pnpm run format:types
 
 coderd/rbac/object_gen.go: scripts/rbacgen/main.go coderd/rbac/object.go
