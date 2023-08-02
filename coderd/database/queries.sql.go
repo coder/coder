@@ -5712,12 +5712,18 @@ const updateInactiveUsersToDormant = `-- name: UpdateInactiveUsersToDormant :man
 UPDATE
     users
 SET
-    status = 'dormant'::user_status
+    status = 'dormant'::user_status,
+	updated_at = $1
 WHERE
-    last_seen_at < $1 :: timestamp
+    last_seen_at < $2 :: timestamp
     AND status = 'active'::user_status
 RETURNING id, email, last_seen_at
 `
+
+type UpdateInactiveUsersToDormantParams struct {
+	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
+	LastSeenAfter time.Time `db:"last_seen_after" json:"last_seen_after"`
+}
 
 type UpdateInactiveUsersToDormantRow struct {
 	ID         uuid.UUID `db:"id" json:"id"`
@@ -5725,8 +5731,8 @@ type UpdateInactiveUsersToDormantRow struct {
 	LastSeenAt time.Time `db:"last_seen_at" json:"last_seen_at"`
 }
 
-func (q *sqlQuerier) UpdateInactiveUsersToDormant(ctx context.Context, lastSeenAfter time.Time) ([]UpdateInactiveUsersToDormantRow, error) {
-	rows, err := q.db.QueryContext(ctx, updateInactiveUsersToDormant, lastSeenAfter)
+func (q *sqlQuerier) UpdateInactiveUsersToDormant(ctx context.Context, arg UpdateInactiveUsersToDormantParams) ([]UpdateInactiveUsersToDormantRow, error) {
+	rows, err := q.db.QueryContext(ctx, updateInactiveUsersToDormant, arg.UpdatedAt, arg.LastSeenAfter)
 	if err != nil {
 		return nil, err
 	}

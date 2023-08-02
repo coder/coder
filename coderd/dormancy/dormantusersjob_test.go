@@ -67,7 +67,7 @@ func TestCheckInactiveUsers(t *testing.T) {
 		return len(rows) == 9 && dormant == 3 && suspended == 3
 	}, testutil.WaitShort, testutil.IntervalMedium)
 
-	allUsers := database.ConvertUserRows(rows)
+	allUsers := ignoreUpdatedAt(database.ConvertUserRows(rows))
 
 	// Verify user status
 	expectedUsers := []database.User{
@@ -100,4 +100,11 @@ func setupUser(ctx context.Context, t *testing.T, db database.Store, email strin
 func asDormant(user database.User) database.User {
 	user.Status = database.UserStatusDormant
 	return user
+}
+
+func ignoreUpdatedAt(rows []database.User) []database.User {
+	for i := range rows {
+		rows[i].UpdatedAt = time.Time{}
+	}
+	return rows
 }

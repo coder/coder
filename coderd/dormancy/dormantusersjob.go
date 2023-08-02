@@ -13,7 +13,9 @@ import (
 )
 
 const (
-	jobInterval           = 15 * time.Minute
+	// Time interval between consecutive job runs
+	jobInterval = 10 * time.Minute
+	// User accounts inactive for `accountDormancyPeriod` will be marked as dormant
 	accountDormancyPeriod = 90 * 24 * time.Hour
 )
 
@@ -45,7 +47,10 @@ func CheckInactiveUsersWithOptions(ctx context.Context, logger slog.Logger, db d
 			lastSeenAfter := database.Now().Add(-dormancyPeriod)
 			logger.Debug(ctx, "check inactive user accounts", slog.F("dormancy_period", dormancyPeriod), slog.F("last_seen_after", lastSeenAfter))
 
-			updatedUsers, err := db.UpdateInactiveUsersToDormant(ctx, lastSeenAfter)
+			updatedUsers, err := db.UpdateInactiveUsersToDormant(ctx, database.UpdateInactiveUsersToDormantParams{
+				LastSeenAfter: lastSeenAfter,
+				UpdatedAt:     database.Now(),
+			})
 			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 				logger.Error(ctx, "can't mark inactive users as dormant", slog.Error(err))
 				continue

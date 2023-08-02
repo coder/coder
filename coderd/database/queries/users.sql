@@ -256,7 +256,8 @@ RETURNING *;
 UPDATE
     users
 SET
-    status = 'dormant'::user_status
+    status = 'dormant'::user_status,
+	updated_at = @updated_at
 WHERE
     last_seen_at < @last_seen_after :: timestamp
     AND status = 'active'::user_status

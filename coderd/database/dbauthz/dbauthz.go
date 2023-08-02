@@ -2099,7 +2099,7 @@ func (q *querier) UpdateGroupByID(ctx context.Context, arg database.UpdateGroupB
 	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateGroupByID)(ctx, arg)
 }
 
-func (q *querier) UpdateInactiveUsersToDormant(ctx context.Context, lastSeenAfter time.Time) ([]database.UpdateInactiveUsersToDormantRow, error) {
+func (q *querier) UpdateInactiveUsersToDormant(ctx context.Context, lastSeenAfter database.UpdateInactiveUsersToDormantParams) ([]database.UpdateInactiveUsersToDormantRow, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
