@@ -14,10 +14,13 @@ import {
   HelpTooltipTitle,
 } from "../Tooltips/HelpTooltip"
 import { Maybe } from "components/Conditionals/Maybe"
-import { useMachine } from "@xstate/react"
-import { portForwardMachine } from "xServices/portForward/portForwardXService"
 import { SecondaryAgentButton } from "components/Resources/AgentButton"
 import { docs } from "utils/docs"
+import Box from "@mui/material/Box"
+import { useQuery } from "@tanstack/react-query"
+import { getAgentListeningPorts } from "api/api"
+import { WorkspaceAgentListeningPort } from "api/typesGenerated"
+import CircularProgress from "@mui/material/CircularProgress"
 
 export interface PortForwardButtonProps {
   host: string
@@ -27,24 +30,76 @@ export interface PortForwardButtonProps {
   agentId: string
 }
 
-export const portForwardURL = (
-  host: string,
-  port: number,
-  agentName: string,
-  workspaceName: string,
-  username: string,
-): string => {
-  const { location } = window
+export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
+  const anchorRef = useRef<HTMLButtonElement>(null)
+  const [isOpen, setIsOpen] = useState(false)
+  const id = isOpen ? "schedule-popover" : undefined
+  const styles = useStyles()
+  const { data: listeningPorts } = useQuery({
+    queryKey: ["portForward", props.agentId],
+    queryFn: () => getAgentListeningPorts(props.agentId),
+  })
 
-  const subdomain = `${
-    isNaN(port) ? 3000 : port
-  }--${agentName}--${workspaceName}--${username}`
-  return `${location.protocol}//${host}`.replace("*", subdomain)
+  const onClose = () => {
+    setIsOpen(false)
+  }
+
+  return (
+    <>
+      <SecondaryAgentButton
+        disabled={!listeningPorts}
+        ref={anchorRef}
+        onClick={() => {
+          setIsOpen(true)
+        }}
+      >
+        Ports
+        {listeningPorts ? (
+          <Box
+            sx={{
+              fontSize: 12,
+              fontWeight: 500,
+              height: 14,
+              borderRadius: 7,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: (theme) => theme.palette.divider,
+              ml: 1,
+            }}
+          >
+            {listeningPorts.ports.length}
+          </Box>
+        ) : (
+          <CircularProgress size={10} sx={{ ml: 1 }} />
+        )}
+      </SecondaryAgentButton>
+      <Popover
+        classes={{ paper: styles.popoverPaper }}
+        id={id}
+        open={isOpen}
+        anchorEl={anchorRef.current}
+        onClose={onClose}
+        anchorOrigin={{
+          vertical: "bottom",
+          horizontal: "left",
+        }}
+        transformOrigin={{
+          vertical: "top",
+          horizontal: "left",
+        }}
+      >
+        <HelpTooltipTitle>Port forward</HelpTooltipTitle>
+        <TooltipView {...props} ports={listeningPorts?.ports} />
+      </Popover>
+    </>
+  )
 }
 
-const TooltipView: React.FC<PortForwardButtonProps> = (props) => {
-  const { host, workspaceName, agentName, agentId, username } = props
-
+const TooltipView: React.FC<
+  PortForwardButtonProps & { ports?: WorkspaceAgentListeningPort[] }
+> = (props) => {
+  const { host, workspaceName, agentName, username, ports } = props
   const styles = useStyles()
   const [port, setPort] = useState("3000")
   const urlExample = portForwardURL(
@@ -54,11 +109,6 @@ const TooltipView: React.FC<PortForwardButtonProps> = (props) => {
     workspaceName,
     username,
   )
-
-  const [state] = useMachine(portForwardMachine, {
-    context: { agentId: agentId },
-  })
-  const ports = state.context.listeningPorts?.ports
 
   return (
     <>
@@ -138,54 +188,25 @@ const TooltipView: React.FC<PortForwardButtonProps> = (props) => {
   )
 }
 
-export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
-  const anchorRef = useRef<HTMLButtonElement>(null)
-  const [isOpen, setIsOpen] = useState(false)
-  const id = isOpen ? "schedule-popover" : undefined
-  const styles = useStyles()
+export const portForwardURL = (
+  host: string,
+  port: number,
+  agentName: string,
+  workspaceName: string,
+  username: string,
+): string => {
+  const { location } = window
 
-  const onClose = () => {
-    setIsOpen(false)
-  }
-
-  return (
-    <>
-      <SecondaryAgentButton
-        ref={anchorRef}
-        onClick={() => {
-          setIsOpen(true)
-        }}
-      >
-        Port forward
-      </SecondaryAgentButton>
-      <Popover
-        classes={{ paper: styles.popoverPaper }}
-        id={id}
-        open={isOpen}
-        anchorEl={anchorRef.current}
-        onClose={onClose}
-        anchorOrigin={{
-          vertical: "bottom",
-          horizontal: "left",
-        }}
-        transformOrigin={{
-          vertical: "top",
-          horizontal: "left",
-        }}
-      >
-        <HelpTooltipTitle>Port forward</HelpTooltipTitle>
-        <TooltipView {...props} />
-      </Popover>
-    </>
-  )
+  const subdomain = `${
+    isNaN(port) ? 3000 : port
+  }--${agentName}--${workspaceName}--${username}`
+  return `${location.protocol}//${host}`.replace("*", subdomain)
 }
 
 const useStyles = makeStyles((theme) => ({
   popoverPaper: {
-    padding: `${theme.spacing(2.5)} ${theme.spacing(3.5)} ${theme.spacing(
-      3.5,
-    )}`,
-    width: theme.spacing(52),
+    padding: 0,
+    width: theme.spacing(38),
     color: theme.palette.text.secondary,
     marginTop: theme.spacing(0.25),
   },
