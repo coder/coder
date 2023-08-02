@@ -3,9 +3,9 @@ Usage: coder groups list [flags]
 List user groups
 
 [1mOptions[0m
-  -c, --column string-array (default: name,organization id,members,avatar url)
-          Columns to display in table output. Available columns: name,
-          organization id, members, avatar url.
+  -c, --column string-array (default: name,display name,organization id,members,avatar url)
+          Columns to display in table output. Available columns: name, display
+          name, organization id, members, avatar url.
 
   -o, --output string (default: table)
           Output format. Available formats: table, json.

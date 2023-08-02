@@ -12,6 +12,7 @@ import (
 
 type CreateGroupRequest struct {
 	Name           string `json:"name"`
+	DisplayName    string `json:"display_name"`
 	AvatarURL      string `json:"avatar_url"`
 	QuotaAllowance int    `json:"quota_allowance"`
 }
@@ -19,6 +20,7 @@ type CreateGroupRequest struct {
 type Group struct {
 	ID             uuid.UUID `json:"id" format:"uuid"`
 	Name           string    `json:"name"`
+	DisplayName    string    `json:"display_name"`
 	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
 	Members        []User    `json:"members"`
 	AvatarURL      string    `json:"avatar_url"`
@@ -98,6 +100,7 @@ type PatchGroupRequest struct {
 	AddUsers       []string `json:"add_users"`
 	RemoveUsers    []string `json:"remove_users"`
 	Name           string   `json:"name"`
+	DisplayName    *string  `json:"display_name"`
 	AvatarURL      *string  `json:"avatar_url"`
 	QuotaAllowance *int     `json:"quota_allowance"`
 }

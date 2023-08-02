@@ -70,6 +70,7 @@ import (
 	"github.com/coder/coder/coderd/database/migrations"
 	"github.com/coder/coder/coderd/database/pubsub"
 	"github.com/coder/coder/coderd/devtunnel"
+	"github.com/coder/coder/coderd/dormancy"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
@@ -811,6 +812,9 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if cfg.Swagger.Enable {
 				options.SwaggerEndpoint = cfg.Swagger.Enable.Value()
 			}
+
+			closeCheckInactiveUsersFunc := dormancy.CheckInactiveUsers(ctx, logger, options.Database)
+			defer closeCheckInactiveUsersFunc()
 
 			// We use a separate coderAPICloser so the Enterprise API
 			// can have it's own close functions. This is cleaner

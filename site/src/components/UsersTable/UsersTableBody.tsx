@@ -174,7 +174,7 @@ export const UsersTableBody: FC<
                         data={user}
                         menuItems={
                           // Return either suspend or activate depending on status
-                          (user.status === "active"
+                          (user.status === "active" || user.status === "dormant"
                             ? [
                                 {
                                   label: t(

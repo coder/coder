@@ -15,10 +15,11 @@ import (
 
 func (r *RootCmd) groupEdit() *clibase.Cmd {
 	var (
-		avatarURL string
-		name      string
-		addUsers  []string
-		rmUsers   []string
+		avatarURL   string
+		name        string
+		displayName string
+		addUsers    []string
+		rmUsers     []string
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -50,6 +51,10 @@ func (r *RootCmd) groupEdit() *clibase.Cmd {
 
 			if avatarURL != "" {
 				req.AvatarURL = &avatarURL
+			}
+
+			if inv.ParsedFlags().Lookup("display-name").Changed {
+				req.DisplayName = &displayName
 			}
 
 			userRes, err := client.Users(ctx, codersdk.UsersRequest{})
@@ -89,6 +94,12 @@ func (r *RootCmd) groupEdit() *clibase.Cmd {
 			FlagShorthand: "u",
 			Description:   "Update the group avatar.",
 			Value:         clibase.StringOf(&avatarURL),
+		},
+		{
+			Flag:        "display-name",
+			Description: `Optional human friendly name for the group.`,
+			Env:         "CODER_DISPLAY_NAME",
+			Value:       clibase.StringOf(&displayName),
 		},
 		{
 			Flag:          "add-users",
