@@ -19,6 +19,7 @@ type UserStatus string
 
 const (
 	UserStatusActive    UserStatus = "active"
+	UserStatusDormant   UserStatus = "dormant"
 	UserStatusSuspended UserStatus = "suspended"
 )
 

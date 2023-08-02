@@ -156,6 +156,13 @@ func addUser(t *testing.T, db database.Store, roles ...string) (database.User, s
 	})
 	require.NoError(t, err)
 
+	user, err = db.UpdateUserStatus(context.Background(), database.UpdateUserStatusParams{
+		ID:        user.ID,
+		Status:    database.UserStatusActive,
+		UpdatedAt: database.Now(),
+	})
+	require.NoError(t, err)
+
 	_, err = db.InsertAPIKey(context.Background(), database.InsertAPIKeyParams{
 		ID:           id,
 		UserID:       user.ID,

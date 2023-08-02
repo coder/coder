@@ -8,13 +8,14 @@ INSERT INTO
 		display_name,
 		icon,
 		derp_enabled,
+		derp_only,
 		token_hashed_secret,
 		created_at,
 		updated_at,
 		deleted
 	)
 VALUES
-	($1, '', '', $2, $3, $4, $5, $6, $7, $8, false) RETURNING *;
+	($1, '', '', $2, $3, $4, $5, $6, $7, $8, $9, false) RETURNING *;
 
 -- name: RegisterWorkspaceProxy :one
 UPDATE
@@ -23,6 +24,7 @@ SET
 	url = @url :: text,
 	wildcard_hostname = @wildcard_hostname :: text,
 	derp_enabled = @derp_enabled :: boolean,
+	derp_only = @derp_only :: boolean,
 	updated_at = Now()
 WHERE
 	id = @id

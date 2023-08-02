@@ -1032,11 +1032,13 @@ func AllStartupScriptBehaviorValues() []StartupScriptBehavior {
 	}
 }
 
+// Defines the user status: active, dormant, or suspended.
 type UserStatus string
 
 const (
 	UserStatusActive    UserStatus = "active"
 	UserStatusSuspended UserStatus = "suspended"
+	UserStatusDormant   UserStatus = "dormant"
 )
 
 func (e *UserStatus) Scan(src interface{}) error {
@@ -1077,7 +1079,8 @@ func (ns NullUserStatus) Value() (driver.Value, error) {
 func (e UserStatus) Valid() bool {
 	switch e {
 	case UserStatusActive,
-		UserStatusSuspended:
+		UserStatusSuspended,
+		UserStatusDormant:
 		return true
 	}
 	return false
@@ -1087,6 +1090,7 @@ func AllUserStatusValues() []UserStatus {
 	return []UserStatus{
 		UserStatusActive,
 		UserStatusSuspended,
+		UserStatusDormant,
 	}
 }
 
@@ -1492,6 +1496,8 @@ type Group struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	AvatarURL      string    `db:"avatar_url" json:"avatar_url"`
 	QuotaAllowance int32     `db:"quota_allowance" json:"quota_allowance"`
+	// Display name is a custom, human-friendly group name that user can set. This is not required to be unique and can be the empty string.
+	DisplayName string `db:"display_name" json:"display_name"`
 }
 
 type GroupMember struct {
@@ -2010,6 +2016,8 @@ type WorkspaceProxy struct {
 	TokenHashedSecret []byte `db:"token_hashed_secret" json:"token_hashed_secret"`
 	RegionID          int32  `db:"region_id" json:"region_id"`
 	DerpEnabled       bool   `db:"derp_enabled" json:"derp_enabled"`
+	// Disables app/terminal proxying for this proxy and only acts as a DERP relay.
+	DerpOnly bool `db:"derp_only" json:"derp_only"`
 }
 
 type WorkspaceResource struct {

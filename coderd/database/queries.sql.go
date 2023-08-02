@@ -1180,7 +1180,7 @@ func (q *sqlQuerier) DeleteGroupByID(ctx context.Context, id uuid.UUID) error {
 
 const getGroupByID = `-- name: GetGroupByID :one
 SELECT
-	id, name, organization_id, avatar_url, quota_allowance
+	id, name, organization_id, avatar_url, quota_allowance, display_name
 FROM
 	groups
 WHERE
@@ -1198,13 +1198,14 @@ func (q *sqlQuerier) GetGroupByID(ctx context.Context, id uuid.UUID) (Group, err
 		&i.OrganizationID,
 		&i.AvatarURL,
 		&i.QuotaAllowance,
+		&i.DisplayName,
 	)
 	return i, err
 }
 
 const getGroupByOrgAndName = `-- name: GetGroupByOrgAndName :one
 SELECT
-	id, name, organization_id, avatar_url, quota_allowance
+	id, name, organization_id, avatar_url, quota_allowance, display_name
 FROM
 	groups
 WHERE
@@ -1229,13 +1230,14 @@ func (q *sqlQuerier) GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrg
 		&i.OrganizationID,
 		&i.AvatarURL,
 		&i.QuotaAllowance,
+		&i.DisplayName,
 	)
 	return i, err
 }
 
 const getGroupsByOrganizationID = `-- name: GetGroupsByOrganizationID :many
 SELECT
-	id, name, organization_id, avatar_url, quota_allowance
+	id, name, organization_id, avatar_url, quota_allowance, display_name
 FROM
 	groups
 WHERE
@@ -1259,6 +1261,7 @@ func (q *sqlQuerier) GetGroupsByOrganizationID(ctx context.Context, organization
 			&i.OrganizationID,
 			&i.AvatarURL,
 			&i.QuotaAllowance,
+			&i.DisplayName,
 		); err != nil {
 			return nil, err
 		}
@@ -1280,7 +1283,7 @@ INSERT INTO groups (
 	organization_id
 )
 VALUES
-	($1, 'Everyone', $1) RETURNING id, name, organization_id, avatar_url, quota_allowance
+	($1, 'Everyone', $1) RETURNING id, name, organization_id, avatar_url, quota_allowance, display_name
 `
 
 // We use the organization_id as the id
@@ -1295,6 +1298,7 @@ func (q *sqlQuerier) InsertAllUsersGroup(ctx context.Context, organizationID uui
 		&i.OrganizationID,
 		&i.AvatarURL,
 		&i.QuotaAllowance,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -1303,17 +1307,19 @@ const insertGroup = `-- name: InsertGroup :one
 INSERT INTO groups (
 	id,
 	name,
+	display_name,
 	organization_id,
 	avatar_url,
 	quota_allowance
 )
 VALUES
-	($1, $2, $3, $4, $5) RETURNING id, name, organization_id, avatar_url, quota_allowance
+	($1, $2, $3, $4, $5, $6) RETURNING id, name, organization_id, avatar_url, quota_allowance, display_name
 `
 
 type InsertGroupParams struct {
 	ID             uuid.UUID `db:"id" json:"id"`
 	Name           string    `db:"name" json:"name"`
+	DisplayName    string    `db:"display_name" json:"display_name"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	AvatarURL      string    `db:"avatar_url" json:"avatar_url"`
 	QuotaAllowance int32     `db:"quota_allowance" json:"quota_allowance"`
@@ -1323,6 +1329,7 @@ func (q *sqlQuerier) InsertGroup(ctx context.Context, arg InsertGroupParams) (Gr
 	row := q.db.QueryRowContext(ctx, insertGroup,
 		arg.ID,
 		arg.Name,
+		arg.DisplayName,
 		arg.OrganizationID,
 		arg.AvatarURL,
 		arg.QuotaAllowance,
@@ -1334,6 +1341,7 @@ func (q *sqlQuerier) InsertGroup(ctx context.Context, arg InsertGroupParams) (Gr
 		&i.OrganizationID,
 		&i.AvatarURL,
 		&i.QuotaAllowance,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -1343,15 +1351,17 @@ UPDATE
 	groups
 SET
 	name = $1,
-	avatar_url = $2,
-	quota_allowance = $3
+	display_name = $2,
+	avatar_url = $3,
+	quota_allowance = $4
 WHERE
-	id = $4
-RETURNING id, name, organization_id, avatar_url, quota_allowance
+	id = $5
+RETURNING id, name, organization_id, avatar_url, quota_allowance, display_name
 `
 
 type UpdateGroupByIDParams struct {
 	Name           string    `db:"name" json:"name"`
+	DisplayName    string    `db:"display_name" json:"display_name"`
 	AvatarURL      string    `db:"avatar_url" json:"avatar_url"`
 	QuotaAllowance int32     `db:"quota_allowance" json:"quota_allowance"`
 	ID             uuid.UUID `db:"id" json:"id"`
@@ -1360,6 +1370,7 @@ type UpdateGroupByIDParams struct {
 func (q *sqlQuerier) UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDParams) (Group, error) {
 	row := q.db.QueryRowContext(ctx, updateGroupByID,
 		arg.Name,
+		arg.DisplayName,
 		arg.AvatarURL,
 		arg.QuotaAllowance,
 		arg.ID,
@@ -1371,6 +1382,7 @@ func (q *sqlQuerier) UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDPar
 		&i.OrganizationID,
 		&i.AvatarURL,
 		&i.QuotaAllowance,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -2848,7 +2860,7 @@ func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, a
 
 const getWorkspaceProxies = `-- name: GetWorkspaceProxies :many
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only
 FROM
 	workspace_proxies
 WHERE
@@ -2877,6 +2889,7 @@ func (q *sqlQuerier) GetWorkspaceProxies(ctx context.Context) ([]WorkspaceProxy,
 			&i.TokenHashedSecret,
 			&i.RegionID,
 			&i.DerpEnabled,
+			&i.DerpOnly,
 		); err != nil {
 			return nil, err
 		}
@@ -2893,7 +2906,7 @@ func (q *sqlQuerier) GetWorkspaceProxies(ctx context.Context) ([]WorkspaceProxy,
 
 const getWorkspaceProxyByHostname = `-- name: GetWorkspaceProxyByHostname :one
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only
 FROM
 	workspace_proxies
 WHERE
@@ -2951,13 +2964,14 @@ func (q *sqlQuerier) GetWorkspaceProxyByHostname(ctx context.Context, arg GetWor
 		&i.TokenHashedSecret,
 		&i.RegionID,
 		&i.DerpEnabled,
+		&i.DerpOnly,
 	)
 	return i, err
 }
 
 const getWorkspaceProxyByID = `-- name: GetWorkspaceProxyByID :one
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only
 FROM
 	workspace_proxies
 WHERE
@@ -2982,13 +2996,14 @@ func (q *sqlQuerier) GetWorkspaceProxyByID(ctx context.Context, id uuid.UUID) (W
 		&i.TokenHashedSecret,
 		&i.RegionID,
 		&i.DerpEnabled,
+		&i.DerpOnly,
 	)
 	return i, err
 }
 
 const getWorkspaceProxyByName = `-- name: GetWorkspaceProxyByName :one
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only
 FROM
 	workspace_proxies
 WHERE
@@ -3014,6 +3029,7 @@ func (q *sqlQuerier) GetWorkspaceProxyByName(ctx context.Context, name string) (
 		&i.TokenHashedSecret,
 		&i.RegionID,
 		&i.DerpEnabled,
+		&i.DerpOnly,
 	)
 	return i, err
 }
@@ -3028,13 +3044,14 @@ INSERT INTO
 		display_name,
 		icon,
 		derp_enabled,
+		derp_only,
 		token_hashed_secret,
 		created_at,
 		updated_at,
 		deleted
 	)
 VALUES
-	($1, '', '', $2, $3, $4, $5, $6, $7, $8, false) RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
+	($1, '', '', $2, $3, $4, $5, $6, $7, $8, $9, false) RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only
 `
 
 type InsertWorkspaceProxyParams struct {
@@ -3043,6 +3060,7 @@ type InsertWorkspaceProxyParams struct {
 	DisplayName       string    `db:"display_name" json:"display_name"`
 	Icon              string    `db:"icon" json:"icon"`
 	DerpEnabled       bool      `db:"derp_enabled" json:"derp_enabled"`
+	DerpOnly          bool      `db:"derp_only" json:"derp_only"`
 	TokenHashedSecret []byte    `db:"token_hashed_secret" json:"token_hashed_secret"`
 	CreatedAt         time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt         time.Time `db:"updated_at" json:"updated_at"`
@@ -3055,6 +3073,7 @@ func (q *sqlQuerier) InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspa
 		arg.DisplayName,
 		arg.Icon,
 		arg.DerpEnabled,
+		arg.DerpOnly,
 		arg.TokenHashedSecret,
 		arg.CreatedAt,
 		arg.UpdatedAt,
@@ -3073,6 +3092,7 @@ func (q *sqlQuerier) InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspa
 		&i.TokenHashedSecret,
 		&i.RegionID,
 		&i.DerpEnabled,
+		&i.DerpOnly,
 	)
 	return i, err
 }
@@ -3084,16 +3104,18 @@ SET
 	url = $1 :: text,
 	wildcard_hostname = $2 :: text,
 	derp_enabled = $3 :: boolean,
+	derp_only = $4 :: boolean,
 	updated_at = Now()
 WHERE
-	id = $4
-RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
+	id = $5
+RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only
 `
 
 type RegisterWorkspaceProxyParams struct {
 	Url              string    `db:"url" json:"url"`
 	WildcardHostname string    `db:"wildcard_hostname" json:"wildcard_hostname"`
 	DerpEnabled      bool      `db:"derp_enabled" json:"derp_enabled"`
+	DerpOnly         bool      `db:"derp_only" json:"derp_only"`
 	ID               uuid.UUID `db:"id" json:"id"`
 }
 
@@ -3102,6 +3124,7 @@ func (q *sqlQuerier) RegisterWorkspaceProxy(ctx context.Context, arg RegisterWor
 		arg.Url,
 		arg.WildcardHostname,
 		arg.DerpEnabled,
+		arg.DerpOnly,
 		arg.ID,
 	)
 	var i WorkspaceProxy
@@ -3118,6 +3141,7 @@ func (q *sqlQuerier) RegisterWorkspaceProxy(ctx context.Context, arg RegisterWor
 		&i.TokenHashedSecret,
 		&i.RegionID,
 		&i.DerpEnabled,
+		&i.DerpOnly,
 	)
 	return i, err
 }
@@ -3140,7 +3164,7 @@ SET
 	updated_at = Now()
 WHERE
 	id = $5
-RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
+RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only
 `
 
 type UpdateWorkspaceProxyParams struct {
@@ -3174,6 +3198,7 @@ func (q *sqlQuerier) UpdateWorkspaceProxy(ctx context.Context, arg UpdateWorkspa
 		&i.TokenHashedSecret,
 		&i.RegionID,
 		&i.DerpEnabled,
+		&i.DerpOnly,
 	)
 	return i, err
 }
@@ -5706,6 +5731,52 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		&i.QuietHoursSchedule,
 	)
 	return i, err
+}
+
+const updateInactiveUsersToDormant = `-- name: UpdateInactiveUsersToDormant :many
+UPDATE
+    users
+SET
+    status = 'dormant'::user_status,
+	updated_at = $1
+WHERE
+    last_seen_at < $2 :: timestamp
+    AND status = 'active'::user_status
+RETURNING id, email, last_seen_at
+`
+
+type UpdateInactiveUsersToDormantParams struct {
+	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
+	LastSeenAfter time.Time `db:"last_seen_after" json:"last_seen_after"`
+}
+
+type UpdateInactiveUsersToDormantRow struct {
+	ID         uuid.UUID `db:"id" json:"id"`
+	Email      string    `db:"email" json:"email"`
+	LastSeenAt time.Time `db:"last_seen_at" json:"last_seen_at"`
+}
+
+func (q *sqlQuerier) UpdateInactiveUsersToDormant(ctx context.Context, arg UpdateInactiveUsersToDormantParams) ([]UpdateInactiveUsersToDormantRow, error) {
+	rows, err := q.db.QueryContext(ctx, updateInactiveUsersToDormant, arg.UpdatedAt, arg.LastSeenAfter)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UpdateInactiveUsersToDormantRow
+	for rows.Next() {
+		var i UpdateInactiveUsersToDormantRow
+		if err := rows.Scan(&i.ID, &i.Email, &i.LastSeenAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const updateUserDeletedByID = `-- name: UpdateUserDeletedByID :exec
