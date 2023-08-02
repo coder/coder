@@ -13,16 +13,20 @@ import (
 )
 
 const (
-	checkDuration  = 5 * time.Minute
-	dormancyPeriod = 90 * 24 * time.Hour
+	jobInterval           = 5 * time.Minute
+	accountDormancyPeriod = 90 * 24 * time.Hour
 )
 
 func CheckInactiveUsers(ctx context.Context, logger slog.Logger, db database.Store) func() {
+	return CheckInactiveUsersWithOptions(ctx, logger, db, jobInterval, accountDormancyPeriod)
+}
+
+func CheckInactiveUsersWithOptions(ctx context.Context, logger slog.Logger, db database.Store, checkInterval, dormancyPeriod time.Duration) func() {
 	logger = logger.Named("dormancy")
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 	done := make(chan struct{})
-	ticker := time.NewTicker(checkDuration)
+	ticker := time.NewTicker(checkInterval)
 	go func() {
 		defer close(done)
 		defer ticker.Stop()
