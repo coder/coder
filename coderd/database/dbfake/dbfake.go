@@ -4076,7 +4076,41 @@ func (q *FakeQuerier) InsertWorkspaceAgentStats(ctx context.Context, arg databas
 		return err
 	}
 
-	panic("not implemented")
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	var connectionsByProto []map[string]int64
+	if err := json.Unmarshal(arg.ConnectionsByProto, &connectionsByProto); err != nil {
+		return err
+	}
+	for i := 0; i < len(arg.ID); i++ {
+		cbp, err := json.Marshal(connectionsByProto[i])
+		if err != nil {
+			return xerrors.Errorf("failed to marshal connections_by_proto: %w", err)
+		}
+		stat := database.WorkspaceAgentStat{
+			ID:                          arg.ID[i],
+			CreatedAt:                   arg.CreatedAt[i],
+			WorkspaceID:                 arg.WorkspaceID[i],
+			AgentID:                     arg.AgentID[i],
+			UserID:                      arg.UserID[i],
+			ConnectionsByProto:          cbp,
+			ConnectionCount:             arg.ConnectionCount[i],
+			RxPackets:                   arg.RxPackets[i],
+			RxBytes:                     arg.RxBytes[i],
+			TxPackets:                   arg.TxPackets[i],
+			TxBytes:                     arg.TxBytes[i],
+			TemplateID:                  arg.TemplateID[i],
+			SessionCountVSCode:          arg.SessionCountVSCode[i],
+			SessionCountJetBrains:       arg.SessionCountJetBrains[i],
+			SessionCountReconnectingPTY: arg.SessionCountReconnectingPTY[i],
+			SessionCountSSH:             arg.SessionCountSSH[i],
+			ConnectionMedianLatencyMS:   arg.ConnectionMedianLatencyMS[i],
+		}
+		q.workspaceAgentStats = append(q.workspaceAgentStats, stat)
+	}
+
+	return nil
 }
 
 func (q *FakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {

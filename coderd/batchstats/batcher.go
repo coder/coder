@@ -131,32 +131,28 @@ func New(opts ...Option) (*Batcher, error) {
 
 // Add adds a stat to the batcher for the given workspace and agent.
 func (b *Batcher) Add(
-	ctx context.Context,
 	agentID uuid.UUID,
+	templateID uuid.UUID,
+	userID uuid.UUID,
+	workspaceID uuid.UUID,
 	st agentsdk.Stats,
 ) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	// TODO(Cian): add a specific dbauthz context for this.
-	authCtx := dbauthz.AsSystemRestricted(ctx)
 	now := database.Now()
-	// TODO(Cian): cache agentID -> workspaceID?
-	ws, err := b.store.GetWorkspaceByAgentID(authCtx, agentID)
-	if err != nil {
-		return xerrors.Errorf("get workspace by agent id: %w", err)
-	}
-
-	b.connectionsByProto = append(b.connectionsByProto, st.ConnectionsByProto)
 
 	b.buf.ID = append(b.buf.ID, uuid.New())
-	b.buf.AgentID = append(b.buf.AgentID, agentID)
 	b.buf.CreatedAt = append(b.buf.CreatedAt, now)
-	b.buf.UserID = append(b.buf.UserID, ws.OwnerID)
-	b.buf.WorkspaceID = append(b.buf.WorkspaceID, ws.ID)
-	b.buf.TemplateID = append(b.buf.TemplateID, ws.TemplateID)
-	// We explicitly do *not* do this.
+	b.buf.AgentID = append(b.buf.AgentID, agentID)
+	b.buf.UserID = append(b.buf.UserID, userID)
+	b.buf.TemplateID = append(b.buf.TemplateID, templateID)
+	b.buf.WorkspaceID = append(b.buf.WorkspaceID, workspaceID)
+
+	// Store the connections by proto separately as it's a jsonb field. We marshal on flush.
 	// b.buf.ConnectionsByProto = append(b.buf.ConnectionsByProto, st.ConnectionsByProto)
+	b.connectionsByProto = append(b.connectionsByProto, st.ConnectionsByProto)
+
 	b.buf.ConnectionCount = append(b.buf.ConnectionCount, st.ConnectionCount)
 	b.buf.RxPackets = append(b.buf.RxPackets, st.RxPackets)
 	b.buf.RxBytes = append(b.buf.RxBytes, st.RxBytes)
@@ -177,6 +173,7 @@ func (b *Batcher) Add(
 
 // Run runs the batcher.
 func (b *Batcher) Run(ctx context.Context) {
+	// nolint:gocritic
 	authCtx := dbauthz.AsSystemRestricted(ctx)
 	for {
 		select {
@@ -208,6 +205,7 @@ func (b *Batcher) flush(ctx context.Context, forced bool, reason string) {
 		b.log.Debug(ctx, "flush complete",
 			slog.F("count", len(b.buf.ID)),
 			slog.F("elapsed", elapsed),
+			slog.F("forced", forced),
 			slog.F("reason", reason),
 		)
 	}()

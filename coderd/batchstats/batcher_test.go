@@ -71,7 +71,7 @@ func TestBatchStats(t *testing.T) {
 	// Given: a single data point is added for workspace
 	t2 := time.Now()
 	t.Logf("inserting 1 stat")
-	require.NoError(t, b.Add(ctx, deps1.Agent.ID, randAgentSDKStats(t)))
+	require.NoError(t, b.Add(deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randAgentSDKStats(t)))
 
 	// When: it becomes time to report stats
 	// Signal a tick and wait for a flush to complete.
@@ -91,9 +91,9 @@ func TestBatchStats(t *testing.T) {
 	t.Logf("inserting %d stats", batchSize)
 	for i := 0; i < batchSize; i++ {
 		if i%2 == 0 {
-			require.NoError(t, b.Add(ctx, deps1.Agent.ID, randAgentSDKStats(t)))
+			require.NoError(t, b.Add(deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randAgentSDKStats(t)))
 		} else {
-			require.NoError(t, b.Add(ctx, deps2.Agent.ID, randAgentSDKStats(t)))
+			require.NoError(t, b.Add(deps2.Agent.ID, deps2.User.ID, deps2.Template.ID, deps2.Workspace.ID, randAgentSDKStats(t)))
 		}
 	}
 

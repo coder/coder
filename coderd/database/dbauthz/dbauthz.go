@@ -1998,7 +1998,11 @@ func (q *querier) InsertWorkspaceAgentStat(ctx context.Context, arg database.Ins
 }
 
 func (q *querier) InsertWorkspaceAgentStats(ctx context.Context, arg database.InsertWorkspaceAgentStatsParams) error {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+
+	return q.db.InsertWorkspaceAgentStats(ctx, arg)
 }
 
 func (q *querier) InsertWorkspaceApp(ctx context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
