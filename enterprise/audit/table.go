@@ -151,6 +151,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 	&database.AuditableGroup{}: {
 		"id":              ActionTrack,
 		"name":            ActionTrack,
+		"display_name":    ActionTrack,
 		"organization_id": ActionIgnore, // Never changes.
 		"avatar_url":      ActionTrack,
 		"quota_allowance": ActionTrack,

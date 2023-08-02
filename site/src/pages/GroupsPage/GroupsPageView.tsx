@@ -137,11 +137,11 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
                             <AvatarData
                               avatar={
                                 <GroupAvatar
-                                  name={group.name}
+                                  name={group.display_name || group.name}
                                   avatarURL={group.avatar_url}
                                 />
                               }
-                              title={group.name}
+                              title={group.display_name || group.name}
                               subtitle={`${group.members.length} members`}
                             />
                           </TableCell>

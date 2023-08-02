@@ -71,7 +71,7 @@ export const UserOrGroupAutocomplete: React.FC<
       }}
       isOptionEqualToValue={(option, value) => option.id === value.id}
       getOptionLabel={(option) =>
-        isGroup(option) ? option.name : option.email
+        isGroup(option) ? option.display_name || option.name : option.email
       }
       renderOption={(props, option) => {
         const isOptionGroup = isGroup(option)
@@ -79,7 +79,11 @@ export const UserOrGroupAutocomplete: React.FC<
         return (
           <Box component="li" {...props}>
             <AvatarData
-              title={isOptionGroup ? option.name : option.username}
+              title={
+                isOptionGroup
+                  ? option.display_name || option.name
+                  : option.username
+              }
               subtitle={isOptionGroup ? getGroupSubtitle(option) : option.email}
               src={option.avatar_url}
             />

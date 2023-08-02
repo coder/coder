@@ -298,8 +298,11 @@ CREATE TABLE groups (
     name text NOT NULL,
     organization_id uuid NOT NULL,
     avatar_url text DEFAULT ''::text NOT NULL,
-    quota_allowance integer DEFAULT 0 NOT NULL
+    quota_allowance integer DEFAULT 0 NOT NULL,
+    display_name text DEFAULT ''::text NOT NULL
 );
+
+COMMENT ON COLUMN groups.display_name IS 'Display name is a custom, human-friendly group name that user can set. This is not required to be unique and can be the empty string.';
 
 CREATE TABLE licenses (
     id integer NOT NULL,

@@ -3402,6 +3402,7 @@ func (q *FakeQuerier) InsertAllUsersGroup(ctx context.Context, orgID uuid.UUID) 
 	return q.InsertGroup(ctx, database.InsertGroupParams{
 		ID:             orgID,
 		Name:           database.AllUsersGroup,
+		DisplayName:    "",
 		OrganizationID: orgID,
 	})
 }
@@ -3521,6 +3522,7 @@ func (q *FakeQuerier) InsertGroup(_ context.Context, arg database.InsertGroupPar
 	group := database.Group{
 		ID:             arg.ID,
 		Name:           arg.Name,
+		DisplayName:    arg.DisplayName,
 		OrganizationID: arg.OrganizationID,
 		AvatarURL:      arg.AvatarURL,
 		QuotaAllowance: arg.QuotaAllowance,
@@ -4329,6 +4331,7 @@ func (q *FakeQuerier) UpdateGroupByID(_ context.Context, arg database.UpdateGrou
 
 	for i, group := range q.groups {
 		if group.ID == arg.ID {
+			group.DisplayName = arg.DisplayName
 			group.Name = arg.Name
 			group.AvatarURL = arg.AvatarURL
 			group.QuotaAllowance = arg.QuotaAllowance

@@ -6471,6 +6471,9 @@
         "avatar_url": {
           "type": "string"
         },
+        "display_name": {
+          "type": "string"
+        },
         "name": {
           "type": "string"
         },
@@ -7401,6 +7404,9 @@
       "type": "object",
       "properties": {
         "avatar_url": {
+          "type": "string"
+        },
+        "display_name": {
           "type": "string"
         },
         "id": {

@@ -7263,6 +7263,9 @@ const docTemplate = `{
                 "avatar_url": {
                     "type": "string"
                 },
+                "display_name": {
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -8245,6 +8248,9 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "avatar_url": {
+                    "type": "string"
+                },
+                "display_name": {
                     "type": "string"
                 },
                 "id": {

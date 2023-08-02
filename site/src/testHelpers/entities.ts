@@ -1665,6 +1665,7 @@ export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {
 export const MockGroup: TypesGen.Group = {
   id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
   name: "Front-End",
+  display_name: "Front-End",
   avatar_url: "https://example.com",
   organization_id: MockOrganization.id,
   members: [MockUser, MockUser2],

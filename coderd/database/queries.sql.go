@@ -1180,7 +1180,7 @@ func (q *sqlQuerier) DeleteGroupByID(ctx context.Context, id uuid.UUID) error {
 
 const getGroupByID = `-- name: GetGroupByID :one
 SELECT
-	id, name, organization_id, avatar_url, quota_allowance
+	id, name, organization_id, avatar_url, quota_allowance, display_name
 FROM
 	groups
 WHERE
@@ -1198,13 +1198,14 @@ func (q *sqlQuerier) GetGroupByID(ctx context.Context, id uuid.UUID) (Group, err
 		&i.OrganizationID,
 		&i.AvatarURL,
 		&i.QuotaAllowance,
+		&i.DisplayName,
 	)
 	return i, err
 }
 
 const getGroupByOrgAndName = `-- name: GetGroupByOrgAndName :one
 SELECT
-	id, name, organization_id, avatar_url, quota_allowance
+	id, name, organization_id, avatar_url, quota_allowance, display_name
 FROM
 	groups
 WHERE
@@ -1229,13 +1230,14 @@ func (q *sqlQuerier) GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrg
 		&i.OrganizationID,
 		&i.AvatarURL,
 		&i.QuotaAllowance,
+		&i.DisplayName,
 	)
 	return i, err
 }
 
 const getGroupsByOrganizationID = `-- name: GetGroupsByOrganizationID :many
 SELECT
-	id, name, organization_id, avatar_url, quota_allowance
+	id, name, organization_id, avatar_url, quota_allowance, display_name
 FROM
 	groups
 WHERE
@@ -1259,6 +1261,7 @@ func (q *sqlQuerier) GetGroupsByOrganizationID(ctx context.Context, organization
 			&i.OrganizationID,
 			&i.AvatarURL,
 			&i.QuotaAllowance,
+			&i.DisplayName,
 		); err != nil {
 			return nil, err
 		}
@@ -1280,7 +1283,7 @@ INSERT INTO groups (
 	organization_id
 )
 VALUES
-	($1, 'Everyone', $1) RETURNING id, name, organization_id, avatar_url, quota_allowance
+	($1, 'Everyone', $1) RETURNING id, name, organization_id, avatar_url, quota_allowance, display_name
 `
 
 // We use the organization_id as the id
@@ -1295,6 +1298,7 @@ func (q *sqlQuerier) InsertAllUsersGroup(ctx context.Context, organizationID uui
 		&i.OrganizationID,
 		&i.AvatarURL,
 		&i.QuotaAllowance,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -1303,17 +1307,19 @@ const insertGroup = `-- name: InsertGroup :one
 INSERT INTO groups (
 	id,
 	name,
+	display_name,
 	organization_id,
 	avatar_url,
 	quota_allowance
 )
 VALUES
-	($1, $2, $3, $4, $5) RETURNING id, name, organization_id, avatar_url, quota_allowance
+	($1, $2, $3, $4, $5, $6) RETURNING id, name, organization_id, avatar_url, quota_allowance, display_name
 `
 
 type InsertGroupParams struct {
 	ID             uuid.UUID `db:"id" json:"id"`
 	Name           string    `db:"name" json:"name"`
+	DisplayName    string    `db:"display_name" json:"display_name"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	AvatarURL      string    `db:"avatar_url" json:"avatar_url"`
 	QuotaAllowance int32     `db:"quota_allowance" json:"quota_allowance"`
@@ -1323,6 +1329,7 @@ func (q *sqlQuerier) InsertGroup(ctx context.Context, arg InsertGroupParams) (Gr
 	row := q.db.QueryRowContext(ctx, insertGroup,
 		arg.ID,
 		arg.Name,
+		arg.DisplayName,
 		arg.OrganizationID,
 		arg.AvatarURL,
 		arg.QuotaAllowance,
@@ -1334,6 +1341,7 @@ func (q *sqlQuerier) InsertGroup(ctx context.Context, arg InsertGroupParams) (Gr
 		&i.OrganizationID,
 		&i.AvatarURL,
 		&i.QuotaAllowance,
+		&i.DisplayName,
 	)
 	return i, err
 }
@@ -1343,15 +1351,17 @@ UPDATE
 	groups
 SET
 	name = $1,
-	avatar_url = $2,
-	quota_allowance = $3
+	display_name = $2,
+	avatar_url = $3,
+	quota_allowance = $4
 WHERE
-	id = $4
-RETURNING id, name, organization_id, avatar_url, quota_allowance
+	id = $5
+RETURNING id, name, organization_id, avatar_url, quota_allowance, display_name
 `
 
 type UpdateGroupByIDParams struct {
 	Name           string    `db:"name" json:"name"`
+	DisplayName    string    `db:"display_name" json:"display_name"`
 	AvatarURL      string    `db:"avatar_url" json:"avatar_url"`
 	QuotaAllowance int32     `db:"quota_allowance" json:"quota_allowance"`
 	ID             uuid.UUID `db:"id" json:"id"`
@@ -1360,6 +1370,7 @@ type UpdateGroupByIDParams struct {
 func (q *sqlQuerier) UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDParams) (Group, error) {
 	row := q.db.QueryRowContext(ctx, updateGroupByID,
 		arg.Name,
+		arg.DisplayName,
 		arg.AvatarURL,
 		arg.QuotaAllowance,
 		arg.ID,
@@ -1371,6 +1382,7 @@ func (q *sqlQuerier) UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDPar
 		&i.OrganizationID,
 		&i.AvatarURL,
 		&i.QuotaAllowance,
+		&i.DisplayName,
 	)
 	return i, err
 }
