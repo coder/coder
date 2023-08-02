@@ -31,13 +31,17 @@ func TestCheckInactiveUsers(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 
-	inactiveUser1 := setupUser(ctx, t, db, "dormant-user-1@coder.com", time.Now().Add(-dormancyPeriod).Add(-time.Minute))
-	inactiveUser2 := setupUser(ctx, t, db, "dormant-user-2@coder.com", time.Now().Add(-dormancyPeriod).Add(-time.Hour))
-	inactiveUser3 := setupUser(ctx, t, db, "dormant-user-3@coder.com", time.Now().Add(-dormancyPeriod).Add(-6*time.Hour))
+	inactiveUser1 := setupUser(ctx, t, db, "dormant-user-1@coder.com", database.UserStatusActive, time.Now().Add(-dormancyPeriod).Add(-time.Minute))
+	inactiveUser2 := setupUser(ctx, t, db, "dormant-user-2@coder.com", database.UserStatusActive, time.Now().Add(-dormancyPeriod).Add(-time.Hour))
+	inactiveUser3 := setupUser(ctx, t, db, "dormant-user-3@coder.com", database.UserStatusActive, time.Now().Add(-dormancyPeriod).Add(-6*time.Hour))
 
-	activeUser1 := setupUser(ctx, t, db, "active-user-1@coder.com", time.Now().Add(-dormancyPeriod).Add(time.Minute))
-	activeUser2 := setupUser(ctx, t, db, "active-user-2@coder.com", time.Now().Add(-dormancyPeriod).Add(time.Hour))
-	activeUser3 := setupUser(ctx, t, db, "active-user-3@coder.com", time.Now().Add(-dormancyPeriod).Add(6*time.Hour))
+	activeUser1 := setupUser(ctx, t, db, "active-user-1@coder.com", database.UserStatusActive, time.Now().Add(-dormancyPeriod).Add(time.Minute))
+	activeUser2 := setupUser(ctx, t, db, "active-user-2@coder.com", database.UserStatusActive, time.Now().Add(-dormancyPeriod).Add(time.Hour))
+	activeUser3 := setupUser(ctx, t, db, "active-user-3@coder.com", database.UserStatusActive, time.Now().Add(-dormancyPeriod).Add(6*time.Hour))
+
+	suspendedUser1 := setupUser(ctx, t, db, "suspended-user-1@coder.com", database.UserStatusSuspended, time.Now().Add(-dormancyPeriod).Add(-time.Minute))
+	suspendedUser2 := setupUser(ctx, t, db, "suspended-user-2@coder.com", database.UserStatusSuspended, time.Now().Add(-dormancyPeriod).Add(-time.Hour))
+	suspendedUser3 := setupUser(ctx, t, db, "suspended-user-3@coder.com", database.UserStatusSuspended, time.Now().Add(-dormancyPeriod).Add(-6*time.Hour))
 
 	// Run the periodic job
 	closeFunc := dormancy.CheckInactiveUsersWithOptions(ctx, logger, db, interval, dormancyPeriod)
@@ -51,14 +55,16 @@ func TestCheckInactiveUsers(t *testing.T) {
 			return false
 		}
 
-		var c int
+		var dormant, suspended int
 		for _, row := range rows {
 			if row.Status == database.UserStatusDormant {
-				c++
+				dormant++
+			} else if row.Status == database.UserStatusSuspended {
+				suspended++
 			}
 		}
-		// 6 users in total, 3 dormant
-		return len(rows) == 6 && c == 3
+		// 6 users in total, 3 dormant, 3 suspended
+		return len(rows) == 9 && dormant == 3 && suspended == 3
 	}, testutil.WaitShort, testutil.IntervalMedium)
 
 	allUsers := database.ConvertUserRows(rows)
@@ -71,17 +77,20 @@ func TestCheckInactiveUsers(t *testing.T) {
 		activeUser1,
 		activeUser2,
 		activeUser3,
+		suspendedUser1,
+		suspendedUser2,
+		suspendedUser3,
 	}
 	require.ElementsMatch(t, allUsers, expectedUsers)
 }
 
-func setupUser(ctx context.Context, t *testing.T, db database.Store, email string, lastSeenAt time.Time) database.User {
+func setupUser(ctx context.Context, t *testing.T, db database.Store, email string, status database.UserStatus, lastSeenAt time.Time) database.User {
 	t.Helper()
 
 	user, err := db.InsertUser(ctx, database.InsertUserParams{ID: uuid.New(), LoginType: database.LoginTypePassword, Username: namesgenerator.GetRandomName(8), Email: email})
 	require.NoError(t, err)
 	// At the beginning of the test all users are marked as active
-	user, err = db.UpdateUserStatus(ctx, database.UpdateUserStatusParams{ID: user.ID, Status: database.UserStatusActive})
+	user, err = db.UpdateUserStatus(ctx, database.UpdateUserStatusParams{ID: user.ID, Status: status})
 	require.NoError(t, err)
 	user, err = db.UpdateUserLastSeenAt(ctx, database.UpdateUserLastSeenAtParams{ID: user.ID, LastSeenAt: lastSeenAt})
 	require.NoError(t, err)

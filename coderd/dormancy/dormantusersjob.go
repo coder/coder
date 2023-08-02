@@ -13,14 +13,18 @@ import (
 )
 
 const (
-	jobInterval           = 5 * time.Minute
+	jobInterval           = 15 * time.Minute
 	accountDormancyPeriod = 90 * 24 * time.Hour
 )
 
+// CheckInactiveUsers function updates status of inactive users from active to dormant
+// using default parameters.
 func CheckInactiveUsers(ctx context.Context, logger slog.Logger, db database.Store) func() {
 	return CheckInactiveUsersWithOptions(ctx, logger, db, jobInterval, accountDormancyPeriod)
 }
 
+// CheckInactiveUsersWithOptions function updates status of inactive users from active to dormant
+// using provided parameters.
 func CheckInactiveUsersWithOptions(ctx context.Context, logger slog.Logger, db database.Store, checkInterval, dormancyPeriod time.Duration) func() {
 	logger = logger.Named("dormancy")
 
