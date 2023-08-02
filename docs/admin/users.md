@@ -41,8 +41,7 @@ A user account is set to _dormant_ status when the user has not yet logged in or
 
 This status is typically used to signify that the user account has been created but user has not taken any actions within the platform. Once the user logs in to Coder, the account status will switch to _active_.
 
-Dormant accounts do not count towards the total number of licensed seats in a Coder subscription, allowing organizations to optimize their license usage. It is important to note that the _dormant_
-status does not restrict the user from being activated manually. User administrators have the ability to activate any dormant account, granting users access to Coder's features.
+Dormant accounts do not count towards the total number of licensed seats in a Coder subscription, allowing organizations to optimize their license usage.
 
 ### Suspended user
 
