@@ -1927,7 +1927,8 @@ export interface HealthcheckDERPNodeReport {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly node_info: any
   readonly can_exchange_messages: boolean
-  readonly round_trip_ping: number
+  readonly round_trip_ping: string
+  readonly round_trip_ping_ms: number
   readonly uses_websocket: boolean
   readonly client_logs: string[][]
   readonly client_errs: string[][]
