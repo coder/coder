@@ -3,6 +3,6 @@
     "format:write:only": "pnpm exec prettier --write"
   },
   "devDependencies": {
-    "prettier": "^3.0.0"
+    "prettier": "3.0.0"
   }
 }
