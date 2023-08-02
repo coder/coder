@@ -33,12 +33,13 @@ export const LockedWorkspaceBanner = ({
     (workspace) => workspace.deleting_at,
   )
 
+  const experimentEnabled = useIsWorkspaceActionsEnabled()
   if (
     (!hasLockedWorkspaces ||
       // Banners should be redisplayed after dismissal when additional workspaces are newly scheduled for deletion
       !shouldRedisplayBanner) &&
     // Only show this if the experiment is included.
-    useIsWorkspaceActionsEnabled()
+    experimentEnabled
   ) {
     return null
   }

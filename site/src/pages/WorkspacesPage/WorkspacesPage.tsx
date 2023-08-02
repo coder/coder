@@ -11,7 +11,7 @@ import { useTemplateFilterMenu, useStatusFilterMenu } from "./filter/menus"
 import { useSearchParams } from "react-router-dom"
 import { useFilter } from "components/Filter/filter"
 import { useUserFilterMenu } from "components/Filter/UserFilter"
-import { getWorkspaces, updateWorkspaceVersion } from "api/api"
+import { getWorkspaces } from "api/api"
 
 const WorkspacesPage: FC = () => {
   const [lockedWorkspaces, setLockedWorkspaces] = useState<Workspace[]>([])
@@ -26,17 +26,18 @@ const WorkspacesPage: FC = () => {
     query: filterProps.filter.query,
   })
 
+  const experimentEnabled = useIsWorkspaceActionsEnabled()
   // If workspace actions are enabled we need to fetch the locked
   // workspaces as well. This lets us determine whether we should
   // show a banner to the user indicating that some of their workspaces
   // are at risk of being deleted.
-  if (useIsWorkspaceActionsEnabled()) {
-    const includesLocked = filterProps.filter.query.includes("locked_at")
-    const lockedQuery = includesLocked
-      ? filterProps.filter.query
-      : filterProps.filter.query + " locked_at:1970-01-01"
+  useEffect(() => {
+    if (experimentEnabled) {
+      const includesLocked = filterProps.filter.query.includes("locked_at")
+      const lockedQuery = includesLocked
+        ? filterProps.filter.query
+        : filterProps.filter.query + " locked_at:1970-01-01"
 
-    useEffect(() => {
       if (includesLocked && data) {
         setLockedWorkspaces(data.workspaces)
       } else {
@@ -48,12 +49,12 @@ const WorkspacesPage: FC = () => {
             // TODO?
           })
       }
-    }, [includesLocked, data, lockedQuery])
-  } else {
-    // If the experiment isn't included then we'll pretend
-    // like locked workspaces don't exist.
-    setLockedWorkspaces([])
-  }
+    } else {
+      // If the experiment isn't included then we'll pretend
+      // like locked workspaces don't exist.
+      setLockedWorkspaces([])
+    }
+  }, [experimentEnabled])
 
   const updateWorkspace = useWorkspaceUpdate(queryKey)
 

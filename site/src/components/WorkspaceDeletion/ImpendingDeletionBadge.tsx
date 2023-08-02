@@ -8,7 +8,8 @@ export const LockedBadge = ({
 }: {
   workspace: Workspace
 }): JSX.Element | null => {
-  if (!workspace.locked_at || !useIsWorkspaceActionsEnabled()) {
+  const experimentEnabled = useIsWorkspaceActionsEnabled()
+  if (!workspace.locked_at || !experimentEnabled) {
     return null
   }
 
