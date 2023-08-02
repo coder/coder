@@ -3,11 +3,7 @@ import Menu from "@mui/material/Menu"
 import { makeStyles } from "@mui/styles"
 import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined"
 import { FC, Fragment, ReactNode, useRef, useState } from "react"
-import {
-  Workspace,
-  WorkspaceStatus,
-  WorkspaceBuildParameter,
-} from "api/typesGenerated"
+import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated"
 import {
   ActionLoadingButton,
   CancelButton,

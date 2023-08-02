@@ -14,7 +14,6 @@ import { useUserFilterMenu } from "components/Filter/UserFilter"
 import { getWorkspaces, updateWorkspaceVersion } from "api/api"
 
 const WorkspacesPage: FC = () => {
-  const orgId = useOrganizationId()
   const [lockedWorkspaces, setLockedWorkspaces] = useState<Workspace[]>([])
   // If we use a useSearchParams for each hook, the values will not be in sync.
   // So we have to use a single one, centralizing the values, and pass it to
@@ -49,10 +48,10 @@ const WorkspacesPage: FC = () => {
             setLockedWorkspaces(resp.workspaces)
           })
           .catch((err) => {
-            console.log(err)
+            // TODO?
           })
       }
-    })
+    }, [includesLocked, data, lockedQuery])
   } else {
     // If the experiment isn't included then we'll pretend
     // like locked workspaces don't exist.
@@ -69,6 +68,7 @@ const WorkspacesPage: FC = () => {
 
       <WorkspacesPageView
         workspaces={data?.workspaces}
+        lockedWorkspaces={lockedWorkspaces}
         error={error}
         count={data?.count}
         page={pagination.page}

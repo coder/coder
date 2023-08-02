@@ -61,7 +61,7 @@ export const LockedWorkspaceBanner = ({
   }
 
   const alertText = (): string => {
-    if (workspaces.length == 1) {
+    if (workspaces.length === 1) {
       if (
         hasDeletionScheduledWorkspaces &&
         hasDeletionScheduledWorkspaces.deleting_at &&

@@ -14,7 +14,6 @@ import { Stack } from "components/Stack/Stack"
 import { WorkspaceHelpTooltip } from "components/Tooltips"
 import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable"
 import { useLocalStorage } from "hooks"
-import difference from "lodash/difference"
 import { LockedWorkspaceBanner, Count } from "components/WorkspaceDeletion"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
 import { WorkspacesFilter } from "./filter/filter"
@@ -55,7 +54,7 @@ export const WorkspacesPageView: FC<
   onUpdateWorkspace,
   page,
 }) => {
-  const { saveLocal, getLocal } = useLocalStorage()
+  const { saveLocal } = useLocalStorage()
 
   const workspacesDeletionScheduled = lockedWorkspaces
     ?.filter((workspace) => workspace.deleting_at)

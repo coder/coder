@@ -16,7 +16,6 @@ export const displayLockedWorkspace = (
   allowAdvancedScheduling: boolean,
   allowWorkspaceActions: boolean,
 ) => {
-  const today = new Date()
   if (
     !workspace.locked_at ||
     !allowAdvancedScheduling ||

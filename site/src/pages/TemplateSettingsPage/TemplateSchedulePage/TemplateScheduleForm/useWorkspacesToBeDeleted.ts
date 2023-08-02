@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { getWorkspaces } from "api/api"
-import { compareAsc, add, endOfToday } from "date-fns"
+import { compareAsc } from "date-fns"
 import { Workspace, Template } from "api/typesGenerated"
 import { TemplateScheduleFormValues } from "./formHelpers"
 

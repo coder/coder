@@ -8832,7 +8832,7 @@ WHERE
 	-- workspaces since they are considered soft-deleted.
 	AND CASE
 		WHEN $10 :: timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN
-			locked_at IS NOT NULL AND locked_at <= $10
+			locked_at IS NOT NULL AND locked_at >= $10
 		ELSE
 			locked_at IS NULL
 	END
