@@ -501,12 +501,23 @@ AND
 	workspaces.id = $1
 RETURNING workspaces.*;
 
--- name: UpdateWorkspacesDeletingAtByTemplateID :exec
-UPDATE
-	workspaces
+-- name: UpdateWorkspacesLockedDeletingAtByTemplateID :exec
+UPDATE workspaces
 SET
-	deleting_at = CASE WHEN @locked_ttl_ms::bigint = 0 THEN NULL ELSE locked_at + interval '1 milliseconds' * @locked_ttl_ms::bigint END
+    deleting_at = CASE
+        WHEN @locked_ttl_ms::bigint = 0 THEN NULL
+        WHEN @locked_at::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN  (@locked_at::timestamptz) + interval '1 milliseconds' * @locked_ttl_ms::bigint
+        ELSE locked_at + interval '1 milliseconds' * @locked_ttl_ms::bigint
+    END,
+    locked_at = CASE WHEN @locked_at::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN @locked_at::timestamptz ELSE locked_at END
 WHERE
-	template_id = @template_id
+    template_id = @template_id
 AND
-	locked_at IS NOT NULL;
+    locked_at IS NOT NULL;
+
+-- name: UpdateTemplateWorkspacesLastUsedAt :exec
+UPDATE workspaces
+SET
+	last_used_at = @last_used_at::timestamptz
+WHERE
+	template_id = @template_id;

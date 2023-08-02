@@ -622,9 +622,11 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 					DaysOfWeek: restartRequirementDaysOfWeekParsed,
 					Weeks:      req.RestartRequirement.Weeks,
 				},
-				FailureTTL:    failureTTL,
-				InactivityTTL: inactivityTTL,
-				LockedTTL:     lockedTTL,
+				FailureTTL:                failureTTL,
+				InactivityTTL:             inactivityTTL,
+				LockedTTL:                 lockedTTL,
+				UpdateWorkspaceLastUsedAt: req.UpdateWorkspaceLastUsedAt,
+				UpdateWorkspaceLockedAt:   req.UpdateWorkspaceLockedAt,
 			})
 			if err != nil {
 				return xerrors.Errorf("set template schedule options: %w", err)

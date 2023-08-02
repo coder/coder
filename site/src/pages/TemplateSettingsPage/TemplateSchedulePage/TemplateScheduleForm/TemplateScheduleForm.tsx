@@ -87,6 +87,8 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         allowAdvancedScheduling && Boolean(template.inactivity_ttl_ms),
       locked_cleanup_enabled:
         allowAdvancedScheduling && Boolean(template.locked_ttl_ms),
+      update_workspace_last_used_at: false,
+      update_workspace_locked_at: false,
     },
     validationSchema,
     onSubmit: () => {
@@ -149,6 +151,8 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 
       allow_user_autostart: form.values.allow_user_autostart,
       allow_user_autostop: form.values.allow_user_autostop,
+      update_workspace_last_used_at: form.values.update_workspace_last_used_at,
+      update_workspace_locked_at: form.values.update_workspace_locked_at,
     })
   }
 

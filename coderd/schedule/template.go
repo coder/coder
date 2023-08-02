@@ -104,6 +104,18 @@ type TemplateScheduleOptions struct {
 	// LockedTTL dictates the duration after which locked workspaces will be
 	// permanently deleted.
 	LockedTTL time.Duration `json:"locked_ttl"`
+	// UpdateWorkspaceLastUsedAt updates the template's workspaces'
+	// last_used_at field. This is useful for preventing updates to the
+	// templates inactivity_ttl immediately triggering a lock action against
+	// workspaces whose last_used_at field violates the new template
+	// inactivity_ttl threshold.
+	UpdateWorkspaceLastUsedAt bool `json:"update_workspace_last_used_at"`
+	// UpdateWorkspaceLockedAt updates the template's workspaces'
+	// locked_at field. This is useful for preventing updates to the
+	// templates locked_ttl immediately triggering a delete action against
+	// workspaces whose locked_at field violates the new template locked_ttl
+	// threshold.
+	UpdateWorkspaceLockedAt bool `json:"update_workspace_locked_at"`
 }
 
 // TemplateScheduleStore provides an interface for retrieving template
