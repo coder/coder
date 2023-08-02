@@ -5708,6 +5708,52 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 	return i, err
 }
 
+const updateInactiveUsersToDormant = `-- name: UpdateInactiveUsersToDormant :many
+UPDATE
+    users
+SET
+    status = 'dormant'::user_status,
+	updated_at = $1
+WHERE
+    last_seen_at < $2 :: timestamp
+    AND status = 'active'::user_status
+RETURNING id, email, last_seen_at
+`
+
+type UpdateInactiveUsersToDormantParams struct {
+	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
+	LastSeenAfter time.Time `db:"last_seen_after" json:"last_seen_after"`
+}
+
+type UpdateInactiveUsersToDormantRow struct {
+	ID         uuid.UUID `db:"id" json:"id"`
+	Email      string    `db:"email" json:"email"`
+	LastSeenAt time.Time `db:"last_seen_at" json:"last_seen_at"`
+}
+
+func (q *sqlQuerier) UpdateInactiveUsersToDormant(ctx context.Context, arg UpdateInactiveUsersToDormantParams) ([]UpdateInactiveUsersToDormantRow, error) {
+	rows, err := q.db.QueryContext(ctx, updateInactiveUsersToDormant, arg.UpdatedAt, arg.LastSeenAfter)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UpdateInactiveUsersToDormantRow
+	for rows.Next() {
+		var i UpdateInactiveUsersToDormantRow
+		if err := rows.Scan(&i.ID, &i.Email, &i.LastSeenAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateUserDeletedByID = `-- name: UpdateUserDeletedByID :exec
 UPDATE
 	users

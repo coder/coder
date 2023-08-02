@@ -113,8 +113,11 @@ CREATE TYPE startup_script_behavior AS ENUM (
 
 CREATE TYPE user_status AS ENUM (
     'active',
-    'suspended'
+    'suspended',
+    'dormant'
 );
+
+COMMENT ON TYPE user_status IS 'Defines the user status: active, dormant, or suspended.';
 
 CREATE TYPE workspace_agent_lifecycle_state AS ENUM (
     'created',
@@ -561,7 +564,7 @@ CREATE TABLE users (
     hashed_password bytea NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    status user_status DEFAULT 'active'::user_status NOT NULL,
+    status user_status DEFAULT 'dormant'::user_status NOT NULL,
     rbac_roles text[] DEFAULT '{}'::text[] NOT NULL,
     login_type login_type DEFAULT 'password'::login_type NOT NULL,
     avatar_url text,

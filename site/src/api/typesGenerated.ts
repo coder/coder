@@ -1784,8 +1784,8 @@ export const TemplateVersionWarnings: TemplateVersionWarning[] = [
 ]
 
 // From codersdk/users.go
-export type UserStatus = "active" | "suspended"
-export const UserStatuses: UserStatus[] = ["active", "suspended"]
+export type UserStatus = "active" | "dormant" | "suspended"
+export const UserStatuses: UserStatus[] = ["active", "dormant", "suspended"]
 
 // From codersdk/templateversions.go
 export type ValidationMonotonicOrder = "decreasing" | "increasing"

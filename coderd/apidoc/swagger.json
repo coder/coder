@@ -9256,8 +9256,12 @@
     },
     "codersdk.UserStatus": {
       "type": "string",
-      "enum": ["active", "suspended"],
-      "x-enum-varnames": ["UserStatusActive", "UserStatusSuspended"]
+      "enum": ["active", "dormant", "suspended"],
+      "x-enum-varnames": [
+        "UserStatusActive",
+        "UserStatusDormant",
+        "UserStatusSuspended"
+      ]
     },
     "codersdk.ValidationError": {
       "type": "object",

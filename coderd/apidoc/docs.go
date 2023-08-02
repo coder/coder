@@ -10227,10 +10227,12 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "active",
+                "dormant",
                 "suspended"
             ],
             "x-enum-varnames": [
                 "UserStatusActive",
+                "UserStatusDormant",
                 "UserStatusSuspended"
             ]
         },

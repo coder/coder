@@ -587,6 +587,14 @@ func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationI
 		sessionToken = token.Key
 	}
 
+	if user.Status == codersdk.UserStatusDormant {
+		// Use admin client so that user's LastSeenAt is not updated.
+		// In general we need to refresh the user status, which should
+		// transition from "dormant" to "active".
+		user, err = client.User(context.Background(), user.Username)
+		require.NoError(t, err)
+	}
+
 	other := codersdk.New(client.URL)
 	other.SetSessionToken(sessionToken)
 	t.Cleanup(func() {
