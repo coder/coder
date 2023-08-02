@@ -1432,6 +1432,13 @@ func (m metricsStore) UpdateTemplateVersionGitAuthProvidersByJobID(ctx context.C
 	return err
 }
 
+func (m metricsStore) UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, arg database.UpdateTemplateWorkspacesLastUsedAtParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateTemplateWorkspacesLastUsedAt(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateTemplateWorkspacesLastUsedAt").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) UpdateUserDeletedByID(ctx context.Context, arg database.UpdateUserDeletedByIDParams) error {
 	start := time.Now()
 	err := m.s.UpdateUserDeletedByID(ctx, arg)
@@ -1614,10 +1621,10 @@ func (m metricsStore) UpdateWorkspaceTTL(ctx context.Context, arg database.Updat
 	return r0
 }
 
-func (m metricsStore) UpdateWorkspacesDeletingAtByTemplateID(ctx context.Context, arg database.UpdateWorkspacesDeletingAtByTemplateIDParams) error {
+func (m metricsStore) UpdateWorkspacesLockedDeletingAtByTemplateID(ctx context.Context, arg database.UpdateWorkspacesLockedDeletingAtByTemplateIDParams) error {
 	start := time.Now()
-	r0 := m.s.UpdateWorkspacesDeletingAtByTemplateID(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateWorkspacesDeletingAtByTemplateID").Observe(time.Since(start).Seconds())
+	r0 := m.s.UpdateWorkspacesLockedDeletingAtByTemplateID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspacesLockedDeletingAtByTemplateID").Observe(time.Since(start).Seconds())
 	return r0
 }
 

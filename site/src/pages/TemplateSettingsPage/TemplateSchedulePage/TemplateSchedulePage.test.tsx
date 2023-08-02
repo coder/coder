@@ -23,6 +23,8 @@ const validFormValues = {
   failure_ttl_ms: 7,
   inactivity_ttl_ms: 180,
   locked_ttl_ms: 30,
+  update_workspace_last_used_at: false,
+  update_workspace_locked_at: false,
 }
 
 const renderTemplateSchedulePage = async () => {
@@ -63,12 +65,12 @@ const fillAndSubmitForm = async ({
   await user.type(failureTtlField, failure_ttl_ms.toString())
 
   const inactivityTtlField = screen.getByRole("checkbox", {
-    name: /Inactivity TTL/i,
+    name: /Inactivity Soft Deletion/i,
   })
   await user.type(inactivityTtlField, inactivity_ttl_ms.toString())
 
   const lockedTtlField = screen.getByRole("checkbox", {
-    name: /Locked TTL/i,
+    name: /Deletion Retention/i,
   })
   await user.type(lockedTtlField, locked_ttl_ms.toString())
 

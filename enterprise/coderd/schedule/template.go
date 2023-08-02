@@ -85,8 +85,8 @@ func (*EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.Sto
 	}
 
 	var template database.Template
-	err = db.InTx(func(db database.Store) error {
-		err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+	err = db.InTx(func(tx database.Store) error {
+		err := tx.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 			ID:                           tpl.ID,
 			UpdatedAt:                    database.Now(),
 			AllowUserAutostart:           opts.UserAutostartEnabled,
@@ -103,20 +103,36 @@ func (*EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.Sto
 			return xerrors.Errorf("update template schedule: %w", err)
 		}
 
+		var lockedAt time.Time
+		if opts.UpdateWorkspaceLockedAt {
+			lockedAt = database.Now()
+		}
+
 		// If we updated the locked_ttl we need to update all the workspaces deleting_at
 		// to ensure workspaces are being cleaned up correctly. Similarly if we are
 		// disabling it (by passing 0), then we want to delete nullify the deleting_at
 		// fields of all the template workspaces.
-		err = db.UpdateWorkspacesDeletingAtByTemplateID(ctx, database.UpdateWorkspacesDeletingAtByTemplateIDParams{
+		err = tx.UpdateWorkspacesLockedDeletingAtByTemplateID(ctx, database.UpdateWorkspacesLockedDeletingAtByTemplateIDParams{
 			TemplateID:  tpl.ID,
 			LockedTtlMs: opts.LockedTTL.Milliseconds(),
+			LockedAt:    lockedAt,
 		})
 		if err != nil {
 			return xerrors.Errorf("update deleting_at of all workspaces for new locked_ttl %q: %w", opts.LockedTTL, err)
 		}
 
+		if opts.UpdateWorkspaceLastUsedAt {
+			err = tx.UpdateTemplateWorkspacesLastUsedAt(ctx, database.UpdateTemplateWorkspacesLastUsedAtParams{
+				TemplateID: tpl.ID,
+				LastUsedAt: database.Now(),
+			})
+			if err != nil {
+				return xerrors.Errorf("update template workspaces last_used_at: %w", err)
+			}
+		}
+
 		// TODO: update all workspace max_deadlines to be within new bounds
-		template, err = db.GetTemplateByID(ctx, tpl.ID)
+		template, err = tx.GetTemplateByID(ctx, tpl.ID)
 		if err != nil {
 			return xerrors.Errorf("get updated template schedule: %w", err)
 		}

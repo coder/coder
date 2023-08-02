@@ -1,23 +1,19 @@
-import { useQuery } from "@tanstack/react-query"
-import { getWorkspaces } from "api/api"
 import { compareAsc } from "date-fns"
 import { Workspace, Template } from "api/typesGenerated"
 import { TemplateScheduleFormValues } from "./formHelpers"
+import { useWorkspacesData } from "pages/WorkspacesPage/data"
 
 export const useWorkspacesToBeLocked = (
   template: Template,
   formValues: TemplateScheduleFormValues,
 ) => {
-  const { data: workspacesData } = useQuery({
-    queryKey: ["workspaces"],
-    queryFn: () =>
-      getWorkspaces({
-        q: "template:" + template.name,
-      }),
-    enabled: formValues.inactivity_cleanup_enabled,
+  const { data } = useWorkspacesData({
+    page: 0,
+    limit: 0,
+    query: "template:" + template.name,
   })
 
-  return workspacesData?.workspaces?.filter((workspace: Workspace) => {
+  return data?.workspaces?.filter((workspace: Workspace) => {
     if (!formValues.inactivity_ttl_ms) {
       return
     }
@@ -41,15 +37,12 @@ export const useWorkspacesToBeDeleted = (
   template: Template,
   formValues: TemplateScheduleFormValues,
 ) => {
-  const { data: workspacesData } = useQuery({
-    queryKey: ["workspaces"],
-    queryFn: () =>
-      getWorkspaces({
-        q: "template:" + template.name,
-      }),
-    enabled: formValues.locked_cleanup_enabled,
+  const { data } = useWorkspacesData({
+    page: 0,
+    limit: 0,
+    query: "template:" + template.name + " locked_at:1970-01-01",
   })
-  return workspacesData?.workspaces?.filter((workspace: Workspace) => {
+  return data?.workspaces?.filter((workspace: Workspace) => {
     if (!workspace.locked_at || !formValues.locked_ttl_ms) {
       return false
     }

@@ -1150,6 +1150,8 @@ export interface UpdateTemplateMeta {
   readonly failure_ttl_ms?: number
   readonly inactivity_ttl_ms?: number
   readonly locked_ttl_ms?: number
+  readonly update_workspace_last_used_at: boolean
+  readonly update_workspace_locked_at: boolean
 }
 
 // From codersdk/users.go

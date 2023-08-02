@@ -2352,6 +2352,14 @@ func (q *querier) UpdateTemplateVersionGitAuthProvidersByJobID(ctx context.Conte
 	return q.db.UpdateTemplateVersionGitAuthProvidersByJobID(ctx, arg)
 }
 
+func (q *querier) UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, arg database.UpdateTemplateWorkspacesLastUsedAtParams) error {
+	fetch := func(ctx context.Context, arg database.UpdateTemplateWorkspacesLastUsedAtParams) (database.Template, error) {
+		return q.db.GetTemplateByID(ctx, arg.TemplateID)
+	}
+
+	return fetchAndExec(q.log, q.auth, rbac.ActionUpdate, fetch, q.db.UpdateTemplateWorkspacesLastUsedAt)(ctx, arg)
+}
+
 // UpdateUserDeletedByID
 // Deprecated: Delete this function in favor of 'SoftDeleteUserByID'. Deletes are
 // irreversible.
@@ -2630,12 +2638,12 @@ func (q *querier) UpdateWorkspaceTTL(ctx context.Context, arg database.UpdateWor
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceTTL)(ctx, arg)
 }
 
-func (q *querier) UpdateWorkspacesDeletingAtByTemplateID(ctx context.Context, arg database.UpdateWorkspacesDeletingAtByTemplateIDParams) error {
-	fetch := func(ctx context.Context, arg database.UpdateWorkspacesDeletingAtByTemplateIDParams) (database.Template, error) {
+func (q *querier) UpdateWorkspacesLockedDeletingAtByTemplateID(ctx context.Context, arg database.UpdateWorkspacesLockedDeletingAtByTemplateIDParams) error {
+	fetch := func(ctx context.Context, arg database.UpdateWorkspacesLockedDeletingAtByTemplateIDParams) (database.Template, error) {
 		return q.db.GetTemplateByID(ctx, arg.TemplateID)
 	}
 
-	return fetchAndExec(q.log, q.auth, rbac.ActionUpdate, fetch, q.db.UpdateWorkspacesDeletingAtByTemplateID)(ctx, arg)
+	return fetchAndExec(q.log, q.auth, rbac.ActionUpdate, fetch, q.db.UpdateWorkspacesLockedDeletingAtByTemplateID)(ctx, arg)
 }
 
 func (q *querier) UpsertAppSecurityKey(ctx context.Context, data string) error {
