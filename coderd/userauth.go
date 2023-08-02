@@ -688,6 +688,9 @@ type OIDCConfig struct {
 	// groups. If the group field is the empty string, then no group updates
 	// will ever come from the OIDC provider.
 	GroupField string
+	// CreateMissingGroups controls whether groups returned by the OIDC provider
+	// are automatically created in Coder if they are missing.
+	CreateMissingGroups bool
 	// GroupMapping controls how groups returned by the OIDC provider get mapped
 	// to groups within Coder.
 	// map[oidcGroupName]coderGroupName
@@ -1029,19 +1032,20 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	params := (&oauthLoginParams{
-		User:         user,
-		Link:         link,
-		State:        state,
-		LinkedID:     oidcLinkedID(idToken),
-		LoginType:    database.LoginTypeOIDC,
-		AllowSignups: api.OIDCConfig.AllowSignups,
-		Email:        email,
-		Username:     username,
-		AvatarURL:    picture,
-		UsingGroups:  usingGroups,
-		UsingRoles:   api.OIDCConfig.RoleSyncEnabled(),
-		Roles:        roles,
-		Groups:       groups,
+		User:                user,
+		Link:                link,
+		State:               state,
+		LinkedID:            oidcLinkedID(idToken),
+		LoginType:           database.LoginTypeOIDC,
+		AllowSignups:        api.OIDCConfig.AllowSignups,
+		Email:               email,
+		Username:            username,
+		AvatarURL:           picture,
+		UsingGroups:         usingGroups,
+		UsingRoles:          api.OIDCConfig.RoleSyncEnabled(),
+		Roles:               roles,
+		Groups:              groups,
+		CreateMissingGroups: api.OIDCConfig.CreateMissingGroups,
 	}).SetInitAuditRequest(func(params *audit.RequestParams) (*audit.Request[database.User], func()) {
 		return audit.InitRequest[database.User](rw, params)
 	})
@@ -1125,8 +1129,9 @@ type oauthLoginParams struct {
 	AvatarURL    string
 	// Is UsingGroups is true, then the user will be assigned
 	// to the Groups provided.
-	UsingGroups bool
-	Groups      []string
+	UsingGroups         bool
+	CreateMissingGroups bool
+	Groups              []string
 	// Is UsingRoles is true, then the user will be assigned
 	// the roles provided.
 	UsingRoles bool

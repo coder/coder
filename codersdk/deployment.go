@@ -271,6 +271,7 @@ type OIDCConfig struct {
 	EmailField          clibase.String                      `json:"email_field" typescript:",notnull"`
 	AuthURLParams       clibase.Struct[map[string]string]   `json:"auth_url_params" typescript:",notnull"`
 	IgnoreUserInfo      clibase.Bool                        `json:"ignore_user_info" typescript:",notnull"`
+	GroupAutoCreate     clibase.Bool                        `json:"group_auto_create" typescript:",notnull"`
 	GroupField          clibase.String                      `json:"groups_field" typescript:",notnull"`
 	GroupMapping        clibase.Struct[map[string]string]   `json:"group_mapping" typescript:",notnull"`
 	UserRoleField       clibase.String                      `json:"user_role_field" typescript:",notnull"`
@@ -1064,6 +1065,16 @@ when required by your organization's security policy.`,
 			Value:       &c.OIDC.GroupMapping,
 			Group:       &deploymentGroupOIDC,
 			YAML:        "groupMapping",
+		},
+		{
+			Name:        "Enable OIDC Group Auto Create",
+			Description: "Automatically creates missing groups from a user's groups claim.",
+			Flag:        "oidc-group-auto-create",
+			Env:         "CODER_OIDC_GROUP_AUTO_CREATE",
+			Default:     "false",
+			Value:       &c.OIDC.GroupAutoCreate,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "enableGroupAutoCreate",
 		},
 		{
 			Name:        "OIDC User Role Field",
