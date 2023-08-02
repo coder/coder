@@ -194,27 +194,27 @@ func (b *Batcher) Run(ctx context.Context) {
 func (b *Batcher) flush(ctx context.Context, forced bool, reason string) {
 	b.mu.Lock()
 	start := time.Now()
+	count := len(b.buf.ID)
 	defer func() {
 		b.mu.Unlock()
 		// Notify that a flush has completed.
 		if b.flushed != nil {
-			b.log.Debug(ctx, "notify flush")
 			b.flushed <- forced
 		}
-		elapsed := time.Since(start)
-		b.log.Debug(ctx, "flush complete",
-			slog.F("count", len(b.buf.ID)),
-			slog.F("elapsed", elapsed),
-			slog.F("forced", forced),
-			slog.F("reason", reason),
-		)
+		if count > 0 {
+			elapsed := time.Since(start)
+			b.log.Debug(ctx, "flush complete",
+				slog.F("count", count),
+				slog.F("elapsed", elapsed),
+				slog.F("forced", forced),
+				slog.F("reason", reason),
+			)
+		}
 	}()
 
 	if len(b.buf.ID) == 0 {
-		b.log.Debug(ctx, "nothing to flush")
 		return
 	}
-	b.log.Debug(ctx, "flushing buffer", slog.F("count", len(b.buf.ID)), slog.F("forced", forced), slog.F("reason", reason))
 
 	// marshal connections by proto
 	payload, err := json.Marshal(b.connectionsByProto)

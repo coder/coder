@@ -51,6 +51,7 @@ import (
 	"tailscale.com/types/nettype"
 
 	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/audit"
@@ -244,12 +245,14 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.FilesRateLimit = -1
 	}
 	if options.StatsBatcher == nil {
-		batchStatsTicker := time.NewTicker(testutil.IntervalFast)
+		batchStatsTicker := time.NewTicker(time.Hour)
 		t.Cleanup(batchStatsTicker.Stop)
 		options.StatsBatcher, err = batchstats.New(
 			batchstats.WithStore(options.Database),
-			batchstats.WithBatchSize(batchstats.DefaultBatchSize),
-			batchstats.WithLogger(slogtest.Make(t, nil).Leveled(slog.LevelDebug)),
+			// Some tests rely on being able to read stats immediately after writing.
+			batchstats.WithBatchSize(1),
+			// Avoid cluttering up test output.
+			batchstats.WithLogger(slog.Make(sloghuman.Sink(io.Discard))),
 			batchstats.WithTicker(batchStatsTicker.C),
 		)
 		require.NoError(t, err, "create stats batcher")
