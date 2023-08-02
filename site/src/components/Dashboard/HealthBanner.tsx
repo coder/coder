@@ -12,9 +12,12 @@ export const HealthBanner = () => {
     queryFn: () => getHealth(),
   })
   const dashboard = useDashboard()
-  const isHealthy = healthStatus?.data.healthy
+  const hasHealthIssues = healthStatus && !healthStatus.data.healthy
 
-  if (dashboard.experiments.includes("deployment_health_page") && !isHealthy) {
+  if (
+    dashboard.experiments.includes("deployment_health_page") &&
+    hasHealthIssues
+  ) {
     return (
       <Alert
         severity="error"
