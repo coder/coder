@@ -23,32 +23,6 @@ const (
 	DefaultBatchSize = 1024
 )
 
-// batchInsertParams is a struct used to batch-insert stats.
-// It looks weird because of how we insert the data into the database
-// (using unnest).
-// Ideally we would just use COPY FROM but that isn't supported by
-// sqlc using lib/pq. At a later date we should consider switching to
-// pgx. See: https://docs.sqlc.dev/en/stable/guides/using-go-and-pgx.html
-type batchInsertParams struct {
-	IDs                          []uuid.UUID
-	CreatedAts                   []time.Time
-	UserIDs                      []uuid.UUID
-	WorkspaceIDs                 []uuid.UUID
-	TemplateIDs                  []uuid.UUID
-	AgentIDs                     []uuid.UUID
-	ConnectionsByProtos          []json.RawMessage
-	ConnectionCounts             []int64
-	RxPacketses                  []int64
-	RxByteses                    []int64
-	TxPacketses                  []int64
-	TxByteses                    []int64
-	SessionCountVSCodes          []int64
-	SessionCountJetBrainses      []int64
-	SessionCountReconnectingPTYs []int64
-	SessionCountSSHs             []int64
-	ConnectionMedianLatencyMSes  []float64
-}
-
 // Batcher holds a buffer of agent stats and periodically flushes them to
 // its configured store. It also updates the workspace's last used time.
 type Batcher struct {
@@ -56,7 +30,7 @@ type Batcher struct {
 	log   slog.Logger
 
 	mu        sync.RWMutex
-	buf       batchInsertParams
+	buf       database.InsertWorkspaceAgentStatsParams
 	batchSize int
 
 	// ticker is used to periodically flush the buffer.
@@ -128,24 +102,24 @@ func New(opts ...Option) (*Batcher, error) {
 		b.batchSize = DefaultBatchSize
 	}
 
-	b.buf = batchInsertParams{
-		IDs:                          make([]uuid.UUID, 0, b.batchSize),
-		CreatedAts:                   make([]time.Time, 0, b.batchSize),
-		UserIDs:                      make([]uuid.UUID, 0, b.batchSize),
-		WorkspaceIDs:                 make([]uuid.UUID, 0, b.batchSize),
-		TemplateIDs:                  make([]uuid.UUID, 0, b.batchSize),
-		AgentIDs:                     make([]uuid.UUID, 0, b.batchSize),
-		ConnectionsByProtos:          make([]json.RawMessage, 0, b.batchSize),
-		ConnectionCounts:             make([]int64, 0, b.batchSize),
-		RxPacketses:                  make([]int64, 0, b.batchSize),
-		RxByteses:                    make([]int64, 0, b.batchSize),
-		TxPacketses:                  make([]int64, 0, b.batchSize),
-		TxByteses:                    make([]int64, 0, b.batchSize),
-		SessionCountVSCodes:          make([]int64, 0, b.batchSize),
-		SessionCountJetBrainses:      make([]int64, 0, b.batchSize),
-		SessionCountReconnectingPTYs: make([]int64, 0, b.batchSize),
-		SessionCountSSHs:             make([]int64, 0, b.batchSize),
-		ConnectionMedianLatencyMSes:  make([]float64, 0, b.batchSize),
+	b.buf = database.InsertWorkspaceAgentStatsParams{
+		ID:                          make([]uuid.UUID, 0, b.batchSize),
+		CreatedAt:                   make([]time.Time, 0, b.batchSize),
+		UserID:                      make([]uuid.UUID, 0, b.batchSize),
+		WorkspaceID:                 make([]uuid.UUID, 0, b.batchSize),
+		TemplateID:                  make([]uuid.UUID, 0, b.batchSize),
+		AgentID:                     make([]uuid.UUID, 0, b.batchSize),
+		ConnectionsByProto:          make([]json.RawMessage, 0, b.batchSize),
+		ConnectionCount:             make([]int64, 0, b.batchSize),
+		RxPackets:                   make([]int64, 0, b.batchSize),
+		RxBytes:                     make([]int64, 0, b.batchSize),
+		TxPackets:                   make([]int64, 0, b.batchSize),
+		TxBytes:                     make([]int64, 0, b.batchSize),
+		SessionCountVSCode:          make([]int64, 0, b.batchSize),
+		SessionCountJetBrains:       make([]int64, 0, b.batchSize),
+		SessionCountReconnectingPTY: make([]int64, 0, b.batchSize),
+		SessionCountSSH:             make([]int64, 0, b.batchSize),
+		ConnectionMedianLatencyMS:   make([]float64, 0, b.batchSize),
 	}
 
 	return b, nil
@@ -177,26 +151,26 @@ func (b *Batcher) Add(
 		payload = json.RawMessage("{}")
 	}
 
-	b.buf.IDs = append(b.buf.IDs, uuid.New())
-	b.buf.AgentIDs = append(b.buf.AgentIDs, agentID)
-	b.buf.CreatedAts = append(b.buf.CreatedAts, now)
-	b.buf.UserIDs = append(b.buf.UserIDs, ws.OwnerID)
-	b.buf.WorkspaceIDs = append(b.buf.WorkspaceIDs, ws.ID)
-	b.buf.TemplateIDs = append(b.buf.TemplateIDs, ws.TemplateID)
-	b.buf.ConnectionsByProtos = append(b.buf.ConnectionsByProtos, payload)
-	b.buf.ConnectionCounts = append(b.buf.ConnectionCounts, st.ConnectionCount)
-	b.buf.RxPacketses = append(b.buf.RxPacketses, st.RxPackets)
-	b.buf.RxByteses = append(b.buf.RxByteses, st.RxBytes)
-	b.buf.TxPacketses = append(b.buf.TxPacketses, st.TxPackets)
-	b.buf.TxByteses = append(b.buf.TxByteses, st.TxBytes)
-	b.buf.SessionCountVSCodes = append(b.buf.SessionCountVSCodes, st.SessionCountVSCode)
-	b.buf.SessionCountJetBrainses = append(b.buf.SessionCountJetBrainses, st.SessionCountJetBrains)
-	b.buf.SessionCountReconnectingPTYs = append(b.buf.SessionCountReconnectingPTYs, st.SessionCountReconnectingPTY)
-	b.buf.SessionCountSSHs = append(b.buf.SessionCountSSHs, st.SessionCountSSH)
-	b.buf.ConnectionMedianLatencyMSes = append(b.buf.ConnectionMedianLatencyMSes, st.ConnectionMedianLatencyMS)
+	b.buf.ID = append(b.buf.ID, uuid.New())
+	b.buf.AgentID = append(b.buf.AgentID, agentID)
+	b.buf.CreatedAt = append(b.buf.CreatedAt, now)
+	b.buf.UserID = append(b.buf.UserID, ws.OwnerID)
+	b.buf.WorkspaceID = append(b.buf.WorkspaceID, ws.ID)
+	b.buf.TemplateID = append(b.buf.TemplateID, ws.TemplateID)
+	b.buf.ConnectionsByProto = append(b.buf.ConnectionsByProto, payload)
+	b.buf.ConnectionCount = append(b.buf.ConnectionCount, st.ConnectionCount)
+	b.buf.RxPackets = append(b.buf.RxPackets, st.RxPackets)
+	b.buf.RxBytes = append(b.buf.RxBytes, st.RxBytes)
+	b.buf.TxPackets = append(b.buf.TxPackets, st.TxPackets)
+	b.buf.TxBytes = append(b.buf.TxBytes, st.TxBytes)
+	b.buf.SessionCountVSCode = append(b.buf.SessionCountVSCode, st.SessionCountVSCode)
+	b.buf.SessionCountJetBrains = append(b.buf.SessionCountJetBrains, st.SessionCountJetBrains)
+	b.buf.SessionCountReconnectingPTY = append(b.buf.SessionCountReconnectingPTY, st.SessionCountReconnectingPTY)
+	b.buf.SessionCountSSH = append(b.buf.SessionCountSSH, st.SessionCountSSH)
+	b.buf.ConnectionMedianLatencyMS = append(b.buf.ConnectionMedianLatencyMS, st.ConnectionMedianLatencyMS)
 
 	// If the buffer is full, signal the flusher to flush immediately.
-	if len(b.buf.IDs) == cap(b.buf.IDs) {
+	if len(b.buf.ID) == cap(b.buf.ID) {
 		b.flushLever <- struct{}{}
 	}
 	return nil
@@ -228,56 +202,38 @@ func (b *Batcher) flush(ctx context.Context, forced bool, reason string) {
 	defer func() {
 		// Notify that a flush has completed.
 		if b.flushed != nil {
-			b.flushed <- forced
 			b.log.Debug(ctx, "notify flush")
+			b.flushed <- forced
 		}
 	}()
 
-	b.log.Debug(ctx, "flushing buffer", slog.F("count", len(b.buf.IDs)), slog.F("forced", forced))
-	if len(b.buf.IDs) == 0 {
+	if len(b.buf.ID) == 0 {
 		b.log.Debug(ctx, "nothing to flush")
 		return
 	}
+	b.log.Debug(ctx, "flushing buffer", slog.F("count", len(b.buf.ID)), slog.F("forced", forced))
 
-	if err := b.store.InsertWorkspaceAgentStats(ctx, database.InsertWorkspaceAgentStatsParams{
-		ID:                          b.buf.IDs,
-		CreatedAt:                   b.buf.CreatedAts,
-		UserID:                      b.buf.UserIDs,
-		WorkspaceID:                 b.buf.WorkspaceIDs,
-		TemplateID:                  b.buf.TemplateIDs,
-		AgentID:                     b.buf.AgentIDs,
-		ConnectionsByProto:          b.buf.ConnectionsByProtos,
-		ConnectionCount:             b.buf.ConnectionCounts,
-		RxPackets:                   b.buf.RxPacketses,
-		RxBytes:                     b.buf.RxByteses,
-		TxPackets:                   b.buf.TxPacketses,
-		TxBytes:                     b.buf.TxByteses,
-		SessionCountVSCode:          b.buf.SessionCountVSCodes,
-		SessionCountJetBrains:       b.buf.SessionCountJetBrainses,
-		SessionCountReconnectingPTY: b.buf.SessionCountReconnectingPTYs,
-		SessionCountSSH:             b.buf.SessionCountSSHs,
-		ConnectionMedianLatencyMS:   b.buf.ConnectionMedianLatencyMSes,
-	}); err != nil {
+	if err := b.store.InsertWorkspaceAgentStats(ctx, b.buf); err != nil {
 		b.log.Error(ctx, "insert workspace agent stats", slog.Error(err))
 	}
 
 	// Reset the buffer.
 	// b.buf = b.buf[:0]
-	b.buf.IDs = b.buf.IDs[:0]
-	b.buf.CreatedAts = b.buf.CreatedAts[:0]
-	b.buf.UserIDs = b.buf.UserIDs[:0]
-	b.buf.WorkspaceIDs = b.buf.WorkspaceIDs[:0]
-	b.buf.TemplateIDs = b.buf.TemplateIDs[:0]
-	b.buf.AgentIDs = b.buf.AgentIDs[:0]
-	b.buf.ConnectionsByProtos = b.buf.ConnectionsByProtos[:0]
-	b.buf.ConnectionCounts = b.buf.ConnectionCounts[:0]
-	b.buf.RxPacketses = b.buf.RxPacketses[:0]
-	b.buf.RxByteses = b.buf.RxByteses[:0]
-	b.buf.TxPacketses = b.buf.TxPacketses[:0]
-	b.buf.TxByteses = b.buf.TxByteses[:0]
-	b.buf.SessionCountVSCodes = b.buf.SessionCountVSCodes[:0]
-	b.buf.SessionCountJetBrainses = b.buf.SessionCountJetBrainses[:0]
-	b.buf.SessionCountReconnectingPTYs = b.buf.SessionCountReconnectingPTYs[:0]
-	b.buf.SessionCountSSHs = b.buf.SessionCountSSHs[:0]
-	b.buf.ConnectionMedianLatencyMSes = b.buf.ConnectionMedianLatencyMSes[:0]
+	b.buf.ID = b.buf.ID[:0]
+	b.buf.CreatedAt = b.buf.CreatedAt[:0]
+	b.buf.UserID = b.buf.UserID[:0]
+	b.buf.WorkspaceID = b.buf.WorkspaceID[:0]
+	b.buf.TemplateID = b.buf.TemplateID[:0]
+	b.buf.AgentID = b.buf.AgentID[:0]
+	b.buf.ConnectionsByProto = b.buf.ConnectionsByProto[:0]
+	b.buf.ConnectionCount = b.buf.ConnectionCount[:0]
+	b.buf.RxPackets = b.buf.RxPackets[:0]
+	b.buf.RxBytes = b.buf.RxBytes[:0]
+	b.buf.TxPackets = b.buf.TxPackets[:0]
+	b.buf.TxBytes = b.buf.TxBytes[:0]
+	b.buf.SessionCountVSCode = b.buf.SessionCountVSCode[:0]
+	b.buf.SessionCountJetBrains = b.buf.SessionCountJetBrains[:0]
+	b.buf.SessionCountReconnectingPTY = b.buf.SessionCountReconnectingPTY[:0]
+	b.buf.SessionCountSSH = b.buf.SessionCountSSH[:0]
+	b.buf.ConnectionMedianLatencyMS = b.buf.ConnectionMedianLatencyMS[:0]
 }
