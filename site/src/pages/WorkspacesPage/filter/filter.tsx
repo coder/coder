@@ -1,5 +1,6 @@
 import { FC } from "react"
 import Box from "@mui/material/Box"
+import { isWorkspaceActionsEnabled } from "components/Dashboard/DashboardProvider"
 import { Avatar, AvatarProps } from "components/Avatar/Avatar"
 import { Palette, PaletteColor } from "@mui/material/styles"
 import { TemplateFilterMenu, StatusFilterMenu } from "./menus"
@@ -28,10 +29,6 @@ const PRESET_FILTERS = [
     query: workspaceFilterQuery.failed,
     name: "Failed workspaces",
   },
-  {
-    query: workspaceFilterQuery.locked,
-    name: "Locked workspaces",
-  },
 ]
 
 export const WorkspacesFilter = ({
@@ -47,6 +44,14 @@ export const WorkspacesFilter = ({
     status: StatusFilterMenu
   }
 }) => {
+  let presets = PRESET_FILTERS
+  if (isWorkspaceActionsEnabled()) {
+    presets.push({
+      query: workspaceFilterQuery.locked,
+      name: "Locked workspaces",
+    })
+  }
+
   return (
     <Filter
       presets={PRESET_FILTERS}

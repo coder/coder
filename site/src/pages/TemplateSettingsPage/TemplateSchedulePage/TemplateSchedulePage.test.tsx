@@ -63,12 +63,12 @@ const fillAndSubmitForm = async ({
   await user.type(failureTtlField, failure_ttl_ms.toString())
 
   const inactivityTtlField = screen.getByRole("checkbox", {
-    name: /Inactivity Cleanup/i,
+    name: /Inactivity TTL/i,
   })
   await user.type(inactivityTtlField, inactivity_ttl_ms.toString())
 
   const lockedTtlField = screen.getByRole("checkbox", {
-    name: /Locked Cleanup/i,
+    name: /Locked TTL/i,
   })
   await user.type(lockedTtlField, locked_ttl_ms.toString())
 

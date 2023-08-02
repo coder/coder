@@ -1,6 +1,6 @@
 import { usePagination } from "hooks/usePagination"
 import { Workspace } from "api/typesGenerated"
-import { useDashboard } from "components/Dashboard/DashboardProvider"
+import { isWorkspaceActionsEnabled } from "components/Dashboard/DashboardProvider"
 import { FC, useEffect, useState } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "utils/page"
@@ -26,14 +26,11 @@ const WorkspacesPage: FC = () => {
     query: filterProps.filter.query,
   })
 
-  const { entitlements, experiments } = useDashboard()
-  const allowAdvancedScheduling =
-    entitlements.features["advanced_template_scheduling"].enabled
-  // This check can be removed when https://github.com/coder/coder/milestone/19
-  // is merged up
-  const allowWorkspaceActions = experiments.includes("workspace_actions")
-
-  if (allowWorkspaceActions && allowAdvancedScheduling) {
+  // If workspace actions are enabled we need to fetch the locked
+  // workspaces as well. This lets us determine whether we should
+  // show a banner to the user indicating that some of their workspaces
+  // are at risk of being deleted.
+  if (isWorkspaceActionsEnabled()) {
     const includesLocked = filterProps.filter.query.includes("locked_at")
     const lockedQuery = includesLocked
       ? filterProps.filter.query
