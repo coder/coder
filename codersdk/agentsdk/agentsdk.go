@@ -204,7 +204,7 @@ func (c *Client) DERPMapUpdates(ctx context.Context) (<-chan DERPMapUpdate, io.C
 		defer close(updates)
 		defer close(updatesClosed)
 		defer cancelFunc()
-		defer conn.Close(websocket.StatusGoingAway, "Listen closed")
+		defer conn.Close(websocket.StatusGoingAway, "DERPMapUpdates closed")
 		for {
 			var update DERPMapUpdate
 			err := dec.Decode(&update.DERPMap)
@@ -240,7 +240,7 @@ func (c *Client) DERPMapUpdates(ctx context.Context) (<-chan DERPMapUpdate, io.C
 		closeFunc: func() error {
 			cancelFunc()
 			<-pingClosed
-			_ = conn.Close(websocket.StatusGoingAway, "Listen closed")
+			_ = conn.Close(websocket.StatusGoingAway, "DERPMapUpdates closed")
 			<-updatesClosed
 			return nil
 		},
