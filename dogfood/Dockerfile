@@ -197,7 +197,8 @@ RUN apt-get update && \
 	google-chrome-stable microsoft-edge-beta && \
 	# Pre-install system dependencies that Playwright needs. npx doesn't work here
 	# for some reason. See https://github.com/microsoft/playwright-cli/issues/136
-	npm i -g playwright@1.19.1 && playwright install-deps
+	npm i -g playwright@1.19.1 pnpm@^8 && playwright install-deps &&
+	npm cache clean --force
 
 # Ensure PostgreSQL binaries are in the users $PATH.
 RUN update-alternatives --install /usr/local/bin/initdb initdb /usr/lib/postgresql/13/bin/initdb 100 && \
