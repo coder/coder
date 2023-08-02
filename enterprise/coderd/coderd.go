@@ -768,7 +768,7 @@ func derpMapper(logger slog.Logger, cfg *codersdk.DeploymentValues, proxyHealth 
 				EmbeddedRelay: false,
 				RegionID:      regionID,
 				RegionCode:    regionCode,
-				RegionName:    status.Proxy.Name,
+				RegionName:    status.Proxy.DisplayName,
 				Nodes:         nodes,
 			}
 		}
