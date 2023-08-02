@@ -2848,7 +2848,7 @@ func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, a
 
 const getWorkspaceProxies = `-- name: GetWorkspaceProxies :many
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only
 FROM
 	workspace_proxies
 WHERE
@@ -2877,6 +2877,7 @@ func (q *sqlQuerier) GetWorkspaceProxies(ctx context.Context) ([]WorkspaceProxy,
 			&i.TokenHashedSecret,
 			&i.RegionID,
 			&i.DerpEnabled,
+			&i.DerpOnly,
 		); err != nil {
 			return nil, err
 		}
@@ -2893,7 +2894,7 @@ func (q *sqlQuerier) GetWorkspaceProxies(ctx context.Context) ([]WorkspaceProxy,
 
 const getWorkspaceProxyByHostname = `-- name: GetWorkspaceProxyByHostname :one
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only
 FROM
 	workspace_proxies
 WHERE
@@ -2951,13 +2952,14 @@ func (q *sqlQuerier) GetWorkspaceProxyByHostname(ctx context.Context, arg GetWor
 		&i.TokenHashedSecret,
 		&i.RegionID,
 		&i.DerpEnabled,
+		&i.DerpOnly,
 	)
 	return i, err
 }
 
 const getWorkspaceProxyByID = `-- name: GetWorkspaceProxyByID :one
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only
 FROM
 	workspace_proxies
 WHERE
@@ -2982,13 +2984,14 @@ func (q *sqlQuerier) GetWorkspaceProxyByID(ctx context.Context, id uuid.UUID) (W
 		&i.TokenHashedSecret,
 		&i.RegionID,
 		&i.DerpEnabled,
+		&i.DerpOnly,
 	)
 	return i, err
 }
 
 const getWorkspaceProxyByName = `-- name: GetWorkspaceProxyByName :one
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only
 FROM
 	workspace_proxies
 WHERE
@@ -3014,6 +3017,7 @@ func (q *sqlQuerier) GetWorkspaceProxyByName(ctx context.Context, name string) (
 		&i.TokenHashedSecret,
 		&i.RegionID,
 		&i.DerpEnabled,
+		&i.DerpOnly,
 	)
 	return i, err
 }
@@ -3028,13 +3032,14 @@ INSERT INTO
 		display_name,
 		icon,
 		derp_enabled,
+		derp_only,
 		token_hashed_secret,
 		created_at,
 		updated_at,
 		deleted
 	)
 VALUES
-	($1, '', '', $2, $3, $4, $5, $6, $7, $8, false) RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
+	($1, '', '', $2, $3, $4, $5, $6, $7, $8, $9, false) RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only
 `
 
 type InsertWorkspaceProxyParams struct {
@@ -3043,6 +3048,7 @@ type InsertWorkspaceProxyParams struct {
 	DisplayName       string    `db:"display_name" json:"display_name"`
 	Icon              string    `db:"icon" json:"icon"`
 	DerpEnabled       bool      `db:"derp_enabled" json:"derp_enabled"`
+	DerpOnly          bool      `db:"derp_only" json:"derp_only"`
 	TokenHashedSecret []byte    `db:"token_hashed_secret" json:"token_hashed_secret"`
 	CreatedAt         time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt         time.Time `db:"updated_at" json:"updated_at"`
@@ -3055,6 +3061,7 @@ func (q *sqlQuerier) InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspa
 		arg.DisplayName,
 		arg.Icon,
 		arg.DerpEnabled,
+		arg.DerpOnly,
 		arg.TokenHashedSecret,
 		arg.CreatedAt,
 		arg.UpdatedAt,
@@ -3073,6 +3080,7 @@ func (q *sqlQuerier) InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspa
 		&i.TokenHashedSecret,
 		&i.RegionID,
 		&i.DerpEnabled,
+		&i.DerpOnly,
 	)
 	return i, err
 }
@@ -3084,16 +3092,18 @@ SET
 	url = $1 :: text,
 	wildcard_hostname = $2 :: text,
 	derp_enabled = $3 :: boolean,
+	derp_only = $4 :: boolean,
 	updated_at = Now()
 WHERE
-	id = $4
-RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
+	id = $5
+RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only
 `
 
 type RegisterWorkspaceProxyParams struct {
 	Url              string    `db:"url" json:"url"`
 	WildcardHostname string    `db:"wildcard_hostname" json:"wildcard_hostname"`
 	DerpEnabled      bool      `db:"derp_enabled" json:"derp_enabled"`
+	DerpOnly         bool      `db:"derp_only" json:"derp_only"`
 	ID               uuid.UUID `db:"id" json:"id"`
 }
 
@@ -3102,6 +3112,7 @@ func (q *sqlQuerier) RegisterWorkspaceProxy(ctx context.Context, arg RegisterWor
 		arg.Url,
 		arg.WildcardHostname,
 		arg.DerpEnabled,
+		arg.DerpOnly,
 		arg.ID,
 	)
 	var i WorkspaceProxy
@@ -3118,6 +3129,7 @@ func (q *sqlQuerier) RegisterWorkspaceProxy(ctx context.Context, arg RegisterWor
 		&i.TokenHashedSecret,
 		&i.RegionID,
 		&i.DerpEnabled,
+		&i.DerpOnly,
 	)
 	return i, err
 }
@@ -3140,7 +3152,7 @@ SET
 	updated_at = Now()
 WHERE
 	id = $5
-RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
+RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled, derp_only
 `
 
 type UpdateWorkspaceProxyParams struct {
@@ -3174,6 +3186,7 @@ func (q *sqlQuerier) UpdateWorkspaceProxy(ctx context.Context, arg UpdateWorkspa
 		&i.TokenHashedSecret,
 		&i.RegionID,
 		&i.DerpEnabled,
+		&i.DerpOnly,
 	)
 	return i, err
 }

@@ -63,8 +63,8 @@ func (api *API) fetchRegions(ctx context.Context) (codersdk.RegionsResponse[code
 
 	regions := make([]codersdk.Region, 0, len(proxies.Regions))
 	for i := range proxies.Regions {
-		// Ignore deleted proxies.
-		if proxies.Regions[i].Deleted {
+		// Ignore deleted and DERP-only proxies.
+		if proxies.Regions[i].Deleted || proxies.Regions[i].DerpOnly {
 			continue
 		}
 		// Append the inner region data.
@@ -353,8 +353,10 @@ func (api *API) postWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 		// Enabled by default, but will be disabled on register if the proxy has
 		// it disabled.
 		DerpEnabled: true,
-		CreatedAt:   database.Now(),
-		UpdatedAt:   database.Now(),
+		// Disabled by default, but blah blah blah.
+		DerpOnly:  false,
+		CreatedAt: database.Now(),
+		UpdatedAt: database.Now(),
 	})
 	if database.IsUniqueViolation(err, database.UniqueWorkspaceProxiesLowerNameIndex) {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
@@ -569,6 +571,13 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	if req.DerpOnly && !req.DerpEnabled {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "DerpOnly cannot be true when DerpEnabled is false.",
+		})
+		return
+	}
+
 	startingRegionID, _ := getProxyDERPStartingRegionID(api.Options.BaseDERPMap)
 	regionID := int32(startingRegionID) + proxy.RegionID
 
@@ -578,6 +587,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 			ID:               proxy.ID,
 			Url:              req.AccessURL,
 			DerpEnabled:      req.DerpEnabled,
+			DerpOnly:         req.DerpOnly,
 			WildcardHostname: req.WildcardHostname,
 		})
 		if err != nil {
@@ -899,6 +909,7 @@ func convertProxy(p database.WorkspaceProxy, status proxyhealth.ProxyStatus) cod
 	return codersdk.WorkspaceProxy{
 		Region:      convertRegion(p, status),
 		DerpEnabled: p.DerpEnabled,
+		DerpOnly:    p.DerpOnly,
 		CreatedAt:   p.CreatedAt,
 		UpdatedAt:   p.UpdatedAt,
 		Deleted:     p.Deleted,
