@@ -2677,6 +2677,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `single_tailnet`               |
 | `template_restart_requirement` |
 | `template_insights_page`       |
+| `deployment_health_page`       |
 
 ## codersdk.Feature
 
