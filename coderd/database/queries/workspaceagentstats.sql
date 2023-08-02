@@ -32,7 +32,7 @@ SELECT
 	unnest(@workspace_id :: uuid[]) AS workspace_id,
 	unnest(@template_id :: uuid[]) AS template_id,
 	unnest(@agent_id :: uuid[]) AS agent_id,
-	unnest(@connections_by_proto :: jsonb[]) AS connections_by_proto,
+	jsonb_array_elements(@connections_by_proto :: jsonb) AS connections_by_proto,
 	unnest(@connection_count :: bigint[]) AS connection_count,
 	unnest(@rx_packets :: bigint[]) AS rx_packets,
 	unnest(@rx_bytes :: bigint[]) AS rx_bytes,

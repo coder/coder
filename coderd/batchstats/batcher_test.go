@@ -107,6 +107,17 @@ func TestBatchStats(t *testing.T) {
 	stats, err = store.GetWorkspaceAgentStats(ctx, t3)
 	require.NoError(t, err, "should not error getting stats")
 	require.Len(t, stats, 2, "should have stats for both workspaces")
+
+	// Ensure that a subsequent flush does not push stale data.
+	t4 := time.Now()
+	tick <- t4
+	f = <-flushed
+	require.False(t, f, "flush should not have been forced")
+	t.Logf("flush 4 completed")
+
+	stats, err = store.GetWorkspaceAgentStats(ctx, t4)
+	require.NoError(t, err, "should not error getting stats")
+	require.Len(t, stats, 0, "should have no stats for workspace")
 }
 
 // randAgentSDKStats returns a random agentsdk.Stats

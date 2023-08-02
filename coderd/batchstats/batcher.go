@@ -29,9 +29,12 @@ type Batcher struct {
 	store database.Store
 	log   slog.Logger
 
-	mu        sync.RWMutex
-	buf       database.InsertWorkspaceAgentStatsParams
-	batchSize int
+	mu  sync.RWMutex
+	buf database.InsertWorkspaceAgentStatsParams
+	// NOTE: we batch this separately as it's a jsonb field and
+	// pq.Array + unnest doesn't play nicely with this.
+	connectionsByProto []map[string]int64
+	batchSize          int
 
 	// ticker is used to periodically flush the buffer.
 	ticker <-chan time.Time
@@ -102,6 +105,7 @@ func New(opts ...Option) (*Batcher, error) {
 		b.batchSize = DefaultBatchSize
 	}
 
+	b.connectionsByProto = make([]map[string]int64, 0, b.batchSize)
 	b.buf = database.InsertWorkspaceAgentStatsParams{
 		ID:                          make([]uuid.UUID, 0, b.batchSize),
 		CreatedAt:                   make([]time.Time, 0, b.batchSize),
@@ -109,7 +113,7 @@ func New(opts ...Option) (*Batcher, error) {
 		WorkspaceID:                 make([]uuid.UUID, 0, b.batchSize),
 		TemplateID:                  make([]uuid.UUID, 0, b.batchSize),
 		AgentID:                     make([]uuid.UUID, 0, b.batchSize),
-		ConnectionsByProto:          make([]json.RawMessage, 0, b.batchSize),
+		ConnectionsByProto:          json.RawMessage("[]"),
 		ConnectionCount:             make([]int64, 0, b.batchSize),
 		RxPackets:                   make([]int64, 0, b.batchSize),
 		RxBytes:                     make([]int64, 0, b.batchSize),
@@ -142,14 +146,8 @@ func (b *Batcher) Add(
 	if err != nil {
 		return xerrors.Errorf("get workspace by agent id: %w", err)
 	}
-	payload, err := json.Marshal(st.ConnectionsByProto)
-	if err != nil {
-		b.log.Error(ctx, "marshal agent connections by proto",
-			slog.F("workspace_agent_id", agentID),
-			slog.Error(err),
-		)
-		payload = json.RawMessage("{}")
-	}
+
+	b.connectionsByProto = append(b.connectionsByProto, st.ConnectionsByProto)
 
 	b.buf.ID = append(b.buf.ID, uuid.New())
 	b.buf.AgentID = append(b.buf.AgentID, agentID)
@@ -157,7 +155,8 @@ func (b *Batcher) Add(
 	b.buf.UserID = append(b.buf.UserID, ws.OwnerID)
 	b.buf.WorkspaceID = append(b.buf.WorkspaceID, ws.ID)
 	b.buf.TemplateID = append(b.buf.TemplateID, ws.TemplateID)
-	b.buf.ConnectionsByProto = append(b.buf.ConnectionsByProto, payload)
+	// We explicitly do *not* do this.
+	// b.buf.ConnectionsByProto = append(b.buf.ConnectionsByProto, st.ConnectionsByProto)
 	b.buf.ConnectionCount = append(b.buf.ConnectionCount, st.ConnectionCount)
 	b.buf.RxPackets = append(b.buf.RxPackets, st.RxPackets)
 	b.buf.RxBytes = append(b.buf.RxBytes, st.RxBytes)
@@ -196,36 +195,55 @@ func (b *Batcher) Run(ctx context.Context) {
 
 // flush flushes the batcher's buffer.
 func (b *Batcher) flush(ctx context.Context, forced bool, reason string) {
-	// TODO(Cian): After flushing, should we somehow reset the ticker?
 	b.mu.Lock()
-	defer b.mu.Unlock()
+	start := time.Now()
 	defer func() {
+		b.mu.Unlock()
 		// Notify that a flush has completed.
 		if b.flushed != nil {
 			b.log.Debug(ctx, "notify flush")
 			b.flushed <- forced
 		}
+		elapsed := time.Since(start)
+		b.log.Debug(ctx, "flush complete",
+			slog.F("count", len(b.buf.ID)),
+			slog.F("elapsed", elapsed),
+			slog.F("reason", reason),
+		)
 	}()
 
 	if len(b.buf.ID) == 0 {
 		b.log.Debug(ctx, "nothing to flush")
 		return
 	}
-	b.log.Debug(ctx, "flushing buffer", slog.F("count", len(b.buf.ID)), slog.F("forced", forced))
+	b.log.Debug(ctx, "flushing buffer", slog.F("count", len(b.buf.ID)), slog.F("forced", forced), slog.F("reason", reason))
 
-	if err := b.store.InsertWorkspaceAgentStats(ctx, b.buf); err != nil {
-		b.log.Error(ctx, "insert workspace agent stats", slog.Error(err))
+	// marshal connections by proto
+	payload, err := json.Marshal(b.connectionsByProto)
+	if err != nil {
+		b.log.Error(ctx, "unable to marshal agent connections by proto, dropping data", slog.Error(err))
+		b.buf.ConnectionsByProto = json.RawMessage(`[]`)
+	} else {
+		b.buf.ConnectionsByProto = payload
+	}
+
+	err = b.store.InsertWorkspaceAgentStats(ctx, b.buf)
+	elapsed := time.Since(start)
+	if err != nil {
+		b.log.Error(ctx, "error inserting workspace agent stats", slog.Error(err), slog.F("elapsed", elapsed))
+		return
 	}
 
 	// Reset the buffer.
-	// b.buf = b.buf[:0]
+	b.connectionsByProto = b.connectionsByProto[:0]
+
 	b.buf.ID = b.buf.ID[:0]
 	b.buf.CreatedAt = b.buf.CreatedAt[:0]
 	b.buf.UserID = b.buf.UserID[:0]
 	b.buf.WorkspaceID = b.buf.WorkspaceID[:0]
 	b.buf.TemplateID = b.buf.TemplateID[:0]
 	b.buf.AgentID = b.buf.AgentID[:0]
-	b.buf.ConnectionsByProto = b.buf.ConnectionsByProto[:0]
+	b.buf.ConnectionsByProto = json.RawMessage(`[]`)
 	b.buf.ConnectionCount = b.buf.ConnectionCount[:0]
 	b.buf.RxPackets = b.buf.RxPackets[:0]
 	b.buf.RxBytes = b.buf.RxBytes[:0]
