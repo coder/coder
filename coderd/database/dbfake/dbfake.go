@@ -3862,7 +3862,7 @@ func (q *FakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 		CreatedAt:      arg.CreatedAt,
 		UpdatedAt:      arg.UpdatedAt,
 		Username:       arg.Username,
-		Status:         database.UserStatusActive,
+		Status:         database.UserStatusDormant,
 		RBACRoles:      arg.RBACRoles,
 		LoginType:      arg.LoginType,
 	}
@@ -4164,6 +4164,7 @@ func (q *FakeQuerier) InsertWorkspaceProxy(_ context.Context, arg database.Inser
 		DisplayName:       arg.DisplayName,
 		Icon:              arg.Icon,
 		DerpEnabled:       arg.DerpEnabled,
+		DerpOnly:          arg.DerpOnly,
 		TokenHashedSecret: arg.TokenHashedSecret,
 		RegionID:          lastRegionID + 1,
 		CreatedAt:         arg.CreatedAt,
@@ -4238,6 +4239,7 @@ func (q *FakeQuerier) RegisterWorkspaceProxy(_ context.Context, arg database.Reg
 			p.Url = arg.Url
 			p.WildcardHostname = arg.WildcardHostname
 			p.DerpEnabled = arg.DerpEnabled
+			p.DerpOnly = arg.DerpOnly
 			p.UpdatedAt = database.Now()
 			q.workspaceProxies[i] = p
 			return p, nil
@@ -4335,6 +4337,29 @@ func (q *FakeQuerier) UpdateGroupByID(_ context.Context, arg database.UpdateGrou
 		}
 	}
 	return database.Group{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateInactiveUsersToDormant(_ context.Context, params database.UpdateInactiveUsersToDormantParams) ([]database.UpdateInactiveUsersToDormantRow, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	var updated []database.UpdateInactiveUsersToDormantRow
+	for index, user := range q.users {
+		if user.Status == database.UserStatusActive && user.LastSeenAt.Before(params.LastSeenAfter) {
+			q.users[index].Status = database.UserStatusDormant
+			q.users[index].UpdatedAt = params.UpdatedAt
+			updated = append(updated, database.UpdateInactiveUsersToDormantRow{
+				ID:         user.ID,
+				Email:      user.Email,
+				LastSeenAt: user.LastSeenAt,
+			})
+		}
+	}
+
+	if len(updated) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return updated, nil
 }
 
 func (q *FakeQuerier) UpdateMemberRoles(_ context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {

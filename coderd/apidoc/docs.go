@@ -10227,10 +10227,12 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "active",
+                "dormant",
                 "suspended"
             ],
             "x-enum-varnames": [
                 "UserStatusActive",
+                "UserStatusDormant",
                 "UserStatusSuspended"
             ]
         },
@@ -10922,6 +10924,9 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "derp_enabled": {
+                    "type": "boolean"
+                },
+                "derp_only": {
                     "type": "boolean"
                 },
                 "display_name": {
@@ -11650,6 +11655,10 @@ const docTemplate = `{
                 },
                 "derp_enabled": {
                     "description": "DerpEnabled indicates whether the proxy should be included in the DERP\nmap or not.",
+                    "type": "boolean"
+                },
+                "derp_only": {
+                    "description": "DerpOnly indicates whether the proxy should only be included in the DERP\nmap and should not be used for serving apps.",
                     "type": "boolean"
                 },
                 "hostname": {

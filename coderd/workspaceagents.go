@@ -8,6 +8,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/netip"
@@ -850,6 +851,36 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 	}
 	nconn := websocket.NetConn(ctx, ws, websocket.MessageBinary)
 	defer nconn.Close()
+
+	// Slurp all packets from the connection into io.Discard so pongs get sent
+	// by the websocket package.
+	go func() {
+		_, _ = io.Copy(io.Discard, nconn)
+	}()
+
+	go func(ctx context.Context) {
+		// TODO(mafredri): Is this too frequent? Use separate ping disconnect timeout?
+		t := time.NewTicker(api.AgentConnectionUpdateFrequency)
+		defer t.Stop()
+
+		for {
+			select {
+			case <-t.C:
+			case <-ctx.Done():
+				return
+			}
+
+			// We don't need a context that times out here because the ping will
+			// eventually go through. If the context times out, then other
+			// websocket read operations will receive an error, obfuscating the
+			// actual problem.
+			err := ws.Ping(ctx)
+			if err != nil {
+				_ = ws.Close(websocket.StatusInternalError, err.Error())
+				return
+			}
+		}
+	}(ctx)
 
 	ticker := time.NewTicker(api.Options.DERPMapUpdateFrequency)
 	defer ticker.Stop()

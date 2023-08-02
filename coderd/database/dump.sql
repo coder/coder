@@ -113,8 +113,11 @@ CREATE TYPE startup_script_behavior AS ENUM (
 
 CREATE TYPE user_status AS ENUM (
     'active',
-    'suspended'
+    'suspended',
+    'dormant'
 );
+
+COMMENT ON TYPE user_status IS 'Defines the user status: active, dormant, or suspended.';
 
 CREATE TYPE workspace_agent_lifecycle_state AS ENUM (
     'created',
@@ -561,7 +564,7 @@ CREATE TABLE users (
     hashed_password bytea NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    status user_status DEFAULT 'active'::user_status NOT NULL,
+    status user_status DEFAULT 'dormant'::user_status NOT NULL,
     rbac_roles text[] DEFAULT '{}'::text[] NOT NULL,
     login_type login_type DEFAULT 'password'::login_type NOT NULL,
     avatar_url text,
@@ -875,7 +878,8 @@ CREATE TABLE workspace_proxies (
     deleted boolean NOT NULL,
     token_hashed_secret bytea NOT NULL,
     region_id integer NOT NULL,
-    derp_enabled boolean DEFAULT true NOT NULL
+    derp_enabled boolean DEFAULT true NOT NULL,
+    derp_only boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON COLUMN workspace_proxies.icon IS 'Expects an emoji character. (/emojis/1f1fa-1f1f8.png)';
@@ -887,6 +891,8 @@ COMMENT ON COLUMN workspace_proxies.wildcard_hostname IS 'Hostname with the wild
 COMMENT ON COLUMN workspace_proxies.deleted IS 'Boolean indicator of a deleted workspace proxy. Proxies are soft-deleted.';
 
 COMMENT ON COLUMN workspace_proxies.token_hashed_secret IS 'Hashed secret is used to authenticate the workspace proxy using a session token.';
+
+COMMENT ON COLUMN workspace_proxies.derp_only IS 'Disables app/terminal proxying for this proxy and only acts as a DERP relay.';
 
 CREATE SEQUENCE workspace_proxies_region_id_seq
     AS integer
