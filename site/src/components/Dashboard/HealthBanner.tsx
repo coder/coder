@@ -25,13 +25,13 @@ export const HealthBanner = () => {
           backgroundColor: colors.red[10],
         }}
       >
-        We detected issues with your Coder deployment. Please,{" "}
+        We have detected problems with your Coder deployment. Please{" "}
         <Link
           component={RouterLink}
           to="/health"
           sx={{ fontWeight: 600, color: "inherit" }}
         >
-          check the health status
+          inspect the health status
         </Link>
         .
       </Alert>

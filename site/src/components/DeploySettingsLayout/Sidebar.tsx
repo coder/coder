@@ -99,7 +99,7 @@ export const Sidebar: React.FC = () => {
           href="/health"
           icon={<SidebarNavItemIcon icon={MonitorHeartOutlined} />}
         >
-          Health checks
+          Health
         </SidebarNavItem>
       )}
     </nav>
