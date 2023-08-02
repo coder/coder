@@ -754,7 +754,7 @@ jobs:
           make -j build/coder_linux_amd64
           ./scripts/build_docker.sh \
             --arch amd64 \
-            --target ghcr.io/coder/coder:edge \
+            --target ghcr.io/coder/coder-preview:main \
             --version $version \
             --push \
             build/coder_linux_amd64
