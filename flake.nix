@@ -49,7 +49,7 @@
             terraform
             typos
             yarn
-            pnpm
+            nodePackages.pnpm
             yq
             zip
             zstd
