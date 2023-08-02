@@ -2274,5 +2274,5 @@ export const MockHealth = {
     latency: 92570,
     error: null,
   },
-  coder_version: "v0.27.1-devel+c575292ba",
+  coder_version: "v0.27.1-devel+c575292",
 }
