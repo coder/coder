@@ -226,18 +226,6 @@ jobs:
           cache: false
           go-version: 1.20.6
 
-      - name: Install prettier
-        # We only need prettier for fmt, so do not install all dependencies.
-        # There is no way to install a single package with yarn, so we have to
-        # make a new package.json with only prettier listed as a dependency.
-        # Then running `yarn` will only install prettier.
-        run: |
-          cd site
-          mv package.json package.json.bak
-          jq '{dependencies: {prettier: .devDependencies.prettier}}' < package.json.bak > package.json
-          yarn --frozen-lockfile
-          mv package.json.bak package.json
-
       - name: Install shfmt
         run: go install mvdan.cc/sh/v3/cmd/shfmt@v3.5.0
 
@@ -508,7 +496,7 @@ jobs:
       - name: Setup Node
         uses: ./.github/actions/setup-node
 
-      - run: yarn test:ci --max-workers $(nproc)
+      - run: pnpm test:ci --max-workers $(nproc)
         working-directory: site
 
       - name: Check code coverage
@@ -546,13 +534,12 @@ jobs:
 
       - name: Build
         run: |
-          sudo npm install -g prettier
           make -B site/out/index.html
 
-      - run: yarn playwright:install
+      - run: pnpm playwright:install
         working-directory: site
 
-      - run: yarn playwright:test
+      - run: pnpm playwright:test
         env:
           DEBUG: pw:api
         working-directory: site
@@ -657,28 +644,19 @@ jobs:
         with:
           sqlc-version: "1.19.1"
 
-      - name: Install dependencies
-        run: |
-          cd offlinedocs
-          yarn
-          # Install prettier globally
-          prettier_version=$(jq -r '.devDependencies.prettier' < package.json)
-          yarn global add "prettier@${prettier_version}"
-
       - name: Format
         run: |
           cd offlinedocs
-          yarn format:check
+          pnpm format:check
 
       - name: Lint
         run: |
           cd offlinedocs
-          yarn lint
+          pnpm lint
 
       - name: Build
         run: |
-          version="$(./scripts/version.sh)"
-          make -j build/coder_docs_"$version".tgz
+          make -j build/coder_docs_"$(./scripts/version.sh)".tgz
 
   required:
     runs-on: ubuntu-latest
