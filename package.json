@@ -1,0 +1,9 @@
+{
+  "scripts": {
+    "format:types": "pnpm exec prettier --cache --write 'src/api/typesGenerated.ts'",
+    "format:write:only": "pnpm exec prettier --write"
+  },
+  "devDependencies": {
+    "prettier": "^3.0.0"
+  }
+}
