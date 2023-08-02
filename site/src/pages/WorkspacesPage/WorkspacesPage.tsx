@@ -54,7 +54,7 @@ const WorkspacesPage: FC = () => {
       // like locked workspaces don't exist.
       setLockedWorkspaces([])
     }
-  }, [experimentEnabled])
+  }, [experimentEnabled, data, filterProps.filter.query])
 
   const updateWorkspace = useWorkspaceUpdate(queryKey)
 

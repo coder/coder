@@ -36,11 +36,11 @@ export const LockedWorkspaceBanner = ({
   )
 
   if (
-    (!hasLockedWorkspaces ||
-      // Banners should be redisplayed after dismissal when additional workspaces are newly scheduled for deletion
-      !shouldRedisplayBanner) &&
     // Only show this if the experiment is included.
-    experimentEnabled
+    !experimentEnabled ||
+    !hasLockedWorkspaces ||
+    // Banners should be redisplayed after dismissal when additional workspaces are newly scheduled for deletion
+    !shouldRedisplayBanner
   ) {
     return null
   }
