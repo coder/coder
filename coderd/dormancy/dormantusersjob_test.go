@@ -76,6 +76,8 @@ func TestCheckInactiveUsers(t *testing.T) {
 }
 
 func setupUser(ctx context.Context, t *testing.T, db database.Store, email string, lastSeenAt time.Time) database.User {
+	t.Helper()
+
 	user, err := db.InsertUser(ctx, database.InsertUserParams{ID: uuid.New(), LoginType: database.LoginTypePassword, Username: namesgenerator.GetRandomName(8), Email: email})
 	require.NoError(t, err)
 	// At the beginning of the test all users are marked as active
