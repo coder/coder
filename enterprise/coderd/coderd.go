@@ -706,6 +706,10 @@ func derpMapper(logger slog.Logger, cfg *codersdk.DeploymentValues, proxyHealth 
 			// existing ID in the DERP map.
 			regionID := int(startingRegionID) + int(status.Proxy.RegionID)
 			regionCode := fmt.Sprintf("coder_%s", strings.ToLower(status.Proxy.Name))
+			regionName := status.Proxy.DisplayName
+			if regionName == "" {
+				regionName = status.Proxy.Name
+			}
 			for _, r := range derpMap.Regions {
 				if r.RegionID == regionID || r.RegionCode == regionCode {
 					// Log a warning if we haven't logged one in the last
@@ -768,7 +772,7 @@ func derpMapper(logger slog.Logger, cfg *codersdk.DeploymentValues, proxyHealth 
 				EmbeddedRelay: false,
 				RegionID:      regionID,
 				RegionCode:    regionCode,
-				RegionName:    status.Proxy.Name,
+				RegionName:    regionName,
 				Nodes:         nodes,
 			}
 		}
