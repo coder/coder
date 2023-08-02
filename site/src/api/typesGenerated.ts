@@ -1563,6 +1563,7 @@ export const Entitlements: Entitlement[] = [
 
 // From codersdk/deployment.go
 export type Experiment =
+  | "deployment_health_page"
   | "moons"
   | "single_tailnet"
   | "tailnet_pg_coordinator"
@@ -1570,6 +1571,7 @@ export type Experiment =
   | "template_restart_requirement"
   | "workspace_actions"
 export const Experiments: Experiment[] = [
+  "deployment_health_page",
   "moons",
   "single_tailnet",
   "tailnet_pg_coordinator",

@@ -32,6 +32,7 @@
             kubernetes-helm
             mockgen
             nfpm
+            nodePackages.pnpm
             nodePackages.typescript
             nodePackages.typescript-language-server
             nodejs
@@ -39,8 +40,8 @@
             openssl
             pango
             pixman
-            postgresql
             pkg-config
+            postgresql
             protoc-gen-go
             ripgrep
             shellcheck
@@ -48,7 +49,6 @@
             sqlc
             terraform
             typos
-            yarn
             yq
             zip
             zstd
