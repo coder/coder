@@ -6,7 +6,7 @@
   "license": "AGPL-3.0",
   "scripts": {
     "postinstall": "yarn typegen",
-    "build": "NODE_ENV=production yarn vite build",
+    "build": "NODE_ENV=production NODE_OPTIONS=--max-old-space-size=8192 yarn vite build",
     "check:all": "yarn format:check && yarn lint && yarn test",
     "chromatic": "chromatic",
     "dev": "vite",
