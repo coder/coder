@@ -31,6 +31,7 @@ export default function HealthPage() {
   const { data: healthStatus } = useQuery({
     queryKey: ["health"],
     queryFn: () => getHealth(),
+    refetchInterval: 10_000,
   })
 
   return (
