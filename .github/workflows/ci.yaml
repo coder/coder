@@ -638,8 +638,7 @@ jobs:
 
       - name: Build
         run: |
-          version="$(./scripts/version.sh)"
-          make -j build/coder_docs_"$version".tgz
+          make -j build/coder_docs_"$(./scripts/version.sh)".tgz
 
   required:
     runs-on: ubuntu-latest
