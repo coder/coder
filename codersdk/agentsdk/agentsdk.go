@@ -212,15 +212,22 @@ func (c *Client) DERPMapUpdates(ctx context.Context) (<-chan DERPMapUpdate, io.C
 				update.Err = err
 				update.DERPMap = nil
 			}
-			err = c.rewriteDerpMap(update.DERPMap)
-			if err != nil {
-				update.Err = err
-				update.DERPMap = nil
+			if update.DERPMap != nil {
+				err = c.rewriteDerpMap(update.DERPMap)
+				if err != nil {
+					update.Err = err
+					update.DERPMap = nil
+				}
 			}
 
 			select {
 			case updates <- update:
 			case <-ctx.Done():
+				// Unblock the caller if they're waiting for an update.
+				select {
+				case updates <- DERPMapUpdate{Err: ctx.Err()}:
+				default:
+				}
 				return
 			}
 			if update.Err != nil {
