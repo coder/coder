@@ -28,5 +28,5 @@ extend-exclude = [
 	"scripts/ci-report/testdata/**",
 	"**/*_test.go",
 	"**/*.test.tsx",
-	"site/testHelpers/**/*.ts",
+	"site/testHelpers/*.ts",
 ]
