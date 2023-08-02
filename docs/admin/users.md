@@ -37,9 +37,7 @@ and can utilize all of its features and functionalities without any limitations.
 
 ### Dormant user
 
-A user account is set to _dormant_ status when the user has not yet logged in, or has not logged into the Coder platform for the past 90 days.
-
-This status is typically used to signify that the user account has been created but user has not taken any actions within the platform. Once the user logs in to Coder, the account status will switch to _active_.
+A user account is set to _dormant_ status when they have not yet logged in, or have not logged into the Coder platform for the past 90 days. Once the user logs in to the platform, the account status will switch to _active_.
 
 Dormant accounts do not count towards the total number of licensed seats in a Coder subscription, allowing organizations to optimize their license usage.
 
