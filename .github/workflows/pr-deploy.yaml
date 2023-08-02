@@ -234,9 +234,8 @@ jobs:
           if [[ ${{ github.event_name }} == "workflow_dispatch" ]]; then
             experiments=${{ github.event.inputs.experiments }}
           else
-            comment_body=${{ github.event.comment.body }}
             # extract experiments part
-            extracted_experiments=$(echo "$comment_body" | grep -oP '(?<=--experiments )[^ ]+')
+            extracted_experiments=$(echo "$COMMENT_BODY" | grep -oP '(?<=--experiments )[^ ]+')
             # Validate that the experiments is a comma-separated list of alphanumeric strings, "*", or "-"
             if [[ $extracted_experiments =~ ^[a-zA-Z0-9_*,\"-]+$ ]]; then
               experiments=$extracted_experiments
@@ -246,7 +245,8 @@ jobs:
             fi
           fi
           echo "experiments=$experiments" >> $GITHUB_OUTPUT
-
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body || ''}}
       - name: Create values.yaml
         run: |
           cat <<EOF > pr-deploy-values.yaml
