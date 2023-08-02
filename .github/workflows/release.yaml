@@ -407,6 +407,8 @@ jobs:
       - name: Comment on PR
         if: ${{ !inputs.dry_run }}
         run: |
+          # wait 30 seconds
+          Start-Sleep -Seconds 30.0
           # Find the PR that wingetcreate just made.
           $version = "${{ needs.release.outputs.version }}".Trim('v')
           $pr_list = gh pr list --repo microsoft/winget-pkgs --search "author:cdrci Coder.Coder version ${version}" --limit 1 --json number | `

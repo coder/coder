@@ -211,18 +211,26 @@ func (c *Client) DERPMapUpdates(ctx context.Context) (<-chan DERPMapUpdate, io.C
 			if err != nil {
 				update.Err = err
 				update.DERPMap = nil
-				return
 			}
-			err = c.rewriteDerpMap(update.DERPMap)
-			if err != nil {
-				update.Err = err
-				update.DERPMap = nil
-				return
+			if update.DERPMap != nil {
+				err = c.rewriteDerpMap(update.DERPMap)
+				if err != nil {
+					update.Err = err
+					update.DERPMap = nil
+				}
 			}
 
 			select {
 			case updates <- update:
 			case <-ctx.Done():
+				// Unblock the caller if they're waiting for an update.
+				select {
+				case updates <- DERPMapUpdate{Err: ctx.Err()}:
+				default:
+				}
+				return
+			}
+			if update.Err != nil {
 				return
 			}
 		}
@@ -231,8 +239,8 @@ func (c *Client) DERPMapUpdates(ctx context.Context) (<-chan DERPMapUpdate, io.C
 	return updates, &closer{
 		closeFunc: func() error {
 			cancelFunc()
-			_ = wsNetConn.Close()
 			<-pingClosed
+			_ = conn.Close(websocket.StatusGoingAway, "Listen closed")
 			<-updatesClosed
 			return nil
 		},
