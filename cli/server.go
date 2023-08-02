@@ -63,6 +63,7 @@ import (
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/autobuild"
+	"github.com/coder/coder/coderd/batchstats"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/database/dbmetrics"
@@ -811,6 +812,21 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if cfg.Swagger.Enable {
 				options.SwaggerEndpoint = cfg.Swagger.Enable.Value()
 			}
+
+			batchStatsTicker := time.NewTicker(29 * time.Second) // Hard-coding.
+			defer batchStatsTicker.Stop()
+			b, err := batchstats.New(
+				batchstats.WithLogger(options.Logger.Named("batchstats")),
+				batchstats.WithStore(options.Database),
+				batchstats.WithTicker(batchStatsTicker.C),
+			)
+			if err != nil {
+				return xerrors.Errorf("failed to create agent stats batcher: %w", err)
+			}
+			options.StatsBatcher = b
+			go func() {
+				b.Run(ctx)
+			}()
 
 			// We use a separate coderAPICloser so the Enterprise API
 			// can have it's own close functions. This is cleaner

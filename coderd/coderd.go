@@ -43,6 +43,7 @@ import (
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/awsidentity"
+	"github.com/coder/coder/coderd/batchstats"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/database/pubsub"
@@ -161,6 +162,7 @@ type Options struct {
 
 	// TODO(Cian): This may need to be passed to batchstats.Batcher instead
 	UpdateAgentMetrics func(ctx context.Context, username, workspaceName, agentName string, metrics []agentsdk.AgentMetric)
+	StatsBatcher       *batchstats.Batcher
 }
 
 // @title Coder API
@@ -288,6 +290,11 @@ func New(options *Options) *API {
 		v := schedule.NewAGPLUserQuietHoursScheduleStore()
 		options.UserQuietHoursScheduleStore.Store(&v)
 	}
+	ctx, cancel := context.WithCancel(context.Background())
+
+	if options.StatsBatcher == nil {
+		panic("developer error: options.Batcher is nil")
+	}
 
 	siteCacheDir := options.CacheDir
 	if siteCacheDir != "" {
@@ -322,7 +329,6 @@ func New(options *Options) *API {
 	})
 	staticHandler.Experiments.Store(&experiments)
 
-	ctx, cancel := context.WithCancel(context.Background())
 	r := chi.NewRouter()
 
 	// nolint:gocritic // Load deployment ID. This never changes
@@ -462,6 +468,8 @@ func New(options *Options) *API {
 	derpHandler, api.derpCloseFunc = tailnet.WithWebsocketSupport(api.DERPServer, derpHandler)
 	cors := httpmw.Cors(options.DeploymentValues.Dangerous.AllowAllCors.Value())
 	prometheusMW := httpmw.Prometheus(options.PrometheusRegistry)
+
+	api.statsBatcher = options.StatsBatcher
 
 	r.Use(
 		httpmw.Recover(api.Logger),
@@ -995,6 +1003,8 @@ type API struct {
 
 	healthCheckGroup *singleflight.Group[string, *healthcheck.Report]
 	healthCheckCache atomic.Pointer[healthcheck.Report]
+
+	statsBatcher *batchstats.Batcher
 }
 
 // Close waits for all WebSocket connections to drain before returning.

@@ -1412,36 +1412,12 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		activityBumpWorkspace(ctx, api.Logger.Named("activity_bump"), api.Database, workspace.ID)
 	}
 
-	payload, err := json.Marshal(req.ConnectionsByProto)
-	if err != nil {
-		api.Logger.Error(ctx, "marshal agent connections by proto", slog.F("workspace_agent_id", workspaceAgent.ID), slog.Error(err))
-		payload = json.RawMessage("{}")
-	}
-
 	now := database.Now()
 
 	var errGroup errgroup.Group
 	errGroup.Go(func() error {
-		_, err = api.Database.InsertWorkspaceAgentStat(ctx, database.InsertWorkspaceAgentStatParams{
-			ID:                          uuid.New(),
-			CreatedAt:                   now,
-			AgentID:                     workspaceAgent.ID,
-			WorkspaceID:                 workspace.ID,
-			UserID:                      workspace.OwnerID,
-			TemplateID:                  workspace.TemplateID,
-			ConnectionsByProto:          payload,
-			ConnectionCount:             req.ConnectionCount,
-			RxPackets:                   req.RxPackets,
-			RxBytes:                     req.RxBytes,
-			TxPackets:                   req.TxPackets,
-			TxBytes:                     req.TxBytes,
-			SessionCountVSCode:          req.SessionCountVSCode,
-			SessionCountJetBrains:       req.SessionCountJetBrains,
-			SessionCountReconnectingPTY: req.SessionCountReconnectingPTY,
-			SessionCountSSH:             req.SessionCountSSH,
-			ConnectionMedianLatencyMS:   req.ConnectionMedianLatencyMS,
-		})
-		if err != nil {
+		if err := api.statsBatcher.Add(workspaceAgent.ID, workspace.TemplateID, workspace.OwnerID, workspace.ID, req); err != nil {
+			api.Logger.Error(ctx, "failed to add stats to batcher", slog.Error(err))
 			return xerrors.Errorf("can't insert workspace agent stat: %w", err)
 		}
 		return nil
@@ -1464,6 +1440,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 				return xerrors.Errorf("can't get user: %w", err)
 			}
 
+			api.Logger.Debug(ctx, "updating agent metrics", slog.F("username", user.Username), slog.F("workspace", workspace.Name), slog.F("agent", workspaceAgent.Name))
 			api.Options.UpdateAgentMetrics(ctx, user.Username, workspace.Name, workspaceAgent.Name, req.Metrics)
 			return nil
 		})

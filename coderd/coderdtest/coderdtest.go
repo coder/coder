@@ -56,6 +56,7 @@ import (
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/autobuild"
 	"github.com/coder/coder/coderd/awsidentity"
+	"github.com/coder/coder/coderd/batchstats"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/database/dbtestutil"
@@ -140,7 +141,8 @@ type Options struct {
 	SwaggerEndpoint bool
 	// Logger should only be overridden if you expect errors
 	// as part of your test.
-	Logger *slog.Logger
+	Logger       *slog.Logger
+	StatsBatcher *batchstats.Batcher
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -240,6 +242,17 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	}
 	if options.FilesRateLimit == 0 {
 		options.FilesRateLimit = -1
+	}
+	if options.StatsBatcher == nil {
+		batchStatsTicker := time.NewTicker(testutil.IntervalFast)
+		t.Cleanup(batchStatsTicker.Stop)
+		options.StatsBatcher, err = batchstats.New(
+			batchstats.WithStore(options.Database),
+			batchstats.WithBatchSize(batchstats.DefaultBatchSize),
+			batchstats.WithLogger(slogtest.Make(t, nil).Leveled(slog.LevelDebug)),
+			batchstats.WithTicker(batchStatsTicker.C),
+		)
+		require.NoError(t, err, "create stats batcher")
 	}
 
 	var templateScheduleStore atomic.Pointer[schedule.TemplateScheduleStore]
@@ -409,6 +422,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			HealthcheckFunc:             options.HealthcheckFunc,
 			HealthcheckTimeout:          options.HealthcheckTimeout,
 			HealthcheckRefresh:          options.HealthcheckRefresh,
+			StatsBatcher:                options.StatsBatcher,
 		}
 }
 
