@@ -253,6 +253,9 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			batchstats.WithTicker(batchStatsTicker.C),
 		)
 		require.NoError(t, err, "create stats batcher")
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		go options.StatsBatcher.Run(ctx)
 	}
 
 	var templateScheduleStore atomic.Pointer[schedule.TemplateScheduleStore]
