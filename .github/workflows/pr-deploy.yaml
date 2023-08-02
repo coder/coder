@@ -234,7 +234,16 @@ jobs:
           if [[ ${{ github.event_name }} == "workflow_dispatch" ]]; then
             experiments=${{ github.event.inputs.experiments }}
           else
-            experiments=$(echo "${{ github.event.comment.body }}" | grep -oP '(?<=--experiments )[^ ]+')
+            comment_body=${{ github.event.comment.body }}
+            # extract experiments part
+            extracted_experiments=$(echo "$comment_body" | grep -oP '(?<=--experiments )[^ ]+')
+            # Validate that the experiments is a comma-separated list of alphanumeric strings, "*", or "-"
+            if [[ $extracted_experiments =~ ^[a-zA-Z0-9_*,\"-]+$ ]]; then
+              experiments=$extracted_experiments
+            else
+              echo "Invalid input: $extracted_experiments"
+              exit 1
+            fi
           fi
           echo "experiments=$experiments" >> $GITHUB_OUTPUT
 
