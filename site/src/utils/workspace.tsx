@@ -10,7 +10,6 @@ import CircularProgress from "@mui/material/CircularProgress"
 import ErrorIcon from "@mui/icons-material/ErrorOutline"
 import StopIcon from "@mui/icons-material/StopOutlined"
 import PlayIcon from "@mui/icons-material/PlayArrowOutlined"
-import LockIcon from "@mui/icons-material/PlayArrowOutlined"
 import QueuedIcon from "@mui/icons-material/HourglassEmpty"
 
 dayjs.extend(duration)

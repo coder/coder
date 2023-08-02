@@ -88,7 +88,7 @@ export const useDashboard = (): DashboardProviderValue => {
   return context
 }
 
-export const isWorkspaceActionsEnabled = (): boolean => {
+export const useIsWorkspaceActionsEnabled = (): boolean => {
   const { entitlements, experiments } = useDashboard()
   const allowAdvancedScheduling =
     entitlements.features["advanced_template_scheduling"].enabled

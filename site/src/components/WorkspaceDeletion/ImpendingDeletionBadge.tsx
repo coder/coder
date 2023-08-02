@@ -1,5 +1,5 @@
 import { Workspace } from "api/typesGenerated"
-import { isWorkspaceActionsEnabled } from "components/Dashboard/DashboardProvider"
+import { useIsWorkspaceActionsEnabled } from "components/Dashboard/DashboardProvider"
 import { Pill } from "components/Pill/Pill"
 import LockIcon from "@mui/icons-material/Lock"
 
@@ -8,7 +8,7 @@ export const LockedBadge = ({
 }: {
   workspace: Workspace
 }): JSX.Element | null => {
-  if (!workspace.locked_at || !isWorkspaceActionsEnabled()) {
+  if (!workspace.locked_at || !useIsWorkspaceActionsEnabled()) {
     return null
   }
 

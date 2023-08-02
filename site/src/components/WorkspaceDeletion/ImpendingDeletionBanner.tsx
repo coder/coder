@@ -1,10 +1,7 @@
 import { Workspace } from "api/typesGenerated"
-import {
-  isWorkspaceActionsEnabled,
-  useDashboard,
-} from "components/Dashboard/DashboardProvider"
+import { useIsWorkspaceActionsEnabled } from "components/Dashboard/DashboardProvider"
 import { Alert } from "components/Alert/Alert"
-import { formatDistanceToNow, differenceInDays, add, format } from "date-fns"
+import { formatDistanceToNow } from "date-fns"
 import Link from "@mui/material/Link"
 import { Link as RouterLink } from "react-router-dom"
 
@@ -41,7 +38,7 @@ export const LockedWorkspaceBanner = ({
       // Banners should be redisplayed after dismissal when additional workspaces are newly scheduled for deletion
       !shouldRedisplayBanner) &&
     // Only show this if the experiment is included.
-    isWorkspaceActionsEnabled()
+    useIsWorkspaceActionsEnabled()
   ) {
     return null
   }

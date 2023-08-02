@@ -1,6 +1,6 @@
 import { usePagination } from "hooks/usePagination"
 import { Workspace } from "api/typesGenerated"
-import { isWorkspaceActionsEnabled } from "components/Dashboard/DashboardProvider"
+import { useIsWorkspaceActionsEnabled } from "components/Dashboard/DashboardProvider"
 import { FC, useEffect, useState } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "utils/page"
@@ -30,7 +30,7 @@ const WorkspacesPage: FC = () => {
   // workspaces as well. This lets us determine whether we should
   // show a banner to the user indicating that some of their workspaces
   // are at risk of being deleted.
-  if (isWorkspaceActionsEnabled()) {
+  if (useIsWorkspaceActionsEnabled()) {
     const includesLocked = filterProps.filter.query.includes("locked_at")
     const lockedQuery = includesLocked
       ? filterProps.filter.query

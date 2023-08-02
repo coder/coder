@@ -123,8 +123,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
     template,
     form.values,
   )
-  console.log("workspaces to be deleted: ", workspacesToBeDeletedToday?.length)
-  console.log("workspaces to be locked: ", workspacesToBeLockedToday?.length)
 
   const [isInactivityDialogOpen, setIsInactivityDialogOpen] =
     useState<boolean>(false)
