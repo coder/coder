@@ -39,9 +39,9 @@ runs:
         path: |
           ${{ env.GOMODCACHE }}
         key: gomodcache-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-${{ github.job }}
-        restore-keys: |
-          gomodcache-${{ runner.os }}-${{ hashFiles('**/go.sum') }}-
-          gomodcache-${{ runner.os }}-
+        # restore-keys aren't used because it causes the cache to grow
+        # infinitely. go.sum changes very infrequently, so rebuilding from
+        # scratch every now and then isn't terrible.
 
     - name: Cache $GOCACHE
       uses: buildjet/cache@v3
