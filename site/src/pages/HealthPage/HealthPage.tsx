@@ -17,6 +17,7 @@ import {
 } from "components/PageHeader/FullWidthPageHeader"
 import { Stats, StatsItem } from "components/Stats/Stats"
 import { makeStyles } from "@mui/styles"
+import { createDayString } from "utils/createDayString"
 
 const sections = {
   derp: "DERP",
@@ -101,7 +102,7 @@ export function HealthPageView({
           <StatsItem
             className={styles.statsItem}
             label="Last check"
-            value={new Date(healthStatus.time).toLocaleString()}
+            value={createDayString(healthStatus.time)}
           />
           <StatsItem
             className={styles.statsItem}
