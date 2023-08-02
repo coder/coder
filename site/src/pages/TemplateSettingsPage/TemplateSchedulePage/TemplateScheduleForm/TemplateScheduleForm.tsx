@@ -16,7 +16,7 @@ import Link from "@mui/material/Link"
 import Checkbox from "@mui/material/Checkbox"
 import FormControlLabel from "@mui/material/FormControlLabel"
 import Switch from "@mui/material/Switch"
-import { DeleteLockedDialog, InactivityDialog } from "./InactivityDialog"
+import { InactivityDialog } from "./InactivityDialog"
 import {
   useWorkspacesToBeLocked,
   useWorkspacesToBeDeleted,
@@ -24,6 +24,7 @@ import {
 import { TemplateScheduleFormValues, getValidationSchema } from "./formHelpers"
 import { TTLHelperText } from "./TTLHelperText"
 import { docs } from "utils/docs"
+import { ScheduleDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 
 const MS_HOUR_CONVERSION = 3600000
 const MS_DAY_CONVERSION = 86400000
@@ -87,21 +88,27 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         allowAdvancedScheduling && Boolean(template.inactivity_ttl_ms),
       locked_cleanup_enabled:
         allowAdvancedScheduling && Boolean(template.locked_ttl_ms),
+      update_workspace_last_used_at: false,
+      update_workspace_locked_at: false,
     },
     validationSchema,
     onSubmit: () => {
-      if (
+      // Determine if this form will automatically
+      // lock workspaces upon submission.
+      const updateWillLockWorkspaces =
         form.values.inactivity_cleanup_enabled &&
         workspacesToBeLockedToday &&
         workspacesToBeLockedToday.length > 0
-      ) {
-        setIsInactivityDialogOpen(true)
-      } else if (
+
+      // Determine if this form will automatically
+      // delete locked workspaces upon submission.
+      const updateWillDeleteWorkspaces =
         form.values.locked_cleanup_enabled &&
         workspacesToBeDeletedToday &&
         workspacesToBeDeletedToday.length > 0
-      ) {
-        setIsLockedDialogOpen(true)
+
+      if (updateWillLockWorkspaces || updateWillDeleteWorkspaces) {
+        setIsScheduleDialogOpen(true)
       } else {
         submitValues()
       }
@@ -124,9 +131,14 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
     form.values,
   )
 
-  const [isInactivityDialogOpen, setIsInactivityDialogOpen] =
+  const showScheduleDialog =
+    workspacesToBeLockedToday &&
+    workspacesToBeDeletedToday &&
+    (workspacesToBeLockedToday.length > 0 ||
+      workspacesToBeDeletedToday.length > 0)
+
+  const [isScheduleDialogOpen, setIsScheduleDialogOpen] =
     useState<boolean>(false)
-  const [isLockedDialogOpen, setIsLockedDialogOpen] = useState<boolean>(false)
 
   const submitValues = () => {
     // on submit, convert from hours => ms
@@ -149,6 +161,8 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 
       allow_user_autostart: form.values.allow_user_autostart,
       allow_user_autostop: form.values.allow_user_autostop,
+      update_workspace_last_used_at: form.values.update_workspace_last_used_at,
+      update_workspace_locked_at: form.values.update_workspace_locked_at,
     })
   }
 
@@ -345,8 +359,8 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
             </FormFields>
           </FormSection>
           <FormSection
-            title="Inactivity TTL"
-            description="When enabled, Coder will lock workspaces that have not been accessed after a specified number of days."
+            title="Inactivity Soft Deletion"
+            description="When enabled, Coder will soft-delete workspaces that have not been accessed after a specified number of days. A soft-deleted workspace cannot be interacted with until it is recovered by the user."
           >
             <FormFields>
               <FormControlLabel
@@ -357,7 +371,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                     onChange={handleToggleInactivityCleanup}
                   />
                 }
-                label="Enable Inactivity TTL"
+                label="Enable Inactivity Soft Deletion"
               />
               <TextField
                 {...getFieldHelpers(
@@ -378,8 +392,8 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
             </FormFields>
           </FormSection>
           <FormSection
-            title="Deletion Grace Period"
-            description="When enabled, Coder will permanently delete workspaces that have been locked for a specified number of days."
+            title="Deletion Retention"
+            description="When enabled, Coder will permanently delete workspaces that have been soft-deleted for a specified number of days. Once a workspace is permanently deleted it cannot be recovered."
           >
             <FormFields>
               <FormControlLabel
@@ -390,7 +404,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                     onChange={handleToggleLockedCleanup}
                   />
                 }
-                label="Enable Locked TTL"
+                label="Enable Deletion Retention"
               />
               <TextField
                 {...getFieldHelpers(
@@ -413,17 +427,34 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       {workspacesToBeLockedToday && workspacesToBeLockedToday.length > 0 && (
         <InactivityDialog
           submitValues={submitValues}
-          isInactivityDialogOpen={isInactivityDialogOpen}
-          setIsInactivityDialogOpen={setIsInactivityDialogOpen}
+          isInactivityDialogOpen={isScheduleDialogOpen}
+          setIsInactivityDialogOpen={setIsScheduleDialogOpen}
           workspacesToBeLockedToday={workspacesToBeLockedToday?.length ?? 0}
         />
       )}
-      {workspacesToBeDeletedToday && workspacesToBeDeletedToday.length > 0 && (
-        <DeleteLockedDialog
-          submitValues={submitValues}
-          isLockedDialogOpen={isLockedDialogOpen}
-          setIsLockedDialogOpen={setIsLockedDialogOpen}
-          workspacesToBeDeletedToday={workspacesToBeDeletedToday?.length ?? 0}
+      {showScheduleDialog && (
+        <ScheduleDialog
+          onConfirm={() => {
+            submitValues()
+            setIsScheduleDialogOpen(false)
+            // These fields are request-scoped so they should be reset
+            // after every submission.
+            form.setFieldValue("update_workspace_locked_at", false)
+            form.setFieldValue("update_workspace_last_used_at", false)
+          }}
+          inactiveWorkspaceToBeLocked={workspacesToBeLockedToday.length}
+          lockedWorkspacesToBeDeleted={workspacesToBeDeletedToday.length}
+          open={isScheduleDialogOpen}
+          onClose={() => {
+            setIsScheduleDialogOpen(false)
+          }}
+          title="Workspace Scheduling"
+          updateLockedWorkspaces={(update: boolean) =>
+            form.setFieldValue("update_workspace_locked_at", update)
+          }
+          updateInactiveWorkspaces={(update: boolean) =>
+            form.setFieldValue("update_workspace_last_used_at", update)
+          }
         />
       )}
 

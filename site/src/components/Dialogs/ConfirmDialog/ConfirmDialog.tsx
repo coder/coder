@@ -7,6 +7,9 @@ import {
   DialogActionButtonsProps,
 } from "../Dialog"
 import { ConfirmDialogType } from "../types"
+import Checkbox from "@mui/material/Checkbox"
+import FormControlLabel from "@mui/material/FormControlLabel"
+import { Stack } from "@mui/system"
 
 interface ConfirmDialogTypeConfig {
   confirmText: ReactNode
@@ -61,7 +64,7 @@ const useStyles = makeStyles((theme) => ({
       background: theme.palette.background.paper,
       border: `1px solid ${theme.palette.divider}`,
       width: "100%",
-      maxWidth: theme.spacing(55),
+      maxWidth: theme.spacing(50),
     },
     "& .MuiDialogActions-spacing": {
       padding: `0 ${theme.spacing(5)} ${theme.spacing(5)}`,
@@ -151,3 +154,153 @@ export const ConfirmDialog: FC<PropsWithChildren<ConfirmDialogProps>> = ({
     </Dialog>
   )
 }
+
+export interface ScheduleDialogProps extends ConfirmDialogProps {
+  readonly inactiveWorkspaceToBeLocked: number
+  readonly lockedWorkspacesToBeDeleted: number
+  readonly updateLockedWorkspaces: (confirm: boolean) => void
+  readonly updateInactiveWorkspaces: (confirm: boolean) => void
+}
+
+export const ScheduleDialog: FC<PropsWithChildren<ScheduleDialogProps>> = ({
+  cancelText,
+  confirmLoading,
+  disabled = false,
+  hideCancel,
+  onClose,
+  onConfirm,
+  type,
+  open = false,
+  title,
+  inactiveWorkspaceToBeLocked,
+  lockedWorkspacesToBeDeleted,
+  updateLockedWorkspaces,
+  updateInactiveWorkspaces,
+}) => {
+  const styles = useScheduleStyles({ type })
+
+  const defaults = CONFIRM_DIALOG_DEFAULTS["delete"]
+
+  if (typeof hideCancel === "undefined") {
+    hideCancel = defaults.hideCancel
+  }
+
+  return (
+    <Dialog
+      className={styles.dialogWrapper}
+      onClose={onClose}
+      open={open}
+      data-testid="dialog"
+    >
+      <div className={styles.dialogContent}>
+        <h3 className={styles.dialogTitle}>{title}</h3>
+        <>
+          {inactiveWorkspaceToBeLocked > 0 && (
+            <>
+              <h4>{"Inactivity TTL"}</h4>
+              <Stack direction="row" spacing={5}>
+                <div
+                  className={styles.dialogDescription}
+                >{`The current value will result in ${inactiveWorkspaceToBeLocked}+ workspaces being automatically soft deleted. To prevent this, do you want to reset the inactivity period for all template workspaces?`}</div>
+                <FormControlLabel
+                  sx={{
+                    marginTop: 2,
+                  }}
+                  control={
+                    <Checkbox
+                      size="small"
+                      onChange={(e) => {
+                        updateInactiveWorkspaces(e.target.checked)
+                      }}
+                    />
+                  }
+                  label="Reset"
+                />
+              </Stack>
+            </>
+          )}
+
+          {lockedWorkspacesToBeDeleted > 0 && (
+            <>
+              <h4>{"Deletion Grace Period"}</h4>
+              <Stack direction="row" spacing={5}>
+                <div
+                  className={styles.dialogDescription}
+                >{`The current value will result in ${lockedWorkspacesToBeDeleted}+ workspaces being permanently deleted. To prevent this, do you want to reset the soft-deletion period for all template workspaces?`}</div>
+                <FormControlLabel
+                  sx={{
+                    marginTop: 2,
+                  }}
+                  control={
+                    <Checkbox
+                      size="small"
+                      onChange={(e) => {
+                        updateLockedWorkspaces(e.target.checked)
+                      }}
+                    />
+                  }
+                  label="Reset"
+                />
+              </Stack>
+            </>
+          )}
+        </>
+      </div>
+
+      <DialogActions>
+        <DialogActionButtons
+          cancelText={cancelText}
+          confirmDialog
+          confirmLoading={confirmLoading}
+          confirmText="Submit"
+          disabled={disabled}
+          onCancel={!hideCancel ? onClose : undefined}
+          onConfirm={onConfirm || onClose}
+          type="delete"
+        />
+      </DialogActions>
+    </Dialog>
+  )
+}
+
+const useScheduleStyles = makeStyles((theme) => ({
+  dialogWrapper: {
+    "& .MuiPaper-root": {
+      background: theme.palette.background.paper,
+      border: `1px solid ${theme.palette.divider}`,
+      width: "100%",
+      maxWidth: theme.spacing(125),
+    },
+    "& .MuiDialogActions-spacing": {
+      padding: `0 ${theme.spacing(5)} ${theme.spacing(5)}`,
+    },
+  },
+  dialogContent: {
+    color: theme.palette.text.secondary,
+    padding: theme.spacing(5),
+  },
+  dialogTitle: {
+    margin: 0,
+    marginBottom: theme.spacing(2),
+    color: theme.palette.text.primary,
+    fontWeight: 400,
+    fontSize: theme.spacing(2.5),
+  },
+  dialogDescription: {
+    color: theme.palette.text.secondary,
+    lineHeight: "160%",
+    fontSize: 16,
+
+    "& strong": {
+      color: theme.palette.text.primary,
+    },
+
+    "& p:not(.MuiFormHelperText-root)": {
+      margin: 0,
+    },
+
+    "& > p": {
+      margin: theme.spacing(1, 0),
+    },
+  },
+}))

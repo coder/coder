@@ -61,13 +61,13 @@ export const LockedWorkspaceBanner = ({
         hasDeletionScheduledWorkspaces.deleting_at &&
         hasDeletionScheduledWorkspaces.locked_at
       ) {
-        return `This workspace has been locked since ${formatDistanceToNow(
+        return `This workspace has been locked for ${formatDistanceToNow(
           Date.parse(hasDeletionScheduledWorkspaces.locked_at),
-        )} and is scheduled to be deleted at ${formatDate(
+        )} and is scheduled to be deleted on ${formatDate(
           hasDeletionScheduledWorkspaces.deleting_at,
         )} . To keep it you must unlock the workspace.`
       } else if (hasLockedWorkspaces && hasLockedWorkspaces.locked_at) {
-        return `This workspace has been locked since ${formatDate(
+        return `This workspace has been locked for ${formatDate(
           hasLockedWorkspaces.locked_at,
         )}
         and cannot be interacted
