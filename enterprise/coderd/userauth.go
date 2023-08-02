@@ -12,7 +12,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-func (api *API) setUserGroups(ctx context.Context, db database.Store, userID uuid.UUID, groupNames []string) error {
+func (api *API) setUserGroups(ctx context.Context, db database.Store, userID uuid.UUID, groupNames []string, createMissingGroups bool) error {
 	api.entitlementsMu.RLock()
 	enabled := api.entitlements.Features[codersdk.FeatureTemplateRBAC].Enabled
 	api.entitlementsMu.RUnlock()
@@ -38,6 +38,8 @@ func (api *API) setUserGroups(ctx context.Context, db database.Store, userID uui
 		if err != nil {
 			return xerrors.Errorf("delete user groups: %w", err)
 		}
+
+		// TODO: Create missing groups if createMissingGroups is true.
 
 		// Re-add the user to all groups returned by the auth provider.
 		err = tx.InsertUserGroupsByName(ctx, database.InsertUserGroupsByNameParams{
