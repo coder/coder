@@ -48,15 +48,16 @@ runs:
       with:
         path: |
           ${{ env.GOCACHE }}
-        # Job name must be included in the key for effective
-        # test cache reuse.
+        # Job name must be included in the key for effective test cache reuse.
         # The key format is intentionally different than GOMODCACHE, because any
-        # time a Go file changes we invalidate this cache, whereas GOMODCACHE
-        # is only invalidated when go.sum changes.
-        key: gocache-${{ runner.os }}-${{ github.job }}-${{ hashFiles('**/*.go', 'go.**') }}
+        # time a Go file changes we invalidate this cache, whereas GOMODCACHE is
+        # only invalidated when go.sum changes.
+        # The number in the key is incremented when the cache gets too large,
+        # since this technically grows without bound.
+        key: gocache2-${{ runner.os }}-${{ github.job }}-${{ hashFiles('**/*.go', 'go.**') }}
         restore-keys: |
-          gocache-${{ runner.os }}-${{ github.job }}-
-          gocache-${{ runner.os }}-
+          gocache2-${{ runner.os }}-${{ github.job }}-
+          gocache2-${{ runner.os }}-
 
     - name: Install gotestsum
       shell: bash
