@@ -1,5 +1,8 @@
 import { Workspace } from "api/typesGenerated"
-import { useDashboard } from "components/Dashboard/DashboardProvider"
+import {
+  isWorkspaceActionsEnabled,
+  useDashboard,
+} from "components/Dashboard/DashboardProvider"
 import { Alert } from "components/Alert/Alert"
 import { formatDistanceToNow, differenceInDays, add, format } from "date-fns"
 import Link from "@mui/material/Link"
@@ -21,13 +24,6 @@ export const LockedWorkspaceBanner = ({
   shouldRedisplayBanner: boolean
   count?: Count
 }): JSX.Element | null => {
-  const { entitlements, experiments } = useDashboard()
-  const allowAdvancedScheduling =
-    entitlements.features["advanced_template_scheduling"].enabled
-  // This check can be removed when https://github.com/coder/coder/milestone/19
-  // is merged up
-  const allowWorkspaceActions = experiments.includes("workspace_actions")
-
   if (!workspaces) {
     return null
   }
@@ -45,8 +41,7 @@ export const LockedWorkspaceBanner = ({
       // Banners should be redisplayed after dismissal when additional workspaces are newly scheduled for deletion
       !shouldRedisplayBanner) &&
     // Only show this if the experiment is included.
-    allowWorkspaceActions &&
-    allowAdvancedScheduling
+    isWorkspaceActionsEnabled()
   ) {
     return null
   }

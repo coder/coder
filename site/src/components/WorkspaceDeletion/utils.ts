@@ -11,28 +11,6 @@ const IMPENDING_DELETION_DISPLAY_THRESHOLD = 14 // 14 days
  * @param {TypesGen.Workspace} workspace
  * @returns {boolean}
  */
-export const displayLockedWorkspace = (
-  workspace: Workspace,
-  allowAdvancedScheduling: boolean,
-  allowWorkspaceActions: boolean,
-) => {
-  if (
-    !workspace.locked_at ||
-    !allowAdvancedScheduling ||
-    !allowWorkspaceActions
-  ) {
-    return false
-  }
-  return workspace.locked_at
-}
-
-/**
- * Returns a boolean indicating if an impending deletion indicator should be
- * displayed in the UI. Impending deletions are configured by setting the
- * Template.InactivityTTL
- * @param {TypesGen.Workspace} workspace
- * @returns {boolean}
- */
 export const displayImpendingDeletion = (
   workspace: Workspace,
   allowAdvancedScheduling: boolean,
