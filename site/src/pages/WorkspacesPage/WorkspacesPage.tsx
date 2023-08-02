@@ -45,8 +45,8 @@ const WorkspacesPage: FC = () => {
           .then((resp) => {
             setLockedWorkspaces(resp.workspaces)
           })
-          .catch((err) => {
-            // TODO?
+          .catch(() => {
+            // TODO
           })
       }
     } else {
