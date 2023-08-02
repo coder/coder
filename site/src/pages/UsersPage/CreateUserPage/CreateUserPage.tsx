@@ -30,6 +30,7 @@ export const CreateUserPage: FC = () => {
       <Helmet>
         <title>{pageTitle("Create User")}</title>
       </Helmet>
+
       <CreateUserForm
         error={error}
         onSubmit={(user: TypesGen.CreateUserRequest) =>
