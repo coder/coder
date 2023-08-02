@@ -7,11 +7,18 @@ on:
     inputs:
       pr_number:
         description: "PR number"
+        type: number
         required: true
       skip_build:
         description: "Skip build job"
         required: false
+        type: boolean
         default: false
+      experiments:
+        description: "Experiments to enable"
+        required: false
+        type: string
+        default: "*"
 
 env:
   REPO: ghcr.io/coder/coder-preview
@@ -22,8 +29,8 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.issue.number || github.run_id }}
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-PR-${{ (github.event.issue.number) || (github.event.inputs.pr_number) }}
+  cancel-in-progress: true
 
 jobs:
   pr_commented:
@@ -136,7 +143,7 @@ jobs:
       PR_TITLE: ${{ needs.pr_commented.outputs.PR_TITLE }}
       PR_URL: ${{ needs.pr_commented.outputs.PR_URL }}
       PR_BRANCH: ${{ needs.pr_commented.outputs.PR_BRANCH }}
-      PR_DEPLOYMENT_ACCESS_URL: "https://pr${{ needs.pr_commented.outputs.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
+      PR_DEPLOYMENT_ACCESS_URL: "pr${{ needs.pr_commented.outputs.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
     steps:
       - name: Check if image exists
         run: |
@@ -145,9 +152,18 @@ jobs:
           if [ -z "$foundTag" ]; then
             echo "Image not found"
             echo "${{ env.CODER_IMAGE_TAG }} not found in ghcr.io/coder/coder-preview"
-            echo "Please remove --skip-build from the comment or ./scripts/deploy-pr.sh"
+            echo "Please remove --skip-build from the comment and try again"
             exit 1
           fi
+
+      - name: Add DNS record to Cloudflare
+        run: |
+          (
+            curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records" \
+          -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
+          -H "Content-Type:application/json" \
+          --data '{"type":"CNAME","name":"*.${{ env.PR_DEPLOYMENT_ACCESS_URL }}","content":"${{ env.PR_DEPLOYMENT_ACCESS_URL }}","ttl":1,"proxied":false}'
+          )
 
       - name: Checkout
         uses: actions/checkout@v3
@@ -168,35 +184,36 @@ jobs:
           kubectl delete namespace "pr${{ env.PR_NUMBER }}" || true
           kubectl create namespace "pr${{ env.PR_NUMBER }}"
 
-      - name: Setup ingress
+      - name: Check and Create Certificate
         run: |
-          cat <<EOF > ingress.yaml
-          apiVersion: networking.k8s.io/v1
-          kind: Ingress
-          metadata:
-            name: pr${{ env.PR_NUMBER }}
-            namespace: pr${{ env.PR_NUMBER }}
-            annotations:
-              cert-manager.io/cluster-issuer: letsencrypt
-          spec:
-            tls:
-            - hosts:
-              - "${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
-              - "*.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
+          # Using kubectl to check if a Certificate resource already exists
+          # we are doing this to avoid letsenrypt rate limits
+          if ! kubectl get certificate pr${{ env.PR_NUMBER }}-tls -n pr-deployment-certs > /dev/null 2>&1; then
+            echo "Certificate doesn't exist. Creating a new one."
+            cat <<EOF | kubectl apply -f -
+            apiVersion: cert-manager.io/v1
+            kind: Certificate
+            metadata:
+              name: pr${{ env.PR_NUMBER }}-tls
+              namespace: pr-deployment-certs
+            spec:
               secretName: pr${{ env.PR_NUMBER }}-tls
-            rules:
-            - host: "pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
-              http:
-                paths:
-                - pathType: Prefix
-                  path: "/"
-                  backend:
-                    service:
-                      name: coder
-                      port:
-                        number: 80
+              issuerRef:
+                name: letsencrypt
+                kind: ClusterIssuer
+              dnsNames:
+              - "${{ env.PR_DEPLOYMENT_ACCESS_URL }}"
+              - "*.${{ env.PR_DEPLOYMENT_ACCESS_URL }}"
           EOF
-          kubectl apply -f ingress.yaml
+          else
+            echo "Certificate exists. Skipping certificate creation."
+          fi
+          echo "Copy certificate from pr-deployment-certs to pr${{ env.PR_NUMBER }} namespace"
+          (
+            kubectl get secret pr${{ env.PR_NUMBER }}-tls -n pr-deployment-certs -o json |
+            jq 'del(.metadata.namespace,.metadata.creationTimestamp,.metadata.resourceVersion,.metadata.selfLink,.metadata.uid,.metadata.managedFields)' |
+            kubectl -n pr${{ env.PR_NUMBER }} apply -f -
+          )
 
       - name: Set up PostgreSQL database
         run: |
@@ -210,6 +227,17 @@ jobs:
           kubectl create secret generic coder-db-url -n pr${{ env.PR_NUMBER }} \
             --from-literal=url="postgres://coder:coder@coder-db-postgresql.pr${{ env.PR_NUMBER }}.svc.cluster.local:5432/coder?sslmode=disable"
 
+      - name: Get experiments
+        id: get_experiments
+        run: |
+          set -euxo pipefail
+          if [[ ${{ github.event_name }} == "workflow_dispatch" ]]; then
+            experiments=${{ github.event.inputs.experiments }}
+          else
+            experiments=$(echo "${{ github.event.comment.body }}" | grep -oP '(?<=--experiments )[^ ]+')
+          fi
+          echo "experiments=$experiments" >> $GITHUB_OUTPUT
+
       - name: Create values.yaml
         run: |
           cat <<EOF > pr-deploy-values.yaml
@@ -220,13 +248,22 @@ jobs:
               pullPolicy: Always
             service:
               type: ClusterIP
+            ingress:
+              enable: true
+              className: traefik
+              host: ${{ env.PR_DEPLOYMENT_ACCESS_URL }}
+              wildcardHost: "*.${{ env.PR_DEPLOYMENT_ACCESS_URL }}"
+              tls:
+                enable: true
+                secretName: pr${{ env.PR_NUMBER }}-tls
+                wildcardSecretName: pr${{ env.PR_NUMBER }}-tls
             env:
               - name: "CODER_ACCESS_URL"
-                value: "https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
+                value: "https://${{ env.PR_DEPLOYMENT_ACCESS_URL }}"
               - name: "CODER_WILDCARD_ACCESS_URL"
-                value: "*--pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
+                value: "*.${{ env.PR_DEPLOYMENT_ACCESS_URL }}"
               - name: "CODER_EXPERIMENTS"
-                value: "*"
+                value: "*,${{ steps.get_experiments.outputs.experiments }}"
               - name: CODER_PG_CONNECTION_URL
                 valueFrom:
                   secretKeyRef:
@@ -261,7 +298,7 @@ jobs:
           set -euxo pipefail
 
           DEST="${HOME}/coder"
-          URL="${{ env.PR_DEPLOYMENT_ACCESS_URL }}/bin/coder-linux-amd64"
+          URL="https://${{ env.PR_DEPLOYMENT_ACCESS_URL }}/bin/coder-linux-amd64"
 
           mkdir -p "$(dirname ${DEST})"
 
@@ -279,6 +316,7 @@ jobs:
           curl -fsSL "$URL" -o "${DEST}"
           chmod +x "${DEST}"
           "${DEST}" version
+          mv "${DEST}" /usr/local/bin/coder
 
       - name: Create first user, template and workspace
         id: setup_deployment
@@ -294,16 +332,16 @@ jobs:
           echo "::add-mask::$password"
           echo "password=$password" >> $GITHUB_OUTPUT
 
-          /home/runner/coder login \
-            --first-user-username pr${{ env.PR_NUMBER }} \
-            --first-user-email ${{ env.PR_NUMBER }}@coder.com \
+          coder login \
+            --first-user-username test \
+            --first-user-email pr${{ env.PR_NUMBER }}@coder.com \
             --first-user-password $password \
             --first-user-trial \
             --use-token-as-session \
-            ${{ env.PR_DEPLOYMENT_ACCESS_URL }}
+            https://${{ env.PR_DEPLOYMENT_ACCESS_URL }}
 
           # Create template
-          /home/runner/coder templates init --id kubernetes && cd ./kubernetes/ && /home/runner/coder templates create -y --variable namespace=pr${{ env.PR_NUMBER }}
+          coder templates init --id kubernetes && cd ./kubernetes/ && coder templates create -y --variable namespace=pr${{ env.PR_NUMBER }}
 
           # Create workspace
           cat <<EOF > workspace.yaml
@@ -312,8 +350,8 @@ jobs:
           home_disk_size: "2"
           EOF
 
-          /home/runner/coder create --template="kubernetes" pr${{ env.PR_NUMBER }} --rich-parameter-file ./workspace.yaml -y
-          /home/runner/coder stop pr${{ env.PR_NUMBER }} -y
+          coder create --template="kubernetes" test --rich-parameter-file ./workspace.yaml -y
+          coder stop test -y
 
       - name: Send Slack notification
         run: |
@@ -323,9 +361,9 @@ jobs:
               "pr_number": "'"${{ env.PR_NUMBER }}"'",
               "pr_url": "'"${{ env.PR_URL }}"'",
               "pr_title": "'"${{ env.PR_TITLE }}"'",
-              "pr_access_url": "'"${{ env.PR_DEPLOYMENT_ACCESS_URL }}"'",
-              "pr_username": "'"pr${{ env.PR_NUMBER }}"'",
-              "pr_email": "'"${{ env.PR_NUMBER }}@coder.com"'",
+              "pr_access_url": "'"https://${{ env.PR_DEPLOYMENT_ACCESS_URL }}"'",
+              "pr_username": "'"test"'",
+              "pr_email": "'"pr${{ env.PR_NUMBER }}@coder.com"'",
               "pr_password": "'"${{ steps.setup_deployment.outputs.password }}"'",
               "pr_actor": "'"${{ github.actor }}"'"
             }' \
@@ -351,6 +389,6 @@ jobs:
           comment-id: ${{ steps.fc.outputs.comment-id }}
           body: |
             :heavy_check_mark: Deployed PR ${{ env.PR_NUMBER }} successfully.
-            :rocket: Access the deployment link [here](${{ env.PR_DEPLOYMENT_ACCESS_URL }}).
+            :rocket: Access the deployment link [here](https://${{ env.PR_DEPLOYMENT_ACCESS_URL }}).
             :warning: This deployment will be deleted when the PR is closed.
           reactions: rocket

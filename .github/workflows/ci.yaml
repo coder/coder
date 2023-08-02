@@ -40,6 +40,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
       # For pull requests it's not necessary to checkout the code
       - name: check changed files
         uses: dorny/paths-filter@v2
@@ -109,6 +111,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
@@ -162,6 +166,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
@@ -207,6 +213,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
@@ -256,6 +264,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
@@ -323,6 +333,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
@@ -369,6 +381,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
@@ -488,6 +502,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
@@ -516,6 +532,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
@@ -619,6 +637,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
         with:
+          # 0 is required here for version.sh to work.
           fetch-depth: 0
 
       - name: Setup Node
