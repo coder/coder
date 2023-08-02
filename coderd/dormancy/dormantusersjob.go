@@ -47,7 +47,7 @@ func CheckInactiveUsersWithOptions(ctx context.Context, logger slog.Logger, db d
 			}
 
 			for _, u := range updatedUsers {
-				logger.Debug(ctx, "account has been marked as dormant", slog.F("email", u.Email), slog.F("last_seen_at", u.LastSeenAt))
+				logger.Info(ctx, "account has been marked as dormant", slog.F("email", u.Email), slog.F("last_seen_at", u.LastSeenAt))
 			}
 		done:
 			logger.Debug(ctx, "checking user accounts is done", slog.F("num_dormant_accounts", len(updatedUsers)))
