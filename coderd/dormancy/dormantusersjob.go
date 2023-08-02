@@ -14,7 +14,7 @@ import (
 
 const (
 	// Time interval between consecutive job runs
-	jobInterval = 10 * time.Minute
+	jobInterval = 15 * time.Minute
 	// User accounts inactive for `accountDormancyPeriod` will be marked as dormant
 	accountDormancyPeriod = 90 * 24 * time.Hour
 )
