@@ -1,3 +1,4 @@
+import Box from "@mui/material/Box"
 import { Theme } from "@mui/material/styles"
 import useTheme from "@mui/styles/useTheme"
 import * as TypesGen from "api/typesGenerated"
@@ -15,13 +16,11 @@ import {
   Tooltip,
 } from "chart.js"
 import "chartjs-adapter-date-fns"
-import { Stack } from "components/Stack/Stack"
 import {
   HelpTooltip,
-  HelpTooltipText,
   HelpTooltipTitle,
+  HelpTooltipText,
 } from "components/Tooltips/HelpTooltip"
-import { WorkspaceSection } from "components/WorkspaceSection/WorkspaceSection"
 import dayjs from "dayjs"
 import { FC } from "react"
 import { Line } from "react-chartjs-2"
@@ -40,23 +39,9 @@ ChartJS.register(
 export interface DAUChartProps {
   daus: TypesGen.DAUsResponse
 }
-export const Language = {
-  loadingText: "DAU stats are loading. Check back later.",
-  chartTitle: "Daily Active Users",
-}
 
 export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
   const theme: Theme = useTheme()
-
-  if (daus.entries.length === 0) {
-    return (
-      // We generate hidden element to prove this path is taken in the test
-      // and through site inspection.
-      <div style={{ display: "none" }}>
-        <p>{Language.loadingText}</p>
-      </div>
-    )
-  }
 
   const labels = daus.entries.map((val) => {
     return dayjs(val.date).format("YYYY-MM-DD")
@@ -92,42 +77,42 @@ export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
         },
       },
     },
-    aspectRatio: 10 / 1,
+    maintainAspectRatio: false,
   }
 
   return (
-    <>
-      <WorkspaceSection
-        title={
-          <Stack direction="row" spacing={1} alignItems="center">
-            {Language.chartTitle}
-            <HelpTooltip size="small">
-              <HelpTooltipTitle>How do we calculate DAUs?</HelpTooltipTitle>
-              <HelpTooltipText>
-                We use all workspace connection traffic to calculate DAUs.
-              </HelpTooltipText>
-            </HelpTooltip>
-          </Stack>
-        }
-      >
-        <Line
-          data-chromatic="ignore"
-          data={{
-            labels: labels,
-            datasets: [
-              {
-                label: "Daily Active Users",
-                data: data,
-                tension: 1 / 4,
-                backgroundColor: theme.palette.secondary.dark,
-                borderColor: theme.palette.secondary.dark,
-              },
-            ],
-          }}
-          options={options}
-          height={400}
-        />
-      </WorkspaceSection>
-    </>
+    <Line
+      data-chromatic="ignore"
+      data={{
+        labels: labels,
+        datasets: [
+          {
+            label: "Daily Active Users",
+            data: data,
+            tension: 1 / 4,
+            backgroundColor: theme.palette.secondary.dark,
+            borderColor: theme.palette.secondary.dark,
+          },
+        ],
+      }}
+      options={options}
+    />
+  )
+}
+
+export const DAUTitle = () => {
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+      Daily Active Users
+      <HelpTooltip size="small">
+        <HelpTooltipTitle>
+          How do we calculate daily active users?
+        </HelpTooltipTitle>
+        <HelpTooltipText>
+          When a connection is initiated to a user{"'"}s workspace they are
+          considered a daily active user. e.g. apps, web terminal, SSH
+        </HelpTooltipText>
+      </HelpTooltip>
+    </Box>
   )
 }

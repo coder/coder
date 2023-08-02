@@ -66,7 +66,7 @@ export interface WorkspaceProps {
   canChangeVersions: boolean
   hideSSHButton?: boolean
   hideVSCodeDesktopButton?: boolean
-  workspaceErrors: Partial<Record<WorkspaceErrors, Error | unknown>>
+  workspaceErrors: Partial<Record<WorkspaceErrors, unknown>>
   buildInfo?: TypesGen.BuildInfoResponse
   sshPrefix?: string
   template?: TypesGen.Template
@@ -229,7 +229,20 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           {cancellationError}
           {workspace.latest_build.status === "running" &&
             !workspace.health.healthy && (
-              <Alert severity="warning">
+              <Alert
+                severity="warning"
+                actions={
+                  <Button
+                    variant="text"
+                    size="small"
+                    onClick={() => {
+                      handleRestart()
+                    }}
+                  >
+                    Restart
+                  </Button>
+                }
+              >
                 <AlertTitle>Workspace is unhealthy</AlertTitle>
                 <AlertDetail>
                   Your workspace is running but{" "}

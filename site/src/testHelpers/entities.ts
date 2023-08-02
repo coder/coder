@@ -79,6 +79,7 @@ export const MockPrimaryWorkspaceProxy: TypesGen.WorkspaceProxy = {
   healthy: true,
   path_app_url: "https://coder.com",
   wildcard_hostname: "*.coder.com",
+  derp_enabled: true,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
   deleted: false,
@@ -96,6 +97,7 @@ export const MockHealthyWildWorkspaceProxy: TypesGen.WorkspaceProxy = {
   healthy: true,
   path_app_url: "https://external.com",
   wildcard_hostname: "*.external.com",
+  derp_enabled: true,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
   deleted: false,
@@ -113,6 +115,7 @@ export const MockUnhealthyWildWorkspaceProxy: TypesGen.WorkspaceProxy = {
   healthy: false,
   path_app_url: "https://unhealthy.coder.com",
   wildcard_hostname: "*unhealthy..coder.com",
+  derp_enabled: true,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
   deleted: false,
@@ -138,6 +141,7 @@ export const MockWorkspaceProxies: TypesGen.WorkspaceProxy[] = [
     healthy: true,
     path_app_url: "https://cowboy.coder.com",
     wildcard_hostname: "",
+    derp_enabled: false,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     deleted: false,
@@ -551,8 +555,8 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   lifecycle_state: "starting",
   login_before_ready: false, // Deprecated.
   startup_script_behavior: "blocking",
-  startup_logs_length: 0,
-  startup_logs_overflowed: false,
+  logs_length: 0,
+  logs_overflowed: false,
   startup_script_timeout_seconds: 120,
   shutdown_script_timeout_seconds: 120,
   subsystem: "envbox",
@@ -1109,7 +1113,6 @@ export const MockAuthMethods: TypesGen.AuthMethods = {
   password: { enabled: true },
   github: { enabled: false },
   oidc: { enabled: false, signInText: "", iconUrl: "" },
-  convert_to_oidc_enabled: true,
 }
 
 export const MockAuthMethodsWithPasswordType: TypesGen.AuthMethods = {
@@ -1785,7 +1788,7 @@ export const MockDeploymentSSH: TypesGen.SSHConfigResponse = {
   ssh_config_options: {},
 }
 
-export const MockStartupLogs: TypesGen.WorkspaceAgentStartupLog[] = [
+export const MockWorkspaceAgentLogs: TypesGen.WorkspaceAgentLog[] = [
   {
     id: 166663,
     created_at: "2023-05-04T11:30:41.402072Z",

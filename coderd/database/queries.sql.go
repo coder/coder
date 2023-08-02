@@ -2848,7 +2848,7 @@ func (q *sqlQuerier) UpdateProvisionerJobWithCompleteByID(ctx context.Context, a
 
 const getWorkspaceProxies = `-- name: GetWorkspaceProxies :many
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
 FROM
 	workspace_proxies
 WHERE
@@ -2875,6 +2875,8 @@ func (q *sqlQuerier) GetWorkspaceProxies(ctx context.Context) ([]WorkspaceProxy,
 			&i.UpdatedAt,
 			&i.Deleted,
 			&i.TokenHashedSecret,
+			&i.RegionID,
+			&i.DerpEnabled,
 		); err != nil {
 			return nil, err
 		}
@@ -2891,7 +2893,7 @@ func (q *sqlQuerier) GetWorkspaceProxies(ctx context.Context) ([]WorkspaceProxy,
 
 const getWorkspaceProxyByHostname = `-- name: GetWorkspaceProxyByHostname :one
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
 FROM
 	workspace_proxies
 WHERE
@@ -2947,13 +2949,15 @@ func (q *sqlQuerier) GetWorkspaceProxyByHostname(ctx context.Context, arg GetWor
 		&i.UpdatedAt,
 		&i.Deleted,
 		&i.TokenHashedSecret,
+		&i.RegionID,
+		&i.DerpEnabled,
 	)
 	return i, err
 }
 
 const getWorkspaceProxyByID = `-- name: GetWorkspaceProxyByID :one
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
 FROM
 	workspace_proxies
 WHERE
@@ -2976,13 +2980,15 @@ func (q *sqlQuerier) GetWorkspaceProxyByID(ctx context.Context, id uuid.UUID) (W
 		&i.UpdatedAt,
 		&i.Deleted,
 		&i.TokenHashedSecret,
+		&i.RegionID,
+		&i.DerpEnabled,
 	)
 	return i, err
 }
 
 const getWorkspaceProxyByName = `-- name: GetWorkspaceProxyByName :one
 SELECT
-	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
+	id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
 FROM
 	workspace_proxies
 WHERE
@@ -3006,6 +3012,8 @@ func (q *sqlQuerier) GetWorkspaceProxyByName(ctx context.Context, name string) (
 		&i.UpdatedAt,
 		&i.Deleted,
 		&i.TokenHashedSecret,
+		&i.RegionID,
+		&i.DerpEnabled,
 	)
 	return i, err
 }
@@ -3019,13 +3027,14 @@ INSERT INTO
 		name,
 		display_name,
 		icon,
+		derp_enabled,
 		token_hashed_secret,
 		created_at,
 		updated_at,
 		deleted
 	)
 VALUES
-	($1, '', '', $2, $3, $4, $5, $6, $7, false) RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
+	($1, '', '', $2, $3, $4, $5, $6, $7, $8, false) RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
 `
 
 type InsertWorkspaceProxyParams struct {
@@ -3033,6 +3042,7 @@ type InsertWorkspaceProxyParams struct {
 	Name              string    `db:"name" json:"name"`
 	DisplayName       string    `db:"display_name" json:"display_name"`
 	Icon              string    `db:"icon" json:"icon"`
+	DerpEnabled       bool      `db:"derp_enabled" json:"derp_enabled"`
 	TokenHashedSecret []byte    `db:"token_hashed_secret" json:"token_hashed_secret"`
 	CreatedAt         time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt         time.Time `db:"updated_at" json:"updated_at"`
@@ -3044,6 +3054,7 @@ func (q *sqlQuerier) InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspa
 		arg.Name,
 		arg.DisplayName,
 		arg.Icon,
+		arg.DerpEnabled,
 		arg.TokenHashedSecret,
 		arg.CreatedAt,
 		arg.UpdatedAt,
@@ -3060,6 +3071,8 @@ func (q *sqlQuerier) InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspa
 		&i.UpdatedAt,
 		&i.Deleted,
 		&i.TokenHashedSecret,
+		&i.RegionID,
+		&i.DerpEnabled,
 	)
 	return i, err
 }
@@ -3068,22 +3081,29 @@ const registerWorkspaceProxy = `-- name: RegisterWorkspaceProxy :one
 UPDATE
 	workspace_proxies
 SET
-	url = $1,
-	wildcard_hostname = $2,
+	url = $1 :: text,
+	wildcard_hostname = $2 :: text,
+	derp_enabled = $3 :: boolean,
 	updated_at = Now()
 WHERE
-	id = $3
-RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
+	id = $4
+RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
 `
 
 type RegisterWorkspaceProxyParams struct {
 	Url              string    `db:"url" json:"url"`
 	WildcardHostname string    `db:"wildcard_hostname" json:"wildcard_hostname"`
+	DerpEnabled      bool      `db:"derp_enabled" json:"derp_enabled"`
 	ID               uuid.UUID `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error) {
-	row := q.db.QueryRowContext(ctx, registerWorkspaceProxy, arg.Url, arg.WildcardHostname, arg.ID)
+	row := q.db.QueryRowContext(ctx, registerWorkspaceProxy,
+		arg.Url,
+		arg.WildcardHostname,
+		arg.DerpEnabled,
+		arg.ID,
+	)
 	var i WorkspaceProxy
 	err := row.Scan(
 		&i.ID,
@@ -3096,6 +3116,8 @@ func (q *sqlQuerier) RegisterWorkspaceProxy(ctx context.Context, arg RegisterWor
 		&i.UpdatedAt,
 		&i.Deleted,
 		&i.TokenHashedSecret,
+		&i.RegionID,
+		&i.DerpEnabled,
 	)
 	return i, err
 }
@@ -3118,7 +3140,7 @@ SET
 	updated_at = Now()
 WHERE
 	id = $5
-RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret
+RETURNING id, name, display_name, icon, url, wildcard_hostname, created_at, updated_at, deleted, token_hashed_secret, region_id, derp_enabled
 `
 
 type UpdateWorkspaceProxyParams struct {
@@ -3150,6 +3172,8 @@ func (q *sqlQuerier) UpdateWorkspaceProxy(ctx context.Context, arg UpdateWorkspa
 		&i.UpdatedAt,
 		&i.Deleted,
 		&i.TokenHashedSecret,
+		&i.RegionID,
+		&i.DerpEnabled,
 	)
 	return i, err
 }
@@ -3230,8 +3254,32 @@ func (q *sqlQuerier) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt 
 	return err
 }
 
+const getReplicaByID = `-- name: GetReplicaByID :one
+SELECT id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error, "primary" FROM replicas WHERE id = $1
+`
+
+func (q *sqlQuerier) GetReplicaByID(ctx context.Context, id uuid.UUID) (Replica, error) {
+	row := q.db.QueryRowContext(ctx, getReplicaByID, id)
+	var i Replica
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.StartedAt,
+		&i.StoppedAt,
+		&i.UpdatedAt,
+		&i.Hostname,
+		&i.RegionID,
+		&i.RelayAddress,
+		&i.DatabaseLatency,
+		&i.Version,
+		&i.Error,
+		&i.Primary,
+	)
+	return i, err
+}
+
 const getReplicasUpdatedAfter = `-- name: GetReplicasUpdatedAfter :many
-SELECT id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error FROM replicas WHERE updated_at > $1 AND stopped_at IS NULL
+SELECT id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error, "primary" FROM replicas WHERE updated_at > $1 AND stopped_at IS NULL
 `
 
 func (q *sqlQuerier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]Replica, error) {
@@ -3255,6 +3303,7 @@ func (q *sqlQuerier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time
 			&i.DatabaseLatency,
 			&i.Version,
 			&i.Error,
+			&i.Primary,
 		); err != nil {
 			return nil, err
 		}
@@ -3279,8 +3328,9 @@ INSERT INTO replicas (
     region_id,
     relay_address,
     version,
-    database_latency
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error
+    database_latency,
+	"primary"
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error, "primary"
 `
 
 type InsertReplicaParams struct {
@@ -3293,6 +3343,7 @@ type InsertReplicaParams struct {
 	RelayAddress    string    `db:"relay_address" json:"relay_address"`
 	Version         string    `db:"version" json:"version"`
 	DatabaseLatency int32     `db:"database_latency" json:"database_latency"`
+	Primary         bool      `db:"primary" json:"primary"`
 }
 
 func (q *sqlQuerier) InsertReplica(ctx context.Context, arg InsertReplicaParams) (Replica, error) {
@@ -3306,6 +3357,7 @@ func (q *sqlQuerier) InsertReplica(ctx context.Context, arg InsertReplicaParams)
 		arg.RelayAddress,
 		arg.Version,
 		arg.DatabaseLatency,
+		arg.Primary,
 	)
 	var i Replica
 	err := row.Scan(
@@ -3320,6 +3372,7 @@ func (q *sqlQuerier) InsertReplica(ctx context.Context, arg InsertReplicaParams)
 		&i.DatabaseLatency,
 		&i.Version,
 		&i.Error,
+		&i.Primary,
 	)
 	return i, err
 }
@@ -3334,8 +3387,9 @@ UPDATE replicas SET
     hostname = $7,
     version = $8,
     error = $9,
-    database_latency = $10
-WHERE id = $1 RETURNING id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error
+    database_latency = $10,
+	"primary" = $11
+WHERE id = $1 RETURNING id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error, "primary"
 `
 
 type UpdateReplicaParams struct {
@@ -3349,6 +3403,7 @@ type UpdateReplicaParams struct {
 	Version         string       `db:"version" json:"version"`
 	Error           string       `db:"error" json:"error"`
 	DatabaseLatency int32        `db:"database_latency" json:"database_latency"`
+	Primary         bool         `db:"primary" json:"primary"`
 }
 
 func (q *sqlQuerier) UpdateReplica(ctx context.Context, arg UpdateReplicaParams) (Replica, error) {
@@ -3363,6 +3418,7 @@ func (q *sqlQuerier) UpdateReplica(ctx context.Context, arg UpdateReplicaParams)
 		arg.Version,
 		arg.Error,
 		arg.DatabaseLatency,
+		arg.Primary,
 	)
 	var i Replica
 	err := row.Scan(
@@ -3377,6 +3433,7 @@ func (q *sqlQuerier) UpdateReplica(ctx context.Context, arg UpdateReplicaParams)
 		&i.DatabaseLatency,
 		&i.Version,
 		&i.Error,
+		&i.Primary,
 	)
 	return i, err
 }
@@ -3635,6 +3692,74 @@ func (q *sqlQuerier) DeleteTailnetClient(ctx context.Context, arg DeleteTailnetC
 	var i DeleteTailnetClientRow
 	err := row.Scan(&i.ID, &i.CoordinatorID)
 	return i, err
+}
+
+const getAllTailnetAgents = `-- name: GetAllTailnetAgents :many
+SELECT id, coordinator_id, updated_at, node
+FROM tailnet_agents
+`
+
+func (q *sqlQuerier) GetAllTailnetAgents(ctx context.Context) ([]TailnetAgent, error) {
+	rows, err := q.db.QueryContext(ctx, getAllTailnetAgents)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TailnetAgent
+	for rows.Next() {
+		var i TailnetAgent
+		if err := rows.Scan(
+			&i.ID,
+			&i.CoordinatorID,
+			&i.UpdatedAt,
+			&i.Node,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAllTailnetClients = `-- name: GetAllTailnetClients :many
+SELECT id, coordinator_id, agent_id, updated_at, node
+FROM tailnet_clients
+ORDER BY agent_id
+`
+
+func (q *sqlQuerier) GetAllTailnetClients(ctx context.Context) ([]TailnetClient, error) {
+	rows, err := q.db.QueryContext(ctx, getAllTailnetClients)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TailnetClient
+	for rows.Next() {
+		var i TailnetClient
+		if err := rows.Scan(
+			&i.ID,
+			&i.CoordinatorID,
+			&i.AgentID,
+			&i.UpdatedAt,
+			&i.Node,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getTailnetAgents = `-- name: GetTailnetAgents :many
@@ -5857,22 +5982,22 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 	return i, err
 }
 
-const deleteOldWorkspaceAgentStartupLogs = `-- name: DeleteOldWorkspaceAgentStartupLogs :exec
-DELETE FROM workspace_agent_startup_logs WHERE agent_id IN
+const deleteOldWorkspaceAgentLogs = `-- name: DeleteOldWorkspaceAgentLogs :exec
+DELETE FROM workspace_agent_logs WHERE agent_id IN
 	(SELECT id FROM workspace_agents WHERE last_connected_at IS NOT NULL
 		AND last_connected_at < NOW() - INTERVAL '7 day')
 `
 
 // If an agent hasn't connected in the last 7 days, we purge it's logs.
 // Logs can take up a lot of space, so it's important we clean up frequently.
-func (q *sqlQuerier) DeleteOldWorkspaceAgentStartupLogs(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, deleteOldWorkspaceAgentStartupLogs)
+func (q *sqlQuerier) DeleteOldWorkspaceAgentLogs(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deleteOldWorkspaceAgentLogs)
 	return err
 }
 
 const getWorkspaceAgentByAuthToken = `-- name: GetWorkspaceAgentByAuthToken :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed, subsystem, startup_script_behavior, started_at, ready_at
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, logs_length, logs_overflowed, subsystem, startup_script_behavior, started_at, ready_at
 FROM
 	workspace_agents
 WHERE
@@ -5912,8 +6037,8 @@ func (q *sqlQuerier) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken
 		&i.ExpandedDirectory,
 		&i.ShutdownScript,
 		&i.ShutdownScriptTimeoutSeconds,
-		&i.StartupLogsLength,
-		&i.StartupLogsOverflowed,
+		&i.LogsLength,
+		&i.LogsOverflowed,
 		&i.Subsystem,
 		&i.StartupScriptBehavior,
 		&i.StartedAt,
@@ -5924,7 +6049,7 @@ func (q *sqlQuerier) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken
 
 const getWorkspaceAgentByID = `-- name: GetWorkspaceAgentByID :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed, subsystem, startup_script_behavior, started_at, ready_at
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, logs_length, logs_overflowed, subsystem, startup_script_behavior, started_at, ready_at
 FROM
 	workspace_agents
 WHERE
@@ -5962,8 +6087,8 @@ func (q *sqlQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (W
 		&i.ExpandedDirectory,
 		&i.ShutdownScript,
 		&i.ShutdownScriptTimeoutSeconds,
-		&i.StartupLogsLength,
-		&i.StartupLogsOverflowed,
+		&i.LogsLength,
+		&i.LogsOverflowed,
 		&i.Subsystem,
 		&i.StartupScriptBehavior,
 		&i.StartedAt,
@@ -5974,7 +6099,7 @@ func (q *sqlQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (W
 
 const getWorkspaceAgentByInstanceID = `-- name: GetWorkspaceAgentByInstanceID :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed, subsystem, startup_script_behavior, started_at, ready_at
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, logs_length, logs_overflowed, subsystem, startup_script_behavior, started_at, ready_at
 FROM
 	workspace_agents
 WHERE
@@ -6014,8 +6139,8 @@ func (q *sqlQuerier) GetWorkspaceAgentByInstanceID(ctx context.Context, authInst
 		&i.ExpandedDirectory,
 		&i.ShutdownScript,
 		&i.ShutdownScriptTimeoutSeconds,
-		&i.StartupLogsLength,
-		&i.StartupLogsOverflowed,
+		&i.LogsLength,
+		&i.LogsOverflowed,
 		&i.Subsystem,
 		&i.StartupScriptBehavior,
 		&i.StartedAt,
@@ -6046,6 +6171,53 @@ func (q *sqlQuerier) GetWorkspaceAgentLifecycleStateByID(ctx context.Context, id
 	var i GetWorkspaceAgentLifecycleStateByIDRow
 	err := row.Scan(&i.LifecycleState, &i.StartedAt, &i.ReadyAt)
 	return i, err
+}
+
+const getWorkspaceAgentLogsAfter = `-- name: GetWorkspaceAgentLogsAfter :many
+SELECT
+	agent_id, created_at, output, id, level, source
+FROM
+	workspace_agent_logs
+WHERE
+	agent_id = $1
+	AND (
+		id > $2
+	) ORDER BY id ASC
+`
+
+type GetWorkspaceAgentLogsAfterParams struct {
+	AgentID      uuid.UUID `db:"agent_id" json:"agent_id"`
+	CreatedAfter int64     `db:"created_after" json:"created_after"`
+}
+
+func (q *sqlQuerier) GetWorkspaceAgentLogsAfter(ctx context.Context, arg GetWorkspaceAgentLogsAfterParams) ([]WorkspaceAgentLog, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentLogsAfter, arg.AgentID, arg.CreatedAfter)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgentLog
+	for rows.Next() {
+		var i WorkspaceAgentLog
+		if err := rows.Scan(
+			&i.AgentID,
+			&i.CreatedAt,
+			&i.Output,
+			&i.ID,
+			&i.Level,
+			&i.Source,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getWorkspaceAgentMetadata = `-- name: GetWorkspaceAgentMetadata :many
@@ -6090,55 +6262,9 @@ func (q *sqlQuerier) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAge
 	return items, nil
 }
 
-const getWorkspaceAgentStartupLogsAfter = `-- name: GetWorkspaceAgentStartupLogsAfter :many
-SELECT
-	agent_id, created_at, output, id, level
-FROM
-	workspace_agent_startup_logs
-WHERE
-	agent_id = $1
-	AND (
-		id > $2
-	) ORDER BY id ASC
-`
-
-type GetWorkspaceAgentStartupLogsAfterParams struct {
-	AgentID      uuid.UUID `db:"agent_id" json:"agent_id"`
-	CreatedAfter int64     `db:"created_after" json:"created_after"`
-}
-
-func (q *sqlQuerier) GetWorkspaceAgentStartupLogsAfter(ctx context.Context, arg GetWorkspaceAgentStartupLogsAfterParams) ([]WorkspaceAgentStartupLog, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentStartupLogsAfter, arg.AgentID, arg.CreatedAfter)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []WorkspaceAgentStartupLog
-	for rows.Next() {
-		var i WorkspaceAgentStartupLog
-		if err := rows.Scan(
-			&i.AgentID,
-			&i.CreatedAt,
-			&i.Output,
-			&i.ID,
-			&i.Level,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getWorkspaceAgentsByResourceIDs = `-- name: GetWorkspaceAgentsByResourceIDs :many
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed, subsystem, startup_script_behavior, started_at, ready_at
+	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, logs_length, logs_overflowed, subsystem, startup_script_behavior, started_at, ready_at
 FROM
 	workspace_agents
 WHERE
@@ -6182,8 +6308,8 @@ func (q *sqlQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []
 			&i.ExpandedDirectory,
 			&i.ShutdownScript,
 			&i.ShutdownScriptTimeoutSeconds,
-			&i.StartupLogsLength,
-			&i.StartupLogsOverflowed,
+			&i.LogsLength,
+			&i.LogsOverflowed,
 			&i.Subsystem,
 			&i.StartupScriptBehavior,
 			&i.StartedAt,
@@ -6203,7 +6329,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsByResourceIDs(ctx context.Context, ids []
 }
 
 const getWorkspaceAgentsCreatedAfter = `-- name: GetWorkspaceAgentsCreatedAfter :many
-SELECT id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed, subsystem, startup_script_behavior, started_at, ready_at FROM workspace_agents WHERE created_at > $1
+SELECT id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, logs_length, logs_overflowed, subsystem, startup_script_behavior, started_at, ready_at FROM workspace_agents WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceAgent, error) {
@@ -6243,8 +6369,8 @@ func (q *sqlQuerier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, created
 			&i.ExpandedDirectory,
 			&i.ShutdownScript,
 			&i.ShutdownScriptTimeoutSeconds,
-			&i.StartupLogsLength,
-			&i.StartupLogsOverflowed,
+			&i.LogsLength,
+			&i.LogsOverflowed,
 			&i.Subsystem,
 			&i.StartupScriptBehavior,
 			&i.StartedAt,
@@ -6265,7 +6391,7 @@ func (q *sqlQuerier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, created
 
 const getWorkspaceAgentsInLatestBuildByWorkspaceID = `-- name: GetWorkspaceAgentsInLatestBuildByWorkspaceID :many
 SELECT
-	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.startup_script, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.startup_script_timeout_seconds, workspace_agents.expanded_directory, workspace_agents.shutdown_script, workspace_agents.shutdown_script_timeout_seconds, workspace_agents.startup_logs_length, workspace_agents.startup_logs_overflowed, workspace_agents.subsystem, workspace_agents.startup_script_behavior, workspace_agents.started_at, workspace_agents.ready_at
+	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.startup_script, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.startup_script_timeout_seconds, workspace_agents.expanded_directory, workspace_agents.shutdown_script, workspace_agents.shutdown_script_timeout_seconds, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.subsystem, workspace_agents.startup_script_behavior, workspace_agents.started_at, workspace_agents.ready_at
 FROM
 	workspace_agents
 JOIN
@@ -6321,8 +6447,8 @@ func (q *sqlQuerier) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.Co
 			&i.ExpandedDirectory,
 			&i.ShutdownScript,
 			&i.ShutdownScriptTimeoutSeconds,
-			&i.StartupLogsLength,
-			&i.StartupLogsOverflowed,
+			&i.LogsLength,
+			&i.LogsOverflowed,
 			&i.Subsystem,
 			&i.StartupScriptBehavior,
 			&i.StartedAt,
@@ -6367,7 +6493,7 @@ INSERT INTO
 		shutdown_script_timeout_seconds
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, startup_logs_length, startup_logs_overflowed, subsystem, startup_script_behavior, started_at, ready_at
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, logs_length, logs_overflowed, subsystem, startup_script_behavior, started_at, ready_at
 `
 
 type InsertWorkspaceAgentParams struct {
@@ -6447,14 +6573,76 @@ func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspa
 		&i.ExpandedDirectory,
 		&i.ShutdownScript,
 		&i.ShutdownScriptTimeoutSeconds,
-		&i.StartupLogsLength,
-		&i.StartupLogsOverflowed,
+		&i.LogsLength,
+		&i.LogsOverflowed,
 		&i.Subsystem,
 		&i.StartupScriptBehavior,
 		&i.StartedAt,
 		&i.ReadyAt,
 	)
 	return i, err
+}
+
+const insertWorkspaceAgentLogs = `-- name: InsertWorkspaceAgentLogs :many
+WITH new_length AS (
+	UPDATE workspace_agents SET
+	logs_length = logs_length + $6 WHERE workspace_agents.id = $1
+)
+INSERT INTO
+		workspace_agent_logs (agent_id, created_at, output, level, source)
+	SELECT
+		$1 :: uuid AS agent_id,
+		unnest($2 :: timestamptz [ ]) AS created_at,
+		unnest($3 :: VARCHAR(1024) [ ]) AS output,
+		unnest($4 :: log_level [ ]) AS level,
+		unnest($5 :: workspace_agent_log_source [ ]) AS source
+	RETURNING workspace_agent_logs.agent_id, workspace_agent_logs.created_at, workspace_agent_logs.output, workspace_agent_logs.id, workspace_agent_logs.level, workspace_agent_logs.source
+`
+
+type InsertWorkspaceAgentLogsParams struct {
+	AgentID      uuid.UUID                 `db:"agent_id" json:"agent_id"`
+	CreatedAt    []time.Time               `db:"created_at" json:"created_at"`
+	Output       []string                  `db:"output" json:"output"`
+	Level        []LogLevel                `db:"level" json:"level"`
+	Source       []WorkspaceAgentLogSource `db:"source" json:"source"`
+	OutputLength int32                     `db:"output_length" json:"output_length"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceAgentLogs(ctx context.Context, arg InsertWorkspaceAgentLogsParams) ([]WorkspaceAgentLog, error) {
+	rows, err := q.db.QueryContext(ctx, insertWorkspaceAgentLogs,
+		arg.AgentID,
+		pq.Array(arg.CreatedAt),
+		pq.Array(arg.Output),
+		pq.Array(arg.Level),
+		pq.Array(arg.Source),
+		arg.OutputLength,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgentLog
+	for rows.Next() {
+		var i WorkspaceAgentLog
+		if err := rows.Scan(
+			&i.AgentID,
+			&i.CreatedAt,
+			&i.Output,
+			&i.ID,
+			&i.Level,
+			&i.Source,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const insertWorkspaceAgentMetadata = `-- name: InsertWorkspaceAgentMetadata :exec
@@ -6490,64 +6678,6 @@ func (q *sqlQuerier) InsertWorkspaceAgentMetadata(ctx context.Context, arg Inser
 		arg.Interval,
 	)
 	return err
-}
-
-const insertWorkspaceAgentStartupLogs = `-- name: InsertWorkspaceAgentStartupLogs :many
-WITH new_length AS (
-	UPDATE workspace_agents SET
-	startup_logs_length = startup_logs_length + $5 WHERE workspace_agents.id = $1
-)
-INSERT INTO
-		workspace_agent_startup_logs (agent_id, created_at, output, level)
-	SELECT
-		$1 :: uuid AS agent_id,
-		unnest($2 :: timestamptz [ ]) AS created_at,
-		unnest($3 :: VARCHAR(1024) [ ]) AS output,
-		unnest($4 :: log_level [ ]) AS level
-	RETURNING workspace_agent_startup_logs.agent_id, workspace_agent_startup_logs.created_at, workspace_agent_startup_logs.output, workspace_agent_startup_logs.id, workspace_agent_startup_logs.level
-`
-
-type InsertWorkspaceAgentStartupLogsParams struct {
-	AgentID      uuid.UUID   `db:"agent_id" json:"agent_id"`
-	CreatedAt    []time.Time `db:"created_at" json:"created_at"`
-	Output       []string    `db:"output" json:"output"`
-	Level        []LogLevel  `db:"level" json:"level"`
-	OutputLength int32       `db:"output_length" json:"output_length"`
-}
-
-func (q *sqlQuerier) InsertWorkspaceAgentStartupLogs(ctx context.Context, arg InsertWorkspaceAgentStartupLogsParams) ([]WorkspaceAgentStartupLog, error) {
-	rows, err := q.db.QueryContext(ctx, insertWorkspaceAgentStartupLogs,
-		arg.AgentID,
-		pq.Array(arg.CreatedAt),
-		pq.Array(arg.Output),
-		pq.Array(arg.Level),
-		arg.OutputLength,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []WorkspaceAgentStartupLog
-	for rows.Next() {
-		var i WorkspaceAgentStartupLog
-		if err := rows.Scan(
-			&i.AgentID,
-			&i.CreatedAt,
-			&i.Output,
-			&i.ID,
-			&i.Level,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const updateWorkspaceAgentConnectionByID = `-- name: UpdateWorkspaceAgentConnectionByID :exec
@@ -6612,6 +6742,25 @@ func (q *sqlQuerier) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context,
 	return err
 }
 
+const updateWorkspaceAgentLogOverflowByID = `-- name: UpdateWorkspaceAgentLogOverflowByID :exec
+UPDATE
+	workspace_agents
+SET
+	logs_overflowed = $2
+WHERE
+	id = $1
+`
+
+type UpdateWorkspaceAgentLogOverflowByIDParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	LogsOverflowed bool      `db:"logs_overflowed" json:"logs_overflowed"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceAgentLogOverflowByID(ctx context.Context, arg UpdateWorkspaceAgentLogOverflowByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentLogOverflowByID, arg.ID, arg.LogsOverflowed)
+	return err
+}
+
 const updateWorkspaceAgentMetadata = `-- name: UpdateWorkspaceAgentMetadata :exec
 UPDATE
 	workspace_agent_metadata
@@ -6668,25 +6817,6 @@ func (q *sqlQuerier) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg Up
 		arg.ExpandedDirectory,
 		arg.Subsystem,
 	)
-	return err
-}
-
-const updateWorkspaceAgentStartupLogOverflowByID = `-- name: UpdateWorkspaceAgentStartupLogOverflowByID :exec
-UPDATE
-	workspace_agents
-SET
-	startup_logs_overflowed = $2
-WHERE
-	id = $1
-`
-
-type UpdateWorkspaceAgentStartupLogOverflowByIDParams struct {
-	ID                    uuid.UUID `db:"id" json:"id"`
-	StartupLogsOverflowed bool      `db:"startup_logs_overflowed" json:"startup_logs_overflowed"`
-}
-
-func (q *sqlQuerier) UpdateWorkspaceAgentStartupLogOverflowByID(ctx context.Context, arg UpdateWorkspaceAgentStartupLogOverflowByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentStartupLogOverflowByID, arg.ID, arg.StartupLogsOverflowed)
 	return err
 }
 

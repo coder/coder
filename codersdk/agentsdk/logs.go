@@ -16,10 +16,11 @@ import (
 )
 
 type startupLogsWriter struct {
-	buf   bytes.Buffer // Buffer to track partial lines.
-	ctx   context.Context
-	send  func(ctx context.Context, log ...StartupLog) error
-	level codersdk.LogLevel
+	buf    bytes.Buffer // Buffer to track partial lines.
+	ctx    context.Context
+	send   func(ctx context.Context, log ...Log) error
+	level  codersdk.LogLevel
+	source codersdk.WorkspaceAgentLogSource
 }
 
 func (w *startupLogsWriter) Write(p []byte) (int, error) {
@@ -39,10 +40,11 @@ func (w *startupLogsWriter) Write(p []byte) (int, error) {
 			partial = w.buf.Bytes()
 			w.buf.Reset()
 		}
-		err := w.send(w.ctx, StartupLog{
+		err := w.send(w.ctx, Log{
 			CreatedAt: time.Now().UTC(), // UTC, like database.Now().
 			Level:     w.level,
 			Output:    string(partial) + string(p[:nl-cr]),
+			Source:    w.source,
 		})
 		if err != nil {
 			return n - len(p), err
@@ -61,10 +63,11 @@ func (w *startupLogsWriter) Write(p []byte) (int, error) {
 func (w *startupLogsWriter) Close() error {
 	if w.buf.Len() > 0 {
 		defer w.buf.Reset()
-		return w.send(w.ctx, StartupLog{
+		return w.send(w.ctx, Log{
 			CreatedAt: time.Now().UTC(), // UTC, like database.Now().
 			Level:     w.level,
 			Output:    w.buf.String(),
+			Source:    w.source,
 		})
 	}
 	return nil
@@ -78,20 +81,24 @@ func (w *startupLogsWriter) Close() error {
 //
 // Neither Write nor Close is safe for concurrent use and must be used
 // by a single goroutine.
-func StartupLogsWriter(ctx context.Context, sender func(ctx context.Context, log ...StartupLog) error, level codersdk.LogLevel) io.WriteCloser {
+func StartupLogsWriter(ctx context.Context, sender func(ctx context.Context, log ...Log) error, source codersdk.WorkspaceAgentLogSource, level codersdk.LogLevel) io.WriteCloser {
+	if source == "" {
+		source = codersdk.WorkspaceAgentLogSourceExternal
+	}
 	return &startupLogsWriter{
-		ctx:   ctx,
-		send:  sender,
-		level: level,
+		ctx:    ctx,
+		send:   sender,
+		level:  level,
+		source: source,
 	}
 }
 
-// SendStartupLogs will send agent startup logs to the server. Calls to
+// LogsSender will send agent startup logs to the server. Calls to
 // sendLog are non-blocking and will return an error if flushAndClose
 // has been called. Calling sendLog concurrently is not supported. If
 // the context passed to flushAndClose is canceled, any remaining logs
 // will be discarded.
-func StartupLogsSender(patchStartupLogs func(ctx context.Context, req PatchStartupLogs) error, logger slog.Logger) (sendLog func(ctx context.Context, log ...StartupLog) error, flushAndClose func(context.Context) error) {
+func LogsSender(patchLogs func(ctx context.Context, req PatchLogs) error, logger slog.Logger) (sendLog func(ctx context.Context, log ...Log) error, flushAndClose func(context.Context) error) {
 	// The main context is used to close the sender goroutine and cancel
 	// any outbound requests to the API. The shutdown context is used to
 	// signal the sender goroutine to flush logs and then exit.
@@ -100,7 +107,7 @@ func StartupLogsSender(patchStartupLogs func(ctx context.Context, req PatchStart
 
 	// Synchronous sender, there can only be one outbound send at a time.
 	sendDone := make(chan struct{})
-	send := make(chan []StartupLog, 1)
+	send := make(chan []Log, 1)
 	go func() {
 		// Set flushTimeout and backlogLimit so that logs are uploaded
 		// once every 250ms or when 100 logs have been added to the
@@ -110,7 +117,7 @@ func StartupLogsSender(patchStartupLogs func(ctx context.Context, req PatchStart
 
 		flush := time.NewTicker(flushTimeout)
 
-		var backlog []StartupLog
+		var backlog []Log
 		defer func() {
 			flush.Stop()
 			if len(backlog) > 0 {
@@ -150,7 +157,7 @@ func StartupLogsSender(patchStartupLogs func(ctx context.Context, req PatchStart
 				// meaning these requests won't be interrupted by
 				// shutdown.
 				for r := retry.New(time.Second, 5*time.Second); r.Wait(ctx); {
-					err := patchStartupLogs(ctx, PatchStartupLogs{
+					err := patchLogs(ctx, PatchLogs{
 						Logs: backlog,
 					})
 					if err == nil {
@@ -185,8 +192,8 @@ func StartupLogsSender(patchStartupLogs func(ctx context.Context, req PatchStart
 		}
 	}()
 
-	var queue []StartupLog
-	sendLog = func(callCtx context.Context, log ...StartupLog) error {
+	var queue []Log
+	sendLog = func(callCtx context.Context, log ...Log) error {
 		select {
 		case <-shutdownCtx.Done():
 			return xerrors.Errorf("closed: %w", shutdownCtx.Err())

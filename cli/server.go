@@ -334,7 +334,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			)
 			if cfg.AccessURL.String() == "" {
 				cliui.Infof(inv.Stderr, "Opening tunnel so workspaces can connect to your deployment. For production scenarios, specify an external access URL")
-				tunnel, err = devtunnel.New(ctx, logger.Named("devtunnel"), cfg.WgtunnelHost.String())
+				tunnel, err = devtunnel.New(ctx, logger.Named("net.devtunnel"), cfg.WgtunnelHost.String())
 				if err != nil {
 					return xerrors.Errorf("create tunnel: %w", err)
 				}
@@ -477,7 +477,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				AppHostnameRegex:            appHostnameRegex,
 				Logger:                      logger.Named("coderd"),
 				Database:                    dbfake.New(),
-				DERPMap:                     derpMap,
+				BaseDERPMap:                 derpMap,
 				Pubsub:                      pubsub.NewInMemory(),
 				CacheDir:                    cacheDir,
 				GoogleTokenValidator:        googleTokenValidator,
@@ -822,7 +822,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			if cfg.Prometheus.Enable {
 				// Agent metrics require reference to the tailnet coordinator, so must be initiated after Coder API.
-				closeAgentsFunc, err := prometheusmetrics.Agents(ctx, logger, options.PrometheusRegistry, coderAPI.Database, &coderAPI.TailnetCoordinator, options.DERPMap, coderAPI.Options.AgentInactiveDisconnectTimeout, 0)
+				closeAgentsFunc, err := prometheusmetrics.Agents(ctx, logger, options.PrometheusRegistry, coderAPI.Database, &coderAPI.TailnetCoordinator, coderAPI.DERPMap, coderAPI.Options.AgentInactiveDisconnectTimeout, 0)
 				if err != nil {
 					return xerrors.Errorf("register agents prometheus metric: %w", err)
 				}
@@ -1148,7 +1148,7 @@ func PrintDeprecatedOptions() clibase.MiddlewareFunc {
 					continue
 				}
 
-				if opt.Value.String() == opt.Default {
+				if opt.ValueSource == clibase.ValueSourceNone || opt.ValueSource == clibase.ValueSourceDefault {
 					continue
 				}
 
@@ -1751,6 +1751,52 @@ func IsLocalhost(host string) bool {
 	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
+var _ slog.Sink = &debugFilterSink{}
+
+type debugFilterSink struct {
+	next []slog.Sink
+	re   *regexp.Regexp
+}
+
+func (f *debugFilterSink) compile(res []string) error {
+	if len(res) == 0 {
+		return nil
+	}
+
+	var reb strings.Builder
+	for i, re := range res {
+		_, _ = fmt.Fprintf(&reb, "(%s)", re)
+		if i != len(res)-1 {
+			_, _ = reb.WriteRune('|')
+		}
+	}
+
+	re, err := regexp.Compile(reb.String())
+	if err != nil {
+		return xerrors.Errorf("compile regex: %w", err)
+	}
+	f.re = re
+	return nil
+}
+
+func (f *debugFilterSink) LogEntry(ctx context.Context, ent slog.SinkEntry) {
+	if ent.Level == slog.LevelDebug {
+		logName := strings.Join(ent.LoggerNames, ".")
+		if f.re != nil && !f.re.MatchString(logName) {
+			return
+		}
+	}
+	for _, sink := range f.next {
+		sink.LogEntry(ctx, ent)
+	}
+}
+
+func (f *debugFilterSink) Sync() {
+	for _, sink := range f.next {
+		sink.Sync()
+	}
+}
+
 func BuildLogger(inv *clibase.Invocation, cfg *codersdk.DeploymentValues) (slog.Logger, func(), error) {
 	var (
 		sinks   = []slog.Sink{}
@@ -1795,16 +1841,25 @@ func BuildLogger(inv *clibase.Invocation, cfg *codersdk.DeploymentValues) (slog.
 		sinks = append(sinks, tracing.SlogSink{})
 	}
 
-	level := slog.LevelInfo
-	if cfg.Verbose {
-		level = slog.LevelDebug
-	}
-
+	// User should log to null device if they don't want logs.
 	if len(sinks) == 0 {
 		return slog.Logger{}, nil, xerrors.New("no loggers provided")
 	}
 
-	return slog.Make(sinks...).Leveled(level), func() {
+	filter := &debugFilterSink{next: sinks}
+
+	err = filter.compile(cfg.Logging.Filter.Value())
+	if err != nil {
+		return slog.Logger{}, nil, xerrors.Errorf("compile filters: %w", err)
+	}
+
+	level := slog.LevelInfo
+	// Debug logging is always enabled if a filter is present.
+	if cfg.Verbose || filter.re != nil {
+		level = slog.LevelDebug
+	}
+
+	return slog.Make(filter).Leveled(level), func() {
 		for _, closer := range closers {
 			_ = closer()
 		}

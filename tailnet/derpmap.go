@@ -13,6 +13,33 @@ import (
 	"tailscale.com/tailcfg"
 )
 
+func STUNNodes(regionID int, stunAddrs []string) ([]*tailcfg.DERPNode, error) {
+	nodes := []*tailcfg.DERPNode{}
+	for index, stunAddr := range stunAddrs {
+		if stunAddr == "disable" {
+			return []*tailcfg.DERPNode{}, nil
+		}
+
+		host, rawPort, err := net.SplitHostPort(stunAddr)
+		if err != nil {
+			return nil, xerrors.Errorf("split host port for %q: %w", stunAddr, err)
+		}
+		port, err := strconv.Atoi(rawPort)
+		if err != nil {
+			return nil, xerrors.Errorf("parse port for %q: %w", stunAddr, err)
+		}
+		nodes = append([]*tailcfg.DERPNode{{
+			Name:     fmt.Sprintf("%dstun%d", regionID, index),
+			RegionID: regionID,
+			HostName: host,
+			STUNOnly: true,
+			STUNPort: port,
+		}}, nodes...)
+	}
+
+	return nodes, nil
+}
+
 // NewDERPMap constructs a DERPMap from a set of STUN addresses and optionally a remote
 // URL to fetch a mapping from e.g. https://controlplane.tailscale.com/derpmap/default.
 //
@@ -26,23 +53,12 @@ func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []str
 	}
 
 	if region != nil {
-		for index, stunAddr := range stunAddrs {
-			host, rawPort, err := net.SplitHostPort(stunAddr)
-			if err != nil {
-				return nil, xerrors.Errorf("split host port for %q: %w", stunAddr, err)
-			}
-			port, err := strconv.Atoi(rawPort)
-			if err != nil {
-				return nil, xerrors.Errorf("parse port for %q: %w", stunAddr, err)
-			}
-			region.Nodes = append([]*tailcfg.DERPNode{{
-				Name:     fmt.Sprintf("%dstun%d", region.RegionID, index),
-				RegionID: region.RegionID,
-				HostName: host,
-				STUNOnly: true,
-				STUNPort: port,
-			}}, region.Nodes...)
+		stunNodes, err := STUNNodes(region.RegionID, stunAddrs)
+		if err != nil {
+			return nil, xerrors.Errorf("construct stun nodes: %w", err)
 		}
+
+		region.Nodes = append(stunNodes, region.Nodes...)
 	}
 
 	derpMap := &tailcfg.DERPMap{
@@ -96,4 +112,116 @@ func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []str
 	}
 
 	return derpMap, nil
+}
+
+// CompareDERPMaps returns true if the given DERPMaps are equivalent. Ordering
+// of slices is ignored.
+//
+// If the first map is nil, the second map must also be nil for them to be
+// considered equivalent. If the second map is nil, the first map can be any
+// value and the function will return true.
+func CompareDERPMaps(a *tailcfg.DERPMap, b *tailcfg.DERPMap) bool {
+	if a == nil {
+		return b == nil
+	}
+	if b == nil {
+		return true
+	}
+	if len(a.Regions) != len(b.Regions) {
+		return false
+	}
+	if a.OmitDefaultRegions != b.OmitDefaultRegions {
+		return false
+	}
+
+	for id, region := range a.Regions {
+		other, ok := b.Regions[id]
+		if !ok {
+			return false
+		}
+		if !compareDERPRegions(region, other) {
+			return false
+		}
+	}
+	return true
+}
+
+func compareDERPRegions(a *tailcfg.DERPRegion, b *tailcfg.DERPRegion) bool {
+	if a == nil || b == nil {
+		return false
+	}
+	if a.EmbeddedRelay != b.EmbeddedRelay {
+		return false
+	}
+	if a.RegionID != b.RegionID {
+		return false
+	}
+	if a.RegionCode != b.RegionCode {
+		return false
+	}
+	if a.RegionName != b.RegionName {
+		return false
+	}
+	if a.Avoid != b.Avoid {
+		return false
+	}
+	if len(a.Nodes) != len(b.Nodes) {
+		return false
+	}
+
+	// Convert both slices to maps so ordering can be ignored easier.
+	aNodes := map[string]*tailcfg.DERPNode{}
+	for _, node := range a.Nodes {
+		aNodes[node.Name] = node
+	}
+	bNodes := map[string]*tailcfg.DERPNode{}
+	for _, node := range b.Nodes {
+		bNodes[node.Name] = node
+	}
+
+	for name, aNode := range aNodes {
+		bNode, ok := bNodes[name]
+		if !ok {
+			return false
+		}
+
+		if aNode.Name != bNode.Name {
+			return false
+		}
+		if aNode.RegionID != bNode.RegionID {
+			return false
+		}
+		if aNode.HostName != bNode.HostName {
+			return false
+		}
+		if aNode.CertName != bNode.CertName {
+			return false
+		}
+		if aNode.IPv4 != bNode.IPv4 {
+			return false
+		}
+		if aNode.IPv6 != bNode.IPv6 {
+			return false
+		}
+		if aNode.STUNPort != bNode.STUNPort {
+			return false
+		}
+		if aNode.STUNOnly != bNode.STUNOnly {
+			return false
+		}
+		if aNode.DERPPort != bNode.DERPPort {
+			return false
+		}
+		if aNode.InsecureForTests != bNode.InsecureForTests {
+			return false
+		}
+		if aNode.ForceHTTP != bNode.ForceHTTP {
+			return false
+		}
+		if aNode.STUNTestIP != bNode.STUNTestIP {
+			return false
+		}
+	}
+
+	return true
 }

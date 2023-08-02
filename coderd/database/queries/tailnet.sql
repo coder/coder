@@ -59,10 +59,19 @@ SELECT *
 FROM tailnet_agents
 WHERE id = $1;
 
+-- name: GetAllTailnetAgents :many
+SELECT *
+FROM tailnet_agents;
+
 -- name: GetTailnetClientsForAgent :many
 SELECT *
 FROM tailnet_clients
 WHERE agent_id = $1;
+
+-- name: GetAllTailnetClients :many
+SELECT *
+FROM tailnet_clients
+ORDER BY agent_id;
 
 -- name: UpsertTailnetCoordinator :one
 INSERT INTO

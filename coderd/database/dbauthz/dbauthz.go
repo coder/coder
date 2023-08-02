@@ -722,11 +722,11 @@ func (q *querier) DeleteLicense(ctx context.Context, id int32) (int32, error) {
 	return id, nil
 }
 
-func (q *querier) DeleteOldWorkspaceAgentStartupLogs(ctx context.Context) error {
+func (q *querier) DeleteOldWorkspaceAgentLogs(ctx context.Context) error {
 	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceSystem); err != nil {
 		return err
 	}
-	return q.db.DeleteOldWorkspaceAgentStartupLogs(ctx)
+	return q.db.DeleteOldWorkspaceAgentLogs(ctx)
 }
 
 func (q *querier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
@@ -782,6 +782,20 @@ func (q *querier) GetActiveUserCount(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 	return q.db.GetActiveUserCount(ctx)
+}
+
+func (q *querier) GetAllTailnetAgents(ctx context.Context) ([]database.TailnetAgent, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
+		return []database.TailnetAgent{}, err
+	}
+	return q.db.GetAllTailnetAgents(ctx)
+}
+
+func (q *querier) GetAllTailnetClients(ctx context.Context) ([]database.TailnetClient, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
+		return []database.TailnetClient{}, err
+	}
+	return q.db.GetAllTailnetClients(ctx)
 }
 
 func (q *querier) GetAppSecurityKey(ctx context.Context) (string, error) {
@@ -939,14 +953,9 @@ func (q *querier) GetLatestWorkspaceBuilds(ctx context.Context) ([]database.Work
 }
 
 func (q *querier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceBuild, error) {
-	// This is not ideal as not all builds will be returned if the workspace cannot be read.
-	// This should probably be handled differently? Maybe join workspace builds with workspace
-	// ownership properties and filter on that.
-	for _, id := range ids {
-		_, err := q.GetWorkspaceByID(ctx, id)
-		if err != nil {
-			return nil, err
-		}
+	// This function is a system function until we implement a join for workspace builds.
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
 	}
 
 	return q.db.GetLatestWorkspaceBuildsByWorkspaceIDs(ctx, ids)
@@ -1108,7 +1117,7 @@ func (q *querier) GetProvisionerLogsAfterID(ctx context.Context, arg database.Ge
 }
 
 func (q *querier) GetQuotaAllowanceForUser(ctx context.Context, userID uuid.UUID) (int64, error) {
-	err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUser.WithID(userID))
+	err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUserObject(userID))
 	if err != nil {
 		return -1, err
 	}
@@ -1116,11 +1125,18 @@ func (q *querier) GetQuotaAllowanceForUser(ctx context.Context, userID uuid.UUID
 }
 
 func (q *querier) GetQuotaConsumedForUser(ctx context.Context, userID uuid.UUID) (int64, error) {
-	err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUser.WithID(userID))
+	err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUserObject(userID))
 	if err != nil {
 		return -1, err
 	}
 	return q.db.GetQuotaConsumedForUser(ctx, userID)
+}
+
+func (q *querier) GetReplicaByID(ctx context.Context, id uuid.UUID) (database.Replica, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.Replica{}, err
+	}
+	return q.db.GetReplicaByID(ctx, id)
 }
 
 func (q *querier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]database.Replica, error) {
@@ -1174,17 +1190,39 @@ func (q *querier) GetTemplateDAUs(ctx context.Context, arg database.GetTemplateD
 }
 
 func (q *querier) GetTemplateDailyInsights(ctx context.Context, arg database.GetTemplateDailyInsightsParams) ([]database.GetTemplateDailyInsightsRow, error) {
-	// FIXME: this should maybe be READ rbac.ResourceTemplate or it's own resource.
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
+	for _, templateID := range arg.TemplateIDs {
+		template, err := q.db.GetTemplateByID(ctx, templateID)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
+			return nil, err
+		}
+	}
+	if len(arg.TemplateIDs) == 0 {
+		if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
+			return nil, err
+		}
 	}
 	return q.db.GetTemplateDailyInsights(ctx, arg)
 }
 
 func (q *querier) GetTemplateInsights(ctx context.Context, arg database.GetTemplateInsightsParams) (database.GetTemplateInsightsRow, error) {
-	// FIXME: this should maybe be READ rbac.ResourceTemplate or it's own resource.
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
-		return database.GetTemplateInsightsRow{}, err
+	for _, templateID := range arg.TemplateIDs {
+		template, err := q.db.GetTemplateByID(ctx, templateID)
+		if err != nil {
+			return database.GetTemplateInsightsRow{}, err
+		}
+
+		if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
+			return database.GetTemplateInsightsRow{}, err
+		}
+	}
+	if len(arg.TemplateIDs) == 0 {
+		if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
+			return database.GetTemplateInsightsRow{}, err
+		}
 	}
 	return q.db.GetTemplateInsights(ctx, arg)
 }
@@ -1356,8 +1394,20 @@ func (q *querier) GetUserCount(ctx context.Context) (int64, error) {
 }
 
 func (q *querier) GetUserLatencyInsights(ctx context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
+	for _, templateID := range arg.TemplateIDs {
+		template, err := q.db.GetTemplateByID(ctx, templateID)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
+			return nil, err
+		}
+	}
+	if len(arg.TemplateIDs) == 0 {
+		if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
+			return nil, err
+		}
 	}
 	return q.db.GetUserLatencyInsights(ctx, arg)
 }
@@ -1390,7 +1440,7 @@ func (q *querier) GetUsers(ctx context.Context, arg database.GetUsersParams) ([]
 // itself.
 func (q *querier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]database.User, error) {
 	for _, uid := range ids {
-		if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUser.WithID(uid)); err != nil {
+		if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceUserObject(uid)); err != nil {
 			return nil, err
 		}
 	}
@@ -1437,6 +1487,14 @@ func (q *querier) GetWorkspaceAgentLifecycleStateByID(ctx context.Context, id uu
 	return q.db.GetWorkspaceAgentLifecycleStateByID(ctx, id)
 }
 
+func (q *querier) GetWorkspaceAgentLogsAfter(ctx context.Context, arg database.GetWorkspaceAgentLogsAfterParams) ([]database.WorkspaceAgentLog, error) {
+	_, err := q.GetWorkspaceAgentByID(ctx, arg.AgentID)
+	if err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceAgentLogsAfter(ctx, arg)
+}
+
 func (q *querier) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentMetadatum, error) {
 	workspace, err := q.db.GetWorkspaceByAgentID(ctx, workspaceAgentID)
 	if err != nil {
@@ -1449,14 +1507,6 @@ func (q *querier) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAgentI
 	}
 
 	return q.db.GetWorkspaceAgentMetadata(ctx, workspaceAgentID)
-}
-
-func (q *querier) GetWorkspaceAgentStartupLogsAfter(ctx context.Context, arg database.GetWorkspaceAgentStartupLogsAfterParams) ([]database.WorkspaceAgentStartupLog, error) {
-	_, err := q.GetWorkspaceAgentByID(ctx, arg.AgentID)
-	if err != nil {
-		return nil, err
-	}
-	return q.db.GetWorkspaceAgentStartupLogsAfter(ctx, arg)
 }
 
 func (q *querier) GetWorkspaceAgentStats(ctx context.Context, createdAfter time.Time) ([]database.GetWorkspaceAgentStatsRow, error) {
@@ -1899,7 +1949,7 @@ func (q *querier) InsertUserGroupsByName(ctx context.Context, arg database.Inser
 
 // TODO: Should this be in system.go?
 func (q *querier) InsertUserLink(ctx context.Context, arg database.InsertUserLinkParams) (database.UserLink, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceUser.WithID(arg.UserID)); err != nil {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceUserObject(arg.UserID)); err != nil {
 		return database.UserLink{}, err
 	}
 	return q.db.InsertUserLink(ctx, arg)
@@ -1919,6 +1969,10 @@ func (q *querier) InsertWorkspaceAgent(ctx context.Context, arg database.InsertW
 	return q.db.InsertWorkspaceAgent(ctx, arg)
 }
 
+func (q *querier) InsertWorkspaceAgentLogs(ctx context.Context, arg database.InsertWorkspaceAgentLogsParams) ([]database.WorkspaceAgentLog, error) {
+	return q.db.InsertWorkspaceAgentLogs(ctx, arg)
+}
+
 func (q *querier) InsertWorkspaceAgentMetadata(ctx context.Context, arg database.InsertWorkspaceAgentMetadataParams) error {
 	// We don't check for workspace ownership here since the agent metadata may
 	// be associated with an orphaned agent used by a dry run build.
@@ -1927,10 +1981,6 @@ func (q *querier) InsertWorkspaceAgentMetadata(ctx context.Context, arg database
 	}
 
 	return q.db.InsertWorkspaceAgentMetadata(ctx, arg)
-}
-
-func (q *querier) InsertWorkspaceAgentStartupLogs(ctx context.Context, arg database.InsertWorkspaceAgentStartupLogsParams) ([]database.WorkspaceAgentStartupLog, error) {
-	return q.db.InsertWorkspaceAgentStartupLogs(ctx, arg)
 }
 
 func (q *querier) InsertWorkspaceAgentStat(ctx context.Context, arg database.InsertWorkspaceAgentStatParams) (database.WorkspaceAgentStat, error) {
@@ -2397,6 +2447,24 @@ func (q *querier) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, ar
 	return q.db.UpdateWorkspaceAgentLifecycleStateByID(ctx, arg)
 }
 
+func (q *querier) UpdateWorkspaceAgentLogOverflowByID(ctx context.Context, arg database.UpdateWorkspaceAgentLogOverflowByIDParams) error {
+	agent, err := q.db.GetWorkspaceAgentByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, agent.ID)
+	if err != nil {
+		return err
+	}
+
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, workspace); err != nil {
+		return err
+	}
+
+	return q.db.UpdateWorkspaceAgentLogOverflowByID(ctx, arg)
+}
+
 func (q *querier) UpdateWorkspaceAgentMetadata(ctx context.Context, arg database.UpdateWorkspaceAgentMetadataParams) error {
 	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.WorkspaceAgentID)
 	if err != nil {
@@ -2427,24 +2495,6 @@ func (q *querier) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg datab
 	}
 
 	return q.db.UpdateWorkspaceAgentStartupByID(ctx, arg)
-}
-
-func (q *querier) UpdateWorkspaceAgentStartupLogOverflowByID(ctx context.Context, arg database.UpdateWorkspaceAgentStartupLogOverflowByIDParams) error {
-	agent, err := q.db.GetWorkspaceAgentByID(ctx, arg.ID)
-	if err != nil {
-		return err
-	}
-
-	workspace, err := q.db.GetWorkspaceByAgentID(ctx, agent.ID)
-	if err != nil {
-		return err
-	}
-
-	if err := q.authorizeContext(ctx, rbac.ActionUpdate, workspace); err != nil {
-		return err
-	}
-
-	return q.db.UpdateWorkspaceAgentStartupLogOverflowByID(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceAppHealthByID(ctx context.Context, arg database.UpdateWorkspaceAppHealthByIDParams) error {
@@ -2614,24 +2664,24 @@ func (q *querier) GetAuthorizedTemplates(ctx context.Context, arg database.GetTe
 }
 
 func (q *querier) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateGroup, error) {
-	// An actor is authorized to read template group roles if they are authorized to read the template.
+	// An actor is authorized to read template group roles if they are authorized to update the template.
 	template, err := q.db.GetTemplateByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	if err := q.authorizeContext(ctx, rbac.ActionRead, template); err != nil {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
 		return nil, err
 	}
 	return q.db.GetTemplateGroupRoles(ctx, id)
 }
 
 func (q *querier) GetTemplateUserRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateUser, error) {
-	// An actor is authorized to query template user roles if they are authorized to read the template.
+	// An actor is authorized to query template user roles if they are authorized to update the template.
 	template, err := q.db.GetTemplateByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	if err := q.authorizeContext(ctx, rbac.ActionRead, template); err != nil {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
 		return nil, err
 	}
 	return q.db.GetTemplateUserRoles(ctx, id)

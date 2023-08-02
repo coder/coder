@@ -35,7 +35,7 @@ type TrackedConn struct {
 	overwrites int64
 }
 
-func NewTrackedConn(ctx context.Context, cancel func(), conn net.Conn, id uuid.UUID, logger slog.Logger, overwrites int64) *TrackedConn {
+func NewTrackedConn(ctx context.Context, cancel func(), conn net.Conn, id uuid.UUID, logger slog.Logger, name string, overwrites int64) *TrackedConn {
 	// buffer updates so they don't block, since we hold the
 	// coordinator mutex while queuing.  Node updates don't
 	// come quickly, so 512 should be plenty for all but
@@ -51,6 +51,7 @@ func NewTrackedConn(ctx context.Context, cancel func(), conn net.Conn, id uuid.U
 		id:         id,
 		start:      now,
 		lastWrite:  now,
+		name:       name,
 		overwrites: overwrites,
 	}
 }

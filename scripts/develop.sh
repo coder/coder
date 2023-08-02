@@ -131,7 +131,7 @@ fatal() {
 	trap 'fatal "Script encountered an error"' ERR
 
 	cdroot
-	start_cmd API "" "${CODER_DEV_SHIM}" server --http-address 0.0.0.0:3000 --swagger-enable --access-url "http://127.0.0.1:3000" --dangerous-allow-cors-requests=true --experiments "*" "$@"
+	start_cmd API "" "${CODER_DEV_SHIM}" server --http-address 0.0.0.0:3000 --swagger-enable --access-url "http://127.0.0.1:3000" --dangerous-allow-cors-requests=true --experiments "*,moons" "$@"
 
 	echo '== Waiting for Coder to become ready'
 	# Start the timeout in the background so interrupting this script
@@ -181,7 +181,7 @@ fatal() {
 		log "Using external workspace proxy"
 		(
 			# Attempt to delete the proxy first, in case it already exists.
-			"${CODER_DEV_SHIM}" wsproxy delete local-proxy || true
+			"${CODER_DEV_SHIM}" wsproxy delete local-proxy --yes || true
 			# Create the proxy
 			proxy_session_token=$("${CODER_DEV_SHIM}" wsproxy create --name=local-proxy --display-name="Local Proxy" --icon="/emojis/1f4bb.png" --only-token)
 			# Start the proxy

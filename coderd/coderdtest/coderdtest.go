@@ -303,9 +303,21 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		accessURL = serverURL
 	}
 
-	stunAddr, stunCleanup := stuntest.ServeWithPacketListener(t, nettype.Std{})
-	stunAddr.IP = net.ParseIP("127.0.0.1")
-	t.Cleanup(stunCleanup)
+	// If the STUNAddresses setting is empty or the default, start a STUN
+	// server. Otherwise, use the value as is.
+	var (
+		stunAddresses   []string
+		dvStunAddresses = options.DeploymentValues.DERP.Server.STUNAddresses.Value()
+	)
+	if len(dvStunAddresses) == 0 || (len(dvStunAddresses) == 1 && dvStunAddresses[0] == "stun.l.google.com:19302") {
+		stunAddr, stunCleanup := stuntest.ServeWithPacketListener(t, nettype.Std{})
+		stunAddr.IP = net.ParseIP("127.0.0.1")
+		t.Cleanup(stunCleanup)
+		stunAddresses = []string{stunAddr.String()}
+		options.DeploymentValues.DERP.Server.STUNAddresses = stunAddresses
+	} else if dvStunAddresses[0] != "disable" {
+		stunAddresses = options.DeploymentValues.DERP.Server.STUNAddresses.Value()
+	}
 
 	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(slogtest.Make(t, nil).Named("derp").Leveled(slog.LevelDebug)))
 	derpServer.SetMeshKey("test-key")
@@ -346,7 +358,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	if !options.DeploymentValues.DERP.Server.Enable.Value() {
 		region = nil
 	}
-	derpMap, err := tailnet.NewDERPMap(ctx, region, []string{stunAddr.String()}, "", "", options.DeploymentValues.DERP.Config.BlockDirect.Value())
+	derpMap, err := tailnet.NewDERPMap(ctx, region, stunAddresses, "", "", options.DeploymentValues.DERP.Config.BlockDirect.Value())
 	require.NoError(t, err)
 
 	return func(h http.Handler) {
@@ -385,7 +397,8 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			TLSCertificates:             options.TLSCertificates,
 			TrialGenerator:              options.TrialGenerator,
 			TailnetCoordinator:          options.Coordinator,
-			DERPMap:                     derpMap,
+			BaseDERPMap:                 derpMap,
+			DERPMapUpdateFrequency:      150 * time.Millisecond,
 			MetricsCacheRefreshInterval: options.MetricsCacheRefreshInterval,
 			AgentStatsRefreshInterval:   options.AgentStatsRefreshInterval,
 			DeploymentValues:            options.DeploymentValues,

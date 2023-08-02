@@ -12,7 +12,7 @@ import {
 } from "components/PageHeader/PageHeader"
 import { Stack } from "components/Stack/Stack"
 import { WorkspaceHelpTooltip } from "components/Tooltips"
-import { WorkspacesTable } from "components/WorkspacesTable/WorkspacesTable"
+import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable"
 import { useLocalStorage } from "hooks"
 import difference from "lodash/difference"
 import { LockedWorkspaceBanner, Count } from "components/WorkspaceDeletion"
@@ -114,7 +114,6 @@ export const WorkspacesPageView: FC<
         workspaces={workspaces}
         isUsingFilter={filterProps.filter.used}
         onUpdateWorkspace={onUpdateWorkspace}
-        error={error}
       />
       {count !== undefined && (
         <PaginationWidgetBase

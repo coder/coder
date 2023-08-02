@@ -17,6 +17,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
@@ -1039,7 +1040,9 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 		return workspaceData{}, xerrors.Errorf("get templates: %w", err)
 	}
 
-	builds, err := api.Database.GetLatestWorkspaceBuildsByWorkspaceIDs(ctx, workspaceIDs)
+	// This query must be run as system restricted to be efficient.
+	// nolint:gocritic
+	builds, err := api.Database.GetLatestWorkspaceBuildsByWorkspaceIDs(dbauthz.AsSystemRestricted(ctx), workspaceIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceData{}, xerrors.Errorf("get workspace builds: %w", err)
 	}
@@ -1259,13 +1262,13 @@ func (api *API) publishWorkspaceUpdate(ctx context.Context, workspaceID uuid.UUI
 	}
 }
 
-func (api *API) publishWorkspaceAgentStartupLogsUpdate(ctx context.Context, workspaceAgentID uuid.UUID, m agentsdk.StartupLogsNotifyMessage) {
+func (api *API) publishWorkspaceAgentLogsUpdate(ctx context.Context, workspaceAgentID uuid.UUID, m agentsdk.LogsNotifyMessage) {
 	b, err := json.Marshal(m)
 	if err != nil {
-		api.Logger.Warn(ctx, "failed to marshal startup logs notify message", slog.F("workspace_agent_id", workspaceAgentID), slog.Error(err))
+		api.Logger.Warn(ctx, "failed to marshal logs notify message", slog.F("workspace_agent_id", workspaceAgentID), slog.Error(err))
 	}
-	err = api.Pubsub.Publish(agentsdk.StartupLogsNotifyChannel(workspaceAgentID), b)
+	err = api.Pubsub.Publish(agentsdk.LogsNotifyChannel(workspaceAgentID), b)
 	if err != nil {
-		api.Logger.Warn(ctx, "failed to publish workspace agent startup logs update", slog.F("workspace_agent_id", workspaceAgentID), slog.Error(err))
+		api.Logger.Warn(ctx, "failed to publish workspace agent logs update", slog.F("workspace_agent_id", workspaceAgentID), slog.Error(err))
 	}
 }

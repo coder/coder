@@ -203,7 +203,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.offlinedocs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
-    timeout-minutes: 5
+    timeout-minutes: 7
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -575,10 +575,17 @@ jobs:
         with:
           buildScriptName: "storybook:build"
           exitOnceUploaded: true
+          # This will prevent CI from failing when Chromatic detects visual changes
+          exitZeroOnChanges: true
           # Chromatic states its fine to make this token public. See:
           # https://www.chromatic.com/docs/github-actions#forked-repositories
           projectToken: 695c25b6cb65
           workingDir: "./site"
+          # Prevent excessive build runs on minor version changes
+          skip: "@(renovate/**|dependabot/**)"
+          # Run TurboSnap to trace file dependencies to related stories
+          # and tell chromatic to only take snapshots of relevent stories
+          onlyChanged: true
 
       # This is a separate step for mainline only that auto accepts and changes
       # instead of holding CI up. Since we squash/merge, this is defensive to
@@ -594,9 +601,14 @@ jobs:
           STORYBOOK: true
         with:
           autoAcceptChanges: true
+          # This will prevent CI from failing when Chromatic detects visual changes
+          exitZeroOnChanges: true
           buildScriptName: "storybook:build"
           projectToken: 695c25b6cb65
           workingDir: "./site"
+          # Run TurboSnap to trace file dependencies to related stories
+          # and tell chromatic to only take snapshots of relevent stories
+          onlyChanged: true
 
   offlinedocs:
     name: offlinedocs

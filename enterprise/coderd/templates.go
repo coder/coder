@@ -9,14 +9,73 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 )
+
+// @Summary Get template available acl users/groups
+// @ID get-template-available-acl-usersgroups
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param template path string true "Template ID" format(uuid)
+// @Success 200 {array} codersdk.ACLAvailable
+// @Router /templates/{template}/acl/available [get]
+func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx      = r.Context()
+		template = httpmw.TemplateParam(r)
+	)
+
+	// Requires update permission on the template to list all avail users/groups
+	// for assignment.
+	if !api.Authorize(r, rbac.ActionUpdate, template) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	// We have to use the system restricted context here because the caller
+	// might not have permission to read all users.
+	// nolint:gocritic
+	users, _, ok := api.AGPL.GetUsers(rw, r.WithContext(dbauthz.AsSystemRestricted(ctx)))
+	if !ok {
+		return
+	}
+
+	// Perm check is the template update check.
+	// nolint:gocritic
+	groups, err := api.Database.GetGroupsByOrganizationID(dbauthz.AsSystemRestricted(ctx), template.OrganizationID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	sdkGroups := make([]codersdk.Group, 0, len(groups))
+	for _, group := range groups {
+		// nolint:gocritic
+		members, err := api.Database.GetGroupMembers(dbauthz.AsSystemRestricted(ctx), group.ID)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+
+		sdkGroups = append(sdkGroups, convertGroup(group, members))
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ACLAvailable{
+		// No need to pass organization info here.
+		// TODO: @emyrk we should return a MinimalUser here instead of a full user.
+		// The FE requires the `email` field, so this cannot be done without
+		// a UI change.
+		Users:  convertUsers(users, map[uuid.UUID][]uuid.UUID{}),
+		Groups: sdkGroups,
+	})
+}
 
 // @Summary Get template ACLs
 // @ID get-template-acls
@@ -44,15 +103,6 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dbGroups, err = coderd.AuthorizeFilter(api.AGPL.HTTPAuth, r, rbac.ActionRead, dbGroups)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching users.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
 	userIDs := make([]uuid.UUID, 0, len(users))
 	for _, user := range users {
 		userIDs = append(userIDs, user.ID)
@@ -73,7 +123,12 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 	for _, group := range dbGroups {
 		var members []database.User
 
-		members, err = api.Database.GetGroupMembers(ctx, group.ID)
+		// This is a bit of a hack. The caller might not have permission to do this,
+		// but they can read the acl list if the function got this far. So we let
+		// them read the group members.
+		// We should probably at least return more truncated user data here.
+		// nolint:gocritic
+		members, err = api.Database.GetGroupMembers(dbauthz.AsSystemRestricted(ctx), group.ID)
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return
@@ -191,6 +246,9 @@ func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 
 // nolint TODO fix stupid flag.
 func validateTemplateACLPerms(ctx context.Context, db database.Store, perms map[string]codersdk.TemplateRole, field string, isUser bool) []codersdk.ValidationError {
+	// Validate requires full read access to users and groups
+	// nolint:gocritic
+	ctx = dbauthz.AsSystemRestricted(ctx)
 	var validErrs []codersdk.ValidationError
 	for k, v := range perms {
 		if err := validateTemplateRole(v); err != nil {

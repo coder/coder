@@ -21,16 +21,10 @@ const WorkspacesPage: FC = () => {
   // each hook.
   const searchParamsResult = useSearchParams()
   const pagination = usePagination({ searchParamsResult })
-  const filter = useFilter({
-    initialValue: `owner:me`,
-    searchParamsResult,
-    onUpdate: () => {
-      pagination.goToPage(1)
-    },
-  })
+  const filterProps = useWorkspacesFilter({ searchParamsResult, pagination })
   const { data, error, queryKey } = useWorkspacesData({
     ...pagination,
-    query: filter.query,
+    query: filterProps.filter.query,
   })
 
   const { entitlements, experiments } = useDashboard()
@@ -41,10 +35,10 @@ const WorkspacesPage: FC = () => {
   const allowWorkspaceActions = experiments.includes("workspace_actions")
 
   if (allowWorkspaceActions && allowAdvancedScheduling) {
-    const includesLocked = filter.query.includes("locked_at")
+    const includesLocked = filterProps.filter.query.includes("locked_at")
     const lockedQuery = includesLocked
-      ? filter.query
-      : filter.query + " locked_at:1970-01-01"
+      ? filterProps.filter.query
+      : filterProps.filter.query + " locked_at:1970-01-01"
 
     useEffect(() => {
       if (includesLocked && data) {
@@ -66,6 +60,48 @@ const WorkspacesPage: FC = () => {
   }
 
   const updateWorkspace = useWorkspaceUpdate(queryKey)
+
+  return (
+    <>
+      <Helmet>
+        <title>{pageTitle("Workspaces")}</title>
+      </Helmet>
+
+      <WorkspacesPageView
+        workspaces={data?.workspaces}
+        error={error}
+        count={data?.count}
+        page={pagination.page}
+        limit={pagination.limit}
+        onPageChange={pagination.goToPage}
+        filterProps={filterProps}
+        onUpdateWorkspace={(workspace) => {
+          updateWorkspace.mutate(workspace)
+        }}
+      />
+    </>
+  )
+}
+
+export default WorkspacesPage
+
+type UseWorkspacesFilterOptions = {
+  searchParamsResult: ReturnType<typeof useSearchParams>
+  pagination: ReturnType<typeof usePagination>
+}
+
+const useWorkspacesFilter = ({
+  searchParamsResult,
+  pagination,
+}: UseWorkspacesFilterOptions) => {
+  const orgId = useOrganizationId()
+  const filter = useFilter({
+    initialValue: `owner:me`,
+    searchParamsResult,
+    onUpdate: () => {
+      pagination.goToPage(1)
+    },
+  })
   const permissions = usePermissions()
   const canFilterByUser = permissions.viewDeploymentValues
   const userMenu = useUserFilterMenu({
@@ -86,34 +122,12 @@ const WorkspacesPage: FC = () => {
       filter.update({ ...filter.values, status: option?.value }),
   })
 
-  return (
-    <>
-      <Helmet>
-        <title>{pageTitle("Workspaces")}</title>
-      </Helmet>
-
-      <WorkspacesPageView
-        workspaces={data?.workspaces}
-        lockedWorkspaces={lockedWorkspaces}
-        error={error}
-        count={data?.count}
-        page={pagination.page}
-        limit={pagination.limit}
-        onPageChange={pagination.goToPage}
-        filterProps={{
-          filter,
-          menus: {
-            user: canFilterByUser ? userMenu : undefined,
-            template: templateMenu,
-            status: statusMenu,
-          },
-        }}
-        onUpdateWorkspace={(workspace) => {
-          updateWorkspace.mutate(workspace)
-        }}
-      />
-    </>
-  )
+  return {
+    filter,
+    menus: {
+      user: canFilterByUser ? userMenu : undefined,
+      template: templateMenu,
+      status: statusMenu,
+    },
+  }
 }
-
-export default WorkspacesPage

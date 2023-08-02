@@ -61,7 +61,6 @@ describe("LoginPage", () => {
 
   it("shows github authentication when enabled", async () => {
     const authMethods: TypesGen.AuthMethods = {
-      convert_to_oidc_enabled: false,
       password: { enabled: true },
       github: { enabled: true },
       oidc: { enabled: true, signInText: "", iconUrl: "" },
@@ -113,7 +112,6 @@ describe("LoginPage", () => {
 
   it("hides password authentication if OIDC/GitHub is enabled and displays on click", async () => {
     const authMethods: TypesGen.AuthMethods = {
-      convert_to_oidc_enabled: false,
       password: { enabled: true },
       github: { enabled: true },
       oidc: { enabled: true, signInText: "", iconUrl: "" },

@@ -170,7 +170,10 @@ func (r *DERPNodeReport) derpURL() *url.URL {
 		derpURL.Scheme = "http"
 	}
 	if r.Node.HostName == "" {
-		derpURL.Host = fmt.Sprintf("%s:%d", r.Node.IPv4, r.Node.DERPPort)
+		derpURL.Host = r.Node.IPv4
+	}
+	if r.Node.DERPPort != 0 && !(r.Node.DERPPort == 443 && derpURL.Scheme == "https") && !(r.Node.DERPPort == 80 && derpURL.Scheme == "http") {
+		derpURL.Host = fmt.Sprintf("%s:%d", derpURL.Host, r.Node.DERPPort)
 	}
 
 	return derpURL

@@ -64,6 +64,7 @@ export const TemplatePermissionsPage: FC<
         <Cond>
           <TemplatePermissionsPageView
             organizationId={organizationId}
+            templateID={template.id}
             templateACL={templateACL}
             canUpdatePermissions={Boolean(permissions?.canUpdateTemplate)}
             onAddUser={(user, role, reset) => {
