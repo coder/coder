@@ -13,6 +13,33 @@ import (
 	"tailscale.com/tailcfg"
 )
 
+func STUNNodes(regionID int, stunAddrs []string) ([]*tailcfg.DERPNode, error) {
+	nodes := []*tailcfg.DERPNode{}
+	for index, stunAddr := range stunAddrs {
+		if stunAddr == "disable" {
+			return []*tailcfg.DERPNode{}, nil
+		}
+
+		host, rawPort, err := net.SplitHostPort(stunAddr)
+		if err != nil {
+			return nil, xerrors.Errorf("split host port for %q: %w", stunAddr, err)
+		}
+		port, err := strconv.Atoi(rawPort)
+		if err != nil {
+			return nil, xerrors.Errorf("parse port for %q: %w", stunAddr, err)
+		}
+		nodes = append([]*tailcfg.DERPNode{{
+			Name:     fmt.Sprintf("%dstun%d", regionID, index),
+			RegionID: regionID,
+			HostName: host,
+			STUNOnly: true,
+			STUNPort: port,
+		}}, nodes...)
+	}
+
+	return nodes, nil
+}
+
 // NewDERPMap constructs a DERPMap from a set of STUN addresses and optionally a remote
 // URL to fetch a mapping from e.g. https://controlplane.tailscale.com/derpmap/default.
 //
@@ -26,23 +53,12 @@ func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []str
 	}
 
 	if region != nil {
-		for index, stunAddr := range stunAddrs {
-			host, rawPort, err := net.SplitHostPort(stunAddr)
-			if err != nil {
-				return nil, xerrors.Errorf("split host port for %q: %w", stunAddr, err)
-			}
-			port, err := strconv.Atoi(rawPort)
-			if err != nil {
-				return nil, xerrors.Errorf("parse port for %q: %w", stunAddr, err)
-			}
-			region.Nodes = append([]*tailcfg.DERPNode{{
-				Name:     fmt.Sprintf("%dstun%d", region.RegionID, index),
-				RegionID: region.RegionID,
-				HostName: host,
-				STUNOnly: true,
-				STUNPort: port,
-			}}, region.Nodes...)
+		stunNodes, err := STUNNodes(region.RegionID, stunAddrs)
+		if err != nil {
+			return nil, xerrors.Errorf("construct stun nodes: %w", err)
 		}
+
+		region.Nodes = append(stunNodes, region.Nodes...)
 	}
 
 	derpMap := &tailcfg.DERPMap{

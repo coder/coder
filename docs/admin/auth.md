@@ -310,6 +310,24 @@ Steps to troubleshoot.
    - [Azure AD limit is 200, and omits groups if exceeded.](https://learn.microsoft.com/en-us/azure/active-directory/hybrid/connect/how-to-connect-fed-group-claims#options-for-applications-to-consume-group-information)
    - [Okta limit is 100, and returns an error if exceeded.](https://developer.okta.com/docs/reference/api/oidc/#scope-dependent-claims-not-always-returned)
 
+## Role sync (enterprise)
+
+If your OpenID Connect provider supports roles claims, you can configure Coder
+to synchronize roles in your auth provider to deployment-wide roles within Coder.
+
+Set the following in your Coder server [configuration](./configure.md).
+
+```console
+ # Depending on your identity provider configuration, you may need to explicitly request a "roles" scope
+CODER_OIDC_SCOPES=openid,profile,email,roles
+
+# The following fields are required for role sync:
+CODER_OIDC_USER_ROLE_FIELD=roles
+CODER_OIDC_USER_ROLE_MAPPING='{"TemplateAuthor":["template-admin","user-admin"]}'
+```
+
+> One role from your identity provider can be mapped to many roles in Coder (e.g. the example above maps to 2 roles in Coder.)
+
 ## Provider-Specific Guides
 
 Below are some details specific to individual OIDC providers.
