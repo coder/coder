@@ -246,7 +246,7 @@ jobs:
           fi
           echo "experiments=$experiments" >> $GITHUB_OUTPUT
         env:
-          COMMENT_BODY: ${{ github.event.comment.body || ''}}
+          COMMENT_BODY: ${{ github.event.comment.body || '' }}
 
       - name: Create values.yaml
         run: |
