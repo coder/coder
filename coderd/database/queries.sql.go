@@ -1307,7 +1307,7 @@ const insertGroup = `-- name: InsertGroup :one
 INSERT INTO groups (
 	id,
 	name,
-    display_name,
+	display_name,
 	organization_id,
 	avatar_url,
 	quota_allowance
