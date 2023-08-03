@@ -21,6 +21,7 @@ import { useQuery } from "@tanstack/react-query"
 import { getAgentListeningPorts } from "api/api"
 import { WorkspaceAgentListeningPort } from "api/typesGenerated"
 import CircularProgress from "@mui/material/CircularProgress"
+import { portForwardURL } from "utils/portForward"
 
 export interface PortForwardButtonProps {
   host: string
@@ -186,21 +187,6 @@ const TooltipView: React.FC<
       </HelpTooltipLinksGroup>
     </>
   )
-}
-
-export const portForwardURL = (
-  host: string,
-  port: number,
-  agentName: string,
-  workspaceName: string,
-  username: string,
-): string => {
-  const { location } = window
-
-  const subdomain = `${
-    isNaN(port) ? 3000 : port
-  }--${agentName}--${workspaceName}--${username}`
-  return `${location.protocol}//${host}`.replace("*", subdomain)
 }
 
 const useStyles = makeStyles((theme) => ({
