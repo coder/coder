@@ -154,7 +154,7 @@ jobs:
     needs: get_info
     # Skips the build job if the workflow was triggered by a workflow_dispatch event and the skip_build input is set to true
     # or if the workflow was triggered by an issue_comment event and the comment body contains --skip-build
-    # alwyas run the build job if the workflow was triggered by a pull_request event
+    # always run the build job if a pull_request event triggered the workflow
     if: |
       (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_build == 'false') ||
       (github.event_name == 'pull_request' && needs.get_info.outputs.NEW == 'false')
@@ -211,7 +211,8 @@ jobs:
   deploy:
     needs: [build, get_info]
     # Run deploy job only if build job was successful or skipped
-    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && needs.get_info.result == 'success'
+    if: |
+      always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && needs.get_info.outputs.NEW == 'false'
     runs-on: "ubuntu-latest"
     env:
       CODER_IMAGE_TAG: ${{ needs.get_info.outputs.CODER_IMAGE_TAG }}
