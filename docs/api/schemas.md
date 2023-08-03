@@ -4315,6 +4315,27 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     }
   ],
   "end_time": "2019-08-24T14:15:22Z",
+  "parameters_usage": [
+    {
+      "display_name": "string",
+      "name": "string",
+      "options": [
+        {
+          "description": "string",
+          "icon": "string",
+          "name": "string",
+          "value": "string"
+        }
+      ],
+      "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+      "values": [
+        {
+          "count": 0,
+          "value": "string"
+        }
+      ]
+    }
+  ],
   "start_time": "2019-08-24T14:15:22Z",
   "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"]
 }
@@ -4322,13 +4343,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name           | Type                                                            | Required | Restrictions | Description |
-| -------------- | --------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `active_users` | integer                                                         | false    |              |             |
-| `apps_usage`   | array of [codersdk.TemplateAppUsage](#codersdktemplateappusage) | false    |              |             |
-| `end_time`     | string                                                          | false    |              |             |
-| `start_time`   | string                                                          | false    |              |             |
-| `template_ids` | array of string                                                 | false    |              |             |
+| Name               | Type                                                                        | Required | Restrictions | Description |
+| ------------------ | --------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `active_users`     | integer                                                                     | false    |              |             |
+| `apps_usage`       | array of [codersdk.TemplateAppUsage](#codersdktemplateappusage)             | false    |              |             |
+| `end_time`         | string                                                                      | false    |              |             |
+| `parameters_usage` | array of [codersdk.TemplateParameterUsage](#codersdktemplateparameterusage) | false    |              |             |
+| `start_time`       | string                                                                      | false    |              |             |
+| `template_ids`     | array of string                                                             | false    |              |             |
 
 ## codersdk.TemplateInsightsResponse
 
@@ -4356,6 +4378,27 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       }
     ],
     "end_time": "2019-08-24T14:15:22Z",
+    "parameters_usage": [
+      {
+        "display_name": "string",
+        "name": "string",
+        "options": [
+          {
+            "description": "string",
+            "icon": "string",
+            "name": "string",
+            "value": "string"
+          }
+        ],
+        "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+        "values": [
+          {
+            "count": 0,
+            "value": "string"
+          }
+        ]
+      }
+    ],
     "start_time": "2019-08-24T14:15:22Z",
     "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"]
   }
@@ -4368,6 +4411,56 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ------------------ | ------------------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
 | `interval_reports` | array of [codersdk.TemplateInsightsIntervalReport](#codersdktemplateinsightsintervalreport) | false    |              |             |
 | `report`           | [codersdk.TemplateInsightsReport](#codersdktemplateinsightsreport)                          | false    |              |             |
+
+## codersdk.TemplateParameterUsage
+
+```json
+{
+  "display_name": "string",
+  "name": "string",
+  "options": [
+    {
+      "description": "string",
+      "icon": "string",
+      "name": "string",
+      "value": "string"
+    }
+  ],
+  "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+  "values": [
+    {
+      "count": 0,
+      "value": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name           | Type                                                                                        | Required | Restrictions | Description |
+| -------------- | ------------------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `display_name` | string                                                                                      | false    |              |             |
+| `name`         | string                                                                                      | false    |              |             |
+| `options`      | array of [codersdk.TemplateVersionParameterOption](#codersdktemplateversionparameteroption) | false    |              |             |
+| `template_ids` | array of string                                                                             | false    |              |             |
+| `values`       | array of [codersdk.TemplateParameterValue](#codersdktemplateparametervalue)                 | false    |              |             |
+
+## codersdk.TemplateParameterValue
+
+```json
+{
+  "count": 0,
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name    | Type    | Required | Restrictions | Description |
+| ------- | ------- | -------- | ------------ | ----------- |
+| `count` | integer | false    |              |             |
+| `value` | string  | false    |              |             |
 
 ## codersdk.TemplateRestartRequirement
 

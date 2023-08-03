@@ -2,8 +2,10 @@ package coderd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -190,11 +192,11 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 
 	// Use a transaction to ensure that we get consistent data between
 	// the full and interval report.
-	err := api.Database.InTx(func(db database.Store) error {
+	err := api.Database.InTx(func(tx database.Store) error {
 		var err error
 
 		if interval != "" {
-			dailyUsage, err = db.GetTemplateDailyInsights(ctx, database.GetTemplateDailyInsightsParams{
+			dailyUsage, err = tx.GetTemplateDailyInsights(ctx, database.GetTemplateDailyInsightsParams{
 				StartTime:   startTime,
 				EndTime:     endTime,
 				TemplateIDs: templateIDs,
@@ -204,7 +206,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		usage, err = db.GetTemplateInsights(ctx, database.GetTemplateInsightsParams{
+		usage, err = tx.GetTemplateInsights(ctx, database.GetTemplateInsightsParams{
 			StartTime:   startTime,
 			EndTime:     endTime,
 			TemplateIDs: templateIDs,
@@ -227,13 +229,38 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Template parameter insights have no risk of inconsistency with the other
+	// insights, so we don't need to perform this in a transaction.
+	parameterRows, err := api.Database.GetTemplateParameterInsights(ctx, database.GetTemplateParameterInsightsParams{
+		StartTime:   startTime,
+		EndTime:     endTime,
+		TemplateIDs: templateIDs,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template parameter insights.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	parametersUsage, err := convertTemplateInsightsParameters(parameterRows)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error converting template parameter insights.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	resp := codersdk.TemplateInsightsResponse{
 		Report: codersdk.TemplateInsightsReport{
-			StartTime:   startTime,
-			EndTime:     endTime,
-			TemplateIDs: usage.TemplateIDs,
-			ActiveUsers: usage.ActiveUsers,
-			AppsUsage:   convertTemplateInsightsBuiltinApps(usage),
+			StartTime:       startTime,
+			EndTime:         endTime,
+			TemplateIDs:     usage.TemplateIDs,
+			ActiveUsers:     usage.ActiveUsers,
+			AppsUsage:       convertTemplateInsightsBuiltinApps(usage),
+			ParametersUsage: parametersUsage,
 		},
 		IntervalReports: []codersdk.TemplateInsightsIntervalReport{},
 	}
@@ -286,6 +313,39 @@ func convertTemplateInsightsBuiltinApps(usage database.GetTemplateInsightsRow) [
 			Seconds:     usage.UsageSshSeconds,
 		},
 	}
+}
+
+func convertTemplateInsightsParameters(parameterRows []database.GetTemplateParameterInsightsRow) ([]codersdk.TemplateParameterUsage, error) {
+	parametersByNum := make(map[int64]*codersdk.TemplateParameterUsage)
+	for _, param := range parameterRows {
+		if _, ok := parametersByNum[param.Num]; !ok {
+			var opts []codersdk.TemplateVersionParameterOption
+			err := json.Unmarshal(param.Options, &opts)
+			if err != nil {
+				return nil, xerrors.Errorf("unmarshal template parameter options: %w", err)
+			}
+			parametersByNum[param.Num] = &codersdk.TemplateParameterUsage{
+				TemplateIDs: param.TemplateIDs,
+				Name:        param.Name,
+				DisplayName: param.DisplayName,
+				Options:     opts,
+			}
+		}
+		parametersByNum[param.Num].Values = append(parametersByNum[param.Num].Values, codersdk.TemplateParameterValue{
+			Value: param.Value,
+			Count: param.Count,
+		})
+	}
+	parametersUsage := []codersdk.TemplateParameterUsage{}
+	for _, param := range parametersByNum {
+		parametersUsage = append(parametersUsage, *param)
+	}
+
+	sort.Slice(parametersUsage, func(i, j int) bool {
+		return parametersUsage[i].Name < parametersUsage[j].Name
+	})
+
+	return parametersUsage, nil
 }
 
 // parseInsightsStartAndEndTime parses the start and end time query parameters
