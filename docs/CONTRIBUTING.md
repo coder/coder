@@ -83,15 +83,18 @@ Use the following `make` commands and scripts in development:
 
 You can test your changes by creating a PR deployment. A PR deployment can be triggered in two ways:
 
-1. By commenting on the PR with `/deploy-pr`
-2. By running `./scripts/deploy-pr.sh`
-3. Available options
-   - `-s` or `--skip-build`, the image will not be built again, and the last image will be used.
-   - `-e EXPERIMENT1,EXPERIMENT2` or `--experiments EXPERIMENT1,EXPERIMENT2`, will enable the specified experiments.
-   - `-n` or `--dry-run` will display the context without deployment. e.g., branch name and PR number, etc.
-   - `-y` or `--yes`, will skip the CLI confirmation (only valid for the `./scripts/deploy-pr.sh`)
+1. By running `./scripts/deploy-pr.sh`
+2. By manually triggering the [`pr-deploy.yaml`](https://github.com/coder/coder/actions/workflows/pr-deploy.yaml) GitHub Action workflow
+![Deploy PR manually](./images/pr-deploy-manual.png)
 
-> Note: all flags can be used with both `./scripts/deploy-pr.sh` and `/deploy-pr` comment on the PR.
+#### Available options
+
+- `-s` or `--skip-build`, the image will not be built again, and the last image will be used.
+- `-e EXPERIMENT1,EXPERIMENT2` or `--experiments EXPERIMENT1,EXPERIMENT2`, will enable the specified experiments.
+- `-n` or `--dry-run` will display the context without deployment. e.g., branch name and PR number, etc.
+- `-y` or `--yes`, will skip the CLI confirmation (only valid for the `./scripts/deploy-pr.sh`)
+
+> Note: PR deployment will be re-deployed automatically when the PR is updated.
 
 > You need to be a member or collaborator of the of [coder](github.com/coder) GitHub organization to be able to deploy a PR.
 

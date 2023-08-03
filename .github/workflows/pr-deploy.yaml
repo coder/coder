@@ -1,12 +1,9 @@
 # This action will trigger when
-# 1. A PR is commented on with `/deploy-pr`
-# 2. when the workflow is manually triggered
-# 3. ./scripts/deploy_pr.sh is run locally
-# 4. when a PR is updated
+# 1. when the workflow is manually triggered
+# 2. ./scripts/deploy_pr.sh is run locally
+# 3. when a PR is updated
 name: Deploy PR
 on:
-  issue_comment:
-    types: created
   pull_request:
     types: synchronize
   workflow_dispatch:
@@ -35,12 +32,12 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: ${{ github.workflow }}-PR-${{ github.event.pull_request.number || github.event.issue.number || github.event.inputs.pr_number }}
+  group: ${{ github.workflow }}-PR-${{ github.event.pull_request.number || github.event.inputs.pr_number }}
   cancel-in-progress: true
 
 jobs:
   get_info:
-    if: (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/deploy-pr') && (github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'COLLABORATOR' || github.event.comment.author_association == 'OWNER')) || github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
     outputs:
       PR_NUMBER: ${{ steps.pr_info.outputs.PR_NUMBER }}
       PR_TITLE: ${{ steps.pr_info.outputs.PR_TITLE }}
@@ -57,7 +54,7 @@ jobs:
         id: pr_info
         run: |
           set -euxo pipefail
-          PR_NUMBER=${{ github.event.inputs.pr_number || github.event.pull_request.number || github.event.issue.number }}
+          PR_NUMBER=${{ github.event.inputs.pr_number || github.event.pull_request.number }}
           PR_TITLE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/coder/coder/pulls/$PR_NUMBER | jq -r '.title')
           PR_BRANCH=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/coder/coder/pulls/$PR_NUMBER | jq -r '.head.ref')
           echo "PR_URL=https://github.com/coder/coder/pull/$PR_NUMBER" >> $GITHUB_OUTPUT
@@ -97,7 +94,6 @@ jobs:
 
       - name: Comment on PR
         id: comment_id
-        if: github.event_name == 'issue_comment'
         uses: peter-evans/create-or-update-comment@v3
         with:
           issue-number: ${{ steps.pr_info.outputs.PR_NUMBER }}
@@ -148,7 +144,6 @@ jobs:
     # alwyas run the build job if the workflow was triggered by a pull_request event
     if: |
       (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_build == 'false') ||
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '--skip-build') == false) ||
       (github.event_name == 'pull_request' && needs.get_info.outputs.NEW == 'false')
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     env:
@@ -299,29 +294,17 @@ jobs:
             --from-literal=url="postgres://coder:coder@coder-db-postgresql.pr${{ env.PR_NUMBER }}.svc.cluster.local:5432/coder?sslmode=disable"
 
       - name: Get experiments
-        if: needs.get_info.outputs.NEW == 'true'
         id: get_experiments
         run: |
           set -euxo pipefail
           if [[ ${{ github.event_name }} == "workflow_dispatch" ]]; then
             experiments=${{ github.event.inputs.experiments }}
           else
-            # extract experiments part
-            extracted_experiments=$(echo "$COMMENT_BODY" | grep -oP '(?<=--experiments )[^ ]+')
-            # Validate that the experiments is a comma-separated list of alphanumeric strings, "*", or "-"
-            if [[ $extracted_experiments =~ ^[a-zA-Z0-9_*,\"-]+$ ]]; then
-              experiments=$extracted_experiments
-            else
-              echo "Invalid input: $extracted_experiments"
-              exit 1
-            fi
+            experiments='*' # enable all experiments by default
           fi
           echo "experiments=$experiments" >> $GITHUB_OUTPUT
-        env:
-          COMMENT_BODY: ${{ github.event.comment.body || '' }}
 
       - name: Create values.yaml
-        if: needs.get_info.outputs.NEW == 'true'
         run: |
           cat <<EOF > pr-deploy-values.yaml
           coder:
@@ -346,7 +329,7 @@ jobs:
               - name: "CODER_WILDCARD_ACCESS_URL"
                 value: "*.${{ env.PR_DEPLOYMENT_ACCESS_URL }}"
               - name: "CODER_EXPERIMENTS"
-                value: "*,${{ steps.get_experiments.outputs.experiments }}"
+                value: "${{ steps.get_experiments.outputs.experiments }}"
               - name: CODER_PG_CONNECTION_URL
                 valueFrom:
                   secretKeyRef:
@@ -365,18 +348,10 @@ jobs:
       - name: Install Helm chart
         run: |
           set -euxo pipefail
-          # if the deployment already exists, we need to upgrade it by resuing the existing values
-          if [[ ${{ needs.get_info.outputs.NEW }} == "false" ]]; then
-            helm upgrade --install "pr${{ env.PR_NUMBER }}" ./helm \
-              --namespace "pr${{ env.PR_NUMBER }}" \
-              --reuse-values \
-              --force
-          else
-            helm upgrade --install "pr${{ env.PR_NUMBER }}" ./helm \
-            --namespace "pr${{ env.PR_NUMBER }}" \
-            --values ./pr-deploy-values.yaml \
-            --force
-          fi
+          helm upgrade --install "pr${{ env.PR_NUMBER }}" ./helm \
+          --namespace "pr${{ env.PR_NUMBER }}" \
+          --values ./pr-deploy-values.yaml \
+          --force
 
       - name: Install coder-logstream-kube
         if: needs.get_info.outputs.NEW == 'true'
