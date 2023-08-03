@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"crypto/subtle"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -87,6 +88,40 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, apiDaemons)
 }
 
+type provisionerDaemonAuth struct {
+	psk        string
+	authorizer rbac.Authorizer
+}
+
+// authorize returns mutated tags and true if the given HTTP request is authorized to access the provisioner daemon
+// protobuf API, and returns nil, false otherwise.
+func (p *provisionerDaemonAuth) authorize(r *http.Request, tags map[string]string) (map[string]string, bool) {
+	ctx := r.Context()
+	apiKey, ok := httpmw.APIKeyOptional(r)
+	if ok {
+		tags = provisionerdserver.MutateTags(apiKey.UserID, tags)
+		if tags[provisionerdserver.TagScope] == provisionerdserver.ScopeUser {
+			// Any authenticated user can create provisioner daemons scoped
+			// for jobs that they own,
+			return tags, true
+		}
+		ua := httpmw.UserAuthorization(r)
+		if err := p.authorizer.Authorize(ctx, ua.Actor, rbac.ActionCreate, rbac.ResourceProvisionerDaemon); err == nil {
+			// User is allowed to create provisioner daemons
+			return tags, true
+		}
+	}
+
+	// Check for PSK
+	if p.psk != "" {
+		psk := r.Header.Get(codersdk.ProvisionerDaemonPSK)
+		if subtle.ConstantTimeCompare([]byte(p.psk), []byte(psk)) == 1 {
+			return tags, true
+		}
+	}
+	return nil, false
+}
+
 // Serves the provisioner daemon protobuf API over a WebSocket.
 //
 // @Summary Serve provisioner daemon
@@ -134,19 +169,11 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	// Any authenticated user can create provisioner daemons scoped
-	// for jobs that they own, but only authorized users can create
-	// globally scoped provisioners that attach to all jobs.
-	apiKey := httpmw.APIKey(r)
-	tags = provisionerdserver.MutateTags(apiKey.UserID, tags)
-
-	if tags[provisionerdserver.TagScope] == provisionerdserver.ScopeOrganization {
-		if !api.AGPL.Authorize(r, rbac.ActionCreate, rbac.ResourceProvisionerDaemon) {
-			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-				Message: "You aren't allowed to create provisioner daemons for the organization.",
-			})
-			return
-		}
+	tags, authorized := api.provisionerDaemonAuth.authorize(r, tags)
+	if !authorized {
+		httpapi.Write(ctx, rw, http.StatusForbidden,
+			codersdk.Response{Message: "You aren't allowed to create provisioner daemons"})
+		return
 	}
 
 	provisioners := make([]database.ProvisionerType, 0)

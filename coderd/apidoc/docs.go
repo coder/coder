@@ -8747,6 +8747,9 @@ const docTemplate = `{
                 "daemon_poll_jitter": {
                     "type": "integer"
                 },
+                "daemon_psk": {
+                    "type": "string"
+                },
                 "daemons": {
                     "type": "integer"
                 },
