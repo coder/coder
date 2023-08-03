@@ -92,15 +92,25 @@ jobs:
           fi
           echo "new=$new" >> $GITHUB_OUTPUT
 
+      - name: Find Comment
+        uses: peter-evans/find-comment@v2
+        id: fc
+        with:
+          issue-number: ${{ steps.pr_info.outputs.PR_NUMBER }}
+          comment-author: "github-actions[bot]"
+          body-includes: ":rocket:"
+          direction: last
+
       - name: Comment on PR
         id: comment_id
         uses: peter-evans/create-or-update-comment@v3
         with:
+          comment-id: ${{ steps.fc.outputs.comment-id }}
           issue-number: ${{ steps.pr_info.outputs.PR_NUMBER }}
+          edit-mode: replace
           body: |
             ---
             :rocket: Deploying PR ${{ steps.pr_info.outputs.PR_NUMBER }} ...
-            ---
 
       - name: Checkout
         uses: actions/checkout@v3
@@ -455,7 +465,7 @@ jobs:
         with:
           issue-number: ${{ env.PR_NUMBER }}
           comment-author: "github-actions[bot]"
-          body-includes: ---
+          body-includes: ":rocket:"
           direction: last
 
       - name: Comment on PR
@@ -469,6 +479,6 @@ jobs:
           body: |
             ---
             :heavy_check_mark: PR ${{ env.PR_NUMBER }} ${{ env.STATUS }} successfully.
-            :rocket: Access the credentials [here]( {{ secrets.PR_DEPLOYMENTS_SLACK_CHANNEL_URL }} ).
-            ---
+            :rocket: Access the credentials [here]({{ secrets.PR_DEPLOYMENTS_SLACK_CHANNEL_URL }}).
+
           reactions: rocket
