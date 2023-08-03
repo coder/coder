@@ -471,7 +471,7 @@ func RegexpOf(s *regexp.Regexp) *Regexp {
 func (s *Regexp) Set(v string) error {
 	exp, err := regexp.Compile(v)
 	if err != nil {
-		return xerrors.Errorf("invalid regexp %q: %w", v, err)
+		return xerrors.Errorf("invalid regex expression: %w", v, err)
 	}
 	*s = Regexp(*exp)
 	return nil
