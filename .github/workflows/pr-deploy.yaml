@@ -87,7 +87,7 @@ jobs:
             echo "Deployment already exists. Skipping deployment."
             new=false
           else
-            echo "Deployment doesn't exist. Creating a new one."
+            echo "Deployment doesn't exist."
             new=true
           fi
           echo "new=$new" >> $GITHUB_OUTPUT
