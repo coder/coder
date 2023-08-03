@@ -26,7 +26,6 @@ When planning your infrastructure, we recommend you consider the following:
 1. CPU and memory requirements for the database used by `coderd`. We recommend allocating an additional 1 CPU core to the database used by Coder for every 1000 active users.
 1. CPU and memory requirements for workspaces created by Coder. This will vary depending on users' needs. However, the Coder agent itself requires at minimum 0.1 CPU cores and 256 MB to run inside a workspace.
 
-
 ### Concurrent users
 
 We recommend allocating 2 CPU cores and 4 GB RAM per `coderd` replica per 1000 active users.
@@ -67,7 +66,6 @@ For example, to support 120 concurrent workspace builds:
 | Kubernetes (GKE)   | db-n1-standard-1 | 1500  | 20                | 1,500                                 | `v0.24.1`     | Jun 27, 2023 |
 | Kubernetes (GKE)   | db-n1-standard-1 | 500   | 20                | 500 (640KB/s SSH each)                | `v0.27.2`     | Jul 27, 2023 |
 
-
 ## Scale testing utility
 
 Since Coder's performance is highly dependent on the templates and workflows you support, you may wish to use our internal scale testing utility against your own environments.
@@ -91,7 +89,6 @@ coder exp scaletest create-workspaces \
 
 # Run `coder exp scaletest create-workspaces --help` for all usage
 ```
-
 
 The test does the following:
 
