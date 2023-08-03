@@ -7318,7 +7318,25 @@ func (q *sqlQuerier) InsertWorkspaceAgentStat(ctx context.Context, arg InsertWor
 
 const insertWorkspaceAgentStats = `-- name: InsertWorkspaceAgentStats :exec
 INSERT INTO
-	workspace_agent_stats
+	workspace_agent_stats (
+		id,
+		created_at,
+		user_id,
+		workspace_id,
+		template_id,
+		agent_id,
+		connections_by_proto,
+		connection_count,
+		rx_packets,
+		rx_bytes,
+		tx_packets,
+		tx_bytes,
+		session_count_vscode,
+		session_count_jetbrains,
+		session_count_reconnecting_pty,
+		session_count_ssh,
+		connection_median_latency_ms
+	)
 SELECT
 	unnest($1 :: uuid[]) AS id,
 	unnest($2 :: timestamptz[]) AS created_at,
