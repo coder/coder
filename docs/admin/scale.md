@@ -105,7 +105,7 @@ You are responsible for deleting these resources later.
 
 ### Traffic Generation
 
-Given an existing set of workspaces created previously with `create-workspaces`, the following command will generate traffic similar to that used by Coder's web terminal against those workspaces.
+Given an existing set of workspaces created previously with `create-workspaces`, the following command will generate traffic similar to that of Coder's web terminal against those workspaces.
 
 ```sh
 coder exp scaletest workspace-traffic \
