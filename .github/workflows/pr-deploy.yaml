@@ -218,7 +218,7 @@ jobs:
     # Run deploy job only if build job was successful or skipped
     if: |
       always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && 
-      (github.event_name == 'workflow_dispatch' || steps.check_deployment.outputs.NEW == 'false')
+      (github.event_name == 'workflow_dispatch' || needs.get_info.outputs.NEW == 'false')
     runs-on: "ubuntu-latest"
     env:
       CODER_IMAGE_TAG: ${{ needs.get_info.outputs.CODER_IMAGE_TAG }}
