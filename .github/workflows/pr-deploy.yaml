@@ -306,17 +306,6 @@ jobs:
           kubectl create secret generic coder-db-url -n pr${{ env.PR_NUMBER }} \
             --from-literal=url="postgres://coder:coder@coder-db-postgresql.pr${{ env.PR_NUMBER }}.svc.cluster.local:5432/coder?sslmode=disable"
 
-      - name: Get experiments
-        id: get_experiments
-        run: |
-          set -euxo pipefail
-          if [[ ${{ github.event_name }} == "workflow_dispatch" ]]; then
-            experiments=${{ github.event.inputs.experiments }}
-          else
-            experiments='*' # enable all experiments by default
-          fi
-          echo "experiments=$experiments" >> $GITHUB_OUTPUT
-
       - name: Create values.yaml
         if: github.event_name == 'workflow_dispatch'
         run: |
@@ -343,7 +332,7 @@ jobs:
               - name: "CODER_WILDCARD_ACCESS_URL"
                 value: "*.${{ env.PR_DEPLOYMENT_ACCESS_URL }}"
               - name: "CODER_EXPERIMENTS"
-                value: "${{ steps.get_experiments.outputs.experiments }}"
+                value: "${{ github.event.inputs.experiments }}"
               - name: CODER_PG_CONNECTION_URL
                 valueFrom:
                   secretKeyRef:
