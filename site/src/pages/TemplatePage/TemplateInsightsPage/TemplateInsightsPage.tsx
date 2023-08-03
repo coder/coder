@@ -80,6 +80,10 @@ export const TemplateInsightsPageView = ({
         sx={{ gridColumn: "span 3" }}
         data={templateInsights?.report.apps_usage}
       />
+      <TemplateParametersUsagePanel
+        sx={{ gridColumn: "span 3" }}
+        data={templateInsights?.report.parameters_usage}
+      />
     </Box>
   )
 }
@@ -255,6 +259,112 @@ const TemplateUsagePanel = ({
               })}
           </Box>
         )}
+      </PanelContent>
+    </Panel>
+  )
+}
+
+const TemplateParametersUsagePanel = ({
+  data,
+  ...panelProps
+}: PanelProps & {
+  data: TemplateInsightsResponse["report"]["parameters_usage"] | undefined
+}) => {
+  return (
+    <Panel {...panelProps}>
+      <PanelHeader>
+        <PanelTitle>Parameters usage</PanelTitle>
+        <PanelSubtitle>Last 7 days</PanelSubtitle>
+      </PanelHeader>
+      <PanelContent>
+        {!data && <Loader sx={{ height: 200 }} />}
+        {data && data.length === 0 && <NoDataAvailable sx={{ height: 200 }} />}
+        {data &&
+          data.length > 0 &&
+          data.map((parameter) => {
+            const label =
+              parameter.display_name !== ""
+                ? parameter.display_name
+                : parameter.name
+            return (
+              <Box
+                key={parameter.name}
+                sx={{
+                  display: "flex",
+                  alignItems: "start",
+                  p: 3,
+                  marginX: -3,
+                  borderTop: (theme) => `1px solid ${theme.palette.divider}`,
+                  width: (theme) => `calc(100% + ${theme.spacing(6)})`,
+                  "&:first-child": {
+                    borderTop: 0,
+                  },
+                }}
+              >
+                <Box sx={{ fontWeight: 500, flex: 1 }}>{label}</Box>
+                <Box sx={{ flex: 1, fontSize: 14 }}>
+                  {parameter.values
+                    .sort((a, b) => b.count - a.count)
+                    .map((value) => {
+                      const icon = parameter.options
+                        ? parameter.options.find((o) => o.value === value.value)
+                            ?.icon
+                        : undefined
+                      const label =
+                        value.value.trim() !== "" ? (
+                          value.value
+                        ) : (
+                          <Box
+                            component="span"
+                            sx={{
+                              color: (theme) => theme.palette.text.secondary,
+                            }}
+                          >
+                            Not set
+                          </Box>
+                        )
+                      return (
+                        <Box
+                          key={value.value}
+                          sx={{
+                            display: "flex",
+                            alignItems: "baseline",
+                            justifyContent: "space-between",
+                            py: 0.5,
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 2,
+                            }}
+                          >
+                            {icon && (
+                              <Box
+                                sx={{ width: 16, height: 16, lineHeight: 1 }}
+                              >
+                                <Box
+                                  component="img"
+                                  src={icon}
+                                  sx={{
+                                    objectFit: "contain",
+                                    width: "100%",
+                                    height: "100%",
+                                  }}
+                                />
+                              </Box>
+                            )}
+                            {label}
+                          </Box>
+                          <Box sx={{ textAlign: "right" }}>{value.count}</Box>
+                        </Box>
+                      )
+                    })}
+                </Box>
+              </Box>
+            )
+          })}
       </PanelContent>
     </Panel>
   )

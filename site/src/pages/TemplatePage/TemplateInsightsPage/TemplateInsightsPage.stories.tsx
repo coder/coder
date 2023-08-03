@@ -83,7 +83,127 @@ export const Loaded: Story = {
             seconds: 1020900,
           },
         ],
-        parameters_usage: [],
+        parameters_usage: [
+          {
+            template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
+            display_name: "",
+            name: "Coder Repository Directory",
+            values: [
+              {
+                value: "${HOME}/src/coder/coder",
+                count: 1,
+              },
+              {
+                value: "~/coder",
+                count: 16,
+              },
+              {
+                value: "~/go/src/github.com/coder/coder",
+                count: 1,
+              },
+              {
+                value: "~/projects/coder/coder",
+                count: 1,
+              },
+              {
+                value: "~/repos/coder",
+                count: 1,
+              },
+            ],
+          },
+          {
+            template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
+            display_name: "",
+            name: "Dotfiles URL",
+            values: [
+              {
+                value: " ",
+                count: 11,
+              },
+              {
+                value: " git@github.com:jsjoeio/dotfiles.git",
+                count: 1,
+              },
+              {
+                value: "git@github.com:Emyrk/dotfiles.git",
+                count: 1,
+              },
+              {
+                value: "git@github.com:ericpaulsen/dot-v2.git",
+                count: 1,
+              },
+              {
+                value: "git@github.com:johnstcn/dotfiles-coder.git",
+                count: 2,
+              },
+              {
+                value: "git@github.com:spikecurtis/dotfiles.git",
+                count: 1,
+              },
+              {
+                value: "https://github.com/bpmct/dot",
+                count: 1,
+              },
+              {
+                value: "https://github.com/spikecurtis/dotfiles.git",
+                count: 1,
+              },
+              {
+                value: "https://phorcys.net/dotfiles",
+                count: 1,
+              },
+            ],
+          },
+          {
+            template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
+            display_name: "",
+            name: "Region",
+            options: [
+              {
+                name: "Pittsburgh",
+                description: "",
+                value: "us-pittsburgh",
+                icon: "/emojis/1f1fa-1f1f8.png",
+              },
+              {
+                name: "Helsinki",
+                description: "",
+                value: "eu-helsinki",
+                icon: "/emojis/1f1eb-1f1ee.png",
+              },
+              {
+                name: "Sydney",
+                description: "",
+                value: "ap-sydney",
+                icon: "/emojis/1f1e6-1f1fa.png",
+              },
+              {
+                name: "São Paulo",
+                description: "",
+                value: "sa-saopaulo",
+                icon: "/emojis/1f1e7-1f1f7.png",
+              },
+            ],
+            values: [
+              {
+                value: "ap-sydney",
+                count: 1,
+              },
+              {
+                value: "eu-helsinki",
+                count: 5,
+              },
+              {
+                value: "sa-saopaulo",
+                count: 3,
+              },
+              {
+                value: "us-pittsburgh",
+                count: 11,
+              },
+            ],
+          },
+        ],
       },
       interval_reports: [
         {
