@@ -112,7 +112,7 @@ jobs:
           ref: ${{ steps.pr_info.outputs.PR_BRANCH }}
           fetch-depth: 0
 
-      - name: check changed files
+      - name: Check changed files
         uses: dorny/paths-filter@v2
         id: filter
         with:
@@ -131,6 +131,12 @@ jobs:
               - "helm/**"
               - "scripts/**/*[^D][^o][^c][^k][^e][^r][^f][^i][^l][^e]*"
               - "scripts/**/*[^D][^o][^c][^k][^e][^r][^f][^i][^l][^e][.][b][^a][^s][^e]*"
+
+      - name: Print number of changed files
+        run: |
+          set -euxo pipefail
+          echo "Total number of changed files: ${{ steps.filter.outputs.all_count }}"
+          echo "Number of ignored files: ${{ steps.filter.outputs.ignored_count }}"
 
   build:
     needs: get_info
