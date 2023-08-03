@@ -36,24 +36,52 @@ func init() {
 	}
 }
 
+type ServerTailnet struct {
+	ctx    context.Context
+	cancel func()
+
+	logger        slog.Logger
+	conn          *tailnet.Conn
+	dmUnsubscribe func()
+	getMultiAgent func(context.Context) (tailnet.MultiAgentConn, error)
+	agentConn     atomic.Pointer[tailnet.MultiAgentConn]
+	cache         *wsconncache.Cache
+	nodesMu       sync.Mutex
+	// agentNodes is a map of agent tailnetNodes the server wants to keep a
+	// connection to. It contains the last time the agent was connected to.
+	agentNodes map[uuid.UUID]time.Time
+	// agentTockets holds a map of all open connections to an agent.
+	agentTickets map[uuid.UUID]map[uuid.UUID]struct{}
+
+	transport *http.Transport
+}
+
 // NewServerTailnet creates a new tailnet intended for use by coderd. It
 // automatically falls back to wsconncache if a legacy agent is encountered.
 func NewServerTailnet(
 	ctx context.Context,
 	logger slog.Logger,
 	derpServer *derp.Server,
-	derpMap *tailcfg.DERPMap,
+	derpMapProvider *atomic.Pointer[tailnet.DERPMapProvider],
 	getMultiAgent func(context.Context) (tailnet.MultiAgentConn, error),
 	cache *wsconncache.Cache,
 ) (*ServerTailnet, error) {
 	logger = logger.Named("servertailnet")
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
-		DERPMap:   derpMap,
-		Logger:    logger,
+		// Populated by the DERPMapProvider immediately.
+		DERPMap: nil,
+		Logger:  logger,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet conn: %w", err)
+	}
+
+	dmUnsubscribe, err := (*derpMapProvider.Load()).Subscribe(func(derpMap *tailcfg.DERPMap) {
+		conn.SetDERPMap(derpMap)
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("subscribe to derp map updates: %w", err)
 	}
 
 	serverCtx, cancel := context.WithCancel(ctx)
@@ -62,6 +90,7 @@ func NewServerTailnet(
 		cancel:        cancel,
 		logger:        logger,
 		conn:          conn,
+		dmUnsubscribe: dmUnsubscribe,
 		getMultiAgent: getMultiAgent,
 		cache:         cache,
 		agentNodes:    map[uuid.UUID]time.Time{},
@@ -207,25 +236,6 @@ func (s *ServerTailnet) reinitCoordinator() {
 	}
 }
 
-type ServerTailnet struct {
-	ctx    context.Context
-	cancel func()
-
-	logger        slog.Logger
-	conn          *tailnet.Conn
-	getMultiAgent func(context.Context) (tailnet.MultiAgentConn, error)
-	agentConn     atomic.Pointer[tailnet.MultiAgentConn]
-	cache         *wsconncache.Cache
-	nodesMu       sync.Mutex
-	// agentNodes is a map of agent tailnetNodes the server wants to keep a
-	// connection to. It contains the last time the agent was connected to.
-	agentNodes map[uuid.UUID]time.Time
-	// agentTockets holds a map of all open connections to an agent.
-	agentTickets map[uuid.UUID]map[uuid.UUID]struct{}
-
-	transport *http.Transport
-}
-
 func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID) (_ *httputil.ReverseProxy, release func(), _ error) {
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
@@ -358,6 +368,7 @@ func (c *netConnCloser) Close() error {
 
 func (s *ServerTailnet) Close() error {
 	s.cancel()
+	s.dmUnsubscribe()
 	_ = s.cache.Close()
 	_ = s.conn.Close()
 	s.transport.CloseIdleConnections()

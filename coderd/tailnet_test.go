@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"net/netip"
 	"net/url"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
@@ -225,11 +226,15 @@ func setupAgent(t *testing.T, agentAddresses []netip.Prefix) (uuid.UUID, agent.A
 		}), nil
 	}, 0)
 
+	dmProvider := &atomic.Pointer[tailnet.DERPMapProvider]{}
+	dmProviderStatic := tailnet.NewDERPMapProviderStatic(manifest.DERPMap)
+	dmProvider.Store(&dmProviderStatic)
+
 	serverTailnet, err := coderd.NewServerTailnet(
 		context.Background(),
 		logger,
 		derpServer,
-		manifest.DERPMap,
+		dmProvider,
 		func(context.Context) (tailnet.MultiAgentConn, error) { return coord.ServeMultiAgent(uuid.New()), nil },
 		cache,
 	)

@@ -6,13 +6,13 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
+	"sync/atomic"
 	"time"
-
-	"tailscale.com/tailcfg"
 
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/util/ptr"
+	"github.com/coder/coder/tailnet"
 )
 
 const (
@@ -47,12 +47,11 @@ type Report struct {
 }
 
 type ReportOptions struct {
-	DB database.Store
-	// TODO: support getting this over HTTP?
-	DERPMap   *tailcfg.DERPMap
-	AccessURL *url.URL
-	Client    *http.Client
-	APIKey    string
+	DB              database.Store
+	DERPMapProvider *atomic.Pointer[tailnet.DERPMapProvider]
+	AccessURL       *url.URL
+	Client          *http.Client
+	APIKey          string
 
 	Checker Checker
 }
@@ -99,7 +98,7 @@ func Run(ctx context.Context, opts *ReportOptions) *Report {
 		}()
 
 		report.DERP = opts.Checker.DERP(ctx, &DERPReportOptions{
-			DERPMap: opts.DERPMap,
+			DERPMap: (*opts.DERPMapProvider.Load()).Get(),
 		})
 	}()
 

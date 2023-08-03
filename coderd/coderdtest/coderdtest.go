@@ -398,7 +398,6 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			TrialGenerator:              options.TrialGenerator,
 			TailnetCoordinator:          options.Coordinator,
 			BaseDERPMap:                 derpMap,
-			DERPMapUpdateFrequency:      150 * time.Millisecond,
 			MetricsCacheRefreshInterval: options.MetricsCacheRefreshInterval,
 			AgentStatsRefreshInterval:   options.AgentStatsRefreshInterval,
 			DeploymentValues:            options.DeploymentValues,

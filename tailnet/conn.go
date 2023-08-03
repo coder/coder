@@ -395,6 +395,12 @@ func (c *Conn) SetNodeCallback(callback func(node *Node)) {
 func (c *Conn) SetDERPMap(derpMap *tailcfg.DERPMap) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+	select {
+	case <-c.Closed():
+		return
+	default:
+	}
+
 	c.logger.Debug(context.Background(), "updating derp map", slog.F("derp_map", derpMap))
 	c.wireguardEngine.SetDERPMap(derpMap)
 	c.netMap.DERPMap = derpMap

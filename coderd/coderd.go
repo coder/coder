@@ -124,7 +124,6 @@ type Options struct {
 	// BaseDERPMap is used as the base DERP map for all clients and agents.
 	// Proxies are added to this list.
 	BaseDERPMap                 *tailcfg.DERPMap
-	DERPMapUpdateFrequency      time.Duration
 	SwaggerEndpoint             bool
 	SetUserGroups               func(ctx context.Context, tx database.Store, userID uuid.UUID, groupNames []string) error
 	SetUserSiteRoles            func(ctx context.Context, tx database.Store, userID uuid.UUID, roles []string) error
@@ -242,9 +241,6 @@ func New(options *Options) *API {
 	if options.DERPServer == nil {
 		options.DERPServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger.Named("derp")))
 	}
-	if options.DERPMapUpdateFrequency == 0 {
-		options.DERPMapUpdateFrequency = 5 * time.Second
-	}
 	if options.TailnetCoordinator == nil {
 		options.TailnetCoordinator = tailnet.NewCoordinator(options.Logger)
 	}
@@ -287,6 +283,10 @@ func New(options *Options) *API {
 		v := schedule.NewAGPLUserQuietHoursScheduleStore()
 		options.UserQuietHoursScheduleStore.Store(&v)
 	}
+
+	derpMapProvider := &atomic.Pointer[tailnet.DERPMapProvider]{}
+	staticDERPMapProvider := tailnet.DERPMapProvider(tailnet.NewDERPMapProviderStatic(options.BaseDERPMap))
+	derpMapProvider.Store(&staticDERPMapProvider)
 
 	siteCacheDir := options.CacheDir
 	if siteCacheDir != "" {
@@ -357,6 +357,7 @@ func New(options *Options) *API {
 		TemplateScheduleStore:       options.TemplateScheduleStore,
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		Experiments:                 experiments,
+		DERPMapProvider:             derpMapProvider,
 		healthCheckGroup:            &singleflight.Group[string, *healthcheck.Report]{},
 	}
 	if options.UpdateCheckOptions != nil {
@@ -369,10 +370,10 @@ func New(options *Options) *API {
 	if options.HealthcheckFunc == nil {
 		options.HealthcheckFunc = func(ctx context.Context, apiKey string) *healthcheck.Report {
 			return healthcheck.Run(ctx, &healthcheck.ReportOptions{
-				DB:        options.Database,
-				AccessURL: options.AccessURL,
-				DERPMap:   api.DERPMap(),
-				APIKey:    apiKey,
+				DB:              options.Database,
+				AccessURL:       options.AccessURL,
+				DERPMapProvider: api.DERPMapProvider,
+				APIKey:          apiKey,
 			})
 		}
 	}
@@ -394,7 +395,7 @@ func New(options *Options) *API {
 		api.agentProvider, err = NewServerTailnet(api.ctx,
 			options.Logger,
 			options.DERPServer,
-			options.BaseDERPMap,
+			api.DERPMapProvider,
 			func(context.Context) (tailnet.MultiAgentConn, error) {
 				return (*api.TailnetCoordinator.Load()).ServeMultiAgent(uuid.New()), nil
 			},
@@ -965,8 +966,7 @@ type API struct {
 	// UserQuietHoursScheduleStore is a pointer to an atomic pointer for the
 	// same reason as TemplateScheduleStore.
 	UserQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
-	// DERPMapper mutates the DERPMap to include workspace proxies.
-	DERPMapper atomic.Pointer[func(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap]
+	DERPMapProvider             *atomic.Pointer[tailnet.DERPMapProvider]
 
 	HTTPAuth *HTTPAuthorizer
 
@@ -1119,15 +1119,6 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 	}()
 
 	return proto.NewDRPCProvisionerDaemonClient(clientSession), nil
-}
-
-func (api *API) DERPMap() *tailcfg.DERPMap {
-	fn := api.DERPMapper.Load()
-	if fn != nil {
-		return (*fn)(api.Options.BaseDERPMap)
-	}
-
-	return api.Options.BaseDERPMap
 }
 
 // nolint:revive

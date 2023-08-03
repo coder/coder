@@ -391,3 +391,12 @@ func slogError(m dsl.Matcher) {
 		Where(m["name"].Const && m["value"].Type.Is("error") && !m["name"].Text.Matches(`^"internal_error"$`)).
 		Report(`Error should be logged using "slog.Error" instead.`)
 }
+
+// baseDERPMap ensures that fields named BaseDERPMap are never used. The
+// DERPMapProvider should be used instead.
+func baseDERPMap(m dsl.Matcher) {
+	m.Match(
+		`$_.BaseDERPMap`,
+	).
+		Report(`BaseDERPMap should not be used. Use DERPMapProvider instead.`)
+}

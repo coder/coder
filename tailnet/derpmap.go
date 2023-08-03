@@ -4,13 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
 	"strconv"
+	"sync"
+	"time"
 
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
+
+	"cdr.dev/slog"
+	"github.com/coder/coder/cryptorand"
 )
 
 func STUNNodes(regionID int, stunAddrs []string) ([]*tailcfg.DERPNode, error) {
@@ -112,6 +118,169 @@ func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []str
 	}
 
 	return derpMap, nil
+}
+
+type DERPMapProvider interface {
+	io.Closer
+
+	// Get returns the current value of the DERP map.
+	Get() *tailcfg.DERPMap
+	// UpdateNow forces an immediate update of the DERP map if it is generated
+	// dynamically.
+	UpdateNow(ctx context.Context) (*tailcfg.DERPMap, error)
+	// Subscribe adds the given function to the list of subscribers that will be
+	// notified when the DERP map changes. The function is called immediately with
+	// the current value.
+	//
+	// The subscription function MUST NOT BLOCK.
+	Subscribe(fn func(*tailcfg.DERPMap)) (func(), error)
+}
+
+// DERPMapProviderStatic is a DERPMapProvider that always returns the same DERP
+// map.
+type DERPMapProviderStatic struct {
+	derpMap *tailcfg.DERPMap
+}
+
+var _ DERPMapProvider = &DERPMapProviderStatic{}
+
+func NewDERPMapProviderStatic(derpMap *tailcfg.DERPMap) DERPMapProvider {
+	return &DERPMapProviderStatic{
+		derpMap: derpMap,
+	}
+}
+
+// Close implements io.Closer. This is a no-op.
+func (p *DERPMapProviderStatic) Close() error {
+	return nil
+}
+
+// Get implements DERPMapProvider.
+func (p *DERPMapProviderStatic) Get() *tailcfg.DERPMap {
+	return p.derpMap.Clone()
+}
+
+// UpdateNow implements DERPMapProvider. This is a no-op.
+func (p *DERPMapProviderStatic) UpdateNow(_ context.Context) (*tailcfg.DERPMap, error) {
+	return p.derpMap.Clone(), nil
+}
+
+// Subscribe implements DERPMapProvider.
+func (p *DERPMapProviderStatic) Subscribe(fn func(*tailcfg.DERPMap)) (func(), error) {
+	fn(p.derpMap.Clone())
+	return func() {}, nil
+}
+
+// DERPMapGetterFn is a function that returns a generated DERP map.
+type DERPMapGetterFn func(ctx context.Context) (*tailcfg.DERPMap, error)
+
+// DERPMapProviderGetterFn is a DERPMapProvider that calls a function to get the
+// DERP map. The function is called periodically (or when UpdateNow is called)
+type DERPMapProviderGetterFn struct {
+	ctx             context.Context
+	cancel          context.CancelFunc
+	log             slog.Logger
+	getterFn        DERPMapGetterFn
+	updateFrequency time.Duration
+
+	mut           sync.RWMutex
+	last          *tailcfg.DERPMap
+	subscriptions map[string]func(*tailcfg.DERPMap)
+}
+
+var _ DERPMapProvider = &DERPMapProviderGetterFn{}
+
+func NewDERPMapProviderGetterFn(ctx context.Context, log slog.Logger, getterFn DERPMapGetterFn) (DERPMapProvider, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	p := &DERPMapProviderGetterFn{
+		ctx:    ctx,
+		cancel: cancel,
+		// TODO: configurable
+		updateFrequency: 5 * time.Second,
+		log:             log,
+		getterFn:        getterFn,
+	}
+
+	_, err := p.UpdateNow(ctx)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+
+	go p.updateLoop(ctx)
+	return p, nil
+}
+
+// Close implements io.Closer.
+func (p *DERPMapProviderGetterFn) Close() error {
+	p.cancel()
+	return nil
+}
+
+// UpdateNow implements DERPMapProvider.
+func (p *DERPMapProviderGetterFn) UpdateNow(ctx context.Context) (*tailcfg.DERPMap, error) {
+	p.mut.Lock()
+	defer p.mut.Unlock()
+	new, err := p.getterFn(ctx)
+	if err != nil {
+		p.log.Warn(ctx, "failed to update DERP map: %v", err)
+		return nil, err
+	}
+	if !CompareDERPMaps(p.last, new) {
+		p.last = new
+		p.notifyAll()
+	}
+
+	return p.last.Clone(), nil
+}
+
+func (p *DERPMapProviderGetterFn) updateLoop(ctx context.Context) {
+	ticker := time.NewTicker(p.updateFrequency)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			// This function logs it's own errors.
+			_, _ = p.UpdateNow(ctx)
+		}
+		ticker.Reset(p.updateFrequency)
+	}
+}
+
+// Get implements DERPMapProvider.
+func (p *DERPMapProviderGetterFn) Get() *tailcfg.DERPMap {
+	p.mut.RLock()
+	defer p.mut.RUnlock()
+	return p.last
+}
+
+// Subscribe implements DERPMapProvider.
+func (p *DERPMapProviderGetterFn) Subscribe(fn func(*tailcfg.DERPMap)) (func(), error) {
+	p.mut.Lock()
+	defer p.mut.Unlock()
+	key, err := cryptorand.String(16)
+	if err != nil {
+		return nil, xerrors.Errorf("generate random subscription key: %w", err)
+	}
+	if _, ok := p.subscriptions[key]; ok {
+		return nil, xerrors.Errorf("generated subscription key %q already exists, please try again", key)
+	}
+
+	p.subscriptions[key] = fn
+	fn(p.last.Clone())
+	return func() {
+		p.mut.Lock()
+		defer p.mut.Unlock()
+		delete(p.subscriptions, key)
+	}, nil
+}
+
+func (p *DERPMapProviderGetterFn) notifyAll() {
+	for _, fn := range p.subscriptions {
+		fn(p.last.Clone())
+	}
 }
 
 // CompareDERPMaps returns true if the given DERPMaps are equivalent. Ordering

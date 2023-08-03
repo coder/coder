@@ -578,10 +578,16 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 	if initial, changed, enabled := featureChanged(codersdk.FeatureWorkspaceProxy); shouldUpdate(initial, changed, enabled) {
 		if enabled {
-			fn := derpMapper(api.Logger, api.DeploymentValues, api.ProxyHealth)
-			api.AGPL.DERPMapper.Store(&fn)
+			fn := derpMapper(api.Logger, api.DeploymentValues, api.ProxyHealth, api.AGPL.Options.BaseDERPMap)
+			dmProvider, err := agpltailnet.NewDERPMapProviderGetterFn(api.ctx, api.Logger.Named("derpmap_provider"), fn)
+			if err != nil {
+				api.Logger.Error(ctx, "unable to set up custom DERP map provider", slog.Error(err))
+			} else {
+				api.AGPL.DERPMapProvider.Store(&dmProvider)
+			}
 		} else {
-			api.AGPL.DERPMapper.Store(nil)
+			dmProvider := agpltailnet.NewDERPMapProviderStatic(api.AGPL.Options.BaseDERPMap)
+			api.AGPL.DERPMapProvider.Store(&dmProvider)
 		}
 	}
 
@@ -643,9 +649,9 @@ var (
 	lastDerpConflictLog   time.Time
 )
 
-func derpMapper(logger slog.Logger, cfg *codersdk.DeploymentValues, proxyHealth *proxyhealth.ProxyHealth) func(*tailcfg.DERPMap) *tailcfg.DERPMap {
-	return func(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap {
-		derpMap = derpMap.Clone()
+func derpMapper(logger slog.Logger, cfg *codersdk.DeploymentValues, proxyHealth *proxyhealth.ProxyHealth, baseDERPMap *tailcfg.DERPMap) agpltailnet.DERPMapGetterFn {
+	return func(_ context.Context) (*tailcfg.DERPMap, error) {
+		derpMap := baseDERPMap.Clone()
 
 		// Find the starting region ID that we'll use for proxies. This must be
 		// deterministic based on the derp map.
@@ -666,7 +672,7 @@ func derpMapper(logger slog.Logger, cfg *codersdk.DeploymentValues, proxyHealth 
 					slog.F("largest_region_id", largestRegionID),
 					slog.F("max_region_id", int64(1<<32-1)),
 				)
-				return derpMap
+				return derpMap, nil
 			}
 		}
 
@@ -777,7 +783,7 @@ func derpMapper(logger slog.Logger, cfg *codersdk.DeploymentValues, proxyHealth 
 			}
 		}
 
-		return derpMap
+		return derpMap, nil
 	}
 }
 

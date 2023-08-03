@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/tailnet"
 	"github.com/coder/coder/tailnet/tailnettest"
 	"github.com/coder/coder/testutil"
 )
@@ -1274,10 +1275,12 @@ func TestWorkspaceAgent_UpdatedDERP(t *testing.T) {
 	var currentDerpMap atomic.Pointer[tailcfg.DERPMap]
 	originalDerpMap, _ := tailnettest.RunDERPAndSTUN(t)
 	currentDerpMap.Store(originalDerpMap)
-	derpMapFn := func(_ *tailcfg.DERPMap) *tailcfg.DERPMap {
-		return currentDerpMap.Load().Clone()
-	}
-	api.DERPMapper.Store(&derpMapFn)
+	dmProvider, err := tailnet.NewDERPMapProviderGetterFn(context.Background(), logger.Named("derpmap_provider"), func(_ context.Context) (*tailcfg.DERPMap, error) {
+		return currentDerpMap.Load().Clone(), nil
+	})
+	require.NoError(t, err)
+	defer dmProvider.Close()
+	api.DERPMapProvider.Store(&dmProvider)
 
 	// Start workspace a workspace agent.
 	agentToken := uuid.NewString()
