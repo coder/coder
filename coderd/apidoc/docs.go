@@ -7263,6 +7263,9 @@ const docTemplate = `{
                 "avatar_url": {
                     "type": "string"
                 },
+                "display_name": {
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -8021,7 +8024,7 @@ const docTemplate = `{
                 "tailnet_pg_coordinator",
                 "single_tailnet",
                 "template_restart_requirement",
-                "template_insights_page"
+                "deployment_health_page"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
@@ -8029,7 +8032,7 @@ const docTemplate = `{
                 "ExperimentTailnetPGCoordinator",
                 "ExperimentSingleTailnet",
                 "ExperimentTemplateRestartRequirement",
-                "ExperimentTemplateInsightsPage"
+                "ExperimentDeploymentHealthPage"
             ]
         },
         "codersdk.Feature": {
@@ -8245,6 +8248,9 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "avatar_url": {
+                    "type": "string"
+                },
+                "display_name": {
                     "type": "string"
                 },
                 "id": {
@@ -10227,10 +10233,12 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "active",
+                "dormant",
                 "suspended"
             ],
             "x-enum-varnames": [
                 "UserStatusActive",
+                "UserStatusDormant",
                 "UserStatusSuspended"
             ]
         },
@@ -10922,6 +10930,9 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "derp_enabled": {
+                    "type": "boolean"
+                },
+                "derp_only": {
                     "type": "boolean"
                 },
                 "display_name": {
@@ -11650,6 +11661,10 @@ const docTemplate = `{
                 },
                 "derp_enabled": {
                     "description": "DerpEnabled indicates whether the proxy should be included in the DERP\nmap or not.",
+                    "type": "boolean"
+                },
+                "derp_only": {
+                    "description": "DerpOnly indicates whether the proxy should only be included in the DERP\nmap and should not be used for serving apps.",
                     "type": "boolean"
                 },
                 "hostname": {

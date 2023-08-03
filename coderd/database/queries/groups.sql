@@ -34,12 +34,13 @@ AND
 INSERT INTO groups (
 	id,
 	name,
+	display_name,
 	organization_id,
 	avatar_url,
 	quota_allowance
 )
 VALUES
-	($1, $2, $3, $4, $5) RETURNING *;
+	($1, $2, $3, $4, $5, $6) RETURNING *;
 
 -- We use the organization_id as the id
 -- for simplicity since all users is
@@ -57,11 +58,12 @@ VALUES
 UPDATE
 	groups
 SET
-	name = $1,
-	avatar_url = $2,
-	quota_allowance = $3
+	name = @name,
+	display_name = @display_name,
+	avatar_url = @avatar_url,
+	quota_allowance = @quota_allowance
 WHERE
-	id = $4
+	id = @id
 RETURNING *;
 
 -- name: DeleteGroupByID :exec

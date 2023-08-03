@@ -67,6 +67,7 @@ type groupTableRow struct {
 
 	// For table output:
 	Name           string    `json:"-" table:"name,default_sort"`
+	DisplayName    string    `json:"-" table:"display_name"`
 	OrganizationID uuid.UUID `json:"-" table:"organization_id"`
 	Members        []string  `json:"-" table:"members"`
 	AvatarURL      string    `json:"-" table:"avatar_url"`
@@ -81,6 +82,7 @@ func groupsToRows(groups ...codersdk.Group) []groupTableRow {
 		}
 		rows = append(rows, groupTableRow{
 			Name:           group.Name,
+			DisplayName:    group.DisplayName,
 			OrganizationID: group.OrganizationID,
 			AvatarURL:      group.AvatarURL,
 			Members:        members,

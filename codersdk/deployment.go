@@ -1868,8 +1868,8 @@ const (
 	//   quiet hours instead of max_ttl.
 	ExperimentTemplateRestartRequirement Experiment = "template_restart_requirement"
 
-	// Insights page
-	ExperimentTemplateInsightsPage Experiment = "template_insights_page"
+	// Deployment health page
+	ExperimentDeploymentHealthPage Experiment = "deployment_health_page"
 
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"
@@ -1880,7 +1880,7 @@ const (
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
 var ExperimentsAll = Experiments{
-	ExperimentTemplateInsightsPage,
+	ExperimentDeploymentHealthPage,
 }
 
 // Experiments is a list of experiments that are enabled for the deployment.
