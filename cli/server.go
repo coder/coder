@@ -825,8 +825,13 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("failed to create agent stats batcher: %w", err)
 			}
 			options.StatsBatcher = b
+			batcherDone := make(chan struct{})
 			go func() {
 				b.Run(ctx)
+				close(batcherDone)
+			}()
+			defer func() {
+				<-batcherDone
 			}()
 
 			closeCheckInactiveUsersFunc := dormancy.CheckInactiveUsers(ctx, logger, options.Database)
