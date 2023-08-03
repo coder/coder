@@ -160,7 +160,6 @@ type Options struct {
 
 	HTTPClient *http.Client
 
-	// TODO(Cian): This may need to be passed to batchstats.Batcher instead
 	UpdateAgentMetrics func(ctx context.Context, username, workspaceName, agentName string, metrics []agentsdk.AgentMetric)
 	StatsBatcher       *batchstats.Batcher
 }
