@@ -1190,18 +1190,17 @@ func (q *querier) GetTemplateDAUs(ctx context.Context, arg database.GetTemplateD
 }
 
 func (q *querier) GetTemplateDailyInsights(ctx context.Context, arg database.GetTemplateDailyInsightsParams) ([]database.GetTemplateDailyInsightsRow, error) {
-	if len(arg.TemplateIDs) > 0 {
-		prep, err := prepareSQLFilter(ctx, q.auth, rbac.ActionUpdate, rbac.ResourceTemplate.Type)
-		if err != nil {
-			return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
-		}
-		_, err = q.db.GetAuthorizedTemplates(ctx, database.GetTemplatesWithFilterParams{
-			IDs: arg.TemplateIDs,
-		}, prep)
+	for _, templateID := range arg.TemplateIDs {
+		template, err := q.db.GetTemplateByID(ctx, templateID)
 		if err != nil {
 			return nil, err
 		}
-	} else {
+
+		if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
+			return nil, err
+		}
+	}
+	if len(arg.TemplateIDs) == 0 {
 		if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
 			return nil, err
 		}
@@ -1210,18 +1209,17 @@ func (q *querier) GetTemplateDailyInsights(ctx context.Context, arg database.Get
 }
 
 func (q *querier) GetTemplateInsights(ctx context.Context, arg database.GetTemplateInsightsParams) (database.GetTemplateInsightsRow, error) {
-	if len(arg.TemplateIDs) > 0 {
-		prep, err := prepareSQLFilter(ctx, q.auth, rbac.ActionUpdate, rbac.ResourceTemplate.Type)
-		if err != nil {
-			return database.GetTemplateInsightsRow{}, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
-		}
-		_, err = q.db.GetAuthorizedTemplates(ctx, database.GetTemplatesWithFilterParams{
-			IDs: arg.TemplateIDs,
-		}, prep)
+	for _, templateID := range arg.TemplateIDs {
+		template, err := q.db.GetTemplateByID(ctx, templateID)
 		if err != nil {
 			return database.GetTemplateInsightsRow{}, err
 		}
-	} else {
+
+		if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
+			return database.GetTemplateInsightsRow{}, err
+		}
+	}
+	if len(arg.TemplateIDs) == 0 {
 		if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
 			return database.GetTemplateInsightsRow{}, err
 		}
@@ -1230,18 +1228,17 @@ func (q *querier) GetTemplateInsights(ctx context.Context, arg database.GetTempl
 }
 
 func (q *querier) GetTemplateParameterInsights(ctx context.Context, arg database.GetTemplateParameterInsightsParams) ([]database.GetTemplateParameterInsightsRow, error) {
-	if len(arg.TemplateIDs) > 0 {
-		prep, err := prepareSQLFilter(ctx, q.auth, rbac.ActionUpdate, rbac.ResourceTemplate.Type)
-		if err != nil {
-			return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
-		}
-		_, err = q.db.GetAuthorizedTemplates(ctx, database.GetTemplatesWithFilterParams{
-			IDs: arg.TemplateIDs,
-		}, prep)
+	for _, templateID := range arg.TemplateIDs {
+		template, err := q.db.GetTemplateByID(ctx, templateID)
 		if err != nil {
 			return nil, err
 		}
-	} else {
+
+		if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
+			return nil, err
+		}
+	}
+	if len(arg.TemplateIDs) == 0 {
 		if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
 			return nil, err
 		}
