@@ -118,7 +118,11 @@ minor)
 	version_parts[2]=0
 	;;
 major)
-	version_parts[0]=$((version_parts[0] + 1))
+	if [ "${version_parts[0]}" -eq 0 ]; then
+		version_parts[0]=2
+	else
+		version_parts[0]=$((version_parts[0] + 1))
+	fi
 	version_parts[1]=0
 	version_parts[2]=0
 	;;
