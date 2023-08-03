@@ -304,7 +304,7 @@ jobs:
             jq 'del(.metadata.namespace,.metadata.creationTimestamp,.metadata.resourceVersion,.metadata.selfLink,.metadata.uid,.metadata.managedFields)' |
             kubectl -n pr${{ env.PR_NUMBER }} apply -f -
           )
-          
+
       - name: Set up PostgreSQL database
         if: needs.get_info.outputs.NEW == 'true'
         run: |
