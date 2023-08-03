@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	"golang.org/x/exp/constraints"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
@@ -605,8 +606,8 @@ func uniqueSortedUUIDs(uuids []uuid.UUID) []uuid.UUID {
 	for id := range set {
 		unique = append(unique, id)
 	}
-	slices.SortFunc(unique, func(a, b uuid.UUID) bool {
-		return a.String() < b.String()
+	slices.SortFunc(unique, func(a, b uuid.UUID) int {
+		return orderingAscend(a, b)
 	})
 	return unique
 }
@@ -3126,9 +3127,8 @@ func (q *FakeQuerier) GetWorkspaceBuildsByWorkspaceID(_ context.Context,
 	}
 
 	// Order by build_number
-	slices.SortFunc(history, func(a, b database.WorkspaceBuild) bool {
-		// use greater than since we want descending order
-		return a.BuildNumber > b.BuildNumber
+	slices.SortFunc(history, func(a, b database.WorkspaceBuild) int {
+		return orderingDescend(a.BuildNumber, b.BuildNumber)
 	})
 
 	if params.AfterID != uuid.Nil {
@@ -3527,8 +3527,14 @@ func (q *FakeQuerier) InsertAuditLog(_ context.Context, arg database.InsertAudit
 	alog := database.AuditLog(arg)
 
 	q.auditLogs = append(q.auditLogs, alog)
-	slices.SortFunc(q.auditLogs, func(a, b database.AuditLog) bool {
-		return a.Time.Before(b.Time)
+	slices.SortFunc(q.auditLogs, func(a, b database.AuditLog) int {
+		if a.Time.Before(b.Time) {
+			return -1
+		} else if a.Time.Equal(b.Time) {
+			return 0
+		} else {
+			return 1
+		}
 	})
 
 	return alog, nil
@@ -5858,4 +5864,18 @@ func (q *FakeQuerier) GetAuthorizedUsers(ctx context.Context, arg database.GetUs
 		filteredUsers = append(filteredUsers, user)
 	}
 	return filteredUsers, nil
+}
+
+func orderingAscend[E constraints.Ordered](a, b E) int {
+	if a < b {
+		return -1
+	} else if a == b {
+		return 0
+	} else {
+		return 1
+	}
+}
+
+func orderingDescend[E constraints.Ordered](a, b E) int {
+	return -orderingAscend[E](a, b)
 }

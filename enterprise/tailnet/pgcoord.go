@@ -1351,8 +1351,8 @@ func (c *pgCoord) htmlDebug(ctx context.Context) (agpl.HTMLDebug, error) {
 				Node: conn.Node,
 			})
 		}
-		slices.SortFunc(htmlAgent.Connections, func(a, b *agpl.HTMLClient) bool {
-			return a.Name < b.Name
+		slices.SortFunc(htmlAgent.Connections, func(a, b *agpl.HTMLClient) int {
+			return nameOrdering(a.Name, b.Name)
 		})
 
 		data.Agents = append(data.Agents, htmlAgent)
@@ -1362,8 +1362,8 @@ func (c *pgCoord) htmlDebug(ctx context.Context) (agpl.HTMLDebug, error) {
 			Node: agent.Node,
 		})
 	}
-	slices.SortFunc(data.Agents, func(a, b *agpl.HTMLAgent) bool {
-		return a.Name < b.Name
+	slices.SortFunc(data.Agents, func(a, b *agpl.HTMLAgent) int {
+		return nameOrdering(a.Name, b.Name)
 	})
 
 	for agentID, conns := range clients {
@@ -1389,15 +1389,25 @@ func (c *pgCoord) htmlDebug(ctx context.Context) (agpl.HTMLDebug, error) {
 				Node: conn.Node,
 			})
 		}
-		slices.SortFunc(agent.Connections, func(a, b *agpl.HTMLClient) bool {
-			return a.Name < b.Name
+		slices.SortFunc(agent.Connections, func(a, b *agpl.HTMLClient) int {
+			return nameOrdering(a.Name, b.Name)
 		})
 
 		data.MissingAgents = append(data.MissingAgents, agent)
 	}
-	slices.SortFunc(data.MissingAgents, func(a, b *agpl.HTMLAgent) bool {
-		return a.Name < b.Name
+	slices.SortFunc(data.MissingAgents, func(a, b *agpl.HTMLAgent) int {
+		return nameOrdering(a.Name, b.Name)
 	})
 
 	return data, nil
+}
+
+func nameOrdering(a, b string) int {
+	if a < b {
+		return -1
+	} else if a == b {
+		return 0
+	} else {
+		return 1
+	}
 }
