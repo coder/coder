@@ -22,7 +22,7 @@ Coder runs workspace operations in a queue. The number of concurrent builds will
 When planning your infrastructure, we recommend you consider the following:
 
 1. CPU and memory requirements for `coderd`. We recommend allocating 1 CPU core and 2 GB RAM per `coderd` replica at minimum. See [Concurrent users](#concurrent-users) for more details.
-1. CPU and memory requirements for external provisioners, if applicable. We recommend allocating 1 CPU core and 1 GB RAM per 5 concurrent workspace builds to external provisioners. Note that this may vary depending on the template used. See [Concurrent workspace builds](#concurrent-workspace-builds) for more details.
+1. CPU and memory requirements for [external provisioners](../admin/provisioners.md#running-external-provisioners), if required. We recommend allocating 1 CPU core and 1 GB RAM per 5 concurrent workspace builds to external provisioners. Note that this may vary depending on the template used. See [Concurrent workspace builds](#concurrent-workspace-builds) for more details. By default, `coderd` runs 3 integrated provisioners.
 1. CPU and memory requirements for the database used by `coderd`. We recommend allocating an additional 1 CPU core to the database used by Coder for every 1000 active users.
 1. CPU and memory requirements for workspaces created by Coder. This will vary depending on users' needs. However, the Coder agent itself requires at minimum 0.1 CPU cores and 256 MB to run inside a workspace.
 
@@ -49,6 +49,7 @@ We recommend:
 - Running `coderd` on a dedicated set of nodes. This will prevent other workloads from interfering with workspace builds. You can use [node selectors](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector), or [taints and tolerations](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/) to achieve this.
 - Disabling autoscaling for `coderd` nodes. Autoscaling can cause interruptions for users, see [Autoscaling](#autoscaling) for more details.
 - (Enterprise-only) Running external provisioners instead of Coder's built-in provisioners (`CODER_PROVISIONER_DAEMONS=0`) will separate the load caused by workspace provisioning on the `coderd` nodes. For more details, see [External provisioners](../admin/provisioners.md#running-external-provisioners).
+- Alternatively, if increasing the number of integrated provisioner daemons in `coderd` (`CODER_PROVISIONER_DAEMONS>3`), allocate additional resources to `coderd` to compensate (approx. 0.25 cores and 256 MB per provisioner daemon).
 
 For example, to support 120 concurrent workspace builds:
 
@@ -58,13 +59,13 @@ For example, to support 120 concurrent workspace builds:
 
 ## Recent scale tests
 
-| Environment        | Coder CPU | Coder RAM | Database         | Users | Concurrent builds | Concurrent connections (Terminal/SSH) | Coder Version | Last tested  |
-| ------------------ | --------- | --------- | ---------------- | ----- | ----------------- | ------------------------------------- | ------------- | ------------ |
-| Kubernetes (GKE)   | 16 cores  | 64 GB     | db-custom-1-3840 | 1200  | 120               | 10,000                                | `v0.14.2`     | Jan 10, 2022 |
-| Docker (Single VM) | 16 cores  | 64 GB     | Embedded         | 500   | 50                | 10,000                                | `v0.13.4`     | Dec 20, 2022 |
-| Kubernetes (GKE)   | 3 cores   | 12 GB     | db-f1-micro      | 200   | 3                 | 200 (40KB/s web terminal each)        | `v0.24.1`     | Jun 26, 2023 |
-| Kubernetes (GKE)   | 4 cores   | 8 GB      | db-custom-1-3840 | 1500  | 20                | 1,500                                 | `v0.24.1`     | Jun 27, 2023 |
-| Kubernetes (GKE)   | 2 cores   | 4 GB      | db-custom-1-3840 | 500   | 20                | 500 (640KB/s SSH each)                | `v0.27.2`     | Jul 27, 2023 |
+> Note: the below information is for reference purposes only, and are not intended to be used as guidelines for infrastructure sizing.
+
+| Environment      | Coder CPU | Coder RAM | Database         | Users | Concurrent builds | Concurrent connections (Terminal/SSH) | Coder Version | Last tested  |
+| ---------------- | --------- | --------- | ---------------- | ----- | ----------------- | ------------------------------------- | ------------- | ------------ |
+| Kubernetes (GKE) | 3 cores   | 12 GB     | db-f1-micro      | 200   | 3                 | 200 (40KB/s web terminal each)        | `v0.24.1`     | Jun 26, 2023 |
+| Kubernetes (GKE) | 4 cores   | 8 GB      | db-custom-1-3840 | 1500  | 20                | 1,500                                 | `v0.24.1`     | Jun 27, 2023 |
+| Kubernetes (GKE) | 2 cores   | 4 GB      | db-custom-1-3840 | 500   | 20                | 500 (640KB/s SSH each)                | `v0.27.2`     | Jul 27, 2023 |
 
 ## Scale testing utility
 
