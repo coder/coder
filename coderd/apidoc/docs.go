@@ -9546,6 +9546,12 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "parameters_usage": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateParameterUsage"
+                    }
+                },
                 "start_time": {
                     "type": "string",
                     "format": "date-time"
@@ -9570,6 +9576,47 @@ const docTemplate = `{
                 },
                 "report": {
                     "$ref": "#/definitions/codersdk.TemplateInsightsReport"
+                }
+            }
+        },
+        "codersdk.TemplateParameterUsage": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "options": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateVersionParameterOption"
+                    }
+                },
+                "template_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "values": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateParameterValue"
+                    }
+                }
+            }
+        },
+        "codersdk.TemplateParameterValue": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "value": {
+                    "type": "string"
                 }
             }
         },

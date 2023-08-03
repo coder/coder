@@ -1286,6 +1286,21 @@ func (mr *MockStoreMockRecorder) GetTemplateInsights(arg0, arg1 interface{}) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateInsights", reflect.TypeOf((*MockStore)(nil).GetTemplateInsights), arg0, arg1)
 }
 
+// GetTemplateParameterInsights mocks base method.
+func (m *MockStore) GetTemplateParameterInsights(arg0 context.Context, arg1 database.GetTemplateParameterInsightsParams) ([]database.GetTemplateParameterInsightsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTemplateParameterInsights", arg0, arg1)
+	ret0, _ := ret[0].([]database.GetTemplateParameterInsightsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTemplateParameterInsights indicates an expected call of GetTemplateParameterInsights.
+func (mr *MockStoreMockRecorder) GetTemplateParameterInsights(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateParameterInsights", reflect.TypeOf((*MockStore)(nil).GetTemplateParameterInsights), arg0, arg1)
+}
+
 // GetTemplateUserRoles mocks base method.
 func (m *MockStore) GetTemplateUserRoles(arg0 context.Context, arg1 uuid.UUID) ([]database.TemplateUser, error) {
 	m.ctrl.T.Helper()

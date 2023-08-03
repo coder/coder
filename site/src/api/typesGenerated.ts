@@ -963,6 +963,7 @@ export interface TemplateInsightsReport {
   readonly template_ids: string[]
   readonly active_users: number
   readonly apps_usage: TemplateAppUsage[]
+  readonly parameters_usage: TemplateParameterUsage[]
 }
 
 // From codersdk/insights.go
@@ -977,6 +978,21 @@ export interface TemplateInsightsRequest {
 export interface TemplateInsightsResponse {
   readonly report: TemplateInsightsReport
   readonly interval_reports: TemplateInsightsIntervalReport[]
+}
+
+// From codersdk/insights.go
+export interface TemplateParameterUsage {
+  readonly template_ids: string[]
+  readonly display_name: string
+  readonly name: string
+  readonly options?: TemplateVersionParameterOption[]
+  readonly values: TemplateParameterValue[]
+}
+
+// From codersdk/insights.go
+export interface TemplateParameterValue {
+  readonly value: string
+  readonly count: number
 }
 
 // From codersdk/templates.go
