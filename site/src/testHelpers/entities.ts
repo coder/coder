@@ -2281,3 +2281,12 @@ export const MockHealth = {
   },
   coder_version: "v0.27.1-devel+c575292",
 }
+
+export const MockListeningPorts: TypesGen.WorkspaceAgentListeningPortsResponse =
+  {
+    ports: [
+      { process_name: "web", network: "", port: 3000 },
+      { process_name: "go", network: "", port: 8080 },
+      { process_name: "", network: "", port: 8081 },
+    ],
+  }

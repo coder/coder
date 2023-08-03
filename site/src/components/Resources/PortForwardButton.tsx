@@ -1,19 +1,14 @@
-import Button from "@mui/material/Button"
 import Link from "@mui/material/Link"
 import Popover from "@mui/material/Popover"
 import { makeStyles } from "@mui/styles"
-import TextField from "@mui/material/TextField"
-import { Stack } from "components/Stack/Stack"
-import { useRef, useState, Fragment } from "react"
+import { useRef, useState } from "react"
 import { colors } from "theme/colors"
-import { CodeExample } from "../CodeExample/CodeExample"
 import {
   HelpTooltipLink,
   HelpTooltipLinksGroup,
   HelpTooltipText,
   HelpTooltipTitle,
 } from "../Tooltips/HelpTooltip"
-import { Maybe } from "components/Conditionals/Maybe"
 import { SecondaryAgentButton } from "components/Resources/AgentButton"
 import { docs } from "utils/docs"
 import Box from "@mui/material/Box"
@@ -22,6 +17,8 @@ import { getAgentListeningPorts } from "api/api"
 import { WorkspaceAgentListeningPort } from "api/typesGenerated"
 import CircularProgress from "@mui/material/CircularProgress"
 import { portForwardURL } from "utils/portForward"
+import { MockListeningPorts } from "testHelpers/entities"
+import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined"
 
 export interface PortForwardButtonProps {
   host: string
@@ -39,6 +36,7 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
   const { data: listeningPorts } = useQuery({
     queryKey: ["portForward", props.agentId],
     queryFn: () => getAgentListeningPorts(props.agentId),
+    initialData: MockListeningPorts,
   })
 
   const onClose = () => {
@@ -60,12 +58,13 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
             sx={{
               fontSize: 12,
               fontWeight: 500,
-              height: 14,
+              height: 16,
+              padding: (theme) => theme.spacing(0, 1),
               borderRadius: 7,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              background: (theme) => theme.palette.divider,
+              backgroundColor: colors.gray[11],
               ml: 1,
             }}
           >
@@ -91,100 +90,155 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
         }}
       >
         <HelpTooltipTitle>Port forward</HelpTooltipTitle>
-        <TooltipView {...props} ports={listeningPorts?.ports} />
+        <PortForwardPopoverView {...props} ports={listeningPorts?.ports} />
       </Popover>
     </>
   )
 }
 
-const TooltipView: React.FC<
+export const PortForwardPopoverView: React.FC<
   PortForwardButtonProps & { ports?: WorkspaceAgentListeningPort[] }
 > = (props) => {
   const { host, workspaceName, agentName, username, ports } = props
-  const styles = useStyles()
-  const [port, setPort] = useState("3000")
-  const urlExample = portForwardURL(
-    host,
-    parseInt(port),
-    agentName,
-    workspaceName,
-    username,
-  )
 
   return (
     <>
-      <HelpTooltipText>
-        Access ports running on the agent with the{" "}
-        <strong>port, agent name, workspace name</strong> and{" "}
-        <strong>your username</strong> URL schema, as shown below. Port URLs are
-        only accessible by you.
-      </HelpTooltipText>
-
-      <CodeExample code={urlExample} className={styles.code} />
-
-      <HelpTooltipText>
-        Use the form to open applications in a new tab.
-      </HelpTooltipText>
-
-      <Stack
-        direction="row"
-        spacing={1}
-        alignItems="center"
-        className={styles.form}
+      <Box
+        sx={{
+          padding: (theme) => theme.spacing(2.5),
+          borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
+        }}
       >
-        <TextField
-          label="Port"
-          type="number"
-          size="small"
-          value={port}
-          className={styles.portField}
-          onChange={(e) => {
-            setPort(e.currentTarget.value)
-          }}
-        />
-        <Link
-          href={urlExample}
-          target="_blank"
-          rel="noreferrer"
-          className={styles.openUrlButton}
+        <HelpTooltipTitle>Ports</HelpTooltipTitle>
+        <HelpTooltipText
+          sx={{ color: (theme) => theme.palette.text.secondary }}
         >
-          <Button>Open URL</Button>
-        </Link>
-      </Stack>
-
-      <Maybe condition={Boolean(ports && ports.length > 0)}>
-        <HelpTooltipText>
-          {ports &&
-            ports.map((p, i) => {
-              const url = portForwardURL(
-                host,
-                p.port,
-                agentName,
-                workspaceName,
-                username,
-              )
-              let label = `${p.port}`
-              if (p.process_name) {
-                label = `${p.process_name} - ${p.port}`
-              }
-
-              return (
-                <Fragment key={i}>
-                  {i > 0 && <span style={{ margin: "0 0.6em" }}>&middot;</span>}
-                  <Link href={url} target="_blank" rel="noreferrer">
-                    {label}
-                  </Link>
-                </Fragment>
-              )
-            })}
+          Port URLs are only accessible by you.
         </HelpTooltipText>
-      </Maybe>
+        <Box sx={{ marginTop: (theme) => theme.spacing(1.5) }}>
+          {ports?.map((p) => {
+            const url = portForwardURL(
+              host,
+              p.port,
+              agentName,
+              workspaceName,
+              username,
+            )
+            const label =
+              p.process_name !== "" ? p.process_name : `Port ${p.port}`
+            return (
+              <Link
+                underline="none"
+                sx={{
+                  color: (theme) => theme.palette.text.primary,
+                  fontSize: 14,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1,
+                  py: 0.5,
+                  fontWeight: 500,
+                }}
+                key={p.port}
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <OpenInNewOutlined sx={{ width: 14, height: 14 }} />
+                {label}
+                <Box
+                  component="span"
+                  sx={{
+                    ml: "auto",
+                    color: (theme) => theme.palette.text.secondary,
+                    fontSize: 13,
+                    fontWeight: 400,
+                  }}
+                >
+                  {p.port}
+                </Box>
+              </Link>
+            )
+          })}
+        </Box>
+      </Box>
 
-      <HelpTooltipLinksGroup>
-        <HelpTooltipLink href={docs("/networking/port-forwarding#dashboard")}>
-          Learn more about web port forwarding
-        </HelpTooltipLink>
-      </HelpTooltipLinksGroup>
+      <Box
+        sx={{
+          padding: (theme) => theme.spacing(2.5),
+        }}
+      >
+        <HelpTooltipTitle>Open app</HelpTooltipTitle>
+        <HelpTooltipText
+          sx={{ color: (theme) => theme.palette.text.secondary }}
+        >
+          Access ports running on the agent with the port, agent name, workspace
+          name and your username.
+        </HelpTooltipText>
+
+        <Box
+          component="form"
+          sx={{
+            border: (theme) => `1px solid ${theme.palette.divider}`,
+            borderRadius: "4px",
+            mt: 2,
+            display: "flex",
+            alignItems: "center",
+            "&:focus-within": {
+              borderColor: (theme) => theme.palette.primary.main,
+            },
+          }}
+          onSubmit={(e) => {
+            e.preventDefault()
+            const formData = new FormData(e.currentTarget)
+            const port = Number(formData.get("portNumber"))
+            const url = portForwardURL(
+              host,
+              port,
+              agentName,
+              workspaceName,
+              username,
+            )
+            window.open(url, "_blank")
+          }}
+        >
+          <Box
+            aria-label="Port number"
+            name="portNumber"
+            component="input"
+            type="number"
+            placeholder="Type a port number..."
+            min={0}
+            required
+            sx={{
+              fontSize: 12,
+              height: 34,
+              p: (theme) => theme.spacing(0, 1.5),
+              background: "none",
+              border: 0,
+              outline: "none",
+              color: (theme) => theme.palette.text.primary,
+              appearance: "textfield",
+              display: "block",
+              width: "100%",
+            }}
+          />
+          <OpenInNewOutlined
+            sx={{
+              flexShrink: 0,
+              width: 14,
+              height: 14,
+              marginRight: (theme) => theme.spacing(1.5),
+              color: (theme) => theme.palette.text.primary,
+            }}
+          />
+        </Box>
+
+        <HelpTooltipLinksGroup>
+          <HelpTooltipLink href={docs("/networking/port-forwarding#dashboard")}>
+            Learn more
+          </HelpTooltipLink>
+        </HelpTooltipLinksGroup>
+      </Box>
     </>
   )
 }
