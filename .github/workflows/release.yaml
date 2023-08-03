@@ -98,16 +98,8 @@ jobs:
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
-      - name: Cache Node
-        id: cache-node
-        uses: buildjet/cache@v3
-        with:
-          path: |
-            **/node_modules
-            .eslintcache
-          key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
-          restore-keys: |
-            js-${{ runner.os }}-
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
 
       - name: Install nsis and zstd
         run: sudo apt-get install -y nsis zstd
