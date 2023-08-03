@@ -49,6 +49,7 @@ jobs:
       CODER_BASE_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_BASE_IMAGE_TAG }}
       CODER_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_IMAGE_TAG }}
       NEW: ${{ steps.check_deployment.outputs.new }}
+      BUILD: ${{ steps.filter.outputs.all_count > steps.filter.outputs.ignored_count }}
 
     runs-on: "ubuntu-latest"
     steps:
@@ -105,6 +106,30 @@ jobs:
             :rocket: Deploying PR ${{ steps.pr_info.outputs.PR_NUMBER }} ...
             ---
 
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ steps.pr_info.outputs.PR_BRANCH }}
+          fetch-depth: 0
+
+      - name: check changed files
+        uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            all:
+              - "**"
+            ignored:
+              - "docs/**"
+              - "README.md"
+              - "examples/web-server/**"
+              - "examples/monitoring/**"
+              - "examples/lima/**"
+              - "scripts/helm.sh"
+              - ".github/actions/**"
+              - ".github/workflows/**"
+              - "offlinedocs/**"
+
   build:
     needs: get_info
     # Skips the build job if the workflow was triggered by a workflow_dispatch event and the skip_build input is set to true
@@ -127,38 +152,20 @@ jobs:
           ref: ${{ env.PR_BRANCH }}
           fetch-depth: 0
 
-      - name: check changed files
-        uses: dorny/paths-filter@v2
-        id: filter
-        with:
-          filters: |
-            all:
-              - "**"
-            ignored:
-              - "docs/**"
-              - "README.md"
-              - "examples/web-server/**"
-              - "examples/monitoring/**"
-              - "examples/lima/**"
-              - "scripts/helm.sh"
-              - ".github/actions/**"
-              - ".github/workflows/**"
-              - "offlinedocs/**"
-
       - name: Setup Node
-        if: steps.filter.outputs.all_count == steps.filter.outputs.ignored_count
+        if: needs.get_info.outputs.BUILD == 'true'
         uses: ./.github/actions/setup-node
 
       - name: Setup Go
-        if: steps.filter.outputs.all_count == steps.filter.outputs.ignored_count
+        if: needs.get_info.outputs.BUILD == 'true'
         uses: ./.github/actions/setup-go
 
       - name: Setup sqlc
-        if: steps.filter.outputs.all_count == steps.filter.outputs.ignored_count
+        if: needs.get_info.outputs.BUILD == 'true'
         uses: ./.github/actions/setup-sqlc
 
       - name: GHCR Login
-        if: steps.filter.outputs.all_count == steps.filter.outputs.ignored_count
+        if: needs.get_info.outputs.BUILD == 'true'
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
@@ -166,7 +173,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push Linux amd64 Docker image
-        if: steps.filter.outputs.all_count == steps.filter.outputs.ignored_count
+        if: needs.get_info.outputs.BUILD == 'true'
         run: |
           set -euxo pipefail
           go mod download
