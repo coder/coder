@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -339,6 +340,11 @@ func convertTemplateInsightsParameters(parameterRows []database.GetTemplateParam
 	for _, param := range parametersByNum {
 		parametersUsage = append(parametersUsage, *param)
 	}
+
+	sort.Slice(parametersUsage, func(i, j int) bool {
+		return parametersUsage[i].Name < parametersUsage[j].Name
+	})
+
 	return parametersUsage, nil
 }
 

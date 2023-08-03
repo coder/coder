@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/provisioner/echo"
+	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/testutil"
 )
 
@@ -231,6 +232,32 @@ func TestUserLatencyInsights_BadRequest(t *testing.T) {
 func TestTemplateInsights(t *testing.T) {
 	t.Parallel()
 
+	const (
+		firstParameterName        = "first_parameter"
+		firstParameterDisplayName = "First PARAMETER"
+		firstParameterType        = "string"
+		firstParameterDescription = "This is first parameter"
+		firstParameterValue       = "abc"
+
+		secondParameterName        = "second_parameter"
+		secondParameterDisplayName = "Second PARAMETER"
+		secondParameterType        = "number"
+		secondParameterDescription = "This is second parameter"
+		secondParameterValue       = "123"
+
+		thirdParameterName         = "third_parameter"
+		thirdParameterDisplayName  = "Third PARAMETER"
+		thirdParameterType         = "string"
+		thirdParameterDescription  = "This is third parameter"
+		thirdParameterValue        = "bbb"
+		thirdParameterOptionName1  = "This is AAA"
+		thirdParameterOptionValue1 = "aaa"
+		thirdParameterOptionName2  = "This is BBB"
+		thirdParameterOptionValue2 = "bbb"
+		thirdParameterOptionName3  = "This is CCC"
+		thirdParameterOptionValue3 = "ccc"
+	)
+
 	logger := slogtest.Make(t, nil)
 	opts := &coderdtest.Options{
 		IncludeProvisionerDaemon:  true,
@@ -241,15 +268,39 @@ func TestTemplateInsights(t *testing.T) {
 	user := coderdtest.CreateFirstUser(t, client)
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-		Parse:          echo.ParseComplete,
-		ProvisionPlan:  echo.ProvisionComplete,
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Provision_Response{
+			{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Parameters: []*proto.RichParameter{
+							{Name: firstParameterName, DisplayName: firstParameterDisplayName, Type: firstParameterType, Description: firstParameterDescription, Required: true},
+							{Name: secondParameterName, DisplayName: secondParameterDisplayName, Type: secondParameterType, Description: secondParameterDescription, Required: true},
+							{Name: thirdParameterName, DisplayName: thirdParameterDisplayName, Type: thirdParameterType, Description: thirdParameterDescription, Required: true, Options: []*proto.RichParameterOption{
+								{Name: thirdParameterOptionName1, Value: thirdParameterOptionValue1},
+								{Name: thirdParameterOptionName2, Value: thirdParameterOptionValue2},
+								{Name: thirdParameterOptionName3, Value: thirdParameterOptionValue3},
+							}},
+						},
+					},
+				},
+			},
+		},
 		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	require.Empty(t, template.BuildTimeStats[codersdk.WorkspaceTransitionStart])
-
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+
+	buildParameters := []codersdk.WorkspaceBuildParameter{
+		{Name: firstParameterName, Value: firstParameterValue},
+		{Name: secondParameterName, Value: secondParameterValue},
+		{Name: thirdParameterName, Value: thirdParameterValue},
+	}
+
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+		cwr.RichParameterValues = buildParameters
+	})
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 	// Start an agent so that we can generate stats.
@@ -346,12 +397,43 @@ func TestTemplateInsights(t *testing.T) {
 		}
 	}
 	// The full timeframe is <= 24h, so the interval matches exactly.
-	assert.Len(t, resp.IntervalReports, 1, "want one interval report")
+	require.Len(t, resp.IntervalReports, 1, "want one interval report")
 	assert.WithinDuration(t, req.StartTime, resp.IntervalReports[0].StartTime, 0)
 	assert.WithinDuration(t, req.EndTime, resp.IntervalReports[0].EndTime, 0)
 	assert.Equal(t, resp.IntervalReports[0].ActiveUsers, int64(1), "want one active user in the interval report")
 
-	// TODO(mafredri): Verify template parameter insights (first we need to generate them).
+	// The workspace uses 3 parameters
+	require.Len(t, resp.Report.ParametersUsage, 3)
+	assert.Equal(t, firstParameterName, resp.Report.ParametersUsage[0].Name)
+	assert.Equal(t, firstParameterDisplayName, resp.Report.ParametersUsage[0].DisplayName)
+	assert.Contains(t, resp.Report.ParametersUsage[0].Values, codersdk.TemplateParameterValue{
+		Value: firstParameterValue,
+		Count: 1,
+	})
+	assert.Contains(t, resp.Report.ParametersUsage[0].TemplateIDs, template.ID)
+	assert.Empty(t, resp.Report.ParametersUsage[0].Options)
+
+	assert.Equal(t, secondParameterName, resp.Report.ParametersUsage[1].Name)
+	assert.Equal(t, secondParameterDisplayName, resp.Report.ParametersUsage[1].DisplayName)
+	assert.Contains(t, resp.Report.ParametersUsage[1].Values, codersdk.TemplateParameterValue{
+		Value: secondParameterValue,
+		Count: 1,
+	})
+	assert.Contains(t, resp.Report.ParametersUsage[1].TemplateIDs, template.ID)
+	assert.Empty(t, resp.Report.ParametersUsage[1].Options)
+
+	assert.Equal(t, thirdParameterName, resp.Report.ParametersUsage[2].Name)
+	assert.Equal(t, thirdParameterDisplayName, resp.Report.ParametersUsage[2].DisplayName)
+	assert.Contains(t, resp.Report.ParametersUsage[2].Values, codersdk.TemplateParameterValue{
+		Value: thirdParameterValue,
+		Count: 1,
+	})
+	assert.Contains(t, resp.Report.ParametersUsage[2].TemplateIDs, template.ID)
+	assert.Equal(t, []codersdk.TemplateVersionParameterOption{
+		{Name: thirdParameterOptionName1, Value: thirdParameterOptionValue1},
+		{Name: thirdParameterOptionName2, Value: thirdParameterOptionValue2},
+		{Name: thirdParameterOptionName3, Value: thirdParameterOptionValue3},
+	}, resp.Report.ParametersUsage[2].Options)
 }
 
 func TestTemplateInsights_BadRequest(t *testing.T) {
