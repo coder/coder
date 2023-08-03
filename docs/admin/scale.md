@@ -58,13 +58,13 @@ For example, to support 120 concurrent workspace builds:
 
 ## Recent scale tests
 
-| Environment        | Database         | Users | Concurrent builds | Concurrent connections (Terminal/SSH) | Coder Version | Last tested  |
-| ------------------ | ---------------- | ----- | ----------------- | ------------------------------------- | ------------- | ------------ |
-| Kubernetes (GKE)   | Embedded         | 1200  | 120               | 10,000                                | `v0.14.2`     | Jan 10, 2022 |
-| Docker (Single VM) | Embedded         | 500   | 50                | 10,000                                | `v0.13.4`     | Dec 20, 2022 |
-| Kubernetes (GKE)   | db-f1-micro      | 100   | 3                 | 100 (40KB/s web terminal each)        | `v0.24.1`     | Jun 26, 2023 |
-| Kubernetes (GKE)   | db-n1-standard-1 | 1500  | 20                | 1,500                                 | `v0.24.1`     | Jun 27, 2023 |
-| Kubernetes (GKE)   | db-n1-standard-1 | 500   | 20                | 500 (640KB/s SSH each)                | `v0.27.2`     | Jul 27, 2023 |
+| Environment        | Coder CPU | Coder RAM | Database         | Users | Concurrent builds | Concurrent connections (Terminal/SSH) | Coder Version | Last tested  |
+| ------------------ | --------- | --------- | ---------------- | ----- | ----------------- | ------------------------------------- | ------------- | ------------ |
+| Kubernetes (GKE)   | 16 cores  | 64 GB     | db-custom-1-3840 | 1200  | 120               | 10,000                                | `v0.14.2`     | Jan 10, 2022 |
+| Docker (Single VM) | 16 cores  | 64 GB     | Embedded         | 500   | 50                | 10,000                                | `v0.13.4`     | Dec 20, 2022 |
+| Kubernetes (GKE)   | 3 cores   | 12 GB     | db-f1-micro      | 200   | 3                 | 200 (40KB/s web terminal each)        | `v0.24.1`     | Jun 26, 2023 |
+| Kubernetes (GKE)   | 4 cores   | 8 GB      | db-custom-1-3840 | 1500  | 20                | 1,500                                 | `v0.24.1`     | Jun 27, 2023 |
+| Kubernetes (GKE)   | 2 cores   | 4 GB      | db-custom-1-3840 | 500   | 20                | 500 (640KB/s SSH each)                | `v0.27.2`     | Jul 27, 2023 |
 
 ## Scale testing utility
 
