@@ -35,7 +35,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: ${{ github.workflow }}-PR-${{ (github.event.issue.number) || (github.event.inputs.pr_number) }}
+  group: ${{ github.workflow }}-PR-${{ (github.event.pull_request.number || github.event.issue.number) || (github.event.inputs.pr_number) }}
   cancel-in-progress: true
 
 jobs:
@@ -427,7 +427,6 @@ jobs:
 
       - name: Find Comment
         uses: peter-evans/find-comment@v2
-        if: github.event_name == 'issue_comment'
         id: fc
         with:
           issue-number: ${{ env.PR_NUMBER }}
@@ -437,7 +436,6 @@ jobs:
 
       - name: Comment on PR
         uses: peter-evans/create-or-update-comment@v3
-        if: github.event_name == 'issue_comment'
         env:
           STATUS: ${{ needs.get_info.outputs.NEW == 'true' && 'Created' || 'Updated' }}
         with:
