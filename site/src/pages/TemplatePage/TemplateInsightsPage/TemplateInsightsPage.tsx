@@ -25,6 +25,7 @@ import {
 } from "api/typesGenerated"
 import { ComponentProps } from "react"
 import subDays from "date-fns/subDays"
+import { useDashboard } from "components/Dashboard/DashboardProvider"
 
 export default function TemplateInsightsPage() {
   const { template } = useTemplateLayoutContext()
@@ -41,6 +42,7 @@ export default function TemplateInsightsPage() {
     queryKey: ["templates", template.id, "user-latency"],
     queryFn: () => getInsightsUserLatency(insightsFilter),
   })
+  const dashboard = useDashboard()
 
   return (
     <>
@@ -50,6 +52,9 @@ export default function TemplateInsightsPage() {
       <TemplateInsightsPageView
         templateInsights={templateInsights}
         userLatency={userLatency}
+        shouldDisplayParameters={dashboard.experiments.includes(
+          "template_parameters_insights",
+        )}
       />
     </>
   )
@@ -58,9 +63,11 @@ export default function TemplateInsightsPage() {
 export const TemplateInsightsPageView = ({
   templateInsights,
   userLatency,
+  shouldDisplayParameters,
 }: {
   templateInsights: TemplateInsightsResponse | undefined
   userLatency: UserLatencyInsightsResponse | undefined
+  shouldDisplayParameters: boolean
 }) => {
   return (
     <Box
@@ -80,10 +87,12 @@ export const TemplateInsightsPageView = ({
         sx={{ gridColumn: "span 3" }}
         data={templateInsights?.report.apps_usage}
       />
-      <TemplateParametersUsagePanel
-        sx={{ gridColumn: "span 3" }}
-        data={templateInsights?.report.parameters_usage}
-      />
+      {shouldDisplayParameters && (
+        <TemplateParametersUsagePanel
+          sx={{ gridColumn: "span 3" }}
+          data={templateInsights?.report.parameters_usage}
+        />
+      )}
     </Box>
   )
 }

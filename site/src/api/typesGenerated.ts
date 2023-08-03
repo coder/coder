@@ -1583,6 +1583,7 @@ export type Experiment =
   | "moons"
   | "single_tailnet"
   | "tailnet_pg_coordinator"
+  | "template_parameters_insights"
   | "template_restart_requirement"
   | "workspace_actions"
 export const Experiments: Experiment[] = [
@@ -1590,6 +1591,7 @@ export const Experiments: Experiment[] = [
   "moons",
   "single_tailnet",
   "tailnet_pg_coordinator",
+  "template_parameters_insights",
   "template_restart_requirement",
   "workspace_actions",
 ]
