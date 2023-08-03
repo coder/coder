@@ -1105,9 +1105,9 @@ func (m metricsStore) InsertLicense(ctx context.Context, arg database.InsertLice
 
 func (m metricsStore) InsertMissingGroups(ctx context.Context, arg database.InsertMissingGroupsParams) ([]database.Group, error) {
 	start := time.Now()
-	r0 := m.s.InsertMissingGroups(ctx, arg)
+	r0, r1 := m.s.InsertMissingGroups(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertMissingGroups").Observe(time.Since(start).Seconds())
-	return r0
+	return r0, r1
 }
 
 func (m metricsStore) InsertOrganization(ctx context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {

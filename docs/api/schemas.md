@@ -595,6 +595,16 @@
 | `value_source`   | [clibase.ValueSource](#clibasevaluesource) | false    |              |                                                                                                                                                    |
 | `yaml`           | string                                     | false    |              | Yaml is the YAML key used to configure this option. If unset, YAML configuring is disabled.                                                        |
 
+## clibase.Regexp
+
+```json
+{}
+```
+
+### Properties
+
+_None_
+
 ## clibase.Struct-array_codersdk_GitAuthConfig
 
 ```json
@@ -788,7 +798,8 @@
       ],
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "quota_allowance": 0
+      "quota_allowance": 0,
+      "source": "user"
     }
   ],
   "users": [
@@ -2054,7 +2065,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "client_secret": "string",
       "email_domain": ["string"],
       "email_field": "string",
+      "group_auto_create": true,
       "group_mapping": {},
+      "group_regex_filter": {},
       "groups_field": "string",
       "icon_url": {
         "forceQuery": true,
@@ -2411,7 +2424,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "client_secret": "string",
     "email_domain": ["string"],
     "email_field": "string",
+    "group_auto_create": true,
     "group_mapping": {},
+    "group_regex_filter": {},
     "groups_field": "string",
     "icon_url": {
       "forceQuery": true,
@@ -2957,21 +2972,38 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "quota_allowance": 0
+  "quota_allowance": 0,
+  "source": "user"
 }
 ```
 
 ### Properties
 
-| Name              | Type                                    | Required | Restrictions | Description |
-| ----------------- | --------------------------------------- | -------- | ------------ | ----------- |
-| `avatar_url`      | string                                  | false    |              |             |
-| `display_name`    | string                                  | false    |              |             |
-| `id`              | string                                  | false    |              |             |
-| `members`         | array of [codersdk.User](#codersdkuser) | false    |              |             |
-| `name`            | string                                  | false    |              |             |
-| `organization_id` | string                                  | false    |              |             |
-| `quota_allowance` | integer                                 | false    |              |             |
+| Name              | Type                                         | Required | Restrictions | Description |
+| ----------------- | -------------------------------------------- | -------- | ------------ | ----------- |
+| `avatar_url`      | string                                       | false    |              |             |
+| `display_name`    | string                                       | false    |              |             |
+| `id`              | string                                       | false    |              |             |
+| `members`         | array of [codersdk.User](#codersdkuser)      | false    |              |             |
+| `name`            | string                                       | false    |              |             |
+| `organization_id` | string                                       | false    |              |             |
+| `quota_allowance` | integer                                      | false    |              |             |
+| `source`          | [codersdk.GroupSource](#codersdkgroupsource) | false    |              |             |
+
+## codersdk.GroupSource
+
+```json
+"user"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value  |
+| ------ |
+| `user` |
+| `oidc` |
 
 ## codersdk.Healthcheck
 
@@ -3303,7 +3335,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "client_secret": "string",
   "email_domain": ["string"],
   "email_field": "string",
+  "group_auto_create": true,
   "group_mapping": {},
+  "group_regex_filter": {},
   "groups_field": "string",
   "icon_url": {
     "forceQuery": true,
@@ -3332,26 +3366,28 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                    | Type                       | Required | Restrictions | Description |
-| ----------------------- | -------------------------- | -------- | ------------ | ----------- |
-| `allow_signups`         | boolean                    | false    |              |             |
-| `auth_url_params`       | object                     | false    |              |             |
-| `client_id`             | string                     | false    |              |             |
-| `client_secret`         | string                     | false    |              |             |
-| `email_domain`          | array of string            | false    |              |             |
-| `email_field`           | string                     | false    |              |             |
-| `group_mapping`         | object                     | false    |              |             |
-| `groups_field`          | string                     | false    |              |             |
-| `icon_url`              | [clibase.URL](#clibaseurl) | false    |              |             |
-| `ignore_email_verified` | boolean                    | false    |              |             |
-| `ignore_user_info`      | boolean                    | false    |              |             |
-| `issuer_url`            | string                     | false    |              |             |
-| `scopes`                | array of string            | false    |              |             |
-| `sign_in_text`          | string                     | false    |              |             |
-| `user_role_field`       | string                     | false    |              |             |
-| `user_role_mapping`     | object                     | false    |              |             |
-| `user_roles_default`    | array of string            | false    |              |             |
-| `username_field`        | string                     | false    |              |             |
+| Name                    | Type                             | Required | Restrictions | Description |
+| ----------------------- | -------------------------------- | -------- | ------------ | ----------- |
+| `allow_signups`         | boolean                          | false    |              |             |
+| `auth_url_params`       | object                           | false    |              |             |
+| `client_id`             | string                           | false    |              |             |
+| `client_secret`         | string                           | false    |              |             |
+| `email_domain`          | array of string                  | false    |              |             |
+| `email_field`           | string                           | false    |              |             |
+| `group_auto_create`     | boolean                          | false    |              |             |
+| `group_mapping`         | object                           | false    |              |             |
+| `group_regex_filter`    | [clibase.Regexp](#clibaseregexp) | false    |              |             |
+| `groups_field`          | string                           | false    |              |             |
+| `icon_url`              | [clibase.URL](#clibaseurl)       | false    |              |             |
+| `ignore_email_verified` | boolean                          | false    |              |             |
+| `ignore_user_info`      | boolean                          | false    |              |             |
+| `issuer_url`            | string                           | false    |              |             |
+| `scopes`                | array of string                  | false    |              |             |
+| `sign_in_text`          | string                           | false    |              |             |
+| `user_role_field`       | string                           | false    |              |             |
+| `user_role_mapping`     | object                           | false    |              |             |
+| `user_roles_default`    | array of string                  | false    |              |             |
+| `username_field`        | string                           | false    |              |             |
 
 ## codersdk.Organization
 
