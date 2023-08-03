@@ -35,7 +35,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: ${{ github.workflow }}-PR-${{ (github.event.pull_request.number || github.event.issue.number) || (github.event.inputs.pr_number) }}
+  group: ${{ github.workflow }}-PR-${{ github.event.pull_request.number || github.event.issue.number || github.event.inputs.pr_number }}
   cancel-in-progress: true
 
 jobs:
