@@ -243,7 +243,7 @@ type sshNetworkStats struct {
 }
 
 func collectNetworkStats(ctx context.Context, agentConn *codersdk.WorkspaceAgentConn, start, end time.Time, counts map[netlogtype.Connection]netlogtype.Counts) (*sshNetworkStats, error) {
-	latency, p2p, _, err := agentConn.Ping(ctx)
+	latency, p2p, pingResult, err := agentConn.Ping(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -284,10 +284,26 @@ func collectNetworkStats(ctx context.Context, agentConn *codersdk.WorkspaceAgent
 	uploadSecs := float64(totalTx) / dur.Seconds()
 	downloadSecs := float64(totalRx) / dur.Seconds()
 
+	// Sometimes the preferred DERP doesn't match the one we're actually
+	// connected with. Perhaps because the agent prefers a different DERP and
+	// we're using that server instead.
+	preferredDerpID := node.PreferredDERP
+	if pingResult.DERPRegionID != 0 {
+		preferredDerpID = pingResult.DERPRegionID
+	}
+	preferredDerp, ok := derpMap.Regions[preferredDerpID]
+	preferredDerpName := fmt.Sprintf("Unnamed %d", preferredDerpID)
+	if ok {
+		preferredDerpName = preferredDerp.RegionName
+	}
+	if _, ok := derpLatency[preferredDerpName]; !ok {
+		derpLatency[preferredDerpName] = 0
+	}
+
 	return &sshNetworkStats{
 		P2P:              p2p,
 		Latency:          float64(latency.Microseconds()) / 1000,
-		PreferredDERP:    derpMap.Regions[node.PreferredDERP].RegionName,
+		PreferredDERP:    preferredDerpName,
 		DERPLatency:      derpLatency,
 		UploadBytesSec:   int64(uploadSecs),
 		DownloadBytesSec: int64(downloadSecs),

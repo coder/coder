@@ -6,6 +6,7 @@ import LockRounded from "@mui/icons-material/LockOutlined"
 import Globe from "@mui/icons-material/PublicOutlined"
 import HubOutlinedIcon from "@mui/icons-material/HubOutlined"
 import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined"
+import MonitorHeartOutlined from "@mui/icons-material/MonitorHeartOutlined"
 import { GitIcon } from "components/Icons/GitIcon"
 import { Stack } from "components/Stack/Stack"
 import { ElementType, PropsWithChildren, ReactNode, FC } from "react"
@@ -93,6 +94,14 @@ export const Sidebar: React.FC = () => {
       >
         Security
       </SidebarNavItem>
+      {dashboard.experiments.includes("deployment_health_page") && (
+        <SidebarNavItem
+          href="/health"
+          icon={<SidebarNavItemIcon icon={MonitorHeartOutlined} />}
+        >
+          Health
+        </SidebarNavItem>
+      )}
     </nav>
   )
 }

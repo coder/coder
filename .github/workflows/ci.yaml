@@ -14,7 +14,7 @@ permissions:
   contents: read
   deployments: none
   issues: none
-  packages: none
+  packages: write
   pull-requests: none
   repository-projects: none
   security-events: none
@@ -40,6 +40,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
       # For pull requests it's not necessary to checkout the code
       - name: check changed files
         uses: dorny/paths-filter@v2
@@ -109,6 +111,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
@@ -162,6 +166,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
@@ -207,6 +213,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
@@ -217,18 +225,6 @@ jobs:
           # This doesn't need caching. It's super fast anyways!
           cache: false
           go-version: 1.20.6
-
-      - name: Install prettier
-        # We only need prettier for fmt, so do not install all dependencies.
-        # There is no way to install a single package with yarn, so we have to
-        # make a new package.json with only prettier listed as a dependency.
-        # Then running `yarn` will only install prettier.
-        run: |
-          cd site
-          mv package.json package.json.bak
-          jq '{dependencies: {prettier: .devDependencies.prettier}}' < package.json.bak > package.json
-          yarn --frozen-lockfile
-          mv package.json.bak package.json
 
       - name: Install shfmt
         run: go install mvdan.cc/sh/v3/cmd/shfmt@v3.5.0
@@ -256,6 +252,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
@@ -323,6 +321,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
@@ -369,6 +369,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
@@ -488,11 +490,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
 
-      - run: yarn test:ci --max-workers $(nproc)
+      - run: pnpm test:ci --max-workers $(nproc)
         working-directory: site
 
       - name: Check code coverage
@@ -516,6 +520,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
@@ -528,13 +534,12 @@ jobs:
 
       - name: Build
         run: |
-          sudo npm install -g prettier
           make -B site/out/index.html
 
-      - run: yarn playwright:install
+      - run: pnpm playwright:install
         working-directory: site
 
-      - run: yarn playwright:test
+      - run: pnpm playwright:test
         env:
           DEBUG: pw:api
         working-directory: site
@@ -619,6 +624,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
         with:
+          # 0 is required here for version.sh to work.
           fetch-depth: 0
 
       - name: Setup Node
@@ -638,28 +644,19 @@ jobs:
         with:
           sqlc-version: "1.19.1"
 
-      - name: Install dependencies
-        run: |
-          cd offlinedocs
-          yarn
-          # Install prettier globally
-          prettier_version=$(jq -r '.devDependencies.prettier' < package.json)
-          yarn global add "prettier@${prettier_version}"
-
       - name: Format
         run: |
           cd offlinedocs
-          yarn format:check
+          pnpm format:check
 
       - name: Lint
         run: |
           cd offlinedocs
-          yarn lint
+          pnpm lint
 
       - name: Build
         run: |
-          version="$(./scripts/version.sh)"
-          make -j build/coder_docs_"$version".tgz
+          make -j build/coder_docs_"$(./scripts/version.sh)".tgz
 
   required:
     runs-on: ubuntu-latest
@@ -695,3 +692,49 @@ jobs:
           fi
 
           echo "Required checks have passed"
+
+  build-main-image:
+    # This build and publihes ghcr.io/coder/coder-preview:main for each merge commit to main branch.
+    # We are only building this for amd64 plateform. (>95% pulls are for amd64)
+    needs: changes
+    if: github.ref == 'refs/heads/main' && needs.changes.outputs.docs-only == 'false'
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    env:
+      DOCKER_CLI_EXPERIMENTAL: "enabled"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Setup sqlc
+        uses: ./.github/actions/setup-sqlc
+
+      - name: GHCR Login
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Linux amd64 Docker image
+        run: |
+          set -euxo pipefail
+          go mod download
+          make gen/mark-fresh
+          export DOCKER_IMAGE_NO_PREREQUISITES=true
+          version="$(./scripts/version.sh)"
+          export CODER_IMAGE_BUILD_BASE_TAG="$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")"
+          make -j build/coder_linux_amd64
+          ./scripts/build_docker.sh \
+            --arch amd64 \
+            --target ghcr.io/coder/coder-preview:main \
+            --version $version \
+            --push \
+            build/coder_linux_amd64

@@ -1818,6 +1818,15 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	require.Eventually(t, func() bool {
+		conn := closer.TailnetConn()
+		if conn == nil {
+			return false
+		}
+		regionIDs := conn.DERPMap().RegionIDs()
+		return len(regionIDs) == 1 && regionIDs[0] == 2 && conn.Node().PreferredDERP == 2
+	}, testutil.WaitLong, testutil.IntervalFast)
+
 	// Connect from a second client and make sure it uses the new DERP map.
 	conn2 := newClientConn(newDerpMap)
 	require.Equal(t, []int{2}, conn2.DERPMap().RegionIDs())

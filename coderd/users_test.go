@@ -1048,6 +1048,35 @@ func TestPutUserSuspend(t *testing.T) {
 	})
 }
 
+func TestActivateDormantUser(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, nil)
+
+	// Create users
+	me := coderdtest.CreateFirstUser(t, client)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	anotherUser, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+		Email:          "coder@coder.com",
+		Username:       "coder",
+		Password:       "SomeStrongPassword!",
+		OrganizationID: me.OrganizationID,
+	})
+	require.NoError(t, err)
+
+	// Ensure that new user has dormant account
+	require.Equal(t, codersdk.UserStatusDormant, anotherUser.Status)
+
+	// Activate user account
+	_, err = client.UpdateUserStatus(ctx, anotherUser.Username, codersdk.UserStatusActive)
+	require.NoError(t, err)
+
+	// Verify if the account is active now
+	anotherUser, err = client.User(ctx, anotherUser.Username)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.UserStatusActive, anotherUser.Status)
+}
+
 func TestGetUser(t *testing.T) {
 	t.Parallel()
 
@@ -1368,17 +1397,21 @@ func TestGetUsers(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		bruno, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
-			Email:          "bruno@email.com",
-			Username:       "bruno",
+		_, err = client.UpdateUserStatus(ctx, alice.Username, codersdk.UserStatusSuspended)
+		require.NoError(t, err)
+
+		// Tom will be active
+		tom, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+			Email:          "tom@email.com",
+			Username:       "tom",
 			Password:       "MySecurePassword!",
 			OrganizationID: first.OrganizationID,
 		})
 		require.NoError(t, err)
-		active = append(active, bruno)
 
-		_, err = client.UpdateUserStatus(ctx, alice.Username, codersdk.UserStatusSuspended)
+		tom, err = client.UpdateUserStatus(ctx, tom.Username, codersdk.UserStatusActive)
 		require.NoError(t, err)
+		active = append(active, tom)
 
 		res, err := client.Users(ctx, codersdk.UsersRequest{
 			Status: codersdk.UserStatusActive,
@@ -1508,6 +1541,44 @@ func TestWorkspacesByUser(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.Workspaces, 1)
 	})
+}
+
+func TestDormantUser(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	// Create a new user
+	newUser, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+		Email:          "test@coder.com",
+		Username:       "someone",
+		Password:       "MySecurePassword!",
+		OrganizationID: user.OrganizationID,
+	})
+	require.NoError(t, err)
+
+	// User should be dormant as they haven't logged in yet
+	users, err := client.Users(ctx, codersdk.UsersRequest{Search: newUser.Username})
+	require.NoError(t, err)
+	require.Len(t, users.Users, 1)
+	require.Equal(t, codersdk.UserStatusDormant, users.Users[0].Status)
+
+	// User logs in now
+	_, err = client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+		Email:    newUser.Email,
+		Password: "MySecurePassword!",
+	})
+	require.NoError(t, err)
+
+	// User status should be active now
+	users, err = client.Users(ctx, codersdk.UsersRequest{Search: newUser.Username})
+	require.NoError(t, err)
+	require.Len(t, users.Users, 1)
+	require.Equal(t, codersdk.UserStatusActive, users.Users[0].Status)
 }
 
 // TestSuspendedPagination is when the after_id is a suspended record.

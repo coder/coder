@@ -765,6 +765,7 @@
   "groups": [
     {
       "avatar_url": "string",
+      "display_name": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "members": [
         {
@@ -1418,6 +1419,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "avatar_url": "string",
+  "display_name": "string",
   "name": "string",
   "quota_allowance": 0
 }
@@ -1428,6 +1430,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name              | Type    | Required | Restrictions | Description |
 | ----------------- | ------- | -------- | ------------ | ----------- |
 | `avatar_url`      | string  | false    |              |             |
+| `display_name`    | string  | false    |              |             |
 | `name`            | string  | false    |              |             |
 | `quota_allowance` | integer | false    |              |             |
 
@@ -2673,7 +2676,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `tailnet_pg_coordinator`       |
 | `single_tailnet`               |
 | `template_restart_requirement` |
-| `template_insights_page`       |
+| `deployment_health_page`       |
 
 ## codersdk.Feature
 
@@ -2930,6 +2933,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "avatar_url": "string",
+  "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "members": [
     {
@@ -2961,6 +2965,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name              | Type                                    | Required | Restrictions | Description |
 | ----------------- | --------------------------------------- | -------- | ------------ | ----------- |
 | `avatar_url`      | string                                  | false    |              |             |
+| `display_name`    | string                                  | false    |              |             |
 | `id`              | string                                  | false    |              |             |
 | `members`         | array of [codersdk.User](#codersdkuser) | false    |              |             |
 | `name`            | string                                  | false    |              |             |
@@ -3820,6 +3825,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "created_at": "2019-08-24T14:15:22Z",
       "deleted": true,
       "derp_enabled": true,
+      "derp_only": true,
       "display_name": "string",
       "healthy": true,
       "icon_url": "string",
@@ -5190,6 +5196,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Value       |
 | ----------- |
 | `active`    |
+| `dormant`   |
 | `suspended` |
 
 ## codersdk.ValidationError
@@ -6113,6 +6120,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "created_at": "2019-08-24T14:15:22Z",
   "deleted": true,
   "derp_enabled": true,
+  "derp_only": true,
   "display_name": "string",
   "healthy": true,
   "icon_url": "string",
@@ -6139,6 +6147,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `created_at`        | string                                                         | false    |              |                                                                                                                                                                                    |
 | `deleted`           | boolean                                                        | false    |              |                                                                                                                                                                                    |
 | `derp_enabled`      | boolean                                                        | false    |              |                                                                                                                                                                                    |
+| `derp_only`         | boolean                                                        | false    |              |                                                                                                                                                                                    |
 | `display_name`      | string                                                         | false    |              |                                                                                                                                                                                    |
 | `healthy`           | boolean                                                        | false    |              |                                                                                                                                                                                    |
 | `icon_url`          | string                                                         | false    |              |                                                                                                                                                                                    |
@@ -7510,6 +7519,7 @@ _None_
 {
   "access_url": "string",
   "derp_enabled": true,
+  "derp_only": true,
   "hostname": "string",
   "replica_error": "string",
   "replica_id": "string",
@@ -7525,6 +7535,7 @@ _None_
 | ------------------------------------------------------------------------------------------------- | ------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `access_url`                                                                                      | string  | false    |              | Access URL that hits the workspace proxy api.                                                                                                                                                            |
 | `derp_enabled`                                                                                    | boolean | false    |              | Derp enabled indicates whether the proxy should be included in the DERP map or not.                                                                                                                      |
+| `derp_only`                                                                                       | boolean | false    |              | Derp only indicates whether the proxy should only be included in the DERP map and should not be used for serving apps.                                                                                   |
 | `hostname`                                                                                        | string  | false    |              | Hostname is the OS hostname of the machine that the proxy is running on. This is only used for tracking purposes in the replicas table.                                                                  |
 | `replica_error`                                                                                   | string  | false    |              | Replica error is the error that the replica encountered when trying to dial it's peers. This is stored in the replicas table for debugging purposes but does not affect the proxy's ability to register. |
 | This value is only stored on subsequent requests to the register endpoint, not the first request. |

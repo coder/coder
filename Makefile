@@ -50,7 +50,7 @@ endif
 # Note, all find statements should be written with `.` or `./path` as
 # the search path so that these exclusions match.
 FIND_EXCLUSIONS= \
-	-not \( \( -path '*/.git/*' -o -path './build/*' -o -path './vendor/*' -o -path './.coderv2/*' -o -path '*/node_modules/*' -o -path './site/out/*' -o -path './coderd/apidoc/*' \) -prune \)
+	-not \( \( -path '*/.git/*' -o -path './build/*' -o -path './vendor/*' -o -path './.coderv2/*' -o -path '*/node_modules/*' -o -path '*/out/*' -o -path './coderd/apidoc/*' -o -path '*/.next/*' \) -prune \)
 # Source files used for make targets, evaluated on use.
 GO_SRC_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.go' -not -name '*_test.go')
 # All the shell files in the repo, excluding ignored files.
@@ -357,13 +357,13 @@ build/coder_helm_$(VERSION).tgz:
 
 site/out/index.html: site/package.json $(shell find ./site $(FIND_EXCLUSIONS) -type f \( -name '*.ts' -o -name '*.tsx' \))
 	cd site
-	../scripts/yarn_install.sh
-	yarn build
+	../scripts/pnpm_install.sh
+	pnpm build
 
 offlinedocs/out/index.html: $(shell find ./offlinedocs $(FIND_EXCLUSIONS) -type f) $(shell find ./docs $(FIND_EXCLUSIONS) -type f | sed 's: :\\ :g')
 	cd offlinedocs
-	../scripts/yarn_install.sh
-	yarn export
+	../scripts/pnpm_install.sh
+	pnpm export
 
 build/coder_docs_$(VERSION).tgz: offlinedocs/out/index.html
 	tar -czf "$@" -C offlinedocs/out .
@@ -390,9 +390,9 @@ fmt/prettier:
 	cd site
 # Avoid writing files in CI to reduce file write activity
 ifdef CI
-	yarn run format:check
+	pnpm run format:check
 else
-	yarn run format:write
+	pnpm run format:write
 endif
 .PHONY: fmt/prettier
 
@@ -420,7 +420,7 @@ lint/site-icons:
 
 lint/ts:
 	cd site
-	yarn && yarn lint
+	pnpm i && pnpm lint
 .PHONY: lint/ts
 
 lint/go:
@@ -532,29 +532,26 @@ provisionerd/proto/provisionerd.pb.go: provisionerd/proto/provisionerd.proto
 site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go')
 	go run scripts/apitypings/main.go > site/src/api/typesGenerated.ts
 	cd site
-	yarn run format:types
+	pnpm run format:types
 
 coderd/rbac/object_gen.go: scripts/rbacgen/main.go coderd/rbac/object.go
 	go run scripts/rbacgen/main.go ./coderd/rbac > coderd/rbac/object_gen.go
 
 docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics
 	go run scripts/metricsdocgen/main.go
-	cd site
-	yarn run format:write:only ../docs/admin/prometheus.md
+	pnpm run format:write:only ./docs/admin/prometheus.md
 
 docs/cli.md: scripts/clidocgen/main.go $(GO_SRC_FILES)
 	BASE_PATH="." go run ./scripts/clidocgen
-	cd site
-	yarn run format:write:only ../docs/cli.md ../docs/cli/*.md ../docs/manifest.json
+	pnpm run format:write:only ./docs/cli.md ./docs/cli/*.md ./docs/manifest.json
 
 docs/admin/audit-logs.md: scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go
 	go run scripts/auditdocgen/main.go
-	cd site
-	yarn run format:write:only ../docs/admin/audit-logs.md
+	pnpm run format:write:only ./docs/admin/audit-logs.md
 
 coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen $(FIND_EXCLUSIONS) -type f) $(wildcard coderd/*.go) $(wildcard enterprise/coderd/*.go) $(wildcard codersdk/*.go) $(wildcard enterprise/wsproxy/wsproxysdk/*.go) $(DB_GEN_FILES) .swaggo docs/manifest.json coderd/rbac/object_gen.go
 	./scripts/apidocgen/generate.sh
-	yarn run --cwd=site format:write:only ../docs/api ../docs/manifest.json ../coderd/apidoc/swagger.json
+	pnpm run format:write:only ./docs/api ./docs/manifest.json ./coderd/apidoc/swagger.json
 
 update-golden-files: cli/testdata/.gen-golden helm/tests/testdata/.gen-golden scripts/ci-report/testdata/.gen-golden enterprise/cli/testdata/.gen-golden
 .PHONY: update-golden-files

@@ -85,6 +85,8 @@ type Client interface {
 
 type Agent interface {
 	HTTPDebug() http.Handler
+	// TailnetConn may be nil.
+	TailnetConn() *tailnet.Conn
 	io.Closer
 }
 
@@ -200,6 +202,10 @@ type agent struct {
 	metrics            *agentMetrics
 }
 
+func (a *agent) TailnetConn() *tailnet.Conn {
+	return a.network
+}
+
 func (a *agent) init(ctx context.Context) {
 	sshSrv, err := agentssh.NewServer(ctx, a.logger.Named("ssh-server"), a.prometheusRegistry, a.filesystem, a.sshMaxTimeout, "")
 	if err != nil {
@@ -230,7 +236,9 @@ func (a *agent) runLoop(ctx context.Context) {
 		if err == nil {
 			continue
 		}
-		if errors.Is(err, context.Canceled) {
+		if ctx.Err() != nil {
+			// Context canceled errors may come from websocket pings, so we
+			// don't want to use `errors.Is(err, context.Canceled)` here.
 			return
 		}
 		if a.isClosed() {

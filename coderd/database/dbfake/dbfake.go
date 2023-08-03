@@ -3511,6 +3511,7 @@ func (q *FakeQuerier) InsertAllUsersGroup(ctx context.Context, orgID uuid.UUID) 
 	return q.InsertGroup(ctx, database.InsertGroupParams{
 		ID:             orgID,
 		Name:           database.AllUsersGroup,
+		DisplayName:    "",
 		OrganizationID: orgID,
 	})
 }
@@ -3630,6 +3631,7 @@ func (q *FakeQuerier) InsertGroup(_ context.Context, arg database.InsertGroupPar
 	group := database.Group{
 		ID:             arg.ID,
 		Name:           arg.Name,
+		DisplayName:    arg.DisplayName,
 		OrganizationID: arg.OrganizationID,
 		AvatarURL:      arg.AvatarURL,
 		QuotaAllowance: arg.QuotaAllowance,
@@ -3971,7 +3973,7 @@ func (q *FakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 		CreatedAt:      arg.CreatedAt,
 		UpdatedAt:      arg.UpdatedAt,
 		Username:       arg.Username,
-		Status:         database.UserStatusActive,
+		Status:         database.UserStatusDormant,
 		RBACRoles:      arg.RBACRoles,
 		LoginType:      arg.LoginType,
 	}
@@ -4273,6 +4275,7 @@ func (q *FakeQuerier) InsertWorkspaceProxy(_ context.Context, arg database.Inser
 		DisplayName:       arg.DisplayName,
 		Icon:              arg.Icon,
 		DerpEnabled:       arg.DerpEnabled,
+		DerpOnly:          arg.DerpOnly,
 		TokenHashedSecret: arg.TokenHashedSecret,
 		RegionID:          lastRegionID + 1,
 		CreatedAt:         arg.CreatedAt,
@@ -4347,6 +4350,7 @@ func (q *FakeQuerier) RegisterWorkspaceProxy(_ context.Context, arg database.Reg
 			p.Url = arg.Url
 			p.WildcardHostname = arg.WildcardHostname
 			p.DerpEnabled = arg.DerpEnabled
+			p.DerpOnly = arg.DerpOnly
 			p.UpdatedAt = database.Now()
 			q.workspaceProxies[i] = p
 			return p, nil
@@ -4436,6 +4440,7 @@ func (q *FakeQuerier) UpdateGroupByID(_ context.Context, arg database.UpdateGrou
 
 	for i, group := range q.groups {
 		if group.ID == arg.ID {
+			group.DisplayName = arg.DisplayName
 			group.Name = arg.Name
 			group.AvatarURL = arg.AvatarURL
 			group.QuotaAllowance = arg.QuotaAllowance
@@ -4444,6 +4449,29 @@ func (q *FakeQuerier) UpdateGroupByID(_ context.Context, arg database.UpdateGrou
 		}
 	}
 	return database.Group{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateInactiveUsersToDormant(_ context.Context, params database.UpdateInactiveUsersToDormantParams) ([]database.UpdateInactiveUsersToDormantRow, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	var updated []database.UpdateInactiveUsersToDormantRow
+	for index, user := range q.users {
+		if user.Status == database.UserStatusActive && user.LastSeenAt.Before(params.LastSeenAfter) {
+			q.users[index].Status = database.UserStatusDormant
+			q.users[index].UpdatedAt = params.UpdatedAt
+			updated = append(updated, database.UpdateInactiveUsersToDormantRow{
+				ID:         user.ID,
+				Email:      user.Email,
+				LastSeenAt: user.LastSeenAt,
+			})
+		}
+	}
+
+	if len(updated) == 0 {
+		return nil, sql.ErrNoRows
+	}
+	return updated, nil
 }
 
 func (q *FakeQuerier) UpdateMemberRoles(_ context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {

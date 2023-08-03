@@ -393,6 +393,23 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		})
 	}
 
+	if roles.Status == database.UserStatusDormant {
+		// If coder confirms that the dormant user is valid, it can switch their account to active.
+		// nolint:gocritic
+		u, err := cfg.DB.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
+			ID:        key.UserID,
+			Status:    database.UserStatusActive,
+			UpdatedAt: database.Now(),
+		})
+		if err != nil {
+			return write(http.StatusInternalServerError, codersdk.Response{
+				Message: internalErrorMessage,
+				Detail:  fmt.Sprintf("can't activate a dormant user: %s", err.Error()),
+			})
+		}
+		roles.Status = u.Status
+	}
+
 	if roles.Status != database.UserStatusActive {
 		return write(http.StatusUnauthorized, codersdk.Response{
 			Message: fmt.Sprintf("User is not active (status = %q). Contact an admin to reactivate your account.", roles.Status),

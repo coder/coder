@@ -2790,6 +2790,21 @@ func (mr *MockStoreMockRecorder) UpdateGroupByID(arg0, arg1 interface{}) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateGroupByID", reflect.TypeOf((*MockStore)(nil).UpdateGroupByID), arg0, arg1)
 }
 
+// UpdateInactiveUsersToDormant mocks base method.
+func (m *MockStore) UpdateInactiveUsersToDormant(arg0 context.Context, arg1 database.UpdateInactiveUsersToDormantParams) ([]database.UpdateInactiveUsersToDormantRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateInactiveUsersToDormant", arg0, arg1)
+	ret0, _ := ret[0].([]database.UpdateInactiveUsersToDormantRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateInactiveUsersToDormant indicates an expected call of UpdateInactiveUsersToDormant.
+func (mr *MockStoreMockRecorder) UpdateInactiveUsersToDormant(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateInactiveUsersToDormant", reflect.TypeOf((*MockStore)(nil).UpdateInactiveUsersToDormant), arg0, arg1)
+}
+
 // UpdateMemberRoles mocks base method.
 func (m *MockStore) UpdateMemberRoles(arg0 context.Context, arg1 database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
 	m.ctrl.T.Helper()

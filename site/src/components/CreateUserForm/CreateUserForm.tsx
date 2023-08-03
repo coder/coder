@@ -11,6 +11,8 @@ import {
 import { FormFooter } from "../FormFooter/FormFooter"
 import { FullPageForm } from "../FullPageForm/FullPageForm"
 import { Stack } from "../Stack/Stack"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
+import { hasApiFieldErrors, isApiError } from "api/errors"
 
 export const Language = {
   emailLabel: "Email",
@@ -62,6 +64,9 @@ export const CreateUserForm: FC<
 
   return (
     <FullPageForm title="Create user">
+      {isApiError(error) && !hasApiFieldErrors(error) && (
+        <ErrorAlert error={error} sx={{ mb: 4 }} />
+      )}
       <form onSubmit={form.handleSubmit} autoComplete="off">
         <Stack spacing={2.5}>
           <TextField

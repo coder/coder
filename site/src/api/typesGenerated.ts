@@ -174,6 +174,7 @@ export interface CreateFirstUserResponse {
 // From codersdk/groups.go
 export interface CreateGroupRequest {
   readonly name: string
+  readonly display_name: string
   readonly avatar_url: string
   readonly quota_allowance: number
 }
@@ -506,6 +507,7 @@ export interface GitSSHKey {
 export interface Group {
   readonly id: string
   readonly name: string
+  readonly display_name: string
   readonly organization_id: string
   readonly members: User[]
   readonly avatar_url: string
@@ -666,6 +668,7 @@ export interface PatchGroupRequest {
   readonly add_users: string[]
   readonly remove_users: string[]
   readonly name: string
+  readonly display_name?: string
   readonly avatar_url?: string
   readonly quota_allowance?: number
 }
@@ -1470,6 +1473,7 @@ export interface WorkspaceOptions {
 // From codersdk/workspaceproxy.go
 export interface WorkspaceProxy extends Region {
   readonly derp_enabled: boolean
+  readonly derp_only: boolean
   readonly status?: WorkspaceProxyStatus
   readonly created_at: string
   readonly updated_at: string
@@ -1575,17 +1579,17 @@ export const Entitlements: Entitlement[] = [
 
 // From codersdk/deployment.go
 export type Experiment =
+  | "deployment_health_page"
   | "moons"
   | "single_tailnet"
   | "tailnet_pg_coordinator"
-  | "template_insights_page"
   | "template_restart_requirement"
   | "workspace_actions"
 export const Experiments: Experiment[] = [
+  "deployment_health_page",
   "moons",
   "single_tailnet",
   "tailnet_pg_coordinator",
-  "template_insights_page",
   "template_restart_requirement",
   "workspace_actions",
 ]
@@ -1800,8 +1804,8 @@ export const TemplateVersionWarnings: TemplateVersionWarning[] = [
 ]
 
 // From codersdk/users.go
-export type UserStatus = "active" | "suspended"
-export const UserStatuses: UserStatus[] = ["active", "suspended"]
+export type UserStatus = "active" | "dormant" | "suspended"
+export const UserStatuses: UserStatus[] = ["active", "dormant", "suspended"]
 
 // From codersdk/templateversions.go
 export type ValidationMonotonicOrder = "decreasing" | "increasing"

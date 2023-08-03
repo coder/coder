@@ -1320,6 +1320,13 @@ func (m metricsStore) UpdateGroupByID(ctx context.Context, arg database.UpdateGr
 	return group, err
 }
 
+func (m metricsStore) UpdateInactiveUsersToDormant(ctx context.Context, lastSeenAfter database.UpdateInactiveUsersToDormantParams) ([]database.UpdateInactiveUsersToDormantRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateInactiveUsersToDormant(ctx, lastSeenAfter)
+	m.queryLatencies.WithLabelValues("UpdateInactiveUsersToDormant").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
 	start := time.Now()
 	member, err := m.s.UpdateMemberRoles(ctx, arg)

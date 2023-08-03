@@ -70,6 +70,9 @@ type Options struct {
 	DisablePathApps        bool
 	DERPEnabled            bool
 	DERPServerRelayAddress string
+	// DERPOnly determines whether this proxy only provides DERP and does not
+	// provide access to workspace apps/terminal.
+	DERPOnly bool
 
 	ProxySessionToken string
 	// AllowAllCors will set all CORs headers to '*'.
@@ -208,6 +211,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 			AccessURL:           opts.AccessURL.String(),
 			WildcardHostname:    opts.AppHostname,
 			DerpEnabled:         opts.DERPEnabled,
+			DerpOnly:            opts.DERPOnly,
 			ReplicaID:           replicaID,
 			ReplicaHostname:     osHostname,
 			ReplicaError:        "",
@@ -327,18 +331,51 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	)
 
 	// Attach workspace apps routes.
-	r.Group(func(r chi.Router) {
-		r.Use(apiRateLimiter)
-		s.AppServer.Attach(r)
-	})
-
-	r.Route("/derp", func(r chi.Router) {
-		r.Get("/", derpHandler.ServeHTTP)
-		// This is used when UDP is blocked, and latency must be checked via HTTP(s).
-		r.Get("/latency-check", func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
+	if !opts.DERPOnly {
+		r.Group(func(r chi.Router) {
+			r.Use(apiRateLimiter)
+			s.AppServer.Attach(r)
 		})
-	})
+	} else {
+		r.Group(func(r chi.Router) {
+			derpOnlyHandler := func(rw http.ResponseWriter, r *http.Request) {
+				site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+					Title:      "Head to the Dashboard",
+					Status:     http.StatusBadRequest,
+					HideStatus: true,
+					Description: "This workspace proxy is DERP-only and cannot be used for browser connections. " +
+						"Please use a different region directly from the dashboard. Click to be redirected!",
+					RetryEnabled: false,
+					DashboardURL: opts.DashboardURL.String(),
+				})
+			}
+			serveDerpOnlyHandler := func(r chi.Router) {
+				r.HandleFunc("/*", derpOnlyHandler)
+			}
+
+			r.Route("/%40{user}/{workspace_and_agent}/apps/{workspaceapp}", serveDerpOnlyHandler)
+			r.Route("/@{user}/{workspace_and_agent}/apps/{workspaceapp}", serveDerpOnlyHandler)
+			r.Get("/api/v2/workspaceagents/{workspaceagent}/pty", derpOnlyHandler)
+		})
+	}
+
+	if opts.DERPEnabled {
+		r.Route("/derp", func(r chi.Router) {
+			r.Get("/", derpHandler.ServeHTTP)
+			// This is used when UDP is blocked, and latency must be checked via HTTP(s).
+			r.Get("/latency-check", func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			})
+		})
+	} else {
+		r.Route("/derp", func(r chi.Router) {
+			r.HandleFunc("/*", func(rw http.ResponseWriter, r *http.Request) {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "DERP is disabled on this proxy.",
+				})
+			})
+		})
+	}
 
 	r.Get("/api/v2/buildinfo", s.buildInfo)
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("OK")) })
