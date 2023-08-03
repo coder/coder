@@ -359,7 +359,7 @@ jobs:
                 value: "coder"
           EOF
 
-      - name: Install Helm chart
+      - name: Install/Upgrade Helm chart
         run: |
           set -euxo pipefail
           if [[ ${{ github.event_name }} == "workflow_dispatch" ]]; then
@@ -368,10 +368,14 @@ jobs:
             --values ./pr-deploy-values.yaml \
             --force
           else
-            helm upgrade --install "pr${{ env.PR_NUMBER }}" ./helm \
-            --namespace "pr${{ env.PR_NUMBER }}" \
-            --reuse-values \
-            --force
+            if [[ ${{ needs.get_info.outputs.BUILD }} ]]
+              helm upgrade --install "pr${{ env.PR_NUMBER }}" ./helm \
+              --namespace "pr${{ env.PR_NUMBER }}" \
+              --reuse-values \
+              --force
+            else
+              echo "Skipping helm upgrade, as there is no new image to deploy"
+
           fi
 
       - name: Install coder-logstream-kube
