@@ -129,6 +129,10 @@ jobs:
               - "offlinedocs/**"
               - ".devcontainer/**"
               - "helm/**"
+              # ignore all files in root except for the following go.sum, go.mod, Makefile
+              - "*[^g][^o][^.][^s][^u][^m]*"
+              - "*[^g][^o][^.][^m][^o][^d]*"
+              - "*[^M][^a][^k][^e][^f][^i][^l][^e]*"
               - "scripts/**/*[^D][^o][^c][^k][^e][^r][^f][^i][^l][^e]*"
               - "scripts/**/*[^D][^o][^c][^k][^e][^r][^f][^i][^l][^e][.][b][^a][^s][^e]*"
 
