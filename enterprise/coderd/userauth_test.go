@@ -386,6 +386,7 @@ func TestGroupSync(t *testing.T) {
 			modCfg: func(cfg *coderd.OIDCConfig) {
 				// Disable group sync
 				cfg.GroupField = ""
+				cfg.GroupFilter = regexp.MustCompile(".*")
 			},
 			initialOrgGroups:   []string{"a", "b", "c", "d"},
 			initialUserGroups:  []string{"b", "c", "d"},
@@ -414,6 +415,7 @@ func TestGroupSync(t *testing.T) {
 			// From a,c,b -> []
 			name: "RemoveAllGroups",
 			modCfg: func(cfg *coderd.OIDCConfig) {
+				cfg.GroupFilter = regexp.MustCompile(".*")
 			},
 			initialOrgGroups:   []string{"a", "b", "c", "d"},
 			initialUserGroups:  []string{"a", "b", "c"},
