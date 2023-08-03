@@ -165,7 +165,7 @@
     "rxjs": "7.8.1",
     "ssh2": "1.14.0",
     "storybook": "7.2.0",
-    "storybook-addon-react-router-v6": "1.0.2",
+    "storybook-addon-react-router-v6": "2.0.0",
     "storybook-react-context": "0.6.0",
     "ts-node": "10.9.1",
     "ts-proto": "1.156.0",

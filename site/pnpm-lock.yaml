@@ -408,8 +408,8 @@ devDependencies:
     specifier: 7.2.0
     version: 7.2.0
   storybook-addon-react-router-v6:
-    specifier: 1.0.2
-    version: 1.0.2(@storybook/blocks@7.2.0)(@storybook/components@7.2.0)(@storybook/core-events@7.2.0)(@storybook/manager-api@7.2.0)(@storybook/preview-api@7.2.0)(@storybook/theming@7.2.0)(@storybook/types@7.2.0)(react-dom@18.2.0)(react-router-dom@6.14.1)(react-router@6.14.2)(react@18.2.0)
+    specifier: 2.0.0
+    version: 2.0.0(@storybook/blocks@7.2.0)(@storybook/channels@7.2.0)(@storybook/components@7.2.0)(@storybook/core-events@7.2.0)(@storybook/manager-api@7.2.0)(@storybook/preview-api@7.2.0)(@storybook/theming@7.2.0)(react-dom@18.2.0)(react-router-dom@6.14.1)(react-router@6.14.2)(react@18.2.0)
   storybook-react-context:
     specifier: 0.6.0
     version: 0.6.0(react-dom@18.2.0)
@@ -12206,20 +12206,20 @@ packages:
     resolution: {integrity: sha512-siT1RiqlfQnGqgT/YzXVUNsom9S0H1OX+dpdGN1xkyYATo4I6sep5NmsRD/40s3IIOvlCq6akxkqG82urIZW1w==}
     dev: true
 
-  /storybook-addon-react-router-v6@1.0.2(@storybook/blocks@7.2.0)(@storybook/components@7.2.0)(@storybook/core-events@7.2.0)(@storybook/manager-api@7.2.0)(@storybook/preview-api@7.2.0)(@storybook/theming@7.2.0)(@storybook/types@7.2.0)(react-dom@18.2.0)(react-router-dom@6.14.1)(react-router@6.14.2)(react@18.2.0):
-    resolution: {integrity: sha512-38W+9D2sIrYAi+oRSbsLhR/umNoLVw2DWF84Jp4f/ZoB8Cg0Qtbvwk043oHqzNOpZrfgj0FaV006oaJBVpE8Kw==}
+  /storybook-addon-react-router-v6@2.0.0(@storybook/blocks@7.2.0)(@storybook/channels@7.2.0)(@storybook/components@7.2.0)(@storybook/core-events@7.2.0)(@storybook/manager-api@7.2.0)(@storybook/preview-api@7.2.0)(@storybook/theming@7.2.0)(react-dom@18.2.0)(react-router-dom@6.14.1)(react-router@6.14.2)(react@18.2.0):
+    resolution: {integrity: sha512-M+PR7rdacFDwUCQZRBJVnzyEOqHrDVrTqN8ufqo+TuXxk33QZvb3QeZuo0d2UTYctgA1GY74EX9RJCEXZpv6VQ==}
     peerDependencies:
       '@storybook/blocks': ^7.0.0
+      '@storybook/channels': ^7.0.0
       '@storybook/components': ^7.0.0
       '@storybook/core-events': ^7.0.0
       '@storybook/manager-api': ^7.0.0
       '@storybook/preview-api': ^7.0.0
       '@storybook/theming': ^7.0.0
-      '@storybook/types': ^7.0.0
       react: ^16.8.0 || ^17.0.0 || ^18.0.0
       react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0
-      react-router: ^6.3.0
-      react-router-dom: ^6.3.0
+      react-router: ^6.4.0
+      react-router-dom: ^6.4.0
     peerDependenciesMeta:
       react:
         optional: true
@@ -12227,12 +12227,12 @@ packages:
         optional: true
     dependencies:
       '@storybook/blocks': 7.2.0(@types/react-dom@18.2.4)(@types/react@18.2.6)(react-dom@18.2.0)(react@18.2.0)
+      '@storybook/channels': 7.2.0
       '@storybook/components': 7.2.0(@types/react-dom@18.2.4)(@types/react@18.2.6)(react-dom@18.2.0)(react@18.2.0)
       '@storybook/core-events': 7.2.0
       '@storybook/manager-api': 7.2.0(react-dom@18.2.0)(react@18.2.0)
       '@storybook/preview-api': 7.2.0
       '@storybook/theming': 7.2.0(react-dom@18.2.0)(react@18.2.0)
-      '@storybook/types': 7.2.0
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
       react-inspector: 6.0.2(react@18.2.0)
