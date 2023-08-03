@@ -8027,7 +8027,6 @@ const docTemplate = `{
                 "tailnet_pg_coordinator",
                 "single_tailnet",
                 "template_restart_requirement",
-                "template_insights_page",
                 "deployment_health_page"
             ],
             "x-enum-varnames": [
@@ -8036,7 +8035,6 @@ const docTemplate = `{
                 "ExperimentTailnetPGCoordinator",
                 "ExperimentSingleTailnet",
                 "ExperimentTemplateRestartRequirement",
-                "ExperimentTemplateInsightsPage",
                 "ExperimentDeploymentHealthPage"
             ]
         },
@@ -9571,6 +9569,12 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "parameters_usage": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateParameterUsage"
+                    }
+                },
                 "start_time": {
                     "type": "string",
                     "format": "date-time"
@@ -9595,6 +9599,47 @@ const docTemplate = `{
                 },
                 "report": {
                     "$ref": "#/definitions/codersdk.TemplateInsightsReport"
+                }
+            }
+        },
+        "codersdk.TemplateParameterUsage": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "options": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateVersionParameterOption"
+                    }
+                },
+                "template_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "values": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateParameterValue"
+                    }
+                }
+            }
+        },
+        "codersdk.TemplateParameterValue": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "value": {
+                    "type": "string"
                 }
             }
         },

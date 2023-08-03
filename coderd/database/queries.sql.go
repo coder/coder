@@ -1615,6 +1615,108 @@ func (q *sqlQuerier) GetTemplateInsights(ctx context.Context, arg GetTemplateIns
 	return i, err
 }
 
+const getTemplateParameterInsights = `-- name: GetTemplateParameterInsights :many
+WITH latest_workspace_builds AS (
+	SELECT
+		wb.id,
+		wbmax.template_id,
+		wb.template_version_id
+	FROM (
+	    SELECT
+	        tv.template_id, wbmax.workspace_id, MAX(wbmax.build_number) as max_build_number
+		FROM workspace_builds wbmax
+		JOIN template_versions tv ON (tv.id = wbmax.template_version_id)
+		WHERE
+			wbmax.created_at >= $1::timestamptz
+			AND wbmax.created_at < $2::timestamptz
+			AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN tv.template_id = ANY($3::uuid[]) ELSE TRUE END
+	    GROUP BY tv.template_id, wbmax.workspace_id
+	) wbmax
+	JOIN workspace_builds wb ON (
+		wb.workspace_id = wbmax.workspace_id
+		AND wb.build_number = wbmax.max_build_number
+	)
+), unique_template_params AS (
+	SELECT
+		ROW_NUMBER() OVER () AS num,
+		array_agg(DISTINCT wb.template_id)::uuid[] AS template_ids,
+		array_agg(wb.id)::uuid[] AS workspace_build_ids,
+		tvp.name,
+		tvp.display_name,
+		tvp.description,
+		tvp.options
+	FROM latest_workspace_builds wb
+	JOIN template_version_parameters tvp ON (tvp.template_version_id = wb.template_version_id)
+	GROUP BY tvp.name, tvp.display_name, tvp.description, tvp.options
+)
+
+SELECT
+	utp.num,
+	utp.template_ids,
+	utp.name,
+	utp.display_name,
+	utp.description,
+	utp.options,
+	wbp.value,
+	COUNT(wbp.value) AS count
+FROM unique_template_params utp
+JOIN workspace_build_parameters wbp ON (utp.workspace_build_ids @> ARRAY[wbp.workspace_build_id] AND utp.name = wbp.name)
+GROUP BY utp.num, utp.name, utp.display_name, utp.description, utp.options, utp.template_ids, wbp.value
+`
+
+type GetTemplateParameterInsightsParams struct {
+	StartTime   time.Time   `db:"start_time" json:"start_time"`
+	EndTime     time.Time   `db:"end_time" json:"end_time"`
+	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
+}
+
+type GetTemplateParameterInsightsRow struct {
+	Num         int64           `db:"num" json:"num"`
+	TemplateIDs []uuid.UUID     `db:"template_ids" json:"template_ids"`
+	Name        string          `db:"name" json:"name"`
+	DisplayName string          `db:"display_name" json:"display_name"`
+	Description string          `db:"description" json:"description"`
+	Options     json.RawMessage `db:"options" json:"options"`
+	Value       string          `db:"value" json:"value"`
+	Count       int64           `db:"count" json:"count"`
+}
+
+// GetTemplateParameterInsights does for each template in a given timeframe,
+// look for the latest workspace build (for every workspace) that has been
+// created in the timeframe and return the aggregate usage counts of parameter
+// values.
+func (q *sqlQuerier) GetTemplateParameterInsights(ctx context.Context, arg GetTemplateParameterInsightsParams) ([]GetTemplateParameterInsightsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateParameterInsights, arg.StartTime, arg.EndTime, pq.Array(arg.TemplateIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTemplateParameterInsightsRow
+	for rows.Next() {
+		var i GetTemplateParameterInsightsRow
+		if err := rows.Scan(
+			&i.Num,
+			pq.Array(&i.TemplateIDs),
+			&i.Name,
+			&i.DisplayName,
+			&i.Description,
+			&i.Options,
+			&i.Value,
+			&i.Count,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUserLatencyInsights = `-- name: GetUserLatencyInsights :many
 SELECT
 	workspace_agent_stats.user_id,
