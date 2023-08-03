@@ -478,5 +478,5 @@ jobs:
             :rocket: Access the credentials [here](${{ secrets.PR_DEPLOYMENTS_SLACK_CHANNEL_URL }}).
             ---
             cc: @${{ github.actor }}
-
           reactions: rocket
+          reactions-edit-mode: replace
