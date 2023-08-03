@@ -17,7 +17,7 @@ import { getAgentListeningPorts } from "api/api"
 import { WorkspaceAgentListeningPort } from "api/typesGenerated"
 import CircularProgress from "@mui/material/CircularProgress"
 import { portForwardURL } from "utils/portForward"
-import { MockListeningPorts } from "testHelpers/entities"
+import { MockListeningPortsResponse } from "testHelpers/entities"
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined"
 
 export interface PortForwardButtonProps {
@@ -36,7 +36,7 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
   const { data: listeningPorts } = useQuery({
     queryKey: ["portForward", props.agentId],
     queryFn: () => getAgentListeningPorts(props.agentId),
-    initialData: MockListeningPorts,
+    initialData: MockListeningPortsResponse,
   })
 
   const onClose = () => {

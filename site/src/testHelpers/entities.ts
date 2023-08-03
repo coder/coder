@@ -2282,7 +2282,7 @@ export const MockHealth = {
   coder_version: "v0.27.1-devel+c575292",
 }
 
-export const MockListeningPorts: TypesGen.WorkspaceAgentListeningPortsResponse =
+export const MockListeningPortsResponse: TypesGen.WorkspaceAgentListeningPortsResponse =
   {
     ports: [
       { process_name: "web", network: "", port: 3000 },
