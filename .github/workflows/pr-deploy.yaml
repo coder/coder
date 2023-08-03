@@ -480,7 +480,7 @@ jobs:
           body: |
             ---
             :heavy_check_mark: PR ${{ env.PR_NUMBER }} ${{ env.STATUS }} successfully.
-            :rocket: Access the credentials [here]({{ secrets.PR_DEPLOYMENTS_SLACK_CHANNEL_URL }}).
+            :rocket: Access the credentials [here](${{ secrets.PR_DEPLOYMENTS_SLACK_CHANNEL_URL }}).
             ---
 
           reactions: rocket
