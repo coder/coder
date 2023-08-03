@@ -16,6 +16,7 @@ import Box from "@mui/material/Box"
 import InfoOutlined from "@mui/icons-material/InfoOutlined"
 import Button from "@mui/material/Button"
 import { docs } from "utils/docs"
+import { HealthBanner } from "./HealthBanner"
 
 export const DashboardLayout: FC = () => {
   const styles = useStyles()
@@ -30,6 +31,7 @@ export const DashboardLayout: FC = () => {
 
   return (
     <>
+      <HealthBanner />
       <ServiceBanner />
       {canViewDeployment && <LicenseBanner />}
 

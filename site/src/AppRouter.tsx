@@ -183,6 +183,7 @@ const TemplateInsightsPage = lazy(
   () =>
     import("./pages/TemplatePage/TemplateInsightsPage/TemplateInsightsPage"),
 )
+const HealthPage = lazy(() => import("./pages/HealthPage/HealthPage"))
 
 export const AppRouter: FC = () => {
   return (
@@ -196,6 +197,8 @@ export const AppRouter: FC = () => {
           <Route element={<RequireAuth />}>
             <Route element={<DashboardLayout />}>
               <Route index element={<IndexPage />} />
+
+              <Route path="health" element={<HealthPage />} />
 
               <Route path="gitauth/:provider" element={<GitAuthPage />} />
 

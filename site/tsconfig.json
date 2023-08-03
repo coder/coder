@@ -17,5 +17,6 @@
     "baseUrl": "./src"
   },
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "_jest"]
+  "exclude": ["node_modules", "_jest"],
+  "types": ["node", "jest", "@testing-library/jest-dom"]
 }
