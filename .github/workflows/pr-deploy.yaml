@@ -100,8 +100,8 @@ jobs:
           issue-number: ${{ steps.pr_info.outputs.PR_NUMBER }}
           comment-author: "github-actions[bot]"
           body-includes: ":rocket:"
-          direction: last 
-      
+          direction: last
+
       - name: Comment on PR
         id: comment_id
         if: github.event_name == 'workflow_dispatch' || steps.check_deployment.outputs.NEW == 'false'
