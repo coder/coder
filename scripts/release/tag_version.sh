@@ -118,6 +118,8 @@ minor)
 	version_parts[2]=0
 	;;
 major)
+	# Jump from v0.x to v2.x to avoid naming conflicts
+	# with Coder v1 (https://coder.com/docs/v1)
 	if [ "${version_parts[0]}" -eq 0 ]; then
 		version_parts[0]=2
 	else
