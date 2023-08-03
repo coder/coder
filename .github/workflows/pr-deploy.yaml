@@ -99,10 +99,11 @@ jobs:
           issue-number: ${{ steps.pr_info.outputs.PR_NUMBER }}
           comment-author: "github-actions[bot]"
           body-includes: ":rocket:"
-          direction: last
-
+          direction: last 
+      
       - name: Comment on PR
         id: comment_id
+        if: github.event_name == 'workflow_dispatch' || steps.check_deployment.outputs.NEW == 'false'
         uses: peter-evans/create-or-update-comment@v3
         with:
           comment-id: ${{ steps.fc.outputs.comment-id }}
@@ -116,12 +117,14 @@ jobs:
           reactions-edit-mode: replace
 
       - name: Checkout
+        if: github.event_name == 'workflow_dispatch' || steps.check_deployment.outputs.NEW == 'false'
         uses: actions/checkout@v3
         with:
           ref: ${{ steps.pr_info.outputs.PR_BRANCH }}
           fetch-depth: 0
 
       - name: Check changed files
+        if: github.event_name == 'workflow_dispatch' || steps.check_deployment.outputs.NEW == 'false'
         uses: dorny/paths-filter@v2
         id: filter
         with:
@@ -145,6 +148,7 @@ jobs:
               - "scripts/**/*[^D][^o][^c][^k][^e][^r][^f][^i][^l][^e][.][b][^a][^s][^e]*"
 
       - name: Print number of changed files
+        if: github.event_name == 'workflow_dispatch' || steps.check_deployment.outputs.NEW == 'false'
         run: |
           set -euxo pipefail
           echo "Total number of changed files: ${{ steps.filter.outputs.all_count }}"
@@ -157,7 +161,7 @@ jobs:
     # always run the build job if a pull_request event triggered the workflow
     if: |
       (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_build == 'false') ||
-      (github.event_name == 'pull_request' && needs.get_info.outputs.NEW == 'false')
+      (github.event_name == 'pull_request' && needs.get_info.result == 'success' && needs.get_info.outputs.NEW == 'false')
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
