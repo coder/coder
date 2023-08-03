@@ -361,7 +361,6 @@ jobs:
             --force
           fi
 
-
       - name: Install coder-logstream-kube
         if: needs.get_info.outputs.NEW == 'true'
         run: |
