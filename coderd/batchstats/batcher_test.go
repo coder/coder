@@ -22,9 +22,7 @@ import (
 func TestBatchStats(t *testing.T) {
 	t.Parallel()
 
-	var (
-		batchSize = batchstats.DefaultBatchSize
-	)
+	batchSize := batchstats.DefaultBatchSize
 
 	// Given: a fresh batcher with no data
 	ctx, cancel := context.WithCancel(context.Background())
