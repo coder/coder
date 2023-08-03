@@ -375,7 +375,7 @@ jobs:
               --force
             else
               echo "Skipping helm upgrade, as there is no new image to deploy"
-
+            fi
           fi
 
       - name: Install coder-logstream-kube
