@@ -73,7 +73,6 @@ export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
         type: "time",
         time: {
           unit: "day",
-          stepSize: 2,
         },
       },
     },
