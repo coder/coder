@@ -125,10 +125,12 @@ jobs:
               - "examples/web-server/**"
               - "examples/monitoring/**"
               - "examples/lima/**"
-              - "scripts/helm.sh"
-              - ".github/actions/**"
-              - ".github/workflows/**"
+              - ".github/**"
               - "offlinedocs/**"
+              - ".devcontainer/**"
+              - "helm/**"
+              - "scripts/**/*[^D][^o][^c][^k][^e][^r][^f][^i][^l][^e]*"
+              - "scripts/**/*[^D][^o][^c][^k][^e][^r][^f][^i][^l][^e][.][b][^a][^s][^e]*"
 
   build:
     needs: get_info
