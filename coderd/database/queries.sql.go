@@ -1346,6 +1346,58 @@ func (q *sqlQuerier) InsertGroup(ctx context.Context, arg InsertGroupParams) (Gr
 	return i, err
 }
 
+const insertMissingGroups = `-- name: InsertMissingGroups :many
+INSERT INTO groups (
+	id,
+	name,
+	organization_id
+)
+SELECT
+    gen_random_uuid(),
+    group_name,
+    $1
+FROM
+    UNNEST($2 :: text[]) AS group_name
+ON CONFLICT DO NOTHING
+RETURNING id, name, organization_id, avatar_url, quota_allowance, display_name
+`
+
+type InsertMissingGroupsParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	GroupNames     []string  `db:"group_names" json:"group_names"`
+}
+
+// If the name conflicts, do nothing.
+func (q *sqlQuerier) InsertMissingGroups(ctx context.Context, arg InsertMissingGroupsParams) ([]Group, error) {
+	rows, err := q.db.QueryContext(ctx, insertMissingGroups, arg.OrganizationID, pq.Array(arg.GroupNames))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Group
+	for rows.Next() {
+		var i Group
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.OrganizationID,
+			&i.AvatarURL,
+			&i.QuotaAllowance,
+			&i.DisplayName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateGroupByID = `-- name: UpdateGroupByID :one
 UPDATE
 	groups

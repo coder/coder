@@ -9,10 +9,11 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/codersdk"
 )
 
-func (api *API) setUserGroups(ctx context.Context, db database.Store, userID uuid.UUID, groupNames []string, createMissingGroups bool) error {
+func (api *API) setUserGroups(ctx context.Context, logger slog.Logger, db database.Store, userID uuid.UUID, groupNames []string, createMissingGroups bool) error {
 	api.entitlementsMu.RLock()
 	enabled := api.entitlements.Features[codersdk.FeatureTemplateRBAC].Enabled
 	api.entitlementsMu.RUnlock()
@@ -39,7 +40,23 @@ func (api *API) setUserGroups(ctx context.Context, db database.Store, userID uui
 			return xerrors.Errorf("delete user groups: %w", err)
 		}
 
-		// TODO: Create missing groups if createMissingGroups is true.
+		if createMissingGroups {
+			// This is the system creating these additional groups, so we use the system restricted context.
+			// nolint:gocritic
+			created, err := tx.InsertMissingGroups(dbauthz.AsSystemRestricted(ctx), database.InsertMissingGroupsParams{
+				OrganizationID: orgs[0].ID,
+				GroupNames:     groupNames,
+			})
+			if err != nil {
+				return xerrors.Errorf("insert missing groups: %w", err)
+			}
+			if len(created) > 0 {
+				logger.Debug(ctx, "auto created missing groups",
+					slog.F("org_id", orgs[0].ID),
+					slog.F("created", created),
+				)
+			}
+		}
 
 		// Re-add the user to all groups returned by the auth provider.
 		err = tx.InsertUserGroupsByName(ctx, database.InsertUserGroupsByNameParams{
@@ -55,13 +72,13 @@ func (api *API) setUserGroups(ctx context.Context, db database.Store, userID uui
 	}, nil)
 }
 
-func (api *API) setUserSiteRoles(ctx context.Context, db database.Store, userID uuid.UUID, roles []string) error {
+func (api *API) setUserSiteRoles(ctx context.Context, logger slog.Logger, db database.Store, userID uuid.UUID, roles []string) error {
 	api.entitlementsMu.RLock()
 	enabled := api.entitlements.Features[codersdk.FeatureUserRoleManagement].Enabled
 	api.entitlementsMu.RUnlock()
 
 	if !enabled {
-		api.Logger.Warn(ctx, "attempted to assign OIDC user roles without enterprise entitlement, roles left unchanged",
+		logger.Warn(ctx, "attempted to assign OIDC user roles without enterprise entitlement, roles left unchanged",
 			slog.F("user_id", userID), slog.F("roles", roles),
 		)
 		return nil

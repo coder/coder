@@ -42,6 +42,23 @@ INSERT INTO groups (
 VALUES
 	($1, $2, $3, $4, $5, $6) RETURNING *;
 
+-- name: InsertMissingGroups :many
+INSERT INTO groups (
+	id,
+	name,
+	organization_id
+)
+SELECT
+    gen_random_uuid(),
+    group_name,
+    @organization_id
+FROM
+    UNNEST(@group_names :: text[]) AS group_name
+-- If the name conflicts, do nothing.
+ON CONFLICT DO NOTHING
+RETURNING *;
+
+
 -- We use the organization_id as the id
 -- for simplicity since all users is
 -- every member of the org.

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/mail"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -691,6 +692,10 @@ type OIDCConfig struct {
 	// CreateMissingGroups controls whether groups returned by the OIDC provider
 	// are automatically created in Coder if they are missing.
 	CreateMissingGroups bool
+	// GroupFilter is a regular expression that filters the groups returned by
+	// the OIDC provider. Any group not matched by this regex will be ignored.
+	// If the group filter is nil, then no group filtering will occur.
+	GroupFilter *regexp.Regexp
 	// GroupMapping controls how groups returned by the OIDC provider get mapped
 	// to groups within Coder.
 	// map[oidcGroupName]coderGroupName
@@ -1046,6 +1051,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		Roles:               roles,
 		Groups:              groups,
 		CreateMissingGroups: api.OIDCConfig.CreateMissingGroups,
+		GroupFilter:         api.OIDCConfig.GroupFilter,
 	}).SetInitAuditRequest(func(params *audit.RequestParams) (*audit.Request[database.User], func()) {
 		return audit.InitRequest[database.User](rw, params)
 	})
@@ -1132,6 +1138,7 @@ type oauthLoginParams struct {
 	UsingGroups         bool
 	CreateMissingGroups bool
 	Groups              []string
+	GroupFilter         *regexp.Regexp
 	// Is UsingRoles is true, then the user will be assigned
 	// the roles provided.
 	UsingRoles bool
@@ -1347,8 +1354,18 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 
 		// Ensure groups are correct.
 		if params.UsingGroups {
+			filtered := params.Groups
+			if params.GroupFilter != nil {
+				filtered = make([]string, 0, len(params.Groups))
+				for _, group := range params.Groups {
+					if params.GroupFilter.MatchString(group) {
+						filtered = append(filtered, group)
+					}
+				}
+			}
+
 			//nolint:gocritic
-			err := api.Options.SetUserGroups(dbauthz.AsSystemRestricted(ctx), tx, user.ID, params.Groups)
+			err := api.Options.SetUserGroups(dbauthz.AsSystemRestricted(ctx), logger, tx, user.ID, filtered, params.CreateMissingGroups)
 			if err != nil {
 				return xerrors.Errorf("set user groups: %w", err)
 			}
@@ -1367,7 +1384,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			}
 
 			//nolint:gocritic
-			err := api.Options.SetUserSiteRoles(dbauthz.AsSystemRestricted(ctx), tx, user.ID, filtered)
+			err := api.Options.SetUserSiteRoles(dbauthz.AsSystemRestricted(ctx), logger, tx, user.ID, filtered)
 			if err != nil {
 				return httpError{
 					code:             http.StatusBadRequest,

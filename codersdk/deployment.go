@@ -272,6 +272,7 @@ type OIDCConfig struct {
 	AuthURLParams       clibase.Struct[map[string]string]   `json:"auth_url_params" typescript:",notnull"`
 	IgnoreUserInfo      clibase.Bool                        `json:"ignore_user_info" typescript:",notnull"`
 	GroupAutoCreate     clibase.Bool                        `json:"group_auto_create" typescript:",notnull"`
+	GroupRegexFilter    clibase.Regexp                      `json:"group_regex_filter" typescript:",notnull"`
 	GroupField          clibase.String                      `json:"groups_field" typescript:",notnull"`
 	GroupMapping        clibase.Struct[map[string]string]   `json:"group_mapping" typescript:",notnull"`
 	UserRoleField       clibase.String                      `json:"user_role_field" typescript:",notnull"`
@@ -1075,6 +1076,16 @@ when required by your organization's security policy.`,
 			Value:       &c.OIDC.GroupAutoCreate,
 			Group:       &deploymentGroupOIDC,
 			YAML:        "enableGroupAutoCreate",
+		},
+		{
+			Name:        "OIDC Regex Group Filter",
+			Description: "If provided any group name not matching the regex is ignored. This allows for filtering out groups that are not needed.",
+			Flag:        "oidc-group-regex-filter",
+			Env:         "CODER_OIDC_GROUP_REGEX_FILTER",
+			Default:     "",
+			Value:       &c.OIDC.GroupRegexFilter,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "groupRegexFilter",
 		},
 		{
 			Name:        "OIDC User Role Field",

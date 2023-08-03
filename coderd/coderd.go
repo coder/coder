@@ -126,8 +126,8 @@ type Options struct {
 	BaseDERPMap                 *tailcfg.DERPMap
 	DERPMapUpdateFrequency      time.Duration
 	SwaggerEndpoint             bool
-	SetUserGroups               func(ctx context.Context, tx database.Store, userID uuid.UUID, groupNames []string, createMissingGroups bool) error
-	SetUserSiteRoles            func(ctx context.Context, tx database.Store, userID uuid.UUID, roles []string) error
+	SetUserGroups               func(ctx context.Context, logger slog.Logger, tx database.Store, userID uuid.UUID, groupNames []string, createMissingGroups bool) error
+	SetUserSiteRoles            func(ctx context.Context, logger slog.Logger, tx database.Store, userID uuid.UUID, roles []string) error
 	TemplateScheduleStore       *atomic.Pointer[schedule.TemplateScheduleStore]
 	UserQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
 	// AppSecurityKey is the crypto key used to sign and encrypt tokens related to
@@ -258,16 +258,16 @@ func New(options *Options) *API {
 		options.TracerProvider = trace.NewNoopTracerProvider()
 	}
 	if options.SetUserGroups == nil {
-		options.SetUserGroups = func(ctx context.Context, _ database.Store, userID uuid.UUID, groups []string, createMissingGroups bool) error {
-			options.Logger.Warn(ctx, "attempted to assign OIDC groups without enterprise license",
+		options.SetUserGroups = func(ctx context.Context, logger slog.Logger, _ database.Store, userID uuid.UUID, groups []string, createMissingGroups bool) error {
+			logger.Warn(ctx, "attempted to assign OIDC groups without enterprise license",
 				slog.F("user_id", userID), slog.F("groups", groups), slog.F("create_missing_groups", createMissingGroups),
 			)
 			return nil
 		}
 	}
 	if options.SetUserSiteRoles == nil {
-		options.SetUserSiteRoles = func(ctx context.Context, _ database.Store, userID uuid.UUID, roles []string) error {
-			options.Logger.Warn(ctx, "attempted to assign OIDC user roles without enterprise license",
+		options.SetUserSiteRoles = func(ctx context.Context, logger slog.Logger, _ database.Store, userID uuid.UUID, roles []string) error {
+			logger.Warn(ctx, "attempted to assign OIDC user roles without enterprise license",
 				slog.F("user_id", userID), slog.F("roles", roles),
 			)
 			return nil
