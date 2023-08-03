@@ -112,6 +112,8 @@ jobs:
             ---
             :rocket: Deploying PR ${{ steps.pr_info.outputs.PR_NUMBER }} ...
             ---
+          reactions: eyes
+          reactions-edit-mode: replace
 
       - name: Checkout
         uses: actions/checkout@v3
