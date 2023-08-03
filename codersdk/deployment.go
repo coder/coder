@@ -1079,7 +1079,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "OIDC Regex Group Filter",
-			Description: "If provided any group name not matching the regex is ignored. This allows for filtering out groups that are not needed.",
+			Description: "If provided any group name not matching the regex is ignored. This allows for filtering out groups that are not needed. This filter is applied after the group mapping.",
 			Flag:        "oidc-group-regex-filter",
 			Env:         "CODER_OIDC_GROUP_REGEX_FILTER",
 			Default:     "",

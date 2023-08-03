@@ -444,16 +444,20 @@ func TestGroupSync(t *testing.T) {
 				cfg.CreateMissingGroups = true
 				// Only single letter groups
 				cfg.GroupFilter = regexp.MustCompile("^[a-z]$")
+				cfg.GroupMapping = map[string]string{
+					// Does not match the filter, but does after being mapped!
+					"zebra": "z",
+				}
 			},
 			initialOrgGroups:   []string{"a", "b", "c", "d"},
 			initialUserGroups:  []string{"a", "b", "c"},
-			expectedUserGroups: []string{"b", "c", "d", "e", "f"},
-			expectedOrgGroups:  []string{"a", "b", "c", "d", "e", "f"},
+			expectedUserGroups: []string{"b", "c", "d", "e", "f", "z"},
+			expectedOrgGroups:  []string{"a", "b", "c", "d", "e", "f", "z"},
 			claims: jwt.MapClaims{
 				"groups": []string{
 					"b", "c", "d", "e", "f",
 					// These groups are ignored
-					"excess", "ignore", "dumb", "foobar",
+					"excess", "ignore", "dumb", "foobar", "zebra",
 				},
 			},
 		},
@@ -515,6 +519,14 @@ func TestGroupSync(t *testing.T) {
 
 			orgGroups, err := client.GroupsByOrganization(ctx, admin.OrganizationIDs[0])
 			require.NoError(t, err)
+
+			for _, group := range orgGroups {
+				if slice.Contains(tc.initialOrgGroups, group.Name) {
+					require.Equal(t, group.Source, codersdk.GroupSourceUser)
+				} else {
+					require.Equal(t, group.Source, codersdk.GroupSourceOIDC)
+				}
+			}
 
 			orgGroupsMap := make(map[string]struct{})
 			for _, group := range orgGroups {

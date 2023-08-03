@@ -46,6 +46,7 @@ func (api *API) setUserGroups(ctx context.Context, logger slog.Logger, db databa
 			created, err := tx.InsertMissingGroups(dbauthz.AsSystemRestricted(ctx), database.InsertMissingGroupsParams{
 				OrganizationID: orgs[0].ID,
 				GroupNames:     groupNames,
+				Source:         database.GroupSourceOidc,
 			})
 			if err != nil {
 				return xerrors.Errorf("insert missing groups: %w", err)

@@ -46,12 +46,14 @@ VALUES
 INSERT INTO groups (
 	id,
 	name,
-	organization_id
+	organization_id,
+    source
 )
 SELECT
     gen_random_uuid(),
     group_name,
-    @organization_id
+    @organization_id,
+    @source
 FROM
     UNNEST(@group_names :: text[]) AS group_name
 -- If the name conflicts, do nothing.

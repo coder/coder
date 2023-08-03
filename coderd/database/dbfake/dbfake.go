@@ -3526,6 +3526,7 @@ func (q *FakeQuerier) InsertGroup(_ context.Context, arg database.InsertGroupPar
 		OrganizationID: arg.OrganizationID,
 		AvatarURL:      arg.AvatarURL,
 		QuotaAllowance: arg.QuotaAllowance,
+		Source:         database.GroupSourceUser,
 	}
 
 	q.groups = append(q.groups, group)
@@ -3608,6 +3609,7 @@ func (q *FakeQuerier) InsertMissingGroups(ctx context.Context, arg database.Inse
 			AvatarURL:      "",
 			QuotaAllowance: 0,
 			DisplayName:    "",
+			Source:         arg.Source,
 		}
 		q.groups = append(q.groups, g)
 		newGroups = append(newGroups, g)
