@@ -245,20 +245,16 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.FilesRateLimit = -1
 	}
 	if options.StatsBatcher == nil {
-		batchStatsTicker := time.NewTicker(time.Hour)
-		t.Cleanup(batchStatsTicker.Stop)
-		options.StatsBatcher, err = batchstats.New(
-			batchstats.WithStore(options.Database),
-			// Some tests rely on being able to read stats immediately after writing.
-			batchstats.WithBatchSize(1),
-			// Avoid cluttering up test output.
-			batchstats.WithLogger(slog.Make(sloghuman.Sink(io.Discard))),
-			batchstats.WithTicker(batchStatsTicker.C),
-		)
-		require.NoError(t, err, "create stats batcher")
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
-		go options.StatsBatcher.Run(ctx)
+		batcher, closeBatcher, err := batchstats.New(ctx,
+			batchstats.WithStore(options.Database),
+			// Avoid cluttering up test output.
+			batchstats.WithLogger(slog.Make(sloghuman.Sink(io.Discard))),
+		)
+		require.NoError(t, err, "create stats batcher")
+		options.StatsBatcher = batcher
+		t.Cleanup(closeBatcher)
 	}
 
 	var templateScheduleStore atomic.Pointer[schedule.TemplateScheduleStore]

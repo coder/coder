@@ -1,4 +1,4 @@
-package batchstats_test
+package batchstats
 
 import (
 	"context"
@@ -10,7 +10,6 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
-	"github.com/coder/coder/coderd/batchstats"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/database/dbtestutil"
@@ -21,8 +20,6 @@ import (
 
 func TestBatchStats(t *testing.T) {
 	t.Parallel()
-
-	batchSize := batchstats.DefaultBatchSize
 
 	// Given: a fresh batcher with no data
 	ctx, cancel := context.WithCancel(context.Background())
@@ -36,24 +33,19 @@ func TestBatchStats(t *testing.T) {
 	tick := make(chan time.Time)
 	flushed := make(chan bool)
 
-	b, err := batchstats.New(
-		batchstats.WithStore(store),
-		batchstats.WithBatchSize(batchSize),
-		batchstats.WithLogger(log),
-		batchstats.WithTicker(tick),
-		batchstats.WithFlushed(flushed),
+	b, closer, err := New(ctx,
+		WithStore(store),
+		WithLogger(log),
+		func(b *Batcher) {
+			b.tickCh = tick
+			b.flushed = flushed
+		},
 	)
 	require.NoError(t, err)
+	t.Cleanup(closer)
 
 	// Given: no data points are added for workspace
 	// When: it becomes time to report stats
-	done := make(chan struct{})
-	t.Cleanup(func() {
-		close(done)
-	})
-	go func() {
-		b.Run(ctx)
-	}()
 	t1 := time.Now()
 	// Signal a tick and wait for a flush to complete.
 	tick <- t1
@@ -86,8 +78,8 @@ func TestBatchStats(t *testing.T) {
 	// Given: a lot of data points are added for both workspaces
 	// (equal to batch size)
 	t3 := time.Now()
-	t.Logf("inserting %d stats", batchSize)
-	for i := 0; i < batchSize; i++ {
+	t.Logf("inserting %d stats", 1024)
+	for i := 0; i < 1024; i++ {
 		if i%2 == 0 {
 			require.NoError(t, b.Add(deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randAgentSDKStats(t)))
 		} else {

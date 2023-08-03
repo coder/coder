@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	// DefaultBatchSize is the default size of the batcher's buffer.
-	DefaultBatchSize = 1024
+	defaultBufferSize    = 1024
+	defaultFlushInterval = time.Second
 )
 
 // Batcher holds a buffer of agent stats and periodically flushes them to
@@ -30,14 +30,16 @@ type Batcher struct {
 	log   slog.Logger
 
 	mu  sync.RWMutex
-	buf database.InsertWorkspaceAgentStatsParams
+	buf *database.InsertWorkspaceAgentStatsParams
 	// NOTE: we batch this separately as it's a jsonb field and
 	// pq.Array + unnest doesn't play nicely with this.
 	connectionsByProto []map[string]int64
 	batchSize          int
 
-	// ticker is used to periodically flush the buffer.
-	ticker <-chan time.Time
+	// tickCh is used to periodically flush the buffer.
+	tickCh   <-chan time.Time
+	ticker   *time.Ticker
+	interval time.Duration
 	// flushLever is used to signal the flusher to flush the buffer immediately.
 	flushLever chan struct{}
 	// flushed is used during testing to signal that a flush has completed.
@@ -61,10 +63,10 @@ func WithBatchSize(size int) Option {
 	}
 }
 
-// WithTicker sets the flush interval.
-func WithTicker(ch <-chan time.Time) Option {
+// WithInterval sets the interval for flushes.
+func WithInterval(d time.Duration) Option {
 	return func(b *Batcher) {
-		b.ticker = ch
+		b.interval = d
 	}
 }
 
@@ -75,17 +77,8 @@ func WithLogger(log slog.Logger) Option {
 	}
 }
 
-// With Flushed sets the channel to use for signaling that a flush has completed.
-// This is only used for testing.
-// True signifies that a flush was forced.
-func WithFlushed(ch chan bool) Option {
-	return func(b *Batcher) {
-		b.flushed = ch
-	}
-}
-
-// New creates a new Batcher.
-func New(opts ...Option) (*Batcher, error) {
+// New creates a new Batcher and starts it.
+func New(ctx context.Context, opts ...Option) (*Batcher, func(), error) {
 	b := &Batcher{}
 	b.log = slog.Make(sloghuman.Sink(os.Stderr))
 	b.flushLever = make(chan struct{}, 1) // Buffered so that it doesn't block.
@@ -94,39 +87,38 @@ func New(opts ...Option) (*Batcher, error) {
 	}
 
 	if b.store == nil {
-		return nil, xerrors.Errorf("no store configured for batcher")
+		return nil, nil, xerrors.Errorf("no store configured for batcher")
 	}
 
-	if b.ticker == nil {
-		return nil, xerrors.Errorf("no ticker configured for batcher")
+	if b.interval == 0 {
+		b.interval = defaultFlushInterval
 	}
 
 	if b.batchSize == 0 {
-		b.batchSize = DefaultBatchSize
+		b.batchSize = defaultBufferSize
 	}
 
-	b.connectionsByProto = make([]map[string]int64, 0, b.batchSize)
-	b.buf = database.InsertWorkspaceAgentStatsParams{
-		ID:                          make([]uuid.UUID, 0, b.batchSize),
-		CreatedAt:                   make([]time.Time, 0, b.batchSize),
-		UserID:                      make([]uuid.UUID, 0, b.batchSize),
-		WorkspaceID:                 make([]uuid.UUID, 0, b.batchSize),
-		TemplateID:                  make([]uuid.UUID, 0, b.batchSize),
-		AgentID:                     make([]uuid.UUID, 0, b.batchSize),
-		ConnectionsByProto:          json.RawMessage("[]"),
-		ConnectionCount:             make([]int64, 0, b.batchSize),
-		RxPackets:                   make([]int64, 0, b.batchSize),
-		RxBytes:                     make([]int64, 0, b.batchSize),
-		TxPackets:                   make([]int64, 0, b.batchSize),
-		TxBytes:                     make([]int64, 0, b.batchSize),
-		SessionCountVSCode:          make([]int64, 0, b.batchSize),
-		SessionCountJetBrains:       make([]int64, 0, b.batchSize),
-		SessionCountReconnectingPTY: make([]int64, 0, b.batchSize),
-		SessionCountSSH:             make([]int64, 0, b.batchSize),
-		ConnectionMedianLatencyMS:   make([]float64, 0, b.batchSize),
+	if b.tickCh == nil {
+		b.ticker = time.NewTicker(b.interval)
+		b.tickCh = b.ticker.C
 	}
 
-	return b, nil
+	cancelCtx, cancelFunc := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		b.run(cancelCtx)
+		close(done)
+	}()
+
+	closer := func() {
+		cancelFunc()
+		if b.ticker != nil {
+			b.ticker.Stop()
+		}
+		<-done
+	}
+
+	return b, closer, nil
 }
 
 // Add adds a stat to the batcher for the given workspace and agent.
@@ -172,12 +164,13 @@ func (b *Batcher) Add(
 }
 
 // Run runs the batcher.
-func (b *Batcher) Run(ctx context.Context) {
-	// nolint:gocritic
+func (b *Batcher) run(ctx context.Context) {
+	b.initBuf(b.batchSize)
+	// nolint:gocritic // This is only ever used for one thing - inserting agent stats.
 	authCtx := dbauthz.AsSystemRestricted(ctx)
 	for {
 		select {
-		case <-b.ticker:
+		case <-b.tickCh:
 			b.flush(authCtx, false, "scheduled")
 		case <-b.flushLever:
 			// If the flush lever is depressed, flush the buffer immediately.
@@ -199,7 +192,12 @@ func (b *Batcher) flush(ctx context.Context, forced bool, reason string) {
 		b.mu.Unlock()
 		// Notify that a flush has completed.
 		if b.flushed != nil {
-			b.flushed <- forced
+			select {
+			case <-ctx.Done():
+				close(b.flushed)
+			default:
+				b.flushed <- forced
+			}
 		}
 		if count > 0 {
 			elapsed := time.Since(start)
@@ -225,16 +223,42 @@ func (b *Batcher) flush(ctx context.Context, forced bool, reason string) {
 		b.buf.ConnectionsByProto = payload
 	}
 
-	err = b.store.InsertWorkspaceAgentStats(ctx, b.buf)
+	err = b.store.InsertWorkspaceAgentStats(ctx, *b.buf)
 	elapsed := time.Since(start)
 	if err != nil {
 		b.log.Error(ctx, "error inserting workspace agent stats", slog.Error(err), slog.F("elapsed", elapsed))
 		return
 	}
 
-	// Reset the buffer.
-	b.connectionsByProto = b.connectionsByProto[:0]
+	b.resetBuf()
+}
 
+// initBuf resets the buffer. b MUST be locked.
+func (b *Batcher) initBuf(size int) {
+	b.buf = &database.InsertWorkspaceAgentStatsParams{
+		ID:                          make([]uuid.UUID, 0, b.batchSize),
+		CreatedAt:                   make([]time.Time, 0, b.batchSize),
+		UserID:                      make([]uuid.UUID, 0, b.batchSize),
+		WorkspaceID:                 make([]uuid.UUID, 0, b.batchSize),
+		TemplateID:                  make([]uuid.UUID, 0, b.batchSize),
+		AgentID:                     make([]uuid.UUID, 0, b.batchSize),
+		ConnectionsByProto:          json.RawMessage("[]"),
+		ConnectionCount:             make([]int64, 0, b.batchSize),
+		RxPackets:                   make([]int64, 0, b.batchSize),
+		RxBytes:                     make([]int64, 0, b.batchSize),
+		TxPackets:                   make([]int64, 0, b.batchSize),
+		TxBytes:                     make([]int64, 0, b.batchSize),
+		SessionCountVSCode:          make([]int64, 0, b.batchSize),
+		SessionCountJetBrains:       make([]int64, 0, b.batchSize),
+		SessionCountReconnectingPTY: make([]int64, 0, b.batchSize),
+		SessionCountSSH:             make([]int64, 0, b.batchSize),
+		ConnectionMedianLatencyMS:   make([]float64, 0, b.batchSize),
+	}
+
+	b.connectionsByProto = make([]map[string]int64, 0, size)
+}
+
+func (b *Batcher) resetBuf() {
 	b.buf.ID = b.buf.ID[:0]
 	b.buf.CreatedAt = b.buf.CreatedAt[:0]
 	b.buf.UserID = b.buf.UserID[:0]
@@ -252,4 +276,5 @@ func (b *Batcher) flush(ctx context.Context, forced bool, reason string) {
 	b.buf.SessionCountReconnectingPTY = b.buf.SessionCountReconnectingPTY[:0]
 	b.buf.SessionCountSSH = b.buf.SessionCountSSH[:0]
 	b.buf.ConnectionMedianLatencyMS = b.buf.ConnectionMedianLatencyMS[:0]
+	b.connectionsByProto = b.connectionsByProto[:0]
 }

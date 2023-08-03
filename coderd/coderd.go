@@ -291,7 +291,6 @@ func New(options *Options) *API {
 		v := schedule.NewAGPLUserQuietHoursScheduleStore()
 		options.UserQuietHoursScheduleStore.Store(&v)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
 
 	if options.StatsBatcher == nil {
 		panic("developer error: options.StatsBatcher is nil")
@@ -330,6 +329,7 @@ func New(options *Options) *API {
 	})
 	staticHandler.Experiments.Store(&experiments)
 
+	ctx, cancel := context.WithCancel(context.Background())
 	r := chi.NewRouter()
 
 	// nolint:gocritic // Load deployment ID. This never changes
