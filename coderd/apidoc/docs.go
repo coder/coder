@@ -9051,6 +9051,9 @@ const docTemplate = `{
                 },
                 "disable_all": {
                     "type": "boolean"
+                },
+                "files": {
+                    "type": "integer"
                 }
             }
         },

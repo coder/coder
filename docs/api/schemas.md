@@ -2108,7 +2108,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "proxy_trusted_origins": ["string"],
     "rate_limit": {
       "api": 0,
-      "disable_all": true
+      "disable_all": true,
+      "files": 0
     },
     "redirect_to_access_url": true,
     "scim_api_key": "string",
@@ -2465,7 +2466,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "proxy_trusted_origins": ["string"],
   "rate_limit": {
     "api": 0,
-    "disable_all": true
+    "disable_all": true,
+    "files": 0
   },
   "redirect_to_access_url": true,
   "scim_api_key": "string",
@@ -3755,7 +3757,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "api": 0,
-  "disable_all": true
+  "disable_all": true,
+  "files": 0
 }
 ```
 
@@ -3765,6 +3768,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ------------- | ------- | -------- | ------------ | ----------- |
 | `api`         | integer | false    |              |             |
 | `disable_all` | boolean | false    |              |             |
+| `files`       | integer | false    |              |             |
 
 ## codersdk.Region
 

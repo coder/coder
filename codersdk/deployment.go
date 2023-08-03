@@ -333,6 +333,7 @@ type ProvisionerConfig struct {
 type RateLimitConfig struct {
 	DisableAll clibase.Bool  `json:"disable_all" typescript:",notnull"`
 	API        clibase.Int64 `json:"api" typescript:",notnull"`
+	Files      clibase.Int64 `json:"files" typescript:",notnull"`
 }
 
 type SwaggerConfig struct {
@@ -1252,6 +1253,17 @@ when required by your organization's security policy.`,
 			Value:       &c.RateLimit.API,
 			Hidden:      true,
 			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+		},
+		{
+			Name:        "File Rate Limit",
+			Description: "Maximum number of requests per minute allowed to the file upload/retrieval API per user. Negative values mean no rate limit. The files endpoints are only accessible by users with the template admin role. This value will not be applied if it's greater than the API rate limit.",
+			// Change the env from the auto-generated CODER_RATE_LIMIT_FILES to
+			// this value to match CODER_API_RATE_LIMIT.
+			Env:     "CODER_FILES_RATE_LIMIT",
+			Flag:    "files-rate-limit",
+			Default: "30",
+			Value:   &c.RateLimit.Files,
+			Hidden:  true,
 		},
 		// Logging settings
 		{

@@ -1209,11 +1209,34 @@ func TestServer(t *testing.T) {
 			accessURL := waitAccessURL(t, cfg)
 			client := codersdk.New(accessURL)
 
+			randPassword, err := cryptorand.String(24)
+			require.NoError(t, err)
+			_, err = client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
+				Email:    "admin@coder.com",
+				Password: randPassword,
+				Username: "admin",
+				Trial:    true,
+			})
+			require.NoError(t, err)
+			loginResp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+				Email:    "admin@coder.com",
+				Password: randPassword,
+			})
+			require.NoError(t, err)
+			client.SetSessionToken(loginResp.SessionToken)
+
 			resp, err := client.Request(ctx, http.MethodGet, "/api/v2/buildinfo", nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			require.Equal(t, "512", resp.Header.Get("X-Ratelimit-Limit"))
+
+			resp, err = client.Request(ctx, http.MethodGet, "/api/v2/files/invalid", nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+			require.Equal(t, "30", resp.Header.Get("X-Ratelimit-Limit"))
+
 			cancelFunc()
 			<-serverErr
 		})
@@ -1223,13 +1246,15 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
-			val := "100"
+			apiVal := "100"
+			filesVal := "10"
 			root, cfg := clitest.New(t,
 				"server",
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
-				"--api-rate-limit", val,
+				"--api-rate-limit", apiVal,
+				"--files-rate-limit", filesVal,
 			)
 			serverErr := make(chan error, 1)
 			go func() {
@@ -1238,11 +1263,34 @@ func TestServer(t *testing.T) {
 			accessURL := waitAccessURL(t, cfg)
 			client := codersdk.New(accessURL)
 
+			randPassword, err := cryptorand.String(24)
+			require.NoError(t, err)
+			_, err = client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
+				Email:    "admin@coder.com",
+				Password: randPassword,
+				Username: "admin",
+				Trial:    true,
+			})
+			require.NoError(t, err)
+			loginResp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+				Email:    "admin@coder.com",
+				Password: randPassword,
+			})
+			require.NoError(t, err)
+			client.SetSessionToken(loginResp.SessionToken)
+
 			resp, err := client.Request(ctx, http.MethodGet, "/api/v2/buildinfo", nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusOK, resp.StatusCode)
-			require.Equal(t, val, resp.Header.Get("X-Ratelimit-Limit"))
+			require.Equal(t, apiVal, resp.Header.Get("X-Ratelimit-Limit"))
+
+			resp, err = client.Request(ctx, http.MethodGet, "/api/v2/files/invalid", nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+			require.Equal(t, filesVal, resp.Header.Get("X-Ratelimit-Limit"))
+
 			cancelFunc()
 			<-serverErr
 		})
@@ -1257,7 +1305,7 @@ func TestServer(t *testing.T) {
 				"--in-memory",
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
-				"--api-rate-limit", "-1",
+				"--dangerous-disable-rate-limits", "true",
 			)
 			serverErr := make(chan error, 1)
 			go func() {
@@ -1266,11 +1314,34 @@ func TestServer(t *testing.T) {
 			accessURL := waitAccessURL(t, cfg)
 			client := codersdk.New(accessURL)
 
+			randPassword, err := cryptorand.String(24)
+			require.NoError(t, err)
+			_, err = client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
+				Email:    "admin@coder.com",
+				Password: randPassword,
+				Username: "admin",
+				Trial:    true,
+			})
+			require.NoError(t, err)
+			loginResp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+				Email:    "admin@coder.com",
+				Password: randPassword,
+			})
+			require.NoError(t, err)
+			client.SetSessionToken(loginResp.SessionToken)
+
 			resp, err := client.Request(ctx, http.MethodGet, "/api/v2/buildinfo", nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			require.Equal(t, "", resp.Header.Get("X-Ratelimit-Limit"))
+
+			resp, err = client.Request(ctx, http.MethodGet, "/api/v2/files/invalid", nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+			require.Equal(t, "", resp.Header.Get("X-Ratelimit-Limit"))
+
 			cancelFunc()
 			<-serverErr
 		})

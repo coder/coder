@@ -228,11 +228,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// Disable rate limits if the `--dangerous-disable-rate-limits` flag
 			// was specified.
 			loginRateLimit := 60
-			filesRateLimit := 12
 			if cfg.RateLimit.DisableAll {
 				cfg.RateLimit.API = -1
+				cfg.RateLimit.Files = -1
 				loginRateLimit = -1
-				filesRateLimit = -1
 			}
 
 			PrintLogo(inv, "Coder")
@@ -494,7 +493,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				PrometheusRegistry:          prometheus.NewRegistry(),
 				APIRateLimit:                int(cfg.RateLimit.API.Value()),
 				LoginRateLimit:              loginRateLimit,
-				FilesRateLimit:              filesRateLimit,
+				FilesRateLimit:              int(cfg.RateLimit.Files.Value()),
 				HTTPClient:                  httpClient,
 				TemplateScheduleStore:       &atomic.Pointer[schedule.TemplateScheduleStore]{},
 				UserQuietHoursScheduleStore: &atomic.Pointer[schedule.UserQuietHoursScheduleStore]{},

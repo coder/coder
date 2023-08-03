@@ -234,7 +234,7 @@ func New(options *Options) *API {
 		options.LoginRateLimit = 60
 	}
 	if options.FilesRateLimit == 0 {
-		options.FilesRateLimit = 12
+		options.FilesRateLimit = 30
 	}
 	if options.PrometheusRegistry == nil {
 		options.PrometheusRegistry = prometheus.NewRegistry()

@@ -314,7 +314,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "proxy_trusted_origins": ["string"],
     "rate_limit": {
       "api": 0,
-      "disable_all": true
+      "disable_all": true,
+      "files": 0
     },
     "redirect_to_access_url": true,
     "scim_api_key": "string",

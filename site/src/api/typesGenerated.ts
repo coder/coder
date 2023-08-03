@@ -767,6 +767,7 @@ export interface PutExtendWorkspaceRequest {
 export interface RateLimitConfig {
   readonly disable_all: boolean
   readonly api: number
+  readonly files: number
 }
 
 // From codersdk/workspaceproxy.go
