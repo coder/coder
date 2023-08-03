@@ -294,7 +294,7 @@ func New(options *Options) *API {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	if options.StatsBatcher == nil {
-		panic("developer error: options.Batcher is nil")
+		panic("developer error: options.StatsBatcher is nil")
 	}
 
 	siteCacheDir := options.CacheDir
