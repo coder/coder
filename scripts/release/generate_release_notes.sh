@@ -69,10 +69,10 @@ fi
 # Use a manual changelog, if present
 changelog_path="$(git rev-parse --show-toplevel)/docs/changelogs/$new_version.md"
 if [ "$check_for_changelog" -eq 1 ]; then
-  if [ -f "$changelog_path" ]; then
-    cat "$changelog_path"
-    exit 0
-  fi
+	if [ -f "$changelog_path" ]; then
+		cat "$changelog_path"
+		exit 0
+	fi
 fi
 
 # shellcheck source=scripts/release/check_commit_metadata.sh
