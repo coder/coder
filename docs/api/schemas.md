@@ -6603,11 +6603,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "tokenBucketBytesBurst": 0,
     "tokenBucketBytesPerSecond": 0
   },
-  "round_trip_ping": 0,
+  "round_trip_ping": "string",
+  "round_trip_ping_ms": 0,
   "stun": {
     "canSTUN": true,
     "enabled": true,
-    "error": null
+    "error": "string"
   },
   "uses_websocket": true
 }
@@ -6624,7 +6625,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `healthy`               | boolean                                                  | false    |              |             |
 | `node`                  | [tailcfg.DERPNode](#tailcfgderpnode)                     | false    |              |             |
 | `node_info`             | [derp.ServerInfoMessage](#derpserverinfomessage)         | false    |              |             |
-| `round_trip_ping`       | integer                                                  | false    |              |             |
+| `round_trip_ping`       | string                                                   | false    |              |             |
+| `round_trip_ping_ms`    | integer                                                  | false    |              |             |
 | `stun`                  | [healthcheck.DERPStunReport](#healthcheckderpstunreport) | false    |              |             |
 | `uses_websocket`        | boolean                                                  | false    |              |             |
 
@@ -6659,11 +6661,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "tokenBucketBytesBurst": 0,
         "tokenBucketBytesPerSecond": 0
       },
-      "round_trip_ping": 0,
+      "round_trip_ping": "string",
+      "round_trip_ping_ms": 0,
       "stun": {
         "canSTUN": true,
         "enabled": true,
-        "error": null
+        "error": "string"
       },
       "uses_websocket": true
     }
@@ -6770,11 +6773,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "tokenBucketBytesBurst": 0,
             "tokenBucketBytesPerSecond": 0
           },
-          "round_trip_ping": 0,
+          "round_trip_ping": "string",
+          "round_trip_ping_ms": 0,
           "stun": {
             "canSTUN": true,
             "enabled": true,
-            "error": null
+            "error": "string"
           },
           "uses_websocket": true
         }
@@ -6831,11 +6835,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "tokenBucketBytesBurst": 0,
             "tokenBucketBytesPerSecond": 0
           },
-          "round_trip_ping": 0,
+          "round_trip_ping": "string",
+          "round_trip_ping_ms": 0,
           "stun": {
             "canSTUN": true,
             "enabled": true,
-            "error": null
+            "error": "string"
           },
           "uses_websocket": true
         }
@@ -6886,7 +6891,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "canSTUN": true,
   "enabled": true,
-  "error": null
+  "error": "string"
 }
 ```
 
@@ -6896,7 +6901,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | --------- | ------- | -------- | ------------ | ----------- |
 | `canSTUN` | boolean | false    |              |             |
 | `enabled` | boolean | false    |              |             |
-| `error`   | any     | false    |              |             |
+| `error`   | string  | false    |              |             |
 
 ## healthcheck.DatabaseReport
 
@@ -6904,19 +6909,21 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "error": "string",
   "healthy": true,
-  "latency": 0,
+  "latency": "string",
+  "latency_ms": 0,
   "reachable": true
 }
 ```
 
 ### Properties
 
-| Name        | Type    | Required | Restrictions | Description |
-| ----------- | ------- | -------- | ------------ | ----------- |
-| `error`     | string  | false    |              |             |
-| `healthy`   | boolean | false    |              |             |
-| `latency`   | integer | false    |              |             |
-| `reachable` | boolean | false    |              |             |
+| Name         | Type    | Required | Restrictions | Description |
+| ------------ | ------- | -------- | ------------ | ----------- |
+| `error`      | string  | false    |              |             |
+| `healthy`    | boolean | false    |              |             |
+| `latency`    | string  | false    |              |             |
+| `latency_ms` | integer | false    |              |             |
+| `reachable`  | boolean | false    |              |             |
 
 ## healthcheck.Report
 
@@ -6934,7 +6941,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "database": {
     "error": "string",
     "healthy": true,
-    "latency": 0,
+    "latency": "string",
+    "latency_ms": 0,
     "reachable": true
   },
   "derp": {
@@ -7001,11 +7009,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "tokenBucketBytesBurst": 0,
               "tokenBucketBytesPerSecond": 0
             },
-            "round_trip_ping": 0,
+            "round_trip_ping": "string",
+            "round_trip_ping_ms": 0,
             "stun": {
               "canSTUN": true,
               "enabled": true,
-              "error": null
+              "error": "string"
             },
             "uses_websocket": true
           }
@@ -7062,11 +7071,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "tokenBucketBytesBurst": 0,
               "tokenBucketBytesPerSecond": 0
             },
-            "round_trip_ping": 0,
+            "round_trip_ping": "string",
+            "round_trip_ping_ms": 0,
             "stun": {
               "canSTUN": true,
               "enabled": true,
-              "error": null
+              "error": "string"
             },
             "uses_websocket": true
           }
@@ -7101,12 +7111,10 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "healthy": true,
   "time": "string",
   "websocket": {
+    "body": "string",
+    "code": 0,
     "error": "string",
-    "healthy": true,
-    "response": {
-      "body": "string",
-      "code": 0
-    }
+    "healthy": true
   }
 }
 ```
@@ -7128,38 +7136,21 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "error": "string",
-  "healthy": true,
-  "response": {
-    "body": "string",
-    "code": 0
-  }
-}
-```
-
-### Properties
-
-| Name       | Type                                                           | Required | Restrictions | Description |
-| ---------- | -------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `error`    | string                                                         | false    |              |             |
-| `healthy`  | boolean                                                        | false    |              |             |
-| `response` | [healthcheck.WebsocketResponse](#healthcheckwebsocketresponse) | false    |              |             |
-
-## healthcheck.WebsocketResponse
-
-```json
-{
   "body": "string",
-  "code": 0
+  "code": 0,
+  "error": "string",
+  "healthy": true
 }
 ```
 
 ### Properties
 
-| Name   | Type    | Required | Restrictions | Description |
-| ------ | ------- | -------- | ------------ | ----------- |
-| `body` | string  | false    |              |             |
-| `code` | integer | false    |              |             |
+| Name      | Type    | Required | Restrictions | Description |
+| --------- | ------- | -------- | ------------ | ----------- |
+| `body`    | string  | false    |              |             |
+| `code`    | integer | false    |              |             |
+| `error`   | string  | false    |              |             |
+| `healthy` | boolean | false    |              |             |
 
 ## netcheck.Report
 

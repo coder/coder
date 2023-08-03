@@ -10232,6 +10232,9 @@
           "$ref": "#/definitions/derp.ServerInfoMessage"
         },
         "round_trip_ping": {
+          "type": "string"
+        },
+        "round_trip_ping_ms": {
           "type": "integer"
         },
         "stun": {
@@ -10300,7 +10303,9 @@
         "enabled": {
           "type": "boolean"
         },
-        "error": {}
+        "error": {
+          "type": "string"
+        }
       }
     },
     "healthcheck.DatabaseReport": {
@@ -10313,6 +10318,9 @@
           "type": "boolean"
         },
         "latency": {
+          "type": "string"
+        },
+        "latency_ms": {
           "type": "integer"
         },
         "reachable": {
@@ -10359,25 +10367,17 @@
     "healthcheck.WebsocketReport": {
       "type": "object",
       "properties": {
-        "error": {
-          "type": "string"
-        },
-        "healthy": {
-          "type": "boolean"
-        },
-        "response": {
-          "$ref": "#/definitions/healthcheck.WebsocketResponse"
-        }
-      }
-    },
-    "healthcheck.WebsocketResponse": {
-      "type": "object",
-      "properties": {
         "body": {
           "type": "string"
         },
         "code": {
           "type": "integer"
+        },
+        "error": {
+          "type": "string"
+        },
+        "healthy": {
+          "type": "boolean"
         }
       }
     },
