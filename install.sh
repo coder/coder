@@ -1,6 +1,6 @@
 #!/bin/sh
 set -eu
-# testing //TODO remove
+
 # Coder's automatic install script.
 # See https://github.com/coder/coder#installing-coder
 
