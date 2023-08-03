@@ -305,6 +305,7 @@ jobs:
           echo "experiments=$experiments" >> $GITHUB_OUTPUT
 
       - name: Create values.yaml
+        if: github.event_name == 'workflow_dispatch'
         run: |
           cat <<EOF > pr-deploy-values.yaml
           coder:
@@ -348,10 +349,18 @@ jobs:
       - name: Install Helm chart
         run: |
           set -euxo pipefail
-          helm upgrade --install "pr${{ env.PR_NUMBER }}" ./helm \
-          --namespace "pr${{ env.PR_NUMBER }}" \
-          --values ./pr-deploy-values.yaml \
-          --force
+          if [[ ${{ github.event_name }} == "workflow_dispatch" ]]; then
+            helm upgrade --install "pr${{ env.PR_NUMBER }}" ./helm \
+            --namespace "pr${{ env.PR_NUMBER }}" \
+            --values ./pr-deploy-values.yaml \
+            --force
+          else
+            helm upgrade --install "pr${{ env.PR_NUMBER }}" ./helm \
+            --namespace "pr${{ env.PR_NUMBER }}" \
+            --reuse-values \
+            --force
+          fi
+
 
       - name: Install coder-logstream-kube
         if: needs.get_info.outputs.NEW == 'true'
