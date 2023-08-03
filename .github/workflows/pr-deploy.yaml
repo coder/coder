@@ -368,7 +368,7 @@ jobs:
             --values ./pr-deploy-values.yaml \
             --force
           else
-            if [[ ${{ needs.get_info.outputs.BUILD }} ]]
+            if [[ ${{ needs.get_info.outputs.BUILD }} ]]; then
               helm upgrade --install "pr${{ env.PR_NUMBER }}" ./helm \
               --namespace "pr${{ env.PR_NUMBER }}" \
               --reuse-values \
