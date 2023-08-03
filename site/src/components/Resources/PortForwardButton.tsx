@@ -113,7 +113,9 @@ export const PortForwardPopoverView: React.FC<
         <HelpTooltipText
           sx={{ color: (theme) => theme.palette.text.secondary }}
         >
-          Port URLs are only accessible by you.
+          {ports?.length === 0
+            ? "No open ports were detected."
+            : "Port URLs are only accessible by you."}
         </HelpTooltipText>
         <Box sx={{ marginTop: (theme) => theme.spacing(1.5) }}>
           {ports?.map((p) => {

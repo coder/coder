@@ -30,3 +30,9 @@ export const WithPorts: Story = {
     ports: MockListeningPorts.ports,
   },
 }
+
+export const Empty: Story = {
+  args: {
+    ports: [],
+  },
+}
