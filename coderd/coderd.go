@@ -183,6 +183,8 @@ type Options struct {
 // @in header
 // @name Coder-Session-Token
 // New constructs a Coder API handler.
+//
+//nolint:gocyclo
 func New(options *Options) *API {
 	if options == nil {
 		options = &Options{}

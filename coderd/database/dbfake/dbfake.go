@@ -4072,7 +4072,7 @@ func (q *FakeQuerier) InsertWorkspaceAgentStat(_ context.Context, p database.Ins
 	return stat, nil
 }
 
-func (q *FakeQuerier) InsertWorkspaceAgentStats(ctx context.Context, arg database.InsertWorkspaceAgentStatsParams) error {
+func (q *FakeQuerier) InsertWorkspaceAgentStats(_ context.Context, arg database.InsertWorkspaceAgentStatsParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return err
