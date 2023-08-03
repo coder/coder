@@ -40,7 +40,7 @@ concurrency:
 
 jobs:
   get_info:
-    if: (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/deploy-pr') && (github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'COLLABORATOR' || github.event.comment.author_association == 'OWNER')) || github.event_name == 'workflow_dispatch'
+    if: (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/deploy-pr') && (github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'COLLABORATOR' || github.event.comment.author_association == 'OWNER')) || github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
     outputs:
       PR_NUMBER: ${{ steps.pr_info.outputs.PR_NUMBER }}
       PR_TITLE: ${{ steps.pr_info.outputs.PR_TITLE }}
