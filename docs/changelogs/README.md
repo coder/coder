@@ -6,7 +6,7 @@ These changelogs are currently not kept in-sync with GitHub releases. Use [GitHu
 
 ## Writing a changelog
 
-Run this comamnd to generate release notes:
+Run this command to generate release notes:
 
 ```sh
 ./scripts/release/generate_release_notes.sh \
