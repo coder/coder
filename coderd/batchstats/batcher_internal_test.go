@@ -31,7 +31,7 @@ func TestBatchStats(t *testing.T) {
 	deps1 := setupDeps(t, store)
 	deps2 := setupDeps(t, store)
 	tick := make(chan time.Time)
-	flushed := make(chan bool)
+	flushed := make(chan int)
 
 	b, closer, err := New(ctx,
 		WithStore(store),
@@ -50,7 +50,7 @@ func TestBatchStats(t *testing.T) {
 	// Signal a tick and wait for a flush to complete.
 	tick <- t1
 	f := <-flushed
-	require.False(t, f, "flush should not have been forced")
+	require.Equal(t, 0, f, "expected no data to be flushed")
 	t.Logf("flush 1 completed")
 
 	// Then: it should report no stats.
@@ -67,7 +67,7 @@ func TestBatchStats(t *testing.T) {
 	// Signal a tick and wait for a flush to complete.
 	tick <- t2
 	f = <-flushed // Wait for a flush to complete.
-	require.False(t, f, "flush should not have been forced")
+	require.Equal(t, 1, f, "expected one stat to be flushed")
 	t.Logf("flush 2 completed")
 
 	// Then: it should report a single stat.
@@ -78,36 +78,53 @@ func TestBatchStats(t *testing.T) {
 	// Given: a lot of data points are added for both workspaces
 	// (equal to batch size)
 	t3 := time.Now()
-	t.Logf("inserting %d stats", 1024)
-	for i := 0; i < 1024; i++ {
-		if i%2 == 0 {
-			require.NoError(t, b.Add(deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randAgentSDKStats(t)))
-		} else {
-			require.NoError(t, b.Add(deps2.Agent.ID, deps2.User.ID, deps2.Template.ID, deps2.Workspace.ID, randAgentSDKStats(t)))
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+		t.Logf("inserting %d stats", defaultBufferSize)
+		for i := 0; i < defaultBufferSize; i++ {
+			if i%2 == 0 {
+				require.NoError(t, b.Add(deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randAgentSDKStats(t)))
+			} else {
+				require.NoError(t, b.Add(deps2.Agent.ID, deps2.User.ID, deps2.Template.ID, deps2.Workspace.ID, randAgentSDKStats(t)))
+			}
 		}
-	}
+	}()
 
-	// When: the buffer is full
-	// Wait for a flush to complete. This should be forced by filling the buffer.
+	// When: the buffer comes close to capacity
+	// Then: The buffer will force-flush once.
 	f = <-flushed
-	require.True(t, f, "flush should have been forced")
 	t.Logf("flush 3 completed")
+	require.Greater(t, f, 819, "expected at least 819 stats to be flushed (>=80% of buffer)")
+	// And we should finish inserting the stats
+	<-done
 
-	// Then: it should immediately flush its stats to store.
 	stats, err = store.GetWorkspaceAgentStats(ctx, t3)
 	require.NoError(t, err, "should not error getting stats")
 	require.Len(t, stats, 2, "should have stats for both workspaces")
 
-	// Ensure that a subsequent flush does not push stale data.
+	// Ensures that a subsequent flush pushes all the remaining data
 	t4 := time.Now()
 	tick <- t4
-	f = <-flushed
-	require.False(t, f, "flush should not have been forced")
+	f2 := <-flushed
 	t.Logf("flush 4 completed")
+	expectedCount := defaultBufferSize - f
+	require.Equal(t, expectedCount, f2, "did not flush expected remaining rows")
 
-	stats, err = store.GetWorkspaceAgentStats(ctx, t4)
+	// Ensure that a subsequent flush does not push stale data.
+	t5 := time.Now()
+	tick <- t5
+	f = <-flushed
+	require.Zero(t, f, "expected zero stats to have been flushed")
+	t.Logf("flush 5 completed")
+
+	stats, err = store.GetWorkspaceAgentStats(ctx, t5)
 	require.NoError(t, err, "should not error getting stats")
 	require.Len(t, stats, 0, "should have no stats for workspace")
+
+	// Ensure that buf never grew beyond what we expect
+	require.Equal(t, defaultBufferSize, cap(b.buf.ID), "buffer grew beyond expected capacity")
 }
 
 // randAgentSDKStats returns a random agentsdk.Stats

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -29,7 +30,8 @@ type Batcher struct {
 	store database.Store
 	log   slog.Logger
 
-	mu  sync.RWMutex
+	mu sync.Mutex
+	// TODO: make this a buffered chan instead?
 	buf *database.InsertWorkspaceAgentStatsParams
 	// NOTE: we batch this separately as it's a jsonb field and
 	// pq.Array + unnest doesn't play nicely with this.
@@ -41,9 +43,10 @@ type Batcher struct {
 	ticker   *time.Ticker
 	interval time.Duration
 	// flushLever is used to signal the flusher to flush the buffer immediately.
-	flushLever chan struct{}
+	flushLever  chan struct{}
+	flushForced atomic.Bool
 	// flushed is used during testing to signal that a flush has completed.
-	flushed chan<- bool
+	flushed chan<- int
 }
 
 // Option is a functional option for configuring a Batcher.
@@ -156,9 +159,13 @@ func (b *Batcher) Add(
 	b.buf.SessionCountSSH = append(b.buf.SessionCountSSH, st.SessionCountSSH)
 	b.buf.ConnectionMedianLatencyMS = append(b.buf.ConnectionMedianLatencyMS, st.ConnectionMedianLatencyMS)
 
-	// If the buffer is full, signal the flusher to flush immediately.
-	if len(b.buf.ID) == cap(b.buf.ID) {
+	// If the buffer is over 80% full, signal the flusher to flush immediately.
+	// We want to trigger flushes early to reduce the likelihood of
+	// accidentally growing the buffer over batchSize.
+	filled := float64(len(b.buf.ID)) / float64(b.batchSize)
+	if filled >= 0.8 && !b.flushForced.Load() {
 		b.flushLever <- struct{}{}
+		b.flushForced.Store(true)
 	}
 	return nil
 }
@@ -174,7 +181,7 @@ func (b *Batcher) run(ctx context.Context) {
 			b.flush(authCtx, false, "scheduled")
 		case <-b.flushLever:
 			// If the flush lever is depressed, flush the buffer immediately.
-			b.flush(authCtx, true, "full buffer")
+			b.flush(authCtx, true, "reaching capacity")
 		case <-ctx.Done():
 			b.log.Warn(ctx, "context done, flushing before exit")
 			b.flush(authCtx, true, "exit")
@@ -186,17 +193,19 @@ func (b *Batcher) run(ctx context.Context) {
 // flush flushes the batcher's buffer.
 func (b *Batcher) flush(ctx context.Context, forced bool, reason string) {
 	b.mu.Lock()
+	b.flushForced.Store(true)
 	start := time.Now()
 	count := len(b.buf.ID)
 	defer func() {
+		b.flushForced.Store(false)
 		b.mu.Unlock()
-		// Notify that a flush has completed.
+		// Notify that a flush has completed. This only happens in tests.
 		if b.flushed != nil {
 			select {
 			case <-ctx.Done():
 				close(b.flushed)
 			default:
-				b.flushed <- forced
+				b.flushed <- count
 			}
 		}
 		if count > 0 {
