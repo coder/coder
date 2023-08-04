@@ -155,6 +155,9 @@ export const UsersTableBody: FC<
                       ))}
                     </Stack>
                   </TableCell>
+                  <TableCell>
+                    <pre>{user.login_type}</pre>
+                  </TableCell>
                   <TableCell
                     className={combineClasses([
                       styles.status,
