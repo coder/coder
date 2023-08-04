@@ -107,3 +107,19 @@ func assertSetContains[T comparable](t *testing.T, set []T, in []T, out []T) {
 		require.False(t, slice.Contains(set, e), "expect element in set")
 	}
 }
+
+func TestAscending(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, -1, slice.Ascending(1, 2))
+	assert.Equal(t, 0, slice.Ascending(1, 1))
+	assert.Equal(t, 1, slice.Ascending(2, 1))
+}
+
+func TestDescending(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, 1, slice.Ascending(1, 2))
+	assert.Equal(t, 0, slice.Ascending(1, 1))
+	assert.Equal(t, -1, slice.Ascending(2, 1))
+}

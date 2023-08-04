@@ -1,6 +1,8 @@
 package slice
 
-import "golang.org/x/exp/constraints"
+import (
+	"golang.org/x/exp/constraints"
+)
 
 // SameElements returns true if the 2 lists have the same elements in any
 // order.
