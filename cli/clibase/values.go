@@ -464,8 +464,15 @@ func (e *Enum) String() string {
 
 type Regexp regexp.Regexp
 
-func RegexpOf(s *regexp.Regexp) *Regexp {
-	return (*Regexp)(s)
+func (d *Regexp) MarshalYAML() (interface{}, error) {
+	return yaml.Node{
+		Kind:  yaml.ScalarNode,
+		Value: d.String(),
+	}, nil
+}
+
+func (d *Regexp) UnmarshalYAML(n *yaml.Node) error {
+	return d.Set(n.Value)
 }
 
 func (s *Regexp) Set(v string) error {
