@@ -22,7 +22,7 @@ type workspaceParameterFlags struct {
 
 func (wpf *workspaceParameterFlags) options() []clibase.Option {
 	return clibase.OptionSet{
-		clibase.Option{
+		{
 			Flag:        "build-option",
 			Env:         "CODER_BUILD_OPTION",
 			Description: `Build option value in the format "name=value".`,
