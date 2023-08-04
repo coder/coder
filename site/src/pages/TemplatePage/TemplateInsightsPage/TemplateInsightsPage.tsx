@@ -26,7 +26,7 @@ import {
   UserLatencyInsightsResponse,
 } from "api/typesGenerated"
 import { ComponentProps } from "react"
-import subDays from "date-fns/subDays"
+import { subDays, addHours, startOfHour } from "date-fns"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined"
 import Link from "@mui/material/Link"
@@ -35,8 +35,8 @@ export default function TemplateInsightsPage() {
   const { template } = useTemplateLayoutContext()
   const insightsFilter = {
     template_ids: template.id,
-    start_time: toTimeFilter(sevenDaysAgo()),
-    end_time: toTimeFilter(new Date()),
+    start_time: toStartTimeFilter(sevenDaysAgo()),
+    end_time: startOfHour(addHours(new Date(), 1)).toISOString(),
   }
   const { data: templateInsights } = useQuery({
     queryKey: ["templates", template.id, "usage"],
@@ -478,12 +478,11 @@ function mapToDAUsResponse(
   }
 }
 
-function toTimeFilter(date: Date) {
+function toStartTimeFilter(date: Date) {
   date.setHours(0, 0, 0, 0)
   const year = date.getUTCFullYear()
   const month = String(date.getUTCMonth() + 1).padStart(2, "0")
   const day = String(date.getUTCDate()).padStart(2, "0")
-
   return `${year}-${month}-${day}T00:00:00Z`
 }
 
