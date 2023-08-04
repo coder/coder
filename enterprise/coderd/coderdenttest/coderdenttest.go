@@ -56,6 +56,7 @@ type Options struct {
 	DontAddLicense              bool
 	DontAddFirstUser            bool
 	ReplicaSyncUpdateInterval   time.Duration
+	ProvisionerDaemonPSK        string
 }
 
 // New constructs a codersdk client connected to an in-memory Enterprise API instance.
@@ -94,6 +95,7 @@ func NewWithAPI(t *testing.T, options *Options) (
 		Keys:                       Keys,
 		ProxyHealthInterval:        options.ProxyHealthInterval,
 		DefaultQuietHoursSchedule:  oop.DeploymentValues.UserQuietHoursSchedule.DefaultSchedule.Value(),
+		ProvisionerDaemonPSK:       options.ProvisionerDaemonPSK,
 	})
 	require.NoError(t, err)
 	setHandler(coderAPI.AGPL.RootHandler)

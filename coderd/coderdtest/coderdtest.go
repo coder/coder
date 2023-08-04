@@ -497,7 +497,11 @@ func NewExternalProvisionerDaemon(t *testing.T, client *codersdk.Client, org uui
 	}()
 
 	closer := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
-		return client.ServeProvisionerDaemon(ctx, org, []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho}, tags)
+		return client.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+			Organization: org,
+			Provisioners: []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho},
+			Tags:         tags,
+		})
 	}, &provisionerd.Options{
 		Filesystem:          fs,
 		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),

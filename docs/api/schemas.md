@@ -2099,6 +2099,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "provisioner": {
       "daemon_poll_interval": 0,
       "daemon_poll_jitter": 0,
+      "daemon_psk": "string",
       "daemons": 0,
       "daemons_echo": true,
       "force_cancel_interval": 0
@@ -2456,6 +2457,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "provisioner": {
     "daemon_poll_interval": 0,
     "daemon_poll_jitter": 0,
+    "daemon_psk": "string",
     "daemons": 0,
     "daemons_echo": true,
     "force_cancel_interval": 0
@@ -3485,6 +3487,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "daemon_poll_interval": 0,
   "daemon_poll_jitter": 0,
+  "daemon_psk": "string",
   "daemons": 0,
   "daemons_echo": true,
   "force_cancel_interval": 0
@@ -3497,6 +3500,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ----------------------- | ------- | -------- | ------------ | ----------- |
 | `daemon_poll_interval`  | integer | false    |              |             |
 | `daemon_poll_jitter`    | integer | false    |              |             |
+| `daemon_psk`            | string  | false    |              |             |
 | `daemons`               | integer | false    |              |             |
 | `daemons_echo`          | boolean | false    |              |             |
 | `force_cancel_interval` | integer | false    |              |             |
