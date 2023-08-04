@@ -12,6 +12,7 @@ import {
   StopButton,
   RestartButton,
   UpdateButton,
+  UnlockButton,
 } from "./Buttons"
 import {
   ButtonMapping,
@@ -33,6 +34,7 @@ export interface WorkspaceActionsProps {
   handleCancel: () => void
   handleSettings: () => void
   handleChangeVersion: () => void
+  handleUnlock: () => void
   isUpdating: boolean
   isRestarting: boolean
   children?: ReactNode
@@ -49,6 +51,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   handleCancel,
   handleSettings,
   handleChangeVersion,
+  handleUnlock,
   isUpdating,
   isRestarting,
   canChangeVersions,
@@ -58,7 +61,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     canCancel,
     canAcceptJobs,
     actions: actionsByStatus,
-  } = actionsByWorkspaceStatus(workspace.latest_build.status)
+  } = actionsByWorkspaceStatus(workspace, workspace.latest_build.status)
   const canBeUpdated = workspace.outdated && canAcceptJobs
   const menuTriggerRef = useRef<HTMLButtonElement>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -93,6 +96,10 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     [ButtonTypesEnum.canceling]: <DisabledButton label="Canceling..." />,
     [ButtonTypesEnum.deleted]: <DisabledButton label="Deleted" />,
     [ButtonTypesEnum.pending]: <ActionLoadingButton label="Pending..." />,
+    [ButtonTypesEnum.unlock]: <UnlockButton handleAction={handleUnlock} />,
+    [ButtonTypesEnum.unlocking]: (
+      <UnlockButton loading handleAction={handleUnlock} />
+    ),
   }
 
   // Returns a function that will execute the action and close the menu

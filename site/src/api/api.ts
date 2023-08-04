@@ -554,6 +554,21 @@ export const cancelWorkspaceBuild = async (
   return response.data
 }
 
+export const updateWorkspaceLock = async (
+  workspaceId: string,
+  lock: boolean,
+): Promise<TypesGen.Workspace> => {
+  const data: TypesGen.UpdateWorkspaceLock = {
+    lock: lock,
+  }
+
+  const response = await axios.put(
+    `/api/v2/workspaces/${workspaceId}/lock`,
+    data,
+  )
+  return response.data
+}
+
 export const restartWorkspace = async ({
   workspace,
   buildParameters,
