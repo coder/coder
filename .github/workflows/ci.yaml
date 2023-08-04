@@ -736,7 +736,6 @@ jobs:
           ./scripts/build_docker.sh \
             --arch amd64 \
             --target ghcr.io/coder/coder-preview:main \
-            --target
             --version $version \
             --push \
             build/coder_linux_amd64
