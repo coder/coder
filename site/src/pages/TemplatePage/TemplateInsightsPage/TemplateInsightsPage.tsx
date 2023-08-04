@@ -30,6 +30,8 @@ import { subDays, addHours, startOfHour } from "date-fns"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined"
 import Link from "@mui/material/Link"
+import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined"
+import CancelOutlined from "@mui/icons-material/CancelOutlined"
 
 export default function TemplateInsightsPage() {
   const { template } = useTemplateLayoutContext()
@@ -327,6 +329,7 @@ const TemplateParametersUsagePanel = ({
                           alignItems: "baseline",
                           justifyContent: "space-between",
                           py: 0.5,
+                          gap: 5,
                         }}
                       >
                         <ValueLabel value={value} parameter={parameter} />
@@ -409,6 +412,71 @@ const ValueLabel = ({
         <OpenInNewOutlined sx={{ width: 14, height: 14 }} />
         {value.value}
       </Link>
+    )
+  }
+
+  if (value.value.startsWith("[")) {
+    const values = JSON.parse(value.value) as string[]
+    return (
+      <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+        {values.map((v, i) => {
+          return (
+            <Box
+              key={i}
+              sx={{
+                p: (theme) => theme.spacing(0.25, 1.5),
+                borderRadius: 999,
+                background: (theme) => theme.palette.divider,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {v}
+            </Box>
+          )
+        })}
+      </Box>
+    )
+  }
+
+  if (value.value === "false") {
+    return (
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+        }}
+      >
+        <CancelOutlined
+          sx={{
+            width: 16,
+            height: 16,
+            color: (theme) => theme.palette.error.light,
+          }}
+        />
+        False
+      </Box>
+    )
+  }
+
+  if (value.value === "true") {
+    return (
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+        }}
+      >
+        <CheckCircleOutlined
+          sx={{
+            width: 16,
+            height: 16,
+            color: (theme) => theme.palette.success.light,
+          }}
+        />
+        True
+      </Box>
     )
   }
 
