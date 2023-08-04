@@ -1,5 +1,7 @@
 import { usePagination } from "hooks/usePagination"
-import { FC } from "react"
+import { Workspace } from "api/typesGenerated"
+import { useIsWorkspaceActionsEnabled } from "components/Dashboard/DashboardProvider"
+import { FC, useEffect, useState } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "utils/page"
 import { useWorkspacesData, useWorkspaceUpdate } from "./data"
@@ -9,8 +11,10 @@ import { useTemplateFilterMenu, useStatusFilterMenu } from "./filter/menus"
 import { useSearchParams } from "react-router-dom"
 import { useFilter } from "components/Filter/filter"
 import { useUserFilterMenu } from "components/Filter/UserFilter"
+import { getWorkspaces } from "api/api"
 
 const WorkspacesPage: FC = () => {
+  const [lockedWorkspaces, setLockedWorkspaces] = useState<Workspace[]>([])
   // If we use a useSearchParams for each hook, the values will not be in sync.
   // So we have to use a single one, centralizing the values, and pass it to
   // each hook.
@@ -21,6 +25,37 @@ const WorkspacesPage: FC = () => {
     ...pagination,
     query: filterProps.filter.query,
   })
+
+  const experimentEnabled = useIsWorkspaceActionsEnabled()
+  // If workspace actions are enabled we need to fetch the locked
+  // workspaces as well. This lets us determine whether we should
+  // show a banner to the user indicating that some of their workspaces
+  // are at risk of being deleted.
+  useEffect(() => {
+    if (experimentEnabled) {
+      const includesLocked = filterProps.filter.query.includes("locked_at")
+      const lockedQuery = includesLocked
+        ? filterProps.filter.query
+        : filterProps.filter.query + " locked_at:1970-01-01"
+
+      if (includesLocked && data) {
+        setLockedWorkspaces(data.workspaces)
+      } else {
+        getWorkspaces({ q: lockedQuery })
+          .then((resp) => {
+            setLockedWorkspaces(resp.workspaces)
+          })
+          .catch(() => {
+            // TODO
+          })
+      }
+    } else {
+      // If the experiment isn't included then we'll pretend
+      // like locked workspaces don't exist.
+      setLockedWorkspaces([])
+    }
+  }, [experimentEnabled, data, filterProps.filter.query])
+
   const updateWorkspace = useWorkspaceUpdate(queryKey)
 
   return (
@@ -31,6 +66,7 @@ const WorkspacesPage: FC = () => {
 
       <WorkspacesPageView
         workspaces={data?.workspaces}
+        lockedWorkspaces={lockedWorkspaces}
         error={error}
         count={data?.count}
         page={pagination.page}

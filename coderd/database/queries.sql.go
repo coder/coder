@@ -1553,6 +1553,108 @@ func (q *sqlQuerier) GetTemplateInsights(ctx context.Context, arg GetTemplateIns
 	return i, err
 }
 
+const getTemplateParameterInsights = `-- name: GetTemplateParameterInsights :many
+WITH latest_workspace_builds AS (
+	SELECT
+		wb.id,
+		wbmax.template_id,
+		wb.template_version_id
+	FROM (
+	    SELECT
+	        tv.template_id, wbmax.workspace_id, MAX(wbmax.build_number) as max_build_number
+		FROM workspace_builds wbmax
+		JOIN template_versions tv ON (tv.id = wbmax.template_version_id)
+		WHERE
+			wbmax.created_at >= $1::timestamptz
+			AND wbmax.created_at < $2::timestamptz
+			AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN tv.template_id = ANY($3::uuid[]) ELSE TRUE END
+	    GROUP BY tv.template_id, wbmax.workspace_id
+	) wbmax
+	JOIN workspace_builds wb ON (
+		wb.workspace_id = wbmax.workspace_id
+		AND wb.build_number = wbmax.max_build_number
+	)
+), unique_template_params AS (
+	SELECT
+		ROW_NUMBER() OVER () AS num,
+		array_agg(DISTINCT wb.template_id)::uuid[] AS template_ids,
+		array_agg(wb.id)::uuid[] AS workspace_build_ids,
+		tvp.name,
+		tvp.display_name,
+		tvp.description,
+		tvp.options
+	FROM latest_workspace_builds wb
+	JOIN template_version_parameters tvp ON (tvp.template_version_id = wb.template_version_id)
+	GROUP BY tvp.name, tvp.display_name, tvp.description, tvp.options
+)
+
+SELECT
+	utp.num,
+	utp.template_ids,
+	utp.name,
+	utp.display_name,
+	utp.description,
+	utp.options,
+	wbp.value,
+	COUNT(wbp.value) AS count
+FROM unique_template_params utp
+JOIN workspace_build_parameters wbp ON (utp.workspace_build_ids @> ARRAY[wbp.workspace_build_id] AND utp.name = wbp.name)
+GROUP BY utp.num, utp.name, utp.display_name, utp.description, utp.options, utp.template_ids, wbp.value
+`
+
+type GetTemplateParameterInsightsParams struct {
+	StartTime   time.Time   `db:"start_time" json:"start_time"`
+	EndTime     time.Time   `db:"end_time" json:"end_time"`
+	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
+}
+
+type GetTemplateParameterInsightsRow struct {
+	Num         int64           `db:"num" json:"num"`
+	TemplateIDs []uuid.UUID     `db:"template_ids" json:"template_ids"`
+	Name        string          `db:"name" json:"name"`
+	DisplayName string          `db:"display_name" json:"display_name"`
+	Description string          `db:"description" json:"description"`
+	Options     json.RawMessage `db:"options" json:"options"`
+	Value       string          `db:"value" json:"value"`
+	Count       int64           `db:"count" json:"count"`
+}
+
+// GetTemplateParameterInsights does for each template in a given timeframe,
+// look for the latest workspace build (for every workspace) that has been
+// created in the timeframe and return the aggregate usage counts of parameter
+// values.
+func (q *sqlQuerier) GetTemplateParameterInsights(ctx context.Context, arg GetTemplateParameterInsightsParams) ([]GetTemplateParameterInsightsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateParameterInsights, arg.StartTime, arg.EndTime, pq.Array(arg.TemplateIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTemplateParameterInsightsRow
+	for rows.Next() {
+		var i GetTemplateParameterInsightsRow
+		if err := rows.Scan(
+			&i.Num,
+			pq.Array(&i.TemplateIDs),
+			&i.Name,
+			&i.DisplayName,
+			&i.Description,
+			&i.Options,
+			&i.Value,
+			&i.Count,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUserLatencyInsights = `-- name: GetUserLatencyInsights :many
 SELECT
 	workspace_agent_stats.user_id,
@@ -8983,6 +9085,14 @@ WHERE
 			) > 0
 		ELSE true
 	END
+	-- Filter by locked workspaces. By default we do not return locked
+	-- workspaces since they are considered soft-deleted.
+	AND CASE
+		WHEN $10 :: timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN
+			locked_at IS NOT NULL AND locked_at >= $10
+		ELSE
+			locked_at IS NULL
+	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ORDER BY
@@ -8994,11 +9104,11 @@ ORDER BY
 	LOWER(workspaces.name) ASC
 LIMIT
 	CASE
-		WHEN $11 :: integer > 0 THEN
-			$11
+		WHEN $12 :: integer > 0 THEN
+			$12
 	END
 OFFSET
-	$10
+	$11
 `
 
 type GetWorkspacesParams struct {
@@ -9011,6 +9121,7 @@ type GetWorkspacesParams struct {
 	Name                                  string      `db:"name" json:"name"`
 	HasAgent                              string      `db:"has_agent" json:"has_agent"`
 	AgentInactiveDisconnectTimeoutSeconds int64       `db:"agent_inactive_disconnect_timeout_seconds" json:"agent_inactive_disconnect_timeout_seconds"`
+	LockedAt                              time.Time   `db:"locked_at" json:"locked_at"`
 	Offset                                int32       `db:"offset_" json:"offset_"`
 	Limit                                 int32       `db:"limit_" json:"limit_"`
 }
@@ -9046,6 +9157,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		arg.Name,
 		arg.HasAgent,
 		arg.AgentInactiveDisconnectTimeoutSeconds,
+		arg.LockedAt,
 		arg.Offset,
 		arg.Limit,
 	)
@@ -9348,7 +9460,7 @@ func (q *sqlQuerier) UpdateWorkspaceLastUsedAt(ctx context.Context, arg UpdateWo
 	return err
 }
 
-const updateWorkspaceLockedDeletingAt = `-- name: UpdateWorkspaceLockedDeletingAt :exec
+const updateWorkspaceLockedDeletingAt = `-- name: UpdateWorkspaceLockedDeletingAt :one
 UPDATE
 	workspaces
 SET
@@ -9365,6 +9477,7 @@ WHERE
 	workspaces.template_id = templates.id
 AND
 	workspaces.id = $1
+RETURNING workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.locked_at, workspaces.deleting_at
 `
 
 type UpdateWorkspaceLockedDeletingAtParams struct {
@@ -9372,9 +9485,25 @@ type UpdateWorkspaceLockedDeletingAtParams struct {
 	LockedAt sql.NullTime `db:"locked_at" json:"locked_at"`
 }
 
-func (q *sqlQuerier) UpdateWorkspaceLockedDeletingAt(ctx context.Context, arg UpdateWorkspaceLockedDeletingAtParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspaceLockedDeletingAt, arg.ID, arg.LockedAt)
-	return err
+func (q *sqlQuerier) UpdateWorkspaceLockedDeletingAt(ctx context.Context, arg UpdateWorkspaceLockedDeletingAtParams) (Workspace, error) {
+	row := q.db.QueryRowContext(ctx, updateWorkspaceLockedDeletingAt, arg.ID, arg.LockedAt)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OwnerID,
+		&i.OrganizationID,
+		&i.TemplateID,
+		&i.Deleted,
+		&i.Name,
+		&i.AutostartSchedule,
+		&i.Ttl,
+		&i.LastUsedAt,
+		&i.LockedAt,
+		&i.DeletingAt,
+	)
+	return i, err
 }
 
 const updateWorkspaceTTL = `-- name: UpdateWorkspaceTTL :exec

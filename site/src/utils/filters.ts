@@ -14,6 +14,7 @@ export const workspaceFilterQuery = {
   all: "",
   running: "status:running",
   failed: "status:failed",
+  locked: "locked_at:1970-01-01",
 }
 
 export const userFilterQuery = {

@@ -596,6 +596,21 @@ func isNotNull(v interface{}) bool {
 // these methods  remain unimplemented in the FakeQuerier.
 var ErrUnimplemented = xerrors.New("unimplemented")
 
+func uniqueSortedUUIDs(uuids []uuid.UUID) []uuid.UUID {
+	set := make(map[uuid.UUID]struct{})
+	for _, id := range uuids {
+		set[id] = struct{}{}
+	}
+	unique := make([]uuid.UUID, 0, len(set))
+	for id := range set {
+		unique = append(unique, id)
+	}
+	slices.SortFunc(unique, func(a, b uuid.UUID) bool {
+		return a.String() < b.String()
+	})
+	return unique
+}
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -2120,6 +2135,100 @@ func (q *FakeQuerier) GetTemplateInsights(_ context.Context, arg database.GetTem
 		}
 	}
 	return result, nil
+}
+
+func (q *FakeQuerier) GetTemplateParameterInsights(ctx context.Context, arg database.GetTemplateParameterInsightsParams) ([]database.GetTemplateParameterInsightsRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	// WITH latest_workspace_builds ...
+	latestWorkspaceBuilds := make(map[uuid.UUID]database.WorkspaceBuildTable)
+	for _, wb := range q.workspaceBuilds {
+		if wb.CreatedAt.Before(arg.StartTime) || wb.CreatedAt.Equal(arg.EndTime) || wb.CreatedAt.After(arg.EndTime) {
+			continue
+		}
+		if latestWorkspaceBuilds[wb.WorkspaceID].BuildNumber < wb.BuildNumber {
+			latestWorkspaceBuilds[wb.WorkspaceID] = wb
+		}
+	}
+	if len(arg.TemplateIDs) > 0 {
+		for wsID := range latestWorkspaceBuilds {
+			ws, err := q.getWorkspaceByIDNoLock(ctx, wsID)
+			if err != nil {
+				return nil, err
+			}
+			if slices.Contains(arg.TemplateIDs, ws.TemplateID) {
+				delete(latestWorkspaceBuilds, wsID)
+			}
+		}
+	}
+	// WITH unique_template_params ...
+	num := int64(0)
+	uniqueTemplateParams := make(map[string]*database.GetTemplateParameterInsightsRow)
+	uniqueTemplateParamWorkspaceBuildIDs := make(map[string][]uuid.UUID)
+	for _, wb := range latestWorkspaceBuilds {
+		tv, err := q.getTemplateVersionByIDNoLock(ctx, wb.TemplateVersionID)
+		if err != nil {
+			return nil, err
+		}
+		for _, tvp := range q.templateVersionParameters {
+			if tvp.TemplateVersionID != tv.ID {
+				continue
+			}
+			key := fmt.Sprintf("%s:%s:%s:%s", tvp.Name, tvp.DisplayName, tvp.Description, tvp.Options)
+			if _, ok := uniqueTemplateParams[key]; !ok {
+				num++
+				uniqueTemplateParams[key] = &database.GetTemplateParameterInsightsRow{
+					Num:         num,
+					Name:        tvp.Name,
+					DisplayName: tvp.DisplayName,
+					Description: tvp.Description,
+					Options:     tvp.Options,
+				}
+			}
+			uniqueTemplateParams[key].TemplateIDs = append(uniqueTemplateParams[key].TemplateIDs, tv.TemplateID.UUID)
+			uniqueTemplateParamWorkspaceBuildIDs[key] = append(uniqueTemplateParamWorkspaceBuildIDs[key], wb.ID)
+		}
+	}
+	// SELECT ...
+	counts := make(map[string]map[string]int64)
+	for key, utp := range uniqueTemplateParams {
+		for _, wbp := range q.workspaceBuildParameters {
+			if !slices.Contains(uniqueTemplateParamWorkspaceBuildIDs[key], wbp.WorkspaceBuildID) {
+				continue
+			}
+			if wbp.Name != utp.Name {
+				continue
+			}
+			if counts[key] == nil {
+				counts[key] = make(map[string]int64)
+			}
+			counts[key][wbp.Value]++
+		}
+	}
+
+	var rows []database.GetTemplateParameterInsightsRow
+	for key, utp := range uniqueTemplateParams {
+		for value, count := range counts[key] {
+			rows = append(rows, database.GetTemplateParameterInsightsRow{
+				Num:         utp.Num,
+				TemplateIDs: uniqueSortedUUIDs(utp.TemplateIDs),
+				Name:        utp.Name,
+				DisplayName: utp.DisplayName,
+				Description: utp.Description,
+				Options:     utp.Options,
+				Value:       value,
+				Count:       count,
+			})
+		}
+	}
+
+	return rows, nil
 }
 
 func (q *FakeQuerier) GetTemplateVersionByID(ctx context.Context, templateVersionID uuid.UUID) (database.TemplateVersion, error) {
@@ -5188,9 +5297,9 @@ func (q *FakeQuerier) UpdateWorkspaceLastUsedAt(_ context.Context, arg database.
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateWorkspaceLockedDeletingAt(_ context.Context, arg database.UpdateWorkspaceLockedDeletingAtParams) error {
+func (q *FakeQuerier) UpdateWorkspaceLockedDeletingAt(_ context.Context, arg database.UpdateWorkspaceLockedDeletingAtParams) (database.Workspace, error) {
 	if err := validateDatabaseType(arg); err != nil {
-		return err
+		return database.Workspace{}, err
 	}
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -5212,7 +5321,7 @@ func (q *FakeQuerier) UpdateWorkspaceLockedDeletingAt(_ context.Context, arg dat
 				}
 			}
 			if template.ID == uuid.Nil {
-				return xerrors.Errorf("unable to find workspace template")
+				return database.Workspace{}, xerrors.Errorf("unable to find workspace template")
 			}
 			if template.LockedTTL > 0 {
 				workspace.DeletingAt = sql.NullTime{
@@ -5222,9 +5331,9 @@ func (q *FakeQuerier) UpdateWorkspaceLockedDeletingAt(_ context.Context, arg dat
 			}
 		}
 		q.workspaces[index] = workspace
-		return nil
+		return workspace, nil
 	}
-	return sql.ErrNoRows
+	return database.Workspace{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateWorkspaceProxy(_ context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
@@ -5666,6 +5775,16 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 			if !hasAgentMatched {
 				continue
 			}
+		}
+
+		// We omit locked workspaces by default.
+		if arg.LockedAt.IsZero() && workspace.LockedAt.Valid {
+			continue
+		}
+
+		// Filter out workspaces that are locked after the timestamp.
+		if !arg.LockedAt.IsZero() && workspace.LockedAt.Time.Before(arg.LockedAt) {
+			continue
 		}
 
 		if len(arg.TemplateIDs) > 0 {

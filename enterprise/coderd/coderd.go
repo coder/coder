@@ -67,6 +67,10 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 
 		AGPL:    coderd.New(options.Options),
 		Options: options,
+		provisionerDaemonAuth: &provisionerDaemonAuth{
+			psk:        options.ProvisionerDaemonPSK,
+			authorizer: options.Authorizer,
+		},
 	}
 	defer func() {
 		if err != nil {
@@ -193,14 +197,21 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Get("/", api.groupByOrganization)
 			})
 		})
+		// TODO: provisioner daemons are not scoped to organizations in the database, so placing them
+		// under an organization route doesn't make sense.  In order to allow the /serve endpoint to
+		// work with a pre-shared key (PSK) without an API key, these routes will simply ignore the
+		// value of {organization}.  That is, the route will work with any organization ID, whether or
+		// not it exits.  This doesn't leak any information about the existence of organizations, so is
+		// fine from a security perspective, but might be a little surprising.
+		//
+		// We may in future decide to scope provisioner daemons to organizations, so we'll keep the API
+		// route as is.
 		r.Route("/organizations/{organization}/provisionerdaemons", func(r chi.Router) {
 			r.Use(
 				api.provisionerDaemonsEnabledMW,
-				apiKeyMiddleware,
-				httpmw.ExtractOrganizationParam(api.Database),
 			)
-			r.Get("/", api.provisionerDaemons)
-			r.Get("/serve", api.provisionerDaemonServe)
+			r.With(apiKeyMiddleware).Get("/", api.provisionerDaemons)
+			r.With(apiKeyMiddlewareOptional).Get("/serve", api.provisionerDaemonServe)
 		})
 		r.Route("/templates/{template}/acl", func(r chi.Router) {
 			r.Use(
@@ -362,6 +373,9 @@ type Options struct {
 	EntitlementsUpdateInterval time.Duration
 	ProxyHealthInterval        time.Duration
 	Keys                       map[string]ed25519.PublicKey
+
+	// optional pre-shared key for authentication of external provisioner daemons
+	ProvisionerDaemonPSK string
 }
 
 type API struct {
@@ -383,6 +397,8 @@ type API struct {
 	entitlementsUpdateMu sync.Mutex
 	entitlementsMu       sync.RWMutex
 	entitlements         codersdk.Entitlements
+
+	provisionerDaemonAuth *provisionerDaemonAuth
 }
 
 func (api *API) Close() error {

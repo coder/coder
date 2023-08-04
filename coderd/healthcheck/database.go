@@ -10,11 +10,13 @@ import (
 	"github.com/coder/coder/coderd/database"
 )
 
+// @typescript-generate DatabaseReport
 type DatabaseReport struct {
-	Healthy   bool          `json:"healthy"`
-	Reachable bool          `json:"reachable"`
-	Latency   time.Duration `json:"latency"`
-	Error     *string       `json:"error"`
+	Healthy   bool    `json:"healthy"`
+	Reachable bool    `json:"reachable"`
+	Latency   string  `json:"latency"`
+	LatencyMs int     `json:"latency_ms"`
+	Error     *string `json:"error"`
 }
 
 type DatabaseReportOptions struct {
@@ -39,10 +41,12 @@ func (r *DatabaseReport) Run(ctx context.Context, opts *DatabaseReportOptions) {
 	slices.Sort(pings)
 
 	// Take the median ping.
-	r.Latency = pings[pingCount/2]
+	latency := pings[pingCount/2]
+	r.Latency = latency.String()
+	r.LatencyMs = int(latency.Milliseconds())
 	// Somewhat arbitrary, but if the latency is over 15ms, we consider it
 	// unhealthy.
-	if r.Latency < 15*time.Millisecond {
+	if latency < 15*time.Millisecond {
 		r.Healthy = true
 	}
 	r.Reachable = true

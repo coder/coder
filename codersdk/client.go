@@ -71,6 +71,9 @@ const (
 	// command that was invoked to produce the request. It is for internal use
 	// only.
 	CLITelemetryHeader = "Coder-CLI-Telemetry"
+
+	// ProvisionerDaemonPSK contains the authentication pre-shared key for an external provisioner daemon
+	ProvisionerDaemonPSK = "Coder-Provisioner-Daemon-PSK"
 )
 
 // loggableMimeTypes is a list of MIME types that are safe to log

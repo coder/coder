@@ -26,6 +26,7 @@ export const Empty: Story = {
         start_time: "",
         template_ids: [],
         apps_usage: [],
+        parameters_usage: [],
       },
     },
     userLatency: {
@@ -82,6 +83,7 @@ export const Loaded: Story = {
             seconds: 1020900,
           },
         ],
+        parameters_usage: [],
       },
       interval_reports: [
         {

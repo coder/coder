@@ -29,6 +29,7 @@ type Checker interface {
 	Database(ctx context.Context, opts *DatabaseReportOptions) DatabaseReport
 }
 
+// @typescript-generate Report
 type Report struct {
 	// Time is the time the report was generated at.
 	Time time.Time `json:"time"`
