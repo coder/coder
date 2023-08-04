@@ -3132,7 +3132,6 @@ func (q *FakeQuerier) GetWorkspaceBuildsByWorkspaceID(_ context.Context,
 	// Order by build_number
 	slices.SortFunc(history, func(a, b database.WorkspaceBuild) int {
 		return slice.Descending(a.BuildNumber, b.BuildNumber)
-
 	})
 
 	if params.AfterID != uuid.Nil {
