@@ -180,6 +180,6 @@ func TestStatDiskCmd(t *testing.T) {
 		inv.Stdout = buf
 		err := inv.WithContext(ctx).Run()
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "no such file or directory")
+		require.Contains(t, err.Error(), `not found: "/this/path/does/not/exist"`)
 	})
 }
