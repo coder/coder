@@ -757,6 +757,6 @@ jobs:
           container: coder-preview
           dry-run: true
           keep-younger-than: 7 # days
-          keep-tags-regexes: ^pr-
+          keep-tags-regexes: ^pr
           prune-tags-regexes: ^main-
           prune-untagged: true
