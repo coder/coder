@@ -170,4 +170,16 @@ func TestStatDiskCmd(t *testing.T) {
 		require.NotZero(t, *tmp.Total)
 		require.Equal(t, "B", tmp.Unit)
 	})
+
+	t.Run("PosArg", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		t.Cleanup(cancel)
+		inv, _ := clitest.New(t, "stat", "disk", "/this/path/does/not/exist", "--output=text")
+		buf := new(bytes.Buffer)
+		inv.Stdout = buf
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "no such file or directory")
+	})
 }
