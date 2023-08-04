@@ -85,121 +85,345 @@ export const Loaded: Story = {
         ],
         parameters_usage: [
           {
-            template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
+            template_ids: ["7dd1d090-3e23-4ada-8894-3945affcad42"],
             display_name: "",
-            name: "Coder Repository Directory",
+            name: "Compute instances",
             values: [
               {
-                value: "${HOME}/src/coder/coder",
-                count: 1,
-              },
-              {
-                value: "~/coder",
-                count: 16,
-              },
-              {
-                value: "~/go/src/github.com/coder/coder",
-                count: 1,
-              },
-              {
-                value: "~/projects/coder/coder",
-                count: 1,
-              },
-              {
-                value: "~/repos/coder",
-                count: 1,
-              },
-            ],
-          },
-          {
-            template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
-            display_name: "",
-            name: "Dotfiles URL",
-            values: [
-              {
-                value: " ",
-                count: 11,
-              },
-              {
-                value: " git@github.com:jsjoeio/dotfiles.git",
-                count: 1,
-              },
-              {
-                value: "git@github.com:Emyrk/dotfiles.git",
-                count: 1,
-              },
-              {
-                value: "git@github.com:ericpaulsen/dot-v2.git",
-                count: 1,
-              },
-              {
-                value: "git@github.com:johnstcn/dotfiles-coder.git",
+                value: "3",
                 count: 2,
               },
+            ],
+          },
+          {
+            template_ids: ["7dd1d090-3e23-4ada-8894-3945affcad42"],
+            display_name: "",
+            name: "Docker Image",
+            values: [
               {
-                value: "git@github.com:spikecurtis/dotfiles.git",
+                value: "ghcr.io/harrison-ai/coder-dev:base",
+                count: 2,
+              },
+            ],
+          },
+          {
+            template_ids: ["7dd1d090-3e23-4ada-8894-3945affcad42"],
+            display_name: "Very random string",
+            name: "Optional random string",
+            values: [
+              {
+                value: "ksjdlkajs;djálskd'l ;a k;aosdk ;oaids ;li",
                 count: 1,
               },
               {
-                value: "https://github.com/bpmct/dot",
-                count: 1,
-              },
-              {
-                value: "https://github.com/spikecurtis/dotfiles.git",
-                count: 1,
-              },
-              {
-                value: "https://phorcys.net/dotfiles",
+                value: "some other any string here",
                 count: 1,
               },
             ],
           },
           {
-            template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
+            template_ids: ["7dd1d090-3e23-4ada-8894-3945affcad42"],
             display_name: "",
             name: "Region",
             options: [
               {
-                name: "Pittsburgh",
-                description: "",
-                value: "us-pittsburgh",
-                icon: "/emojis/1f1fa-1f1f8.png",
+                name: "US Central",
+                description: "Select for central!",
+                value: "us-central1-a",
+                icon: "/icon/goland.svg",
               },
               {
-                name: "Helsinki",
-                description: "",
-                value: "eu-helsinki",
-                icon: "/emojis/1f1eb-1f1ee.png",
+                name: "US East",
+                description: "Select for east!",
+                value: "us-east1-a",
+                icon: "/icon/folder.svg",
               },
               {
-                name: "Sydney",
-                description: "",
-                value: "ap-sydney",
-                icon: "/emojis/1f1e6-1f1fa.png",
-              },
-              {
-                name: "São Paulo",
-                description: "",
-                value: "sa-saopaulo",
-                icon: "/emojis/1f1e7-1f1f7.png",
+                name: "US West",
+                description: "Select for west!",
+                value: "us-west2-a",
+                icon: "",
               },
             ],
             values: [
               {
-                value: "ap-sydney",
+                value: "us-central1-a",
                 count: 1,
               },
               {
-                value: "eu-helsinki",
-                count: 5,
+                value: "us-west2-a",
+                count: 1,
+              },
+            ],
+          },
+          {
+            template_ids: ["7dd1d090-3e23-4ada-8894-3945affcad42"],
+            display_name: "",
+            name: "Security groups",
+            values: [
+              {
+                value:
+                  '["Web Server Security Group","Database Security Group","Backend Security Group"]',
+                count: 2,
+              },
+            ],
+          },
+          {
+            template_ids: ["7dd1d090-3e23-4ada-8894-3945affcad42"],
+            display_name: "Very random string",
+            name: "buggy-1",
+            values: [
+              {
+                value: "",
+                count: 2,
+              },
+            ],
+          },
+          {
+            template_ids: ["7dd1d090-3e23-4ada-8894-3945affcad42"],
+            display_name: "Force rebuild",
+            name: "force-rebuild",
+            values: [
+              {
+                value: "false",
+                count: 2,
+              },
+            ],
+          },
+          {
+            template_ids: ["7dd1d090-3e23-4ada-8894-3945affcad42"],
+            display_name: "Location",
+            name: "location",
+            options: [
+              {
+                name: "US (Virginia)",
+                description: "",
+                value: "eastus",
+                icon: "/emojis/1f1fa-1f1f8.png",
               },
               {
-                value: "sa-saopaulo",
-                count: 3,
+                name: "US (Virginia) 2",
+                description: "",
+                value: "eastus2",
+                icon: "/emojis/1f1fa-1f1f8.png",
               },
               {
-                value: "us-pittsburgh",
-                count: 11,
+                name: "US (Texas)",
+                description: "",
+                value: "southcentralus",
+                icon: "/emojis/1f1fa-1f1f8.png",
+              },
+              {
+                name: "US (Washington)",
+                description: "",
+                value: "westus2",
+                icon: "/emojis/1f1fa-1f1f8.png",
+              },
+              {
+                name: "US (Arizona)",
+                description: "",
+                value: "westus3",
+                icon: "/emojis/1f1fa-1f1f8.png",
+              },
+              {
+                name: "US (Iowa)",
+                description: "",
+                value: "centralus",
+                icon: "/emojis/1f1fa-1f1f8.png",
+              },
+              {
+                name: "Canada (Toronto)",
+                description: "",
+                value: "canadacentral",
+                icon: "/emojis/1f1e8-1f1e6.png",
+              },
+              {
+                name: "Brazil (Sao Paulo)",
+                description: "",
+                value: "brazilsouth",
+                icon: "/emojis/1f1e7-1f1f7.png",
+              },
+              {
+                name: "East Asia (Hong Kong)",
+                description: "",
+                value: "eastasia",
+                icon: "/emojis/1f1f0-1f1f7.png",
+              },
+              {
+                name: "Southeast Asia (Singapore)",
+                description: "",
+                value: "southeastasia",
+                icon: "/emojis/1f1f0-1f1f7.png",
+              },
+              {
+                name: "Australia (New South Wales)",
+                description: "",
+                value: "australiaeast",
+                icon: "/emojis/1f1e6-1f1fa.png",
+              },
+              {
+                name: "China (Hebei)",
+                description: "",
+                value: "chinanorth3",
+                icon: "/emojis/1f1e8-1f1f3.png",
+              },
+              {
+                name: "India (Pune)",
+                description: "",
+                value: "centralindia",
+                icon: "/emojis/1f1ee-1f1f3.png",
+              },
+              {
+                name: "Japan (Tokyo)",
+                description: "",
+                value: "japaneast",
+                icon: "/emojis/1f1ef-1f1f5.png",
+              },
+              {
+                name: "Korea (Seoul)",
+                description: "",
+                value: "koreacentral",
+                icon: "/emojis/1f1f0-1f1f7.png",
+              },
+              {
+                name: "Europe (Ireland)",
+                description: "",
+                value: "northeurope",
+                icon: "/emojis/1f1ea-1f1fa.png",
+              },
+              {
+                name: "Europe (Netherlands)",
+                description: "",
+                value: "westeurope",
+                icon: "/emojis/1f1ea-1f1fa.png",
+              },
+              {
+                name: "France (Paris)",
+                description: "",
+                value: "francecentral",
+                icon: "/emojis/1f1eb-1f1f7.png",
+              },
+              {
+                name: "Germany (Frankfurt)",
+                description: "",
+                value: "germanywestcentral",
+                icon: "/emojis/1f1e9-1f1ea.png",
+              },
+              {
+                name: "Norway (Oslo)",
+                description: "",
+                value: "norwayeast",
+                icon: "/emojis/1f1f3-1f1f4.png",
+              },
+              {
+                name: "Sweden (Gävle)",
+                description: "",
+                value: "swedencentral",
+                icon: "/emojis/1f1f8-1f1ea.png",
+              },
+              {
+                name: "Switzerland (Zurich)",
+                description: "",
+                value: "switzerlandnorth",
+                icon: "/emojis/1f1e8-1f1ed.png",
+              },
+              {
+                name: "Qatar (Doha)",
+                description: "",
+                value: "qatarcentral",
+                icon: "/emojis/1f1f6-1f1e6.png",
+              },
+              {
+                name: "UAE (Dubai)",
+                description: "",
+                value: "uaenorth",
+                icon: "/emojis/1f1e6-1f1ea.png",
+              },
+              {
+                name: "South Africa (Johannesburg)",
+                description: "",
+                value: "southafricanorth",
+                icon: "/emojis/1f1ff-1f1e6.png",
+              },
+              {
+                name: "UK (London)",
+                description: "",
+                value: "uksouth",
+                icon: "/emojis/1f1ec-1f1e7.png",
+              },
+            ],
+            values: [
+              {
+                value: "brazilsouth",
+                count: 1,
+              },
+              {
+                value: "switzerlandnorth",
+                count: 1,
+              },
+            ],
+          },
+          {
+            template_ids: ["7dd1d090-3e23-4ada-8894-3945affcad42"],
+            display_name: "",
+            name: "mtojek_region",
+            options: [
+              {
+                name: "Los Angeles, CA",
+                description: "",
+                value: "Los Angeles, CA",
+                icon: "",
+              },
+              {
+                name: "Moncks Corner, SC",
+                description: "",
+                value: "Moncks Corner, SC",
+                icon: "",
+              },
+              {
+                name: "Eemshaven, NL",
+                description: "",
+                value: "Eemshaven, NL",
+                icon: "",
+              },
+            ],
+            values: [
+              {
+                value: "Los Angeles, CA",
+                count: 2,
+              },
+            ],
+          },
+          {
+            template_ids: ["7dd1d090-3e23-4ada-8894-3945affcad42"],
+            display_name: "My Project ID",
+            name: "project_id",
+            values: [
+              {
+                value: "12345",
+                count: 2,
+              },
+            ],
+          },
+          {
+            template_ids: ["7dd1d090-3e23-4ada-8894-3945affcad42"],
+            display_name: "Force devcontainer rebuild",
+            name: "rebuild_devcontainer",
+            values: [
+              {
+                value: "false",
+                count: 2,
+              },
+            ],
+          },
+          {
+            template_ids: ["7dd1d090-3e23-4ada-8894-3945affcad42"],
+            display_name: "Git Repo URL",
+            name: "repo_url",
+            values: [
+              {
+                value: "https://github.com/mtojek/coder",
+                count: 2,
               },
             ],
           },
