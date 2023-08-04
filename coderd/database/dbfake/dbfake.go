@@ -2349,9 +2349,8 @@ func (q *FakeQuerier) GetTemplateVersionsByTemplateID(_ context.Context, arg dat
 		}
 		if a.CreatedAt.Before(b.CreatedAt) {
 			return -1
-		} else {
-			return 1
 		}
+		return 1
 	})
 
 	if arg.AfterID != uuid.Nil {
