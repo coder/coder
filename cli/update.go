@@ -58,7 +58,7 @@ func (r *RootCmd) update() *clibase.Cmd {
 				return xerrors.Errorf("can't parse given parameter values: %w", err)
 			}
 
-			richParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
+			buildParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
 				Action:           WorkspaceUpdate,
 				Template:         template,
 				NewWorkspaceName: workspace.Name,
@@ -79,7 +79,7 @@ func (r *RootCmd) update() *clibase.Cmd {
 			build, err := client.CreateWorkspaceBuild(inv.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 				TemplateVersionID:   template.ActiveVersionID,
 				Transition:          codersdk.WorkspaceTransitionStart,
-				RichParameterValues: richParameters,
+				RichParameterValues: buildParameters,
 			})
 			if err != nil {
 				return err
