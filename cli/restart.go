@@ -36,9 +36,15 @@ func (r *RootCmd) restart() *clibase.Cmd {
 				return err
 			}
 
+			buildOptions, err := asWorkspaceBuildParameters(parameterFlags.buildOptions)
+			if err != nil {
+				return err
+			}
+
 			buildParams, err := prepStartWorkspace(inv, client, prepStartWorkspaceArgs{
 				Template:           template,
 				PromptBuildOptions: parameterFlags.promptBuildOptions,
+				BuildOptions:       buildOptions,
 			})
 			if err != nil {
 				return err

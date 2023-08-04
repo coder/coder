@@ -205,8 +205,10 @@ type prepWorkspaceBuildArgs struct {
 	NewWorkspaceName   string
 
 	UpdateWorkspace bool
-	BuildOptions    bool
 	WorkspaceID     uuid.UUID
+
+	PromptBuildOptions bool
+	BuildOptions       []codersdk.WorkspaceBuildParameter
 }
 
 type buildParameters struct {
@@ -244,7 +246,7 @@ func prepWorkspaceBuild(inv *clibase.Invocation, client *codersdk.Client, args p
 	richParameters := make([]codersdk.WorkspaceBuildParameter, 0)
 PromptRichParamLoop:
 	for _, templateVersionParameter := range templateVersionParameters {
-		if !args.BuildOptions && templateVersionParameter.Ephemeral {
+		if !args.PromptBuildOptions && templateVersionParameter.Ephemeral {
 			continue
 		}
 

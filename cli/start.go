@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -77,9 +78,15 @@ func (r *RootCmd) start() *clibase.Cmd {
 				return err
 			}
 
+			buildOptions, err := asWorkspaceBuildParameters(parameterFlags.buildOptions)
+			if err != nil {
+				return err
+			}
+
 			buildParams, err := prepStartWorkspace(inv, client, prepStartWorkspaceArgs{
 				Template:           template,
 				PromptBuildOptions: parameterFlags.promptBuildOptions,
+				BuildOptions:       buildOptions,
 			})
 			if err != nil {
 				return err
@@ -106,8 +113,10 @@ func (r *RootCmd) start() *clibase.Cmd {
 }
 
 type prepStartWorkspaceArgs struct {
-	Template           codersdk.Template
+	Template codersdk.Template
+
 	PromptBuildOptions bool
+	BuildOptions       []codersdk.WorkspaceBuildParameter
 }
 
 func prepStartWorkspace(inv *clibase.Invocation, client *codersdk.Client, args prepStartWorkspaceArgs) (*buildParameters, error) {
@@ -149,4 +158,19 @@ func prepStartWorkspace(inv *clibase.Invocation, client *codersdk.Client, args p
 	return &buildParameters{
 		richParameters: richParameters,
 	}, nil
+}
+
+func asWorkspaceBuildParameters(nameValuePairs []string) ([]codersdk.WorkspaceBuildParameter, error) {
+	var params []codersdk.WorkspaceBuildParameter
+	for _, nameValue := range nameValuePairs {
+		split := strings.SplitN(nameValue, "=", 2)
+		if len(split) < 2 {
+			return nil, xerrors.Errorf("format key=value expected, but got %s", nameValue)
+		}
+		params = append(params, codersdk.WorkspaceBuildParameter{
+			Name:  split[0],
+			Value: split[1],
+		})
+	}
+	return params, nil
 }

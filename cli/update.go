@@ -33,6 +33,12 @@ func (r *RootCmd) update() *clibase.Cmd {
 				_, _ = fmt.Fprintf(inv.Stdout, "Workspace isn't outdated!\n")
 				return nil
 			}
+
+			buildOptions, err := asWorkspaceBuildParameters(parameterFlags.buildOptions)
+			if err != nil {
+				return err
+			}
+
 			template, err := client.Template(inv.Context(), workspace.TemplateID)
 			if err != nil {
 				return err
@@ -55,7 +61,8 @@ func (r *RootCmd) update() *clibase.Cmd {
 				UpdateWorkspace: true,
 				WorkspaceID:     workspace.LatestBuild.ID,
 
-				BuildOptions: parameterFlags.promptBuildOptions,
+				PromptBuildOptions: parameterFlags.promptBuildOptions,
+				BuildOptions:       buildOptions,
 			})
 			if err != nil {
 				return err
