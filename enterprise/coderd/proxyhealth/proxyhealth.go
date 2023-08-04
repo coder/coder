@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/prometheusmetrics"
 	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/tailnet"
 )
 
 type Status string
@@ -43,11 +44,12 @@ const (
 
 type Options struct {
 	// Interval is the interval at which the proxy health is checked.
-	Interval   time.Duration
-	DB         database.Store
-	Logger     slog.Logger
-	Client     *http.Client
-	Prometheus *prometheus.Registry
+	Interval        time.Duration
+	DB              database.Store
+	Logger          slog.Logger
+	Client          *http.Client
+	Prometheus      *prometheus.Registry
+	DERPMapProvider *atomic.Pointer[tailnet.DERPMapProvider]
 }
 
 // ProxyHealth runs a go routine that periodically checks the health of all
@@ -55,10 +57,11 @@ type Options struct {
 // replica has its own view of the health of the proxies. These views should be
 // consistent, and if they are not, it indicates a problem.
 type ProxyHealth struct {
-	db       database.Store
-	interval time.Duration
-	logger   slog.Logger
-	client   *http.Client
+	db              database.Store
+	interval        time.Duration
+	logger          slog.Logger
+	client          *http.Client
+	derpMapProvider *atomic.Pointer[tailnet.DERPMapProvider]
 
 	// Cached values for quick access to the health of proxies.
 	cache      *atomic.Pointer[map[uuid.UUID]ProxyStatus]
@@ -114,6 +117,7 @@ func New(opts *Options) (*ProxyHealth, error) {
 		interval:            opts.Interval,
 		logger:              opts.Logger,
 		client:              client,
+		derpMapProvider:     opts.DERPMapProvider,
 		cache:               &atomic.Pointer[map[uuid.UUID]ProxyStatus]{},
 		proxyHosts:          &atomic.Pointer[[]string]{},
 		healthCheckDuration: healthCheckDuration,
@@ -153,6 +157,15 @@ func (p *ProxyHealth) storeProxyHealth(statuses map[uuid.UUID]ProxyStatus) {
 	// Store the statuses in the cache before any other quick values.
 	p.cache.Store(&statuses)
 	p.proxyHosts.Store(&proxyHosts)
+
+	// Tell the DERPMapProvider to update.
+	if p.derpMapProvider != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+		defer cancel()
+		// Any errors here will get logged when the DERPMapProvider is updated
+		// periodically.
+		_, _ = (*p.derpMapProvider.Load()).UpdateNow(ctx)
+	}
 }
 
 // ForceUpdate runs a single health check and updates the cache. If the health

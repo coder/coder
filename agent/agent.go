@@ -73,7 +73,7 @@ type Options struct {
 type Client interface {
 	Manifest(ctx context.Context) (agentsdk.Manifest, error)
 	Listen(ctx context.Context) (net.Conn, error)
-	DERPMapUpdates(ctx context.Context) (<-chan agentsdk.DERPMapUpdate, io.Closer, error)
+	DERPMapUpdates(ctx context.Context) (<-chan codersdk.DERPMapUpdate, io.Closer, error)
 	ReportStats(ctx context.Context, log slog.Logger, statsChan <-chan *agentsdk.Stats, setInterval func(time.Duration)) (io.Closer, error)
 	PostLifecycle(ctx context.Context, state agentsdk.PostLifecycleRequest) error
 	PostAppHealth(ctx context.Context, req agentsdk.PostAppHealthsRequest) error

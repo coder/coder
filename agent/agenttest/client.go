@@ -36,7 +36,7 @@ func NewClient(t testing.TB,
 		manifest:       manifest,
 		statsChan:      statsChan,
 		coordinator:    coordinator,
-		derpMapUpdates: make(chan agentsdk.DERPMapUpdate),
+		derpMapUpdates: make(chan codersdk.DERPMapUpdate),
 	}
 }
 
@@ -56,7 +56,7 @@ type Client struct {
 	lifecycleStates []codersdk.WorkspaceAgentLifecycle
 	startup         agentsdk.PostStartupRequest
 	logs            []agentsdk.Log
-	derpMapUpdates  chan agentsdk.DERPMapUpdate
+	derpMapUpdates  chan codersdk.DERPMapUpdate
 }
 
 func (c *Client) Manifest(_ context.Context) (agentsdk.Manifest, error) {
@@ -195,7 +195,7 @@ func (c *Client) GetServiceBanner(ctx context.Context) (codersdk.ServiceBannerCo
 	return codersdk.ServiceBannerConfig{}, nil
 }
 
-func (c *Client) PushDERPMapUpdate(update agentsdk.DERPMapUpdate) error {
+func (c *Client) PushDERPMapUpdate(update codersdk.DERPMapUpdate) error {
 	timer := time.NewTimer(testutil.WaitShort)
 	defer timer.Stop()
 	select {
@@ -207,7 +207,7 @@ func (c *Client) PushDERPMapUpdate(update agentsdk.DERPMapUpdate) error {
 	return nil
 }
 
-func (c *Client) DERPMapUpdates(_ context.Context) (<-chan agentsdk.DERPMapUpdate, io.Closer, error) {
+func (c *Client) DERPMapUpdates(_ context.Context) (<-chan codersdk.DERPMapUpdate, io.Closer, error) {
 	closed := make(chan struct{})
 	return c.derpMapUpdates, closeFunc(func() error {
 		close(closed)

@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -237,17 +238,20 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		return nil, xerrors.Errorf("parse app security key: %w", err)
 	}
 
-	connInfo, err := client.SDKClient.WorkspaceAgentConnectionInfoGeneric(ctx)
-	if err != nil {
-		return nil, xerrors.Errorf("get derpmap: %w", err)
-	}
-
 	var agentProvider workspaceapps.AgentProvider
 	if opts.Experiments.Enabled(codersdk.ExperimentSingleTailnet) {
+		derpMapProvider, err := client.DERPMapProvider(ctx, s.Logger)
+		if err != nil {
+			return nil, xerrors.Errorf("get derpmap provider: %w", err)
+		}
+
+		derpMapProviderPtr := &atomic.Pointer[tailnet.DERPMapProvider]{}
+		derpMapProviderPtr.Store(&derpMapProvider)
+
 		stn, err := coderd.NewServerTailnet(ctx,
 			s.Logger,
 			nil,
-			connInfo.DERPMap,
+			derpMapProviderPtr,
 			s.DialCoordinator,
 			wsconncache.New(s.DialWorkspaceAgent, 0),
 		)

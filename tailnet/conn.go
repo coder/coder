@@ -58,7 +58,9 @@ func init() {
 }
 
 type Options struct {
-	Addresses  []netip.Prefix
+	Addresses []netip.Prefix
+	// DERPMap is the initial DERP map to use. May be nil. Can be updated via
+	// SetDERPMap().
 	DERPMap    *tailcfg.DERPMap
 	DERPHeader *http.Header
 
@@ -76,9 +78,6 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	}
 	if len(options.Addresses) == 0 {
 		return nil, xerrors.New("At least one IP range must be provided")
-	}
-	if options.DERPMap == nil {
-		return nil, xerrors.New("DERPMap must be provided")
 	}
 
 	nodePrivateKey := key.NewNode()
@@ -199,7 +198,9 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	}
 	netStack.ProcessLocalIPs = true
 	wireguardEngine = wgengine.NewWatchdog(wireguardEngine)
-	wireguardEngine.SetDERPMap(options.DERPMap)
+	if options.DERPMap != nil {
+		wireguardEngine.SetDERPMap(options.DERPMap)
+	}
 	netMapCopy := *netMap
 	options.Logger.Debug(context.Background(), "updating network map")
 	wireguardEngine.SetNetworkMap(&netMapCopy)

@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
+	"tailscale.com/tailcfg"
 	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog"
@@ -22,6 +23,7 @@ import (
 	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/tailnet"
+	"github.com/coder/retry"
 )
 
 // Client is a HTTP client for a subset of Coder API routes that external
@@ -590,4 +592,139 @@ func (c *Client) AgentIsLegacy(ctx context.Context, agentID uuid.UUID) (AgentIsL
 
 	var resp AgentIsLegacyResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+type DERPMapProviderWorkspaceProxy struct {
+	tailnet.DERPMapProvider
+
+	client   *Client
+	cancel   context.CancelFunc
+	firstErr chan error
+	done     chan struct{}
+
+	mut     sync.RWMutex
+	current *tailcfg.DERPMap
+}
+
+var _ tailnet.DERPMapProvider = &DERPMapProviderWorkspaceProxy{}
+
+func (c *Client) DERPMapProvider(ctx context.Context, log slog.Logger) (tailnet.DERPMapProvider, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	dm := &DERPMapProviderWorkspaceProxy{
+		DERPMapProvider: nil,
+		client:          c,
+		current:         nil,
+		cancel:          cancel,
+		firstErr:        make(chan error),
+		done:            make(chan struct{}),
+	}
+
+	go dm.connectWSLoop(ctx, log)
+
+	timer := time.NewTimer(15 * time.Second)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-timer.C:
+		cancel()
+		return nil, xerrors.New("timed out waiting for initial DERP map")
+	case err := <-dm.firstErr:
+		if err != nil {
+			cancel()
+			return nil, err
+		}
+	}
+	first, err := dm.get(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if first == nil {
+		return nil, xerrors.New("no DERP map available")
+	}
+
+	provider, err := tailnet.NewDERPMapProviderGetterFn(ctx, log, dm.get)
+	if err != nil {
+		return nil, err
+	}
+
+	dm.DERPMapProvider = provider
+	_, err = dm.DERPMapProvider.UpdateNow(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return dm, nil
+}
+
+func (p *DERPMapProviderWorkspaceProxy) Close() error {
+	p.cancel()
+	<-p.done
+	return nil
+}
+
+func (p *DERPMapProviderWorkspaceProxy) get(_ context.Context) (*tailcfg.DERPMap, error) {
+	p.mut.RLock()
+	defer p.mut.RUnlock()
+	if p.current == nil {
+		return nil, xerrors.New("no derp map available")
+	}
+	return p.current, nil
+}
+
+func (p *DERPMapProviderWorkspaceProxy) connectWSLoop(ctx context.Context, log slog.Logger) {
+	defer close(p.done)
+	for r := retry.New(time.Second, 30*time.Second); r.Wait(ctx); {
+		err := p.connectWSOnce(ctx)
+		select {
+		case <-p.firstErr:
+		default:
+			select {
+			case p.firstErr <- err:
+			default:
+			}
+			close(p.firstErr)
+		}
+		if err != nil {
+			log.Error(ctx, "connect to DERP map updates websocket", slog.Error(err))
+			continue
+		}
+	}
+}
+
+func (p *DERPMapProviderWorkspaceProxy) connectWSOnce(ctx context.Context) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	updates, closer, err := p.client.SDKClient.DERPMapUpdates(ctx)
+	if err != nil {
+		return err
+	}
+	defer closer.Close()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case update := <-updates:
+			if update.Err != nil {
+				return xerrors.Errorf("derp map update subscription: %w", update.Err)
+			}
+			select {
+			case <-p.firstErr:
+			default:
+				close(p.firstErr)
+			}
+
+			p.mut.Lock()
+			p.current = update.DERPMap
+			p.mut.Unlock()
+
+			if p.DERPMapProvider != nil {
+				_, err := p.DERPMapProvider.UpdateNow(ctx)
+				if err != nil {
+					return xerrors.Errorf("update derp map: %w", err)
+				}
+			}
+		}
+	}
 }

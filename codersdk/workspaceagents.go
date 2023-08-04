@@ -718,6 +718,90 @@ func (c *Client) WorkspaceAgentLogsAfter(ctx context.Context, agentID uuid.UUID,
 	}), nil
 }
 
+// @typescript-ignore DERPMapUpdate
+type DERPMapUpdate struct {
+	Err     error
+	DERPMap *tailcfg.DERPMap
+}
+
+// DERPMapUpdates connects to the DERP map updates WebSocket.
+func (c *Client) DERPMapUpdates(ctx context.Context) (<-chan DERPMapUpdate, io.Closer, error) {
+	derpMapURL, err := c.URL.Parse("/api/v2/derp-map")
+	if err != nil {
+		return nil, nil, xerrors.Errorf("parse url: %w", err)
+	}
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("create cookie jar: %w", err)
+	}
+	jar.SetCookies(derpMapURL, []*http.Cookie{{
+		Name:  SessionTokenCookie,
+		Value: c.SessionToken(),
+	}})
+	httpClient := &http.Client{
+		Jar:       jar,
+		Transport: c.HTTPClient.Transport,
+	}
+	// nolint:bodyclose
+	conn, res, err := websocket.Dial(ctx, derpMapURL.String(), &websocket.DialOptions{
+		HTTPClient: httpClient,
+	})
+	if err != nil {
+		if res == nil {
+			return nil, nil, err
+		}
+		return nil, nil, ReadBodyAsError(res)
+	}
+
+	ctx, cancelFunc := context.WithCancel(ctx)
+	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
+	pingClosed := PingWebSocket(ctx, c.Logger(), conn, "derp map")
+
+	var (
+		updates       = make(chan DERPMapUpdate)
+		updatesClosed = make(chan struct{})
+		dec           = json.NewDecoder(wsNetConn)
+	)
+	go func() {
+		defer close(updates)
+		defer close(updatesClosed)
+		defer cancelFunc()
+		defer conn.Close(websocket.StatusGoingAway, "DERPMapUpdates closed")
+		for {
+			var update DERPMapUpdate
+			err := dec.Decode(&update.DERPMap)
+			if err != nil {
+				update.Err = err
+				update.DERPMap = nil
+			}
+
+			select {
+			case updates <- update:
+			case <-ctx.Done():
+				// Unblock the caller if they're waiting for an update.
+				select {
+				case updates <- DERPMapUpdate{Err: ctx.Err()}:
+				default:
+				}
+				return
+			}
+			if update.Err != nil {
+				return
+			}
+		}
+	}()
+
+	return updates, &closer{
+		closeFunc: func() error {
+			cancelFunc()
+			<-pingClosed
+			_ = conn.Close(websocket.StatusGoingAway, "DERPMapUpdates closed")
+			<-updatesClosed
+			return nil
+		},
+	}, nil
+}
+
 // GitProvider is a constant that represents the
 // type of providers that are supported within Coder.
 type GitProvider string
@@ -767,3 +851,57 @@ const (
 	WorkspaceAgentLogSourceEnvbuilder     WorkspaceAgentLogSource = "envbuilder"
 	WorkspaceAgentLogSourceExternal       WorkspaceAgentLogSource = "external"
 )
+
+// PingWebSocket pings the websocket every 30 seconds to ensure that it is
+// alive. If the websocket does not respond within 30 seconds, it is closed. The
+// returned channel is closed when the pinger exits (which happens when the
+// connection is closed).
+//
+// See: https://github.com/coder/coder/pull/5824
+func PingWebSocket(ctx context.Context, logger slog.Logger, conn *websocket.Conn, name string) <-chan struct{} {
+	closed := make(chan struct{})
+	go func() {
+		defer close(closed)
+		tick := 30 * time.Second
+		ticker := time.NewTicker(tick)
+		defer ticker.Stop()
+		defer func() {
+			logger.Debug(ctx, fmt.Sprintf("%s pinger exited", name))
+		}()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case start := <-ticker.C:
+				ctx, cancel := context.WithTimeout(ctx, tick)
+
+				err := conn.Ping(ctx)
+				if err != nil {
+					logger.Error(ctx, fmt.Sprintf("workspace agent %s ping", name), slog.Error(err))
+
+					err := conn.Close(websocket.StatusGoingAway, "Ping failed")
+					if err != nil {
+						logger.Error(ctx, fmt.Sprintf("close workspace agent %s websocket", name), slog.Error(err))
+					}
+
+					cancel()
+					return
+				}
+
+				logger.Debug(ctx, fmt.Sprintf("got %s ping", name), slog.F("took", time.Since(start)))
+				cancel()
+			}
+		}
+	}()
+
+	return closed
+}
+
+// @typescript-ignore closer
+type closer struct {
+	closeFunc func() error
+}
+
+func (c *closer) Close() error {
+	return c.closeFunc()
+}

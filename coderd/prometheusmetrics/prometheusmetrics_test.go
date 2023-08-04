@@ -15,7 +15,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -301,9 +300,9 @@ func TestAgents(t *testing.T) {
 
 	// given
 	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
-	derpMapFn := func() *tailcfg.DERPMap {
-		return derpMap
-	}
+	derpMapProvider := tailnet.NewDERPMapProviderStatic(derpMap)
+	derpMapProviderPtr := &atomic.Pointer[tailnet.DERPMapProvider]{}
+	derpMapProviderPtr.Store(&derpMapProvider)
 	coordinator := tailnet.NewCoordinator(slogtest.Make(t, nil).Leveled(slog.LevelDebug))
 	coordinatorPtr := atomic.Pointer[tailnet.Coordinator]{}
 	coordinatorPtr.Store(&coordinator)
@@ -316,7 +315,7 @@ func TestAgents(t *testing.T) {
 	// when
 	closeFunc, err := prometheusmetrics.Agents(ctx, slogtest.Make(t, &slogtest.Options{
 		IgnoreErrors: true,
-	}), registry, db, &coordinatorPtr, derpMapFn, agentInactiveDisconnectTimeout, 50*time.Millisecond)
+	}), registry, db, &coordinatorPtr, derpMapProviderPtr, agentInactiveDisconnectTimeout, 50*time.Millisecond)
 	require.NoError(t, err)
 	t.Cleanup(closeFunc)
 

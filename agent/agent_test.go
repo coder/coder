@@ -1813,7 +1813,7 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 	}
 
 	// Push a new DERP map to the agent.
-	err := client.PushDERPMapUpdate(agentsdk.DERPMapUpdate{
+	err := client.PushDERPMapUpdate(codersdk.DERPMapUpdate{
 		DERPMap: newDerpMap,
 	})
 	require.NoError(t, err)

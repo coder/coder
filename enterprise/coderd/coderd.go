@@ -314,11 +314,12 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if api.AGPL.Experiments.Enabled(codersdk.ExperimentMoons) {
 		// Proxy health is a moon feature.
 		api.ProxyHealth, err = proxyhealth.New(&proxyhealth.Options{
-			Interval:   options.ProxyHealthInterval,
-			DB:         api.Database,
-			Logger:     options.Logger.Named("proxyhealth"),
-			Client:     api.HTTPClient,
-			Prometheus: api.PrometheusRegistry,
+			Interval:        options.ProxyHealthInterval,
+			DB:              api.Database,
+			Logger:          options.Logger.Named("proxyhealth"),
+			Client:          api.HTTPClient,
+			Prometheus:      api.PrometheusRegistry,
+			DERPMapProvider: api.AGPL.DERPMapProvider,
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("initialize proxy health: %w", err)

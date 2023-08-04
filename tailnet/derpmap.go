@@ -180,6 +180,7 @@ type DERPMapProviderGetterFn struct {
 	ctx             context.Context
 	cancel          context.CancelFunc
 	log             slog.Logger
+	done            chan struct{}
 	getterFn        DERPMapGetterFn
 	updateFrequency time.Duration
 
@@ -193,12 +194,15 @@ var _ DERPMapProvider = &DERPMapProviderGetterFn{}
 func NewDERPMapProviderGetterFn(ctx context.Context, log slog.Logger, getterFn DERPMapGetterFn) (DERPMapProvider, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	p := &DERPMapProviderGetterFn{
-		ctx:    ctx,
-		cancel: cancel,
+		ctx:      ctx,
+		cancel:   cancel,
+		log:      log,
+		done:     make(chan struct{}),
+		getterFn: getterFn,
 		// TODO: configurable
 		updateFrequency: 5 * time.Second,
-		log:             log,
-		getterFn:        getterFn,
+
+		subscriptions: map[string]func(*tailcfg.DERPMap){},
 	}
 
 	_, err := p.UpdateNow(ctx)
@@ -214,6 +218,7 @@ func NewDERPMapProviderGetterFn(ctx context.Context, log slog.Logger, getterFn D
 // Close implements io.Closer.
 func (p *DERPMapProviderGetterFn) Close() error {
 	p.cancel()
+	<-p.done
 	return nil
 }
 
@@ -221,13 +226,13 @@ func (p *DERPMapProviderGetterFn) Close() error {
 func (p *DERPMapProviderGetterFn) UpdateNow(ctx context.Context) (*tailcfg.DERPMap, error) {
 	p.mut.Lock()
 	defer p.mut.Unlock()
-	new, err := p.getterFn(ctx)
+	newMap, err := p.getterFn(ctx)
 	if err != nil {
-		p.log.Warn(ctx, "failed to update DERP map: %v", err)
+		p.log.Warn(ctx, "failed to update DERP map", slog.Error(err))
 		return nil, err
 	}
-	if !CompareDERPMaps(p.last, new) {
-		p.last = new
+	if !CompareDERPMaps(p.last, newMap) {
+		p.last = newMap
 		p.notifyAll()
 	}
 
@@ -235,6 +240,8 @@ func (p *DERPMapProviderGetterFn) UpdateNow(ctx context.Context) (*tailcfg.DERPM
 }
 
 func (p *DERPMapProviderGetterFn) updateLoop(ctx context.Context) {
+	defer close(p.done)
+
 	ticker := time.NewTicker(p.updateFrequency)
 	defer ticker.Stop()
 	for {
@@ -242,7 +249,7 @@ func (p *DERPMapProviderGetterFn) updateLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			// This function logs it's own errors.
+			// This function logs its own errors.
 			_, _ = p.UpdateNow(ctx)
 		}
 		ticker.Reset(p.updateFrequency)

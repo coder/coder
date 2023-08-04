@@ -1,6 +1,7 @@
 package wsproxy_test
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"testing"
@@ -9,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 	"tailscale.com/derp/derphttp"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
@@ -500,17 +502,22 @@ func TestDERPEndToEnd(t *testing.T) {
 
 	// Swap out the DERPMapper for a fake one that only returns the proxy. This
 	// allows us to force the agent to pick the proxy as its preferred region.
-	oldDERPMapper := *api.AGPL.DERPMapper.Load()
-	newDERPMapper := func(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap {
-		derpMap = oldDERPMapper(derpMap)
+	oldDERPMapProvider := *api.AGPL.DERPMapProvider.Load()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	newDERPMapProvider, err := tailnet.NewDERPMapProviderGetterFn(ctx, slogtest.Make(t, nil), func(_ context.Context) (*tailcfg.DERPMap, error) {
 		// Strip everything but the proxy, which is region ID 10001.
+		derpMap := oldDERPMapProvider.Get()
+		if !assert.Contains(t, derpMap.RegionIDs(), 10001) {
+			return nil, xerrors.New("missing proxy region")
+		}
 		derpMap.Regions = map[int]*tailcfg.DERPRegion{
 			10001: derpMap.Regions[10001],
 		}
 		derpMap.OmitDefaultRegions = true
-		return derpMap
-	}
-	api.AGPL.DERPMapper.Store(&newDERPMapper)
+		return derpMap, nil
+	})
+	require.NoError(t, err)
+	api.AGPL.DERPMapProvider.Store(&newDERPMapProvider)
 
 	// Create a workspace + apps
 	authToken := uuid.NewString()
@@ -547,7 +554,6 @@ resourceLoop:
 	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 	// Connect to the workspace agent.
-	ctx := testutil.Context(t, testutil.WaitLong)
 	conn, err := client.DialWorkspaceAgent(ctx, agentID, &codersdk.DialWorkspaceAgentOptions{
 		Logger: slogtest.Make(t, &slogtest.Options{
 			IgnoreErrors: true,
@@ -577,6 +583,7 @@ func TestWorkspaceProxyWorkspaceApps_Wsconncache(t *testing.T) {
 		deploymentValues.DisablePathApps = clibase.Bool(opts.DisablePathApps)
 		deploymentValues.Dangerous.AllowPathAppSharing = clibase.Bool(opts.DangerousAllowPathAppSharing)
 		deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = clibase.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
+		deploymentValues.DERP.Server.Enable = clibase.Bool(false)
 		deploymentValues.Experiments = []string{
 			string(codersdk.ExperimentMoons),
 			"*",
@@ -634,6 +641,7 @@ func TestWorkspaceProxyWorkspaceApps_SingleTailnet(t *testing.T) {
 		deploymentValues.DisablePathApps = clibase.Bool(opts.DisablePathApps)
 		deploymentValues.Dangerous.AllowPathAppSharing = clibase.Bool(opts.DangerousAllowPathAppSharing)
 		deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = clibase.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
+		deploymentValues.DERP.Server.Enable = clibase.Bool(false)
 		deploymentValues.Experiments = []string{
 			string(codersdk.ExperimentMoons),
 			string(codersdk.ExperimentSingleTailnet),
