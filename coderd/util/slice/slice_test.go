@@ -119,7 +119,7 @@ func TestAscending(t *testing.T) {
 func TestDescending(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, 1, slice.Ascending(1, 2))
-	assert.Equal(t, 0, slice.Ascending(1, 1))
-	assert.Equal(t, -1, slice.Ascending(2, 1))
+	assert.Equal(t, 1, slice.Descending(1, 2))
+	assert.Equal(t, 0, slice.Descending(1, 1))
+	assert.Equal(t, -1, slice.Descending(2, 1))
 }
