@@ -3688,7 +3688,7 @@ func (q *FakeQuerier) InsertLicense(
 	return l, nil
 }
 
-func (q *FakeQuerier) InsertMissingGroups(ctx context.Context, arg database.InsertMissingGroupsParams) ([]database.Group, error) {
+func (q *FakeQuerier) InsertMissingGroups(_ context.Context, arg database.InsertMissingGroupsParams) ([]database.Group, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err

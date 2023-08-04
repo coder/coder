@@ -374,7 +374,6 @@ func TestGroupSync(t *testing.T) {
 		{
 			name: "NoGroups",
 			modCfg: func(cfg *coderd.OIDCConfig) {
-
 			},
 			initialOrgGroups:   []string{},
 			expectedUserGroups: []string{},
