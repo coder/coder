@@ -89,7 +89,6 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
           horizontal: "left",
         }}
       >
-        <HelpTooltipTitle>Port forward</HelpTooltipTitle>
         <PortForwardPopoverView {...props} ports={listeningPorts?.ports} />
       </Popover>
     </>
@@ -109,7 +108,7 @@ export const PortForwardPopoverView: React.FC<
           borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
         }}
       >
-        <HelpTooltipTitle>Ports</HelpTooltipTitle>
+        <HelpTooltipTitle>Forwarded ports</HelpTooltipTitle>
         <HelpTooltipText
           sx={{ color: (theme) => theme.palette.text.secondary }}
         >
