@@ -2016,6 +2016,14 @@ func (q *querier) InsertWorkspaceAgentStat(ctx context.Context, arg database.Ins
 	return q.db.InsertWorkspaceAgentStat(ctx, arg)
 }
 
+func (q *querier) InsertWorkspaceAgentStats(ctx context.Context, arg database.InsertWorkspaceAgentStatsParams) error {
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+
+	return q.db.InsertWorkspaceAgentStats(ctx, arg)
+}
+
 func (q *querier) InsertWorkspaceApp(ctx context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
 		return database.WorkspaceApp{}, err

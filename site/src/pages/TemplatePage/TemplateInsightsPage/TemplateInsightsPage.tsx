@@ -34,11 +34,12 @@ import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined"
 import CancelOutlined from "@mui/icons-material/CancelOutlined"
 
 export default function TemplateInsightsPage() {
+  const now = new Date()
   const { template } = useTemplateLayoutContext()
   const insightsFilter = {
     template_ids: template.id,
-    start_time: toStartTimeFilter(sevenDaysAgo()),
-    end_time: startOfHour(addHours(new Date(), 1)).toISOString(),
+    start_time: toStartTimeFilter(subDays(now, 7)),
+    end_time: startOfHour(addHours(now, 1)).toISOString(),
   }
   const { data: templateInsights } = useQuery({
     queryKey: ["templates", template.id, "usage"],
@@ -569,8 +570,4 @@ function formatTime(seconds: number): string {
 
     return hours.toFixed(1) + " hours"
   }
-}
-
-function sevenDaysAgo() {
-  return subDays(new Date(), 7)
 }

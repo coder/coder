@@ -43,6 +43,7 @@ import (
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/awsidentity"
+	"github.com/coder/coder/coderd/batchstats"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/database/pubsub"
@@ -160,6 +161,7 @@ type Options struct {
 	HTTPClient *http.Client
 
 	UpdateAgentMetrics func(ctx context.Context, username, workspaceName, agentName string, metrics []agentsdk.AgentMetric)
+	StatsBatcher       *batchstats.Batcher
 }
 
 // @title Coder API
@@ -180,6 +182,8 @@ type Options struct {
 // @in header
 // @name Coder-Session-Token
 // New constructs a Coder API handler.
+//
+//nolint:gocyclo
 func New(options *Options) *API {
 	if options == nil {
 		options = &Options{}
@@ -286,6 +290,10 @@ func New(options *Options) *API {
 	if options.UserQuietHoursScheduleStore.Load() == nil {
 		v := schedule.NewAGPLUserQuietHoursScheduleStore()
 		options.UserQuietHoursScheduleStore.Store(&v)
+	}
+
+	if options.StatsBatcher == nil {
+		panic("developer error: options.StatsBatcher is nil")
 	}
 
 	siteCacheDir := options.CacheDir
@@ -461,6 +469,8 @@ func New(options *Options) *API {
 	derpHandler, api.derpCloseFunc = tailnet.WithWebsocketSupport(api.DERPServer, derpHandler)
 	cors := httpmw.Cors(options.DeploymentValues.Dangerous.AllowAllCors.Value())
 	prometheusMW := httpmw.Prometheus(options.PrometheusRegistry)
+
+	api.statsBatcher = options.StatsBatcher
 
 	r.Use(
 		httpmw.Recover(api.Logger),
@@ -994,6 +1004,8 @@ type API struct {
 
 	healthCheckGroup *singleflight.Group[string, *healthcheck.Report]
 	healthCheckCache atomic.Pointer[healthcheck.Report]
+
+	statsBatcher *batchstats.Batcher
 }
 
 // Close waits for all WebSocket connections to drain before returning.
