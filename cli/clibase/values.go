@@ -464,35 +464,35 @@ func (e *Enum) String() string {
 
 type Regexp regexp.Regexp
 
-func (d *Regexp) MarshalYAML() (interface{}, error) {
+func (r *Regexp) MarshalYAML() (interface{}, error) {
 	return yaml.Node{
 		Kind:  yaml.ScalarNode,
-		Value: d.String(),
+		Value: r.String(),
 	}, nil
 }
 
-func (d *Regexp) UnmarshalYAML(n *yaml.Node) error {
-	return d.Set(n.Value)
+func (r *Regexp) UnmarshalYAML(n *yaml.Node) error {
+	return r.Set(n.Value)
 }
 
-func (s *Regexp) Set(v string) error {
+func (r *Regexp) Set(v string) error {
 	exp, err := regexp.Compile(v)
 	if err != nil {
 		return xerrors.Errorf("invalid regex expression: %w", err)
 	}
-	*s = Regexp(*exp)
+	*r = Regexp(*exp)
 	return nil
 }
 
-func (s Regexp) String() string {
-	return s.Value().String()
+func (r Regexp) String() string {
+	return r.Value().String()
 }
 
-func (s *Regexp) Value() *regexp.Regexp {
-	if s == nil {
+func (r *Regexp) Value() *regexp.Regexp {
+	if r == nil {
 		return nil
 	}
-	return (*regexp.Regexp)(s)
+	return (*regexp.Regexp)(r)
 }
 
 func (Regexp) Type() string {
