@@ -9,8 +9,7 @@ import (
 
 func (r *RootCmd) update() *clibase.Cmd {
 	var (
-		richParameterFile string
-		alwaysPrompt      bool
+		alwaysPrompt bool
 
 		parameterFlags workspaceParameterFlags
 	)
@@ -30,7 +29,7 @@ func (r *RootCmd) update() *clibase.Cmd {
 			if err != nil {
 				return err
 			}
-			if !workspace.Outdated && !alwaysPrompt && !parameterFlags.buildOptions {
+			if !workspace.Outdated && !alwaysPrompt && !parameterFlags.promptBuildOptions {
 				_, _ = fmt.Fprintf(inv.Stdout, "Workspace isn't outdated!\n")
 				return nil
 			}
@@ -50,13 +49,13 @@ func (r *RootCmd) update() *clibase.Cmd {
 			buildParams, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
 				Template:           template,
 				ExistingRichParams: existingRichParams,
-				RichParameterFile:  richParameterFile,
+				RichParameterFile:  parameterFlags.richParameterFile,
 				NewWorkspaceName:   workspace.Name,
 
 				UpdateWorkspace: true,
 				WorkspaceID:     workspace.LatestBuild.ID,
 
-				BuildOptions: parameterFlags.buildOptions,
+				BuildOptions: parameterFlags.promptBuildOptions,
 			})
 			if err != nil {
 				return err
@@ -92,13 +91,8 @@ func (r *RootCmd) update() *clibase.Cmd {
 			Description: "Always prompt all parameters. Does not pull parameter values from existing workspace.",
 			Value:       clibase.BoolOf(&alwaysPrompt),
 		},
-		{
-			Flag:        "rich-parameter-file",
-			Description: "Specify a file path with values for rich parameters defined in the template.",
-			Env:         "CODER_RICH_PARAMETER_FILE",
-			Value:       clibase.StringOf(&richParameterFile),
-		},
 	}
 	cmd.Options = append(cmd.Options, parameterFlags.options()...)
+	cmd.Options = append(cmd.Options, parameterFlags.richParameters()...)
 	return cmd
 }

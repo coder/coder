@@ -11,17 +11,44 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
-// workspaceParameterFlags are used by "start", "restart", and "update".
+// workspaceParameterFlags are used by commands requiring rich parameters and/or build options.
 type workspaceParameterFlags struct {
-	buildOptions bool
+	promptBuildOptions bool
+	buildOptions       []string
+
+	richParameterFile string
+	parameters        []string
 }
 
 func (wpf *workspaceParameterFlags) options() []clibase.Option {
 	return clibase.OptionSet{
+		clibase.Option{
+			Flag:        "parameter",
+			Env:         "CODER_BUILD_OPTION",
+			Description: `Build option value in the format "name=value"`,
+			Value:       clibase.StringArrayOf(&wpf.buildOptions),
+		},
 		{
 			Flag:        "build-options",
 			Description: "Prompt for one-time build options defined with ephemeral parameters.",
-			Value:       clibase.BoolOf(&wpf.buildOptions),
+			Value:       clibase.BoolOf(&wpf.promptBuildOptions),
+		},
+	}
+}
+
+func (wpf *workspaceParameterFlags) richParameters() []clibase.Option {
+	return clibase.OptionSet{
+		clibase.Option{
+			Flag:        "parameter",
+			Env:         "CODER_RICH_PARAMETER",
+			Description: `Rich parameter value in the format "name=value"`,
+			Value:       clibase.StringArrayOf(&wpf.parameters),
+		},
+		clibase.Option{
+			Flag:        "rich-parameter-file",
+			Env:         "CODER_RICH_PARAMETER_FILE",
+			Description: "Specify a file path with values for rich parameters defined in the template.",
+			Value:       clibase.StringOf(&wpf.richParameterFile),
 		},
 	}
 }
@@ -51,8 +78,8 @@ func (r *RootCmd) start() *clibase.Cmd {
 			}
 
 			buildParams, err := prepStartWorkspace(inv, client, prepStartWorkspaceArgs{
-				Template:     template,
-				BuildOptions: parameterFlags.buildOptions,
+				Template:           template,
+				PromptBuildOptions: parameterFlags.promptBuildOptions,
 			})
 			if err != nil {
 				return err
@@ -79,8 +106,8 @@ func (r *RootCmd) start() *clibase.Cmd {
 }
 
 type prepStartWorkspaceArgs struct {
-	Template     codersdk.Template
-	BuildOptions bool
+	Template           codersdk.Template
+	PromptBuildOptions bool
 }
 
 func prepStartWorkspace(inv *clibase.Invocation, client *codersdk.Client, args prepStartWorkspaceArgs) (*buildParameters, error) {
@@ -97,7 +124,7 @@ func prepStartWorkspace(inv *clibase.Invocation, client *codersdk.Client, args p
 	}
 
 	richParameters := make([]codersdk.WorkspaceBuildParameter, 0)
-	if !args.BuildOptions {
+	if !args.PromptBuildOptions {
 		return &buildParameters{
 			richParameters: richParameters,
 		}, nil

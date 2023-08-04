@@ -18,11 +18,12 @@ import (
 
 func (r *RootCmd) create() *clibase.Cmd {
 	var (
-		richParameterFile string
-		templateName      string
-		startAt           string
-		stopAfter         time.Duration
-		workspaceName     string
+		templateName  string
+		startAt       string
+		stopAfter     time.Duration
+		workspaceName string
+
+		parameterFlags workspaceParameterFlags
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -131,7 +132,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 
 			buildParams, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
 				Template:          template,
-				RichParameterFile: richParameterFile,
+				RichParameterFile: parameterFlags.richParameterFile,
 				NewWorkspaceName:  workspaceName,
 			})
 			if err != nil {
@@ -180,12 +181,6 @@ func (r *RootCmd) create() *clibase.Cmd {
 			Value:         clibase.StringOf(&templateName),
 		},
 		clibase.Option{
-			Flag:        "rich-parameter-file",
-			Env:         "CODER_RICH_PARAMETER_FILE",
-			Description: "Specify a file path with values for rich parameters defined in the template.",
-			Value:       clibase.StringOf(&richParameterFile),
-		},
-		clibase.Option{
 			Flag:        "start-at",
 			Env:         "CODER_WORKSPACE_START_AT",
 			Description: "Specify the workspace autostart schedule. Check coder schedule start --help for the syntax.",
@@ -199,6 +194,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 		},
 		cliui.SkipPromptOption(),
 	)
+	cmd.Options = append(cmd.Options, parameterFlags.richParameters()...)
 	return cmd
 }
 
