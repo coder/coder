@@ -71,10 +71,10 @@ jobs:
         run: |
           set -euxo pipefail
           kubectl delete certificate "pr${{ steps.pr_number.outputs.PR_NUMBER }}-tls" -n pr-deployment-certs || echo "certificate not found"
-      
-      - name: Delete PR Comments 
+
+      - name: Delete PR Comments
         uses: izhangzhihao/delete-comment@master
-        with: 
+        with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           delete_user_name: github-actions[bot]
           issue_number: ${{ github.event.number }}
