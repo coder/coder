@@ -701,6 +701,7 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -735,6 +736,21 @@ jobs:
           ./scripts/build_docker.sh \
             --arch amd64 \
             --target ghcr.io/coder/coder-preview:main \
+            --target
             --version $version \
             --push \
             build/coder_linux_amd64
+
+          # Get old package id and tag
+          old_commit_tag=$(gh api /repos/coder/coder/commits/main | jq -r '.parents[0].sha[:8]')
+          old_package_id=$(gh api /orgs/coder/packages/container/coder-preview/versions | jq -r '.[0].id')
+          old_package_tag=$(gh api /orgs/coder/packages/container/coder-preview/versions/$old_package_id | jq -r '.metadata.container.tags[0]')    
+          
+          new_package_tag=$(gh api /repos/coder/coder/commits/main | jq -r '.sha[:8]')
+          docker tag ghcr.io/coder/coder-preview:main ghcr.io/coder/coder-preview:$new_package_tag
+          docker push ghcr.io/coder/coder-preview:$new_package_tag
+
+          # Delete Old package
+          if [[ old_commit_tag ]]
+
+          
