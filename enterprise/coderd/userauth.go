@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/codersdk"
 )
 
+// nolint: revive
 func (api *API) setUserGroups(ctx context.Context, logger slog.Logger, db database.Store, userID uuid.UUID, groupNames []string, createMissingGroups bool) error {
 	api.entitlementsMu.RLock()
 	enabled := api.entitlements.Features[codersdk.FeatureTemplateRBAC].Enabled
