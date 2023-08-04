@@ -24,14 +24,15 @@ import {
   UserLatencyInsightsResponse,
 } from "api/typesGenerated"
 import { ComponentProps } from "react"
-import subDays from "date-fns/subDays"
+import { subDays, addHours, startOfHour } from "date-fns"
 
 export default function TemplateInsightsPage() {
+  const now = new Date()
   const { template } = useTemplateLayoutContext()
   const insightsFilter = {
     template_ids: template.id,
-    start_time: toTimeFilter(sevenDaysAgo()),
-    end_time: toTimeFilter(new Date()),
+    start_time: toStartTimeFilter(subDays(now, 7)),
+    end_time: startOfHour(addHours(now, 1)).toISOString(),
   }
   const { data: templateInsights } = useQuery({
     queryKey: ["templates", template.id, "usage"],
@@ -323,12 +324,11 @@ function mapToDAUsResponse(
   }
 }
 
-function toTimeFilter(date: Date) {
+function toStartTimeFilter(date: Date) {
   date.setHours(0, 0, 0, 0)
   const year = date.getUTCFullYear()
   const month = String(date.getUTCMonth() + 1).padStart(2, "0")
   const day = String(date.getUTCDate()).padStart(2, "0")
-
   return `${year}-${month}-${day}T00:00:00Z`
 }
 
@@ -347,8 +347,4 @@ function formatTime(seconds: number): string {
 
     return hours.toFixed(1) + " hours"
   }
-}
-
-function sevenDaysAgo() {
-  return subDays(new Date(), 7)
 }
