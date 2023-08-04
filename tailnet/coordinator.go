@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coder/coder/coderd/util/slice"
 	"github.com/google/uuid"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/exp/slices"
@@ -684,13 +685,13 @@ func HTTPDebugFromLocal(
 			})
 		}
 		slices.SortFunc(agent.Connections, func(a, b *HTMLClient) int {
-			return nameOrdering(a.Name, b.Name)
+			return slice.Ascending(a.Name, b.Name)
 		})
 
 		data.Agents = append(data.Agents, agent)
 	}
 	slices.SortFunc(data.Agents, func(a, b *HTMLAgent) int {
-		return nameOrdering(a.Name, b.Name)
+		return slice.Ascending(a.Name, b.Name)
 	})
 
 	for agentID, conns := range agentToConnectionSocketsMap {
@@ -720,13 +721,13 @@ func HTTPDebugFromLocal(
 			})
 		}
 		slices.SortFunc(agent.Connections, func(a, b *HTMLClient) int {
-			return nameOrdering(a.Name, b.Name)
+			return slice.Ascending(a.Name, b.Name)
 		})
 
 		data.MissingAgents = append(data.MissingAgents, agent)
 	}
 	slices.SortFunc(data.MissingAgents, func(a, b *HTMLAgent) int {
-		return nameOrdering(a.Name, b.Name)
+		return slice.Ascending(a.Name, b.Name)
 	})
 
 	for id, node := range nodesMap {
@@ -738,7 +739,7 @@ func HTTPDebugFromLocal(
 		})
 	}
 	slices.SortFunc(data.Nodes, func(a, b *HTMLNode) int {
-		return nameOrdering(a.Name+a.ID.String(), b.Name+b.ID.String())
+		return slice.Ascending(a.Name+a.ID.String(), b.Name+b.ID.String())
 	})
 
 	return data

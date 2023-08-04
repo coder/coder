@@ -12,6 +12,8 @@ import (
 
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/coderd/util/slice"
 )
 
 func main() {
@@ -161,17 +163,8 @@ func parseCIReport(report GotestsumReport) (CIReport, error) {
 	}
 	timeouts = timeoutsNorm
 
-	sortAZ := func(a, b string) int {
-		if a < b {
-			return -1
-		} else if a == b {
-			return 0
-		} else {
-			return 1
-		}
-	}
-	slices.SortFunc(packagesSortedByName, sortAZ)
-	slices.SortFunc(testSortedByName, sortAZ)
+	slices.SortFunc(packagesSortedByName, slice.Ascending[string])
+	slices.SortFunc(testSortedByName, slice.Ascending[string])
 
 	var rep CIReport
 

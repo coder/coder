@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/database/pubsub"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/util/slice"
 	agpl "github.com/coder/coder/tailnet"
 )
 
@@ -1352,7 +1353,7 @@ func (c *pgCoord) htmlDebug(ctx context.Context) (agpl.HTMLDebug, error) {
 			})
 		}
 		slices.SortFunc(htmlAgent.Connections, func(a, b *agpl.HTMLClient) int {
-			return nameOrdering(a.Name, b.Name)
+			return slice.Ascending(a.Name, b.Name)
 		})
 
 		data.Agents = append(data.Agents, htmlAgent)
@@ -1363,7 +1364,7 @@ func (c *pgCoord) htmlDebug(ctx context.Context) (agpl.HTMLDebug, error) {
 		})
 	}
 	slices.SortFunc(data.Agents, func(a, b *agpl.HTMLAgent) int {
-		return nameOrdering(a.Name, b.Name)
+		return slice.Ascending(a.Name, b.Name)
 	})
 
 	for agentID, conns := range clients {
@@ -1390,13 +1391,13 @@ func (c *pgCoord) htmlDebug(ctx context.Context) (agpl.HTMLDebug, error) {
 			})
 		}
 		slices.SortFunc(agent.Connections, func(a, b *agpl.HTMLClient) int {
-			return nameOrdering(a.Name, b.Name)
+			return slice.Ascending(a.Name, b.Name)
 		})
 
 		data.MissingAgents = append(data.MissingAgents, agent)
 	}
 	slices.SortFunc(data.MissingAgents, func(a, b *agpl.HTMLAgent) int {
-		return nameOrdering(a.Name, b.Name)
+		return slice.Ascending(a.Name, b.Name)
 	})
 
 	return data, nil

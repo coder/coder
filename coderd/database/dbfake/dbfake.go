@@ -15,7 +15,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	"golang.org/x/exp/constraints"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
@@ -607,7 +606,7 @@ func uniqueSortedUUIDs(uuids []uuid.UUID) []uuid.UUID {
 		unique = append(unique, id)
 	}
 	slices.SortFunc(unique, func(a, b uuid.UUID) int {
-		return orderingAscend(a, b)
+		return slice.Ascending(a.String(), b.String())
 	})
 	return unique
 }
@@ -2061,8 +2060,8 @@ func (q *FakeQuerier) GetTemplateDailyInsights(_ context.Context, arg database.G
 		for templateID := range ds.templateIDSet {
 			templateIDs = append(templateIDs, templateID)
 		}
-		slices.SortFunc(templateIDs, func(a, b uuid.UUID) bool {
-			return a.String() < b.String()
+		slices.SortFunc(templateIDs, func(a, b uuid.UUID) int {
+			return slice.Ascending(a.String(), b.String())
 		})
 		result = append(result, database.GetTemplateDailyInsightsRow{
 			StartTime:   ds.startTime,
@@ -2120,8 +2119,8 @@ func (q *FakeQuerier) GetTemplateInsights(_ context.Context, arg database.GetTem
 	for templateID := range templateIDSet {
 		templateIDs = append(templateIDs, templateID)
 	}
-	slices.SortFunc(templateIDs, func(a, b uuid.UUID) bool {
-		return a.String() < b.String()
+	slices.SortFunc(templateIDs, func(a, b uuid.UUID) int {
+		return slice.Ascending(a.String(), b.String())
 	})
 	result := database.GetTemplateInsightsRow{
 		TemplateIDs: templateIDs,
@@ -2342,13 +2341,17 @@ func (q *FakeQuerier) GetTemplateVersionsByTemplateID(_ context.Context, arg dat
 	}
 
 	// Database orders by created_at
-	slices.SortFunc(version, func(a, b database.TemplateVersion) bool {
+	slices.SortFunc(version, func(a, b database.TemplateVersion) int {
 		if a.CreatedAt.Equal(b.CreatedAt) {
 			// Technically the postgres database also orders by uuid. So match
 			// that behavior
-			return a.ID.String() < b.ID.String()
+			return slice.Ascending(a.ID.String(), b.ID.String())
 		}
-		return a.CreatedAt.Before(b.CreatedAt)
+		if a.CreatedAt.Before(b.CreatedAt) {
+			return -1
+		} else {
+			return 1
+		}
 	})
 
 	if arg.AfterID != uuid.Nil {
@@ -2407,11 +2410,11 @@ func (q *FakeQuerier) GetTemplates(_ context.Context) ([]database.Template, erro
 	defer q.mutex.RUnlock()
 
 	templates := slices.Clone(q.templates)
-	slices.SortFunc(templates, func(i, j database.TemplateTable) bool {
-		if i.Name != j.Name {
-			return i.Name < j.Name
+	slices.SortFunc(templates, func(a, b database.TemplateTable) int {
+		if a.Name != b.Name {
+			return slice.Ascending(a.Name, b.Name)
 		}
-		return i.ID.String() < j.ID.String()
+		return slice.Ascending(a.ID.String(), b.ID.String())
 	})
 
 	return q.templatesWithUserNoLock(templates), nil
@@ -2524,8 +2527,8 @@ func (q *FakeQuerier) GetUserLatencyInsights(_ context.Context, arg database.Get
 		for templateID := range templateIDSet {
 			templateIDs = append(templateIDs, templateID)
 		}
-		slices.SortFunc(templateIDs, func(a, b uuid.UUID) bool {
-			return a.String() < b.String()
+		slices.SortFunc(templateIDs, func(a, b uuid.UUID) int {
+			return slice.Ascending(a.String(), b.String())
 		})
 		user, err := q.getUserByIDNoLock(userID)
 		if err != nil {
@@ -2541,8 +2544,8 @@ func (q *FakeQuerier) GetUserLatencyInsights(_ context.Context, arg database.Get
 		}
 		rows = append(rows, row)
 	}
-	slices.SortFunc(rows, func(a, b database.GetUserLatencyInsightsRow) bool {
-		return a.UserID.String() < b.UserID.String()
+	slices.SortFunc(rows, func(a, b database.GetUserLatencyInsightsRow) int {
+		return slice.Ascending(a.UserID.String(), b.UserID.String())
 	})
 
 	return rows, nil
@@ -2589,8 +2592,8 @@ func (q *FakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 	copy(users, q.users)
 
 	// Database orders by username
-	slices.SortFunc(users, func(a, b database.User) bool {
-		return strings.ToLower(a.Username) < strings.ToLower(b.Username)
+	slices.SortFunc(users, func(a, b database.User) int {
+		return slice.Ascending(a.Username, b.Username)
 	})
 
 	// Filter out deleted since they should never be returned..
@@ -3128,7 +3131,8 @@ func (q *FakeQuerier) GetWorkspaceBuildsByWorkspaceID(_ context.Context,
 
 	// Order by build_number
 	slices.SortFunc(history, func(a, b database.WorkspaceBuild) int {
-		return orderingDescend(a.BuildNumber, b.BuildNumber)
+		return slice.Descending(a.BuildNumber, b.BuildNumber)
+
 	})
 
 	if params.AfterID != uuid.Nil {
@@ -5488,11 +5492,11 @@ func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.G
 		templates = append(templates, template)
 	}
 	if len(templates) > 0 {
-		slices.SortFunc(templates, func(i, j database.Template) bool {
-			if i.Name != j.Name {
-				return i.Name < j.Name
+		slices.SortFunc(templates, func(a, b database.Template) int {
+			if a.Name != b.Name {
+				return slice.Ascending(a.Name, b.Name)
 			}
-			return i.ID.String() < j.ID.String()
+			return slice.Ascending(a.ID.String(), b.ID.String())
 		})
 		return templates, nil
 	}
@@ -5864,18 +5868,4 @@ func (q *FakeQuerier) GetAuthorizedUsers(ctx context.Context, arg database.GetUs
 		filteredUsers = append(filteredUsers, user)
 	}
 	return filteredUsers, nil
-}
-
-func orderingAscend[E constraints.Ordered](a, b E) int {
-	if a < b {
-		return -1
-	} else if a == b {
-		return 0
-	} else {
-		return 1
-	}
-}
-
-func orderingDescend[E constraints.Ordered](a, b E) int {
-	return -orderingAscend[E](a, b)
 }
