@@ -755,8 +755,7 @@ jobs:
           organization: coder
           container: coder-preview
           dry-run: true
-          keep-younger-than: 7 # days
-          keep-last: 2 # keeps the last 2 images
+          keep-younger-than: 3 # days
           keep-tags-regexes: ^pr
           prune-tags-regexes: ^main-
           prune-untagged: true
