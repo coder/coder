@@ -43,6 +43,9 @@ VALUES
 	($1, $2, $3, $4, $5, $6) RETURNING *;
 
 -- name: InsertMissingGroups :many
+-- Inserts any group by name that does not exist. All new groups are given
+-- a random uuid, are inserted into the same organization. They have the default
+-- values for avatar, display name, and quota allowance (all zero values).
 INSERT INTO groups (
 	id,
 	name,

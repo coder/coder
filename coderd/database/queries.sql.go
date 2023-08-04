@@ -1375,6 +1375,9 @@ type InsertMissingGroupsParams struct {
 	GroupNames     []string    `db:"group_names" json:"group_names"`
 }
 
+// Inserts any group by name that does not exist. All new groups are given
+// a random uuid, are inserted into the same organization. They have the default
+// values for avatar, display name, and quota allowance (all zero values).
 // If the name conflicts, do nothing.
 func (q *sqlQuerier) InsertMissingGroups(ctx context.Context, arg InsertMissingGroupsParams) ([]Group, error) {
 	rows, err := q.db.QueryContext(ctx, insertMissingGroups, arg.OrganizationID, arg.Source, pq.Array(arg.GroupNames))
