@@ -517,6 +517,7 @@ func TestGroupSync(t *testing.T) {
 			tc.claims["email"] = user.Email
 			resp := oidcCallback(t, client, conf.EncodeClaims(t, tc.claims))
 			assert.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+			_ = resp.Body.Close()
 
 			orgGroups, err := client.GroupsByOrganization(ctx, admin.OrganizationIDs[0])
 			require.NoError(t, err)
