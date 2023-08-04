@@ -21,11 +21,15 @@ import { Loader } from "components/Loader/Loader"
 import {
   DAUsResponse,
   TemplateInsightsResponse,
+  TemplateParameterUsage,
+  TemplateParameterValue,
   UserLatencyInsightsResponse,
 } from "api/typesGenerated"
 import { ComponentProps } from "react"
 import subDays from "date-fns/subDays"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
+import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined"
+import Link from "@mui/material/Link"
 
 export default function TemplateInsightsPage() {
   const { template } = useTemplateLayoutContext()
@@ -43,6 +47,9 @@ export default function TemplateInsightsPage() {
     queryFn: () => getInsightsUserLatency(insightsFilter),
   })
   const dashboard = useDashboard()
+  const shouldDisplayParameters =
+    dashboard.experiments.includes("template_parameters_insights") ||
+    process.env.NODE_ENV === "development"
 
   return (
     <>
@@ -52,9 +59,7 @@ export default function TemplateInsightsPage() {
       <TemplateInsightsPageView
         templateInsights={templateInsights}
         userLatency={userLatency}
-        shouldDisplayParameters={dashboard.experiments.includes(
-          "template_parameters_insights",
-        )}
+        shouldDisplayParameters={shouldDisplayParameters}
       />
     </>
   )
@@ -290,7 +295,7 @@ const TemplateParametersUsagePanel = ({
         {data && data.length === 0 && <NoDataAvailable sx={{ height: 200 }} />}
         {data &&
           data.length > 0 &&
-          data.map((parameter) => {
+          data.map((parameter, parameterIndex) => {
             const label =
               parameter.display_name !== ""
                 ? parameter.display_name
@@ -314,62 +319,20 @@ const TemplateParametersUsagePanel = ({
                 <Box sx={{ flex: 1, fontSize: 14 }}>
                   {parameter.values
                     .sort((a, b) => b.count - a.count)
-                    .map((value) => {
-                      const icon = parameter.options
-                        ? parameter.options.find((o) => o.value === value.value)
-                            ?.icon
-                        : undefined
-                      const label =
-                        value.value.trim() !== "" ? (
-                          value.value
-                        ) : (
-                          <Box
-                            component="span"
-                            sx={{
-                              color: (theme) => theme.palette.text.secondary,
-                            }}
-                          >
-                            Not set
-                          </Box>
-                        )
-                      return (
-                        <Box
-                          key={value.value}
-                          sx={{
-                            display: "flex",
-                            alignItems: "baseline",
-                            justifyContent: "space-between",
-                            py: 0.5,
-                          }}
-                        >
-                          <Box
-                            sx={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 2,
-                            }}
-                          >
-                            {icon && (
-                              <Box
-                                sx={{ width: 16, height: 16, lineHeight: 1 }}
-                              >
-                                <Box
-                                  component="img"
-                                  src={icon}
-                                  sx={{
-                                    objectFit: "contain",
-                                    width: "100%",
-                                    height: "100%",
-                                  }}
-                                />
-                              </Box>
-                            )}
-                            {label}
-                          </Box>
-                          <Box sx={{ textAlign: "right" }}>{value.count}</Box>
-                        </Box>
-                      )
-                    })}
+                    .map((value, valueIndex) => (
+                      <Box
+                        key={`${parameterIndex}-${valueIndex}`}
+                        sx={{
+                          display: "flex",
+                          alignItems: "baseline",
+                          justifyContent: "space-between",
+                          py: 0.5,
+                        }}
+                      >
+                        <ValueLabel value={value} parameter={parameter} />
+                        <Box sx={{ textAlign: "right" }}>{value.count}</Box>
+                      </Box>
+                    ))}
                 </Box>
               </Box>
             )
@@ -377,6 +340,79 @@ const TemplateParametersUsagePanel = ({
       </PanelContent>
     </Panel>
   )
+}
+
+const ValueLabel = ({
+  value,
+  parameter,
+}: {
+  value: TemplateParameterValue
+  parameter: TemplateParameterUsage
+}) => {
+  if (value.value.trim() === "") {
+    return (
+      <Box
+        component="span"
+        sx={{
+          color: (theme) => theme.palette.text.secondary,
+        }}
+      >
+        Not set
+      </Box>
+    )
+  }
+
+  if (parameter.options) {
+    const option = parameter.options.find((o) => o.value === value.value)!
+    const icon = option.icon
+    const label = option.name
+
+    return (
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 2,
+        }}
+      >
+        {icon && (
+          <Box sx={{ width: 16, height: 16, lineHeight: 1 }}>
+            <Box
+              component="img"
+              src={icon}
+              sx={{
+                objectFit: "contain",
+                width: "100%",
+                height: "100%",
+              }}
+            />
+          </Box>
+        )}
+        {label}
+      </Box>
+    )
+  }
+
+  if (value.value.startsWith("http")) {
+    return (
+      <Link
+        href={value.value}
+        target="_blank"
+        rel="noreferrer"
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+          color: (theme) => theme.palette.text.primary,
+        }}
+      >
+        <OpenInNewOutlined sx={{ width: 14, height: 14 }} />
+        {value.value}
+      </Link>
+    )
+  }
+
+  return <Box>{value.value}</Box>
 }
 
 const Panel = styled(Box)(({ theme }) => ({
