@@ -3,9 +3,10 @@ package cli
 import (
 	"fmt"
 
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/codersdk"
-	"golang.org/x/xerrors"
 )
 
 func (r *RootCmd) update() *clibase.Cmd {

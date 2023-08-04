@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"time"
 
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
-	"golang.org/x/xerrors"
 )
 
 func (r *RootCmd) restart() *clibase.Cmd {
