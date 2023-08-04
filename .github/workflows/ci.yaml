@@ -14,7 +14,7 @@ permissions:
   contents: read
   deployments: none
   issues: none
-  packages: write
+  packages: delete
   pull-requests: none
   repository-projects: none
   security-events: none
@@ -725,6 +725,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push Linux amd64 Docker image
+        id: build_and_push
         run: |
           set -euxo pipefail
           go mod download
@@ -741,16 +742,22 @@ jobs:
             --push \
             build/coder_linux_amd64
 
-          # Get old package id and tag
-          old_commit_tag=$(gh api /repos/coder/coder/commits/main | jq -r '.parents[0].sha[:8]')
-          old_package_id=$(gh api /orgs/coder/packages/container/coder-preview/versions | jq -r '.[0].id')
-          old_package_tag=$(gh api /orgs/coder/packages/container/coder-preview/versions/$old_package_id | jq -r '.metadata.container.tags[0]')    
-          
+          # Get commit sha to be used as package tag
           new_package_tag=$(gh api /repos/coder/coder/commits/main | jq -r '.sha[:8]')
+
+          # Tag image with new package tag and push
           docker tag ghcr.io/coder/coder-preview:main ghcr.io/coder/coder-preview:$new_package_tag
           docker push ghcr.io/coder/coder-preview:$new_package_tag
 
-          # Delete Old package
-          if [[ old_commit_tag ]]
+          # Get old package tag
+          previous_package_tag=$(gh api /repos/coder/coder/commits/main | jq -r '.parents[0].sha[:8]')
+          echo "previous_package_tag=$previous_package_tag" >> GITHUB_OUTPUT
 
-          
+      - name: Delete image
+        continue-on-error: true
+        uses: bots-house/ghcr-delete-image-action@v1.1.0
+        with:
+          owner: coder
+          name: coder-preview
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ steps.build_and_push.outputs.previous_package_tag }}
