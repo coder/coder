@@ -757,6 +757,7 @@ jobs:
           container: coder-preview
           dry-run: true
           keep-younger-than: 7 # days
+          keep-last: 2 # keeps the last 2 images
           keep-tags-regexes: ^pr
           prune-tags-regexes: ^main-
           prune-untagged: true
