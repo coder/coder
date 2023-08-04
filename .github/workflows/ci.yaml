@@ -746,18 +746,17 @@ jobs:
           new_package_tag=$(gh api /repos/coder/coder/commits/main | jq -r '.sha[:8]')
 
           # Tag image with new package tag and push
-          docker tag ghcr.io/coder/coder-preview:main ghcr.io/coder/coder-preview:$new_package_tag
-          docker push ghcr.io/coder/coder-preview:$new_package_tag
+          docker tag ghcr.io/coder/coder-preview:main ghcr.io/coder/coder-preview:main-$new_package_tag
+          docker push ghcr.io/coder/coder-preview:main-$new_package_tag
 
-          # Get old package tag
-          previous_package_tag=$(gh api /repos/coder/coder/commits/main | jq -r '.parents[0].sha[:8]')
-          echo "previous_package_tag=$previous_package_tag" >> GITHUB_OUTPUT
-
-      - name: Delete image
-        continue-on-error: true
-        uses: bots-house/ghcr-delete-image-action@v1.1.0
+      - name: Prune old images
+        uses: vlaurin/action-ghcr-prune@v0.5.0
         with:
-          owner: coder
-          name: coder-preview
           token: ${{ secrets.GITHUB_TOKEN }}
-          tag: ${{ steps.build_and_push.outputs.previous_package_tag }}
+          organization: coder
+          container: coder-preview
+          dry-run: true
+          keep-younger-than: 7 # days
+          keep-tags-regexes: ^pr-
+          prune-tags-regexes: ^main-
+          prune-untagged: true
