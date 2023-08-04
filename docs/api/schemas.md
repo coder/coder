@@ -202,6 +202,12 @@
     }
   ],
   "derpmap": {
+    "homeParams": {
+      "regionScore": {
+        "property1": 0,
+        "property2": 0
+      }
+    },
     "omitDefaultRegions": true,
     "regions": {
       "property1": {
@@ -209,6 +215,7 @@
         "embeddedRelay": true,
         "nodes": [
           {
+            "canPort80": true,
             "certName": "string",
             "derpport": 0,
             "forceHTTP": true,
@@ -232,6 +239,7 @@
         "embeddedRelay": true,
         "nodes": [
           {
+            "canPort80": true,
             "certName": "string",
             "derpport": 0,
             "forceHTTP": true,
@@ -5546,6 +5554,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
   "derp_map": {
+    "homeParams": {
+      "regionScore": {
+        "property1": 0,
+        "property2": 0
+      }
+    },
     "omitDefaultRegions": true,
     "regions": {
       "property1": {
@@ -5553,6 +5567,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "embeddedRelay": true,
         "nodes": [
           {
+            "canPort80": true,
             "certName": "string",
             "derpport": 0,
             "forceHTTP": true,
@@ -5576,6 +5591,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "embeddedRelay": true,
         "nodes": [
           {
+            "canPort80": true,
             "certName": "string",
             "derpport": 0,
             "forceHTTP": true,
@@ -6586,6 +6602,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "error": "string",
   "healthy": true,
   "node": {
+    "canPort80": true,
     "certName": "string",
     "derpport": 0,
     "forceHTTP": true,
@@ -6644,6 +6661,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "error": "string",
       "healthy": true,
       "node": {
+        "canPort80": true,
         "certName": "string",
         "derpport": 0,
         "forceHTTP": true,
@@ -6676,6 +6694,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "embeddedRelay": true,
     "nodes": [
       {
+        "canPort80": true,
         "certName": "string",
         "derpport": 0,
         "forceHTTP": true,
@@ -6756,6 +6775,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "error": "string",
           "healthy": true,
           "node": {
+            "canPort80": true,
             "certName": "string",
             "derpport": 0,
             "forceHTTP": true,
@@ -6788,6 +6808,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "embeddedRelay": true,
         "nodes": [
           {
+            "canPort80": true,
             "certName": "string",
             "derpport": 0,
             "forceHTTP": true,
@@ -6818,6 +6839,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "error": "string",
           "healthy": true,
           "node": {
+            "canPort80": true,
             "certName": "string",
             "derpport": 0,
             "forceHTTP": true,
@@ -6850,6 +6872,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "embeddedRelay": true,
         "nodes": [
           {
+            "canPort80": true,
             "certName": "string",
             "derpport": 0,
             "forceHTTP": true,
@@ -6992,6 +7015,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "error": "string",
             "healthy": true,
             "node": {
+              "canPort80": true,
               "certName": "string",
               "derpport": 0,
               "forceHTTP": true,
@@ -7024,6 +7048,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "embeddedRelay": true,
           "nodes": [
             {
+              "canPort80": true,
               "certName": "string",
               "derpport": 0,
               "forceHTTP": true,
@@ -7054,6 +7079,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "error": "string",
             "healthy": true,
             "node": {
+              "canPort80": true,
               "certName": "string",
               "derpport": 0,
               "forceHTTP": true,
@@ -7086,6 +7112,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "embeddedRelay": true,
           "nodes": [
             {
+              "canPort80": true,
               "certName": "string",
               "derpport": 0,
               "forceHTTP": true,
@@ -7230,10 +7257,38 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `time`  | string  | false    |              |                                   |
 | `valid` | boolean | false    |              | Valid is true if Time is not NULL |
 
+## tailcfg.DERPHomeParams
+
+```json
+{
+  "regionScore": {
+    "property1": 0,
+    "property2": 0
+  }
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description                                                                                                                                                                                                                                                                               |
+| ------------- | ------ | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `regionScore` | object | false    |              | Regionscore scales latencies of DERP regions by a given scaling factor when determining which region to use as the home ("preferred") DERP. Scores in the range (0, 1) will cause this region to be proportionally more preferred, and scores in the range (1, ∞) will penalize a region. |
+
+If a region is not present in this map, it is treated as having a score of 1.0.
+Scores should not be 0 or negative; such scores will be ignored.
+A nil map means no change from the previous value (if any); an empty non-nil map can be sent to reset all scores back to 1.0.|
+|» `[any property]`|number|false|||
+
 ## tailcfg.DERPMap
 
 ```json
 {
+  "homeParams": {
+    "regionScore": {
+      "property1": 0,
+      "property2": 0
+    }
+  },
   "omitDefaultRegions": true,
   "regions": {
     "property1": {
@@ -7241,6 +7296,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "embeddedRelay": true,
       "nodes": [
         {
+          "canPort80": true,
           "certName": "string",
           "derpport": 0,
           "forceHTTP": true,
@@ -7264,6 +7320,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "embeddedRelay": true,
       "nodes": [
         {
+          "canPort80": true,
           "certName": "string",
           "derpport": 0,
           "forceHTTP": true,
@@ -7288,10 +7345,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                 | Type    | Required | Restrictions | Description                                                                                                                                                                    |
-| -------------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `omitDefaultRegions` | boolean | false    |              | Omitdefaultregions specifies to not use Tailscale's DERP servers, and only use those specified in this DERPMap. If there are none set outside of the defaults, this is a noop. |
-| `regions`            | object  | false    |              | Regions is the set of geographic regions running DERP node(s).                                                                                                                 |
+| Name                                                                               | Type                                             | Required | Restrictions | Description                                                                                                                                                                    |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------ | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `homeParams`                                                                       | [tailcfg.DERPHomeParams](#tailcfgderphomeparams) | false    |              | Homeparams if non-nil, is a change in home parameters.                                                                                                                         |
+| The rest of the DEPRMap fields, if zero, means unchanged.                          |
+| `omitDefaultRegions`                                                               | boolean                                          | false    |              | Omitdefaultregions specifies to not use Tailscale's DERP servers, and only use those specified in this DERPMap. If there are none set outside of the defaults, this is a noop. |
+| This field is only meaningful if the Regions map is non-nil (indicating a change). |
+| `regions`                                                                          | object                                           | false    |              | Regions is the set of geographic regions running DERP node(s).                                                                                                                 |
 
 It's keyed by the DERPRegion.RegionID.
 The numbers are not necessarily contiguous.|
@@ -7301,6 +7361,7 @@ The numbers are not necessarily contiguous.|
 
 ```json
 {
+  "canPort80": true,
   "certName": "string",
   "derpport": 0,
   "forceHTTP": true,
@@ -7320,6 +7381,7 @@ The numbers are not necessarily contiguous.|
 
 | Name                                                                                                                  | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                       |
 | --------------------------------------------------------------------------------------------------------------------- | ------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `canPort80`                                                                                                           | boolean | false    |              | Canport80 specifies whether this DERP node is accessible over HTTP on port 80 specifically. This is used for captive portal checks.                                                                                                                               |
 | `certName`                                                                                                            | string  | false    |              | Certname optionally specifies the expected TLS cert common name. If empty, HostName is used. If CertName is non-empty, HostName is only used for the TCP dial (if IPv4/IPv6 are not present) + TLS ClientHello.                                                   |
 | `derpport`                                                                                                            | integer | false    |              | Derpport optionally provides an alternate TLS port number for the DERP HTTPS server.                                                                                                                                                                              |
 | If zero, 443 is used.                                                                                                 |
@@ -7343,6 +7405,7 @@ The numbers are not necessarily contiguous.|
   "embeddedRelay": true,
   "nodes": [
     {
+      "canPort80": true,
       "certName": "string",
       "derpport": 0,
       "forceHTTP": true,
