@@ -278,7 +278,7 @@ oidc:
   # filtering out groups that are not needed. This filter is applied after the group
   # mapping.
   # (default: .*, type: regexp)
-  groupRegexFilter: {}
+  groupRegexFilter: .*
   # This field must be set if using the user roles sync feature. Set this to the
   # name of the claim used to store the user's role. The roles should be sent as an
   # array of strings.
