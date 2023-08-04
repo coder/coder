@@ -743,7 +743,7 @@ jobs:
             build/coder_linux_amd64
 
           # Get commit sha to be used as package tag
-          new_package_tag=$(gh api /repos/coder/coder/commits/main | jq -r '.sha[:8]')
+          new_package_tag=$(gh api /repos/coder/coder/commits/main | jq -r '.sha[:7]')
 
           # Tag image with new package tag and push
           docker tag ghcr.io/coder/coder-preview:main ghcr.io/coder/coder-preview:main-$new_package_tag
