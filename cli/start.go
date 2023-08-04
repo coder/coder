@@ -133,7 +133,7 @@ func prepStartWorkspace(inv *clibase.Invocation, client *codersdk.Client, args p
 	}
 
 	richParameters := make([]codersdk.WorkspaceBuildParameter, 0)
-	if !args.PromptBuildOptions {
+	if !args.PromptBuildOptions && len(args.BuildOptions) == 0 {
 		return &buildParameters{
 			richParameters: richParameters,
 		}, nil
@@ -144,7 +144,7 @@ func prepStartWorkspace(inv *clibase.Invocation, client *codersdk.Client, args p
 			continue
 		}
 
-		parameterValue, err := cliui.RichParameter(inv, templateVersionParameter)
+		parameterValue, err := getParameterValueFromCommandLineOrInput(inv, args.PromptBuildOptions, args.BuildOptions, templateVersionParameter)
 		if err != nil {
 			return nil, err
 		}
@@ -173,4 +173,21 @@ func asWorkspaceBuildParameters(nameValuePairs []string) ([]codersdk.WorkspaceBu
 		})
 	}
 	return params, nil
+}
+
+//nolint:revive
+func getParameterValueFromCommandLineOrInput(inv *clibase.Invocation, promptBuildOptions bool, buildOptions []codersdk.WorkspaceBuildParameter, templateVersionParameter codersdk.TemplateVersionParameter) (string, error) {
+	if !promptBuildOptions {
+		for _, bo := range buildOptions {
+			if bo.Name == templateVersionParameter.Name {
+				return bo.Value, nil
+			}
+		}
+	}
+
+	parameterValue, err := cliui.RichParameter(inv, templateVersionParameter)
+	if err != nil {
+		return "", err
+	}
+	return parameterValue, nil
 }
