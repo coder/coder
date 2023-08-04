@@ -46,7 +46,7 @@ jobs:
       CODER_BASE_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_BASE_IMAGE_TAG }}
       CODER_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_IMAGE_TAG }}
       NEW: ${{ steps.check_deployment.outputs.new }}
-      BUILD: ${{ steps.filter.outputs.all_count > steps.filter.outputs.ignored_count }}
+      BUILD: ${{ steps.filter.outputs.all_count > steps.filter.outputs.ignored_count || steps.check_deployment.outputs.new }}
 
     runs-on: "ubuntu-latest"
     steps:
@@ -87,13 +87,14 @@ jobs:
             echo "Deployment already exists. Skipping deployment."
             new=false
           else
-            echo "Deployment doesn't exist. Creating a new one."
+            echo "Deployment doesn't exist."
             new=true
           fi
           echo "new=$new" >> $GITHUB_OUTPUT
 
       - name: Find Comment
         uses: peter-evans/find-comment@v2
+        if: github.event_name == 'workflow_dispatch' || steps.check_deployment.outputs.NEW == 'false'
         id: fc
         with:
           issue-number: ${{ steps.pr_info.outputs.PR_NUMBER }}
@@ -103,6 +104,7 @@ jobs:
 
       - name: Comment on PR
         id: comment_id
+        if: github.event_name == 'workflow_dispatch' || steps.check_deployment.outputs.NEW == 'false'
         uses: peter-evans/create-or-update-comment@v3
         with:
           comment-id: ${{ steps.fc.outputs.comment-id }}
@@ -116,12 +118,14 @@ jobs:
           reactions-edit-mode: replace
 
       - name: Checkout
+        if: github.event_name == 'workflow_dispatch' || steps.check_deployment.outputs.NEW == 'false'
         uses: actions/checkout@v3
         with:
           ref: ${{ steps.pr_info.outputs.PR_BRANCH }}
           fetch-depth: 0
 
       - name: Check changed files
+        if: github.event_name == 'workflow_dispatch' || steps.check_deployment.outputs.NEW == 'false'
         uses: dorny/paths-filter@v2
         id: filter
         with:
@@ -145,6 +149,7 @@ jobs:
               - "scripts/**/*[^D][^o][^c][^k][^e][^r][^f][^i][^l][^e][.][b][^a][^s][^e]*"
 
       - name: Print number of changed files
+        if: github.event_name == 'workflow_dispatch' || steps.check_deployment.outputs.NEW == 'false'
         run: |
           set -euxo pipefail
           echo "Total number of changed files: ${{ steps.filter.outputs.all_count }}"
@@ -154,10 +159,10 @@ jobs:
     needs: get_info
     # Skips the build job if the workflow was triggered by a workflow_dispatch event and the skip_build input is set to true
     # or if the workflow was triggered by an issue_comment event and the comment body contains --skip-build
-    # alwyas run the build job if the workflow was triggered by a pull_request event
+    # always run the build job if a pull_request event triggered the workflow
     if: |
       (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_build == 'false') ||
-      (github.event_name == 'pull_request' && needs.get_info.outputs.NEW == 'false')
+      (github.event_name == 'pull_request' && needs.get_info.result == 'success' && needs.get_info.outputs.NEW == 'false')
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
@@ -211,7 +216,9 @@ jobs:
   deploy:
     needs: [build, get_info]
     # Run deploy job only if build job was successful or skipped
-    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && needs.get_info.result == 'success'
+    if: |
+      always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && 
+      (github.event_name == 'workflow_dispatch' || needs.get_info.outputs.NEW == 'false')
     runs-on: "ubuntu-latest"
     env:
       CODER_IMAGE_TAG: ${{ needs.get_info.outputs.CODER_IMAGE_TAG }}
@@ -287,6 +294,11 @@ jobs:
             echo "Certificate exists. Skipping certificate creation."
           fi
           echo "Copy certificate from pr-deployment-certs to pr${{ env.PR_NUMBER }} namespace"
+          until kubectl get secret pr${{ env.PR_NUMBER }}-tls -n pr-deployment-certs &> /dev/null
+          do
+            echo "Waiting for secret pr${{ env.PR_NUMBER }}-tls to be created..."
+            sleep 5
+          done
           (
             kubectl get secret pr${{ env.PR_NUMBER }}-tls -n pr-deployment-certs -o json |
             jq 'del(.metadata.namespace,.metadata.creationTimestamp,.metadata.resourceVersion,.metadata.selfLink,.metadata.uid,.metadata.managedFields)' |

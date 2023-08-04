@@ -1,4 +1,4 @@
-package genericmap
+package codersdk
 
 type Foo struct {
 	Bar string `json:"bar"`
