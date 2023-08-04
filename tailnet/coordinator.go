@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coder/coder/coderd/util/slice"
 	"github.com/google/uuid"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/exp/slices"
@@ -22,6 +21,7 @@ import (
 	"tailscale.com/types/key"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/coderd/util/slice"
 )
 
 // Coordinator exchanges nodes with agents to establish connections.
