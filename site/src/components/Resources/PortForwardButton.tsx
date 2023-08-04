@@ -115,7 +115,7 @@ export const PortForwardPopoverView: React.FC<
         >
           {ports?.length === 0
             ? "No open ports were detected."
-            : "Port URLs are only accessible by you."}
+            : "The forwarded ports are exclusively accessible to you."}
         </HelpTooltipText>
         <Box sx={{ marginTop: (theme) => theme.spacing(1.5) }}>
           {ports?.map((p) => {
@@ -126,8 +126,7 @@ export const PortForwardPopoverView: React.FC<
               workspaceName,
               username,
             )
-            const label =
-              p.process_name !== "" ? p.process_name : `Port ${p.port}`
+            const label = p.process_name !== "" ? p.process_name : p.port
             return (
               <Link
                 underline="none"
@@ -169,12 +168,11 @@ export const PortForwardPopoverView: React.FC<
           padding: (theme) => theme.spacing(2.5),
         }}
       >
-        <HelpTooltipTitle>Open app</HelpTooltipTitle>
+        <HelpTooltipTitle>Forward port</HelpTooltipTitle>
         <HelpTooltipText
           sx={{ color: (theme) => theme.palette.text.secondary }}
         >
-          Access ports running on the agent with the port, agent name, workspace
-          name and your username.
+          Access ports running on the agent:
         </HelpTooltipText>
 
         <Box
@@ -210,6 +208,7 @@ export const PortForwardPopoverView: React.FC<
             type="number"
             placeholder="Type a port number..."
             min={0}
+            max={65535}
             required
             sx={{
               fontSize: 12,
