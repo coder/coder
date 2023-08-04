@@ -130,10 +130,18 @@ func (r *RootCmd) create() *clibase.Cmd {
 				schedSpec = ptr.Ref(sched.String())
 			}
 
-			buildParams, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
-				Template:          template,
+			cliRichParameters, err := asWorkspaceBuildParameters(parameterFlags.richParameters)
+			if err != nil {
+				return xerrors.Errorf("can't parse given parameter values: %w", err)
+			}
+
+			richParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
+				Action:           WorkspaceCreate,
+				Template:         template,
+				NewWorkspaceName: workspaceName,
+
 				RichParameterFile: parameterFlags.richParameterFile,
-				NewWorkspaceName:  workspaceName,
+				RichParameters:    cliRichParameters,
 			})
 			if err != nil {
 				return xerrors.Errorf("prepare build: %w", err)
@@ -157,7 +165,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 				Name:                workspaceName,
 				AutostartSchedule:   schedSpec,
 				TTLMillis:           ttlMillis,
-				RichParameterValues: buildParams.richParameters,
+				RichParameterValues: richParameters,
 			})
 			if err != nil {
 				return xerrors.Errorf("create workspace: %w", err)
@@ -194,102 +202,56 @@ func (r *RootCmd) create() *clibase.Cmd {
 		},
 		cliui.SkipPromptOption(),
 	)
-	cmd.Options = append(cmd.Options, parameterFlags.parameters()...)
+	cmd.Options = append(cmd.Options, parameterFlags.cliParameters()...)
 	return cmd
 }
 
 type prepWorkspaceBuildArgs struct {
-	Template           codersdk.Template
-	ExistingRichParams []codersdk.WorkspaceBuildParameter
-	RichParameterFile  string
-	NewWorkspaceName   string
-
-	UpdateWorkspace bool
-	WorkspaceID     uuid.UUID
+	Action           WorkspaceCLIAction
+	Template         codersdk.Template
+	NewWorkspaceName string
+	WorkspaceID      uuid.UUID
 
 	PromptBuildOptions bool
 	BuildOptions       []codersdk.WorkspaceBuildParameter
-}
 
-type buildParameters struct {
-	// Rich parameters stores values for build parameters annotated with description, icon, type, etc.
-	richParameters []codersdk.WorkspaceBuildParameter
+	LastBuildParameters []codersdk.WorkspaceBuildParameter
+	RichParameterFile   string
+	RichParameters      []codersdk.WorkspaceBuildParameter
 }
 
 // prepWorkspaceBuild will ensure a workspace build will succeed on the latest template version.
-// Any missing params will be prompted to the user. It supports legacy and rich parameters.
-func prepWorkspaceBuild(inv *clibase.Invocation, client *codersdk.Client, args prepWorkspaceBuildArgs) (*buildParameters, error) {
+// Any missing params will be prompted to the user. It supports rich parameters.
+func prepWorkspaceBuild(inv *clibase.Invocation, client *codersdk.Client, args prepWorkspaceBuildArgs) ([]codersdk.WorkspaceBuildParameter, error) {
 	ctx := inv.Context()
 
 	templateVersion, err := client.TemplateVersion(ctx, args.Template.ActiveVersionID)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("get template version: %w", err)
 	}
 
-	// Rich parameters
 	templateVersionParameters, err := client.TemplateVersionRichParameters(inv.Context(), templateVersion.ID)
 	if err != nil {
 		return nil, xerrors.Errorf("get template version rich parameters: %w", err)
 	}
 
-	parameterMapFromFile := map[string]string{}
-	useParamFile := false
+	parameterFile := map[string]string{}
 	if args.RichParameterFile != "" {
-		useParamFile = true
-		_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Paragraph.Render("Attempting to read the variables from the rich parameter file.")+"\r\n")
-		parameterMapFromFile, err = createParameterMapFromFile(args.RichParameterFile)
+		parameterFile, err = parseParameterMapFile(args.RichParameterFile)
 		if err != nil {
-			return nil, err
+			return nil, xerrors.Errorf("can't parse parameter map file: %w", err)
 		}
 	}
-	disclaimerPrinted := false
-	richParameters := make([]codersdk.WorkspaceBuildParameter, 0)
-PromptRichParamLoop:
-	for _, templateVersionParameter := range templateVersionParameters {
-		if !args.PromptBuildOptions && templateVersionParameter.Ephemeral {
-			continue
-		}
 
-		if !disclaimerPrinted {
-			_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Paragraph.Render("This template has customizable parameters. Values can be changed after create, but may have unintended side effects (like data loss).")+"\r\n")
-			disclaimerPrinted = true
-		}
-
-		// Param file is all or nothing
-		if !useParamFile && !templateVersionParameter.Ephemeral {
-			for _, e := range args.ExistingRichParams {
-				if e.Name == templateVersionParameter.Name {
-					// If the param already exists, we do not need to prompt it again.
-					// The workspace scope will reuse params for each build.
-					continue PromptRichParamLoop
-				}
-			}
-		}
-
-		if args.UpdateWorkspace && !templateVersionParameter.Mutable {
-			// Check if the immutable parameter was used in the previous build. If so, then it isn't a fresh one
-			// and the user should be warned.
-			exists, err := workspaceBuildParameterExists(ctx, client, args.WorkspaceID, templateVersionParameter)
-			if err != nil {
-				return nil, err
-			}
-
-			if exists {
-				_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Warn.Render(fmt.Sprintf(`Parameter %q is not mutable, so can't be customized after workspace creation.`, templateVersionParameter.Name)))
-				continue
-			}
-		}
-
-		parameterValue, err := getWorkspaceBuildParameterValueFromMapOrInput(inv, parameterMapFromFile, templateVersionParameter)
-		if err != nil {
-			return nil, err
-		}
-
-		richParameters = append(richParameters, *parameterValue)
-	}
-
-	if disclaimerPrinted {
-		_, _ = fmt.Fprintln(inv.Stdout)
+	resolver := new(ParameterResolver).
+		WithPromptBuildOptions(args.PromptBuildOptions).
+		WithBuildOptions(args.BuildOptions).
+		WithLastBuildParameters(args.LastBuildParameters).
+		WithRichParameters(args.RichParameters).
+		WithRichParametersFile(parameterFile)
+	buildParameters, err := resolver.Resolve(args.Action, templateVersionParameters)
+	if err != nil {
+		return nil, err
 	}
 
 	err = cliui.GitAuth(ctx, inv.Stdout, cliui.GitAuthOptions{
@@ -304,7 +266,7 @@ PromptRichParamLoop:
 	// Run a dry-run with the given parameters to check correctness
 	dryRun, err := client.CreateTemplateVersionDryRun(inv.Context(), templateVersion.ID, codersdk.CreateTemplateVersionDryRunRequest{
 		WorkspaceName:       args.NewWorkspaceName,
-		RichParameterValues: richParameters,
+		RichParameterValues: buildParameters,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("begin workspace dry-run: %w", err)
@@ -344,9 +306,7 @@ PromptRichParamLoop:
 		return nil, xerrors.Errorf("get resources: %w", err)
 	}
 
-	return &buildParameters{
-		richParameters: richParameters,
-	}, nil
+	return buildParameters, nil
 }
 
 func workspaceBuildParameterExists(ctx context.Context, client *codersdk.Client, workspaceID uuid.UUID, templateVersionParameter codersdk.TemplateVersionParameter) (bool, error) {

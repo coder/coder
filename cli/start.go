@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -11,48 +10,6 @@ import (
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
-
-// workspaceParameterFlags are used by commands requiring rich parameters and/or build options.
-type workspaceParameterFlags struct {
-	promptBuildOptions bool
-	buildOptions       []string
-
-	richParameterFile string
-	richParameters    []string
-}
-
-func (wpf *workspaceParameterFlags) options() []clibase.Option {
-	return clibase.OptionSet{
-		{
-			Flag:        "build-option",
-			Env:         "CODER_BUILD_OPTION",
-			Description: `Build option value in the format "name=value".`,
-			Value:       clibase.StringArrayOf(&wpf.buildOptions),
-		},
-		{
-			Flag:        "build-options",
-			Description: "Prompt for one-time build options defined with ephemeral parameters.",
-			Value:       clibase.BoolOf(&wpf.promptBuildOptions),
-		},
-	}
-}
-
-func (wpf *workspaceParameterFlags) parameters() []clibase.Option {
-	return clibase.OptionSet{
-		clibase.Option{
-			Flag:        "parameter",
-			Env:         "CODER_RICH_PARAMETER",
-			Description: `Rich parameter value in the format "name=value".`,
-			Value:       clibase.StringArrayOf(&wpf.richParameters),
-		},
-		clibase.Option{
-			Flag:        "rich-parameter-file",
-			Env:         "CODER_RICH_PARAMETER_FILE",
-			Description: "Specify a file path with values for rich parameters defined in the template.",
-			Value:       clibase.StringOf(&wpf.richParameterFile),
-		},
-	}
-}
 
 func (r *RootCmd) start() *clibase.Cmd {
 	var parameterFlags workspaceParameterFlags
@@ -66,7 +23,7 @@ func (r *RootCmd) start() *clibase.Cmd {
 			clibase.RequireNArgs(1),
 			r.InitClient(client),
 		),
-		Options: append(parameterFlags.options(), cliui.SkipPromptOption()),
+		Options: append(parameterFlags.cliBuildOptions(), cliui.SkipPromptOption()),
 		Handler: func(inv *clibase.Invocation) error {
 			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
@@ -80,10 +37,11 @@ func (r *RootCmd) start() *clibase.Cmd {
 
 			buildOptions, err := asWorkspaceBuildParameters(parameterFlags.buildOptions)
 			if err != nil {
-				return err
+				return xerrors.Errorf("can't parse build options: %w", err)
 			}
 
-			buildParams, err := prepStartWorkspace(inv, client, prepStartWorkspaceArgs{
+			buildParameters, err := prepStartWorkspace(inv, client, prepStartWorkspaceArgs{
+				Action:             WorkspaceStart,
 				Template:           template,
 				PromptBuildOptions: parameterFlags.promptBuildOptions,
 				BuildOptions:       buildOptions,
@@ -94,7 +52,7 @@ func (r *RootCmd) start() *clibase.Cmd {
 
 			build, err := client.CreateWorkspaceBuild(inv.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 				Transition:          codersdk.WorkspaceTransitionStart,
-				RichParameterValues: buildParams.richParameters,
+				RichParameterValues: buildParameters,
 			})
 			if err != nil {
 				return err
@@ -113,18 +71,18 @@ func (r *RootCmd) start() *clibase.Cmd {
 }
 
 type prepStartWorkspaceArgs struct {
-	Template codersdk.Template
-
+	Action             WorkspaceCLIAction
+	Template           codersdk.Template
 	PromptBuildOptions bool
 	BuildOptions       []codersdk.WorkspaceBuildParameter
 }
 
-func prepStartWorkspace(inv *clibase.Invocation, client *codersdk.Client, args prepStartWorkspaceArgs) (*buildParameters, error) {
+func prepStartWorkspace(inv *clibase.Invocation, client *codersdk.Client, args prepStartWorkspaceArgs) ([]codersdk.WorkspaceBuildParameter, error) {
 	ctx := inv.Context()
 
 	templateVersion, err := client.TemplateVersion(ctx, args.Template.ActiveVersionID)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("get template version: %w", err)
 	}
 
 	templateVersionParameters, err := client.TemplateVersionRichParameters(inv.Context(), templateVersion.ID)
@@ -132,62 +90,8 @@ func prepStartWorkspace(inv *clibase.Invocation, client *codersdk.Client, args p
 		return nil, xerrors.Errorf("get template version rich parameters: %w", err)
 	}
 
-	richParameters := make([]codersdk.WorkspaceBuildParameter, 0)
-	if !args.PromptBuildOptions && len(args.BuildOptions) == 0 {
-		return &buildParameters{
-			richParameters: richParameters,
-		}, nil
-	}
-
-	for _, templateVersionParameter := range templateVersionParameters {
-		if !templateVersionParameter.Ephemeral {
-			continue
-		}
-
-		parameterValue, err := getParameterValueFromCommandLineOrInput(inv, args.PromptBuildOptions, args.BuildOptions, templateVersionParameter)
-		if err != nil {
-			return nil, err
-		}
-
-		richParameters = append(richParameters, codersdk.WorkspaceBuildParameter{
-			Name:  templateVersionParameter.Name,
-			Value: parameterValue,
-		})
-	}
-
-	return &buildParameters{
-		richParameters: richParameters,
-	}, nil
-}
-
-func asWorkspaceBuildParameters(nameValuePairs []string) ([]codersdk.WorkspaceBuildParameter, error) {
-	var params []codersdk.WorkspaceBuildParameter
-	for _, nameValue := range nameValuePairs {
-		split := strings.SplitN(nameValue, "=", 2)
-		if len(split) < 2 {
-			return nil, xerrors.Errorf("format key=value expected, but got %s", nameValue)
-		}
-		params = append(params, codersdk.WorkspaceBuildParameter{
-			Name:  split[0],
-			Value: split[1],
-		})
-	}
-	return params, nil
-}
-
-//nolint:revive
-func getParameterValueFromCommandLineOrInput(inv *clibase.Invocation, promptBuildOptions bool, buildOptions []codersdk.WorkspaceBuildParameter, templateVersionParameter codersdk.TemplateVersionParameter) (string, error) {
-	if !promptBuildOptions {
-		for _, bo := range buildOptions {
-			if bo.Name == templateVersionParameter.Name {
-				return bo.Value, nil
-			}
-		}
-	}
-
-	parameterValue, err := cliui.RichParameter(inv, templateVersionParameter)
-	if err != nil {
-		return "", err
-	}
-	return parameterValue, nil
+	resolver := new(ParameterResolver).
+		WithPromptBuildOptions(args.PromptBuildOptions).
+		WithBuildOptions(args.BuildOptions)
+	return resolver.Resolve(args.Action, templateVersionParameters)
 }

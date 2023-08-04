@@ -5,6 +5,7 @@ import (
 
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/codersdk"
+	"golang.org/x/xerrors"
 )
 
 func (r *RootCmd) update() *clibase.Cmd {
@@ -52,17 +53,24 @@ func (r *RootCmd) update() *clibase.Cmd {
 				}
 			}
 
-			buildParams, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
-				Template:           template,
-				ExistingRichParams: existingRichParams,
-				RichParameterFile:  parameterFlags.richParameterFile,
-				NewWorkspaceName:   workspace.Name,
+			cliRichParameters, err := asWorkspaceBuildParameters(parameterFlags.richParameters)
+			if err != nil {
+				return xerrors.Errorf("can't parse given parameter values: %w", err)
+			}
 
-				UpdateWorkspace: true,
-				WorkspaceID:     workspace.LatestBuild.ID,
+			richParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
+				Action:           WorkspaceUpdate,
+				Template:         template,
+				NewWorkspaceName: workspace.Name,
+				WorkspaceID:      workspace.LatestBuild.ID,
+
+				LastBuildParameters: existingRichParams,
 
 				PromptBuildOptions: parameterFlags.promptBuildOptions,
 				BuildOptions:       buildOptions,
+
+				RichParameterFile: parameterFlags.richParameterFile,
+				RichParameters:    cliRichParameters,
 			})
 			if err != nil {
 				return err
@@ -71,7 +79,7 @@ func (r *RootCmd) update() *clibase.Cmd {
 			build, err := client.CreateWorkspaceBuild(inv.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 				TemplateVersionID:   template.ActiveVersionID,
 				Transition:          codersdk.WorkspaceTransitionStart,
-				RichParameterValues: buildParams.richParameters,
+				RichParameterValues: richParameters,
 			})
 			if err != nil {
 				return err
@@ -99,7 +107,7 @@ func (r *RootCmd) update() *clibase.Cmd {
 			Value:       clibase.BoolOf(&alwaysPrompt),
 		},
 	}
-	cmd.Options = append(cmd.Options, parameterFlags.options()...)
-	cmd.Options = append(cmd.Options, parameterFlags.parameters()...)
+	cmd.Options = append(cmd.Options, parameterFlags.cliBuildOptions()...)
+	cmd.Options = append(cmd.Options, parameterFlags.cliParameters()...)
 	return cmd
 }
