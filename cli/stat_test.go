@@ -74,7 +74,7 @@ func TestStatCPUCmd(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		t.Cleanup(cancel)
-		inv, _ := clitest.New(t, "stat", "cpu", "--output=text")
+		inv, _ := clitest.New(t, "stat", "cpu", "--output=text", "--host")
 		buf := new(bytes.Buffer)
 		inv.Stdout = buf
 		err := inv.WithContext(ctx).Run()
@@ -87,7 +87,7 @@ func TestStatCPUCmd(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		t.Cleanup(cancel)
-		inv, _ := clitest.New(t, "stat", "cpu", "--output=json")
+		inv, _ := clitest.New(t, "stat", "cpu", "--output=json", "--host")
 		buf := new(bytes.Buffer)
 		inv.Stdout = buf
 		err := inv.WithContext(ctx).Run()
