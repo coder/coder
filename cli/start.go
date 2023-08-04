@@ -17,15 +17,15 @@ type workspaceParameterFlags struct {
 	buildOptions       []string
 
 	richParameterFile string
-	parameters        []string
+	richParameters    []string
 }
 
 func (wpf *workspaceParameterFlags) options() []clibase.Option {
 	return clibase.OptionSet{
 		clibase.Option{
-			Flag:        "parameter",
+			Flag:        "build-option",
 			Env:         "CODER_BUILD_OPTION",
-			Description: `Build option value in the format "name=value"`,
+			Description: `Build option value in the format "name=value".`,
 			Value:       clibase.StringArrayOf(&wpf.buildOptions),
 		},
 		{
@@ -36,13 +36,13 @@ func (wpf *workspaceParameterFlags) options() []clibase.Option {
 	}
 }
 
-func (wpf *workspaceParameterFlags) richParameters() []clibase.Option {
+func (wpf *workspaceParameterFlags) parameters() []clibase.Option {
 	return clibase.OptionSet{
 		clibase.Option{
 			Flag:        "parameter",
 			Env:         "CODER_RICH_PARAMETER",
-			Description: `Rich parameter value in the format "name=value"`,
-			Value:       clibase.StringArrayOf(&wpf.parameters),
+			Description: `Rich parameter value in the format "name=value".`,
+			Value:       clibase.StringArrayOf(&wpf.richParameters),
 		},
 		clibase.Option{
 			Flag:        "rich-parameter-file",

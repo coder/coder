@@ -194,7 +194,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 		},
 		cliui.SkipPromptOption(),
 	)
-	cmd.Options = append(cmd.Options, parameterFlags.richParameters()...)
+	cmd.Options = append(cmd.Options, parameterFlags.parameters()...)
 	return cmd
 }
 

@@ -93,6 +93,6 @@ func (r *RootCmd) update() *clibase.Cmd {
 		},
 	}
 	cmd.Options = append(cmd.Options, parameterFlags.options()...)
-	cmd.Options = append(cmd.Options, parameterFlags.richParameters()...)
+	cmd.Options = append(cmd.Options, parameterFlags.parameters()...)
 	return cmd
 }
