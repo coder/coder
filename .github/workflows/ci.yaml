@@ -754,8 +754,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           organization: coder
           container: coder-preview
-          dry-run: true
-          keep-last: 5
+          keep-younger-than: 7 # days
           keep-tags-regexes: ^pr
           prune-tags-regexes: ^main-
           prune-untagged: true
