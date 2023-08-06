@@ -41,6 +41,18 @@ rules:
     - patch
     - update
     - watch
+{{- if .Values.coder.serviceAccount.serviceAccountPerms }}
+  - apiGroups: [""]
+    resources: ["serviceaccounts"]
+    verbs:
+    - create
+    - delete
+    - deletecollection
+    - get
+    - list
+    - patch
+    - update
+    - watch
 {{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
