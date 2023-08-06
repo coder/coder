@@ -9,6 +9,9 @@ Edit a user group
   -u, --avatar-url string
           Update the group avatar.
 
+      --display-name string, $CODER_DISPLAY_NAME
+          Optional human friendly name for the group.
+
   -n, --name string
           Update the group name.
 

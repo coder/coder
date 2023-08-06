@@ -32,6 +32,8 @@ type ProxyOptions struct {
 	TLSCertificates []tls.Certificate
 	AppHostname     string
 	DisablePathApps bool
+	DerpDisabled    bool
+	DerpOnly        bool
 
 	// ProxyURL is optional
 	ProxyURL *url.URL
@@ -91,16 +93,6 @@ func NewWorkspaceProxy(t *testing.T, coderdAPI *coderd.API, owner *codersdk.Clie
 		accessURL = serverURL
 	}
 
-	// TODO: Stun and derp stuff
-	// derpPort, err := strconv.Atoi(serverURL.Port())
-	// require.NoError(t, err)
-	//
-	// stunAddr, stunCleanup := stuntest.ServeWithPacketListener(t, nettype.Std{})
-	// t.Cleanup(stunCleanup)
-	//
-	// derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(slogtest.Make(t, nil).Named("derp").Leveled(slog.LevelDebug)))
-	// derpServer.SetMeshKey("test-key")
-
 	var appHostnameRegex *regexp.Regexp
 	if options.AppHostname != "" {
 		var err error
@@ -134,7 +126,8 @@ func NewWorkspaceProxy(t *testing.T, coderdAPI *coderd.API, owner *codersdk.Clie
 		// We need a new registry to not conflict with the coderd internal
 		// proxy metrics.
 		PrometheusRegistry:     prometheus.NewRegistry(),
-		DERPEnabled:            true,
+		DERPEnabled:            !options.DerpDisabled,
+		DERPOnly:               options.DerpOnly,
 		DERPServerRelayAddress: accessURL.String(),
 	})
 	require.NoError(t, err)

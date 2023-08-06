@@ -8,6 +8,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/netip"
@@ -851,6 +852,36 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 	nconn := websocket.NetConn(ctx, ws, websocket.MessageBinary)
 	defer nconn.Close()
 
+	// Slurp all packets from the connection into io.Discard so pongs get sent
+	// by the websocket package.
+	go func() {
+		_, _ = io.Copy(io.Discard, nconn)
+	}()
+
+	go func(ctx context.Context) {
+		// TODO(mafredri): Is this too frequent? Use separate ping disconnect timeout?
+		t := time.NewTicker(api.AgentConnectionUpdateFrequency)
+		defer t.Stop()
+
+		for {
+			select {
+			case <-t.C:
+			case <-ctx.Done():
+				return
+			}
+
+			// We don't need a context that times out here because the ping will
+			// eventually go through. If the context times out, then other
+			// websocket read operations will receive an error, obfuscating the
+			// actual problem.
+			err := ws.Ping(ctx)
+			if err != nil {
+				_ = ws.Close(websocket.StatusInternalError, err.Error())
+				return
+			}
+		}
+	}(ctx)
+
 	ticker := time.NewTicker(api.Options.DERPMapUpdateFrequency)
 	defer ticker.Stop()
 
@@ -866,6 +897,7 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 			lastDERPMap = derpMap
 		}
 
+		ticker.Reset(api.Options.DERPMapUpdateFrequency)
 		select {
 		case <-ctx.Done():
 			return
@@ -873,8 +905,6 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 			return
 		case <-ticker.C:
 		}
-
-		ticker.Reset(api.Options.DERPMapUpdateFrequency)
 	}
 }
 
@@ -1380,36 +1410,12 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		activityBumpWorkspace(ctx, api.Logger.Named("activity_bump"), api.Database, workspace.ID)
 	}
 
-	payload, err := json.Marshal(req.ConnectionsByProto)
-	if err != nil {
-		api.Logger.Error(ctx, "marshal agent connections by proto", slog.F("workspace_agent_id", workspaceAgent.ID), slog.Error(err))
-		payload = json.RawMessage("{}")
-	}
-
 	now := database.Now()
 
 	var errGroup errgroup.Group
 	errGroup.Go(func() error {
-		_, err = api.Database.InsertWorkspaceAgentStat(ctx, database.InsertWorkspaceAgentStatParams{
-			ID:                          uuid.New(),
-			CreatedAt:                   now,
-			AgentID:                     workspaceAgent.ID,
-			WorkspaceID:                 workspace.ID,
-			UserID:                      workspace.OwnerID,
-			TemplateID:                  workspace.TemplateID,
-			ConnectionsByProto:          payload,
-			ConnectionCount:             req.ConnectionCount,
-			RxPackets:                   req.RxPackets,
-			RxBytes:                     req.RxBytes,
-			TxPackets:                   req.TxPackets,
-			TxBytes:                     req.TxBytes,
-			SessionCountVSCode:          req.SessionCountVSCode,
-			SessionCountJetBrains:       req.SessionCountJetBrains,
-			SessionCountReconnectingPTY: req.SessionCountReconnectingPTY,
-			SessionCountSSH:             req.SessionCountSSH,
-			ConnectionMedianLatencyMS:   req.ConnectionMedianLatencyMS,
-		})
-		if err != nil {
+		if err := api.statsBatcher.Add(workspaceAgent.ID, workspace.TemplateID, workspace.OwnerID, workspace.ID, req); err != nil {
+			api.Logger.Error(ctx, "failed to add stats to batcher", slog.Error(err))
 			return xerrors.Errorf("can't insert workspace agent stat: %w", err)
 		}
 		return nil

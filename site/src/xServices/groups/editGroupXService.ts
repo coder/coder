@@ -23,7 +23,12 @@ export const editGroupMachine = createMachine(
       },
       events: {} as {
         type: "UPDATE"
-        data: { name: string; avatar_url: string; quota_allowance: number }
+        data: {
+          display_name: string
+          name: string
+          avatar_url: string
+          quota_allowance: number
+        }
       },
     },
     tsTypes: {} as import("./editGroupXService.typegen").Typegen0,

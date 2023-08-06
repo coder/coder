@@ -67,6 +67,10 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 
 		AGPL:    coderd.New(options.Options),
 		Options: options,
+		provisionerDaemonAuth: &provisionerDaemonAuth{
+			psk:        options.ProvisionerDaemonPSK,
+			authorizer: options.Authorizer,
+		},
 	}
 	defer func() {
 		if err != nil {
@@ -193,14 +197,21 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Get("/", api.groupByOrganization)
 			})
 		})
+		// TODO: provisioner daemons are not scoped to organizations in the database, so placing them
+		// under an organization route doesn't make sense.  In order to allow the /serve endpoint to
+		// work with a pre-shared key (PSK) without an API key, these routes will simply ignore the
+		// value of {organization}.  That is, the route will work with any organization ID, whether or
+		// not it exits.  This doesn't leak any information about the existence of organizations, so is
+		// fine from a security perspective, but might be a little surprising.
+		//
+		// We may in future decide to scope provisioner daemons to organizations, so we'll keep the API
+		// route as is.
 		r.Route("/organizations/{organization}/provisionerdaemons", func(r chi.Router) {
 			r.Use(
 				api.provisionerDaemonsEnabledMW,
-				apiKeyMiddleware,
-				httpmw.ExtractOrganizationParam(api.Database),
 			)
-			r.Get("/", api.provisionerDaemons)
-			r.Get("/serve", api.provisionerDaemonServe)
+			r.With(apiKeyMiddleware).Get("/", api.provisionerDaemons)
+			r.With(apiKeyMiddlewareOptional).Get("/serve", api.provisionerDaemonServe)
 		})
 		r.Route("/templates/{template}/acl", func(r chi.Router) {
 			r.Use(
@@ -362,6 +373,9 @@ type Options struct {
 	EntitlementsUpdateInterval time.Duration
 	ProxyHealthInterval        time.Duration
 	Keys                       map[string]ed25519.PublicKey
+
+	// optional pre-shared key for authentication of external provisioner daemons
+	ProvisionerDaemonPSK string
 }
 
 type API struct {
@@ -383,6 +397,8 @@ type API struct {
 	entitlementsUpdateMu sync.Mutex
 	entitlementsMu       sync.RWMutex
 	entitlements         codersdk.Entitlements
+
+	provisionerDaemonAuth *provisionerDaemonAuth
 }
 
 func (api *API) Close() error {
@@ -578,7 +594,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 	if initial, changed, enabled := featureChanged(codersdk.FeatureWorkspaceProxy); shouldUpdate(initial, changed, enabled) {
 		if enabled {
-			fn := derpMapper(api.Logger, api.ProxyHealth)
+			fn := derpMapper(api.Logger, api.DeploymentValues, api.ProxyHealth)
 			api.AGPL.DERPMapper.Store(&fn)
 		} else {
 			api.AGPL.DERPMapper.Store(nil)
@@ -643,7 +659,7 @@ var (
 	lastDerpConflictLog   time.Time
 )
 
-func derpMapper(logger slog.Logger, proxyHealth *proxyhealth.ProxyHealth) func(*tailcfg.DERPMap) *tailcfg.DERPMap {
+func derpMapper(logger slog.Logger, cfg *codersdk.DeploymentValues, proxyHealth *proxyhealth.ProxyHealth) func(*tailcfg.DERPMap) *tailcfg.DERPMap {
 	return func(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap {
 		derpMap = derpMap.Clone()
 
@@ -706,6 +722,10 @@ func derpMapper(logger slog.Logger, proxyHealth *proxyhealth.ProxyHealth) func(*
 			// existing ID in the DERP map.
 			regionID := int(startingRegionID) + int(status.Proxy.RegionID)
 			regionCode := fmt.Sprintf("coder_%s", strings.ToLower(status.Proxy.Name))
+			regionName := status.Proxy.DisplayName
+			if regionName == "" {
+				regionName = status.Proxy.Name
+			}
 			for _, r := range derpMap.Regions {
 				if r.RegionID == regionID || r.RegionCode == regionCode {
 					// Log a warning if we haven't logged one in the last
@@ -718,7 +738,7 @@ func derpMapper(logger slog.Logger, proxyHealth *proxyhealth.ProxyHealth) func(*
 					lastDerpConflictMutex.Unlock()
 					if shouldLog {
 						logger.Warn(context.Background(),
-							"proxy region ID or code conflict, ignoring workspace proxy for DERP map. Please change the flags on the affected proxy to use a different region ID and code",
+							"proxy region ID or code conflict, ignoring workspace proxy for DERP map",
 							slog.F("proxy_id", status.Proxy.ID),
 							slog.F("proxy_name", status.Proxy.Name),
 							slog.F("proxy_display_name", status.Proxy.DisplayName),
@@ -733,20 +753,43 @@ func derpMapper(logger slog.Logger, proxyHealth *proxyhealth.ProxyHealth) func(*
 				}
 			}
 
+			var stunNodes []*tailcfg.DERPNode
+			if !cfg.DERP.Config.BlockDirect.Value() {
+				stunNodes, err = agpltailnet.STUNNodes(regionID, cfg.DERP.Server.STUNAddresses)
+				if err != nil {
+					// Log a warning if we haven't logged one in the last
+					// minute.
+					lastDerpConflictMutex.Lock()
+					shouldLog := lastDerpConflictLog.IsZero() || time.Since(lastDerpConflictLog) > time.Minute
+					if shouldLog {
+						lastDerpConflictLog = time.Now()
+					}
+					lastDerpConflictMutex.Unlock()
+					if shouldLog {
+						logger.Error(context.Background(), "failed to calculate STUN nodes", slog.Error(err))
+					}
+
+					// No continue because we can keep going.
+					stunNodes = []*tailcfg.DERPNode{}
+				}
+			}
+
+			nodes := append(stunNodes, &tailcfg.DERPNode{
+				Name:      fmt.Sprintf("%da", regionID),
+				RegionID:  regionID,
+				HostName:  u.Hostname(),
+				DERPPort:  portInt,
+				STUNPort:  -1,
+				ForceHTTP: u.Scheme == "http",
+			})
+
 			derpMap.Regions[regionID] = &tailcfg.DERPRegion{
 				// EmbeddedRelay ONLY applies to the primary.
 				EmbeddedRelay: false,
 				RegionID:      regionID,
 				RegionCode:    regionCode,
-				RegionName:    status.Proxy.Name,
-				Nodes: []*tailcfg.DERPNode{{
-					Name:      fmt.Sprintf("%da", regionID),
-					RegionID:  regionID,
-					HostName:  u.Hostname(),
-					DERPPort:  portInt,
-					STUNPort:  -1,
-					ForceHTTP: u.Scheme == "http",
-				}},
+				RegionName:    regionName,
+				Nodes:         nodes,
 			}
 		}
 

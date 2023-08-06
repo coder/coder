@@ -328,6 +328,7 @@ type ProvisionerConfig struct {
 	DaemonPollInterval  clibase.Duration `json:"daemon_poll_interval" typescript:",notnull"`
 	DaemonPollJitter    clibase.Duration `json:"daemon_poll_jitter" typescript:",notnull"`
 	ForceCancelInterval clibase.Duration `json:"force_cancel_interval" typescript:",notnull"`
+	DaemonPSK           clibase.String   `json:"daemon_psk" typescript:",notnull"`
 }
 
 type RateLimitConfig struct {
@@ -1230,6 +1231,15 @@ when required by your organization's security policy.`,
 			Group:       &deploymentGroupProvisioning,
 			YAML:        "forceCancelInterval",
 		},
+		{
+			Name:        "Provisioner Daemon Pre-shared Key (PSK)",
+			Description: "Pre-shared key to authenticate external provisioner daemons to Coder server.",
+			Flag:        "provisioner-daemon-psk",
+			Env:         "CODER_PROVISIONER_DAEMON_PSK",
+			Value:       &c.Provisioner.DaemonPSK,
+			Group:       &deploymentGroupProvisioning,
+			YAML:        "daemonPSK",
+		},
 		// RateLimit settings
 		{
 			Name:        "Disable All Rate Limits",
@@ -1850,10 +1860,6 @@ const (
 	// only Coordinator
 	ExperimentTailnetPGCoordinator Experiment = "tailnet_pg_coordinator"
 
-	// ExperimentConvertToOIDC enables users to convert from password to
-	// oidc.
-	ExperimentConvertToOIDC Experiment = "convert-to-oidc"
-
 	// ExperimentSingleTailnet replaces workspace connections inside coderd to
 	// all use a single tailnet, instead of the previous behavior of creating a
 	// single tailnet for each agent.
@@ -1872,8 +1878,8 @@ const (
 	//   quiet hours instead of max_ttl.
 	ExperimentTemplateRestartRequirement Experiment = "template_restart_requirement"
 
-	// Insights page
-	ExperimentTemplateInsightsPage Experiment = "template_insights_page"
+	// Deployment health page
+	ExperimentDeploymentHealthPage Experiment = "deployment_health_page"
 
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"
@@ -1884,7 +1890,7 @@ const (
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
 var ExperimentsAll = Experiments{
-	ExperimentTemplateInsightsPage,
+	ExperimentDeploymentHealthPage,
 }
 
 // Experiments is a list of experiments that are enabled for the deployment.

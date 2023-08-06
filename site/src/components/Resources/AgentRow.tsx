@@ -8,7 +8,7 @@ import {
   OpenDropdown,
 } from "components/DropdownArrows/DropdownArrows"
 import { LogLine, logLineHeight } from "components/Logs/Logs"
-import { PortForwardButton } from "components/PortForwardButton/PortForwardButton"
+import { PortForwardButton } from "./PortForwardButton"
 import { VSCodeDesktopButton } from "components/VSCodeDesktopButton/VSCodeDesktopButton"
 import {
   FC,

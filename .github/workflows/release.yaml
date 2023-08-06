@@ -80,7 +80,7 @@ jobs:
 
           # Generate notes.
           release_notes_file="$(mktemp -t release_notes.XXXXXX)"
-          ./scripts/release/generate_release_notes.sh --old-version "$old_version" --new-version "$version" --ref "$ref" >> "$release_notes_file"
+          ./scripts/release/generate_release_notes.sh --check-for-changelog --old-version "$old_version" --new-version "$version" --ref "$ref" >> "$release_notes_file"
           echo CODER_RELEASE_NOTES_FILE="$release_notes_file" >> $GITHUB_ENV
 
       - name: Show release notes
@@ -98,16 +98,8 @@ jobs:
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
-      - name: Cache Node
-        id: cache-node
-        uses: buildjet/cache@v3
-        with:
-          path: |
-            **/node_modules
-            .eslintcache
-          key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
-          restore-keys: |
-            js-${{ runner.os }}-
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
 
       - name: Install nsis and zstd
         run: sudo apt-get install -y nsis zstd
@@ -407,6 +399,8 @@ jobs:
       - name: Comment on PR
         if: ${{ !inputs.dry_run }}
         run: |
+          # wait 30 seconds
+          Start-Sleep -Seconds 30.0
           # Find the PR that wingetcreate just made.
           $version = "${{ needs.release.outputs.version }}".Trim('v')
           $pr_list = gh pr list --repo microsoft/winget-pkgs --search "author:cdrci Coder.Coder version ${version}" --limit 1 --json number | `

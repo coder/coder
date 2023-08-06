@@ -41,7 +41,7 @@ func TestDelete(t *testing.T) {
 				assert.ErrorIs(t, err, io.EOF)
 			}
 		}()
-		pty.ExpectMatch("workspace has been deleted")
+		pty.ExpectMatch("has been deleted")
 		<-doneChan
 	})
 
@@ -68,7 +68,7 @@ func TestDelete(t *testing.T) {
 				assert.ErrorIs(t, err, io.EOF)
 			}
 		}()
-		pty.ExpectMatch("workspace has been deleted")
+		pty.ExpectMatch("has been deleted")
 		<-doneChan
 	})
 
@@ -113,7 +113,7 @@ func TestDelete(t *testing.T) {
 				assert.ErrorIs(t, err, io.EOF)
 			}
 		}()
-		pty.ExpectMatch("workspace has been deleted")
+		pty.ExpectMatch("has been deleted")
 		<-doneChan
 	})
 
@@ -145,7 +145,7 @@ func TestDelete(t *testing.T) {
 			}
 		}()
 
-		pty.ExpectMatch("workspace has been deleted")
+		pty.ExpectMatch("has been deleted")
 		<-doneChan
 
 		workspace, err = client.Workspace(context.Background(), workspace.ID)

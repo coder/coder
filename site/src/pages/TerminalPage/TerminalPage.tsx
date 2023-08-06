@@ -1,6 +1,5 @@
 import { makeStyles, useTheme } from "@mui/styles"
 import { useMachine } from "@xstate/react"
-import { portForwardURL } from "components/PortForwardButton/PortForwardButton"
 import { Stack } from "components/Stack/Stack"
 import { FC, useCallback, useEffect, useRef, useState } from "react"
 import { Helmet } from "react-helmet-async"
@@ -23,6 +22,7 @@ import { getLatencyColor } from "utils/latency"
 import Popover from "@mui/material/Popover"
 import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency"
 import TerminalPageAlert, { TerminalPageAlertType } from "./TerminalPageAlert"
+import { portForwardURL } from "utils/portForward"
 
 export const Language = {
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",

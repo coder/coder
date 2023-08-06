@@ -63,6 +63,7 @@ import (
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/autobuild"
+	"github.com/coder/coder/coderd/batchstats"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/database/dbmetrics"
@@ -70,6 +71,7 @@ import (
 	"github.com/coder/coder/coderd/database/migrations"
 	"github.com/coder/coder/coderd/database/pubsub"
 	"github.com/coder/coder/coderd/devtunnel"
+	"github.com/coder/coder/coderd/dormancy"
 	"github.com/coder/coder/coderd/gitauth"
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
@@ -811,6 +813,19 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if cfg.Swagger.Enable {
 				options.SwaggerEndpoint = cfg.Swagger.Enable.Value()
 			}
+
+			batcher, closeBatcher, err := batchstats.New(ctx,
+				batchstats.WithLogger(options.Logger.Named("batchstats")),
+				batchstats.WithStore(options.Database),
+			)
+			if err != nil {
+				return xerrors.Errorf("failed to create agent stats batcher: %w", err)
+			}
+			options.StatsBatcher = batcher
+			defer closeBatcher()
+
+			closeCheckInactiveUsersFunc := dormancy.CheckInactiveUsers(ctx, logger, options.Database)
+			defer closeCheckInactiveUsersFunc()
 
 			// We use a separate coderAPICloser so the Enterprise API
 			// can have it's own close functions. This is cleaner

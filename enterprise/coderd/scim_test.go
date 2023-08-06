@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"testing"
 
@@ -164,6 +165,54 @@ func TestScim(t *testing.T) {
 			assert.Equal(t, sUser.UserName, userRes.Users[0].Username)
 		})
 
+		t.Run("Unsuspend", func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			scimAPIKey := []byte("hi")
+			client, _ := coderdenttest.New(t, &coderdenttest.Options{
+				SCIMAPIKey: scimAPIKey,
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					AccountID: "coolin",
+					Features: license.Features{
+						codersdk.FeatureSCIM: 1,
+					},
+				},
+			})
+
+			sUser := makeScimUser(t)
+			res, err := client.Request(ctx, "POST", "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
+			require.NoError(t, err)
+			defer res.Body.Close()
+			assert.Equal(t, http.StatusOK, res.StatusCode)
+			err = json.NewDecoder(res.Body).Decode(&sUser)
+			require.NoError(t, err)
+
+			sUser.Active = false
+			res, err = client.Request(ctx, "PATCH", "/scim/v2/Users/"+sUser.ID, sUser, setScimAuth(scimAPIKey))
+			require.NoError(t, err)
+			_, _ = io.Copy(io.Discard, res.Body)
+			_ = res.Body.Close()
+			assert.Equal(t, http.StatusOK, res.StatusCode)
+
+			sUser.Active = true
+			res, err = client.Request(ctx, "POST", "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
+			require.NoError(t, err)
+			_, _ = io.Copy(io.Discard, res.Body)
+			_ = res.Body.Close()
+			assert.Equal(t, http.StatusOK, res.StatusCode)
+
+			userRes, err := client.Users(ctx, codersdk.UsersRequest{Search: sUser.Emails[0].Value})
+			require.NoError(t, err)
+			require.Len(t, userRes.Users, 1)
+
+			assert.Equal(t, sUser.Emails[0].Value, userRes.Users[0].Email)
+			assert.Equal(t, sUser.UserName, userRes.Users[0].Username)
+			assert.Equal(t, codersdk.UserStatusDormant, userRes.Users[0].Status)
+		})
+
 		t.Run("DomainStrips", func(t *testing.T) {
 			t.Parallel()
 
@@ -185,7 +234,8 @@ func TestScim(t *testing.T) {
 			sUser.UserName = sUser.UserName + "@coder.com"
 			res, err := client.Request(ctx, "POST", "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
 			require.NoError(t, err)
-			defer res.Body.Close()
+			_, _ = io.Copy(io.Discard, res.Body)
+			_ = res.Body.Close()
 			assert.Equal(t, http.StatusOK, res.StatusCode)
 
 			userRes, err := client.Users(ctx, codersdk.UsersRequest{Search: sUser.Emails[0].Value})
@@ -220,7 +270,8 @@ func TestScim(t *testing.T) {
 
 			res, err := client.Request(ctx, "PATCH", "/scim/v2/Users/bob", struct{}{})
 			require.NoError(t, err)
-			defer res.Body.Close()
+			_, _ = io.Copy(io.Discard, res.Body)
+			_ = res.Body.Close()
 			assert.Equal(t, http.StatusNotFound, res.StatusCode)
 		})
 
@@ -242,7 +293,8 @@ func TestScim(t *testing.T) {
 
 			res, err := client.Request(ctx, "PATCH", "/scim/v2/Users/bob", struct{}{})
 			require.NoError(t, err)
-			defer res.Body.Close()
+			_, _ = io.Copy(io.Discard, res.Body)
+			_ = res.Body.Close()
 			assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
 		})
 
@@ -276,7 +328,8 @@ func TestScim(t *testing.T) {
 
 			res, err = client.Request(ctx, "PATCH", "/scim/v2/Users/"+sUser.ID, sUser, setScimAuth(scimAPIKey))
 			require.NoError(t, err)
-			defer res.Body.Close()
+			_, _ = io.Copy(io.Discard, res.Body)
+			_ = res.Body.Close()
 			assert.Equal(t, http.StatusOK, res.StatusCode)
 
 			userRes, err := client.Users(ctx, codersdk.UsersRequest{Search: sUser.Emails[0].Value})

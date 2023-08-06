@@ -51,11 +51,13 @@ import (
 	"tailscale.com/types/nettype"
 
 	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/autobuild"
 	"github.com/coder/coder/coderd/awsidentity"
+	"github.com/coder/coder/coderd/batchstats"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/database/dbtestutil"
@@ -140,7 +142,8 @@ type Options struct {
 	SwaggerEndpoint bool
 	// Logger should only be overridden if you expect errors
 	// as part of your test.
-	Logger *slog.Logger
+	Logger       *slog.Logger
+	StatsBatcher *batchstats.Batcher
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -241,6 +244,18 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	if options.FilesRateLimit == 0 {
 		options.FilesRateLimit = -1
 	}
+	if options.StatsBatcher == nil {
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		batcher, closeBatcher, err := batchstats.New(ctx,
+			batchstats.WithStore(options.Database),
+			// Avoid cluttering up test output.
+			batchstats.WithLogger(slog.Make(sloghuman.Sink(io.Discard))),
+		)
+		require.NoError(t, err, "create stats batcher")
+		options.StatsBatcher = batcher
+		t.Cleanup(closeBatcher)
+	}
 
 	var templateScheduleStore atomic.Pointer[schedule.TemplateScheduleStore]
 	if options.TemplateScheduleStore == nil {
@@ -303,9 +318,21 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		accessURL = serverURL
 	}
 
-	stunAddr, stunCleanup := stuntest.ServeWithPacketListener(t, nettype.Std{})
-	stunAddr.IP = net.ParseIP("127.0.0.1")
-	t.Cleanup(stunCleanup)
+	// If the STUNAddresses setting is empty or the default, start a STUN
+	// server. Otherwise, use the value as is.
+	var (
+		stunAddresses   []string
+		dvStunAddresses = options.DeploymentValues.DERP.Server.STUNAddresses.Value()
+	)
+	if len(dvStunAddresses) == 0 || (len(dvStunAddresses) == 1 && dvStunAddresses[0] == "stun.l.google.com:19302") {
+		stunAddr, stunCleanup := stuntest.ServeWithPacketListener(t, nettype.Std{})
+		stunAddr.IP = net.ParseIP("127.0.0.1")
+		t.Cleanup(stunCleanup)
+		stunAddresses = []string{stunAddr.String()}
+		options.DeploymentValues.DERP.Server.STUNAddresses = stunAddresses
+	} else if dvStunAddresses[0] != "disable" {
+		stunAddresses = options.DeploymentValues.DERP.Server.STUNAddresses.Value()
+	}
 
 	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(slogtest.Make(t, nil).Named("derp").Leveled(slog.LevelDebug)))
 	derpServer.SetMeshKey("test-key")
@@ -346,7 +373,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	if !options.DeploymentValues.DERP.Server.Enable.Value() {
 		region = nil
 	}
-	derpMap, err := tailnet.NewDERPMap(ctx, region, []string{stunAddr.String()}, "", "", options.DeploymentValues.DERP.Config.BlockDirect.Value())
+	derpMap, err := tailnet.NewDERPMap(ctx, region, stunAddresses, "", "", options.DeploymentValues.DERP.Config.BlockDirect.Value())
 	require.NoError(t, err)
 
 	return func(h http.Handler) {
@@ -397,6 +424,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			HealthcheckFunc:             options.HealthcheckFunc,
 			HealthcheckTimeout:          options.HealthcheckTimeout,
 			HealthcheckRefresh:          options.HealthcheckRefresh,
+			StatsBatcher:                options.StatsBatcher,
 		}
 }
 
@@ -485,7 +513,11 @@ func NewExternalProvisionerDaemon(t *testing.T, client *codersdk.Client, org uui
 	}()
 
 	closer := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
-		return client.ServeProvisionerDaemon(ctx, org, []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho}, tags)
+		return client.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+			Organization: org,
+			Provisioners: []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho},
+			Tags:         tags,
+		})
 	}, &provisionerd.Options{
 		Filesystem:          fs,
 		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
@@ -573,6 +605,14 @@ func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationI
 		})
 		require.NoError(t, err)
 		sessionToken = token.Key
+	}
+
+	if user.Status == codersdk.UserStatusDormant {
+		// Use admin client so that user's LastSeenAt is not updated.
+		// In general we need to refresh the user status, which should
+		// transition from "dormant" to "active".
+		user, err = client.User(context.Background(), user.Username)
+		require.NoError(t, err)
 	}
 
 	other := codersdk.New(client.URL)

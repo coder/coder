@@ -1286,6 +1286,21 @@ func (mr *MockStoreMockRecorder) GetTemplateInsights(arg0, arg1 interface{}) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateInsights", reflect.TypeOf((*MockStore)(nil).GetTemplateInsights), arg0, arg1)
 }
 
+// GetTemplateParameterInsights mocks base method.
+func (m *MockStore) GetTemplateParameterInsights(arg0 context.Context, arg1 database.GetTemplateParameterInsightsParams) ([]database.GetTemplateParameterInsightsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTemplateParameterInsights", arg0, arg1)
+	ret0, _ := ret[0].([]database.GetTemplateParameterInsightsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTemplateParameterInsights indicates an expected call of GetTemplateParameterInsights.
+func (mr *MockStoreMockRecorder) GetTemplateParameterInsights(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateParameterInsights", reflect.TypeOf((*MockStore)(nil).GetTemplateParameterInsights), arg0, arg1)
+}
+
 // GetTemplateUserRoles mocks base method.
 func (m *MockStore) GetTemplateUserRoles(arg0 context.Context, arg1 uuid.UUID) ([]database.TemplateUser, error) {
 	m.ctrl.T.Helper()
@@ -2583,6 +2598,20 @@ func (mr *MockStoreMockRecorder) InsertWorkspaceAgentStat(arg0, arg1 interface{}
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceAgentStat", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceAgentStat), arg0, arg1)
 }
 
+// InsertWorkspaceAgentStats mocks base method.
+func (m *MockStore) InsertWorkspaceAgentStats(arg0 context.Context, arg1 database.InsertWorkspaceAgentStatsParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertWorkspaceAgentStats", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertWorkspaceAgentStats indicates an expected call of InsertWorkspaceAgentStats.
+func (mr *MockStoreMockRecorder) InsertWorkspaceAgentStats(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceAgentStats", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceAgentStats), arg0, arg1)
+}
+
 // InsertWorkspaceApp mocks base method.
 func (m *MockStore) InsertWorkspaceApp(arg0 context.Context, arg1 database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
 	m.ctrl.T.Helper()
@@ -2773,6 +2802,21 @@ func (m *MockStore) UpdateGroupByID(arg0 context.Context, arg1 database.UpdateGr
 func (mr *MockStoreMockRecorder) UpdateGroupByID(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateGroupByID", reflect.TypeOf((*MockStore)(nil).UpdateGroupByID), arg0, arg1)
+}
+
+// UpdateInactiveUsersToDormant mocks base method.
+func (m *MockStore) UpdateInactiveUsersToDormant(arg0 context.Context, arg1 database.UpdateInactiveUsersToDormantParams) ([]database.UpdateInactiveUsersToDormantRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateInactiveUsersToDormant", arg0, arg1)
+	ret0, _ := ret[0].([]database.UpdateInactiveUsersToDormantRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateInactiveUsersToDormant indicates an expected call of UpdateInactiveUsersToDormant.
+func (mr *MockStoreMockRecorder) UpdateInactiveUsersToDormant(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateInactiveUsersToDormant", reflect.TypeOf((*MockStore)(nil).UpdateInactiveUsersToDormant), arg0, arg1)
 }
 
 // UpdateMemberRoles mocks base method.
@@ -3277,11 +3321,12 @@ func (mr *MockStoreMockRecorder) UpdateWorkspaceLastUsedAt(arg0, arg1 interface{
 }
 
 // UpdateWorkspaceLockedDeletingAt mocks base method.
-func (m *MockStore) UpdateWorkspaceLockedDeletingAt(arg0 context.Context, arg1 database.UpdateWorkspaceLockedDeletingAtParams) error {
+func (m *MockStore) UpdateWorkspaceLockedDeletingAt(arg0 context.Context, arg1 database.UpdateWorkspaceLockedDeletingAtParams) (database.Workspace, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateWorkspaceLockedDeletingAt", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(database.Workspace)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // UpdateWorkspaceLockedDeletingAt indicates an expected call of UpdateWorkspaceLockedDeletingAt.

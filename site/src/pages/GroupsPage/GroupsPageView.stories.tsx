@@ -25,6 +25,13 @@ WithGroups.args = {
   isTemplateRBACEnabled: true,
 }
 
+export const WithDisplayGroup = Template.bind({})
+WithGroups.args = {
+  groups: [{ ...MockGroup, name: "front-end" }],
+  canCreateGroup: true,
+  isTemplateRBACEnabled: true,
+}
+
 export const EmptyGroup = Template.bind({})
 EmptyGroup.args = {
   groups: [],

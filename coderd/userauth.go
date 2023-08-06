@@ -64,13 +64,6 @@ type OAuthConvertStateClaims struct {
 // @Success 201 {object} codersdk.OAuthConversionResponse
 // @Router /users/{user}/convert-login [post]
 func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
-	if !api.Experiments.Enabled(codersdk.ExperimentConvertToOIDC) {
-		httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
-			Message: "Oauth conversion is not allowed, contact an administrator to turn on this feature.",
-		})
-		return
-	}
-
 	var (
 		user              = httpmw.UserParam(r)
 		ctx               = r.Context()
@@ -327,6 +320,22 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 		return user, database.GetAuthorizationUserRolesRow{}, false
 	}
 
+	if user.Status == database.UserStatusDormant {
+		//nolint:gocritic // System needs to update status of the user account (dormant -> active).
+		user, err = api.Database.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
+			ID:        user.ID,
+			Status:    database.UserStatusActive,
+			UpdatedAt: database.Now(),
+		})
+		if err != nil {
+			logger.Error(ctx, "unable to update user status to active", slog.Error(err))
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error occurred. Try again later, or contact an admin for assistance.",
+			})
+			return user, database.GetAuthorizationUserRolesRow{}, false
+		}
+	}
+
 	//nolint:gocritic // System needs to fetch user roles in order to login user.
 	roles, err := api.Database.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), user.ID)
 	if err != nil {
@@ -340,7 +349,7 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 	// If the user logged into a suspended account, reject the login request.
 	if roles.Status != database.UserStatusActive {
 		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
-			Message: "Your account is suspended. Contact an admin to reactivate your account.",
+			Message: fmt.Sprintf("Your account is %s. Contact an admin to reactivate your account.", roles.Status),
 		})
 		return user, database.GetAuthorizationUserRolesRow{}, false
 	}
@@ -455,7 +464,6 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.AuthMethods{
-		ConvertToOIDCEnabled: api.Experiments.Enabled(codersdk.ExperimentConvertToOIDC),
 		Password: codersdk.AuthMethod{
 			Enabled: !api.DeploymentValues.DisablePasswordAuth.Value(),
 		},
@@ -1289,6 +1297,20 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			}
 		}
 
+		// Activate dormant user on sigin
+		if user.Status == database.UserStatusDormant {
+			//nolint:gocritic // System needs to update status of the user account (dormant -> active).
+			user, err = tx.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
+				ID:        user.ID,
+				Status:    database.UserStatusActive,
+				UpdatedAt: database.Now(),
+			})
+			if err != nil {
+				logger.Error(ctx, "unable to update user status to active", slog.Error(err))
+				return xerrors.Errorf("update user status: %w", err)
+			}
+		}
+
 		if link.UserID == uuid.Nil {
 			//nolint:gocritic
 			link, err = tx.InsertUserLink(dbauthz.AsSystemRestricted(ctx), database.InsertUserLinkParams{
@@ -1498,11 +1520,6 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 
 	oauthConvertAudit.UserID = claims.UserID
 	oauthConvertAudit.Old = user
-
-	// If we do not allow converting to oauth, return an error.
-	if !api.Experiments.Enabled(codersdk.ExperimentConvertToOIDC) {
-		return database.User{}, wrongLoginTypeHTTPError(user.LoginType, params.LoginType)
-	}
 
 	if claims.RegisteredClaims.Issuer != api.DeploymentID {
 		return database.User{}, httpError{

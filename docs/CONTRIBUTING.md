@@ -79,6 +79,27 @@ Use the following `make` commands and scripts in development:
 - Access `http://localhost:8080`
 - The default user is `admin@coder.com` and the default password is `SomeSecurePassword!`
 
+### Deploying a PR
+
+You can test your changes by creating a PR deployment. There are two ways to do this:
+
+1. By running `./scripts/deploy-pr.sh`
+2. By manually triggering the [`pr-deploy.yaml`](https://github.com/coder/coder/actions/workflows/pr-deploy.yaml) GitHub Action workflow
+   ![Deploy PR manually](./images/pr-deploy-manual.png)
+
+#### Available options
+
+- `-s` or `--skip-build`, force prevents the build of the Docker image.(generally not needed as we are intelligently checking if the image needs to be built)
+- `-e EXPERIMENT1,EXPERIMENT2` or `--experiments EXPERIMENT1,EXPERIMENT2`, will enable the specified experiments. (defaults to `*`)
+- `-n` or `--dry-run` will display the context without deployment. e.g., branch name and PR number, etc.
+- `-y` or `--yes`, will skip the CLI confirmation prompt.
+
+> Note: PR deployment will be re-deployed automatically when the PR is updated. It will use the last values automatically for redeployment.
+
+> You need to be a member or collaborator of the of [coder](github.com/coder) GitHub organization to be able to deploy a PR.
+
+Once the deployment is finished, a unique link and credentials will be posted in the [#pr-deployments](https://codercom.slack.com/archives/C05DNE982E8) Slack channel.
+
 ### Adding database migrations and fixtures
 
 #### Database migrations
