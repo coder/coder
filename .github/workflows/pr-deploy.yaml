@@ -407,6 +407,48 @@ jobs:
           "${DEST}" version
           mv "${DEST}" /usr/local/bin/coder
 
+      - name: Create a service account, role and rolebinding for coder-workspace
+        if: needs.get_info.outputs.NEW == 'true'
+        # This service account will be used to grant full access to the namespace from the workspace
+        run: |
+          set -euxo pipefail
+          cat <<EOF | kubectl apply -f -
+          apiVersion: v1
+          kind: ServiceAccount
+          metadata:
+            name: coder-workspace
+            namespace: pr${{ env.PR_NUMBER }}
+          EOF
+          cat <<EOF | kubectl apply -f -
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: Role
+          metadata:
+            name: coder-workspace
+            namespace: pr${{ env.PR_NUMBER }}
+          rules:
+          - apiGroups: ["*"]
+            resources: ["*"]
+            verbs: ["*"]
+          EOF
+          cat <<EOF | kubectl apply -f -
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: RoleBinding
+          metadata:
+            name: coder-workspace
+            namespace: pr${{ env.PR_NUMBER }}
+          subjects:
+          - kind: ServiceAccount
+            name: coder-workspace
+            namespace: pr${{ env.PR_NUMBER }}
+          roleRef:
+            apiGroup: rbac.authorization.k8s.io
+            kind: Role
+            name: coder-workspace
+          EOF
+          # Get the token for the service account
+          TOKENNAME=$(kubectl -n your-namespace get serviceaccount/restricted-user -o=jsonpath='{.secrets[0].name}')
+          TOKEN=$(kubectl -n your-namespace get secret $TOKENNAME -o=jsonpath='{.data.token}' | base64 -d)
+
       - name: Create first user, template and workspace
         if: needs.get_info.outputs.NEW == 'true'
         id: setup_deployment
