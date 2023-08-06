@@ -41,6 +41,7 @@ rules:
     - patch
     - update
     - watch
+{{- end }}
 {{- if .Values.coder.serviceAccount.namespaceAccess }}
   - apiGroups: [""]
     resources: ["serviceaccounts", "roles", "rolebindings"]
