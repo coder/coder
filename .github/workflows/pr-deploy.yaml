@@ -217,7 +217,7 @@ jobs:
     needs: [build, get_info]
     # Run deploy job only if build job was successful or skipped
     if: |
-      always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && 
+      always() && (needs.build.result == 'success' || needs.build.result == 'skipped') &&
       (github.event_name == 'workflow_dispatch' || needs.get_info.outputs.NEW == 'false')
     runs-on: "ubuntu-latest"
     env:
@@ -438,6 +438,8 @@ jobs:
 
           # Create template
           coder templates init --id kubernetes && cd ./kubernetes/ && coder templates create -y --variable namespace=pr${{ env.PR_NUMBER }}
+          #git clone https://github.com/matifali/coder-templates.git
+          #cd ./coder-templates/k8s-namespace/ && coder templates create -y --variable namespace=pr${{ env.PR_NUMBER }}
 
           # Create workspace
           cat <<EOF > workspace.yaml
