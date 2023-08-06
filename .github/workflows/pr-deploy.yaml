@@ -158,11 +158,10 @@ jobs:
   build:
     needs: get_info
     # Skips the build job if the workflow was triggered by a workflow_dispatch event and the skip_build input is set to true
-    # or if the workflow was triggered by an issue_comment event and the comment body contains --skip-build
     # always run the build job if a pull_request event triggered the workflow
     if: |
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_build == 'false') ||
-      (github.event_name == 'pull_request' && needs.get_info.result == 'success' && needs.get_info.outputs.NEW == 'false')
+      ((github.event_name == 'workflow_dispatch' && github.event.inputs.skip_build == 'false') ||
+      github.event_name == 'pull_request') && needs.get_info.outputs.BUILD == 'true'
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
@@ -177,19 +176,15 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Node
-        if: needs.get_info.outputs.BUILD == 'true'
         uses: ./.github/actions/setup-node
 
       - name: Setup Go
-        if: needs.get_info.outputs.BUILD == 'true'
         uses: ./.github/actions/setup-go
 
       - name: Setup sqlc
-        if: needs.get_info.outputs.BUILD == 'true'
         uses: ./.github/actions/setup-sqlc
 
       - name: GHCR Login
-        if: needs.get_info.outputs.BUILD == 'true'
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
@@ -197,7 +192,6 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push Linux amd64 Docker image
-        if: needs.get_info.outputs.BUILD == 'true'
         run: |
           set -euxo pipefail
           go mod download
