@@ -41,9 +41,9 @@ rules:
     - patch
     - update
     - watch
-{{- if .Values.coder.serviceAccount.serviceAccountPerms }}
+{{- if .Values.coder.serviceAccount.namespaceAccess }}
   - apiGroups: [""]
-    resources: ["serviceaccounts"]
+    resources: ["serviceaccounts", "roles", "rolebindings"]
     verbs:
     - create
     - delete

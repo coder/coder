@@ -339,7 +339,7 @@ jobs:
                 secretName: pr${{ env.PR_NUMBER }}-tls
                 wildcardSecretName: pr${{ env.PR_NUMBER }}-tls
             serviceAccount:
-              serviceAccountPerms: true
+              namespaceAccess: true
             env:
               - name: "CODER_ACCESS_URL"
                 value: "https://${{ env.PR_DEPLOYMENT_ACCESS_URL }}"
