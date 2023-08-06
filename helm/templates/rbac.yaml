@@ -42,19 +42,6 @@ rules:
     - update
     - watch
 {{- end }}
-{{- if .Values.coder.serviceAccount.namespaceAccess }}
-  - apiGroups: [""]
-    resources: ["serviceaccounts", "roles", "rolebindings"]
-    verbs:
-    - create
-    - delete
-    - deletecollection
-    - get
-    - list
-    - patch
-    - update
-    - watch
-{{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
