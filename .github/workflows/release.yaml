@@ -329,6 +329,7 @@ jobs:
     name: Publish to winget-pkgs
     runs-on: windows-latest
     needs: release
+    if: ${{ !inputs.dry_run }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -364,12 +365,6 @@ jobs:
           echo "Installer URL: ${installer_url}"
           echo "Package version: ${version}"
 
-          # Bail if dry-run.
-          if ($env:CODER_DRY_RUN -match "t") {
-            echo "Skipping submission due to dry-run."
-            exit 0
-          }
-
           # The URL "|X64" suffix forces the architecture as it cannot be
           # sniffed properly from the URL. wingetcreate checks both the URL and
           # binary magic bytes for the architecture and they need to both match,
@@ -393,7 +388,6 @@ jobs:
           WINGET_GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
 
       - name: Comment on PR
-        if: ${{ !inputs.dry_run }}
         run: |
           # wait 30 seconds
           Start-Sleep -Seconds 30.0
@@ -414,6 +408,7 @@ jobs:
     name: Publish to Chocolatey
     runs-on: windows-latest
     needs: release
+    if: ${{ !inputs.dry_run }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -460,12 +455,6 @@ jobs:
 
           # No need to specify nuspec if there's only one in the directory.
           choco pack --version=$version binary_path=assets/coder.exe
-
-          # Bail if dry-run.
-          if ($env:CODER_DRY_RUN -match "t") {
-            echo "Skipping submission due to dry-run."
-            exit 0
-          }
 
           choco apikey --api-key $env:CHOCO_API_KEY -source https://push.chocolatey.org/
 
