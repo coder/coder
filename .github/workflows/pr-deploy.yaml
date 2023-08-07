@@ -445,6 +445,8 @@ jobs:
                 value: "${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_SECRET }}"
               - name: "CODER_OAUTH2_GITHUB_ALLOWED_ORGS"
                 value: "coder"
+              - name: "KUBECONFIG"
+                value: "/home/coder/.kube/config"
           EOF
 
       - name: Install/Upgrade Helm chart
