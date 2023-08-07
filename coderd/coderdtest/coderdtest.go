@@ -1022,9 +1022,31 @@ func NewAWSInstanceIdentity(t *testing.T, instanceID string) (awsidentity.Certif
 type OIDCConfig struct {
 	key    *rsa.PrivateKey
 	issuer string
+	// These are optional
+	refreshToken     string
+	oidcTokenExpires func() time.Time
+	tokenSource      func() (*oauth2.Token, error)
 }
 
-func NewOIDCConfig(t *testing.T, issuer string) *OIDCConfig {
+func WithRefreshToken(token string) func(cfg *OIDCConfig) {
+	return func(cfg *OIDCConfig) {
+		cfg.refreshToken = token
+	}
+}
+
+func WithTokenExpires(expFunc func() time.Time) func(cfg *OIDCConfig) {
+	return func(cfg *OIDCConfig) {
+		cfg.oidcTokenExpires = expFunc
+	}
+}
+
+func WithTokenSource(src func() (*oauth2.Token, error)) func(cfg *OIDCConfig) {
+	return func(cfg *OIDCConfig) {
+		cfg.tokenSource = src
+	}
+}
+
+func NewOIDCConfig(t *testing.T, issuer string, opts ...func(cfg *OIDCConfig)) *OIDCConfig {
 	t.Helper()
 
 	block, _ := pem.Decode([]byte(testRSAPrivateKey))
@@ -1035,27 +1057,52 @@ func NewOIDCConfig(t *testing.T, issuer string) *OIDCConfig {
 		issuer = "https://coder.com"
 	}
 
-	return &OIDCConfig{
+	cfg := &OIDCConfig{
 		key:    pkey,
 		issuer: issuer,
 	}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+	return cfg
 }
 
 func (*OIDCConfig) AuthCodeURL(state string, _ ...oauth2.AuthCodeOption) string {
 	return "/?state=" + url.QueryEscape(state)
 }
 
-func (*OIDCConfig) TokenSource(context.Context, *oauth2.Token) oauth2.TokenSource {
-	return nil
+type tokenSource struct {
+	src func() (*oauth2.Token, error)
 }
 
-func (*OIDCConfig) Exchange(_ context.Context, code string, _ ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
+func (s tokenSource) Token() (*oauth2.Token, error) {
+	return s.src()
+}
+
+func (cfg *OIDCConfig) TokenSource(context.Context, *oauth2.Token) oauth2.TokenSource {
+	if cfg.tokenSource == nil {
+		return nil
+	}
+	return tokenSource{
+		src: cfg.tokenSource,
+	}
+}
+
+func (cfg *OIDCConfig) Exchange(_ context.Context, code string, _ ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
 	token, err := base64.StdEncoding.DecodeString(code)
 	if err != nil {
 		return nil, xerrors.Errorf("decode code: %w", err)
 	}
+
+	var exp time.Time
+	if cfg.oidcTokenExpires != nil {
+		exp = cfg.oidcTokenExpires()
+	}
+
 	return (&oauth2.Token{
-		AccessToken: "token",
+		AccessToken:  "token",
+		RefreshToken: cfg.refreshToken,
+		Expiry:       exp,
 	}).WithExtra(map[string]interface{}{
 		"id_token": string(token),
 	}), nil
