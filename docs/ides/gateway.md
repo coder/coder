@@ -101,7 +101,7 @@ keytool -import -alias coder -file cacert.pem -keystore /Applications/JetBrains\
 1. [Configure the `coder` CLI](../ides.md#ssh-configuration)
 1. Open Gateway, make sure "SSH" is selected under "Remote Development"
 1. Click "New Connection"
-    ![Gateway Home](../images/gateway/gateway-home.png)
+   ![Gateway Home](../images/gateway/gateway-home.png)
 1. In the resulting dialog, click the gear icon to the right of "Connection:"
    ![Gateway New Connection](../images/gateway/gateway-new-connection.png)
 1. Hit the "+" button to add a new SSH connection
