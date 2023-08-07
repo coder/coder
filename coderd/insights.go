@@ -2,10 +2,8 @@ package coderd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
-	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,6 +11,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/db2sdk"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
@@ -244,7 +243,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	parametersUsage, err := convertTemplateInsightsParameters(parameterRows)
+	parametersUsage, err := db2sdk.TemplateInsightsParameters(parameterRows)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error converting template parameter insights.",
@@ -313,39 +312,6 @@ func convertTemplateInsightsBuiltinApps(usage database.GetTemplateInsightsRow) [
 			Seconds:     usage.UsageSshSeconds,
 		},
 	}
-}
-
-func convertTemplateInsightsParameters(parameterRows []database.GetTemplateParameterInsightsRow) ([]codersdk.TemplateParameterUsage, error) {
-	parametersByNum := make(map[int64]*codersdk.TemplateParameterUsage)
-	for _, param := range parameterRows {
-		if _, ok := parametersByNum[param.Num]; !ok {
-			var opts []codersdk.TemplateVersionParameterOption
-			err := json.Unmarshal(param.Options, &opts)
-			if err != nil {
-				return nil, xerrors.Errorf("unmarshal template parameter options: %w", err)
-			}
-			parametersByNum[param.Num] = &codersdk.TemplateParameterUsage{
-				TemplateIDs: param.TemplateIDs,
-				Name:        param.Name,
-				DisplayName: param.DisplayName,
-				Options:     opts,
-			}
-		}
-		parametersByNum[param.Num].Values = append(parametersByNum[param.Num].Values, codersdk.TemplateParameterValue{
-			Value: param.Value,
-			Count: param.Count,
-		})
-	}
-	parametersUsage := []codersdk.TemplateParameterUsage{}
-	for _, param := range parametersByNum {
-		parametersUsage = append(parametersUsage, *param)
-	}
-
-	sort.Slice(parametersUsage, func(i, j int) bool {
-		return parametersUsage[i].Name < parametersUsage[j].Name
-	})
-
-	return parametersUsage, nil
 }
 
 // parseInsightsStartAndEndTime parses the start and end time query parameters
