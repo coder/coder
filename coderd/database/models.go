@@ -1556,7 +1556,7 @@ type Group struct {
 	QuotaAllowance int32     `db:"quota_allowance" json:"quota_allowance"`
 	// Display name is a custom, human-friendly group name that user can set. This is not required to be unique and can be the empty string.
 	DisplayName string `db:"display_name" json:"display_name"`
-	// Source indicates how the group was created. It can be created by a user manually, or through some system process like and OIDC group sync.
+	// Source indicates how the group was created. It can be created by a user manually, or through some system process like OIDC group sync.
 	Source GroupSource `db:"source" json:"source"`
 }
 

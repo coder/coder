@@ -310,7 +310,7 @@ CREATE TABLE groups (
 
 COMMENT ON COLUMN groups.display_name IS 'Display name is a custom, human-friendly group name that user can set. This is not required to be unique and can be the empty string.';
 
-COMMENT ON COLUMN groups.source IS 'Source indicates how the group was created. It can be created by a user manually, or through some system process like and OIDC group sync.';
+COMMENT ON COLUMN groups.source IS 'Source indicates how the group was created. It can be created by a user manually, or through some system process like OIDC group sync.';
 
 CREATE TABLE licenses (
     id integer NOT NULL,

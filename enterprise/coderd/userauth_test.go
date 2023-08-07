@@ -468,7 +468,7 @@ func TestGroupSync(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := testutil.Context(t, testutil.WaitLong*40000)
+			ctx := testutil.Context(t, testutil.WaitLong)
 			conf := coderdtest.NewOIDCConfig(t, "")
 
 			config := conf.OIDCConfig(t, jwt.MapClaims{}, tc.modCfg)
