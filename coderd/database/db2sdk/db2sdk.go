@@ -170,7 +170,7 @@ func templateVersionParameterOptions(rawOptions json.RawMessage) ([]codersdk.Tem
 	if err != nil {
 		return nil, err
 	}
-	options := make([]codersdk.TemplateVersionParameterOption, 0)
+	var options []codersdk.TemplateVersionParameterOption
 	for _, option := range protoOptions {
 		options = append(options, codersdk.TemplateVersionParameterOption{
 			Name:        option.Name,
