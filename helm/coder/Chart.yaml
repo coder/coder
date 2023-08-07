@@ -27,3 +27,8 @@ maintainers:
   - name: Coder Technologies, Inc.
     email: support@coder.com
     url: https://coder.com/contact
+
+dependencies:
+  - name: libcoder
+    version: 0.1.0
+    repository: file://../libcoder

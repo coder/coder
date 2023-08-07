@@ -1,0 +1,19 @@
+apiVersion: v2
+name: libcoder
+description: Coder library chart
+home: https://github.com/coder/coder
+
+# version and appVersion are injected at release and will always be shown as
+# 0.1.0 in the repository.
+#
+# If you're installing the Helm chart directly from git it will have this
+# version, which means the auto-generated image URI will be invalid. You can set
+# "coder.image.tag" to the desired tag manually.
+type: library
+version: "0.1.0"
+appVersion: "0.1.0"
+
+maintainers:
+  - name: Coder Technologies, Inc.
+    email: support@coder.com
+    url: https://coder.com/contact
