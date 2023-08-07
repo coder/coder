@@ -114,7 +114,7 @@ keytool -import -alias coder -file cacert.pem -keystore /Applications/JetBrains\
 1. Make sure the checkbox for "Parse config file ~/.ssh/config" is checked.
 1. Click "Test Connection" to validate these settings.
 1. Click "OK"
-    ![Gateway SSH Configuration](../images/gateway/gateway-create-ssh-configuration.png)
+   ![Gateway SSH Configuration](../images/gateway/gateway-create-ssh-configuration.png)
 1. Select the connection you just added
    ![Gateway Welcome](../images/gaGteway/gateway-welcome.png)
 1. Click "Check Connection and Continue"
