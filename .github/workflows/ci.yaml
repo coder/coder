@@ -741,8 +741,9 @@ jobs:
             build/coder_linux_amd64
 
           # Tag image with new package tag and push
-          docker tag ghcr.io/coder/coder-preview:main ghcr.io/coder/coder-preview:main-$version
-          docker push ghcr.io/coder/coder-preview:main-$version
+          tag=$(echo "$version" | sed 's/+/-/g')
+          docker tag ghcr.io/coder/coder-preview:main ghcr.io/coder/coder-preview:main-$tag
+          docker push ghcr.io/coder/coder-preview:main-$tag
 
       - name: Prune old images
         uses: vlaurin/action-ghcr-prune@v0.5.0
