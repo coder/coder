@@ -46,7 +46,7 @@ func TestBatchStats(t *testing.T) {
 
 	// Given: no data points are added for workspace
 	// When: it becomes time to report stats
-	t1 := time.Now()
+	t1 := database.Now()
 	// Signal a tick and wait for a flush to complete.
 	tick <- t1
 	f := <-flushed
@@ -59,7 +59,7 @@ func TestBatchStats(t *testing.T) {
 	require.Empty(t, stats, "should have no stats for workspace")
 
 	// Given: a single data point is added for workspace
-	t2 := time.Now()
+	t2 := database.Now()
 	t.Logf("inserting 1 stat")
 	require.NoError(t, b.Add(deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randAgentSDKStats(t)))
 
@@ -77,7 +77,7 @@ func TestBatchStats(t *testing.T) {
 
 	// Given: a lot of data points are added for both workspaces
 	// (equal to batch size)
-	t3 := time.Now()
+	t3 := database.Now()
 	done := make(chan struct{})
 
 	go func() {
@@ -105,7 +105,7 @@ func TestBatchStats(t *testing.T) {
 	require.Len(t, stats, 2, "should have stats for both workspaces")
 
 	// Ensures that a subsequent flush pushes all the remaining data
-	t4 := time.Now()
+	t4 := database.Now()
 	tick <- t4
 	f2 := <-flushed
 	t.Logf("flush 4 completed")
@@ -113,7 +113,7 @@ func TestBatchStats(t *testing.T) {
 	require.Equal(t, expectedCount, f2, "did not flush expected remaining rows")
 
 	// Ensure that a subsequent flush does not push stale data.
-	t5 := time.Now()
+	t5 := database.Now()
 	tick <- t5
 	f = <-flushed
 	require.Zero(t, f, "expected zero stats to have been flushed")

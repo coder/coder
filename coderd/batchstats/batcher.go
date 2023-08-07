@@ -199,15 +199,6 @@ func (b *Batcher) flush(ctx context.Context, forced bool, reason string) {
 	defer func() {
 		b.flushForced.Store(false)
 		b.mu.Unlock()
-		// Notify that a flush has completed. This only happens in tests.
-		if b.flushed != nil {
-			select {
-			case <-ctx.Done():
-				close(b.flushed)
-			default:
-				b.flushed <- count
-			}
-		}
 		if count > 0 {
 			elapsed := time.Since(start)
 			b.log.Debug(ctx, "flush complete",
@@ -216,6 +207,15 @@ func (b *Batcher) flush(ctx context.Context, forced bool, reason string) {
 				slog.F("forced", forced),
 				slog.F("reason", reason),
 			)
+		}
+		// Notify that a flush has completed. This only happens in tests.
+		if b.flushed != nil {
+			select {
+			case <-ctx.Done():
+				close(b.flushed)
+			default:
+				b.flushed <- count
+			}
 		}
 	}()
 
