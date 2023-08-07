@@ -164,38 +164,61 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 	}), nil
 }
 
-// ListenProvisionerDaemon returns the gRPC service for a provisioner daemon
+// ServeProvisionerDaemonRequest are the parameters to call ServeProvisionerDaemon with
+// @typescript-ignore ServeProvisionerDaemonRequest
+type ServeProvisionerDaemonRequest struct {
+	// Organization is the organization for the URL.  At present provisioner daemons ARE NOT scoped to organizations
+	// and so the organization ID is optional.
+	Organization uuid.UUID `json:"organization" format:"uuid"`
+	// Provisioners is a list of provisioner types hosted by the provisioner daemon
+	Provisioners []ProvisionerType `json:"provisioners"`
+	// Tags is a map of key-value pairs that tag the jobs this provisioner daemon can handle
+	Tags map[string]string `json:"tags"`
+	// PreSharedKey is an authentication key to use on the API instead of the normal session token from the client.
+	PreSharedKey string `json:"pre_shared_key"`
+}
+
+// ServeProvisionerDaemon returns the gRPC service for a provisioner daemon
 // implementation. The context is during dial, not during the lifetime of the
 // client. Client should be closed after use.
-func (c *Client) ServeProvisionerDaemon(ctx context.Context, organization uuid.UUID, provisioners []ProvisionerType, tags map[string]string) (proto.DRPCProvisionerDaemonClient, error) {
-	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/organizations/%s/provisionerdaemons/serve", organization))
+func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisionerDaemonRequest) (proto.DRPCProvisionerDaemonClient, error) {
+	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/organizations/%s/provisionerdaemons/serve", req.Organization))
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
 	query := serverURL.Query()
-	for _, provisioner := range provisioners {
+	for _, provisioner := range req.Provisioners {
 		query.Add("provisioner", string(provisioner))
 	}
-	for key, value := range tags {
+	for key, value := range req.Tags {
 		query.Add("tag", fmt.Sprintf("%s=%s", key, value))
 	}
 	serverURL.RawQuery = query.Encode()
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, xerrors.Errorf("create cookie jar: %w", err)
-	}
-	jar.SetCookies(serverURL, []*http.Cookie{{
-		Name:  SessionTokenCookie,
-		Value: c.SessionToken(),
-	}})
 	httpClient := &http.Client{
-		Jar:       jar,
 		Transport: c.HTTPClient.Transport,
 	}
+	headers := http.Header{}
+
+	if req.PreSharedKey == "" {
+		// use session token if we don't have a PSK.
+		jar, err := cookiejar.New(nil)
+		if err != nil {
+			return nil, xerrors.Errorf("create cookie jar: %w", err)
+		}
+		jar.SetCookies(serverURL, []*http.Cookie{{
+			Name:  SessionTokenCookie,
+			Value: c.SessionToken(),
+		}})
+		httpClient.Jar = jar
+	} else {
+		headers.Set(ProvisionerDaemonPSK, req.PreSharedKey)
+	}
+
 	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
 		HTTPClient: httpClient,
 		// Need to disable compression to avoid a data-race.
 		CompressionMode: websocket.CompressionDisabled,
+		HTTPHeader:      headers,
 	})
 	if err != nil {
 		if res == nil {

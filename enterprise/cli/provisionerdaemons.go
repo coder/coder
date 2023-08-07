@@ -44,13 +44,14 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 		rawTags      []string
 		pollInterval time.Duration
 		pollJitter   time.Duration
+		preSharedKey string
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Use:   "start",
 		Short: "Run a provisioner daemon",
 		Middleware: clibase.Chain(
-			r.InitClient(client),
+			r.InitClientMissingTokenOK(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
@@ -58,11 +59,6 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 
 			notifyCtx, notifyStop := signal.NotifyContext(ctx, agpl.InterruptSignals...)
 			defer notifyStop()
-
-			org, err := agpl.CurrentOrganization(inv, client)
-			if err != nil {
-				return xerrors.Errorf("get current organization: %w", err)
-			}
 
 			tags, err := agpl.ParseProvisionerTags(rawTags)
 			if err != nil {
@@ -112,9 +108,13 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				string(database.ProvisionerTypeTerraform): proto.NewDRPCProvisionerClient(terraformClient),
 			}
 			srv := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
-				return client.ServeProvisionerDaemon(ctx, org.ID, []codersdk.ProvisionerType{
-					codersdk.ProvisionerTypeTerraform,
-				}, tags)
+				return client.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+					Provisioners: []codersdk.ProvisionerType{
+						codersdk.ProvisionerTypeTerraform,
+					},
+					Tags:         tags,
+					PreSharedKey: preSharedKey,
+				})
 			}, &provisionerd.Options{
 				Logger:          logger,
 				JobPollInterval: pollInterval,
@@ -181,6 +181,12 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 			Description: "How much to jitter the poll interval by.",
 			Default:     (100 * time.Millisecond).String(),
 			Value:       clibase.DurationOf(&pollJitter),
+		},
+		{
+			Flag:        "psk",
+			Env:         "CODER_PROVISIONER_DAEMON_PSK",
+			Description: "Pre-shared key to authenticate with Coder server.",
+			Value:       clibase.StringOf(&preSharedKey),
 		},
 	}
 

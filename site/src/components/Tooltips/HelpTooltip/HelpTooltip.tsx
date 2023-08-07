@@ -13,6 +13,7 @@ import {
 } from "react"
 import { combineClasses } from "utils/combineClasses"
 import { Stack } from "../../Stack/Stack"
+import Box, { BoxProps } from "@mui/material/Box"
 
 type Icon = typeof HelpIcon
 
@@ -131,12 +132,16 @@ export const HelpTooltipTitle: FC<PropsWithChildren<unknown>> = ({
   return <h4 className={styles.title}>{children}</h4>
 }
 
-export const HelpTooltipText: FC<PropsWithChildren<unknown>> = ({
-  children,
-}) => {
+export const HelpTooltipText = (props: BoxProps) => {
   const styles = useStyles({})
 
-  return <p className={styles.text}>{children}</p>
+  return (
+    <Box
+      component="p"
+      {...props}
+      className={combineClasses([styles.text, props.className])}
+    />
+  )
 }
 
 export const HelpTooltipLink: FC<PropsWithChildren<{ href: string }>> = ({
@@ -257,6 +262,7 @@ const useStyles = makeStyles((theme) => ({
     marginBottom: theme.spacing(1),
     color: theme.palette.text.primary,
     fontSize: 14,
+    lineHeight: "120%",
     fontWeight: 600,
   },
 
