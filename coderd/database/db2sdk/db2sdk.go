@@ -3,8 +3,10 @@ package db2sdk
 
 import (
 	"encoding/json"
+	"sort"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/parameter"
@@ -29,19 +31,9 @@ func WorkspaceBuildParameter(p database.WorkspaceBuildParameter) codersdk.Worksp
 }
 
 func TemplateVersionParameter(param database.TemplateVersionParameter) (codersdk.TemplateVersionParameter, error) {
-	var protoOptions []*proto.RichParameterOption
-	err := json.Unmarshal(param.Options, &protoOptions)
+	options, err := templateVersionParameterOptions(param.Options)
 	if err != nil {
 		return codersdk.TemplateVersionParameter{}, err
-	}
-	options := make([]codersdk.TemplateVersionParameterOption, 0)
-	for _, option := range protoOptions {
-		options = append(options, codersdk.TemplateVersionParameterOption{
-			Name:        option.Name,
-			Description: option.Description,
-			Value:       option.Value,
-			Icon:        option.Icon,
-		})
 	}
 
 	descriptionPlaintext, err := parameter.Plaintext(param.Description)
@@ -131,4 +123,63 @@ func Role(role rbac.Role) codersdk.Role {
 		DisplayName: role.DisplayName,
 		Name:        role.Name,
 	}
+}
+
+func TemplateInsightsParameters(parameterRows []database.GetTemplateParameterInsightsRow) ([]codersdk.TemplateParameterUsage, error) {
+	parametersByNum := make(map[int64]*codersdk.TemplateParameterUsage)
+	for _, param := range parameterRows {
+		if _, ok := parametersByNum[param.Num]; !ok {
+			var opts []codersdk.TemplateVersionParameterOption
+			err := json.Unmarshal(param.Options, &opts)
+			if err != nil {
+				return nil, xerrors.Errorf("unmarshal template parameter options: %w", err)
+			}
+
+			plaintextDescription, err := parameter.Plaintext(param.Description)
+			if err != nil {
+				return nil, xerrors.Errorf("unmarshal template parameter options: %w", err)
+			}
+
+			parametersByNum[param.Num] = &codersdk.TemplateParameterUsage{
+				TemplateIDs: param.TemplateIDs,
+				Name:        param.Name,
+				Type:        "TODO",
+				DisplayName: param.DisplayName,
+				Description: plaintextDescription,
+				Options:     opts,
+			}
+		}
+		parametersByNum[param.Num].Values = append(parametersByNum[param.Num].Values, codersdk.TemplateParameterValue{
+			Value: param.Value,
+			Count: param.Count,
+		})
+	}
+	parametersUsage := []codersdk.TemplateParameterUsage{}
+	for _, param := range parametersByNum {
+		parametersUsage = append(parametersUsage, *param)
+	}
+
+	sort.Slice(parametersUsage, func(i, j int) bool {
+		return parametersUsage[i].Name < parametersUsage[j].Name
+	})
+
+	return parametersUsage, nil
+}
+
+func templateVersionParameterOptions(rawOptions json.RawMessage) ([]codersdk.TemplateVersionParameterOption, error) {
+	var protoOptions []*proto.RichParameterOption
+	err := json.Unmarshal(rawOptions, &protoOptions)
+	if err != nil {
+		return nil, err
+	}
+	options := make([]codersdk.TemplateVersionParameterOption, 0)
+	for _, option := range protoOptions {
+		options = append(options, codersdk.TemplateVersionParameterOption{
+			Name:        option.Name,
+			Description: option.Description,
+			Value:       option.Value,
+			Icon:        option.Icon,
+		})
+	}
+	return options, nil
 }
