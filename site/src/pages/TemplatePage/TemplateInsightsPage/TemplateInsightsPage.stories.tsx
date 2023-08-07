@@ -88,6 +88,8 @@ export const Loaded: Story = {
             template_ids: ["7dd1d090-3e23-4ada-8894-3945affcad42"],
             display_name: "",
             name: "Compute instances",
+            type: "number",
+            description: "Let's set the expected number of instances.",
             values: [
               {
                 value: "3",
@@ -99,6 +101,8 @@ export const Loaded: Story = {
             template_ids: ["7dd1d090-3e23-4ada-8894-3945affcad42"],
             display_name: "",
             name: "Docker Image",
+            type: "string",
+            description: "Docker image for the development container",
             values: [
               {
                 value: "ghcr.io/harrison-ai/coder-dev:base",
@@ -110,6 +114,8 @@ export const Loaded: Story = {
             template_ids: ["7dd1d090-3e23-4ada-8894-3945affcad42"],
             display_name: "Very random string",
             name: "Optional random string",
+            type: "string",
+            description: "This string is optional",
             values: [
               {
                 value: "ksjdlkajs;djálskd'l ;a k;aosdk ;oaids ;li",
@@ -125,6 +131,8 @@ export const Loaded: Story = {
             template_ids: ["7dd1d090-3e23-4ada-8894-3945affcad42"],
             display_name: "",
             name: "Region",
+            type: "string",
+            description: "These are options.",
             options: [
               {
                 name: "US Central",
@@ -160,6 +168,8 @@ export const Loaded: Story = {
             template_ids: ["7dd1d090-3e23-4ada-8894-3945affcad42"],
             display_name: "",
             name: "Security groups",
+            type: "list(string)",
+            description: "Select appropriate security groups.",
             values: [
               {
                 value:
@@ -172,6 +182,8 @@ export const Loaded: Story = {
             template_ids: ["7dd1d090-3e23-4ada-8894-3945affcad42"],
             display_name: "Very random string",
             name: "buggy-1",
+            type: "string",
+            description: "This string is buggy",
             values: [
               {
                 value: "",
@@ -183,6 +195,8 @@ export const Loaded: Story = {
             template_ids: ["7dd1d090-3e23-4ada-8894-3945affcad42"],
             display_name: "Force rebuild",
             name: "force-rebuild",
+            type: "bool",
+            description: "Rebuild the project code",
             values: [
               {
                 value: "false",
@@ -194,6 +208,8 @@ export const Loaded: Story = {
             template_ids: ["7dd1d090-3e23-4ada-8894-3945affcad42"],
             display_name: "Location",
             name: "location",
+            type: "string",
+            description: "What location should your workspace live in?",
             options: [
               {
                 name: "US (Virginia)",
@@ -367,6 +383,8 @@ export const Loaded: Story = {
             template_ids: ["7dd1d090-3e23-4ada-8894-3945affcad42"],
             display_name: "",
             name: "mtojek_region",
+            type: "string",
+            description: "What region should your workspace live in?",
             options: [
               {
                 name: "Los Angeles, CA",
@@ -398,6 +416,8 @@ export const Loaded: Story = {
             template_ids: ["7dd1d090-3e23-4ada-8894-3945affcad42"],
             display_name: "My Project ID",
             name: "project_id",
+            type: "string",
+            description: "This is the Project ID.",
             values: [
               {
                 value: "12345",
@@ -409,6 +429,8 @@ export const Loaded: Story = {
             template_ids: ["7dd1d090-3e23-4ada-8894-3945affcad42"],
             display_name: "Force devcontainer rebuild",
             name: "rebuild_devcontainer",
+            type: "bool",
+            description: "",
             values: [
               {
                 value: "false",
@@ -420,6 +442,9 @@ export const Loaded: Story = {
             template_ids: ["7dd1d090-3e23-4ada-8894-3945affcad42"],
             display_name: "Git Repo URL",
             name: "repo_url",
+            type: "string",
+            description:
+              "See sample projects (https://github.com/microsoft/vscode-dev-containers#sample-projects)",
             values: [
               {
                 value: "https://github.com/mtojek/coder",

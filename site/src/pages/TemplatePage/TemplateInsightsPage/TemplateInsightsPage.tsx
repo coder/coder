@@ -318,13 +318,26 @@ const TemplateParametersUsagePanel = ({
                   },
                 }}
               >
-                <Box sx={{ fontWeight: 500, flex: 1 }}>{label}</Box>
+                <Box sx={{ flex: 1 }}>
+                  <Box sx={{ fontWeight: 500 }}>{label}</Box>
+                  <Box
+                    component="p"
+                    sx={{
+                      fontSize: 14,
+                      color: (theme) => theme.palette.text.secondary,
+                      maxWidth: 400,
+                      margin: 0,
+                    }}
+                  >
+                    {parameter.description}
+                  </Box>
+                </Box>
                 <Box sx={{ flex: 1, fontSize: 14 }}>
                   {parameter.values
                     .sort((a, b) => b.count - a.count)
-                    .map((value, valueIndex) => (
+                    .map((usage, usageIndex) => (
                       <Box
-                        key={`${parameterIndex}-${valueIndex}`}
+                        key={`${parameterIndex}-${usageIndex}`}
                         sx={{
                           display: "flex",
                           alignItems: "baseline",
@@ -333,8 +346,11 @@ const TemplateParametersUsagePanel = ({
                           gap: 5,
                         }}
                       >
-                        <ValueLabel value={value} parameter={parameter} />
-                        <Box sx={{ textAlign: "right" }}>{value.count}</Box>
+                        <ParameterUsageLabel
+                          usage={usage}
+                          parameter={parameter}
+                        />
+                        <Box sx={{ textAlign: "right" }}>{usage.count}</Box>
                       </Box>
                     ))}
                 </Box>
@@ -346,14 +362,14 @@ const TemplateParametersUsagePanel = ({
   )
 }
 
-const ValueLabel = ({
-  value,
+const ParameterUsageLabel = ({
+  usage,
   parameter,
 }: {
-  value: TemplateParameterValue
+  usage: TemplateParameterValue
   parameter: TemplateParameterUsage
 }) => {
-  if (value.value.trim() === "") {
+  if (usage.value.trim() === "") {
     return (
       <Box
         component="span"
@@ -367,7 +383,7 @@ const ValueLabel = ({
   }
 
   if (parameter.options) {
-    const option = parameter.options.find((o) => o.value === value.value)!
+    const option = parameter.options.find((o) => o.value === usage.value)!
     const icon = option.icon
     const label = option.name
 
@@ -397,10 +413,10 @@ const ValueLabel = ({
     )
   }
 
-  if (value.value.startsWith("http")) {
+  if (usage.value.startsWith("http")) {
     return (
       <Link
-        href={value.value}
+        href={usage.value}
         target="_blank"
         rel="noreferrer"
         sx={{
@@ -411,13 +427,13 @@ const ValueLabel = ({
         }}
       >
         <OpenInNewOutlined sx={{ width: 14, height: 14 }} />
-        {value.value}
+        {usage.value}
       </Link>
     )
   }
 
-  if (value.value.startsWith("[")) {
-    const values = JSON.parse(value.value) as string[]
+  if (parameter.type === "list(string)") {
+    const values = JSON.parse(usage.value) as string[]
     return (
       <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
         {values.map((v, i) => {
@@ -439,7 +455,7 @@ const ValueLabel = ({
     )
   }
 
-  if (value.value === "false") {
+  if (parameter.type === "bool") {
     return (
       <Box
         sx={{
@@ -448,40 +464,34 @@ const ValueLabel = ({
           gap: 1,
         }}
       >
-        <CancelOutlined
-          sx={{
-            width: 16,
-            height: 16,
-            color: (theme) => theme.palette.error.light,
-          }}
-        />
-        False
+        {usage.value === "false" ? (
+          <>
+            <CancelOutlined
+              sx={{
+                width: 16,
+                height: 16,
+                color: (theme) => theme.palette.error.light,
+              }}
+            />
+            False
+          </>
+        ) : (
+          <>
+            <CheckCircleOutlined
+              sx={{
+                width: 16,
+                height: 16,
+                color: (theme) => theme.palette.success.light,
+              }}
+            />
+            True
+          </>
+        )}
       </Box>
     )
   }
 
-  if (value.value === "true") {
-    return (
-      <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 1,
-        }}
-      >
-        <CheckCircleOutlined
-          sx={{
-            width: 16,
-            height: 16,
-            color: (theme) => theme.palette.success.light,
-          }}
-        />
-        True
-      </Box>
-    )
-  }
-
-  return <Box>{value.value}</Box>
+  return <Box>{usage.value}</Box>
 }
 
 const Panel = styled(Box)(({ theme }) => ({
