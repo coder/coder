@@ -73,7 +73,7 @@ func TestOIDCOauthLoginWithExisting(t *testing.T) {
 	client.SetSessionToken(authCookie)
 	_ = resp.Body.Close()
 
-	ctx := testutil.Context(t, testutil.WaitLong*1000)
+	ctx := testutil.Context(t, testutil.WaitLong)
 	// Verify the user and oauth link
 	user, err := client.User(ctx, "me")
 	require.NoError(t, err)
