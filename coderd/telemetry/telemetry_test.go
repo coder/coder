@@ -54,15 +54,16 @@ func TestTelemetry(t *testing.T) {
 			SharingLevel: database.AppSharingLevelOwner,
 			Health:       database.WorkspaceAppHealthDisabled,
 		})
-		wsagent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-			Subsystem: database.WorkspaceAgentSubsystemEnvbox,
-		})
+		wsagent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{})
 		// Update the workspace agent to have a valid subsystem.
 		err = db.UpdateWorkspaceAgentStartupByID(ctx, database.UpdateWorkspaceAgentStartupByIDParams{
 			ID:                wsagent.ID,
 			Version:           wsagent.Version,
 			ExpandedDirectory: wsagent.ExpandedDirectory,
-			Subsystem:         database.WorkspaceAgentSubsystemEnvbox,
+			Subsystems: []database.WorkspaceAgentSubsystem{
+				database.WorkspaceAgentSubsystemEnvbox,
+				database.WorkspaceAgentSubsystemExectrace,
+			},
 		})
 		require.NoError(t, err)
 
@@ -95,7 +96,9 @@ func TestTelemetry(t *testing.T) {
 		require.Len(t, snapshot.WorkspaceAgentStats, 1)
 
 		wsa := snapshot.WorkspaceAgents[0]
-		require.Equal(t, string(database.WorkspaceAgentSubsystemEnvbox), wsa.Subsystem)
+		require.Len(t, wsa.Subsystems, 2)
+		require.Equal(t, string(database.WorkspaceAgentSubsystemEnvbox), wsa.Subsystems[0])
+		require.Equal(t, string(database.WorkspaceAgentSubsystemExectrace), wsa.Subsystems[1])
 	})
 	t.Run("HashedEmail", func(t *testing.T) {
 		t.Parallel()

@@ -377,18 +377,18 @@
 ```json
 {
   "expanded_directory": "string",
-  "subsystem": "envbox",
+  "subsystems": ["envbox"],
   "version": "string"
 }
 ```
 
 ### Properties
 
-| Name                 | Type                                               | Required | Restrictions | Description |
-| -------------------- | -------------------------------------------------- | -------- | ------------ | ----------- |
-| `expanded_directory` | string                                             | false    |              |             |
-| `subsystem`          | [codersdk.AgentSubsystem](#codersdkagentsubsystem) | false    |              |             |
-| `version`            | string                                             | false    |              |             |
+| Name                 | Type                                                        | Required | Restrictions | Description |
+| -------------------- | ----------------------------------------------------------- | -------- | ------------ | ----------- |
+| `expanded_directory` | string                                                      | false    |              |             |
+| `subsystems`         | array of [codersdk.AgentSubsystem](#codersdkagentsubsystem) | false    |              |             |
+| `version`            | string                                                      | false    |              |             |
 
 ## agentsdk.Stats
 
@@ -902,9 +902,11 @@
 
 #### Enumerated Values
 
-| Value    |
-| -------- |
-| `envbox` |
+| Value        |
+| ------------ |
+| `envbox`     |
+| `envbuilder` |
+| `exectrace`  |
 
 ## codersdk.AppHostResponse
 
@@ -5357,7 +5359,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "startup_script_behavior": "blocking",
             "startup_script_timeout_seconds": 0,
             "status": "connecting",
-            "subsystem": "envbox",
+            "subsystems": ["envbox"],
             "troubleshooting_url": "string",
             "updated_at": "2019-08-24T14:15:22Z",
             "version": "string"
@@ -5498,7 +5500,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "startup_script_behavior": "blocking",
   "startup_script_timeout_seconds": 0,
   "status": "connecting",
-  "subsystem": "envbox",
+  "subsystems": ["envbox"],
   "troubleshooting_url": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "version": "string"
@@ -5540,7 +5542,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `startup_script_behavior`         | [codersdk.WorkspaceAgentStartupScriptBehavior](#codersdkworkspaceagentstartupscriptbehavior) | false    |              |                                                                                                                                                                                                            |
 | `startup_script_timeout_seconds`  | integer                                                                                      | false    |              | Startup script timeout seconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout. |
 | `status`                          | [codersdk.WorkspaceAgentStatus](#codersdkworkspaceagentstatus)                               | false    |              |                                                                                                                                                                                                            |
-| `subsystem`                       | [codersdk.AgentSubsystem](#codersdkagentsubsystem)                                           | false    |              |                                                                                                                                                                                                            |
+| `subsystems`                      | array of [codersdk.AgentSubsystem](#codersdkagentsubsystem)                                  | false    |              |                                                                                                                                                                                                            |
 | `troubleshooting_url`             | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `updated_at`                      | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `version`                         | string                                                                                       | false    |              |                                                                                                                                                                                                            |
@@ -5956,7 +5958,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "startup_script_behavior": "blocking",
           "startup_script_timeout_seconds": 0,
           "status": "connecting",
-          "subsystem": "envbox",
+          "subsystems": ["envbox"],
           "troubleshooting_url": "string",
           "updated_at": "2019-08-24T14:15:22Z",
           "version": "string"
@@ -6267,7 +6269,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "startup_script_behavior": "blocking",
       "startup_script_timeout_seconds": 0,
       "status": "connecting",
-      "subsystem": "envbox",
+      "subsystems": ["envbox"],
       "troubleshooting_url": "string",
       "updated_at": "2019-08-24T14:15:22Z",
       "version": "string"
@@ -6479,7 +6481,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 "startup_script_behavior": "blocking",
                 "startup_script_timeout_seconds": 0,
                 "status": "connecting",
-                "subsystem": "envbox",
+                "subsystems": ["envbox"],
                 "troubleshooting_url": "string",
                 "updated_at": "2019-08-24T14:15:22Z",
                 "version": "string"

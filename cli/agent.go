@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -253,7 +254,19 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			}
 
 			prometheusRegistry := prometheus.NewRegistry()
-			subsystem := inv.Environ.Get(agent.EnvAgentSubsystem)
+			subsystemsRaw := inv.Environ.Get(agent.EnvAgentSubsystem)
+			subsystems := []codersdk.AgentSubsystem{}
+			for _, s := range strings.Split(subsystemsRaw, ",") {
+				subsystem := codersdk.AgentSubsystem(strings.TrimSpace(s))
+				if subsystem == "" {
+					continue
+				}
+				if !subsystem.Valid() {
+					return xerrors.Errorf("invalid subsystem %q", subsystem)
+				}
+				subsystems = append(subsystems, subsystem)
+			}
+
 			agnt := agent.New(agent.Options{
 				Client:            client,
 				Logger:            logger,
@@ -275,7 +288,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				},
 				IgnorePorts:   ignorePorts,
 				SSHMaxTimeout: sshMaxTimeout,
-				Subsystem:     codersdk.AgentSubsystem(subsystem),
+				Subsystems:    subsystems,
 
 				PrometheusRegistry: prometheusRegistry,
 			})

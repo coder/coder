@@ -63,7 +63,7 @@ type Options struct {
 	IgnorePorts                  map[int]string
 	SSHMaxTimeout                time.Duration
 	TailnetListenPort            uint16
-	Subsystem                    codersdk.AgentSubsystem
+	Subsystems                   []codersdk.AgentSubsystem
 	Addresses                    []netip.Prefix
 	PrometheusRegistry           *prometheus.Registry
 	ReportMetadataInterval       time.Duration
@@ -144,7 +144,7 @@ func New(options Options) Agent {
 		reportMetadataInterval:       options.ReportMetadataInterval,
 		serviceBannerRefreshInterval: options.ServiceBannerRefreshInterval,
 		sshMaxTimeout:                options.SSHMaxTimeout,
-		subsystem:                    options.Subsystem,
+		subsystems:                   options.Subsystems,
 		addresses:                    options.Addresses,
 
 		prometheusRegistry: prometheusRegistry,
@@ -166,7 +166,7 @@ type agent struct {
 	// listing all listening ports. This is helpful to hide ports that
 	// are used by the agent, that the user does not care about.
 	ignorePorts map[int]string
-	subsystem   codersdk.AgentSubsystem
+	subsystems  []codersdk.AgentSubsystem
 
 	reconnectingPTYs       sync.Map
 	reconnectingPTYTimeout time.Duration
@@ -608,7 +608,7 @@ func (a *agent) run(ctx context.Context) error {
 	err = a.client.PostStartup(ctx, agentsdk.PostStartupRequest{
 		Version:           buildinfo.Version(),
 		ExpandedDirectory: manifest.Directory,
-		Subsystem:         a.subsystem,
+		Subsystems:        a.subsystems,
 	})
 	if err != nil {
 		return xerrors.Errorf("update workspace agent version: %w", err)

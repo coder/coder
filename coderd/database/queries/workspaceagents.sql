@@ -83,7 +83,7 @@ UPDATE
 SET
 	version = $2,
 	expanded_directory = $3,
-	subsystem = $4
+	subsystems = $4
 WHERE
 	id = $1;
 
