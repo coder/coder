@@ -6,7 +6,6 @@ import (
 	"sort"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/parameter"
@@ -132,12 +131,12 @@ func TemplateInsightsParameters(parameterRows []database.GetTemplateParameterIns
 			var opts []codersdk.TemplateVersionParameterOption
 			err := json.Unmarshal(param.Options, &opts)
 			if err != nil {
-				return nil, xerrors.Errorf("unmarshal template parameter options: %w", err)
+				return nil, err
 			}
 
 			plaintextDescription, err := parameter.Plaintext(param.Description)
 			if err != nil {
-				return nil, xerrors.Errorf("unmarshal template parameter options: %w", err)
+				return nil, err
 			}
 
 			parametersByNum[param.Num] = &codersdk.TemplateParameterUsage{
