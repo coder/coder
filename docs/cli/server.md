@@ -690,6 +690,16 @@ Collect database metrics (may increase charges for metrics storage).
 
 Serve prometheus metrics on the address defined by prometheus address.
 
+### --provisioner-daemon-psk
+
+|             |                                            |
+| ----------- | ------------------------------------------ |
+| Type        | <code>string</code>                        |
+| Environment | <code>$CODER_PROVISIONER_DAEMON_PSK</code> |
+| YAML        | <code>provisioning.daemonPSK</code>        |
+
+Pre-shared key to authenticate external provisioner daemons to Coder server.
+
 ### --provisioner-daemons
 
 |             |                                         |

@@ -51,7 +51,8 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
   "database": {
     "error": "string",
     "healthy": true,
-    "latency": 0,
+    "latency": "string",
+    "latency_ms": 0,
     "reachable": true
   },
   "derp": {
@@ -118,11 +119,12 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
               "tokenBucketBytesBurst": 0,
               "tokenBucketBytesPerSecond": 0
             },
-            "round_trip_ping": 0,
+            "round_trip_ping": "string",
+            "round_trip_ping_ms": 0,
             "stun": {
               "canSTUN": true,
               "enabled": true,
-              "error": null
+              "error": "string"
             },
             "uses_websocket": true
           }
@@ -179,11 +181,12 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
               "tokenBucketBytesBurst": 0,
               "tokenBucketBytesPerSecond": 0
             },
-            "round_trip_ping": 0,
+            "round_trip_ping": "string",
+            "round_trip_ping_ms": 0,
             "stun": {
               "canSTUN": true,
               "enabled": true,
-              "error": null
+              "error": "string"
             },
             "uses_websocket": true
           }
@@ -218,12 +221,10 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
   "healthy": true,
   "time": "string",
   "websocket": {
+    "body": "string",
+    "code": 0,
     "error": "string",
-    "healthy": true,
-    "response": {
-      "body": "string",
-      "code": 0
-    }
+    "healthy": true
   }
 }
 ```

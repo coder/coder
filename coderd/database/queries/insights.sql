@@ -149,16 +149,18 @@ WITH latest_workspace_builds AS (
 		tvp.name,
 		tvp.display_name,
 		tvp.description,
-		tvp.options
+		tvp.options,
+		tvp.type
 	FROM latest_workspace_builds wb
 	JOIN template_version_parameters tvp ON (tvp.template_version_id = wb.template_version_id)
-	GROUP BY tvp.name, tvp.display_name, tvp.description, tvp.options
+	GROUP BY tvp.name, tvp.display_name, tvp.description, tvp.options, tvp.type
 )
 
 SELECT
 	utp.num,
 	utp.template_ids,
 	utp.name,
+	utp.type,
 	utp.display_name,
 	utp.description,
 	utp.options,
@@ -166,4 +168,4 @@ SELECT
 	COUNT(wbp.value) AS count
 FROM unique_template_params utp
 JOIN workspace_build_parameters wbp ON (utp.workspace_build_ids @> ARRAY[wbp.workspace_build_id] AND utp.name = wbp.name)
-GROUP BY utp.num, utp.name, utp.display_name, utp.description, utp.options, utp.template_ids, wbp.value;
+GROUP BY utp.num, utp.name, utp.display_name, utp.description, utp.options, utp.template_ids, utp.type, wbp.value;

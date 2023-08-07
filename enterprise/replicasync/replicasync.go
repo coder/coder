@@ -375,7 +375,13 @@ func (m *Manager) InRegion(regionID int32) []database.Replica {
 
 // Regional returns all replicas in the same region excluding itself.
 func (m *Manager) Regional() []database.Replica {
-	return m.InRegion(m.self.RegionID)
+	return m.InRegion(m.regionID())
+}
+
+func (m *Manager) regionID() int32 {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	return m.self.RegionID
 }
 
 // SetCallback sets a function to execute whenever new peers

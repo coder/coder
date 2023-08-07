@@ -2112,6 +2112,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "provisioner": {
       "daemon_poll_interval": 0,
       "daemon_poll_jitter": 0,
+      "daemon_psk": "string",
       "daemons": 0,
       "daemons_echo": true,
       "force_cancel_interval": 0
@@ -2471,6 +2472,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "provisioner": {
     "daemon_poll_interval": 0,
     "daemon_poll_jitter": 0,
+    "daemon_psk": "string",
     "daemons": 0,
     "daemons_echo": true,
     "force_cancel_interval": 0
@@ -3521,6 +3523,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "daemon_poll_interval": 0,
   "daemon_poll_jitter": 0,
+  "daemon_psk": "string",
   "daemons": 0,
   "daemons_echo": true,
   "force_cancel_interval": 0
@@ -3533,6 +3536,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ----------------------- | ------- | -------- | ------------ | ----------- |
 | `daemon_poll_interval`  | integer | false    |              |             |
 | `daemon_poll_jitter`    | integer | false    |              |             |
+| `daemon_psk`            | string  | false    |              |             |
 | `daemons`               | integer | false    |              |             |
 | `daemons_echo`          | boolean | false    |              |             |
 | `force_cancel_interval` | integer | false    |              |             |
@@ -4353,6 +4357,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "end_time": "2019-08-24T14:15:22Z",
   "parameters_usage": [
     {
+      "description": "string",
       "display_name": "string",
       "name": "string",
       "options": [
@@ -4364,6 +4369,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         }
       ],
       "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+      "type": "string",
       "values": [
         {
           "count": 0,
@@ -4416,6 +4422,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "end_time": "2019-08-24T14:15:22Z",
     "parameters_usage": [
       {
+        "description": "string",
         "display_name": "string",
         "name": "string",
         "options": [
@@ -4427,6 +4434,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           }
         ],
         "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+        "type": "string",
         "values": [
           {
             "count": 0,
@@ -4452,6 +4460,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "description": "string",
   "display_name": "string",
   "name": "string",
   "options": [
@@ -4463,6 +4472,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     }
   ],
   "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+  "type": "string",
   "values": [
     {
       "count": 0,
@@ -4476,10 +4486,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name           | Type                                                                                        | Required | Restrictions | Description |
 | -------------- | ------------------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `description`  | string                                                                                      | false    |              |             |
 | `display_name` | string                                                                                      | false    |              |             |
 | `name`         | string                                                                                      | false    |              |             |
 | `options`      | array of [codersdk.TemplateVersionParameterOption](#codersdktemplateversionparameteroption) | false    |              |             |
 | `template_ids` | array of string                                                                             | false    |              |             |
+| `type`         | string                                                                                      | false    |              |             |
 | `values`       | array of [codersdk.TemplateParameterValue](#codersdktemplateparametervalue)                 | false    |              |             |
 
 ## codersdk.TemplateParameterValue
@@ -6639,11 +6651,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "tokenBucketBytesBurst": 0,
     "tokenBucketBytesPerSecond": 0
   },
-  "round_trip_ping": 0,
+  "round_trip_ping": "string",
+  "round_trip_ping_ms": 0,
   "stun": {
     "canSTUN": true,
     "enabled": true,
-    "error": null
+    "error": "string"
   },
   "uses_websocket": true
 }
@@ -6660,7 +6673,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `healthy`               | boolean                                                  | false    |              |             |
 | `node`                  | [tailcfg.DERPNode](#tailcfgderpnode)                     | false    |              |             |
 | `node_info`             | [derp.ServerInfoMessage](#derpserverinfomessage)         | false    |              |             |
-| `round_trip_ping`       | integer                                                  | false    |              |             |
+| `round_trip_ping`       | string                                                   | false    |              |             |
+| `round_trip_ping_ms`    | integer                                                  | false    |              |             |
 | `stun`                  | [healthcheck.DERPStunReport](#healthcheckderpstunreport) | false    |              |             |
 | `uses_websocket`        | boolean                                                  | false    |              |             |
 
@@ -6695,11 +6709,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "tokenBucketBytesBurst": 0,
         "tokenBucketBytesPerSecond": 0
       },
-      "round_trip_ping": 0,
+      "round_trip_ping": "string",
+      "round_trip_ping_ms": 0,
       "stun": {
         "canSTUN": true,
         "enabled": true,
-        "error": null
+        "error": "string"
       },
       "uses_websocket": true
     }
@@ -6806,11 +6821,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "tokenBucketBytesBurst": 0,
             "tokenBucketBytesPerSecond": 0
           },
-          "round_trip_ping": 0,
+          "round_trip_ping": "string",
+          "round_trip_ping_ms": 0,
           "stun": {
             "canSTUN": true,
             "enabled": true,
-            "error": null
+            "error": "string"
           },
           "uses_websocket": true
         }
@@ -6867,11 +6883,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "tokenBucketBytesBurst": 0,
             "tokenBucketBytesPerSecond": 0
           },
-          "round_trip_ping": 0,
+          "round_trip_ping": "string",
+          "round_trip_ping_ms": 0,
           "stun": {
             "canSTUN": true,
             "enabled": true,
-            "error": null
+            "error": "string"
           },
           "uses_websocket": true
         }
@@ -6922,7 +6939,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "canSTUN": true,
   "enabled": true,
-  "error": null
+  "error": "string"
 }
 ```
 
@@ -6932,7 +6949,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | --------- | ------- | -------- | ------------ | ----------- |
 | `canSTUN` | boolean | false    |              |             |
 | `enabled` | boolean | false    |              |             |
-| `error`   | any     | false    |              |             |
+| `error`   | string  | false    |              |             |
 
 ## healthcheck.DatabaseReport
 
@@ -6940,19 +6957,21 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "error": "string",
   "healthy": true,
-  "latency": 0,
+  "latency": "string",
+  "latency_ms": 0,
   "reachable": true
 }
 ```
 
 ### Properties
 
-| Name        | Type    | Required | Restrictions | Description |
-| ----------- | ------- | -------- | ------------ | ----------- |
-| `error`     | string  | false    |              |             |
-| `healthy`   | boolean | false    |              |             |
-| `latency`   | integer | false    |              |             |
-| `reachable` | boolean | false    |              |             |
+| Name         | Type    | Required | Restrictions | Description |
+| ------------ | ------- | -------- | ------------ | ----------- |
+| `error`      | string  | false    |              |             |
+| `healthy`    | boolean | false    |              |             |
+| `latency`    | string  | false    |              |             |
+| `latency_ms` | integer | false    |              |             |
+| `reachable`  | boolean | false    |              |             |
 
 ## healthcheck.Report
 
@@ -6970,7 +6989,8 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "database": {
     "error": "string",
     "healthy": true,
-    "latency": 0,
+    "latency": "string",
+    "latency_ms": 0,
     "reachable": true
   },
   "derp": {
@@ -7037,11 +7057,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "tokenBucketBytesBurst": 0,
               "tokenBucketBytesPerSecond": 0
             },
-            "round_trip_ping": 0,
+            "round_trip_ping": "string",
+            "round_trip_ping_ms": 0,
             "stun": {
               "canSTUN": true,
               "enabled": true,
-              "error": null
+              "error": "string"
             },
             "uses_websocket": true
           }
@@ -7098,11 +7119,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "tokenBucketBytesBurst": 0,
               "tokenBucketBytesPerSecond": 0
             },
-            "round_trip_ping": 0,
+            "round_trip_ping": "string",
+            "round_trip_ping_ms": 0,
             "stun": {
               "canSTUN": true,
               "enabled": true,
-              "error": null
+              "error": "string"
             },
             "uses_websocket": true
           }
@@ -7137,12 +7159,10 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "healthy": true,
   "time": "string",
   "websocket": {
+    "body": "string",
+    "code": 0,
     "error": "string",
-    "healthy": true,
-    "response": {
-      "body": "string",
-      "code": 0
-    }
+    "healthy": true
   }
 }
 ```
@@ -7164,38 +7184,21 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "error": "string",
-  "healthy": true,
-  "response": {
-    "body": "string",
-    "code": 0
-  }
-}
-```
-
-### Properties
-
-| Name       | Type                                                           | Required | Restrictions | Description |
-| ---------- | -------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `error`    | string                                                         | false    |              |             |
-| `healthy`  | boolean                                                        | false    |              |             |
-| `response` | [healthcheck.WebsocketResponse](#healthcheckwebsocketresponse) | false    |              |             |
-
-## healthcheck.WebsocketResponse
-
-```json
-{
   "body": "string",
-  "code": 0
+  "code": 0,
+  "error": "string",
+  "healthy": true
 }
 ```
 
 ### Properties
 
-| Name   | Type    | Required | Restrictions | Description |
-| ------ | ------- | -------- | ------------ | ----------- |
-| `body` | string  | false    |              |             |
-| `code` | integer | false    |              |             |
+| Name      | Type    | Required | Restrictions | Description |
+| --------- | ------- | -------- | ------------ | ----------- |
+| `body`    | string  | false    |              |             |
+| `code`    | integer | false    |              |             |
+| `error`   | string  | false    |              |             |
+| `healthy` | boolean | false    |              |             |
 
 ## netcheck.Report
 

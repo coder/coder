@@ -391,4 +391,8 @@ export const handlers = [
   rest.get("/api/v2/debug/health", (_, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockHealth))
   }),
+
+  rest.get("/api/v2/workspaceagents/:agent/listening-ports", (_, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockListeningPortsResponse))
+  }),
 ]

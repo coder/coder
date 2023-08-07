@@ -22,6 +22,46 @@ INSERT INTO
 VALUES
 	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING *;
 
+-- name: InsertWorkspaceAgentStats :exec
+INSERT INTO
+	workspace_agent_stats (
+		id,
+		created_at,
+		user_id,
+		workspace_id,
+		template_id,
+		agent_id,
+		connections_by_proto,
+		connection_count,
+		rx_packets,
+		rx_bytes,
+		tx_packets,
+		tx_bytes,
+		session_count_vscode,
+		session_count_jetbrains,
+		session_count_reconnecting_pty,
+		session_count_ssh,
+		connection_median_latency_ms
+	)
+SELECT
+	unnest(@id :: uuid[]) AS id,
+	unnest(@created_at :: timestamptz[]) AS created_at,
+	unnest(@user_id :: uuid[]) AS user_id,
+	unnest(@workspace_id :: uuid[]) AS workspace_id,
+	unnest(@template_id :: uuid[]) AS template_id,
+	unnest(@agent_id :: uuid[]) AS agent_id,
+	jsonb_array_elements(@connections_by_proto :: jsonb) AS connections_by_proto,
+	unnest(@connection_count :: bigint[]) AS connection_count,
+	unnest(@rx_packets :: bigint[]) AS rx_packets,
+	unnest(@rx_bytes :: bigint[]) AS rx_bytes,
+	unnest(@tx_packets :: bigint[]) AS tx_packets,
+	unnest(@tx_bytes :: bigint[]) AS tx_bytes,
+	unnest(@session_count_vscode :: bigint[]) AS session_count_vscode,
+	unnest(@session_count_jetbrains :: bigint[]) AS session_count_jetbrains,
+	unnest(@session_count_reconnecting_pty :: bigint[]) AS session_count_reconnecting_pty,
+	unnest(@session_count_ssh :: bigint[]) AS session_count_ssh,
+	unnest(@connection_median_latency_ms :: double precision[]) AS connection_median_latency_ms;
+
 -- name: GetTemplateDAUs :many
 SELECT
 	(created_at at TIME ZONE cast(@tz_offset::integer as text))::date as date,

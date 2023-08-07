@@ -5379,7 +5379,7 @@
           "200": {
             "description": "OK",
             "schema": {
-              "$ref": "#/definitions/codersdk.Response"
+              "$ref": "#/definitions/codersdk.Workspace"
             }
           }
         }
@@ -7880,6 +7880,9 @@
         "daemon_poll_jitter": {
           "type": "integer"
         },
+        "daemon_psk": {
+          "type": "string"
+        },
         "daemons": {
           "type": "integer"
         },
@@ -8679,6 +8682,9 @@
     "codersdk.TemplateParameterUsage": {
       "type": "object",
       "properties": {
+        "description": {
+          "type": "string"
+        },
         "display_name": {
           "type": "string"
         },
@@ -8697,6 +8703,9 @@
             "type": "string",
             "format": "uuid"
           }
+        },
+        "type": {
+          "type": "string"
         },
         "values": {
           "type": "array",
@@ -10249,6 +10258,9 @@
           "$ref": "#/definitions/derp.ServerInfoMessage"
         },
         "round_trip_ping": {
+          "type": "string"
+        },
+        "round_trip_ping_ms": {
           "type": "integer"
         },
         "stun": {
@@ -10317,7 +10329,9 @@
         "enabled": {
           "type": "boolean"
         },
-        "error": {}
+        "error": {
+          "type": "string"
+        }
       }
     },
     "healthcheck.DatabaseReport": {
@@ -10330,6 +10344,9 @@
           "type": "boolean"
         },
         "latency": {
+          "type": "string"
+        },
+        "latency_ms": {
           "type": "integer"
         },
         "reachable": {
@@ -10376,25 +10393,17 @@
     "healthcheck.WebsocketReport": {
       "type": "object",
       "properties": {
-        "error": {
-          "type": "string"
-        },
-        "healthy": {
-          "type": "boolean"
-        },
-        "response": {
-          "$ref": "#/definitions/healthcheck.WebsocketResponse"
-        }
-      }
-    },
-    "healthcheck.WebsocketResponse": {
-      "type": "object",
-      "properties": {
         "body": {
           "type": "string"
         },
         "code": {
           "type": "integer"
+        },
+        "error": {
+          "type": "string"
+        },
+        "healthy": {
+          "type": "boolean"
         }
       }
     },

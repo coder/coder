@@ -768,7 +768,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.UpdateWorkspaceLock true "Lock or unlock a workspace"
-// @Success 200 {object} codersdk.Response
+// @Success 200 {object} codersdk.Workspace
 // @Router /workspaces/{workspace}/lock [put]
 func (api *API) putWorkspaceLock(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -778,9 +778,6 @@ func (api *API) putWorkspaceLock(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-
-	code := http.StatusOK
-	resp := codersdk.Response{}
 
 	// If the workspace is already in the desired state do nothing!
 	if workspace.LockedAt.Valid == req.Lock {
@@ -797,7 +794,7 @@ func (api *API) putWorkspaceLock(rw http.ResponseWriter, r *http.Request) {
 		lockedAt.Time = database.Now()
 	}
 
-	err := api.Database.UpdateWorkspaceLockedDeletingAt(ctx, database.UpdateWorkspaceLockedDeletingAtParams{
+	workspace, err := api.Database.UpdateWorkspaceLockedDeletingAt(ctx, database.UpdateWorkspaceLockedDeletingAtParams{
 		ID:       workspace.ID,
 		LockedAt: lockedAt,
 	})
@@ -809,10 +806,21 @@ func (api *API) putWorkspaceLock(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO should we kick off a build to stop the workspace if it's started
-	// from this endpoint? I'm leaning no to keep things simple and kick
-	// the responsibility back to the client.
-	httpapi.Write(ctx, rw, code, resp)
+	data, err := api.workspaceData(ctx, []database.Workspace{workspace})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace resources.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertWorkspace(
+		workspace,
+		data.builds[0],
+		data.templates[0],
+		findUser(workspace.OwnerID, data.users),
+	))
 }
 
 // @Summary Extend workspace deadline by ID
