@@ -142,7 +142,7 @@ func TemplateInsightsParameters(parameterRows []database.GetTemplateParameterIns
 			parametersByNum[param.Num] = &codersdk.TemplateParameterUsage{
 				TemplateIDs: param.TemplateIDs,
 				Name:        param.Name,
-				Type:        "TODO",
+				Type:        param.Type,
 				DisplayName: param.DisplayName,
 				Description: plaintextDescription,
 				Options:     opts,
@@ -161,7 +161,6 @@ func TemplateInsightsParameters(parameterRows []database.GetTemplateParameterIns
 	sort.Slice(parametersUsage, func(i, j int) bool {
 		return parametersUsage[i].Name < parametersUsage[j].Name
 	})
-
 	return parametersUsage, nil
 }
 
