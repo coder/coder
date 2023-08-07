@@ -6097,7 +6097,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
+                            "$ref": "#/definitions/codersdk.Workspace"
                         }
                     }
                 }
@@ -8753,6 +8753,9 @@ const docTemplate = `{
                 "daemon_poll_jitter": {
                     "type": "integer"
                 },
+                "daemon_psk": {
+                    "type": "string"
+                },
                 "daemons": {
                     "type": "integer"
                 },
@@ -9582,6 +9585,9 @@ const docTemplate = `{
         "codersdk.TemplateParameterUsage": {
             "type": "object",
             "properties": {
+                "description": {
+                    "type": "string"
+                },
                 "display_name": {
                     "type": "string"
                 },
@@ -9600,6 +9606,9 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid"
                     }
+                },
+                "type": {
+                    "type": "string"
                 },
                 "values": {
                     "type": "array",

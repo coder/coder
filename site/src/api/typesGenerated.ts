@@ -714,6 +714,7 @@ export interface ProvisionerConfig {
   readonly daemon_poll_interval: number
   readonly daemon_poll_jitter: number
   readonly force_cancel_interval: number
+  readonly daemon_psk: string
 }
 
 // From codersdk/provisionerdaemons.go
@@ -986,6 +987,8 @@ export interface TemplateParameterUsage {
   readonly template_ids: string[]
   readonly display_name: string
   readonly name: string
+  readonly type: string
+  readonly description: string
   readonly options?: TemplateVersionParameterOption[]
   readonly values: TemplateParameterValue[]
 }

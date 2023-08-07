@@ -2186,6 +2186,7 @@ func (q *FakeQuerier) GetTemplateParameterInsights(ctx context.Context, arg data
 				uniqueTemplateParams[key] = &database.GetTemplateParameterInsightsRow{
 					Num:         num,
 					Name:        tvp.Name,
+					Type:        tvp.Type,
 					DisplayName: tvp.DisplayName,
 					Description: tvp.Description,
 					Options:     tvp.Options,
@@ -2220,6 +2221,7 @@ func (q *FakeQuerier) GetTemplateParameterInsights(ctx context.Context, arg data
 				TemplateIDs: uniqueSortedUUIDs(utp.TemplateIDs),
 				Name:        utp.Name,
 				DisplayName: utp.DisplayName,
+				Type:        utp.Type,
 				Description: utp.Description,
 				Options:     utp.Options,
 				Value:       value,
@@ -2813,8 +2815,12 @@ func (q *FakeQuerier) GetWorkspaceAgentStats(_ context.Context, createdAfter tim
 	}
 
 	statByAgent := map[uuid.UUID]database.GetWorkspaceAgentStatsRow{}
-	for _, agentStat := range latestAgentStats {
-		stat := statByAgent[agentStat.AgentID]
+	for agentID, agentStat := range latestAgentStats {
+		stat := statByAgent[agentID]
+		stat.AgentID = agentStat.AgentID
+		stat.TemplateID = agentStat.TemplateID
+		stat.UserID = agentStat.UserID
+		stat.WorkspaceID = agentStat.WorkspaceID
 		stat.SessionCountVSCode += agentStat.SessionCountVSCode
 		stat.SessionCountJetBrains += agentStat.SessionCountJetBrains
 		stat.SessionCountReconnectingPTY += agentStat.SessionCountReconnectingPTY
@@ -4185,6 +4191,49 @@ func (q *FakeQuerier) InsertWorkspaceAgentStat(_ context.Context, p database.Ins
 	return stat, nil
 }
 
+func (q *FakeQuerier) InsertWorkspaceAgentStats(_ context.Context, arg database.InsertWorkspaceAgentStatsParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	var connectionsByProto []map[string]int64
+	if err := json.Unmarshal(arg.ConnectionsByProto, &connectionsByProto); err != nil {
+		return err
+	}
+	for i := 0; i < len(arg.ID); i++ {
+		cbp, err := json.Marshal(connectionsByProto[i])
+		if err != nil {
+			return xerrors.Errorf("failed to marshal connections_by_proto: %w", err)
+		}
+		stat := database.WorkspaceAgentStat{
+			ID:                          arg.ID[i],
+			CreatedAt:                   arg.CreatedAt[i],
+			WorkspaceID:                 arg.WorkspaceID[i],
+			AgentID:                     arg.AgentID[i],
+			UserID:                      arg.UserID[i],
+			ConnectionsByProto:          cbp,
+			ConnectionCount:             arg.ConnectionCount[i],
+			RxPackets:                   arg.RxPackets[i],
+			RxBytes:                     arg.RxBytes[i],
+			TxPackets:                   arg.TxPackets[i],
+			TxBytes:                     arg.TxBytes[i],
+			TemplateID:                  arg.TemplateID[i],
+			SessionCountVSCode:          arg.SessionCountVSCode[i],
+			SessionCountJetBrains:       arg.SessionCountJetBrains[i],
+			SessionCountReconnectingPTY: arg.SessionCountReconnectingPTY[i],
+			SessionCountSSH:             arg.SessionCountSSH[i],
+			ConnectionMedianLatencyMS:   arg.ConnectionMedianLatencyMS[i],
+		}
+		q.workspaceAgentStats = append(q.workspaceAgentStats, stat)
+	}
+
+	return nil
+}
+
 func (q *FakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.WorkspaceApp{}, err
@@ -5258,9 +5307,9 @@ func (q *FakeQuerier) UpdateWorkspaceLastUsedAt(_ context.Context, arg database.
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateWorkspaceLockedDeletingAt(_ context.Context, arg database.UpdateWorkspaceLockedDeletingAtParams) error {
+func (q *FakeQuerier) UpdateWorkspaceLockedDeletingAt(_ context.Context, arg database.UpdateWorkspaceLockedDeletingAtParams) (database.Workspace, error) {
 	if err := validateDatabaseType(arg); err != nil {
-		return err
+		return database.Workspace{}, err
 	}
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -5282,7 +5331,7 @@ func (q *FakeQuerier) UpdateWorkspaceLockedDeletingAt(_ context.Context, arg dat
 				}
 			}
 			if template.ID == uuid.Nil {
-				return xerrors.Errorf("unable to find workspace template")
+				return database.Workspace{}, xerrors.Errorf("unable to find workspace template")
 			}
 			if template.LockedTTL > 0 {
 				workspace.DeletingAt = sql.NullTime{
@@ -5292,9 +5341,9 @@ func (q *FakeQuerier) UpdateWorkspaceLockedDeletingAt(_ context.Context, arg dat
 			}
 		}
 		q.workspaces[index] = workspace
-		return nil
+		return workspace, nil
 	}
-	return sql.ErrNoRows
+	return database.Workspace{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateWorkspaceProxy(_ context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
@@ -5736,6 +5785,16 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 			if !hasAgentMatched {
 				continue
 			}
+		}
+
+		// We omit locked workspaces by default.
+		if arg.LockedAt.IsZero() && workspace.LockedAt.Valid {
+			continue
+		}
+
+		// Filter out workspaces that are locked after the timestamp.
+		if !arg.LockedAt.IsZero() && workspace.LockedAt.Time.Before(arg.LockedAt) {
+			continue
 		}
 
 		if len(arg.TemplateIDs) > 0 {

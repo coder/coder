@@ -176,6 +176,7 @@ export const WorkspaceReadyPage = ({
         handleChangeVersion={() => {
           setChangeVersionDialogOpen(true)
         }}
+        handleUnlock={() => workspaceSend({ type: "UNLOCK" })}
         resources={workspace.latest_build.resources}
         builds={builds}
         canUpdateWorkspace={canUpdateWorkspace}

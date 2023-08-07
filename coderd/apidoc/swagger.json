@@ -5379,7 +5379,7 @@
           "200": {
             "description": "OK",
             "schema": {
-              "$ref": "#/definitions/codersdk.Response"
+              "$ref": "#/definitions/codersdk.Workspace"
             }
           }
         }
@@ -7863,6 +7863,9 @@
         "daemon_poll_jitter": {
           "type": "integer"
         },
+        "daemon_psk": {
+          "type": "string"
+        },
         "daemons": {
           "type": "integer"
         },
@@ -8662,6 +8665,9 @@
     "codersdk.TemplateParameterUsage": {
       "type": "object",
       "properties": {
+        "description": {
+          "type": "string"
+        },
         "display_name": {
           "type": "string"
         },
@@ -8680,6 +8686,9 @@
             "type": "string",
             "format": "uuid"
           }
+        },
+        "type": {
+          "type": "string"
         },
         "values": {
           "type": "array",

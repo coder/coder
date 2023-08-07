@@ -494,6 +494,15 @@ func addTelemetryHeader(client *codersdk.Client, inv *clibase.Invocation) {
 // InitClient sets client to a new client.
 // It reads from global configuration files if flags are not set.
 func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
+	return r.initClientInternal(client, false)
+}
+
+func (r *RootCmd) InitClientMissingTokenOK(client *codersdk.Client) clibase.MiddlewareFunc {
+	return r.initClientInternal(client, true)
+}
+
+// nolint: revive
+func (r *RootCmd) initClientInternal(client *codersdk.Client, allowTokenMissing bool) clibase.MiddlewareFunc {
 	if client == nil {
 		panic("client is nil")
 	}
@@ -508,7 +517,7 @@ func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
 				rawURL, err := conf.URL().Read()
 				// If the configuration files are absent, the user is logged out
 				if os.IsNotExist(err) {
-					return (errUnauthenticated)
+					return errUnauthenticated
 				}
 				if err != nil {
 					return err
@@ -524,9 +533,10 @@ func (r *RootCmd) InitClient(client *codersdk.Client) clibase.MiddlewareFunc {
 				r.token, err = conf.Session().Read()
 				// If the configuration files are absent, the user is logged out
 				if os.IsNotExist(err) {
-					return (errUnauthenticated)
-				}
-				if err != nil {
+					if !allowTokenMissing {
+						return errUnauthenticated
+					}
+				} else if err != nil {
 					return err
 				}
 			}

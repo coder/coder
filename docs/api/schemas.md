@@ -2107,6 +2107,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "provisioner": {
       "daemon_poll_interval": 0,
       "daemon_poll_jitter": 0,
+      "daemon_psk": "string",
       "daemons": 0,
       "daemons_echo": true,
       "force_cancel_interval": 0
@@ -2464,6 +2465,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "provisioner": {
     "daemon_poll_interval": 0,
     "daemon_poll_jitter": 0,
+    "daemon_psk": "string",
     "daemons": 0,
     "daemons_echo": true,
     "force_cancel_interval": 0
@@ -3493,6 +3495,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "daemon_poll_interval": 0,
   "daemon_poll_jitter": 0,
+  "daemon_psk": "string",
   "daemons": 0,
   "daemons_echo": true,
   "force_cancel_interval": 0
@@ -3505,6 +3508,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ----------------------- | ------- | -------- | ------------ | ----------- |
 | `daemon_poll_interval`  | integer | false    |              |             |
 | `daemon_poll_jitter`    | integer | false    |              |             |
+| `daemon_psk`            | string  | false    |              |             |
 | `daemons`               | integer | false    |              |             |
 | `daemons_echo`          | boolean | false    |              |             |
 | `force_cancel_interval` | integer | false    |              |             |
@@ -4325,6 +4329,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "end_time": "2019-08-24T14:15:22Z",
   "parameters_usage": [
     {
+      "description": "string",
       "display_name": "string",
       "name": "string",
       "options": [
@@ -4336,6 +4341,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         }
       ],
       "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+      "type": "string",
       "values": [
         {
           "count": 0,
@@ -4388,6 +4394,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "end_time": "2019-08-24T14:15:22Z",
     "parameters_usage": [
       {
+        "description": "string",
         "display_name": "string",
         "name": "string",
         "options": [
@@ -4399,6 +4406,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           }
         ],
         "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+        "type": "string",
         "values": [
           {
             "count": 0,
@@ -4424,6 +4432,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "description": "string",
   "display_name": "string",
   "name": "string",
   "options": [
@@ -4435,6 +4444,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     }
   ],
   "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+  "type": "string",
   "values": [
     {
       "count": 0,
@@ -4448,10 +4458,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name           | Type                                                                                        | Required | Restrictions | Description |
 | -------------- | ------------------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `description`  | string                                                                                      | false    |              |             |
 | `display_name` | string                                                                                      | false    |              |             |
 | `name`         | string                                                                                      | false    |              |             |
 | `options`      | array of [codersdk.TemplateVersionParameterOption](#codersdktemplateversionparameteroption) | false    |              |             |
 | `template_ids` | array of string                                                                             | false    |              |             |
+| `type`         | string                                                                                      | false    |              |             |
 | `values`       | array of [codersdk.TemplateParameterValue](#codersdktemplateparametervalue)                 | false    |              |             |
 
 ## codersdk.TemplateParameterValue
