@@ -416,6 +416,10 @@ jobs:
                 enable: true
                 secretName: pr${{ env.PR_NUMBER }}-tls
                 wildcardSecretName: pr${{ env.PR_NUMBER }}-tls
+            volume:
+              - name: coder-namespace-kubeconfig
+                secret:
+                  secretName: coder-namespace-kubeconfig
             volumeMounts:
               - name: coder-namespace-kubeconfig
                 mountPath: /home/coder/.kube/config
