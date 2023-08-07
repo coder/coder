@@ -1582,16 +1582,18 @@ WITH latest_workspace_builds AS (
 		tvp.name,
 		tvp.display_name,
 		tvp.description,
-		tvp.options
+		tvp.options,
+		tvp.type
 	FROM latest_workspace_builds wb
 	JOIN template_version_parameters tvp ON (tvp.template_version_id = wb.template_version_id)
-	GROUP BY tvp.name, tvp.display_name, tvp.description, tvp.options
+	GROUP BY tvp.name, tvp.display_name, tvp.description, tvp.options, tvp.type
 )
 
 SELECT
 	utp.num,
 	utp.template_ids,
 	utp.name,
+	utp.type,
 	utp.display_name,
 	utp.description,
 	utp.options,
@@ -1599,7 +1601,7 @@ SELECT
 	COUNT(wbp.value) AS count
 FROM unique_template_params utp
 JOIN workspace_build_parameters wbp ON (utp.workspace_build_ids @> ARRAY[wbp.workspace_build_id] AND utp.name = wbp.name)
-GROUP BY utp.num, utp.name, utp.display_name, utp.description, utp.options, utp.template_ids, wbp.value
+GROUP BY utp.num, utp.name, utp.display_name, utp.description, utp.options, utp.template_ids, utp.type, wbp.value
 `
 
 type GetTemplateParameterInsightsParams struct {
@@ -1612,6 +1614,7 @@ type GetTemplateParameterInsightsRow struct {
 	Num         int64           `db:"num" json:"num"`
 	TemplateIDs []uuid.UUID     `db:"template_ids" json:"template_ids"`
 	Name        string          `db:"name" json:"name"`
+	Type        string          `db:"type" json:"type"`
 	DisplayName string          `db:"display_name" json:"display_name"`
 	Description string          `db:"description" json:"description"`
 	Options     json.RawMessage `db:"options" json:"options"`
@@ -1636,6 +1639,7 @@ func (q *sqlQuerier) GetTemplateParameterInsights(ctx context.Context, arg GetTe
 			&i.Num,
 			pq.Array(&i.TemplateIDs),
 			&i.Name,
+			&i.Type,
 			&i.DisplayName,
 			&i.Description,
 			&i.Options,

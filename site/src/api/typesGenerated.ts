@@ -987,6 +987,8 @@ export interface TemplateParameterUsage {
   readonly template_ids: string[]
   readonly display_name: string
   readonly name: string
+  readonly type: string
+  readonly description: string
   readonly options?: TemplateVersionParameterOption[]
   readonly values: TemplateParameterValue[]
 }

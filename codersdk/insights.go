@@ -138,6 +138,8 @@ type TemplateParameterUsage struct {
 	TemplateIDs []uuid.UUID                      `json:"template_ids" format:"uuid"`
 	DisplayName string                           `json:"display_name"`
 	Name        string                           `json:"name"`
+	Type        string                           `json:"type"`
+	Description string                           `json:"description"`
 	Options     []TemplateVersionParameterOption `json:"options,omitempty"`
 	Values      []TemplateParameterValue         `json:"values"`
 }

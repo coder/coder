@@ -8667,6 +8667,9 @@
     "codersdk.TemplateParameterUsage": {
       "type": "object",
       "properties": {
+        "description": {
+          "type": "string"
+        },
         "display_name": {
           "type": "string"
         },
@@ -8685,6 +8688,9 @@
             "type": "string",
             "format": "uuid"
           }
+        },
+        "type": {
+          "type": "string"
         },
         "values": {
           "type": "array",

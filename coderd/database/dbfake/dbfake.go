@@ -2186,6 +2186,7 @@ func (q *FakeQuerier) GetTemplateParameterInsights(ctx context.Context, arg data
 				uniqueTemplateParams[key] = &database.GetTemplateParameterInsightsRow{
 					Num:         num,
 					Name:        tvp.Name,
+					Type:        tvp.Type,
 					DisplayName: tvp.DisplayName,
 					Description: tvp.Description,
 					Options:     tvp.Options,
@@ -2220,6 +2221,7 @@ func (q *FakeQuerier) GetTemplateParameterInsights(ctx context.Context, arg data
 				TemplateIDs: uniqueSortedUUIDs(utp.TemplateIDs),
 				Name:        utp.Name,
 				DisplayName: utp.DisplayName,
+				Type:        utp.Type,
 				Description: utp.Description,
 				Options:     utp.Options,
 				Value:       value,
