@@ -9,11 +9,10 @@ Gateway can connect to a Coder workspace by using Coder's Gateway plugin or manu
 > If you experience problems, please [create a GitHub issue](https://github.com/coder/coder/issues) or share in [our Discord channel](https://discord.gg/coder).
 
 1. [Install Gateway](https://www.jetbrains.com/help/idea/jetbrains-gateway.html)
-1. Open Gateway and click the gear icon at the bottom left and then "Settings"
-1. In the Marketplace tab within Plugins, type Coder and then click "Install" and "OK"
-   ![Gateway Settings and Marketplace](../images/gateway/plugin-settings-marketplace.png)
-1. Click the new "Coder" icon on the Gateway home screen
-   ![Gateway Connect to Coder](../images/gateway/plugin-connect-to-coder.png)
+1. Open Gateway and click the Coder icon to install the Coder plugin.
+1. Click the "Coder" icon under Install More Providers at the bottom of the Gateway home screen
+1. Click "Connect to Coder" at the top of the Gateway home screen to launch the plugin
+   ![Gateway Connect to Coder](../images/gateway/plugin-connect-to-coder.png)   
 1. Enter your Coder deployment's Access Url and click "Connect" then paste the Session Token and click "OK"
    ![Gateway Session Token](../images/gateway/plugin-session-token.png)
 1. Click the "+" icon to open a browser and go to the templates page in your Coder deployment to create a workspace
@@ -25,6 +24,12 @@ Gateway can connect to a Coder workspace by using Coder's Gateway plugin or manu
    ![Gateway IDE Opened](../images/gateway/gateway-intellij-opened.png)
 
 > Note the JetBrains IDE is remotely installed into `~/.cache/JetBrains/RemoteDev/dist`
+
+### Update a Coder plugin version
+
+1. Click the gear icon at the bottom left of the Gateway home screen and then "Settings"
+1. In the Marketplace tab within Plugins, type Coder and if a newer plugin release is available, click "Update" and "OK"
+   ![Gateway Settings and Marketplace](../images/gateway/plugin-settings-marketplace.png)
 
 ### Configuring the Gateway plugin to use internal certificates
 
