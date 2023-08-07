@@ -2221,6 +2221,7 @@ func (q *FakeQuerier) GetTemplateParameterInsights(ctx context.Context, arg data
 				TemplateIDs: uniqueSortedUUIDs(utp.TemplateIDs),
 				Name:        utp.Name,
 				DisplayName: utp.DisplayName,
+				Type:        utp.Type,
 				Description: utp.Description,
 				Options:     utp.Options,
 				Value:       value,

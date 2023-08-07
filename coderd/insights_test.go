@@ -406,6 +406,7 @@ func TestTemplateInsights(t *testing.T) {
 	require.Len(t, resp.Report.ParametersUsage, 3)
 	assert.Equal(t, firstParameterName, resp.Report.ParametersUsage[0].Name)
 	assert.Equal(t, firstParameterType, resp.Report.ParametersUsage[0].Type)
+	assert.Equal(t, firstParameterDescription, resp.Report.ParametersUsage[0].Description)
 	assert.Equal(t, firstParameterDisplayName, resp.Report.ParametersUsage[0].DisplayName)
 	assert.Contains(t, resp.Report.ParametersUsage[0].Values, codersdk.TemplateParameterValue{
 		Value: firstParameterValue,
@@ -416,6 +417,7 @@ func TestTemplateInsights(t *testing.T) {
 
 	assert.Equal(t, secondParameterName, resp.Report.ParametersUsage[1].Name)
 	assert.Equal(t, secondParameterType, resp.Report.ParametersUsage[1].Type)
+	assert.Equal(t, secondParameterDescription, resp.Report.ParametersUsage[1].Description)
 	assert.Equal(t, secondParameterDisplayName, resp.Report.ParametersUsage[1].DisplayName)
 	assert.Contains(t, resp.Report.ParametersUsage[1].Values, codersdk.TemplateParameterValue{
 		Value: secondParameterValue,
@@ -426,6 +428,7 @@ func TestTemplateInsights(t *testing.T) {
 
 	assert.Equal(t, thirdParameterName, resp.Report.ParametersUsage[2].Name)
 	assert.Equal(t, thirdParameterType, resp.Report.ParametersUsage[2].Type)
+	assert.Equal(t, thirdParameterDescription, resp.Report.ParametersUsage[2].Description)
 	assert.Equal(t, thirdParameterDisplayName, resp.Report.ParametersUsage[2].DisplayName)
 	assert.Contains(t, resp.Report.ParametersUsage[2].Values, codersdk.TemplateParameterValue{
 		Value: thirdParameterValue,
