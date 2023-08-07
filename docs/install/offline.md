@@ -197,3 +197,12 @@ Coder also provides offline documentation in case you want to host it on your ow
 5. Set the [CODER_DOCS_URL](../cli/server#--docs-url) environment variable to use the URL of your hosted docs. This way, the Coder UI will reference the documentation from your specified URL.
 
 With these steps, you'll have the Coder documentation hosted on your server and accessible for your team to use.
+
+## Firewall exceptions
+
+In restricted internet networks, Coder may require connection to internet. Ensure that the following web addresses are accessible from the machine where Coder is installed.
+
+- code-server.dev (install via AUR)
+- open-vsx.org (optional if someone would use code-server)
+- registry.terraform.io (to create and push template)
+- v2-licensor.coder.com (developing Coder in Coder)
