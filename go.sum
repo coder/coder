@@ -226,6 +226,8 @@ github.com/coder/terraform-provider-coder v0.11.1 h1:1sXcHfQrX8XhmLbtKxBED2lZ5jk
 github.com/coder/terraform-provider-coder v0.11.1/go.mod h1:UIfU3bYNeSzJJvHyJ30tEKjD6Z9utloI+HUM/7n94CY=
 github.com/coder/wgtunnel v0.1.5 h1:WP3sCj/3iJ34eKvpMQEp1oJHvm24RYh0NHbj1kfUKfs=
 github.com/coder/wgtunnel v0.1.5/go.mod h1:bokoUrHnUFY4lu9KOeSYiIcHTI2MO1KwqumU4DPDyJI=
+github.com/coder/wireguard-go v0.0.0-20230807234434-d825b45ccbf5 h1:eDk/42Kj4xN4yfE504LsvcFEo3dWUiCOaBiWJ2uIH2A=
+github.com/coder/wireguard-go v0.0.0-20230807234434-d825b45ccbf5/go.mod h1:QRIcq2+DbdIC5sKh/gcAZhuqu6WT6L6G8/ALPN5wqYw=
 github.com/containerd/console v1.0.3 h1:lIr7SlA5PxZyMV30bDW0MGbiOPXwc63yRuCP0ARubLw=
 github.com/containerd/console v1.0.3/go.mod h1:7LqA/THxQ86k76b8c/EMSiaJ3h1eZkMkXar0TQ1gf3U=
 github.com/containerd/continuity v0.4.1 h1:wQnVrjIyQ8vhU2sgOiL5T07jo+ouqc2bnKsv5/EqGhU=
@@ -835,8 +837,6 @@ github.com/tailscale/goupnp v1.0.1-0.20210804011211-c64d0f06ea05 h1:4chzWmimtJPx
 github.com/tailscale/goupnp v1.0.1-0.20210804011211-c64d0f06ea05/go.mod h1:PdCqy9JzfWMJf1H5UJW2ip33/d4YkoKN0r67yKH1mG8=
 github.com/tailscale/netlink v1.1.1-0.20211101221916-cabfb018fe85 h1:zrsUcqrG2uQSPhaUPjUQwozcRdDdSxxqhNgNZ3drZFk=
 github.com/tailscale/netlink v1.1.1-0.20211101221916-cabfb018fe85/go.mod h1:NzVQi3Mleb+qzq8VmcWpSkcSYxXIg0DkI6XDzpVkhJ0=
-github.com/tailscale/wireguard-go v0.0.0-20230710185534-bb2c8f22eccf h1:bHQHwIHId353jAF2Lm0cGDjJpse/PYS0I0DTtihL9Ls=
-github.com/tailscale/wireguard-go v0.0.0-20230710185534-bb2c8f22eccf/go.mod h1:QRIcq2+DbdIC5sKh/gcAZhuqu6WT6L6G8/ALPN5wqYw=
 github.com/tchap/go-patricia/v2 v2.3.1 h1:6rQp39lgIYZ+MHmdEq4xzuk1t7OdC35z/xm0BGhTkes=
 github.com/tchap/go-patricia/v2 v2.3.1/go.mod h1:VZRHKAb53DLaG+nA9EaYYiaEx6YztwDlLElMsnSHD4k=
 github.com/tdewolff/parse/v2 v2.6.6 h1:Yld+0CrKUJaCV78DL1G2nk3C9lKrxyRTux5aaK/AkDo=

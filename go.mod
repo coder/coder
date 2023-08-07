@@ -38,6 +38,8 @@ replace github.com/dlclark/regexp2 => github.com/dlclark/regexp2 v1.7.0
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
 replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20230803194128-b940c19ca61b
 
+replace github.com/tailscale/wireguard-go => github.com/coder/wireguard-go v0.0.0-20230807234434-d825b45ccbf5
+
 // Use our tempfork of gvisor that includes a fix for TCP connection stalls:
 // https://github.com/coder/coder/issues/7388
 // The basis for this fork is: gvisor.dev/gvisor v0.0.0-20230504175454-7b0a1988a28f
