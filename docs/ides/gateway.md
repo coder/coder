@@ -40,7 +40,8 @@ manually setting up an SSH connection.
 1. Click the gear icon at the bottom left of the Gateway home screen and then
    "Settings"
 1. In the Marketplace tab within Plugins, type Coder and if a newer plugin
-   release is available, click "Update" and "OK" ![Gateway Settings and Marketplace](../images/gateway/plugin-settings-marketplace.png)
+   release is available, click "Update" and "OK"
+   ![Gateway Settings and Marketplace](../images/gateway/plugin-settings-marketplace.png)
 
 ### Configuring the Gateway plugin to use internal certificates
 
