@@ -6,8 +6,15 @@ import "react-date-range/dist/theme/default.css"
 import Button from "@mui/material/Button"
 import ArrowRightAltOutlined from "@mui/icons-material/ArrowRightAltOutlined"
 import Popover from "@mui/material/Popover"
-import { DateRangePicker } from "react-date-range"
-import { format } from "date-fns"
+import { DateRangePicker, createStaticRanges } from "react-date-range"
+import { format, subDays } from "date-fns"
+
+// The type definition from @types is wrong
+declare module "react-date-range" {
+  export function createStaticRanges(
+    ranges: Omit<StaticRange, "isSelected">[],
+  ): StaticRange[]
+}
 
 export type DateRangeValue = {
   startDate: Date
@@ -92,6 +99,43 @@ export const DateRange = ({
           ranges={ranges}
           maxDate={new Date()}
           direction="horizontal"
+          staticRanges={createStaticRanges([
+            {
+              label: "Today",
+              range: () => ({
+                startDate: new Date(),
+                endDate: new Date(),
+              }),
+            },
+            {
+              label: "Yesterday",
+              range: () => ({
+                startDate: subDays(new Date(), 1),
+                endDate: subDays(new Date(), 1),
+              }),
+            },
+            {
+              label: "Last 7 days",
+              range: () => ({
+                startDate: subDays(new Date(), 6),
+                endDate: new Date(),
+              }),
+            },
+            {
+              label: "Last 15 days",
+              range: () => ({
+                startDate: subDays(new Date(), 14),
+                endDate: new Date(),
+              }),
+            },
+            {
+              label: "Last 30 days",
+              range: () => ({
+                startDate: subDays(new Date(), 29),
+                endDate: new Date(),
+              }),
+            },
+          ])}
         />
       </Popover>
     </>
