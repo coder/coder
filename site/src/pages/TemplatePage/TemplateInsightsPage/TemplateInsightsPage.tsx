@@ -23,23 +23,30 @@ import {
   TemplateInsightsResponse,
   UserLatencyInsightsResponse,
 } from "api/typesGenerated"
-import { ComponentProps } from "react"
+import { ComponentProps, ReactNode, useState } from "react"
 import { subDays, addHours, startOfHour } from "date-fns"
+import "react-date-range/dist/styles.css"
+import "react-date-range/dist/theme/default.css"
+import { DateRange, DateRangeValue } from "./DateRange"
 
 export default function TemplateInsightsPage() {
   const now = new Date()
+  const [dateRangeValue, setDateRangeValue] = useState<DateRangeValue>({
+    startDate: subDays(now, 6),
+    endDate: addHours(now, 1),
+  })
   const { template } = useTemplateLayoutContext()
   const insightsFilter = {
     template_ids: template.id,
-    start_time: toStartTimeFilter(subDays(now, 7)),
-    end_time: startOfHour(addHours(now, 1)).toISOString(),
+    start_time: toStartTimeFilter(dateRangeValue.startDate),
+    end_time: startOfHour(dateRangeValue.endDate).toISOString(),
   }
   const { data: templateInsights } = useQuery({
-    queryKey: ["templates", template.id, "usage"],
+    queryKey: ["templates", template.id, "usage", insightsFilter],
     queryFn: () => getInsightsTemplate(insightsFilter),
   })
   const { data: userLatency } = useQuery({
-    queryKey: ["templates", template.id, "user-latency"],
+    queryKey: ["templates", template.id, "user-latency", insightsFilter],
     queryFn: () => getInsightsUserLatency(insightsFilter),
   })
 
@@ -49,6 +56,9 @@ export default function TemplateInsightsPage() {
         <title>{getTemplatePageTitle("Insights", template)}</title>
       </Helmet>
       <TemplateInsightsPageView
+        dateRangePicker={
+          <DateRange value={dateRangeValue} onChange={setDateRangeValue} />
+        }
         templateInsights={templateInsights}
         userLatency={userLatency}
       />
@@ -59,29 +69,34 @@ export default function TemplateInsightsPage() {
 export const TemplateInsightsPageView = ({
   templateInsights,
   userLatency,
+  dateRangePicker,
 }: {
   templateInsights: TemplateInsightsResponse | undefined
   userLatency: UserLatencyInsightsResponse | undefined
+  dateRangePicker: ReactNode
 }) => {
   return (
-    <Box
-      sx={{
-        display: "grid",
-        gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-        gridTemplateRows: "440px auto",
-        gap: (theme) => theme.spacing(3),
-      }}
-    >
-      <DailyUsersPanel
-        sx={{ gridColumn: "span 2" }}
-        data={templateInsights?.interval_reports}
-      />
-      <UserLatencyPanel data={userLatency} />
-      <TemplateUsagePanel
-        sx={{ gridColumn: "span 3" }}
-        data={templateInsights?.report.apps_usage}
-      />
-    </Box>
+    <>
+      <Box sx={{ mb: 4 }}>{dateRangePicker}</Box>
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+          gridTemplateRows: "440px auto",
+          gap: (theme) => theme.spacing(3),
+        }}
+      >
+        <DailyUsersPanel
+          sx={{ gridColumn: "span 2" }}
+          data={templateInsights?.interval_reports}
+        />
+        <UserLatencyPanel data={userLatency} />
+        <TemplateUsagePanel
+          sx={{ gridColumn: "span 3" }}
+          data={templateInsights?.report.apps_usage}
+        />
+      </Box>
+    </>
   )
 }
 
