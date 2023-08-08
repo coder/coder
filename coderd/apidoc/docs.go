@@ -9585,6 +9585,9 @@ const docTemplate = `{
         "codersdk.TemplateParameterUsage": {
             "type": "object",
             "properties": {
+                "description": {
+                    "type": "string"
+                },
                 "display_name": {
                     "type": "string"
                 },
@@ -9603,6 +9606,9 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid"
                     }
+                },
+                "type": {
+                    "type": "string"
                 },
                 "values": {
                     "type": "array",

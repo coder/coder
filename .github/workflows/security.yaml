@@ -21,9 +21,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-security
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-env:
-  CODER_GO_VERSION: "1.20.6"
-
 jobs:
   codeql:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
