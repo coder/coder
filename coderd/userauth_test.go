@@ -36,6 +36,8 @@ import (
 // OIDC session token exists.
 // The token refreshing should not happen since we are reauthenticating.
 func TestOIDCOauthLoginWithExisting(t *testing.T) {
+	t.Parallel()
+
 	conf := coderdtest.NewOIDCConfig(t, "",
 		// Provide a refresh token so we use the refresh token flow
 		coderdtest.WithRefreshToken("refresh_token"),
@@ -106,6 +108,7 @@ func TestOIDCOauthLoginWithExisting(t *testing.T) {
 		})
 	})
 	require.Equal(t, http.StatusTemporaryRedirect, loginAgain.StatusCode)
+	_ = loginAgain.Body.Close()
 
 	// Try to use new login
 	client.SetSessionToken(authCookieValue(resp.Cookies()))

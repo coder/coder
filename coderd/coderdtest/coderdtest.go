@@ -1108,7 +1108,7 @@ func (cfg *OIDCConfig) Exchange(_ context.Context, code string, _ ...oauth2.Auth
 	}), nil
 }
 
-func (o *OIDCConfig) EncodeClaims(t *testing.T, claims jwt.MapClaims) string {
+func (cfg *OIDCConfig) EncodeClaims(t *testing.T, claims jwt.MapClaims) string {
 	t.Helper()
 
 	if _, ok := claims["exp"]; !ok {
@@ -1116,20 +1116,20 @@ func (o *OIDCConfig) EncodeClaims(t *testing.T, claims jwt.MapClaims) string {
 	}
 
 	if _, ok := claims["iss"]; !ok {
-		claims["iss"] = o.issuer
+		claims["iss"] = cfg.issuer
 	}
 
 	if _, ok := claims["sub"]; !ok {
 		claims["sub"] = "testme"
 	}
 
-	signed, err := jwt.NewWithClaims(jwt.SigningMethodRS256, claims).SignedString(o.key)
+	signed, err := jwt.NewWithClaims(jwt.SigningMethodRS256, claims).SignedString(cfg.key)
 	require.NoError(t, err)
 
 	return base64.StdEncoding.EncodeToString([]byte(signed))
 }
 
-func (o *OIDCConfig) OIDCConfig(t *testing.T, userInfoClaims jwt.MapClaims, opts ...func(cfg *coderd.OIDCConfig)) *coderd.OIDCConfig {
+func (cfg *OIDCConfig) OIDCConfig(t *testing.T, userInfoClaims jwt.MapClaims, opts ...func(cfg *coderd.OIDCConfig)) *coderd.OIDCConfig {
 	// By default, the provider can be empty.
 	// This means it won't support any endpoints!
 	provider := &oidc.Provider{}
@@ -1147,9 +1147,9 @@ func (o *OIDCConfig) OIDCConfig(t *testing.T, userInfoClaims jwt.MapClaims, opts
 		provider = cfg.NewProvider(context.Background())
 	}
 	cfg := &coderd.OIDCConfig{
-		OAuth2Config: o,
-		Verifier: oidc.NewVerifier(o.issuer, &oidc.StaticKeySet{
-			PublicKeys: []crypto.PublicKey{o.key.Public()},
+		OAuth2Config: cfg,
+		Verifier: oidc.NewVerifier(cfg.issuer, &oidc.StaticKeySet{
+			PublicKeys: []crypto.PublicKey{cfg.key.Public()},
 		}, &oidc.Config{
 			SkipClientIDCheck: true,
 		}),
