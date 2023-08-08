@@ -1,6 +1,6 @@
 BEGIN;
 
--- Bring back the subsytem column.
+-- Bring back the subsystem column.
 ALTER TABLE workspace_agents ADD COLUMN subsystem workspace_agent_subsystem NOT NULL DEFAULT 'none';
 
 -- Update all existing workspace_agents to have subsystem = subsystems[0] unless
