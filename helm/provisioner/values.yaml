@@ -154,7 +154,8 @@ coder:
       #   key: "ca-bundle.crt"
 
   # coder.affinity -- Allows specifying an affinity rule for the deployment.
-  affinity: {}
+  affinity:
+    {}
     #  podAntiAffinity:
     #    preferredDuringSchedulingIgnoredDuringExecution:
     #      - podAffinityTerm:

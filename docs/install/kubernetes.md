@@ -109,7 +109,7 @@ to log in and manage templates.
    > You can view our
    > [Helm README](https://github.com/coder/coder/blob/main/helm#readme) for
    > details on the values that are available, or you can view the
-   > [values.yaml](https://github.com/coder/coder/blob/main/helm/values.yaml)
+   > [values.yaml](https://github.com/coder/coder/blob/main/helm/coder/values.yaml)
    > file directly.
 
    If you are deploying Coder on AWS EKS and service is set to `LoadBalancer`, AWS will default to the Classic load balancer. The load balancer external IP will be stuck in a pending status unless sessionAffinity is set to None.
