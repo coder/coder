@@ -219,7 +219,6 @@ func (rpty *bufferedReconnectingPTY) attach(ctx context.Context, connID string, 
 	_, err = conn.Write(prevBuf)
 	if err != nil {
 		rpty.metrics.WithLabelValues("write").Add(1)
-		rpty.mutex.Unlock()
 		return xerrors.Errorf("write buffer to conn: %w", err)
 	}
 	rpty.activeConns[connID] = conn
