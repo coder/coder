@@ -1146,7 +1146,7 @@ func (cfg *OIDCConfig) OIDCConfig(t *testing.T, userInfoClaims jwt.MapClaims, op
 		}
 		provider = cfg.NewProvider(context.Background())
 	}
-	cfg := &coderd.OIDCConfig{
+	newCFG := &coderd.OIDCConfig{
 		OAuth2Config: cfg,
 		Verifier: oidc.NewVerifier(cfg.issuer, &oidc.StaticKeySet{
 			PublicKeys: []crypto.PublicKey{cfg.key.Public()},
@@ -1160,9 +1160,9 @@ func (cfg *OIDCConfig) OIDCConfig(t *testing.T, userInfoClaims jwt.MapClaims, op
 		GroupField:    "groups",
 	}
 	for _, opt := range opts {
-		opt(cfg)
+		opt(newCFG)
 	}
-	return cfg
+	return newCFG
 }
 
 // NewAzureInstanceIdentity returns a metadata client and ID token validator for faking
