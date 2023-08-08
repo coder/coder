@@ -21,10 +21,17 @@ import { Loader } from "components/Loader/Loader"
 import {
   DAUsResponse,
   TemplateInsightsResponse,
+  TemplateParameterUsage,
+  TemplateParameterValue,
   UserLatencyInsightsResponse,
 } from "api/typesGenerated"
 import { ComponentProps } from "react"
 import { subDays, addHours, startOfHour } from "date-fns"
+import { useDashboard } from "components/Dashboard/DashboardProvider"
+import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined"
+import Link from "@mui/material/Link"
+import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined"
+import CancelOutlined from "@mui/icons-material/CancelOutlined"
 
 export default function TemplateInsightsPage() {
   const now = new Date()
@@ -42,6 +49,10 @@ export default function TemplateInsightsPage() {
     queryKey: ["templates", template.id, "user-latency"],
     queryFn: () => getInsightsUserLatency(insightsFilter),
   })
+  const dashboard = useDashboard()
+  const shouldDisplayParameters =
+    dashboard.experiments.includes("template_parameters_insights") ||
+    process.env.NODE_ENV === "development"
 
   return (
     <>
@@ -51,6 +62,7 @@ export default function TemplateInsightsPage() {
       <TemplateInsightsPageView
         templateInsights={templateInsights}
         userLatency={userLatency}
+        shouldDisplayParameters={shouldDisplayParameters}
       />
     </>
   )
@@ -59,9 +71,11 @@ export default function TemplateInsightsPage() {
 export const TemplateInsightsPageView = ({
   templateInsights,
   userLatency,
+  shouldDisplayParameters,
 }: {
   templateInsights: TemplateInsightsResponse | undefined
   userLatency: UserLatencyInsightsResponse | undefined
+  shouldDisplayParameters: boolean
 }) => {
   return (
     <Box
@@ -81,6 +95,12 @@ export const TemplateInsightsPageView = ({
         sx={{ gridColumn: "span 3" }}
         data={templateInsights?.report.apps_usage}
       />
+      {shouldDisplayParameters && (
+        <TemplateParametersUsagePanel
+          sx={{ gridColumn: "span 3" }}
+          data={templateInsights?.report.parameters_usage}
+        />
+      )}
     </Box>
   )
 }
@@ -259,6 +279,219 @@ const TemplateUsagePanel = ({
       </PanelContent>
     </Panel>
   )
+}
+
+const TemplateParametersUsagePanel = ({
+  data,
+  ...panelProps
+}: PanelProps & {
+  data: TemplateInsightsResponse["report"]["parameters_usage"] | undefined
+}) => {
+  return (
+    <Panel {...panelProps}>
+      <PanelHeader>
+        <PanelTitle>Parameters usage</PanelTitle>
+        <PanelSubtitle>Last 7 days</PanelSubtitle>
+      </PanelHeader>
+      <PanelContent>
+        {!data && <Loader sx={{ height: 200 }} />}
+        {data && data.length === 0 && <NoDataAvailable sx={{ height: 200 }} />}
+        {data &&
+          data.length > 0 &&
+          data.map((parameter, parameterIndex) => {
+            const label =
+              parameter.display_name !== ""
+                ? parameter.display_name
+                : parameter.name
+            return (
+              <Box
+                key={parameter.name}
+                sx={{
+                  display: "flex",
+                  alignItems: "start",
+                  p: 3,
+                  marginX: -3,
+                  borderTop: (theme) => `1px solid ${theme.palette.divider}`,
+                  width: (theme) => `calc(100% + ${theme.spacing(6)})`,
+                  "&:first-child": {
+                    borderTop: 0,
+                  },
+                }}
+              >
+                <Box sx={{ flex: 1 }}>
+                  <Box sx={{ fontWeight: 500 }}>{label}</Box>
+                  <Box
+                    component="p"
+                    sx={{
+                      fontSize: 14,
+                      color: (theme) => theme.palette.text.secondary,
+                      maxWidth: 400,
+                      margin: 0,
+                    }}
+                  >
+                    {parameter.description}
+                  </Box>
+                </Box>
+                <Box sx={{ flex: 1, fontSize: 14 }}>
+                  {parameter.values
+                    .sort((a, b) => b.count - a.count)
+                    .map((usage, usageIndex) => (
+                      <Box
+                        key={`${parameterIndex}-${usageIndex}`}
+                        sx={{
+                          display: "flex",
+                          alignItems: "baseline",
+                          justifyContent: "space-between",
+                          py: 0.5,
+                          gap: 5,
+                        }}
+                      >
+                        <ParameterUsageLabel
+                          usage={usage}
+                          parameter={parameter}
+                        />
+                        <Box sx={{ textAlign: "right" }}>{usage.count}</Box>
+                      </Box>
+                    ))}
+                </Box>
+              </Box>
+            )
+          })}
+      </PanelContent>
+    </Panel>
+  )
+}
+
+const ParameterUsageLabel = ({
+  usage,
+  parameter,
+}: {
+  usage: TemplateParameterValue
+  parameter: TemplateParameterUsage
+}) => {
+  if (usage.value.trim() === "") {
+    return (
+      <Box
+        component="span"
+        sx={{
+          color: (theme) => theme.palette.text.secondary,
+        }}
+      >
+        Not set
+      </Box>
+    )
+  }
+
+  if (parameter.options) {
+    const option = parameter.options.find((o) => o.value === usage.value)!
+    const icon = option.icon
+    const label = option.name
+
+    return (
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 2,
+        }}
+      >
+        {icon && (
+          <Box sx={{ width: 16, height: 16, lineHeight: 1 }}>
+            <Box
+              component="img"
+              src={icon}
+              sx={{
+                objectFit: "contain",
+                width: "100%",
+                height: "100%",
+              }}
+            />
+          </Box>
+        )}
+        {label}
+      </Box>
+    )
+  }
+
+  if (usage.value.startsWith("http")) {
+    return (
+      <Link
+        href={usage.value}
+        target="_blank"
+        rel="noreferrer"
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+          color: (theme) => theme.palette.text.primary,
+        }}
+      >
+        <OpenInNewOutlined sx={{ width: 14, height: 14 }} />
+        {usage.value}
+      </Link>
+    )
+  }
+
+  if (parameter.type === "list(string)") {
+    const values = JSON.parse(usage.value) as string[]
+    return (
+      <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+        {values.map((v, i) => {
+          return (
+            <Box
+              key={i}
+              sx={{
+                p: (theme) => theme.spacing(0.25, 1.5),
+                borderRadius: 999,
+                background: (theme) => theme.palette.divider,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {v}
+            </Box>
+          )
+        })}
+      </Box>
+    )
+  }
+
+  if (parameter.type === "bool") {
+    return (
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+        }}
+      >
+        {usage.value === "false" ? (
+          <>
+            <CancelOutlined
+              sx={{
+                width: 16,
+                height: 16,
+                color: (theme) => theme.palette.error.light,
+              }}
+            />
+            False
+          </>
+        ) : (
+          <>
+            <CheckCircleOutlined
+              sx={{
+                width: 16,
+                height: 16,
+                color: (theme) => theme.palette.success.light,
+              }}
+            />
+            True
+          </>
+        )}
+      </Box>
+    )
+  }
+
+  return <Box>{usage.value}</Box>
 }
 
 const Panel = styled(Box)(({ theme }) => ({

@@ -1881,6 +1881,9 @@ const (
 	// Deployment health page
 	ExperimentDeploymentHealthPage Experiment = "deployment_health_page"
 
+	// Template parameters insights
+	ExperimentTemplateParametersInsights Experiment = "template_parameters_insights"
+
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"
 )
@@ -1891,6 +1894,7 @@ const (
 // not be included here and will be essentially hidden.
 var ExperimentsAll = Experiments{
 	ExperimentDeploymentHealthPage,
+	ExperimentTemplateParametersInsights,
 }
 
 // Experiments is a list of experiments that are enabled for the deployment.
