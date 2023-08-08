@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/coderd/util/ptr"
 )
 
+// @typescript-generate DERPReport
 type DERPReport struct {
 	Healthy bool `json:"healthy"`
 
@@ -36,6 +37,7 @@ type DERPReport struct {
 	Error *string `json:"error"`
 }
 
+// @typescript-generate DERPRegionReport
 type DERPRegionReport struct {
 	mu      sync.Mutex
 	Healthy bool `json:"healthy"`
@@ -44,6 +46,8 @@ type DERPRegionReport struct {
 	NodeReports []*DERPNodeReport   `json:"node_reports"`
 	Error       *string             `json:"error"`
 }
+
+// @typescript-generate DERPNodeReport
 type DERPNodeReport struct {
 	mu            sync.Mutex
 	clientCounter int
@@ -53,7 +57,8 @@ type DERPNodeReport struct {
 
 	ServerInfo          derp.ServerInfoMessage `json:"node_info"`
 	CanExchangeMessages bool                   `json:"can_exchange_messages"`
-	RoundTripPing       time.Duration          `json:"round_trip_ping"`
+	RoundTripPing       string                 `json:"round_trip_ping"`
+	RoundTripPingMs     int                    `json:"round_trip_ping_ms"`
 	UsesWebsocket       bool                   `json:"uses_websocket"`
 	ClientLogs          [][]string             `json:"client_logs"`
 	ClientErrs          [][]string             `json:"client_errs"`
@@ -62,10 +67,11 @@ type DERPNodeReport struct {
 	STUN DERPStunReport `json:"stun"`
 }
 
+// @typescript-generate DERPStunReport
 type DERPStunReport struct {
 	Enabled bool
 	CanSTUN bool
-	Error   error
+	Error   *string
 }
 
 type DERPReportOptions struct {
@@ -172,7 +178,7 @@ func (r *DERPNodeReport) derpURL() *url.URL {
 	if r.Node.HostName == "" {
 		derpURL.Host = r.Node.IPv4
 	}
-	if r.Node.DERPPort != 0 {
+	if r.Node.DERPPort != 0 && !(r.Node.DERPPort == 443 && derpURL.Scheme == "https") && !(r.Node.DERPPort == 80 && derpURL.Scheme == "http") {
 		derpURL.Host = fmt.Sprintf("%s:%d", derpURL.Host, r.Node.DERPPort)
 	}
 
@@ -251,7 +257,9 @@ func (r *DERPNodeReport) doExchangeMessage(ctx context.Context) {
 
 		r.mu.Lock()
 		r.CanExchangeMessages = true
-		r.RoundTripPing = time.Since(*t)
+		rtt := time.Since(*t)
+		r.RoundTripPing = rtt.String()
+		r.RoundTripPingMs = int(rtt.Milliseconds())
 		r.mu.Unlock()
 
 		cancel()
@@ -301,20 +309,20 @@ func (r *DERPNodeReport) doSTUNTest(ctx context.Context) {
 
 	addr, port, err := r.stunAddr(ctx)
 	if err != nil {
-		r.STUN.Error = xerrors.Errorf("get stun addr: %w", err)
+		r.STUN.Error = convertError(xerrors.Errorf("get stun addr: %w", err))
 		return
 	}
 
 	// We only create a prober to call ProbeUDP manually.
 	p, err := prober.DERP(prober.New(), "", time.Second, time.Second, time.Second)
 	if err != nil {
-		r.STUN.Error = xerrors.Errorf("create prober: %w", err)
+		r.STUN.Error = convertError(xerrors.Errorf("create prober: %w", err))
 		return
 	}
 
 	err = p.ProbeUDP(addr, port)(ctx)
 	if err != nil {
-		r.STUN.Error = xerrors.Errorf("probe stun: %w", err)
+		r.STUN.Error = convertError(xerrors.Errorf("probe stun: %w", err))
 		return
 	}
 

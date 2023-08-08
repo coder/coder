@@ -5,7 +5,7 @@ import { makeStyles } from "@mui/styles"
 import { combineClasses } from "utils/combineClasses"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import {
-  ImpendingDeletionBadge,
+  LockedBadge,
   ImpendingDeletionText,
 } from "components/WorkspaceDeletion"
 import { getDisplayWorkspaceStatus } from "utils/workspace"
@@ -25,8 +25,8 @@ export const WorkspaceStatusBadge: FC<
   return (
     <ChooseOne>
       {/* <ImpendingDeletionBadge/> determines its own visibility */}
-      <Cond condition={Boolean(ImpendingDeletionBadge({ workspace }))}>
-        <ImpendingDeletionBadge workspace={workspace} />
+      <Cond condition={Boolean(LockedBadge({ workspace }))}>
+        <LockedBadge workspace={workspace} />
       </Cond>
       <Cond>
         <Pill className={className} icon={icon} text={text} type={type} />

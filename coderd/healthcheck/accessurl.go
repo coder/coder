@@ -12,6 +12,7 @@ import (
 	"github.com/coder/coder/coderd/util/ptr"
 )
 
+// @typescript-generate AccessURLReport
 type AccessURLReport struct {
 	AccessURL       string  `json:"access_url"`
 	Healthy         bool    `json:"healthy"`

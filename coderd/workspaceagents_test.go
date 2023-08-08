@@ -213,8 +213,8 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 
 		agentClient := agentsdk.New(client.URL)
 		agentClient.SetSessionToken(authToken)
-		err := agentClient.PatchStartupLogs(ctx, agentsdk.PatchStartupLogs{
-			Logs: []agentsdk.StartupLog{
+		err := agentClient.PatchLogs(ctx, agentsdk.PatchLogs{
+			Logs: []agentsdk.Log{
 				{
 					CreatedAt: database.Now(),
 					Output:    "testing",
@@ -227,12 +227,12 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		logs, closer, err := client.WorkspaceAgentStartupLogsAfter(ctx, build.Resources[0].Agents[0].ID, 0, true)
+		logs, closer, err := client.WorkspaceAgentLogsAfter(ctx, build.Resources[0].Agents[0].ID, 0, true)
 		require.NoError(t, err)
 		defer func() {
 			_ = closer.Close()
 		}()
-		var logChunk []codersdk.WorkspaceAgentStartupLog
+		var logChunk []codersdk.WorkspaceAgentLog
 		select {
 		case <-ctx.Done():
 		case logChunk = <-logs:
@@ -280,8 +280,8 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 
 		agentClient := agentsdk.New(client.URL)
 		agentClient.SetSessionToken(authToken)
-		err = agentClient.PatchStartupLogs(ctx, agentsdk.PatchStartupLogs{
-			Logs: []agentsdk.StartupLog{{
+		err = agentClient.PatchLogs(ctx, agentsdk.PatchLogs{
+			Logs: []agentsdk.Log{{
 				CreatedAt: database.Now(),
 				Output:    strings.Repeat("a", (1<<20)+1),
 			}},
@@ -299,7 +299,7 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 				t.FailNow()
 			case update = <-updates:
 			}
-			if update.LatestBuild.Resources[0].Agents[0].StartupLogsOverflowed {
+			if update.LatestBuild.Resources[0].Agents[0].LogsOverflowed {
 				break
 			}
 		}
@@ -1270,11 +1270,9 @@ func TestWorkspaceAgent_UpdatedDERP(t *testing.T) {
 	defer closer.Close()
 	user := coderdtest.CreateFirstUser(t, client)
 
-	originalDerpMap := api.DERPMap()
-	require.NotNil(t, originalDerpMap)
-
 	// Change the DERP mapper to our custom one.
 	var currentDerpMap atomic.Pointer[tailcfg.DERPMap]
+	originalDerpMap, _ := tailnettest.RunDERPAndSTUN(t)
 	currentDerpMap.Store(originalDerpMap)
 	derpMapFn := func(_ *tailcfg.DERPMap) *tailcfg.DERPMap {
 		return currentDerpMap.Load().Clone()
@@ -1304,10 +1302,8 @@ func TestWorkspaceAgent_UpdatedDERP(t *testing.T) {
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 	agentID := resources[0].Agents[0].ID
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-
 	// Connect from a client.
+	ctx := testutil.Context(t, testutil.WaitLong)
 	conn1, err := client.DialWorkspaceAgent(ctx, agentID, &codersdk.DialWorkspaceAgentOptions{
 		Logger: logger.Named("client1"),
 	})
@@ -1328,7 +1324,14 @@ func TestWorkspaceAgent_UpdatedDERP(t *testing.T) {
 	currentDerpMap.Store(newDerpMap)
 
 	// Wait for the agent's DERP map to be updated.
-	// TODO: this
+	require.Eventually(t, func() bool {
+		conn := agentCloser.TailnetConn()
+		if conn == nil {
+			return false
+		}
+		regionIDs := conn.DERPMap().RegionIDs()
+		return len(regionIDs) == 1 && regionIDs[0] == 2 && conn.Node().PreferredDERP == 2
+	}, testutil.WaitLong, testutil.IntervalFast)
 
 	// Wait for the DERP map to be updated on the existing client.
 	require.Eventually(t, func() bool {

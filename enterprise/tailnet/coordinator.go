@@ -704,5 +704,7 @@ func (c *haCoordinator) ServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 
-	agpl.CoordinatorHTTPDebug(true, c.agentSockets, c.agentToConnectionSockets, c.nodes, c.agentNameCache)(w, r)
+	agpl.CoordinatorHTTPDebug(
+		agpl.HTTPDebugFromLocal(true, c.agentSockets, c.agentToConnectionSockets, c.nodes, c.agentNameCache),
+	)(w, r)
 }

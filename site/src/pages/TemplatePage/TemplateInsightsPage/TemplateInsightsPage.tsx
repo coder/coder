@@ -21,26 +21,50 @@ import { Loader } from "components/Loader/Loader"
 import {
   DAUsResponse,
   TemplateInsightsResponse,
+  TemplateParameterUsage,
+  TemplateParameterValue,
   UserLatencyInsightsResponse,
 } from "api/typesGenerated"
-import { ComponentProps } from "react"
-import subDays from "date-fns/subDays"
+import { ComponentProps, ReactNode, useState } from "react"
+import { subDays, isToday } from "date-fns"
+import "react-date-range/dist/styles.css"
+import "react-date-range/dist/theme/default.css"
+import { DateRange, DateRangeValue } from "./DateRange"
+import { useDashboard } from "components/Dashboard/DashboardProvider"
+import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined"
+import Link from "@mui/material/Link"
+import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined"
+import CancelOutlined from "@mui/icons-material/CancelOutlined"
+import { getDateRangeFilter } from "./utils"
 
 export default function TemplateInsightsPage() {
+  const now = new Date()
+  const [dateRangeValue, setDateRangeValue] = useState<DateRangeValue>({
+    startDate: subDays(now, 6),
+    endDate: now,
+  })
   const { template } = useTemplateLayoutContext()
   const insightsFilter = {
     template_ids: template.id,
-    start_time: toTimeFilter(sevenDaysAgo()),
-    end_time: toTimeFilter(new Date()),
+    ...getDateRangeFilter({
+      startDate: dateRangeValue.startDate,
+      endDate: dateRangeValue.endDate,
+      now,
+      isToday,
+    }),
   }
   const { data: templateInsights } = useQuery({
-    queryKey: ["templates", template.id, "usage"],
+    queryKey: ["templates", template.id, "usage", insightsFilter],
     queryFn: () => getInsightsTemplate(insightsFilter),
   })
   const { data: userLatency } = useQuery({
-    queryKey: ["templates", template.id, "user-latency"],
+    queryKey: ["templates", template.id, "user-latency", insightsFilter],
     queryFn: () => getInsightsUserLatency(insightsFilter),
   })
+  const dashboard = useDashboard()
+  const shouldDisplayParameters =
+    dashboard.experiments.includes("template_parameters_insights") ||
+    process.env.NODE_ENV === "development"
 
   return (
     <>
@@ -48,8 +72,12 @@ export default function TemplateInsightsPage() {
         <title>{getTemplatePageTitle("Insights", template)}</title>
       </Helmet>
       <TemplateInsightsPageView
+        dateRange={
+          <DateRange value={dateRangeValue} onChange={setDateRangeValue} />
+        }
         templateInsights={templateInsights}
         userLatency={userLatency}
+        shouldDisplayParameters={shouldDisplayParameters}
       />
     </>
   )
@@ -58,29 +86,42 @@ export default function TemplateInsightsPage() {
 export const TemplateInsightsPageView = ({
   templateInsights,
   userLatency,
+  shouldDisplayParameters,
+  dateRange,
 }: {
   templateInsights: TemplateInsightsResponse | undefined
   userLatency: UserLatencyInsightsResponse | undefined
+  shouldDisplayParameters: boolean
+  dateRange: ReactNode
 }) => {
   return (
-    <Box
-      sx={{
-        display: "grid",
-        gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-        gridTemplateRows: "440px auto",
-        gap: (theme) => theme.spacing(3),
-      }}
-    >
-      <DailyUsersPanel
-        sx={{ gridColumn: "span 2" }}
-        data={templateInsights?.interval_reports}
-      />
-      <UserLatencyPanel data={userLatency} />
-      <TemplateUsagePanel
-        sx={{ gridColumn: "span 3" }}
-        data={templateInsights?.report.apps_usage}
-      />
-    </Box>
+    <>
+      <Box sx={{ mb: 4 }}>{dateRange}</Box>
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+          gridTemplateRows: "440px auto",
+          gap: (theme) => theme.spacing(3),
+        }}
+      >
+        <DailyUsersPanel
+          sx={{ gridColumn: "span 2" }}
+          data={templateInsights?.interval_reports}
+        />
+        <UserLatencyPanel data={userLatency} />
+        <TemplateUsagePanel
+          sx={{ gridColumn: "span 3" }}
+          data={templateInsights?.report.apps_usage}
+        />
+        {shouldDisplayParameters && (
+          <TemplateParametersUsagePanel
+            sx={{ gridColumn: "span 3" }}
+            data={templateInsights?.report.parameters_usage}
+          />
+        )}
+      </Box>
+    </>
   )
 }
 
@@ -120,9 +161,9 @@ const UserLatencyPanel = ({
         <PanelTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           Latency by user
           <HelpTooltip size="small">
-            <HelpTooltipTitle>How do we calculate latency?</HelpTooltipTitle>
+            <HelpTooltipTitle>How is latency calculated?</HelpTooltipTitle>
             <HelpTooltipText>
-              The average latency of user connections to workspaces.
+              The median round trip time of user connections to workspaces.
             </HelpTooltipText>
           </HelpTooltip>
         </PanelTitle>
@@ -186,7 +227,7 @@ const TemplateUsagePanel = ({
   return (
     <Panel {...panelProps}>
       <PanelHeader>
-        <PanelTitle>App&lsquo;s & IDE usage</PanelTitle>
+        <PanelTitle>App & IDE Usage</PanelTitle>
         <PanelSubtitle>Last 7 days</PanelSubtitle>
       </PanelHeader>
       <PanelContent>
@@ -244,7 +285,7 @@ const TemplateUsagePanel = ({
                       sx={{
                         fontSize: 13,
                         color: (theme) => theme.palette.text.secondary,
-                        width: 200,
+                        width: 120,
                         flexShrink: 0,
                       }}
                     >
@@ -258,6 +299,219 @@ const TemplateUsagePanel = ({
       </PanelContent>
     </Panel>
   )
+}
+
+const TemplateParametersUsagePanel = ({
+  data,
+  ...panelProps
+}: PanelProps & {
+  data: TemplateInsightsResponse["report"]["parameters_usage"] | undefined
+}) => {
+  return (
+    <Panel {...panelProps}>
+      <PanelHeader>
+        <PanelTitle>Parameters usage</PanelTitle>
+        <PanelSubtitle>Last 7 days</PanelSubtitle>
+      </PanelHeader>
+      <PanelContent>
+        {!data && <Loader sx={{ height: 200 }} />}
+        {data && data.length === 0 && <NoDataAvailable sx={{ height: 200 }} />}
+        {data &&
+          data.length > 0 &&
+          data.map((parameter, parameterIndex) => {
+            const label =
+              parameter.display_name !== ""
+                ? parameter.display_name
+                : parameter.name
+            return (
+              <Box
+                key={parameter.name}
+                sx={{
+                  display: "flex",
+                  alignItems: "start",
+                  p: 3,
+                  marginX: -3,
+                  borderTop: (theme) => `1px solid ${theme.palette.divider}`,
+                  width: (theme) => `calc(100% + ${theme.spacing(6)})`,
+                  "&:first-child": {
+                    borderTop: 0,
+                  },
+                }}
+              >
+                <Box sx={{ flex: 1 }}>
+                  <Box sx={{ fontWeight: 500 }}>{label}</Box>
+                  <Box
+                    component="p"
+                    sx={{
+                      fontSize: 14,
+                      color: (theme) => theme.palette.text.secondary,
+                      maxWidth: 400,
+                      margin: 0,
+                    }}
+                  >
+                    {parameter.description}
+                  </Box>
+                </Box>
+                <Box sx={{ flex: 1, fontSize: 14 }}>
+                  {parameter.values
+                    .sort((a, b) => b.count - a.count)
+                    .map((usage, usageIndex) => (
+                      <Box
+                        key={`${parameterIndex}-${usageIndex}`}
+                        sx={{
+                          display: "flex",
+                          alignItems: "baseline",
+                          justifyContent: "space-between",
+                          py: 0.5,
+                          gap: 5,
+                        }}
+                      >
+                        <ParameterUsageLabel
+                          usage={usage}
+                          parameter={parameter}
+                        />
+                        <Box sx={{ textAlign: "right" }}>{usage.count}</Box>
+                      </Box>
+                    ))}
+                </Box>
+              </Box>
+            )
+          })}
+      </PanelContent>
+    </Panel>
+  )
+}
+
+const ParameterUsageLabel = ({
+  usage,
+  parameter,
+}: {
+  usage: TemplateParameterValue
+  parameter: TemplateParameterUsage
+}) => {
+  if (usage.value.trim() === "") {
+    return (
+      <Box
+        component="span"
+        sx={{
+          color: (theme) => theme.palette.text.secondary,
+        }}
+      >
+        Not set
+      </Box>
+    )
+  }
+
+  if (parameter.options) {
+    const option = parameter.options.find((o) => o.value === usage.value)!
+    const icon = option.icon
+    const label = option.name
+
+    return (
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 2,
+        }}
+      >
+        {icon && (
+          <Box sx={{ width: 16, height: 16, lineHeight: 1 }}>
+            <Box
+              component="img"
+              src={icon}
+              sx={{
+                objectFit: "contain",
+                width: "100%",
+                height: "100%",
+              }}
+            />
+          </Box>
+        )}
+        {label}
+      </Box>
+    )
+  }
+
+  if (usage.value.startsWith("http")) {
+    return (
+      <Link
+        href={usage.value}
+        target="_blank"
+        rel="noreferrer"
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+          color: (theme) => theme.palette.text.primary,
+        }}
+      >
+        <OpenInNewOutlined sx={{ width: 14, height: 14 }} />
+        {usage.value}
+      </Link>
+    )
+  }
+
+  if (parameter.type === "list(string)") {
+    const values = JSON.parse(usage.value) as string[]
+    return (
+      <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+        {values.map((v, i) => {
+          return (
+            <Box
+              key={i}
+              sx={{
+                p: (theme) => theme.spacing(0.25, 1.5),
+                borderRadius: 999,
+                background: (theme) => theme.palette.divider,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {v}
+            </Box>
+          )
+        })}
+      </Box>
+    )
+  }
+
+  if (parameter.type === "bool") {
+    return (
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+        }}
+      >
+        {usage.value === "false" ? (
+          <>
+            <CancelOutlined
+              sx={{
+                width: 16,
+                height: 16,
+                color: (theme) => theme.palette.error.light,
+              }}
+            />
+            False
+          </>
+        ) : (
+          <>
+            <CheckCircleOutlined
+              sx={{
+                width: 16,
+                height: 16,
+                color: (theme) => theme.palette.success.light,
+              }}
+            />
+            True
+          </>
+        )}
+      </Box>
+    )
+  }
+
+  return <Box>{usage.value}</Box>
 }
 
 const Panel = styled(Box)(({ theme }) => ({
@@ -317,19 +571,10 @@ function mapToDAUsResponse(
     entries: data.map((d) => {
       return {
         amount: d.active_users,
-        date: d.end_time,
+        date: d.start_time,
       }
     }),
   }
-}
-
-function toTimeFilter(date: Date) {
-  date.setHours(0, 0, 0, 0)
-  const year = date.getUTCFullYear()
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0")
-  const day = String(date.getUTCDate()).padStart(2, "0")
-
-  return `${year}-${month}-${day}T00:00:00Z`
 }
 
 function formatTime(seconds: number): string {
@@ -339,16 +584,12 @@ function formatTime(seconds: number): string {
     const minutes = Math.floor(seconds / 60)
     return minutes + " minutes"
   } else {
-    const hours = Math.floor(seconds / 3600)
-    const remainingMinutes = Math.floor((seconds % 3600) / 60)
-    if (remainingMinutes === 0) {
-      return hours + " hours"
-    } else {
-      return hours + " hours, " + remainingMinutes + " minutes"
+    const hours = seconds / 3600
+    const minutes = Math.floor(seconds % 3600)
+    if (minutes === 0) {
+      return hours.toFixed(0) + " hours"
     }
-  }
-}
 
-function sevenDaysAgo() {
-  return subDays(new Date(), 7)
+    return hours.toFixed(1) + " hours"
+  }
 }

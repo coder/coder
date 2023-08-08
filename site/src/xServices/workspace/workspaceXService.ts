@@ -59,12 +59,12 @@ export interface WorkspaceContext {
   build?: TypesGen.WorkspaceBuild
   // Builds
   builds?: TypesGen.WorkspaceBuild[]
-  getBuildsError?: Error | unknown
+  getBuildsError?: unknown
   missedParameters?: TypesGen.TemplateVersionParameter[]
   // error creating a new WorkspaceBuild
-  buildError?: Error | unknown
+  buildError?: unknown
   cancellationMessage?: Types.Message
-  cancellationError?: Error | unknown
+  cancellationError?: unknown
   // debug
   createBuildLogLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"]
   // SSH Config
@@ -92,10 +92,11 @@ export type WorkspaceEvent =
       checkRefresh?: boolean
       data?: TypesGen.ServerSentEvent["data"]
     }
-  | { type: "EVENT_SOURCE_ERROR"; error: Error | unknown }
+  | { type: "EVENT_SOURCE_ERROR"; error: unknown }
   | { type: "INCREASE_DEADLINE"; hours: number }
   | { type: "DECREASE_DEADLINE"; hours: number }
   | { type: "RETRY_BUILD" }
+  | { type: "UNLOCK" }
 
 export const checks = {
   readWorkspace: "readWorkspace",
@@ -168,6 +169,9 @@ export const workspaceMachine = createMachine(
           data: TypesGen.WorkspaceBuild
         }
         cancelWorkspace: {
+          data: Types.Message
+        }
+        unlockWorkspace: {
           data: Types.Message
         }
         listening: {
@@ -260,6 +264,7 @@ export const workspaceMachine = createMachine(
                       actions: ["enableDebugMode"],
                     },
                   ],
+                  UNLOCK: "requestingUnlock",
                 },
               },
               askingDelete: {
@@ -403,6 +408,18 @@ export const workspaceMachine = createMachine(
                       target: "idle",
                     },
                   ],
+                },
+              },
+              requestingUnlock: {
+                entry: ["clearBuildError"],
+                invoke: {
+                  src: "unlockWorkspace",
+                  id: "unlockWorkspace",
+                  onDone: "idle",
+                  onError: {
+                    target: "idle",
+                    actions: ["displayUnlockError"],
+                  },
                 },
               },
             },
@@ -559,7 +576,10 @@ export const workspaceMachine = createMachine(
         )
         displayError(message)
       },
-
+      displayUnlockError: (_, { data }) => {
+        const message = getErrorMessage(data, "Error unlocking workspace.")
+        displayError(message)
+      },
       assignMissedParameters: assign({
         missedParameters: (_, { data }) => {
           if (!(data instanceof API.MissingBuildParameters)) {
@@ -673,6 +693,18 @@ export const workspaceMachine = createMachine(
           return cancelWorkspacePromise
         } else {
           throw Error("Cannot cancel workspace without build id")
+        }
+      },
+      unlockWorkspace: (context) => async (send) => {
+        if (context.workspace) {
+          const unlockWorkspacePromise = await API.updateWorkspaceLock(
+            context.workspace.id,
+            false,
+          )
+          send({ type: "REFRESH_WORKSPACE", data: unlockWorkspacePromise })
+          return unlockWorkspacePromise
+        } else {
+          throw Error("Cannot unlock workspace without workspace id")
         }
       },
       listening: (context) => (send) => {

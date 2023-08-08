@@ -162,11 +162,11 @@ func (m metricsStore) DeleteLicense(ctx context.Context, id int32) (int32, error
 	return licenseID, err
 }
 
-func (m metricsStore) DeleteOldWorkspaceAgentStartupLogs(ctx context.Context) error {
+func (m metricsStore) DeleteOldWorkspaceAgentLogs(ctx context.Context) error {
 	start := time.Now()
-	err := m.s.DeleteOldWorkspaceAgentStartupLogs(ctx)
-	m.queryLatencies.WithLabelValues("DeleteOldWorkspaceAgentStartupLogs").Observe(time.Since(start).Seconds())
-	return err
+	r0 := m.s.DeleteOldWorkspaceAgentLogs(ctx)
+	m.queryLatencies.WithLabelValues("DeleteOldWorkspaceAgentLogs").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m metricsStore) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
@@ -235,6 +235,20 @@ func (m metricsStore) GetActiveUserCount(ctx context.Context) (int64, error) {
 	count, err := m.s.GetActiveUserCount(ctx)
 	m.queryLatencies.WithLabelValues("GetActiveUserCount").Observe(time.Since(start).Seconds())
 	return count, err
+}
+
+func (m metricsStore) GetAllTailnetAgents(ctx context.Context) ([]database.TailnetAgent, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAllTailnetAgents(ctx)
+	m.queryLatencies.WithLabelValues("GetAllTailnetAgents").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) GetAllTailnetClients(ctx context.Context) ([]database.TailnetClient, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAllTailnetClients(ctx)
+	m.queryLatencies.WithLabelValues("GetAllTailnetClients").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) GetAppSecurityKey(ctx context.Context) (string, error) {
@@ -620,6 +634,13 @@ func (m metricsStore) GetTemplateInsights(ctx context.Context, arg database.GetT
 	return r0, r1
 }
 
+func (m metricsStore) GetTemplateParameterInsights(ctx context.Context, arg database.GetTemplateParameterInsightsParams) ([]database.GetTemplateParameterInsightsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateParameterInsights(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetTemplateParameterInsights").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (database.TemplateVersion, error) {
 	start := time.Now()
 	version, err := m.s.GetTemplateVersionByID(ctx, id)
@@ -781,18 +802,18 @@ func (m metricsStore) GetWorkspaceAgentLifecycleStateByID(ctx context.Context, i
 	return r0, r1
 }
 
+func (m metricsStore) GetWorkspaceAgentLogsAfter(ctx context.Context, arg database.GetWorkspaceAgentLogsAfterParams) ([]database.WorkspaceAgentLog, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentLogsAfter(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentLogsAfter").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentMetadatum, error) {
 	start := time.Now()
 	metadata, err := m.s.GetWorkspaceAgentMetadata(ctx, workspaceAgentID)
 	m.queryLatencies.WithLabelValues("GetWorkspaceAgentMetadata").Observe(time.Since(start).Seconds())
 	return metadata, err
-}
-
-func (m metricsStore) GetWorkspaceAgentStartupLogsAfter(ctx context.Context, arg database.GetWorkspaceAgentStartupLogsAfterParams) ([]database.WorkspaceAgentStartupLog, error) {
-	start := time.Now()
-	logs, err := m.s.GetWorkspaceAgentStartupLogsAfter(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetWorkspaceAgentStartupLogsAfter").Observe(time.Since(start).Seconds())
-	return logs, err
 }
 
 func (m metricsStore) GetWorkspaceAgentStats(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentStatsRow, error) {
@@ -1089,6 +1110,13 @@ func (m metricsStore) InsertLicense(ctx context.Context, arg database.InsertLice
 	return license, err
 }
 
+func (m metricsStore) InsertMissingGroups(ctx context.Context, arg database.InsertMissingGroupsParams) ([]database.Group, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertMissingGroups(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertMissingGroups").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) InsertOrganization(ctx context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {
 	start := time.Now()
 	organization, err := m.s.InsertOrganization(ctx, arg)
@@ -1194,6 +1222,13 @@ func (m metricsStore) InsertWorkspaceAgent(ctx context.Context, arg database.Ins
 	return agent, err
 }
 
+func (m metricsStore) InsertWorkspaceAgentLogs(ctx context.Context, arg database.InsertWorkspaceAgentLogsParams) ([]database.WorkspaceAgentLog, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertWorkspaceAgentLogs(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentLogs").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) InsertWorkspaceAgentMetadata(ctx context.Context, arg database.InsertWorkspaceAgentMetadataParams) error {
 	start := time.Now()
 	err := m.s.InsertWorkspaceAgentMetadata(ctx, arg)
@@ -1201,18 +1236,18 @@ func (m metricsStore) InsertWorkspaceAgentMetadata(ctx context.Context, arg data
 	return err
 }
 
-func (m metricsStore) InsertWorkspaceAgentStartupLogs(ctx context.Context, arg database.InsertWorkspaceAgentStartupLogsParams) ([]database.WorkspaceAgentStartupLog, error) {
-	start := time.Now()
-	logs, err := m.s.InsertWorkspaceAgentStartupLogs(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentStartupLogs").Observe(time.Since(start).Seconds())
-	return logs, err
-}
-
 func (m metricsStore) InsertWorkspaceAgentStat(ctx context.Context, arg database.InsertWorkspaceAgentStatParams) (database.WorkspaceAgentStat, error) {
 	start := time.Now()
 	stat, err := m.s.InsertWorkspaceAgentStat(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentStat").Observe(time.Since(start).Seconds())
 	return stat, err
+}
+
+func (m metricsStore) InsertWorkspaceAgentStats(ctx context.Context, arg database.InsertWorkspaceAgentStatsParams) error {
+	start := time.Now()
+	r0 := m.s.InsertWorkspaceAgentStats(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentStats").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m metricsStore) InsertWorkspaceApp(ctx context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
@@ -1297,6 +1332,13 @@ func (m metricsStore) UpdateGroupByID(ctx context.Context, arg database.UpdateGr
 	group, err := m.s.UpdateGroupByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateGroupByID").Observe(time.Since(start).Seconds())
 	return group, err
+}
+
+func (m metricsStore) UpdateInactiveUsersToDormant(ctx context.Context, lastSeenAfter database.UpdateInactiveUsersToDormantParams) ([]database.UpdateInactiveUsersToDormantRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateInactiveUsersToDormant(ctx, lastSeenAfter)
+	m.queryLatencies.WithLabelValues("UpdateInactiveUsersToDormant").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
@@ -1481,6 +1523,13 @@ func (m metricsStore) UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context
 	return r0
 }
 
+func (m metricsStore) UpdateWorkspaceAgentLogOverflowByID(ctx context.Context, arg database.UpdateWorkspaceAgentLogOverflowByIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspaceAgentLogOverflowByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceAgentLogOverflowByID").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) UpdateWorkspaceAgentMetadata(ctx context.Context, arg database.UpdateWorkspaceAgentMetadataParams) error {
 	start := time.Now()
 	err := m.s.UpdateWorkspaceAgentMetadata(ctx, arg)
@@ -1492,13 +1541,6 @@ func (m metricsStore) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg d
 	start := time.Now()
 	err := m.s.UpdateWorkspaceAgentStartupByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateWorkspaceAgentStartupByID").Observe(time.Since(start).Seconds())
-	return err
-}
-
-func (m metricsStore) UpdateWorkspaceAgentStartupLogOverflowByID(ctx context.Context, arg database.UpdateWorkspaceAgentStartupLogOverflowByIDParams) error {
-	start := time.Now()
-	err := m.s.UpdateWorkspaceAgentStartupLogOverflowByID(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateWorkspaceAgentStartupLogOverflowByID").Observe(time.Since(start).Seconds())
 	return err
 }
 
@@ -1544,11 +1586,11 @@ func (m metricsStore) UpdateWorkspaceLastUsedAt(ctx context.Context, arg databas
 	return err
 }
 
-func (m metricsStore) UpdateWorkspaceLockedDeletingAt(ctx context.Context, arg database.UpdateWorkspaceLockedDeletingAtParams) error {
+func (m metricsStore) UpdateWorkspaceLockedDeletingAt(ctx context.Context, arg database.UpdateWorkspaceLockedDeletingAtParams) (database.Workspace, error) {
 	start := time.Now()
-	r0 := m.s.UpdateWorkspaceLockedDeletingAt(ctx, arg)
+	ws, r0 := m.s.UpdateWorkspaceLockedDeletingAt(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateWorkspaceLockedDeletingAt").Observe(time.Since(start).Seconds())
-	return r0
+	return ws, r0
 }
 
 func (m metricsStore) UpdateWorkspaceProxy(ctx context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {

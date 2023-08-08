@@ -3,11 +3,19 @@ import { watchAgentMetadata } from "api/api"
 import { WorkspaceAgent, WorkspaceAgentMetadata } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
 import dayjs from "dayjs"
-import { createContext, FC, useContext, useEffect, useState } from "react"
+import {
+  createContext,
+  FC,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react"
 import Skeleton from "@mui/material/Skeleton"
 import { MONOSPACE_FONT_FAMILY } from "theme/constants"
 import { combineClasses } from "utils/combineClasses"
 import Tooltip from "@mui/material/Tooltip"
+import Box, { BoxProps } from "@mui/material/Box"
 
 type ItemStatus = "stale" | "valid" | "loading"
 
@@ -55,27 +63,26 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
       />
     ) : status === "stale" ? (
       <Tooltip title="This data is stale and no longer up to date">
-        <div
+        <StaticWidth
           className={combineClasses([
             styles.metadataValue,
             styles.metadataStale,
           ])}
         >
           {item.result.value}
-        </div>
+        </StaticWidth>
       </Tooltip>
     ) : (
-      <div
+      <StaticWidth
         className={combineClasses([
           styles.metadataValue,
-
           item.result.error.length === 0
             ? styles.metadataValueSuccess
             : styles.metadataValueError,
         ])}
       >
         {item.result.value}
-      </div>
+      </StaticWidth>
     )
 
   return (
@@ -83,7 +90,7 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
       <div className={styles.metadataLabel}>
         {item.description.display_name}
       </div>
-      <div>{value}</div>
+      <Box>{value}</Box>
     </div>
   )
 }
@@ -188,6 +195,24 @@ export const AgentMetadataSkeleton: FC = () => {
       </div>
     </Stack>
   )
+}
+
+const StaticWidth = (props: BoxProps) => {
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!ref.current) {
+      return
+    }
+
+    const currentWidth = ref.current.getBoundingClientRect().width
+    ref.current.style.width = "auto"
+    const autoWidth = ref.current.getBoundingClientRect().width
+    ref.current.style.width =
+      autoWidth > currentWidth ? `${autoWidth}px` : `${currentWidth}px`
+  }, [props.children])
+
+  return <Box {...props} ref={ref} />
 }
 
 // These are more or less copied from

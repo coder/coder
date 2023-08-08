@@ -53,11 +53,11 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
     let canceled = false
     const loop = () => {
       if (canceled) {
-        return
+        return undefined
       }
       setTimeUntilRefresh(timeUntilRefresh--)
       if (timeUntilRefresh > 0) {
-        return setTimeout(loop, 1000)
+        return window.setTimeout(loop, 1000)
       }
       fetchStats()
     }

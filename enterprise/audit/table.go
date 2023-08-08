@@ -151,10 +151,12 @@ var auditableResourcesTypes = map[any]map[string]Action{
 	&database.AuditableGroup{}: {
 		"id":              ActionTrack,
 		"name":            ActionTrack,
+		"display_name":    ActionTrack,
 		"organization_id": ActionIgnore, // Never changes.
 		"avatar_url":      ActionTrack,
 		"quota_allowance": ActionTrack,
 		"members":         ActionTrack,
+		"source":          ActionIgnore,
 	},
 	&database.APIKey{}: {
 		"id":               ActionIgnore,
@@ -198,6 +200,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"deleted":             ActionIgnore,
 		"token_hashed_secret": ActionSecret,
 		"derp_enabled":        ActionTrack,
+		"derp_only":           ActionTrack,
 		"region_id":           ActionTrack,
 	},
 }

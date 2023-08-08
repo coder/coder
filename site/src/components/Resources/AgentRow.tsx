@@ -8,7 +8,7 @@ import {
   OpenDropdown,
 } from "components/DropdownArrows/DropdownArrows"
 import { LogLine, logLineHeight } from "components/Logs/Logs"
-import { PortForwardButton } from "components/PortForwardButton/PortForwardButton"
+import { PortForwardButton } from "./PortForwardButton"
 import { VSCodeDesktopButton } from "components/VSCodeDesktopButton/VSCodeDesktopButton"
 import {
   FC,
@@ -54,7 +54,7 @@ export interface AgentRowProps {
   hideVSCodeDesktopButton?: boolean
   serverVersion: string
   onUpdateAgent: () => void
-  storybookStartupLogs?: LineWithID[]
+  storybookLogs?: LineWithID[]
   storybookAgentMetadata?: WorkspaceAgentMetadata[]
 }
 
@@ -66,7 +66,7 @@ export const AgentRow: FC<AgentRowProps> = ({
   hideVSCodeDesktopButton,
   serverVersion,
   onUpdateAgent,
-  storybookStartupLogs,
+  storybookLogs,
   storybookAgentMetadata,
   sshPrefix,
 }) => {
@@ -75,10 +75,10 @@ export const AgentRow: FC<AgentRowProps> = ({
     context: { agentID: agent.id },
     services: process.env.STORYBOOK
       ? {
-          getStartupLogs: async () => {
-            return storybookStartupLogs || []
+          getLogs: async () => {
+            return storybookLogs || []
           },
-          streamStartupLogs: () => async () => {
+          streamLogs: () => async () => {
             // noop
           },
         }
@@ -93,39 +93,38 @@ export const AgentRow: FC<AgentRowProps> = ({
     ((agent.status === "connected" && hasAppsToDisplay) ||
       agent.status === "connecting")
   const hasStartupFeatures =
-    Boolean(agent.startup_logs_length) ||
-    Boolean(logsMachine.context.startupLogs?.length)
+    Boolean(agent.logs_length) || Boolean(logsMachine.context.logs?.length)
   const { proxy } = useProxy()
 
-  const [showStartupLogs, setShowStartupLogs] = useState(
+  const [showLogs, setShowLogs] = useState(
     ["starting", "start_timeout"].includes(agent.lifecycle_state) &&
       hasStartupFeatures,
   )
   useEffect(() => {
-    setShowStartupLogs(agent.lifecycle_state !== "ready" && hasStartupFeatures)
+    setShowLogs(agent.lifecycle_state !== "ready" && hasStartupFeatures)
   }, [agent.lifecycle_state, hasStartupFeatures])
   // External applications can provide startup logs for an agent during it's spawn.
   // These could be Kubernetes logs, or other logs that are useful to the user.
   // For this reason, we want to fetch these logs when the agent is starting.
   useEffect(() => {
     if (agent.lifecycle_state === "starting") {
-      sendLogsEvent("FETCH_STARTUP_LOGS")
+      sendLogsEvent("FETCH_LOGS")
     }
   }, [sendLogsEvent, agent.lifecycle_state])
   useEffect(() => {
     // We only want to fetch logs when they are actually shown,
     // otherwise we can make a lot of requests that aren't necessary.
-    if (showStartupLogs && logsMachine.can("FETCH_STARTUP_LOGS")) {
-      sendLogsEvent("FETCH_STARTUP_LOGS")
+    if (showLogs && logsMachine.can("FETCH_LOGS")) {
+      sendLogsEvent("FETCH_LOGS")
     }
-  }, [logsMachine, sendLogsEvent, showStartupLogs])
+  }, [logsMachine, sendLogsEvent, showLogs])
   const logListRef = useRef<List>(null)
   const logListDivRef = useRef<HTMLDivElement>(null)
   const startupLogs = useMemo(() => {
-    const allLogs = logsMachine.context.startupLogs || []
+    const allLogs = logsMachine.context.logs || []
 
     const logs = [...allLogs]
-    if (agent.startup_logs_overflowed) {
+    if (agent.logs_overflowed) {
       logs.push({
         id: -1,
         level: "error",
@@ -134,7 +133,7 @@ export const AgentRow: FC<AgentRowProps> = ({
       })
     }
     return logs
-  }, [logsMachine.context.startupLogs, agent.startup_logs_overflowed])
+  }, [logsMachine.context.logs, agent.logs_overflowed])
   const [bottomOfLogs, setBottomOfLogs] = useState(true)
   // This is a layout effect to remove flicker when we're scrolling to the bottom.
   useLayoutEffect(() => {
@@ -142,7 +141,7 @@ export const AgentRow: FC<AgentRowProps> = ({
     if (bottomOfLogs && logListRef.current) {
       logListRef.current.scrollToItem(startupLogs.length - 1, "end")
     }
-  }, [showStartupLogs, startupLogs, logListRef, bottomOfLogs])
+  }, [showLogs, startupLogs, logListRef, bottomOfLogs])
 
   // This is a bit of a hack on the react-window API to get the scroll position.
   // If we're scrolled to the bottom, we want to keep the list scrolled to the bottom.
@@ -284,7 +283,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 
       {hasStartupFeatures && (
         <div className={styles.logsPanel}>
-          <Collapse in={showStartupLogs}>
+          <Collapse in={showLogs}>
             <AutoSizer disableHeight>
               {({ width }) => (
                 <List
@@ -310,14 +309,14 @@ export const AgentRow: FC<AgentRowProps> = ({
           </Collapse>
 
           <div className={styles.logsPanelButtons}>
-            {showStartupLogs ? (
+            {showLogs ? (
               <button
                 className={combineClasses([
                   styles.logsPanelButton,
                   styles.toggleLogsButton,
                 ])}
                 onClick={() => {
-                  setShowStartupLogs((v) => !v)
+                  setShowLogs((v) => !v)
                 }}
               >
                 <CloseDropdown />
@@ -330,7 +329,7 @@ export const AgentRow: FC<AgentRowProps> = ({
                   styles.toggleLogsButton,
                 ])}
                 onClick={() => {
-                  setShowStartupLogs((v) => !v)
+                  setShowLogs((v) => !v)
                 }}
               >
                 <OpenDropdown />

@@ -4565,6 +4565,45 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/me/logs": {
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Patch workspace agent logs",
+                "operationId": "patch-workspace-agent-logs",
+                "parameters": [
+                    {
+                        "description": "logs",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agentsdk.PatchLogs"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaceagents/me/manifest": {
             "get": {
                 "security": [
@@ -4764,16 +4803,16 @@ const docTemplate = `{
                 "tags": [
                     "Agents"
                 ],
-                "summary": "Patch workspace agent startup logs",
-                "operationId": "patch-workspace-agent-startup-logs",
+                "summary": "Removed: Patch workspace agent logs",
+                "operationId": "removed-patch-workspace-agent-logs",
                 "parameters": [
                     {
-                        "description": "Startup logs",
+                        "description": "logs",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/agentsdk.PatchStartupLogs"
+                            "$ref": "#/definitions/agentsdk.PatchLogs"
                         }
                     }
                 ],
@@ -4959,6 +4998,68 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/{workspaceagent}/logs": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get logs by workspace agent",
+                "operationId": "get-logs-by-workspace-agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Before log id",
+                        "name": "before",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "After log id",
+                        "name": "after",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Follow log stream",
+                        "name": "follow",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Disable compression for WebSocket connection",
+                        "name": "no_compression",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.WorkspaceAgentLog"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/workspaceagents/{workspaceagent}/pty": {
             "get": {
                 "security": [
@@ -5001,8 +5102,8 @@ const docTemplate = `{
                 "tags": [
                     "Agents"
                 ],
-                "summary": "Get startup logs by workspace agent",
-                "operationId": "get-startup-logs-by-workspace-agent",
+                "summary": "Removed: Get logs by workspace agent",
+                "operationId": "removed-get-logs-by-workspace-agent",
                 "parameters": [
                     {
                         "type": "string",
@@ -5043,7 +5144,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.WorkspaceAgentStartupLog"
+                                "$ref": "#/definitions/codersdk.WorkspaceAgentLog"
                             }
                         }
                     }
@@ -5996,7 +6097,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
+                            "$ref": "#/definitions/codersdk.Workspace"
                         }
                     }
                 }
@@ -6213,6 +6314,23 @@ const docTemplate = `{
                 }
             }
         },
+        "agentsdk.Log": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "level": {
+                    "$ref": "#/definitions/codersdk.LogLevel"
+                },
+                "output": {
+                    "type": "string"
+                },
+                "source": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentLogSource"
+                }
+            }
+        },
         "agentsdk.Manifest": {
             "type": "object",
             "properties": {
@@ -6270,13 +6388,13 @@ const docTemplate = `{
                 }
             }
         },
-        "agentsdk.PatchStartupLogs": {
+        "agentsdk.PatchLogs": {
             "type": "object",
             "properties": {
                 "logs": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/agentsdk.StartupLog"
+                        "$ref": "#/definitions/agentsdk.Log"
                     }
                 }
             }
@@ -6333,20 +6451,6 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.AgentSubsystem"
                 },
                 "version": {
-                    "type": "string"
-                }
-            }
-        },
-        "agentsdk.StartupLog": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string"
-                },
-                "level": {
-                    "$ref": "#/definitions/codersdk.LogLevel"
-                },
-                "output": {
                     "type": "string"
                 }
             }
@@ -6519,6 +6623,9 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "clibase.Regexp": {
+            "type": "object"
         },
         "clibase.Struct-array_codersdk_GitAuthConfig": {
             "type": "object",
@@ -6974,9 +7081,6 @@ const docTemplate = `{
         "codersdk.AuthMethods": {
             "type": "object",
             "properties": {
-                "convert_to_oidc_enabled": {
-                    "type": "boolean"
-                },
                 "github": {
                     "$ref": "#/definitions/codersdk.AuthMethod"
                 },
@@ -7160,6 +7264,9 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "avatar_url": {
+                    "type": "string"
+                },
+                "display_name": {
                     "type": "string"
                 },
                 "name": {
@@ -7917,20 +8024,20 @@ const docTemplate = `{
             "enum": [
                 "moons",
                 "workspace_actions",
-                "tailnet_ha_coordinator",
-                "convert-to-oidc",
+                "tailnet_pg_coordinator",
                 "single_tailnet",
                 "template_restart_requirement",
-                "template_insights_page"
+                "deployment_health_page",
+                "template_parameters_insights"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
                 "ExperimentWorkspaceActions",
-                "ExperimentTailnetHACoordinator",
-                "ExperimentConvertToOIDC",
+                "ExperimentTailnetPGCoordinator",
                 "ExperimentSingleTailnet",
                 "ExperimentTemplateRestartRequirement",
-                "ExperimentTemplateInsightsPage"
+                "ExperimentDeploymentHealthPage",
+                "ExperimentTemplateParametersInsights"
             ]
         },
         "codersdk.Feature": {
@@ -8148,6 +8255,9 @@ const docTemplate = `{
                 "avatar_url": {
                     "type": "string"
                 },
+                "display_name": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -8167,8 +8277,22 @@ const docTemplate = `{
                 },
                 "quota_allowance": {
                     "type": "integer"
+                },
+                "source": {
+                    "$ref": "#/definitions/codersdk.GroupSource"
                 }
             }
+        },
+        "codersdk.GroupSource": {
+            "type": "string",
+            "enum": [
+                "user",
+                "oidc"
+            ],
+            "x-enum-varnames": [
+                "GroupSourceUser",
+                "GroupSourceOIDC"
+            ]
         },
         "codersdk.Healthcheck": {
             "type": "object",
@@ -8476,8 +8600,14 @@ const docTemplate = `{
                 "email_field": {
                     "type": "string"
                 },
+                "group_auto_create": {
+                    "type": "boolean"
+                },
                 "group_mapping": {
                     "type": "object"
+                },
+                "group_regex_filter": {
+                    "$ref": "#/definitions/clibase.Regexp"
                 },
                 "groups_field": {
                     "type": "string"
@@ -8647,6 +8777,9 @@ const docTemplate = `{
                 },
                 "daemon_poll_jitter": {
                     "type": "integer"
+                },
+                "daemon_psk": {
+                    "type": "string"
                 },
                 "daemons": {
                     "type": "integer"
@@ -9441,6 +9574,12 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "parameters_usage": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateParameterUsage"
+                    }
+                },
                 "start_time": {
                     "type": "string",
                     "format": "date-time"
@@ -9465,6 +9604,53 @@ const docTemplate = `{
                 },
                 "report": {
                     "$ref": "#/definitions/codersdk.TemplateInsightsReport"
+                }
+            }
+        },
+        "codersdk.TemplateParameterUsage": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "options": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateVersionParameterOption"
+                    }
+                },
+                "template_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "type": {
+                    "type": "string"
+                },
+                "values": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateParameterValue"
+                    }
+                }
+            }
+        },
+        "codersdk.TemplateParameterValue": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "value": {
+                    "type": "string"
                 }
             }
         },
@@ -10128,10 +10314,12 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "active",
+                "dormant",
                 "suspended"
             ],
             "x-enum-varnames": [
                 "UserStatusActive",
+                "UserStatusDormant",
                 "UserStatusSuspended"
             ]
         },
@@ -10325,6 +10513,12 @@ const docTemplate = `{
                     "description": "Deprecated: Use StartupScriptBehavior instead.",
                     "type": "boolean"
                 },
+                "logs_length": {
+                    "type": "integer"
+                },
+                "logs_overflowed": {
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -10348,12 +10542,6 @@ const docTemplate = `{
                 "started_at": {
                     "type": "string",
                     "format": "date-time"
-                },
-                "startup_logs_length": {
-                    "type": "integer"
-                },
-                "startup_logs_overflowed": {
-                    "type": "boolean"
                 },
                 "startup_script": {
                     "type": "string"
@@ -10462,6 +10650,43 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.WorkspaceAgentLog": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "level": {
+                    "$ref": "#/definitions/codersdk.LogLevel"
+                },
+                "output": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentLogSource": {
+            "type": "string",
+            "enum": [
+                "startup_script",
+                "shutdown_script",
+                "kubernetes",
+                "envbox",
+                "envbuilder",
+                "external"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceAgentLogSourceStartupScript",
+                "WorkspaceAgentLogSourceShutdownScript",
+                "WorkspaceAgentLogSourceKubernetes",
+                "WorkspaceAgentLogSourceEnvbox",
+                "WorkspaceAgentLogSourceEnvbuilder",
+                "WorkspaceAgentLogSourceExternal"
+            ]
+        },
         "codersdk.WorkspaceAgentMetadataDescription": {
             "type": "object",
             "properties": {
@@ -10479,24 +10704,6 @@ const docTemplate = `{
                 },
                 "timeout": {
                     "type": "integer"
-                }
-            }
-        },
-        "codersdk.WorkspaceAgentStartupLog": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "level": {
-                    "$ref": "#/definitions/codersdk.LogLevel"
-                },
-                "output": {
-                    "type": "string"
                 }
             }
         },
@@ -10806,6 +11013,9 @@ const docTemplate = `{
                 "derp_enabled": {
                     "type": "boolean"
                 },
+                "derp_only": {
+                    "type": "boolean"
+                },
                 "display_name": {
                     "type": "string"
                 },
@@ -11072,6 +11282,9 @@ const docTemplate = `{
                     "$ref": "#/definitions/derp.ServerInfoMessage"
                 },
                 "round_trip_ping": {
+                    "type": "string"
+                },
+                "round_trip_ping_ms": {
                     "type": "integer"
                 },
                 "stun": {
@@ -11140,7 +11353,9 @@ const docTemplate = `{
                 "enabled": {
                     "type": "boolean"
                 },
-                "error": {}
+                "error": {
+                    "type": "string"
+                }
             }
         },
         "healthcheck.DatabaseReport": {
@@ -11153,6 +11368,9 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "latency": {
+                    "type": "string"
+                },
+                "latency_ms": {
                     "type": "integer"
                 },
                 "reachable": {
@@ -11199,25 +11417,17 @@ const docTemplate = `{
         "healthcheck.WebsocketReport": {
             "type": "object",
             "properties": {
-                "error": {
-                    "type": "string"
-                },
-                "healthy": {
-                    "type": "boolean"
-                },
-                "response": {
-                    "$ref": "#/definitions/healthcheck.WebsocketResponse"
-                }
-            }
-        },
-        "healthcheck.WebsocketResponse": {
-            "type": "object",
-            "properties": {
                 "body": {
                     "type": "string"
                 },
                 "code": {
                     "type": "integer"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "healthy": {
+                    "type": "boolean"
                 }
             }
         },
@@ -11532,6 +11742,10 @@ const docTemplate = `{
                 },
                 "derp_enabled": {
                     "description": "DerpEnabled indicates whether the proxy should be included in the DERP\nmap or not.",
+                    "type": "boolean"
+                },
+                "derp_only": {
+                    "description": "DerpOnly indicates whether the proxy should only be included in the DERP\nmap and should not be used for serving apps.",
                     "type": "boolean"
                 },
                 "hostname": {

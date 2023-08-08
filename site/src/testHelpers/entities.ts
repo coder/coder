@@ -80,6 +80,7 @@ export const MockPrimaryWorkspaceProxy: TypesGen.WorkspaceProxy = {
   path_app_url: "https://coder.com",
   wildcard_hostname: "*.coder.com",
   derp_enabled: true,
+  derp_only: false,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
   deleted: false,
@@ -98,6 +99,7 @@ export const MockHealthyWildWorkspaceProxy: TypesGen.WorkspaceProxy = {
   path_app_url: "https://external.com",
   wildcard_hostname: "*.external.com",
   derp_enabled: true,
+  derp_only: false,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
   deleted: false,
@@ -116,6 +118,7 @@ export const MockUnhealthyWildWorkspaceProxy: TypesGen.WorkspaceProxy = {
   path_app_url: "https://unhealthy.coder.com",
   wildcard_hostname: "*unhealthy..coder.com",
   derp_enabled: true,
+  derp_only: true,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
   deleted: false,
@@ -142,6 +145,7 @@ export const MockWorkspaceProxies: TypesGen.WorkspaceProxy[] = [
     path_app_url: "https://cowboy.coder.com",
     wildcard_hostname: "",
     derp_enabled: false,
+    derp_only: false,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     deleted: false,
@@ -555,8 +559,8 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   lifecycle_state: "starting",
   login_before_ready: false, // Deprecated.
   startup_script_behavior: "blocking",
-  startup_logs_length: 0,
-  startup_logs_overflowed: false,
+  logs_length: 0,
+  logs_overflowed: false,
   startup_script_timeout_seconds: 120,
   shutdown_script_timeout_seconds: 120,
   subsystem: "envbox",
@@ -1113,7 +1117,6 @@ export const MockAuthMethods: TypesGen.AuthMethods = {
   password: { enabled: true },
   github: { enabled: false },
   oidc: { enabled: false, signInText: "", iconUrl: "" },
-  convert_to_oidc_enabled: true,
 }
 
 export const MockAuthMethodsWithPasswordType: TypesGen.AuthMethods = {
@@ -1662,10 +1665,12 @@ export const MockWorkspaceQuota: TypesGen.WorkspaceQuota = {
 export const MockGroup: TypesGen.Group = {
   id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
   name: "Front-End",
+  display_name: "Front-End",
   avatar_url: "https://example.com",
   organization_id: MockOrganization.id,
   members: [MockUser, MockUser2],
   quota_allowance: 5,
+  source: "user",
 }
 
 export const MockTemplateACL: TypesGen.TemplateACL = {
@@ -1789,7 +1794,7 @@ export const MockDeploymentSSH: TypesGen.SSHConfigResponse = {
   ssh_config_options: {},
 }
 
-export const MockStartupLogs: TypesGen.WorkspaceAgentStartupLog[] = [
+export const MockWorkspaceAgentLogs: TypesGen.WorkspaceAgentLog[] = [
   {
     id: 166663,
     created_at: "2023-05-04T11:30:41.402072Z",
@@ -1858,3 +1863,431 @@ export const MockLicenseResponse: GetLicensesResponse[] = [
     },
   },
 ]
+
+export const MockHealth = {
+  time: "2023-08-01T16:51:03.29792825Z",
+  healthy: true,
+  failing_sections: null,
+  derp: {
+    healthy: true,
+    regions: {
+      "999": {
+        healthy: true,
+        region: {
+          EmbeddedRelay: true,
+          RegionID: 999,
+          RegionCode: "coder",
+          RegionName: "Council Bluffs, Iowa",
+          Nodes: [
+            {
+              Name: "999stun0",
+              RegionID: 999,
+              HostName: "stun.l.google.com",
+              STUNPort: 19302,
+              STUNOnly: true,
+            },
+            {
+              Name: "999b",
+              RegionID: 999,
+              HostName: "dev.coder.com",
+              STUNPort: -1,
+              DERPPort: 443,
+            },
+          ],
+        },
+        node_reports: [
+          {
+            healthy: true,
+            node: {
+              Name: "999stun0",
+              RegionID: 999,
+              HostName: "stun.l.google.com",
+              STUNPort: 19302,
+              STUNOnly: true,
+            },
+            node_info: {
+              TokenBucketBytesPerSecond: 0,
+              TokenBucketBytesBurst: 0,
+            },
+            can_exchange_messages: false,
+            round_trip_ping: 0,
+            uses_websocket: false,
+            client_logs: [],
+            client_errs: [],
+            error: null,
+            stun: {
+              Enabled: true,
+              CanSTUN: true,
+              Error: null,
+            },
+          },
+          {
+            healthy: true,
+            node: {
+              Name: "999b",
+              RegionID: 999,
+              HostName: "dev.coder.com",
+              STUNPort: -1,
+              DERPPort: 443,
+            },
+            node_info: {
+              TokenBucketBytesPerSecond: 0,
+              TokenBucketBytesBurst: 0,
+            },
+            can_exchange_messages: true,
+            round_trip_ping: 7674330,
+            uses_websocket: false,
+            client_logs: [
+              [
+                "derphttp.Client.Connect: connecting to https://dev.coder.com/derp",
+              ],
+              [
+                "derphttp.Client.Connect: connecting to https://dev.coder.com/derp",
+              ],
+            ],
+            client_errs: [[], []],
+            error: null,
+            stun: {
+              Enabled: false,
+              CanSTUN: false,
+              Error: null,
+            },
+          },
+        ],
+        error: null,
+      },
+      "10007": {
+        healthy: true,
+        region: {
+          EmbeddedRelay: false,
+          RegionID: 10007,
+          RegionCode: "coder_sydney",
+          RegionName: "sydney",
+          Nodes: [
+            {
+              Name: "10007stun0",
+              RegionID: 10007,
+              HostName: "stun.l.google.com",
+              STUNPort: 19302,
+              STUNOnly: true,
+            },
+            {
+              Name: "10007a",
+              RegionID: 10007,
+              HostName: "sydney.dev.coder.com",
+              STUNPort: -1,
+              DERPPort: 443,
+            },
+          ],
+        },
+        node_reports: [
+          {
+            healthy: true,
+            node: {
+              Name: "10007stun0",
+              RegionID: 10007,
+              HostName: "stun.l.google.com",
+              STUNPort: 19302,
+              STUNOnly: true,
+            },
+            node_info: {
+              TokenBucketBytesPerSecond: 0,
+              TokenBucketBytesBurst: 0,
+            },
+            can_exchange_messages: false,
+            round_trip_ping: 0,
+            uses_websocket: false,
+            client_logs: [],
+            client_errs: [],
+            error: null,
+            stun: {
+              Enabled: true,
+              CanSTUN: true,
+              Error: null,
+            },
+          },
+          {
+            healthy: true,
+            node: {
+              Name: "10007a",
+              RegionID: 10007,
+              HostName: "sydney.dev.coder.com",
+              STUNPort: -1,
+              DERPPort: 443,
+            },
+            node_info: {
+              TokenBucketBytesPerSecond: 0,
+              TokenBucketBytesBurst: 0,
+            },
+            can_exchange_messages: true,
+            round_trip_ping: 170527034,
+            uses_websocket: false,
+            client_logs: [
+              [
+                "derphttp.Client.Connect: connecting to https://sydney.dev.coder.com/derp",
+              ],
+              [
+                "derphttp.Client.Connect: connecting to https://sydney.dev.coder.com/derp",
+              ],
+            ],
+            client_errs: [[], []],
+            error: null,
+            stun: {
+              Enabled: false,
+              CanSTUN: false,
+              Error: null,
+            },
+          },
+        ],
+        error: null,
+      },
+      "10008": {
+        healthy: true,
+        region: {
+          EmbeddedRelay: false,
+          RegionID: 10008,
+          RegionCode: "coder_europe-frankfurt",
+          RegionName: "europe-frankfurt",
+          Nodes: [
+            {
+              Name: "10008stun0",
+              RegionID: 10008,
+              HostName: "stun.l.google.com",
+              STUNPort: 19302,
+              STUNOnly: true,
+            },
+            {
+              Name: "10008a",
+              RegionID: 10008,
+              HostName: "europe.dev.coder.com",
+              STUNPort: -1,
+              DERPPort: 443,
+            },
+          ],
+        },
+        node_reports: [
+          {
+            healthy: true,
+            node: {
+              Name: "10008stun0",
+              RegionID: 10008,
+              HostName: "stun.l.google.com",
+              STUNPort: 19302,
+              STUNOnly: true,
+            },
+            node_info: {
+              TokenBucketBytesPerSecond: 0,
+              TokenBucketBytesBurst: 0,
+            },
+            can_exchange_messages: false,
+            round_trip_ping: 0,
+            uses_websocket: false,
+            client_logs: [],
+            client_errs: [],
+            error: null,
+            stun: {
+              Enabled: true,
+              CanSTUN: true,
+              Error: null,
+            },
+          },
+          {
+            healthy: true,
+            node: {
+              Name: "10008a",
+              RegionID: 10008,
+              HostName: "europe.dev.coder.com",
+              STUNPort: -1,
+              DERPPort: 443,
+            },
+            node_info: {
+              TokenBucketBytesPerSecond: 0,
+              TokenBucketBytesBurst: 0,
+            },
+            can_exchange_messages: true,
+            round_trip_ping: 111329690,
+            uses_websocket: false,
+            client_logs: [
+              [
+                "derphttp.Client.Connect: connecting to https://europe.dev.coder.com/derp",
+              ],
+              [
+                "derphttp.Client.Connect: connecting to https://europe.dev.coder.com/derp",
+              ],
+            ],
+            client_errs: [[], []],
+            error: null,
+            stun: {
+              Enabled: false,
+              CanSTUN: false,
+              Error: null,
+            },
+          },
+        ],
+        error: null,
+      },
+      "10009": {
+        healthy: true,
+        region: {
+          EmbeddedRelay: false,
+          RegionID: 10009,
+          RegionCode: "coder_brazil-saopaulo",
+          RegionName: "brazil-saopaulo",
+          Nodes: [
+            {
+              Name: "10009stun0",
+              RegionID: 10009,
+              HostName: "stun.l.google.com",
+              STUNPort: 19302,
+              STUNOnly: true,
+            },
+            {
+              Name: "10009a",
+              RegionID: 10009,
+              HostName: "brazil.dev.coder.com",
+              STUNPort: -1,
+              DERPPort: 443,
+            },
+          ],
+        },
+        node_reports: [
+          {
+            healthy: true,
+            node: {
+              Name: "10009stun0",
+              RegionID: 10009,
+              HostName: "stun.l.google.com",
+              STUNPort: 19302,
+              STUNOnly: true,
+            },
+            node_info: {
+              TokenBucketBytesPerSecond: 0,
+              TokenBucketBytesBurst: 0,
+            },
+            can_exchange_messages: false,
+            round_trip_ping: 0,
+            uses_websocket: false,
+            client_logs: [],
+            client_errs: [],
+            error: null,
+            stun: {
+              Enabled: true,
+              CanSTUN: true,
+              Error: null,
+            },
+          },
+          {
+            healthy: true,
+            node: {
+              Name: "10009a",
+              RegionID: 10009,
+              HostName: "brazil.dev.coder.com",
+              STUNPort: -1,
+              DERPPort: 443,
+            },
+            node_info: {
+              TokenBucketBytesPerSecond: 0,
+              TokenBucketBytesBurst: 0,
+            },
+            can_exchange_messages: true,
+            round_trip_ping: 138185506,
+            uses_websocket: false,
+            client_logs: [
+              [
+                "derphttp.Client.Connect: connecting to https://brazil.dev.coder.com/derp",
+              ],
+              [
+                "derphttp.Client.Connect: connecting to https://brazil.dev.coder.com/derp",
+              ],
+            ],
+            client_errs: [[], []],
+            error: null,
+            stun: {
+              Enabled: false,
+              CanSTUN: false,
+              Error: null,
+            },
+          },
+        ],
+        error: null,
+      },
+    },
+    netcheck: {
+      UDP: true,
+      IPv6: false,
+      IPv4: true,
+      IPv6CanSend: false,
+      IPv4CanSend: true,
+      OSHasIPv6: true,
+      ICMPv4: false,
+      MappingVariesByDestIP: false,
+      HairPinning: null,
+      UPnP: false,
+      PMP: false,
+      PCP: false,
+      PreferredDERP: 999,
+      RegionLatency: {
+        "999": 1638180,
+        "10007": 174853022,
+        "10008": 112142029,
+        "10009": 138855606,
+      },
+      RegionV4Latency: {
+        "999": 1638180,
+        "10007": 174853022,
+        "10008": 112142029,
+        "10009": 138855606,
+      },
+      RegionV6Latency: {},
+      GlobalV4: "34.71.26.24:55368",
+      GlobalV6: "",
+      CaptivePortal: null,
+    },
+    netcheck_err: null,
+    netcheck_logs: [
+      "netcheck: netcheck.runProbe: got STUN response for 10007stun0 from 34.71.26.24:55368 (9b07930007da49dd7df79bc7) in 1.791799ms",
+      "netcheck: netcheck.runProbe: got STUN response for 999stun0 from 34.71.26.24:55368 (7397fec097f1d5b01364566b) in 1.791529ms",
+      "netcheck: netcheck.runProbe: got STUN response for 10008stun0 from 34.71.26.24:55368 (1fdaaa016ca386485f097f68) in 2.192899ms",
+      "netcheck: netcheck.runProbe: got STUN response for 10009stun0 from 34.71.26.24:55368 (2596fe60895fbd9542823a76) in 2.146459ms",
+      "netcheck: netcheck.runProbe: got STUN response for 10007stun0 from 34.71.26.24:55368 (19ec320f3b76e8b027b06d3e) in 2.139619ms",
+      "netcheck: netcheck.runProbe: got STUN response for 999stun0 from 34.71.26.24:55368 (a17973bc57c35e606c0f46f5) in 2.131089ms",
+      "netcheck: netcheck.runProbe: got STUN response for 10008stun0 from 34.71.26.24:55368 (c958e15209d139a6e410f13a) in 2.127549ms",
+      "netcheck: netcheck.runProbe: got STUN response for 10009stun0 from 34.71.26.24:55368 (284a1b64dff22f40a3514524) in 2.107549ms",
+      "netcheck: [v1] measureAllICMPLatency: listen ip4:icmp 0.0.0.0: socket: operation not permitted",
+      "netcheck: [v1] report: udp=true v6=false v6os=true mapvarydest=false hair= portmap= v4a=34.71.26.24:55368 derp=999 derpdist=999v4:2ms,10007v4:175ms,10008v4:112ms,10009v4:139ms",
+    ],
+    error: null,
+  },
+  access_url: {
+    access_url: "https://dev.coder.com",
+    healthy: true,
+    reachable: true,
+    status_code: 200,
+    healthz_response: "OK",
+    error: null,
+  },
+  websocket: {
+    healthy: true,
+    response: {
+      body: "",
+      code: 101,
+    },
+    error: null,
+  },
+  database: {
+    healthy: true,
+    reachable: true,
+    latency: 92570,
+    error: null,
+  },
+  coder_version: "v0.27.1-devel+c575292",
+}
+
+export const MockListeningPortsResponse: TypesGen.WorkspaceAgentListeningPortsResponse =
+  {
+    ports: [
+      { process_name: "web", network: "", port: 3000 },
+      { process_name: "go", network: "", port: 8080 },
+      { process_name: "", network: "", port: 8081 },
+    ],
+  }

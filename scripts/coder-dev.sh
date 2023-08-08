@@ -11,7 +11,10 @@ source "${SCRIPT_DIR}/lib.sh"
 GOOS="$(go env GOOS)"
 GOARCH="$(go env GOARCH)"
 BINARY_TYPE=coder-slim
-if [[ $1 == server ]]; then
+if [[ ${1:-} == server ]]; then
+	BINARY_TYPE=coder
+fi
+if [[ ${1:-} == wsproxy ]] && [[ ${2:-} == server ]]; then
 	BINARY_TYPE=coder
 fi
 RELATIVE_BINARY_PATH="build/${BINARY_TYPE}_${GOOS}_${GOARCH}"

@@ -59,7 +59,7 @@ export const mapApiErrorToFieldErrors = (
  * @returns error's message if ApiError or Error, else defaultMessage
  */
 export const getErrorMessage = (
-  error: Error | ApiError | unknown,
+  error: unknown,
   defaultMessage: string,
 ): string =>
   isApiError(error)
@@ -74,9 +74,7 @@ export const getErrorMessage = (
  * @returns a combined validation error message if the error is an ApiError
  * and contains validation messages for different form fields.
  */
-export const getValidationErrorMessage = (
-  error: Error | ApiError | unknown,
-): string => {
+export const getValidationErrorMessage = (error: unknown): string => {
   const validationErrors =
     isApiError(error) && error.response.data.validations
       ? error.response.data.validations
@@ -84,9 +82,7 @@ export const getValidationErrorMessage = (
   return validationErrors.map((error) => error.detail).join("\n")
 }
 
-export const getErrorDetail = (
-  error: Error | ApiError | unknown,
-): string | undefined | null =>
+export const getErrorDetail = (error: unknown): string | undefined | null =>
   isApiError(error)
     ? error.response.data.detail
     : error instanceof Error

@@ -11,6 +11,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/db2sdk"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
@@ -64,10 +65,6 @@ func (api *API) deploymentDAUs(rw http.ResponseWriter, r *http.Request) {
 // @Router /insights/user-latency [get]
 func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceDeploymentValues) {
-		httpapi.Forbidden(rw)
-		return
-	}
 
 	p := httpapi.NewQueryParamParser().
 		Required("start_time").
@@ -100,6 +97,10 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 		TemplateIDs: templateIDs,
 	})
 	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user latency.",
 			Detail:  err.Error(),
@@ -154,10 +155,6 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 // @Router /insights/templates [get]
 func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if !api.Authorize(r, rbac.ActionRead, rbac.ResourceDeploymentValues) {
-		httpapi.Forbidden(rw)
-		return
-	}
 
 	p := httpapi.NewQueryParamParser().
 		Required("start_time").
@@ -191,13 +188,14 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 
 	var usage database.GetTemplateInsightsRow
 	var dailyUsage []database.GetTemplateDailyInsightsRow
+
 	// Use a transaction to ensure that we get consistent data between
 	// the full and interval report.
-	err := api.Database.InTx(func(db database.Store) error {
+	err := api.Database.InTx(func(tx database.Store) error {
 		var err error
 
 		if interval != "" {
-			dailyUsage, err = db.GetTemplateDailyInsights(ctx, database.GetTemplateDailyInsightsParams{
+			dailyUsage, err = tx.GetTemplateDailyInsights(ctx, database.GetTemplateDailyInsightsParams{
 				StartTime:   startTime,
 				EndTime:     endTime,
 				TemplateIDs: templateIDs,
@@ -207,7 +205,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		usage, err = db.GetTemplateInsights(ctx, database.GetTemplateInsightsParams{
+		usage, err = tx.GetTemplateInsights(ctx, database.GetTemplateInsightsParams{
 			StartTime:   startTime,
 			EndTime:     endTime,
 			TemplateIDs: templateIDs,
@@ -218,6 +216,10 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 
 		return nil
 	}, nil)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching template insights.",
@@ -226,13 +228,38 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Template parameter insights have no risk of inconsistency with the other
+	// insights, so we don't need to perform this in a transaction.
+	parameterRows, err := api.Database.GetTemplateParameterInsights(ctx, database.GetTemplateParameterInsightsParams{
+		StartTime:   startTime,
+		EndTime:     endTime,
+		TemplateIDs: templateIDs,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template parameter insights.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	parametersUsage, err := db2sdk.TemplateInsightsParameters(parameterRows)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error converting template parameter insights.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	resp := codersdk.TemplateInsightsResponse{
 		Report: codersdk.TemplateInsightsReport{
-			StartTime:   startTime,
-			EndTime:     endTime,
-			TemplateIDs: usage.TemplateIDs,
-			ActiveUsers: usage.ActiveUsers,
-			AppsUsage:   convertTemplateInsightsBuiltinApps(usage),
+			StartTime:       startTime,
+			EndTime:         endTime,
+			TemplateIDs:     usage.TemplateIDs,
+			ActiveUsers:     usage.ActiveUsers,
+			AppsUsage:       convertTemplateInsightsBuiltinApps(usage),
+			ParametersUsage: parametersUsage,
 		},
 		IntervalReports: []codersdk.TemplateInsightsIntervalReport{},
 	}

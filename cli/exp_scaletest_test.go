@@ -1,7 +1,6 @@
 package cli_test
 
 import (
-	"bytes"
 	"context"
 	"path/filepath"
 	"testing"
@@ -72,9 +71,37 @@ func TestScaleTestWorkspaceTraffic(t *testing.T) {
 		"--ssh",
 	)
 	clitest.SetupConfig(t, client, root)
-	var stdout, stderr bytes.Buffer
-	inv.Stdout = &stdout
-	inv.Stderr = &stderr
+	pty := ptytest.New(t)
+	inv.Stdout = pty.Output()
+	inv.Stderr = pty.Output()
+
 	err := inv.WithContext(ctx).Run()
 	require.ErrorContains(t, err, "no scaletest workspaces exist")
+}
+
+// This test just validates that the CLI command accepts its known arguments.
+func TestScaleTestDashboard(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancelFunc()
+
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	inv, root := clitest.New(t, "exp", "scaletest", "dashboard",
+		"--count", "1",
+		"--min-wait", "100ms",
+		"--max-wait", "1s",
+		"--timeout", "1s",
+		"--scaletest-prometheus-address", "127.0.0.1:0",
+		"--scaletest-prometheus-wait", "0s",
+	)
+	clitest.SetupConfig(t, client, root)
+	pty := ptytest.New(t)
+	inv.Stdout = pty.Output()
+	inv.Stderr = pty.Output()
+
+	err := inv.WithContext(ctx).Run()
+	require.NoError(t, err, "")
 }

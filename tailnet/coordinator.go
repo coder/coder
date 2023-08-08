@@ -650,21 +650,106 @@ func (c *core) serveHTTPDebug(w http.ResponseWriter, r *http.Request) {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 
-	CoordinatorHTTPDebug(false, c.agentSockets, c.agentToConnectionSockets, c.nodes, c.agentNameCache)(w, r)
+	CoordinatorHTTPDebug(
+		HTTPDebugFromLocal(false, c.agentSockets, c.agentToConnectionSockets, c.nodes, c.agentNameCache),
+	)(w, r)
 }
 
-func CoordinatorHTTPDebug(
+func HTTPDebugFromLocal(
 	ha bool,
 	agentSocketsMap map[uuid.UUID]Queue,
 	agentToConnectionSocketsMap map[uuid.UUID]map[uuid.UUID]Queue,
 	nodesMap map[uuid.UUID]*Node,
 	agentNameCache *lru.Cache[uuid.UUID, string],
-) func(w http.ResponseWriter, _ *http.Request) {
+) HTMLDebug {
+	now := time.Now()
+	data := HTMLDebug{HA: ha}
+	for id, conn := range agentSocketsMap {
+		start, lastWrite := conn.Stats()
+		agent := &HTMLAgent{
+			Name:         conn.Name(),
+			ID:           id,
+			CreatedAge:   now.Sub(time.Unix(start, 0)).Round(time.Second),
+			LastWriteAge: now.Sub(time.Unix(lastWrite, 0)).Round(time.Second),
+			Overwrites:   int(conn.Overwrites()),
+		}
+
+		for id, conn := range agentToConnectionSocketsMap[id] {
+			start, lastWrite := conn.Stats()
+			agent.Connections = append(agent.Connections, &HTMLClient{
+				Name:         conn.Name(),
+				ID:           id,
+				CreatedAge:   now.Sub(time.Unix(start, 0)).Round(time.Second),
+				LastWriteAge: now.Sub(time.Unix(lastWrite, 0)).Round(time.Second),
+			})
+		}
+		slices.SortFunc(agent.Connections, func(a, b *HTMLClient) bool {
+			return a.Name < b.Name
+		})
+
+		data.Agents = append(data.Agents, agent)
+	}
+	slices.SortFunc(data.Agents, func(a, b *HTMLAgent) bool {
+		return a.Name < b.Name
+	})
+
+	for agentID, conns := range agentToConnectionSocketsMap {
+		if len(conns) == 0 {
+			continue
+		}
+
+		if _, ok := agentSocketsMap[agentID]; ok {
+			continue
+		}
+
+		agentName, ok := agentNameCache.Get(agentID)
+		if !ok {
+			agentName = "unknown"
+		}
+		agent := &HTMLAgent{
+			Name: agentName,
+			ID:   agentID,
+		}
+		for id, conn := range conns {
+			start, lastWrite := conn.Stats()
+			agent.Connections = append(agent.Connections, &HTMLClient{
+				Name:         conn.Name(),
+				ID:           id,
+				CreatedAge:   now.Sub(time.Unix(start, 0)).Round(time.Second),
+				LastWriteAge: now.Sub(time.Unix(lastWrite, 0)).Round(time.Second),
+			})
+		}
+		slices.SortFunc(agent.Connections, func(a, b *HTMLClient) bool {
+			return a.Name < b.Name
+		})
+
+		data.MissingAgents = append(data.MissingAgents, agent)
+	}
+	slices.SortFunc(data.MissingAgents, func(a, b *HTMLAgent) bool {
+		return a.Name < b.Name
+	})
+
+	for id, node := range nodesMap {
+		name, _ := agentNameCache.Get(id)
+		data.Nodes = append(data.Nodes, &HTMLNode{
+			ID:   id,
+			Name: name,
+			Node: node,
+		})
+	}
+	slices.SortFunc(data.Nodes, func(a, b *HTMLNode) bool {
+		return a.Name+a.ID.String() < b.Name+b.ID.String()
+	})
+
+	return data
+}
+
+func CoordinatorHTTPDebug(data HTMLDebug) func(w http.ResponseWriter, _ *http.Request) {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 		tmpl, err := template.New("coordinator_debug").Funcs(template.FuncMap{
-			"marshal": func(v interface{}) template.JS {
+			"marshal": func(v any) template.JS {
 				a, err := json.MarshalIndent(v, "", "  ")
 				if err != nil {
 					//nolint:gosec
@@ -680,83 +765,6 @@ func CoordinatorHTTPDebug(
 			return
 		}
 
-		now := time.Now()
-		data := htmlDebug{HA: ha}
-		for id, conn := range agentSocketsMap {
-			start, lastWrite := conn.Stats()
-			agent := &htmlAgent{
-				Name:         conn.Name(),
-				ID:           id,
-				CreatedAge:   now.Sub(time.Unix(start, 0)).Round(time.Second),
-				LastWriteAge: now.Sub(time.Unix(lastWrite, 0)).Round(time.Second),
-				Overwrites:   int(conn.Overwrites()),
-			}
-
-			for id, conn := range agentToConnectionSocketsMap[id] {
-				start, lastWrite := conn.Stats()
-				agent.Connections = append(agent.Connections, &htmlClient{
-					Name:         conn.Name(),
-					ID:           id,
-					CreatedAge:   now.Sub(time.Unix(start, 0)).Round(time.Second),
-					LastWriteAge: now.Sub(time.Unix(lastWrite, 0)).Round(time.Second),
-				})
-			}
-			slices.SortFunc(agent.Connections, func(a, b *htmlClient) bool {
-				return a.Name < b.Name
-			})
-
-			data.Agents = append(data.Agents, agent)
-		}
-		slices.SortFunc(data.Agents, func(a, b *htmlAgent) bool {
-			return a.Name < b.Name
-		})
-
-		for agentID, conns := range agentToConnectionSocketsMap {
-			if len(conns) == 0 {
-				continue
-			}
-
-			if _, ok := agentSocketsMap[agentID]; !ok {
-				agentName, ok := agentNameCache.Get(agentID)
-				if !ok {
-					agentName = "unknown"
-				}
-				agent := &htmlAgent{
-					Name: agentName,
-					ID:   agentID,
-				}
-				for id, conn := range conns {
-					start, lastWrite := conn.Stats()
-					agent.Connections = append(agent.Connections, &htmlClient{
-						Name:         conn.Name(),
-						ID:           id,
-						CreatedAge:   now.Sub(time.Unix(start, 0)).Round(time.Second),
-						LastWriteAge: now.Sub(time.Unix(lastWrite, 0)).Round(time.Second),
-					})
-				}
-				slices.SortFunc(agent.Connections, func(a, b *htmlClient) bool {
-					return a.Name < b.Name
-				})
-
-				data.MissingAgents = append(data.MissingAgents, agent)
-			}
-		}
-		slices.SortFunc(data.MissingAgents, func(a, b *htmlAgent) bool {
-			return a.Name < b.Name
-		})
-
-		for id, node := range nodesMap {
-			name, _ := agentNameCache.Get(id)
-			data.Nodes = append(data.Nodes, &htmlNode{
-				ID:   id,
-				Name: name,
-				Node: node,
-			})
-		}
-		slices.SortFunc(data.Nodes, func(a, b *htmlNode) bool {
-			return a.Name+a.ID.String() < b.Name+b.ID.String()
-		})
-
 		err = tmpl.Execute(w, data)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -766,33 +774,33 @@ func CoordinatorHTTPDebug(
 	}
 }
 
-type htmlDebug struct {
+type HTMLDebug struct {
 	HA            bool
-	Agents        []*htmlAgent
-	MissingAgents []*htmlAgent
-	Nodes         []*htmlNode
+	Agents        []*HTMLAgent
+	MissingAgents []*HTMLAgent
+	Nodes         []*HTMLNode
 }
 
-type htmlAgent struct {
+type HTMLAgent struct {
 	Name         string
 	ID           uuid.UUID
 	CreatedAge   time.Duration
 	LastWriteAge time.Duration
 	Overwrites   int
-	Connections  []*htmlClient
+	Connections  []*HTMLClient
 }
 
-type htmlClient struct {
+type HTMLClient struct {
 	Name         string
 	ID           uuid.UUID
 	CreatedAge   time.Duration
 	LastWriteAge time.Duration
 }
 
-type htmlNode struct {
+type HTMLNode struct {
 	ID   uuid.UUID
 	Name string
-	Node *Node
+	Node any
 }
 
 var coordinatorDebugTmpl = `

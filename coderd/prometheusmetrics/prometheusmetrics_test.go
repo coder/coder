@@ -11,6 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/coderd/batchstats"
+	"github.com/coder/coder/coderd/database/dbtestutil"
+
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
@@ -372,9 +375,29 @@ func TestAgents(t *testing.T) {
 func TestAgentStats(t *testing.T) {
 	t.Parallel()
 
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	t.Cleanup(cancelFunc)
+
+	db, pubsub := dbtestutil.NewDB(t)
+	log := slogtest.Make(t, nil)
+
+	batcher, closeBatcher, err := batchstats.New(ctx,
+		batchstats.WithStore(db),
+		// We want our stats, and we want them NOW.
+		batchstats.WithBatchSize(1),
+		batchstats.WithInterval(time.Hour),
+		batchstats.WithLogger(log),
+	)
+	require.NoError(t, err, "create stats batcher failed")
+	t.Cleanup(closeBatcher)
+
 	// Build sample workspaces with test agents and fake agent client
-	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-	db := api.Database
+	client, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		Database:                 db,
+		IncludeProvisionerDaemon: true,
+		Pubsub:                   pubsub,
+		StatsBatcher:             batcher,
+	})
 
 	user := coderdtest.CreateFirstUser(t, client)
 
@@ -384,11 +407,7 @@ func TestAgentStats(t *testing.T) {
 
 	registry := prometheus.NewRegistry()
 
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	defer cancelFunc()
-
 	// given
-	var err error
 	var i int64
 	for i = 0; i < 3; i++ {
 		_, err = agent1.PostStats(ctx, &agentsdk.Stats{

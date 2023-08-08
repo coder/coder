@@ -16,7 +16,7 @@ const validationSchema = Yup.object({
 
 export type CreateGroupPageViewProps = {
   onSubmit: (data: CreateGroupRequest) => void
-  formErrors: unknown | undefined
+  formErrors?: unknown
   isLoading: boolean
 }
 
@@ -29,6 +29,7 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
   const form = useFormik<CreateGroupRequest>({
     initialValues: {
       name: "",
+      display_name: "",
       avatar_url: "",
       quota_allowance: 0,
     },
@@ -50,6 +51,17 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
               autoFocus
               fullWidth
               label="Name"
+            />
+            <TextField
+              {...getFieldHelpers(
+                "display_name",
+                "Optional: keep empty to default to the name.",
+              )}
+              onChange={onChangeTrimmed(form)}
+              autoComplete="display_name"
+              autoFocus
+              fullWidth
+              label="Display Name"
             />
             <TextField
               {...getFieldHelpers("avatar_url")}

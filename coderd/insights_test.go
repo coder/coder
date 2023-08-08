@@ -2,7 +2,9 @@ package coderd_test
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"net/http"
 	"testing"
 	"time"
 
@@ -14,9 +16,11 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/provisioner/echo"
+	"github.com/coder/coder/provisionersdk/proto"
 	"github.com/coder/coder/testutil"
 )
 
@@ -228,6 +232,32 @@ func TestUserLatencyInsights_BadRequest(t *testing.T) {
 func TestTemplateInsights(t *testing.T) {
 	t.Parallel()
 
+	const (
+		firstParameterName        = "first_parameter"
+		firstParameterDisplayName = "First PARAMETER"
+		firstParameterType        = "string"
+		firstParameterDescription = "This is first parameter"
+		firstParameterValue       = "abc"
+
+		secondParameterName        = "second_parameter"
+		secondParameterDisplayName = "Second PARAMETER"
+		secondParameterType        = "number"
+		secondParameterDescription = "This is second parameter"
+		secondParameterValue       = "123"
+
+		thirdParameterName         = "third_parameter"
+		thirdParameterDisplayName  = "Third PARAMETER"
+		thirdParameterType         = "string"
+		thirdParameterDescription  = "This is third parameter"
+		thirdParameterValue        = "bbb"
+		thirdParameterOptionName1  = "This is AAA"
+		thirdParameterOptionValue1 = "aaa"
+		thirdParameterOptionName2  = "This is BBB"
+		thirdParameterOptionValue2 = "bbb"
+		thirdParameterOptionName3  = "This is CCC"
+		thirdParameterOptionValue3 = "ccc"
+	)
+
 	logger := slogtest.Make(t, nil)
 	opts := &coderdtest.Options{
 		IncludeProvisionerDaemon:  true,
@@ -238,15 +268,39 @@ func TestTemplateInsights(t *testing.T) {
 	user := coderdtest.CreateFirstUser(t, client)
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-		Parse:          echo.ParseComplete,
-		ProvisionPlan:  echo.ProvisionComplete,
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Provision_Response{
+			{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Parameters: []*proto.RichParameter{
+							{Name: firstParameterName, DisplayName: firstParameterDisplayName, Type: firstParameterType, Description: firstParameterDescription, Required: true},
+							{Name: secondParameterName, DisplayName: secondParameterDisplayName, Type: secondParameterType, Description: secondParameterDescription, Required: true},
+							{Name: thirdParameterName, DisplayName: thirdParameterDisplayName, Type: thirdParameterType, Description: thirdParameterDescription, Required: true, Options: []*proto.RichParameterOption{
+								{Name: thirdParameterOptionName1, Value: thirdParameterOptionValue1},
+								{Name: thirdParameterOptionName2, Value: thirdParameterOptionValue2},
+								{Name: thirdParameterOptionName3, Value: thirdParameterOptionValue3},
+							}},
+						},
+					},
+				},
+			},
+		},
 		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	require.Empty(t, template.BuildTimeStats[codersdk.WorkspaceTransitionStart])
-
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+
+	buildParameters := []codersdk.WorkspaceBuildParameter{
+		{Name: firstParameterName, Value: firstParameterValue},
+		{Name: secondParameterName, Value: secondParameterValue},
+		{Name: thirdParameterName, Value: thirdParameterValue},
+	}
+
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+		cwr.RichParameterValues = buildParameters
+	})
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 	// Start an agent so that we can generate stats.
@@ -344,10 +398,49 @@ func TestTemplateInsights(t *testing.T) {
 		}
 	}
 	// The full timeframe is <= 24h, so the interval matches exactly.
-	assert.Len(t, resp.IntervalReports, 1, "want one interval report")
+	require.Len(t, resp.IntervalReports, 1, "want one interval report")
 	assert.WithinDuration(t, req.StartTime, resp.IntervalReports[0].StartTime, 0)
 	assert.WithinDuration(t, req.EndTime, resp.IntervalReports[0].EndTime, 0)
 	assert.Equal(t, resp.IntervalReports[0].ActiveUsers, int64(1), "want one active user in the interval report")
+
+	// The workspace uses 3 parameters
+	require.Len(t, resp.Report.ParametersUsage, 3)
+	assert.Equal(t, firstParameterName, resp.Report.ParametersUsage[0].Name)
+	assert.Equal(t, firstParameterType, resp.Report.ParametersUsage[0].Type)
+	assert.Equal(t, firstParameterDescription, resp.Report.ParametersUsage[0].Description)
+	assert.Equal(t, firstParameterDisplayName, resp.Report.ParametersUsage[0].DisplayName)
+	assert.Contains(t, resp.Report.ParametersUsage[0].Values, codersdk.TemplateParameterValue{
+		Value: firstParameterValue,
+		Count: 1,
+	})
+	assert.Contains(t, resp.Report.ParametersUsage[0].TemplateIDs, template.ID)
+	assert.Empty(t, resp.Report.ParametersUsage[0].Options)
+
+	assert.Equal(t, secondParameterName, resp.Report.ParametersUsage[1].Name)
+	assert.Equal(t, secondParameterType, resp.Report.ParametersUsage[1].Type)
+	assert.Equal(t, secondParameterDescription, resp.Report.ParametersUsage[1].Description)
+	assert.Equal(t, secondParameterDisplayName, resp.Report.ParametersUsage[1].DisplayName)
+	assert.Contains(t, resp.Report.ParametersUsage[1].Values, codersdk.TemplateParameterValue{
+		Value: secondParameterValue,
+		Count: 1,
+	})
+	assert.Contains(t, resp.Report.ParametersUsage[1].TemplateIDs, template.ID)
+	assert.Empty(t, resp.Report.ParametersUsage[1].Options)
+
+	assert.Equal(t, thirdParameterName, resp.Report.ParametersUsage[2].Name)
+	assert.Equal(t, thirdParameterType, resp.Report.ParametersUsage[2].Type)
+	assert.Equal(t, thirdParameterDescription, resp.Report.ParametersUsage[2].Description)
+	assert.Equal(t, thirdParameterDisplayName, resp.Report.ParametersUsage[2].DisplayName)
+	assert.Contains(t, resp.Report.ParametersUsage[2].Values, codersdk.TemplateParameterValue{
+		Value: thirdParameterValue,
+		Count: 1,
+	})
+	assert.Contains(t, resp.Report.ParametersUsage[2].TemplateIDs, template.ID)
+	assert.Equal(t, []codersdk.TemplateVersionParameterOption{
+		{Name: thirdParameterOptionName1, Value: thirdParameterOptionValue1},
+		{Name: thirdParameterOptionName2, Value: thirdParameterOptionValue2},
+		{Name: thirdParameterOptionName3, Value: thirdParameterOptionValue3},
+	}, resp.Report.ParametersUsage[2].Options)
 }
 
 func TestTemplateInsights_BadRequest(t *testing.T) {
@@ -380,4 +473,214 @@ func TestTemplateInsights_BadRequest(t *testing.T) {
 		Interval:  "invalid",
 	})
 	assert.Error(t, err, "want error for bad interval")
+}
+
+func TestTemplateInsights_RBAC(t *testing.T) {
+	t.Parallel()
+
+	y, m, d := time.Now().UTC().Date()
+	today := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+
+	type test struct {
+		interval     codersdk.InsightsReportInterval
+		withTemplate bool
+	}
+
+	tests := []test{
+		{codersdk.InsightsReportIntervalDay, true},
+		{codersdk.InsightsReportIntervalDay, false},
+		{"", true},
+		{"", false},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+
+		t.Run(fmt.Sprintf("with interval=%q", tt.interval), func(t *testing.T) {
+			t.Parallel()
+
+			t.Run("AsOwner", func(t *testing.T) {
+				t.Parallel()
+
+				client := coderdtest.New(t, &coderdtest.Options{})
+				admin := coderdtest.CreateFirstUser(t, client)
+
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+				defer cancel()
+
+				var templateIDs []uuid.UUID
+				if tt.withTemplate {
+					version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
+					template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
+					templateIDs = append(templateIDs, template.ID)
+				}
+
+				_, err := client.TemplateInsights(ctx, codersdk.TemplateInsightsRequest{
+					StartTime:   today.AddDate(0, 0, -1),
+					EndTime:     today,
+					Interval:    tt.interval,
+					TemplateIDs: templateIDs,
+				})
+				require.NoError(t, err)
+			})
+			t.Run("AsTemplateAdmin", func(t *testing.T) {
+				t.Parallel()
+
+				client := coderdtest.New(t, &coderdtest.Options{})
+				admin := coderdtest.CreateFirstUser(t, client)
+
+				templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleTemplateAdmin())
+
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+				defer cancel()
+
+				var templateIDs []uuid.UUID
+				if tt.withTemplate {
+					version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
+					template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
+					templateIDs = append(templateIDs, template.ID)
+				}
+
+				_, err := templateAdmin.TemplateInsights(ctx, codersdk.TemplateInsightsRequest{
+					StartTime:   today.AddDate(0, 0, -1),
+					EndTime:     today,
+					Interval:    tt.interval,
+					TemplateIDs: templateIDs,
+				})
+				require.NoError(t, err)
+			})
+			t.Run("AsRegularUser", func(t *testing.T) {
+				t.Parallel()
+
+				client := coderdtest.New(t, &coderdtest.Options{})
+				admin := coderdtest.CreateFirstUser(t, client)
+
+				regular, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+				defer cancel()
+
+				var templateIDs []uuid.UUID
+				if tt.withTemplate {
+					version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
+					template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
+					templateIDs = append(templateIDs, template.ID)
+				}
+
+				_, err := regular.TemplateInsights(ctx, codersdk.TemplateInsightsRequest{
+					StartTime:   today.AddDate(0, 0, -1),
+					EndTime:     today,
+					Interval:    tt.interval,
+					TemplateIDs: templateIDs,
+				})
+				require.Error(t, err)
+				var apiErr *codersdk.Error
+				require.ErrorAs(t, err, &apiErr)
+				require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+			})
+		})
+	}
+}
+
+func TestUserLatencyInsights_RBAC(t *testing.T) {
+	t.Parallel()
+
+	y, m, d := time.Now().UTC().Date()
+	today := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+
+	type test struct {
+		interval     codersdk.InsightsReportInterval
+		withTemplate bool
+	}
+
+	tests := []test{
+		{codersdk.InsightsReportIntervalDay, true},
+		{codersdk.InsightsReportIntervalDay, false},
+		{"", true},
+		{"", false},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(fmt.Sprintf("with interval=%q", tt.interval), func(t *testing.T) {
+			t.Parallel()
+
+			t.Run("AsOwner", func(t *testing.T) {
+				t.Parallel()
+
+				client := coderdtest.New(t, &coderdtest.Options{})
+				admin := coderdtest.CreateFirstUser(t, client)
+
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+				defer cancel()
+
+				var templateIDs []uuid.UUID
+				if tt.withTemplate {
+					version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
+					template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
+					templateIDs = append(templateIDs, template.ID)
+				}
+
+				_, err := client.UserLatencyInsights(ctx, codersdk.UserLatencyInsightsRequest{
+					StartTime:   today,
+					EndTime:     time.Now().UTC().Truncate(time.Hour).Add(time.Hour), // Round up to include the current hour.
+					TemplateIDs: templateIDs,
+				})
+				require.NoError(t, err)
+			})
+			t.Run("AsTemplateAdmin", func(t *testing.T) {
+				t.Parallel()
+
+				client := coderdtest.New(t, &coderdtest.Options{})
+				admin := coderdtest.CreateFirstUser(t, client)
+
+				templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleTemplateAdmin())
+
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+				defer cancel()
+
+				var templateIDs []uuid.UUID
+				if tt.withTemplate {
+					version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
+					template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
+					templateIDs = append(templateIDs, template.ID)
+				}
+
+				_, err := templateAdmin.UserLatencyInsights(ctx, codersdk.UserLatencyInsightsRequest{
+					StartTime:   today,
+					EndTime:     time.Now().UTC().Truncate(time.Hour).Add(time.Hour), // Round up to include the current hour.
+					TemplateIDs: templateIDs,
+				})
+				require.NoError(t, err)
+			})
+			t.Run("AsRegularUser", func(t *testing.T) {
+				t.Parallel()
+
+				client := coderdtest.New(t, &coderdtest.Options{})
+				admin := coderdtest.CreateFirstUser(t, client)
+
+				regular, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+				defer cancel()
+
+				var templateIDs []uuid.UUID
+				if tt.withTemplate {
+					version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
+					template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
+					templateIDs = append(templateIDs, template.ID)
+				}
+
+				_, err := regular.UserLatencyInsights(ctx, codersdk.UserLatencyInsightsRequest{
+					StartTime:   today,
+					EndTime:     time.Now().UTC().Truncate(time.Hour).Add(time.Hour), // Round up to include the current hour.
+					TemplateIDs: templateIDs,
+				})
+				require.Error(t, err)
+				var apiErr *codersdk.Error
+				require.ErrorAs(t, err, &apiErr)
+				require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+			})
+		})
+	}
 }

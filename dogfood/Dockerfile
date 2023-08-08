@@ -8,7 +8,7 @@ FROM ubuntu:jammy AS go
 
 RUN apt-get update && apt-get install --yes curl gcc
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.20.6
+ARG GO_VERSION=1.20.7
 RUN mkdir --parents /usr/local/go
 
 # Boring Go is needed to build FIPS-compliant binaries.
@@ -191,13 +191,15 @@ RUN LAZYGIT_VERSION=$(curl -s "https://api.github.com/repos/jesseduffield/lazygi
 # Install frontend utilities
 RUN apt-get update && \
 	# Node.js (from nodesource) and Yarn (from yarnpkg)
+	curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash - &&\
 	apt-get install --yes --quiet \
 	nodejs yarn \
 	# Install browsers for e2e testing
 	google-chrome-stable microsoft-edge-beta && \
 	# Pre-install system dependencies that Playwright needs. npx doesn't work here
 	# for some reason. See https://github.com/microsoft/playwright-cli/issues/136
-	npm i -g playwright@1.19.1 && playwright install-deps
+	npm i -g playwright@1.36.2 pnpm@^8 && playwright install-deps && \
+	npm cache clean --force
 
 # Ensure PostgreSQL binaries are in the users $PATH.
 RUN update-alternatives --install /usr/local/bin/initdb initdb /usr/lib/postgresql/13/bin/initdb 100 && \

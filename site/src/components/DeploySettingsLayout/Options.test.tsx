@@ -13,7 +13,7 @@ const defaultOption: DeploymentOption = {
 describe("optionValue", () => {
   it.each<{
     option: DeploymentOption
-    expected: string | string[] | unknown
+    expected: unknown
   }>([
     {
       option: {

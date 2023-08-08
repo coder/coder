@@ -554,6 +554,21 @@ export const cancelWorkspaceBuild = async (
   return response.data
 }
 
+export const updateWorkspaceLock = async (
+  workspaceId: string,
+  lock: boolean,
+): Promise<TypesGen.Workspace> => {
+  const data: TypesGen.UpdateWorkspaceLock = {
+    lock: lock,
+  }
+
+  const response = await axios.put(
+    `/api/v2/workspaces/${workspaceId}/lock`,
+    data,
+  )
+  return response.data
+}
+
 export const restartWorkspace = async ({
   workspace,
   buildParameters,
@@ -775,11 +790,11 @@ export const getWorkspaceBuildLogs = async (
   return response.data
 }
 
-export const getWorkspaceAgentStartupLogs = async (
+export const getWorkspaceAgentLogs = async (
   agentID: string,
-): Promise<TypesGen.WorkspaceAgentStartupLog[]> => {
-  const response = await axios.get<TypesGen.WorkspaceAgentStartupLog[]>(
-    `/api/v2/workspaceagents/${agentID}/startup-logs`,
+): Promise<TypesGen.WorkspaceAgentLog[]> => {
+  const response = await axios.get<TypesGen.WorkspaceAgentLog[]>(
+    `/api/v2/workspaceagents/${agentID}/logs`,
   )
   return response.data
 }
@@ -1284,21 +1299,21 @@ export const watchBuildLogsByTemplateVersionId = (
   return socket
 }
 
-type WatchStartupLogsOptions = {
+type WatchWorkspaceAgentLogsOptions = {
   after: number
-  onMessage: (logs: TypesGen.WorkspaceAgentStartupLog[]) => void
+  onMessage: (logs: TypesGen.WorkspaceAgentLog[]) => void
   onDone: () => void
   onError: (error: Error) => void
 }
 
-export const watchStartupLogs = (
+export const watchWorkspaceAgentLogs = (
   agentId: string,
-  { after, onMessage, onDone, onError }: WatchStartupLogsOptions,
+  { after, onMessage, onDone, onError }: WatchWorkspaceAgentLogsOptions,
 ) => {
   // WebSocket compression in Safari (confirmed in 16.5) is broken when
   // the server sends large messages. The following error is seen:
   //
-  //   WebSocket connection to 'wss://.../startup-logs?follow&after=0' failed: The operation couldn’t be completed. Protocol error
+  //   WebSocket connection to 'wss://.../logs?follow&after=0' failed: The operation couldn’t be completed. Protocol error
   //
   const noCompression =
     userAgentParser(navigator.userAgent).browser.name === "Safari"
@@ -1307,11 +1322,11 @@ export const watchStartupLogs = (
 
   const proto = location.protocol === "https:" ? "wss:" : "ws:"
   const socket = new WebSocket(
-    `${proto}//${location.host}/api/v2/workspaceagents/${agentId}/startup-logs?follow&after=${after}${noCompression}`,
+    `${proto}//${location.host}/api/v2/workspaceagents/${agentId}/logs?follow&after=${after}${noCompression}`,
   )
   socket.binaryType = "blob"
   socket.addEventListener("message", (event) => {
-    const logs = JSON.parse(event.data) as TypesGen.WorkspaceAgentStartupLog[]
+    const logs = JSON.parse(event.data) as TypesGen.WorkspaceAgentLog[]
     onMessage(logs)
   })
   socket.addEventListener("error", () => {
@@ -1404,4 +1419,16 @@ export const getInsightsTemplate = async (
   })
   const response = await axios.get(`/api/v2/insights/templates?${params}`)
   return response.data
+}
+
+export const getHealth = () => {
+  return axios.get<{
+    healthy: boolean
+    time: string
+    coder_version: string
+    derp: { healthy: boolean }
+    access_url: { healthy: boolean }
+    websocket: { healthy: boolean }
+    database: { healthy: boolean }
+  }>("/api/v2/debug/health")
 }

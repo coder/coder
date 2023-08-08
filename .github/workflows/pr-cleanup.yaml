@@ -1,7 +1,7 @@
-name: Cleanup PR
+name: Cleanup PR deployment and image
 on:
   pull_request:
-    types: [closed]
+    types: closed
   workflow_dispatch:
     inputs:
       pr_number:
@@ -37,7 +37,7 @@ jobs:
         run: |
           set -euxo pipefail
           mkdir -p ~/.kube
-          echo "${{ secrets.DELIVERYBOT_KUBECONFIG }}" > ~/.kube/config
+          echo "${{ secrets.PR_DEPLOYMENTS_KUBECONFIG }}" > ~/.kube/config
           export KUBECONFIG=~/.kube/config
 
       - name: Delete helm release
@@ -48,3 +48,33 @@ jobs:
       - name: "Remove PR namespace"
         run: |
           kubectl delete namespace "pr${{ steps.pr_number.outputs.PR_NUMBER }}" || echo "namespace not found"
+
+      - name: "Remove DNS records"
+        run: |
+          set -euxo pipefail
+          # Get identifier for the record
+          record_id=$(curl -X GET "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records?name=%2A.pr${{ steps.pr_number.outputs.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}" \
+          -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
+          -H "Content-Type:application/json" | jq -r '.result[0].id') || echo "DNS record not found"
+
+          echo "::add-mask::$record_id"
+
+          # Delete the record
+          (
+            curl -X DELETE "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records/$record_id" \
+            -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type:application/json" | jq -r '.success'
+          ) || echo "DNS record not found"
+
+      - name: "Delete certificate"
+        if: ${{ github.event.pull_request.merged == true }}
+        run: |
+          set -euxo pipefail
+          kubectl delete certificate "pr${{ steps.pr_number.outputs.PR_NUMBER }}-tls" -n pr-deployment-certs || echo "certificate not found"
+
+      - name: Delete PR Comments
+        uses: izhangzhihao/delete-comment@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          delete_user_name: github-actions[bot]
+          issue_number: ${{ github.event.number }}
