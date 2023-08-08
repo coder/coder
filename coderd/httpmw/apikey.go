@@ -142,6 +142,56 @@ func ExtractAPIKeyMW(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 	}
 }
 
+func APIKeyFromRequest(ctx context.Context, db database.Store, sessionTokenFunc func(r *http.Request) string, r *http.Request) (*database.APIKey, codersdk.Response, bool) {
+	tokenFunc := APITokenFromRequest
+	if sessionTokenFunc != nil {
+		tokenFunc = sessionTokenFunc
+	}
+
+	token := tokenFunc(r)
+	if token == "" {
+		return nil, codersdk.Response{
+			Message: SignedOutErrorMessage,
+			Detail:  fmt.Sprintf("Cookie %q or query parameter must be provided.", codersdk.SessionTokenCookie),
+		}, false
+	}
+
+	keyID, keySecret, err := SplitAPIToken(token)
+	if err != nil {
+		return nil, codersdk.Response{
+			Message: SignedOutErrorMessage,
+			Detail:  "Invalid API key format: " + err.Error(),
+		}, false
+	}
+
+	//nolint:gocritic // System needs to fetch API key to check if it's valid.
+	key, err := db.GetAPIKeyByID(dbauthz.AsSystemRestricted(ctx), keyID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, codersdk.Response{
+				Message: SignedOutErrorMessage,
+				Detail:  "API key is invalid.",
+			}, false
+		}
+
+		return nil, codersdk.Response{
+			Message: internalErrorMessage,
+			Detail:  fmt.Sprintf("Internal error fetching API key by id. %s", err.Error()),
+		}, false
+	}
+
+	// Checking to see if the secret is valid.
+	hashedSecret := sha256.Sum256([]byte(keySecret))
+	if subtle.ConstantTimeCompare(key.HashedSecret, hashedSecret[:]) != 1 {
+		return nil, codersdk.Response{
+			Message: SignedOutErrorMessage,
+			Detail:  "API key secret is invalid.",
+		}, false
+	}
+
+	return &key, codersdk.Response{}, true
+}
+
 // ExtractAPIKey requires authentication using a valid API key. It handles
 // extending an API key if it comes close to expiry, updating the last used time
 // in the database.
@@ -179,49 +229,9 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		return nil, nil, false
 	}
 
-	tokenFunc := APITokenFromRequest
-	if cfg.SessionTokenFunc != nil {
-		tokenFunc = cfg.SessionTokenFunc
-	}
-	token := tokenFunc(r)
-	if token == "" {
-		return optionalWrite(http.StatusUnauthorized, codersdk.Response{
-			Message: SignedOutErrorMessage,
-			Detail:  fmt.Sprintf("Cookie %q or query parameter must be provided.", codersdk.SessionTokenCookie),
-		})
-	}
-
-	keyID, keySecret, err := SplitAPIToken(token)
-	if err != nil {
-		return optionalWrite(http.StatusUnauthorized, codersdk.Response{
-			Message: SignedOutErrorMessage,
-			Detail:  "Invalid API key format: " + err.Error(),
-		})
-	}
-
-	//nolint:gocritic // System needs to fetch API key to check if it's valid.
-	key, err := cfg.DB.GetAPIKeyByID(dbauthz.AsSystemRestricted(ctx), keyID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return optionalWrite(http.StatusUnauthorized, codersdk.Response{
-				Message: SignedOutErrorMessage,
-				Detail:  "API key is invalid.",
-			})
-		}
-
-		return write(http.StatusInternalServerError, codersdk.Response{
-			Message: internalErrorMessage,
-			Detail:  fmt.Sprintf("Internal error fetching API key by id. %s", err.Error()),
-		})
-	}
-
-	// Checking to see if the secret is valid.
-	hashedSecret := sha256.Sum256([]byte(keySecret))
-	if subtle.ConstantTimeCompare(key.HashedSecret, hashedSecret[:]) != 1 {
-		return optionalWrite(http.StatusUnauthorized, codersdk.Response{
-			Message: SignedOutErrorMessage,
-			Detail:  "API key secret is invalid.",
-		})
+	key, resp, ok := APIKeyFromRequest(ctx, cfg.DB, cfg.SessionTokenFunc, r)
+	if !ok {
+		return optionalWrite(http.StatusUnauthorized, resp)
 	}
 
 	var (
@@ -232,7 +242,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 	)
 	if key.LoginType == database.LoginTypeGithub || key.LoginType == database.LoginTypeOIDC {
 		//nolint:gocritic // System needs to fetch UserLink to check if it's valid.
-		link, err = cfg.DB.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(ctx), database.GetUserLinkByUserIDLoginTypeParams{
+		link, err := cfg.DB.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(ctx), database.GetUserLinkByUserIDLoginTypeParams{
 			UserID:    key.UserID,
 			LoginType: key.LoginType,
 		})
@@ -427,7 +437,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		}.WithCachedASTValue(),
 	}
 
-	return &key, &authz, true
+	return key, &authz, true
 }
 
 // APITokenFromRequest returns the api token from the request.
