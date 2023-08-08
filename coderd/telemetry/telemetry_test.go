@@ -81,6 +81,8 @@ func TestTelemetry(t *testing.T) {
 			UUID:       uuid.New(),
 		})
 		assert.NoError(t, err)
+		_, _ = dbgen.WorkspaceProxy(t, db, database.WorkspaceProxy{})
+
 		_, snapshot := collectSnapshot(t, db)
 		require.Len(t, snapshot.ProvisionerJobs, 1)
 		require.Len(t, snapshot.Licenses, 1)
@@ -93,6 +95,7 @@ func TestTelemetry(t *testing.T) {
 		require.Len(t, snapshot.WorkspaceBuilds, 1)
 		require.Len(t, snapshot.WorkspaceResources, 1)
 		require.Len(t, snapshot.WorkspaceAgentStats, 1)
+		require.Len(t, snapshot.WorkspaceProxies, 1)
 
 		wsa := snapshot.WorkspaceAgents[0]
 		require.Equal(t, string(database.WorkspaceAgentSubsystemEnvbox), wsa.Subsystem)
