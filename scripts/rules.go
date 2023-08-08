@@ -51,8 +51,12 @@ func xerrors(m dsl.Matcher) {
 	m.Import("fmt")
 	m.Import("golang.org/x/xerrors")
 
-	m.Match("fmt.Errorf($*args)").
-		Suggest("xerrors.New($args)").
+	m.Match("fmt.Errorf($arg)").
+		Suggest("xerrors.New($arg)").
+		Report("Use xerrors to provide additional stacktrace information!")
+
+	m.Match("fmt.Errorf($arg1, $*args)").
+		Suggest("xerrors.Errorf($arg1, $args)").
 		Report("Use xerrors to provide additional stacktrace information!")
 
 	m.Match("errors.$_($msg)").

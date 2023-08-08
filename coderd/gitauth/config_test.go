@@ -73,6 +73,39 @@ func TestRefreshToken(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, refreshed)
 	})
+	t.Run("ValidateRetryGitHub", func(t *testing.T) {
+		t.Parallel()
+		hit := false
+		// We need to ensure that the exponential backoff kicks in properly.
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !hit {
+				hit = true
+				w.WriteHeader(http.StatusUnauthorized)
+				w.Write([]byte("Not permitted"))
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		}))
+		config := &gitauth.Config{
+			ID: "test",
+			OAuth2Config: &testutil.OAuth2Config{
+				Token: &oauth2.Token{
+					AccessToken: "updated",
+				},
+			},
+			ValidateURL: srv.URL,
+			Type:        codersdk.GitProviderGitHub,
+		}
+		db := dbfake.New()
+		link := dbgen.GitAuthLink(t, db, database.GitAuthLink{
+			ProviderID:       config.ID,
+			OAuthAccessToken: "initial",
+		})
+		_, refreshed, err := config.RefreshToken(context.Background(), db, link)
+		require.NoError(t, err)
+		require.True(t, refreshed)
+		require.True(t, hit)
+	})
 	t.Run("ValidateNoUpdate", func(t *testing.T) {
 		t.Parallel()
 		validated := make(chan struct{})

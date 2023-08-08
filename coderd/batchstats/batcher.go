@@ -13,7 +13,6 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/codersdk/agentsdk"
@@ -126,6 +125,7 @@ func New(ctx context.Context, opts ...Option) (*Batcher, func(), error) {
 
 // Add adds a stat to the batcher for the given workspace and agent.
 func (b *Batcher) Add(
+	now time.Time,
 	agentID uuid.UUID,
 	templateID uuid.UUID,
 	userID uuid.UUID,
@@ -135,7 +135,7 @@ func (b *Batcher) Add(
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	now := database.Now()
+	now = database.Time(now)
 
 	b.buf.ID = append(b.buf.ID, uuid.New())
 	b.buf.CreatedAt = append(b.buf.CreatedAt, now)
@@ -199,15 +199,6 @@ func (b *Batcher) flush(ctx context.Context, forced bool, reason string) {
 	defer func() {
 		b.flushForced.Store(false)
 		b.mu.Unlock()
-		// Notify that a flush has completed. This only happens in tests.
-		if b.flushed != nil {
-			select {
-			case <-ctx.Done():
-				close(b.flushed)
-			default:
-				b.flushed <- count
-			}
-		}
 		if count > 0 {
 			elapsed := time.Since(start)
 			b.log.Debug(ctx, "flush complete",
@@ -216,6 +207,15 @@ func (b *Batcher) flush(ctx context.Context, forced bool, reason string) {
 				slog.F("forced", forced),
 				slog.F("reason", reason),
 			)
+		}
+		// Notify that a flush has completed. This only happens in tests.
+		if b.flushed != nil {
+			select {
+			case <-ctx.Done():
+				close(b.flushed)
+			default:
+				b.flushed <- count
+			}
 		}
 	}()
 
