@@ -107,18 +107,16 @@ func (pr *ParameterResolver) resolveWithCommandLineOrEnv(resolved []codersdk.Wor
 	richParameterDone:
 	}
 
-	if pr.promptBuildOptions {
-		for _, buildOption := range pr.buildOptions {
-			for i, r := range resolved {
-				if r.Name == buildOption.Name {
-					resolved[i].Value = buildOption.Value
-					goto buildOptionDone
-				}
+	for _, buildOption := range pr.buildOptions {
+		for i, r := range resolved {
+			if r.Name == buildOption.Name {
+				resolved[i].Value = buildOption.Value
+				goto buildOptionDone
 			}
-
-			resolved = append(resolved, buildOption)
-		buildOptionDone:
 		}
+
+		resolved = append(resolved, buildOption)
+	buildOptionDone:
 	}
 	return resolved
 }
@@ -162,8 +160,8 @@ func (pr *ParameterResolver) verifyConstraints(resolved []codersdk.WorkspaceBuil
 			return xerrors.Errorf("parameter %q is not present in the template", r.Name)
 		}
 
-		if tvp.Ephemeral && !pr.promptBuildOptions {
-			return xerrors.Errorf("ephemeral parameter %q can be used only with --build-options flag", r.Name)
+		if tvp.Ephemeral && !pr.promptBuildOptions && len(pr.buildOptions) == 0 {
+			return xerrors.Errorf("ephemeral parameter %q can be used only with --build-options or --build-option flag", r.Name)
 		}
 
 		if !tvp.Mutable && action != WorkspaceCreate {
