@@ -4321,6 +4321,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "end_time": "2019-08-24T14:15:22Z",
   "parameters_usage": [
     {
+      "description": "string",
       "display_name": "string",
       "name": "string",
       "options": [
@@ -4332,6 +4333,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         }
       ],
       "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+      "type": "string",
       "values": [
         {
           "count": 0,
@@ -4384,6 +4386,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "end_time": "2019-08-24T14:15:22Z",
     "parameters_usage": [
       {
+        "description": "string",
         "display_name": "string",
         "name": "string",
         "options": [
@@ -4395,6 +4398,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           }
         ],
         "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+        "type": "string",
         "values": [
           {
             "count": 0,
@@ -4420,6 +4424,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "description": "string",
   "display_name": "string",
   "name": "string",
   "options": [
@@ -4431,6 +4436,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     }
   ],
   "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+  "type": "string",
   "values": [
     {
       "count": 0,
@@ -4444,10 +4450,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name           | Type                                                                                        | Required | Restrictions | Description |
 | -------------- | ------------------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `description`  | string                                                                                      | false    |              |             |
 | `display_name` | string                                                                                      | false    |              |             |
 | `name`         | string                                                                                      | false    |              |             |
 | `options`      | array of [codersdk.TemplateVersionParameterOption](#codersdktemplateversionparameteroption) | false    |              |             |
 | `template_ids` | array of string                                                                             | false    |              |             |
+| `type`         | string                                                                                      | false    |              |             |
 | `values`       | array of [codersdk.TemplateParameterValue](#codersdktemplateparametervalue)                 | false    |              |             |
 
 ## codersdk.TemplateParameterValue

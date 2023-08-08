@@ -137,7 +137,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@v1.16.1
+        uses: crate-ci/typos@v1.16.2
         with:
           config: .github/workflows/typos.toml
 
@@ -224,7 +224,7 @@ jobs:
         with:
           # This doesn't need caching. It's super fast anyways!
           cache: false
-          go-version: 1.20.6
+          go-version: 1.20.7
 
       - name: Install shfmt
         run: go install mvdan.cc/sh/v3/cmd/shfmt@v3.5.0
@@ -701,7 +701,6 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -741,12 +740,10 @@ jobs:
             --push \
             build/coder_linux_amd64
 
-          # Get commit sha to be used as package tag
-          new_package_tag=$(gh api repos/coder/coder/commits/main | jq -r '.sha[0:7]')
-
           # Tag image with new package tag and push
-          docker tag ghcr.io/coder/coder-preview:main ghcr.io/coder/coder-preview:main-$new_package_tag
-          docker push ghcr.io/coder/coder-preview:main-$new_package_tag
+          tag=$(echo "$version" | sed 's/+/-/g')
+          docker tag ghcr.io/coder/coder-preview:main ghcr.io/coder/coder-preview:main-$tag
+          docker push ghcr.io/coder/coder-preview:main-$tag
 
       - name: Prune old images
         uses: vlaurin/action-ghcr-prune@v0.5.0
