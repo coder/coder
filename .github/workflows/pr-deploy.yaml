@@ -310,7 +310,7 @@ jobs:
             --from-literal=url="postgres://coder:coder@coder-db-postgresql.pr${{ env.PR_NUMBER }}.svc.cluster.local:5432/coder?sslmode=disable"
 
       - name: Create a kubeconfig for the workspace
-        if: needs.get_info.outputs.NEW == 'true'
+        # if: needs.get_info.outputs.NEW == 'true' uncomment this after testing
         # This service account will be used to grant full access to the namespace from the workspace
         run: |
           set -e pipefail
