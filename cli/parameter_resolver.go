@@ -64,7 +64,7 @@ func (pr *ParameterResolver) Resolve(inv *clibase.Invocation, action WorkspaceCL
 
 	staged = pr.resolveWithParametersMapFile(staged)
 	staged = pr.resolveWithCommandLineOrEnv(staged)
-	staged = pr.resolveWithLastBuildParameters(staged, action, templateVersionParameters)
+	staged = pr.resolveWithLastBuildParameters(staged, templateVersionParameters)
 	if err = pr.verifyConstraints(staged, action, templateVersionParameters); err != nil {
 		return nil, err
 	}
@@ -121,7 +121,7 @@ func (pr *ParameterResolver) resolveWithCommandLineOrEnv(resolved []codersdk.Wor
 	return resolved
 }
 
-func (pr *ParameterResolver) resolveWithLastBuildParameters(resolved []codersdk.WorkspaceBuildParameter, action WorkspaceCLIAction, templateVersionParameters []codersdk.TemplateVersionParameter) []codersdk.WorkspaceBuildParameter {
+func (pr *ParameterResolver) resolveWithLastBuildParameters(resolved []codersdk.WorkspaceBuildParameter, templateVersionParameters []codersdk.TemplateVersionParameter) []codersdk.WorkspaceBuildParameter {
 	if pr.promptRichParameters {
 		return resolved // don't pull parameters from last build
 	}
@@ -194,7 +194,6 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 				Value: parameterValue,
 			})
 		}
-
 	}
 	return resolved, nil
 }

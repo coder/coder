@@ -311,17 +311,3 @@ func prepWorkspaceBuild(inv *clibase.Invocation, client *codersdk.Client, args p
 
 	return buildParameters, nil
 }
-
-func workspaceBuildParameterExists(ctx context.Context, client *codersdk.Client, workspaceID uuid.UUID, templateVersionParameter codersdk.TemplateVersionParameter) (bool, error) {
-	lastBuildParameters, err := client.WorkspaceBuildParameters(ctx, workspaceID)
-	if err != nil {
-		return false, xerrors.Errorf("can't fetch last workspace build parameters: %w", err)
-	}
-
-	for _, p := range lastBuildParameters {
-		if p.Name == templateVersionParameter.Name {
-			return true, nil
-		}
-	}
-	return false, nil
-}
