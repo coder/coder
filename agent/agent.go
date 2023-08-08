@@ -1082,14 +1082,14 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 		logger.Debug(ctx, "reconnecting pty connection closed")
 	}()
 
-	var rpty *reconnectingpty.ReconnectingPTY
-	sendConnected := make(chan *reconnectingpty.ReconnectingPTY, 1)
+	var rpty reconnectingpty.ReconnectingPTY
+	sendConnected := make(chan reconnectingpty.ReconnectingPTY, 1)
 	// On store, reserve this ID to prevent multiple concurrent new connections.
 	waitReady, ok := a.reconnectingPTYs.LoadOrStore(msg.ID, sendConnected)
 	if ok {
 		close(sendConnected) // Unused.
 		logger.Debug(ctx, "connecting to existing reconnecting pty")
-		c, ok := waitReady.(chan *reconnectingpty.ReconnectingPTY)
+		c, ok := waitReady.(chan reconnectingpty.ReconnectingPTY)
 		if !ok {
 			return xerrors.Errorf("found invalid type in reconnecting pty map: %T", waitReady)
 		}
