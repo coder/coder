@@ -95,7 +95,7 @@ func (b *bufferedBackend) start(ctx context.Context, logger slog.Logger) error {
 				if err != nil {
 					logger.Warn(ctx,
 						"error writing to active connection",
-						slog.F("other_conn_id", cid),
+						slog.F("connection_id", cid),
 						slog.Error(err),
 					)
 					b.metrics.WithLabelValues("write").Add(1)

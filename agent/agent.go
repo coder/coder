@@ -1120,7 +1120,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 			BackendType: msg.BackendType,
 			Timeout:     a.reconnectingPTYTimeout,
 			Metrics:     a.metrics.reconnectingPTYErrors,
-		}, logger)
+		}, logger.With(slog.F("message_id", msg.ID)))
 
 		if err = a.trackConnGoroutine(func() {
 			rpty.Wait()
