@@ -4,7 +4,7 @@ metadata:
   name: coder-workspace
   namespace: pr${PR_NUMBER}
 secrets:
-- name: coder-workspace-token
+  - name: coder-workspace-token
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -13,9 +13,9 @@ metadata:
   name: coder-workspace
   namespace: pr${PR_NUMBER}
 rules:
-- apiGroups: ["*"]
-  resources: ["*"]
-  verbs: ["*"]
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["*"]
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -24,9 +24,9 @@ metadata:
   name: coder-workspace
   namespace: pr${PR_NUMBER}
 subjects:
-- kind: ServiceAccount
-  name: coder-workspace
-  namespace: pr${PR_NUMBER}
+  - kind: ServiceAccount
+    name: coder-workspace
+    namespace: pr${PR_NUMBER}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
