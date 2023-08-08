@@ -221,7 +221,7 @@ func (rpty *screenReconnectingPTY) Attach(ctx context.Context, connID string, co
 	return nil
 }
 
-// attach spawns the screen client and starts the hearbeat.  It exists
+// attach spawns the screen client and starts the heartbeat.  It exists
 // separately only so we can defer the mutex unlock which is not possible in
 // Attach since it blocks.
 func (rpty *screenReconnectingPTY) attach(ctx context.Context, connID string, conn net.Conn, height, width uint16, logger slog.Logger) (pty.PTYCmd, pty.Process, error) {
