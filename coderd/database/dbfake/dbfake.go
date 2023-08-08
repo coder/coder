@@ -2802,14 +2802,14 @@ func (q *FakeQuerier) GetWorkspaceAgentStats(_ context.Context, createdAfter tim
 
 	agentStatsCreatedAfter := make([]database.WorkspaceAgentStat, 0)
 	for _, agentStat := range q.workspaceAgentStats {
-		if agentStat.CreatedAt.After(createdAfter) {
+		if agentStat.CreatedAt.After(createdAfter) || agentStat.CreatedAt.Equal(createdAfter) {
 			agentStatsCreatedAfter = append(agentStatsCreatedAfter, agentStat)
 		}
 	}
 
 	latestAgentStats := map[uuid.UUID]database.WorkspaceAgentStat{}
 	for _, agentStat := range q.workspaceAgentStats {
-		if agentStat.CreatedAt.After(createdAfter) {
+		if agentStat.CreatedAt.After(createdAfter) || agentStat.CreatedAt.Equal(createdAfter) {
 			latestAgentStats[agentStat.AgentID] = agentStat
 		}
 	}
