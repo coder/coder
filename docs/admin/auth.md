@@ -288,6 +288,28 @@ OIDC provider will be added to the `myCoderGroupName` group in Coder.
 
 Some common issues when enabling group sync.
 
+#### User not being assigned / Group does not exist
+
+If you want Coder to create groups that do not exist, you can set the following environment variable. If you enable this, your OIDC provider might be sending over many unnecessary groups. Use filtering options on the OIDC provider to limit the groups sent over to prevent creating excess groups.
+
+```console
+# as an environment variable
+CODER_OIDC_GROUP_AUTO_CREATE=true
+
+# as a flag
+--oidc-group-auto-create=true
+```
+
+A basic regex filtering option on the Coder side is available. This is applied **after** the group mapping (`CODER_OIDC_GROUP_MAPPING`), meaning if the group is remapped, the remapped value is tested in the regex. This is useful if you want to filter out groups that do not match a certain pattern. For example, if you want to only allow groups that start with `my-group-` to be created, you can set the following environment variable.
+
+```console
+# as an environment variable
+CODER_OIDC_GROUP_REGEX_FILTER="^my-group-.*$"
+
+# as a flag
+--oidc-group-regex-filter="^my-group-.*$"
+```
+
 #### Invalid Scope
 
 If you see an error like the following, you may have an invalid scope.
