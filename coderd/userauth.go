@@ -1427,7 +1427,8 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 	}
 
 	var key database.APIKey
-	if oldKey, ok := httpmw.APIKeyOptional(r); ok && isConvertLoginType {
+	oldKey, _, ok := httpmw.APIKeyFromRequest(ctx, api.Database, nil, r)
+	if ok && oldKey != nil && isConvertLoginType {
 		// If this is a convert login type, and it succeeds, then delete the old
 		// session. Force the user to log back in.
 		err := api.Database.DeleteAPIKeyByID(r.Context(), oldKey.ID)
@@ -1447,7 +1448,9 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			Secure:   api.SecureAuthCookie,
 			HttpOnly: true,
 		})
-		key = oldKey
+		// This is intentional setting the key to the deleted old key,
+		// as the user needs to be forced to log back in.
+		key = *oldKey
 	} else {
 		//nolint:gocritic
 		cookie, newKey, err := api.createAPIKey(dbauthz.AsSystemRestricted(ctx), apikey.CreateParams{

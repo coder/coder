@@ -99,6 +99,7 @@ func TestUserOIDC(t *testing.T) {
 				"roles": []string{"random", oidcRoleName, rbac.RoleOwner()},
 			}))
 			require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+			_ = resp.Body.Close()
 			user, err := client.User(ctx, "alice")
 			require.NoError(t, err)
 
@@ -112,6 +113,7 @@ func TestUserOIDC(t *testing.T) {
 				"roles": []string{"random"},
 			}))
 			require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+			_ = resp.Body.Close()
 			user, err = client.User(ctx, "alice")
 			require.NoError(t, err)
 
