@@ -10,6 +10,7 @@ RUN apk add --no-cache \
 		curl \
 		wget \
 		bash \
+		jq \
 		git \
 		# Fixes CVE-2023-3446 and CVE-2023-2975. Only necessary until Alpine 3.18.3.
 		openssl \
