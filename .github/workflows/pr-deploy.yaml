@@ -442,8 +442,6 @@ jobs:
                 value: "${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_SECRET }}"
               - name: "CODER_OAUTH2_GITHUB_ALLOWED_ORGS"
                 value: "coder"
-              - name: "KUBECONFIG"
-                value: "/home/coder/.kube/config"
           EOF
 
       - name: Install/Upgrade Helm chart
@@ -523,9 +521,8 @@ jobs:
             https://${{ env.PR_DEPLOYMENT_ACCESS_URL }}
 
           # Create template
-          coder templates init --id kubernetes && cd ./kubernetes/ && coder templates create -y --variable namespace=pr${{ env.PR_NUMBER }}
-          #git clone https://github.com/matifali/coder-templates.git
-          #cd ./coder-templates/k8s-namespace/ && coder templates create -y --variable namespace=pr${{ env.PR_NUMBER }}
+          git clone https://github.com/matifali/coder-templates.git && cd ./coder-templates/k8s-namespace/
+          coder templates create -y --variable namespace=pr${{ env.PR_NUMBER }}
 
           # Create workspace
           cat <<EOF > workspace.yaml
@@ -534,7 +531,7 @@ jobs:
           home_disk_size: "2"
           EOF
 
-          coder create --template="kubernetes" test --rich-parameter-file ./workspace.yaml -y
+          coder create --template="k8s-namespace" test --rich-parameter-file ./workspace.yaml -y
           coder stop test -y
 
       - name: Send Slack notification
