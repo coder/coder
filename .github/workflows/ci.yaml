@@ -224,7 +224,7 @@ jobs:
         with:
           # This doesn't need caching. It's super fast anyways!
           cache: false
-          go-version: 1.20.6
+          go-version: 1.20.7
 
       - name: Install shfmt
         run: go install mvdan.cc/sh/v3/cmd/shfmt@v3.5.0
@@ -668,6 +668,7 @@ jobs:
       - test-go-pg
       - test-go-race
       - test-js
+      - test-e2e
       - offlinedocs
     # Allow this job to run even if the needed jobs fail, are skipped or
     # cancelled.
