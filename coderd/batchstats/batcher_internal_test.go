@@ -105,7 +105,7 @@ func TestBatchStats(t *testing.T) {
 	require.Len(t, stats, 2, "should have stats for both workspaces")
 
 	// Ensures that a subsequent flush pushes all the remaining data
-	t4 := database.Now()
+	t4 := t3.Add(time.Millisecond)
 	tick <- t4
 	f2 := <-flushed
 	t.Logf("flush 4 completed")
@@ -113,7 +113,7 @@ func TestBatchStats(t *testing.T) {
 	require.Equal(t, expectedCount, f2, "did not flush expected remaining rows")
 
 	// Ensure that a subsequent flush does not push stale data.
-	t5 := database.Now()
+	t5 := t4.Add(time.Millisecond)
 	tick <- t5
 	f = <-flushed
 	require.Zero(t, f, "expected zero stats to have been flushed")
