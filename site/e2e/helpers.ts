@@ -66,8 +66,11 @@ export const sshIntoWorkspace = async (
   page: Page,
   workspace: string,
   binaryPath = "go",
-  binaryArgs = ["run", coderMainPath()],
+  binaryArgs: string[] = [],
 ): Promise<ssh.Client> => {
+  if (binaryPath === "go") {
+    binaryArgs = ["run", coderMainPath()]
+  }
   const sessionToken = await findSessionToken(page)
   return new Promise<ssh.Client>((resolve, reject) => {
     const cp = spawn(binaryPath, [...binaryArgs, "ssh", "--stdio", workspace], {
@@ -120,7 +123,7 @@ export const downloadCoderVersion = async (
   }
 
   const binaryName = "coder-e2e-" + version
-  const tempDir = "/tmp"
+  const tempDir = "/tmp/coder-e2e-cache"
   // The install script adds `./bin` automatically to the path :shrug:
   const binaryPath = path.join(tempDir, "bin", binaryName)
 
@@ -138,26 +141,35 @@ export const downloadCoderVersion = async (
   // Runs our public install script using our options to
   // install the binary!
   await new Promise<void>((resolve, reject) => {
-    const cp = spawn("sh", [
-      "-c",
+    const cp = spawn(
+      "sh",
       [
-        "curl",
-        "-L",
-        "https://coder.com/install.sh",
-        "|",
-        "sh",
-        "-s",
-        "--",
-        "--version",
-        version,
-        "--method",
-        "standalone",
-        "--prefix",
-        tempDir,
-        "--binary-name",
-        binaryName,
-      ].join(" "),
-    ])
+        "-c",
+        [
+          "curl",
+          "-L",
+          "https://coder.com/install.sh",
+          "|",
+          "sh",
+          "-s",
+          "--",
+          "--version",
+          version,
+          "--method",
+          "standalone",
+          "--prefix",
+          tempDir,
+          "--binary-name",
+          binaryName,
+        ].join(" "),
+      ],
+      {
+        env: {
+          ...process.env,
+          XDG_CACHE_HOME: "/tmp/coder-e2e-cache",
+        },
+      },
+    )
     // eslint-disable-next-line no-console -- Needed for debugging
     cp.stderr.on("data", (data) => console.log(data.toString()))
     cp.on("close", (code) => {
@@ -189,7 +201,7 @@ export const startAgentWithCommand = async (
     buffer = Buffer.concat([buffer, data])
   })
   try {
-    await page.getByTestId("agent-status-ready").isVisible()
+    await page.getByTestId("agent-status-ready").waitFor({ state: "visible" })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- The error is a string
   } catch (ex: any) {
     throw new Error(ex.toString() + "\n" + buffer.toString())
