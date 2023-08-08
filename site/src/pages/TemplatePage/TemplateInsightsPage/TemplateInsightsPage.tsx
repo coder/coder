@@ -26,15 +26,7 @@ import {
   UserLatencyInsightsResponse,
 } from "api/typesGenerated"
 import { ComponentProps, ReactNode, useState } from "react"
-import {
-  subDays,
-  addHours,
-  startOfHour,
-  startOfDay,
-  format,
-  isToday,
-  addDays,
-} from "date-fns"
+import { subDays, isToday } from "date-fns"
 import "react-date-range/dist/styles.css"
 import "react-date-range/dist/theme/default.css"
 import { DateRange, DateRangeValue } from "./DateRange"
@@ -43,6 +35,7 @@ import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined"
 import Link from "@mui/material/Link"
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined"
 import CancelOutlined from "@mui/icons-material/CancelOutlined"
+import { getDateRangeFilter } from "./utils"
 
 export default function TemplateInsightsPage() {
   const now = new Date()
@@ -53,12 +46,12 @@ export default function TemplateInsightsPage() {
   const { template } = useTemplateLayoutContext()
   const insightsFilter = {
     template_ids: template.id,
-    start_time: toISOLocal(startOfDay(dateRangeValue.startDate)),
-    end_time: toISOLocal(
-      isToday(dateRangeValue.endDate)
-        ? startOfHour(addHours(now, 1))
-        : startOfDay(addDays(dateRangeValue.endDate, 1)),
-    ),
+    ...getDateRangeFilter({
+      startDate: dateRangeValue.startDate,
+      endDate: dateRangeValue.endDate,
+      now,
+      isToday,
+    }),
   }
   const { data: templateInsights } = useQuery({
     queryKey: ["templates", template.id, "usage", insightsFilter],
@@ -582,10 +575,6 @@ function mapToDAUsResponse(
       }
     }),
   }
-}
-
-function toISOLocal(d: Date) {
-  return format(d, "yyyy-MM-dd'T'HH:mm:ssxxx")
 }
 
 function formatTime(seconds: number): string {

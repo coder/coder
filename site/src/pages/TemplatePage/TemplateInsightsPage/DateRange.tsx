@@ -122,9 +122,9 @@ export const DateRange = ({
               }),
             },
             {
-              label: "Last 15 days",
+              label: "Last 14 days",
               range: () => ({
-                startDate: subDays(new Date(), 14),
+                startDate: subDays(new Date(), 13),
                 endDate: new Date(),
               }),
             },
