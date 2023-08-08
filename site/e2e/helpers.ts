@@ -65,12 +65,14 @@ export const createTemplate = async (
 export const sshIntoWorkspace = async (
   page: Page,
   workspace: string,
+  binaryPath = "go",
+  binaryArgs = ["run", coderMainPath()],
 ): Promise<ssh.Client> => {
   const sessionToken = await findSessionToken(page)
   return new Promise<ssh.Client>((resolve, reject) => {
     const cp = spawn(
-      "go",
-      ["run", coderMainPath(), "ssh", "--stdio", workspace],
+      binaryPath,
+      [...binaryArgs, "ssh", "--stdio", workspace],
       {
         env: {
           ...process.env,
