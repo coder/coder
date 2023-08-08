@@ -266,21 +266,7 @@ jobs:
           # we are doing this to avoid letsenrypt rate limits
           if ! kubectl get certificate pr${{ env.PR_NUMBER }}-tls -n pr-deployment-certs > /dev/null 2>&1; then
             echo "Certificate doesn't exist. Creating a new one."
-            cat <<EOF | kubectl apply -f -
-            apiVersion: cert-manager.io/v1
-            kind: Certificate
-            metadata:
-              name: pr${{ env.PR_NUMBER }}-tls
-              namespace: pr-deployment-certs
-            spec:
-              secretName: pr${{ env.PR_NUMBER }}-tls
-              issuerRef:
-                name: letsencrypt
-                kind: ClusterIssuer
-              dnsNames:
-              - "${{ env.PR_DEPLOYMENT_ACCESS_URL }}"
-              - "*.${{ env.PR_DEPLOYMENT_ACCESS_URL }}"
-          EOF
+            envsubst < ./.github/pr-deployments/certificate.yaml | kubectl apply -f -
           else
             echo "Certificate exists. Skipping certificate creation."
           fi
@@ -311,55 +297,10 @@ jobs:
 
       - name: Create a kubeconfig for the workspace
         if: needs.get_info.outputs.NEW == 'true'
-        # This service account will be used to grant full access to the namespace from the workspace
         run: |
           set -euo pipefail
           # Create service account, role, rolebinding and secret
-          cat <<EOF | kubectl apply -f -
-          apiVersion: v1
-          kind: ServiceAccount
-          metadata:
-            name: coder-workspace
-            namespace: pr${{ env.PR_NUMBER }}
-          secrets:
-          - name: coder-workspace-token
-
-          ---
-          apiVersion: rbac.authorization.k8s.io/v1
-          kind: Role
-          metadata:
-            name: coder-workspace
-            namespace: pr${{ env.PR_NUMBER }}
-          rules:
-          - apiGroups: ["*"]
-            resources: ["*"]
-            verbs: ["*"]
-
-          ---
-          apiVersion: rbac.authorization.k8s.io/v1
-          kind: RoleBinding
-          metadata:
-            name: coder-workspace
-            namespace: pr${{ env.PR_NUMBER }}
-          subjects:
-          - kind: ServiceAccount
-            name: coder-workspace
-            namespace: pr${{ env.PR_NUMBER }}
-          roleRef:
-            apiGroup: rbac.authorization.k8s.io
-            kind: Role
-            name: coder-workspace
-
-          ---
-          apiVersion: v1
-          kind: Secret
-          metadata:
-            name: coder-workspace-token
-            namespace: pr${{ env.PR_NUMBER }}
-            annotations:
-              kubernetes.io/service-account.name: coder-workspace
-          type: kubernetes.io/service-account-token
-          EOF
+          envsubst < ./.github/pr-deployments/rbac.yaml | kubectl -n pr${{ env.PR_NUMBER }} apply -f -
 
           # Get the token for the service account
           TOKEN=$(kubectl -n pr${{ env.PR_NUMBER }} get secret coder-workspace-token -o jsonpath='{.data.token}' | base64 --decode)
@@ -369,80 +310,20 @@ jobs:
           CLUSTER_ENDPOINT=$(kubectl config view --raw --minify --flatten -o jsonpath='{.clusters[].cluster.server}')
 
           # Create a kubeconfig for the namespace to be used in the workspace
-          cat <<EOF > namespace-kubeconfig.yaml
-          apiVersion: v1
-          kind: Config
-          clusters:
-          - cluster:
-              certificate-authority-data: $CLUSTER_CA
-              server: $CLUSTER_ENDPOINT
-            name: pr${{ env.PR_NUMBER }}
-          contexts:
-          - context:
-              cluster: pr${{ env.PR_NUMBER }}
-              namespace: pr${{ env.PR_NUMBER }}
-              user: coder-workspace
-            name: pr${{ env.PR_NUMBER }}
-          current-context: pr${{ env.PR_NUMBER }}
-          users:
-          - name: coder-workspace
-            user:
-              token: $TOKEN
-          EOF
+          envsubst < ./.github/pr-deployments/kubeconfig.yaml > ./namespace-kubeconfig.yaml
 
           # Create a secret from the kubeconfig
           kubectl create secret generic coder-namespace-kubeconfig -n pr${{ env.PR_NUMBER }} --from-file=kubeconfig=./namespace-kubeconfig.yaml
 
       - name: Create values.yaml
         if: github.event_name == 'workflow_dispatch'
+        env:
+          EXPERIMENTS: ${{ github.event.inputs.experiments }}
+          PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_ID: ${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_ID }}
+          PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_SECRET: ${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_SECRET }}
         run: |
-          cat <<EOF > pr-deploy-values.yaml
-          coder:
-            image:
-              repo: ${{ env.REPO }}
-              tag: pr${{ env.PR_NUMBER }}
-              pullPolicy: Always
-            service:
-              type: ClusterIP
-            ingress:
-              enable: true
-              className: traefik
-              host: ${{ env.PR_DEPLOYMENT_ACCESS_URL }}
-              wildcardHost: "*.${{ env.PR_DEPLOYMENT_ACCESS_URL }}"
-              tls:
-                enable: true
-                secretName: pr${{ env.PR_NUMBER }}-tls
-                wildcardSecretName: pr${{ env.PR_NUMBER }}-tls
-            volumes:
-              - name: coder-namespace-kubeconfig
-                secret:
-                  secretName: coder-namespace-kubeconfig
-            volumeMounts:
-              - name: coder-namespace-kubeconfig
-                mountPath: /home/coder/.kube/config
-                subPath: kubeconfig
-                readOnly: true
-            env:
-              - name: "CODER_ACCESS_URL"
-                value: "https://${{ env.PR_DEPLOYMENT_ACCESS_URL }}"
-              - name: "CODER_WILDCARD_ACCESS_URL"
-                value: "*.${{ env.PR_DEPLOYMENT_ACCESS_URL }}"
-              - name: "CODER_EXPERIMENTS"
-                value: "${{ github.event.inputs.experiments }}"
-              - name: CODER_PG_CONNECTION_URL
-                valueFrom:
-                  secretKeyRef:
-                    name: coder-db-url
-                    key: url
-              - name: "CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS"
-                value: "true"
-              - name: "CODER_OAUTH2_GITHUB_CLIENT_ID"
-                value: "${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_ID }}"
-              - name: "CODER_OAUTH2_GITHUB_CLIENT_SECRET"
-                value: "${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_SECRET }}"
-              - name: "CODER_OAUTH2_GITHUB_ALLOWED_ORGS"
-                value: "coder"
-          EOF
+          set -euo pipefail
+          envsubst < ./.github/pr-deployments/values.yaml > ./pr-deploy-values.yaml
 
       - name: Install/Upgrade Helm chart
         run: |
