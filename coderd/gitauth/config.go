@@ -77,7 +77,10 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, gitAuthLin
 		// we aren't trying to surface an error, we're just trying to obtain a valid token.
 		return gitAuthLink, false, nil
 	}
-	r := retry.New(50*time.Millisecond, time.Second)
+	r := retry.New(50*time.Millisecond, 200*time.Millisecond)
+	// See the comment below why the retry and cancel is required.
+	retryCtx, retryCtxCancel := context.WithTimeout(ctx, time.Second)
+	defer retryCtxCancel()
 validate:
 	valid, _, err := c.ValidateToken(ctx, token.AccessToken)
 	if err != nil {
@@ -91,7 +94,7 @@ validate:
 		// to the read replica in time.
 		//
 		// We do an exponential backoff here to give the write time to propagate.
-		if c.Type == codersdk.GitProviderGitHub && r.Wait(ctx) {
+		if c.Type == codersdk.GitProviderGitHub && r.Wait(retryCtx) {
 			goto validate
 		}
 		// The token is no longer valid!
