@@ -1,5 +1,5 @@
 ---
-# Source: coder/templates/coder.yaml
+# Source: coder-provisioner/templates/coder.yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -8,13 +8,13 @@ metadata:
   labels:
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/name: coder
-    app.kubernetes.io/part-of: coder
+    app.kubernetes.io/name: coder-provisioner
+    app.kubernetes.io/part-of: coder-provisioner
     app.kubernetes.io/version: 0.1.0
-    helm.sh/chart: coder-0.1.0
+    helm.sh/chart: coder-provisioner-0.1.0
   name: coder-service-account
 ---
-# Source: coder/templates/rbac.yaml
+# Source: coder-provisioner/templates/rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -56,7 +56,7 @@ rules:
     - update
     - watch
 ---
-# Source: coder/templates/rbac.yaml
+# Source: coder-provisioner/templates/rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
@@ -69,34 +69,7 @@ roleRef:
   kind: Role
   name: coder-service-account-workspace-perms
 ---
-# Source: coder/templates/service.yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: coder
-  labels:
-    helm.sh/chart: coder-0.1.0
-    app.kubernetes.io/name: coder
-    app.kubernetes.io/instance: release-name
-    app.kubernetes.io/part-of: coder
-    app.kubernetes.io/version: "0.1.0"
-    app.kubernetes.io/managed-by: Helm
-  annotations:
-    {}
-spec:
-  type: LoadBalancer
-  sessionAffinity: ClientIP
-  ports:
-    - name: "http"
-      port: 80
-      targetPort: "http"
-      protocol: TCP
-  externalTrafficPolicy: "Cluster"
-  selector:
-    app.kubernetes.io/name: coder
-    app.kubernetes.io/instance: release-name
----
-# Source: coder/templates/coder.yaml
+# Source: coder-provisioner/templates/coder.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -104,76 +77,49 @@ metadata:
   labels:
     app.kubernetes.io/instance: release-name
     app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/name: coder
-    app.kubernetes.io/part-of: coder
+    app.kubernetes.io/name: coder-provisioner
+    app.kubernetes.io/part-of: coder-provisioner
     app.kubernetes.io/version: 0.1.0
-    helm.sh/chart: coder-0.1.0
-  name: coder
+    helm.sh/chart: coder-provisioner-0.1.0
+  name: coder-provisioner
 spec:
   replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/instance: release-name
-      app.kubernetes.io/name: coder
+      app.kubernetes.io/name: coder-provisioner
   template:
     metadata:
       annotations: {}
       labels:
         app.kubernetes.io/instance: release-name
         app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/name: coder
-        app.kubernetes.io/part-of: coder
+        app.kubernetes.io/name: coder-provisioner
+        app.kubernetes.io/part-of: coder-provisioner
         app.kubernetes.io/version: 0.1.0
-        helm.sh/chart: coder-0.1.0
+        helm.sh/chart: coder-provisioner-0.1.0
     spec:
-      affinity:
-        podAntiAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-          - podAffinityTerm:
-              labelSelector:
-                matchExpressions:
-                - key: app.kubernetes.io/instance
-                  operator: In
-                  values:
-                  - coder
-              topologyKey: kubernetes.io/hostname
-            weight: 1
       containers:
       - args:
-        - server
+        - provisionerd
+        - start
         command:
         - /opt/coder
         env:
-        - name: CODER_HTTP_ADDRESS
-          value: 0.0.0.0:8080
         - name: CODER_PROMETHEUS_ADDRESS
           value: 0.0.0.0:2112
-        - name: CODER_ACCESS_URL
-          value: http://coder.default.svc.cluster.local
-        - name: KUBE_POD_IP
+        - name: CODER_PROVISIONER_DAEMON_PSK
           valueFrom:
-            fieldRef:
-              fieldPath: status.podIP
-        - name: CODER_DERP_SERVER_RELAY_URL
-          value: http://$(KUBE_POD_IP):8080
+            secretKeyRef:
+              key: psk
+              name: coder-provisioner-psk
+        - name: CODER_URL
+          value: http://coder.default.svc.cluster.local
         image: ghcr.io/coder/coder:latest
         imagePullPolicy: IfNotPresent
         lifecycle: {}
-        livenessProbe:
-          httpGet:
-            path: /healthz
-            port: http
-            scheme: HTTP
         name: coder
-        ports:
-        - containerPort: 8080
-          name: http
-          protocol: TCP
-        readinessProbe:
-          httpGet:
-            path: /healthz
-            port: http
-            scheme: HTTP
+        ports: null
         resources: {}
         securityContext:
           allowPrivilegeEscalation: false

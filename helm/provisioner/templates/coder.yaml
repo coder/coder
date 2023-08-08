@@ -20,55 +20,37 @@ args:
 {{- if .Values.coder.commandArgs }}
   {{- toYaml .Values.coder.commandArgs | nindent 12 }}
 {{- else }}
-  {{- if .Values.coder.workspaceProxy }}
-- wsproxy
-  {{- end }}
-- server
+- provisionerd
+- start
 {{- end }}
 env:
-- name: CODER_HTTP_ADDRESS
-  value: "0.0.0.0:8080"
 - name: CODER_PROMETHEUS_ADDRESS
   value: "0.0.0.0:2112"
-{{- if .Values.provisionerDaemon.pskSecretName }}
 - name: CODER_PROVISIONER_DAEMON_PSK
   valueFrom:
     secretKeyRef:
       name: {{ .Values.provisionerDaemon.pskSecretName | quote }}
       key: psk
+{{- if include "provisioner.tags" . }}
+- name: CODER_PROVISIONERD_TAGS
+  value: {{ include "provisioner.tags" . }}
 {{- end }}
   # Set the default access URL so a `helm apply` works by default.
   # See: https://github.com/coder/coder/issues/5024
 {{- $hasAccessURL := false }}
 {{- range .Values.coder.env }}
-{{- if eq .name "CODER_ACCESS_URL" }}
+{{- if eq .name "CODER_URL" }}
 {{- $hasAccessURL = true }}
 {{- end }}
 {{- end }}
 {{- if not $hasAccessURL }}
-- name: CODER_ACCESS_URL
+- name: CODER_URL
   value: {{ include "coder.defaultAccessURL" . | quote }}
 {{- end }}
-# Used for inter-pod communication with high-availability.
-- name: KUBE_POD_IP
-  valueFrom:
-    fieldRef:
-      fieldPath: status.podIP
-- name: CODER_DERP_SERVER_RELAY_URL
-  value: "http://$(KUBE_POD_IP):8080"
-{{- include "coder.tlsEnv" . }}
 {{- with .Values.coder.env }}
 {{ toYaml . }}
 {{- end }}
 ports:
-- name: "http"
-  containerPort: 8080
-  protocol: TCP
-  {{- if eq (include "coder.tlsEnabled" .) "true" }}
-- name: "https"
-  containerPort: 8443
-  protocol: TCP
-  {{- end }}
   {{- range .Values.coder.env }}
   {{- if eq .name "CODER_PROMETHEUS_ENABLE" }}
   {{/*
@@ -84,14 +66,12 @@ ports:
   {{- end }}
   {{- end }}
   {{- end }}
-readinessProbe:
-  httpGet:
-    path: /healthz
-    port: "http"
-    scheme: "HTTP"
-livenessProbe:
-  httpGet:
-    path: /healthz
-    port: "http"
-    scheme: "HTTP"
 {{- end }}
+
+{{- define "provisioner.tags" -}}
+  {{- $keys := keys .Values.provisionerDaemon.tags | sortAlpha -}}
+  {{- range $i, $key := $keys -}}
+    {{- $val := get $.Values.provisionerDaemon.tags $key -}}
+    {{- if ne $i 0 -}},{{- end -}}{{ $key }}={{ $val }}
+  {{- end -}}
+{{- end -}}

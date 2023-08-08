@@ -1,6 +1,6 @@
 apiVersion: v2
-name: coder
-description: Remote development environments on your infrastructure
+name: coder-provisioner
+description: "External provisioner daemon for Coder. This is an Enterprise feature; contact sales@coder.com."
 home: https://github.com/coder/coder
 
 # version and appVersion are injected at release and will always be shown as
@@ -21,7 +21,7 @@ keywords:
   - coder
   - terraform
 sources:
-  - https://github.com/coder/coder/tree/main/helm/coder
+  - https://github.com/coder/coder/tree/main/helm/provisioner
 icon: https://helm.coder.com/coder_logo_black.png
 maintainers:
   - name: Coder Technologies, Inc.

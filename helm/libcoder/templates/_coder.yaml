@@ -2,7 +2,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: coder
+  name: {{ include "coder.name" .}}
   labels:
     {{- include "coder.labels" . | nindent 4 }}
     {{- with .Values.coder.labels }}

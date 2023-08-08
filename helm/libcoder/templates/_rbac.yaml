@@ -4,7 +4,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: coder-workspace-perms
+  name: {{ .Values.coder.serviceAccount.name }}-workspace-perms
 rules:
   - apiGroups: [""]
     resources: ["pods"]
@@ -54,6 +54,6 @@ subjects:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: coder-workspace-perms
+  name: {{ .Values.coder.serviceAccount.name }}-workspace-perms
 {{- end }}
 {{- end -}}

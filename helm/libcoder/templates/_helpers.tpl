@@ -49,11 +49,15 @@ Coder Docker image URI
 Coder TLS enabled.
 */}}
 {{- define "coder.tlsEnabled" -}}
-{{- if .Values.coder.tls.secretNames -}}
-true
-{{- else -}}
-false
-{{- end -}}
+    {{- if hasKey .Values.coder "tls" -}}
+      {{- if .Values.coder.tls.secretNames -}}
+        true
+      {{- else -}}
+        false
+      {{- end -}}
+    {{- else -}}
+      false
+    {{- end -}}
 {{- end }}
 
 {{/*
@@ -88,11 +92,13 @@ http
 Coder volume definitions.
 */}}
 {{- define "coder.volumeList" }}
-{{ range $secretName := .Values.coder.tls.secretNames -}}
+{{- if hasKey .Values.coder "tls" -}}
+{{- range $secretName := .Values.coder.tls.secretNames }}
 - name: "tls-{{ $secretName }}"
   secret:
     secretName: {{ $secretName | quote }}
 {{ end -}}
+{{- end }}
 {{ range $secret := .Values.coder.certs.secrets -}}
 - name: "ca-cert-{{ $secret.name }}"
   secret:
@@ -119,11 +125,13 @@ volumes: []
 Coder volume mounts.
 */}}
 {{- define "coder.volumeMountList" }}
+{{- if hasKey .Values.coder "tls" }}
 {{ range $secretName := .Values.coder.tls.secretNames -}}
 - name: "tls-{{ $secretName }}"
   mountPath: "/etc/ssl/certs/coder/{{ $secretName }}"
   readOnly: true
 {{ end -}}
+{{- end }}
 {{ range $secret := .Values.coder.certs.secrets -}}
 - name: "ca-cert-{{ $secret.name }}"
   mountPath: "/etc/ssl/certs/{{ $secret.name }}.crt"
