@@ -778,6 +778,7 @@ func New(options *Options) *API {
 				r.Post("/startup", api.postWorkspaceAgentStartup)
 				r.Patch("/startup-logs", api.patchWorkspaceAgentLogsDeprecated)
 				r.Patch("/logs", api.patchWorkspaceAgentLogs)
+				r.Delete("/logs", api.deleteWorkspaceAgentLogs)
 				r.Post("/app-health", api.postWorkspaceAppHealth)
 				r.Get("/gitauth", api.workspaceAgentsGitAuth)
 				r.Get("/gitsshkey", api.agentGitSSHKey)

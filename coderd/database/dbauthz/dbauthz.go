@@ -757,6 +757,10 @@ func (q *querier) DeleteTailnetClient(ctx context.Context, arg database.DeleteTa
 	return q.db.DeleteTailnetClient(ctx, arg)
 }
 
+func (q *querier) DeleteWorkspaceAgentLogsBySource(ctx context.Context, arg database.DeleteWorkspaceAgentLogsBySourceParams) error {
+	return q.db.DeleteWorkspaceAgentLogsBySource(ctx, arg)
+}
+
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
 	return fetch(q.log, q.auth, q.db.GetAPIKeyByID)(ctx, id)
 }

@@ -27,8 +27,8 @@ func TestAgent(t *testing.T) {
 
 	for _, tc := range []struct {
 		name    string
-		iter    []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentLog) error
-		logs    chan []codersdk.WorkspaceAgentLog
+		iter    []func(context.Context, *codersdk.WorkspaceAgent, chan codersdk.WorkspaceAgentLogFollow) error
+		logs    chan codersdk.WorkspaceAgentLogFollow
 		opts    cliui.AgentOptions
 		want    []string
 		wantErr bool
@@ -38,12 +38,12 @@ func TestAgent(t *testing.T) {
 			opts: cliui.AgentOptions{
 				FetchInterval: time.Millisecond,
 			},
-			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentLog) error{
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentLog) error {
+			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan codersdk.WorkspaceAgentLogFollow) error{
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan codersdk.WorkspaceAgentLogFollow) error {
 					agent.Status = codersdk.WorkspaceAgentConnecting
 					return nil
 				},
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentLog) error {
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan codersdk.WorkspaceAgentLogFollow) error {
 					agent.Status = codersdk.WorkspaceAgentConnected
 					agent.FirstConnectedAt = ptr.Ref(time.Now())
 					return nil
@@ -62,18 +62,18 @@ func TestAgent(t *testing.T) {
 			opts: cliui.AgentOptions{
 				FetchInterval: 1 * time.Millisecond,
 			},
-			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentLog) error{
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentLog) error {
+			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan codersdk.WorkspaceAgentLogFollow) error{
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan codersdk.WorkspaceAgentLogFollow) error {
 					agent.Status = codersdk.WorkspaceAgentConnecting
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleStarting
 					agent.StartedAt = ptr.Ref(time.Now())
 					return nil
 				},
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentLog) error {
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan codersdk.WorkspaceAgentLogFollow) error {
 					agent.Status = codersdk.WorkspaceAgentTimeout
 					return nil
 				},
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentLog) error {
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan codersdk.WorkspaceAgentLogFollow) error {
 					agent.Status = codersdk.WorkspaceAgentConnected
 					agent.FirstConnectedAt = ptr.Ref(time.Now())
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleReady
@@ -95,8 +95,8 @@ func TestAgent(t *testing.T) {
 			opts: cliui.AgentOptions{
 				FetchInterval: 1 * time.Millisecond,
 			},
-			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentLog) error{
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentLog) error {
+			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan codersdk.WorkspaceAgentLogFollow) error{
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan codersdk.WorkspaceAgentLogFollow) error {
 					agent.Status = codersdk.WorkspaceAgentDisconnected
 					agent.FirstConnectedAt = ptr.Ref(time.Now().Add(-1 * time.Minute))
 					agent.LastConnectedAt = ptr.Ref(time.Now().Add(-1 * time.Minute))
@@ -106,7 +106,7 @@ func TestAgent(t *testing.T) {
 					agent.ReadyAt = ptr.Ref(time.Now())
 					return nil
 				},
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentLog) error {
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan codersdk.WorkspaceAgentLogFollow) error {
 					agent.Status = codersdk.WorkspaceAgentConnected
 					agent.LastConnectedAt = ptr.Ref(time.Now())
 					return nil
@@ -125,27 +125,31 @@ func TestAgent(t *testing.T) {
 				FetchInterval: time.Millisecond,
 				Wait:          true,
 			},
-			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentLog) error{
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentLog) error {
+			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan codersdk.WorkspaceAgentLogFollow) error{
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan codersdk.WorkspaceAgentLogFollow) error {
 					agent.Status = codersdk.WorkspaceAgentConnected
 					agent.FirstConnectedAt = ptr.Ref(time.Now())
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleStarting
 					agent.StartedAt = ptr.Ref(time.Now())
-					logs <- []codersdk.WorkspaceAgentLog{
-						{
-							CreatedAt: time.Now(),
-							Output:    "Hello world",
+					logs <- codersdk.WorkspaceAgentLogFollow{
+						Logs: []codersdk.WorkspaceAgentLog{
+							{
+								CreatedAt: time.Now(),
+								Output:    "Hello world",
+							},
 						},
 					}
 					return nil
 				},
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentLog) error {
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan codersdk.WorkspaceAgentLogFollow) error {
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleReady
 					agent.ReadyAt = ptr.Ref(time.Now())
-					logs <- []codersdk.WorkspaceAgentLog{
-						{
-							CreatedAt: time.Now(),
-							Output:    "Bye now",
+					logs <- codersdk.WorkspaceAgentLogFollow{
+						Logs: []codersdk.WorkspaceAgentLog{
+							{
+								CreatedAt: time.Now(),
+								Output:    "Bye now",
+							},
 						},
 					}
 					return nil
@@ -164,17 +168,19 @@ func TestAgent(t *testing.T) {
 				FetchInterval: time.Millisecond,
 				Wait:          true,
 			},
-			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentLog) error{
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentLog) error {
+			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan codersdk.WorkspaceAgentLogFollow) error{
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan codersdk.WorkspaceAgentLogFollow) error {
 					agent.Status = codersdk.WorkspaceAgentConnected
 					agent.FirstConnectedAt = ptr.Ref(time.Now())
 					agent.StartedAt = ptr.Ref(time.Now())
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleStartError
 					agent.ReadyAt = ptr.Ref(time.Now())
-					logs <- []codersdk.WorkspaceAgentLog{
-						{
-							CreatedAt: time.Now(),
-							Output:    "Hello world",
+					logs <- codersdk.WorkspaceAgentLogFollow{
+						Logs: []codersdk.WorkspaceAgentLog{
+							{
+								CreatedAt: time.Now(),
+								Output:    "Hello world",
+							},
 						},
 					}
 					return nil
@@ -193,8 +199,8 @@ func TestAgent(t *testing.T) {
 			opts: cliui.AgentOptions{
 				FetchInterval: time.Millisecond,
 			},
-			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentLog) error{
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentLog) error {
+			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan codersdk.WorkspaceAgentLogFollow) error{
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan codersdk.WorkspaceAgentLogFollow) error {
 					agent.Status = codersdk.WorkspaceAgentDisconnected
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleOff
 					return nil
@@ -208,21 +214,23 @@ func TestAgent(t *testing.T) {
 				FetchInterval: time.Millisecond,
 				Wait:          true,
 			},
-			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentLog) error{
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentLog) error {
+			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan codersdk.WorkspaceAgentLogFollow) error{
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan codersdk.WorkspaceAgentLogFollow) error {
 					agent.Status = codersdk.WorkspaceAgentConnected
 					agent.FirstConnectedAt = ptr.Ref(time.Now())
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleStarting
 					agent.StartedAt = ptr.Ref(time.Now())
-					logs <- []codersdk.WorkspaceAgentLog{
-						{
-							CreatedAt: time.Now(),
-							Output:    "Hello world",
+					logs <- codersdk.WorkspaceAgentLogFollow{
+						Logs: []codersdk.WorkspaceAgentLog{
+							{
+								CreatedAt: time.Now(),
+								Output:    "Hello world",
+							},
 						},
 					}
 					return nil
 				},
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentLog) error {
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan codersdk.WorkspaceAgentLogFollow) error {
 					agent.ReadyAt = ptr.Ref(time.Now())
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleShuttingDown
 					return nil
@@ -241,12 +249,12 @@ func TestAgent(t *testing.T) {
 				FetchInterval: time.Millisecond,
 				Wait:          true,
 			},
-			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentLog) error{
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentLog) error {
+			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan codersdk.WorkspaceAgentLogFollow) error{
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan codersdk.WorkspaceAgentLogFollow) error {
 					agent.Status = codersdk.WorkspaceAgentConnecting
 					return nil
 				},
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentLog) error {
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan codersdk.WorkspaceAgentLogFollow) error {
 					return xerrors.New("bad")
 				},
 			},
@@ -261,13 +269,13 @@ func TestAgent(t *testing.T) {
 				FetchInterval: time.Millisecond,
 				Wait:          true,
 			},
-			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentLog) error{
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentLog) error {
+			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan codersdk.WorkspaceAgentLogFollow) error{
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan codersdk.WorkspaceAgentLogFollow) error {
 					agent.Status = codersdk.WorkspaceAgentTimeout
 					agent.TroubleshootingURL = "https://troubleshoot"
 					return nil
 				},
-				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentLog) error {
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan codersdk.WorkspaceAgentLogFollow) error {
 					return xerrors.New("bad")
 				},
 			},
@@ -294,7 +302,7 @@ func TestAgent(t *testing.T) {
 				CreatedAt:             time.Now(),
 				LifecycleState:        codersdk.WorkspaceAgentLifecycleCreated,
 			}
-			logs := make(chan []codersdk.WorkspaceAgentLog, 1)
+			logs := make(chan codersdk.WorkspaceAgentLogFollow, 1)
 
 			cmd := &clibase.Cmd{
 				Handler: func(inv *clibase.Invocation) error {
@@ -306,12 +314,12 @@ func TestAgent(t *testing.T) {
 						}
 						return agent, err
 					}
-					tc.opts.FetchLogs = func(ctx context.Context, _ uuid.UUID, _ int64, follow bool) (<-chan []codersdk.WorkspaceAgentLog, io.Closer, error) {
+					tc.opts.FetchLogs = func(ctx context.Context, _ uuid.UUID, _ int64, follow bool) (<-chan codersdk.WorkspaceAgentLogFollow, io.Closer, error) {
 						if follow {
 							return logs, closeFunc(func() error { return nil }), nil
 						}
 
-						fetchLogs := make(chan []codersdk.WorkspaceAgentLog, 1)
+						fetchLogs := make(chan codersdk.WorkspaceAgentLogFollow, 1)
 						select {
 						case <-ctx.Done():
 							return nil, nil, ctx.Err()

@@ -181,6 +181,9 @@ DELETE FROM workspace_agent_logs WHERE agent_id IN
 	(SELECT id FROM workspace_agents WHERE last_connected_at IS NOT NULL
 		AND last_connected_at < NOW() - INTERVAL '7 day');
 
+-- name: DeleteWorkspaceAgentLogsBySource :exec
+DELETE FROM workspace_agent_logs WHERE agent_id = $1 AND source = $2;
+
 -- name: GetWorkspaceAgentsInLatestBuildByWorkspaceID :many
 SELECT
 	workspace_agents.*

@@ -195,6 +195,13 @@ func (m metricsStore) DeleteTailnetClient(ctx context.Context, arg database.Dele
 	return m.s.DeleteTailnetClient(ctx, arg)
 }
 
+func (m metricsStore) DeleteWorkspaceAgentLogsBySource(ctx context.Context, arg database.DeleteWorkspaceAgentLogsBySourceParams) error {
+	start := time.Now()
+	r0 := m.s.DeleteWorkspaceAgentLogsBySource(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteWorkspaceAgentLogsBySource").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
 	start := time.Now()
 	apiKey, err := m.s.GetAPIKeyByID(ctx, id)

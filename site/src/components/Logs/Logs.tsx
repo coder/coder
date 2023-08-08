@@ -1,5 +1,5 @@
 import { makeStyles } from "@mui/styles"
-import { LogLevel } from "api/typesGenerated"
+import { LogLevel, WorkspaceAgentLogSource } from "api/typesGenerated"
 import dayjs from "dayjs"
 import { FC, useMemo } from "react"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
@@ -11,6 +11,7 @@ export interface Line {
   time: string
   output: string
   level: LogLevel
+  source?: WorkspaceAgentLogSource
 }
 
 export interface LogsProps {

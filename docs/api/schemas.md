@@ -308,15 +308,17 @@
       "output": "string",
       "source": "startup_script"
     }
-  ]
+  ],
+  "source": "startup_script"
 }
 ```
 
 ### Properties
 
-| Name   | Type                                  | Required | Restrictions | Description |
-| ------ | ------------------------------------- | -------- | ------------ | ----------- |
-| `logs` | array of [agentsdk.Log](#agentsdklog) | false    |              |             |
+| Name     | Type                                                                 | Required | Restrictions | Description |
+| -------- | -------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `logs`   | array of [agentsdk.Log](#agentsdklog)                                | false    |              |             |
+| `source` | [codersdk.WorkspaceAgentLogSource](#codersdkworkspaceagentlogsource) | false    |              |             |
 
 ## agentsdk.PostAppHealthsRequest
 
@@ -5593,18 +5595,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "created_at": "2019-08-24T14:15:22Z",
   "id": 0,
   "level": "trace",
-  "output": "string"
+  "output": "string",
+  "source": "startup_script"
 }
 ```
 
 ### Properties
 
-| Name         | Type                                   | Required | Restrictions | Description |
-| ------------ | -------------------------------------- | -------- | ------------ | ----------- |
-| `created_at` | string                                 | false    |              |             |
-| `id`         | integer                                | false    |              |             |
-| `level`      | [codersdk.LogLevel](#codersdkloglevel) | false    |              |             |
-| `output`     | string                                 | false    |              |             |
+| Name         | Type                                                                 | Required | Restrictions | Description |
+| ------------ | -------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `created_at` | string                                                               | false    |              |             |
+| `id`         | integer                                                              | false    |              |             |
+| `level`      | [codersdk.LogLevel](#codersdkloglevel)                               | false    |              |             |
+| `output`     | string                                                               | false    |              |             |
+| `source`     | [codersdk.WorkspaceAgentLogSource](#codersdkworkspaceagentlogsource) | false    |              |             |
 
 ## codersdk.WorkspaceAgentLogSource
 

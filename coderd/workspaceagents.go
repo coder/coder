@@ -295,7 +295,7 @@ func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request)
 		source = append(source, parsedSource)
 	}
 
-	logs, err := api.Database.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
+	_, err := api.Database.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
 		AgentID:      workspaceAgent.ID,
 		CreatedAt:    createdAt,
 		Output:       output,
@@ -355,13 +355,9 @@ func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	lowestLogID := logs[0].ID
-
 	// Publish by the lowest log ID inserted so the
 	// log stream will fetch everything from that point.
-	api.publishWorkspaceAgentLogsUpdate(ctx, workspaceAgent.ID, agentsdk.LogsNotifyMessage{
-		CreatedAfter: lowestLogID - 1,
-	})
+	api.publishWorkspaceAgentLogsUpdate(ctx, workspaceAgent.ID, agentsdk.LogsNotifyMessage{})
 
 	if workspaceAgent.LogsLength == 0 {
 		// If these are the first logs being appended, we publish a UI update
@@ -487,7 +483,9 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 
 	// The Go stdlib JSON encoder appends a newline character after message write.
 	encoder := json.NewEncoder(wsNetConn)
-	err = encoder.Encode(convertWorkspaceAgentLogs(logs))
+	err = encoder.Encode(codersdk.WorkspaceAgentLogFollow{
+		Logs: convertWorkspaceAgentLogs(logs),
+	})
 	if err != nil {
 		return
 	}
@@ -497,16 +495,22 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 		lastSentLogID = logs[len(logs)-1].ID
 	}
 
-	notifyCh := make(chan struct{}, 1)
+	notifyCh := make(chan agentsdk.LogsNotifyMessage, 1)
 	// Allow us to immediately check if we missed any logs
 	// between initial fetch and subscribe.
-	notifyCh <- struct{}{}
+	notifyCh <- agentsdk.LogsNotifyMessage{}
 
 	// Subscribe early to prevent missing log events.
-	closeSubscribe, err := api.Pubsub.Subscribe(agentsdk.LogsNotifyChannel(workspaceAgent.ID), func(_ context.Context, _ []byte) {
-		// The message is not important, we're tracking lastSentLogID manually.
+	closeSubscribe, err := api.Pubsub.Subscribe(agentsdk.LogsNotifyChannel(workspaceAgent.ID), func(_ context.Context, logs []byte) {
+		var msg agentsdk.LogsNotifyMessage
+		err := json.Unmarshal(logs, &msg)
+		if err != nil {
+			api.Logger.Warn(ctx, "failed to unmarshal logs notify message", slog.F("error", err))
+			return
+		}
+
 		select {
-		case notifyCh <- struct{}{}:
+		case notifyCh <- msg:
 		default:
 		}
 	})
@@ -520,7 +524,7 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	defer closeSubscribe()
 
 	// Buffer size controls the log prefetch capacity.
-	bufferedLogs := make(chan []database.WorkspaceAgentLog, 8)
+	bufferedLogs := make(chan codersdk.WorkspaceAgentLogFollow, 8)
 	// Check at least once per minute in case we didn't receive a pubsub message.
 	recheckInterval := time.Minute
 	t := time.NewTicker(recheckInterval)
@@ -528,13 +532,13 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 
 	go func() {
 		defer close(bufferedLogs)
-
+		var msg agentsdk.LogsNotifyMessage
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-t.C:
-			case <-notifyCh:
+			case msg = <-notifyCh:
 				t.Reset(recheckInterval)
 			}
 
@@ -549,7 +553,7 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 				logger.Warn(ctx, "failed to get workspace agent logs after", slog.Error(err))
 				continue
 			}
-			if len(logs) == 0 {
+			if len(logs) == 0 && msg.DeleteSource == nil {
 				// Just keep listening - more logs might come in the future!
 				continue
 			}
@@ -557,8 +561,13 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 			select {
 			case <-ctx.Done():
 				return
-			case bufferedLogs <- logs:
-				lastSentLogID = logs[len(logs)-1].ID
+			case bufferedLogs <- codersdk.WorkspaceAgentLogFollow{
+				Logs:         convertWorkspaceAgentLogs(logs),
+				DeleteSource: msg.DeleteSource,
+			}:
+				if len(logs) != 0 {
+					lastSentLogID = logs[len(logs)-1].ID
+				}
 			}
 		}
 	}()
@@ -584,12 +593,51 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 				}
 				return
 			}
-			err = encoder.Encode(convertWorkspaceAgentLogs(logs))
+			err = encoder.Encode(logs)
 			if err != nil {
 				return
 			}
 		}
 	}
+}
+
+// @Summary Delete workspace agent logs
+// @ID delete-workspace-agent-logs
+// @Description Delete all logs for a workspace agent for a specific source.
+// @Tags Agents
+// @Param workspaceagent path string true "Workspace agent ID" format(uuid)
+// @Param source query codersdk.WorkspaceAgentLogSource true "Log source"
+// @Success 204
+// @Router /workspaceagents/{workspaceagent}/logs [delete]
+func (api *API) deleteWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+	source := codersdk.WorkspaceAgentLogSource(r.URL.Query().Get("source"))
+	dbSource := database.WorkspaceAgentLogSource(source)
+	if !dbSource.Valid() {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid source.",
+		})
+		return
+	}
+
+	err := api.Database.DeleteWorkspaceAgentLogsBySource(ctx, database.DeleteWorkspaceAgentLogsBySourceParams{
+		AgentID: workspaceAgent.ID,
+		Source:  dbSource,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to reset workspace agent logs.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	api.publishWorkspaceAgentLogsUpdate(ctx, workspaceAgent.ID, agentsdk.LogsNotifyMessage{
+		DeleteSource: &source,
+	})
+
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 // @Summary Get listening ports for workspace agent
@@ -2105,6 +2153,7 @@ func convertWorkspaceAgentLog(logEntry database.WorkspaceAgentLog) codersdk.Work
 		CreatedAt: logEntry.CreatedAt,
 		Output:    logEntry.Output,
 		Level:     codersdk.LogLevel(logEntry.Level),
+		Source:    codersdk.WorkspaceAgentLogSource(logEntry.Source),
 	}
 }
 

@@ -1342,6 +1342,13 @@ export interface WorkspaceAgentLog {
   readonly created_at: string
   readonly output: string
   readonly level: LogLevel
+  readonly source: WorkspaceAgentLogSource
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentLogFollow {
+  readonly logs: WorkspaceAgentLog[]
+  readonly delete_source?: WorkspaceAgentLogSource
 }
 
 // From codersdk/workspaceagents.go

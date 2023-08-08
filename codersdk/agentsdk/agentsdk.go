@@ -646,6 +646,18 @@ func (c *Client) PatchLogs(ctx context.Context, req PatchLogs) error {
 	return nil
 }
 
+func (c *Client) ClearLogs(ctx context.Context, source codersdk.WorkspaceAgentLogSource) error {
+	res, err := c.SDK.Request(ctx, http.MethodDelete, "/api/v2/workspaceagents/me/logs?source="+string(source), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return codersdk.ReadBodyAsError(res)
+	}
+	return nil
+}
+
 // GetServiceBanner relays the service banner config.
 func (c *Client) GetServiceBanner(ctx context.Context) (codersdk.ServiceBannerConfig, error) {
 	res, err := c.SDK.Request(ctx, http.MethodGet, "/api/v2/appearance", nil)
@@ -744,8 +756,11 @@ func LogsNotifyChannel(agentID uuid.UUID) string {
 	return fmt.Sprintf("agent-logs:%s", agentID)
 }
 
+// LogsNotifyMessage is the message sent to the logs notify channel.
+// It always is emitted when new logs are available.
 type LogsNotifyMessage struct {
-	CreatedAfter int64 `json:"created_after"`
+	// DeleteSource is optionally sent if a log source was deleted.
+	DeleteSource *codersdk.WorkspaceAgentLogSource `json:"delete_source"`
 }
 
 type closeNetConn struct {

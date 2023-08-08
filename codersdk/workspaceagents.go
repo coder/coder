@@ -628,7 +628,7 @@ func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.
 }
 
 //nolint:revive // Follow is a control flag on the server as well.
-func (c *Client) WorkspaceAgentLogsAfter(ctx context.Context, agentID uuid.UUID, after int64, follow bool) (<-chan []WorkspaceAgentLog, io.Closer, error) {
+func (c *Client) WorkspaceAgentLogsAfter(ctx context.Context, agentID uuid.UUID, after int64, follow bool) (<-chan WorkspaceAgentLogFollow, io.Closer, error) {
 	var queryParams []string
 	if after != 0 {
 		queryParams = append(queryParams, fmt.Sprintf("after=%d", after))
@@ -656,14 +656,14 @@ func (c *Client) WorkspaceAgentLogsAfter(ctx context.Context, agentID uuid.UUID,
 			return nil, nil, ReadBodyAsError(resp)
 		}
 
-		var logs []WorkspaceAgentLog
-		err = json.NewDecoder(resp.Body).Decode(&logs)
+		var logStream WorkspaceAgentLogFollow
+		err = json.NewDecoder(resp.Body).Decode(&logStream)
 		if err != nil {
 			return nil, nil, xerrors.Errorf("decode startup logs: %w", err)
 		}
 
-		ch := make(chan []WorkspaceAgentLog, 1)
-		ch <- logs
+		ch := make(chan WorkspaceAgentLogFollow, 1)
+		ch <- logStream
 		close(ch)
 		return ch, closeFunc(func() error { return nil }), nil
 	}
@@ -690,7 +690,7 @@ func (c *Client) WorkspaceAgentLogsAfter(ctx context.Context, agentID uuid.UUID,
 		}
 		return nil, nil, ReadBodyAsError(res)
 	}
-	logChunks := make(chan []WorkspaceAgentLog)
+	logChunks := make(chan WorkspaceAgentLogFollow)
 	closed := make(chan struct{})
 	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageText)
 	decoder := json.NewDecoder(wsNetConn)
@@ -699,15 +699,15 @@ func (c *Client) WorkspaceAgentLogsAfter(ctx context.Context, agentID uuid.UUID,
 		defer close(logChunks)
 		defer conn.Close(websocket.StatusGoingAway, "")
 		for {
-			var logs []WorkspaceAgentLog
-			err = decoder.Decode(&logs)
+			var logStream WorkspaceAgentLogFollow
+			err = decoder.Decode(&logStream)
 			if err != nil {
 				return
 			}
 			select {
 			case <-ctx.Done():
 				return
-			case logChunks <- logs:
+			case logChunks <- logStream:
 			}
 		}
 	}()
@@ -745,10 +745,16 @@ const (
 )
 
 type WorkspaceAgentLog struct {
-	ID        int64     `json:"id"`
-	CreatedAt time.Time `json:"created_at" format:"date-time"`
-	Output    string    `json:"output"`
-	Level     LogLevel  `json:"level"`
+	ID        int64                   `json:"id"`
+	CreatedAt time.Time               `json:"created_at" format:"date-time"`
+	Output    string                  `json:"output"`
+	Level     LogLevel                `json:"level"`
+	Source    WorkspaceAgentLogSource `json:"source"`
+}
+
+type WorkspaceAgentLogFollow struct {
+	Logs         []WorkspaceAgentLog      `json:"logs"`
+	DeleteSource *WorkspaceAgentLogSource `json:"delete_source"`
 }
 
 type AgentSubsystem string

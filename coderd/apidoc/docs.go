@@ -6396,6 +6396,9 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/agentsdk.Log"
                     }
+                },
+                "source": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentLogSource"
                 }
             }
         },
@@ -10581,6 +10584,9 @@ const docTemplate = `{
                 },
                 "output": {
                     "type": "string"
+                },
+                "source": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentLogSource"
                 }
             }
         },

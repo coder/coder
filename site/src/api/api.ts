@@ -1286,7 +1286,7 @@ export const watchBuildLogsByTemplateVersionId = (
 
 type WatchWorkspaceAgentLogsOptions = {
   after: number
-  onMessage: (logs: TypesGen.WorkspaceAgentLog[]) => void
+  onMessage: (logFollow: TypesGen.WorkspaceAgentLogFollow) => void
   onDone: () => void
   onError: (error: Error) => void
 }
@@ -1311,7 +1311,7 @@ export const watchWorkspaceAgentLogs = (
   )
   socket.binaryType = "blob"
   socket.addEventListener("message", (event) => {
-    const logs = JSON.parse(event.data) as TypesGen.WorkspaceAgentLog[]
+    const logs = JSON.parse(event.data) as TypesGen.WorkspaceAgentLogFollow
     onMessage(logs)
   })
   socket.addEventListener("error", () => {

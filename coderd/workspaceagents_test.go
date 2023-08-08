@@ -232,15 +232,15 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 		defer func() {
 			_ = closer.Close()
 		}()
-		var logChunk []codersdk.WorkspaceAgentLog
+		var logChunk codersdk.WorkspaceAgentLogFollow
 		select {
 		case <-ctx.Done():
 		case logChunk = <-logs:
 		}
 		require.NoError(t, ctx.Err())
-		require.Len(t, logChunk, 2) // No EOF.
-		require.Equal(t, "testing", logChunk[0].Output)
-		require.Equal(t, "testing2", logChunk[1].Output)
+		require.Len(t, logChunk.Logs, 2) // No EOF.
+		require.Equal(t, "testing", logChunk.Logs[0].Output)
+		require.Equal(t, "testing2", logChunk.Logs[1].Output)
 	})
 	t.Run("PublishesOnOverflow", func(t *testing.T) {
 		t.Parallel()
@@ -303,6 +303,82 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 				break
 			}
 		}
+	})
+	t.Run("DeletesSource", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		authToken := uuid.NewString()
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:         echo.ParseComplete,
+			ProvisionPlan: echo.ProvisionComplete,
+			ProvisionApply: []*proto.Provision_Response{{
+				Type: &proto.Provision_Response_Complete{
+					Complete: &proto.Provision_Complete{
+						Resources: []*proto.Resource{{
+							Name: "example",
+							Type: "aws_instance",
+							Agents: []*proto.Agent{{
+								Id: uuid.NewString(),
+								Auth: &proto.Agent_Token{
+									Token: authToken,
+								},
+							}},
+						}},
+					},
+				},
+			}},
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		build := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		agentClient := agentsdk.New(client.URL)
+		agentClient.SetSessionToken(authToken)
+		err := agentClient.PatchLogs(ctx, agentsdk.PatchLogs{
+			Logs: []agentsdk.Log{
+				{
+					CreatedAt: database.Now(),
+					Output:    "startup",
+					Source:    codersdk.WorkspaceAgentLogSourceStartupScript,
+				},
+				{
+					CreatedAt: database.Now(),
+					Output:    "envbuilder",
+					Source:    codersdk.WorkspaceAgentLogSourceEnvbuilder,
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		logs, closer, err := client.WorkspaceAgentLogsAfter(ctx, build.Resources[0].Agents[0].ID, 0, true)
+		require.NoError(t, err)
+		defer func() {
+			_ = closer.Close()
+		}()
+		var logChunk codersdk.WorkspaceAgentLogFollow
+		select {
+		case <-ctx.Done():
+		case logChunk = <-logs:
+		}
+		require.NoError(t, ctx.Err())
+		require.Len(t, logChunk.Logs, 2) // No EOF.
+		require.Equal(t, "startup", logChunk.Logs[0].Output)
+		require.Equal(t, "envbuilder", logChunk.Logs[1].Output)
+
+		err = agentClient.ClearLogs(ctx, codersdk.WorkspaceAgentLogSourceEnvbuilder)
+		require.NoError(t, err)
+		select {
+		case <-ctx.Done():
+		case logChunk = <-logs:
+		}
+		require.NoError(t, ctx.Err())
+		require.NotNil(t, logChunk.DeleteSource)
+		require.Equal(t, codersdk.WorkspaceAgentLogSourceEnvbuilder, *logChunk.DeleteSource)
 	})
 }
 

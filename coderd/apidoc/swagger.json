@@ -5646,6 +5646,9 @@
           "items": {
             "$ref": "#/definitions/agentsdk.Log"
           }
+        },
+        "source": {
+          "$ref": "#/definitions/codersdk.WorkspaceAgentLogSource"
         }
       }
     },
@@ -9600,6 +9603,9 @@
         },
         "output": {
           "type": "string"
+        },
+        "source": {
+          "$ref": "#/definitions/codersdk.WorkspaceAgentLogSource"
         }
       }
     },

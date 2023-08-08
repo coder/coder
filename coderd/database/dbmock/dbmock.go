@@ -281,6 +281,20 @@ func (mr *MockStoreMockRecorder) DeleteTailnetClient(arg0, arg1 interface{}) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTailnetClient", reflect.TypeOf((*MockStore)(nil).DeleteTailnetClient), arg0, arg1)
 }
 
+// DeleteWorkspaceAgentLogsBySource mocks base method.
+func (m *MockStore) DeleteWorkspaceAgentLogsBySource(arg0 context.Context, arg1 database.DeleteWorkspaceAgentLogsBySourceParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteWorkspaceAgentLogsBySource", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteWorkspaceAgentLogsBySource indicates an expected call of DeleteWorkspaceAgentLogsBySource.
+func (mr *MockStoreMockRecorder) DeleteWorkspaceAgentLogsBySource(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkspaceAgentLogsBySource", reflect.TypeOf((*MockStore)(nil).DeleteWorkspaceAgentLogsBySource), arg0, arg1)
+}
+
 // GetAPIKeyByID mocks base method.
 func (m *MockStore) GetAPIKeyByID(arg0 context.Context, arg1 string) (database.APIKey, error) {
 	m.ctrl.T.Helper()

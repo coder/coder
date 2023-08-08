@@ -5927,6 +5927,20 @@ func (q *sqlQuerier) DeleteOldWorkspaceAgentLogs(ctx context.Context) error {
 	return err
 }
 
+const deleteWorkspaceAgentLogsBySource = `-- name: DeleteWorkspaceAgentLogsBySource :exec
+DELETE FROM workspace_agent_logs WHERE agent_id = $1 AND source = $2
+`
+
+type DeleteWorkspaceAgentLogsBySourceParams struct {
+	AgentID uuid.UUID               `db:"agent_id" json:"agent_id"`
+	Source  WorkspaceAgentLogSource `db:"source" json:"source"`
+}
+
+func (q *sqlQuerier) DeleteWorkspaceAgentLogsBySource(ctx context.Context, arg DeleteWorkspaceAgentLogsBySourceParams) error {
+	_, err := q.db.ExecContext(ctx, deleteWorkspaceAgentLogsBySource, arg.AgentID, arg.Source)
+	return err
+}
+
 const getWorkspaceAgentByAuthToken = `-- name: GetWorkspaceAgentByAuthToken :one
 SELECT
 	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, logs_length, logs_overflowed, subsystem, startup_script_behavior, started_at, ready_at

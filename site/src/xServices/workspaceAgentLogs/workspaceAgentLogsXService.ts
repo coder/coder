@@ -1,6 +1,7 @@
 import * as API from "api/api"
 import { createMachine, assign } from "xstate"
 import { Line } from "components/Logs/Logs"
+import { WorkspaceAgentLogSource } from "api/typesGenerated"
 
 // Logs are stored as the Line interface to make rendering
 // much more efficient. Instead of mapping objects each time, we're
@@ -18,6 +19,10 @@ export const workspaceAgentLogsMachine = createMachine(
         | {
             type: "ADD_LOGS"
             logs: LineWithID[]
+          }
+        | {
+            type: "RESET_LOG_SOURCE"
+            source: WorkspaceAgentLogSource
           }
         | {
             type: "FETCH_LOGS"
@@ -62,6 +67,9 @@ export const workspaceAgentLogsMachine = createMachine(
           ADD_LOGS: {
             actions: "addLogs",
           },
+          RESET_LOG_SOURCE: {
+            actions: "resetLogSource",
+          },
           DONE: {
             target: "loaded",
           },
@@ -81,6 +89,7 @@ export const workspaceAgentLogsMachine = createMachine(
             level: log.level || "info",
             output: log.output,
             time: log.created_at,
+            source: log.source,
           })),
         ),
       streamLogs: (ctx) => async (callback) => {
@@ -91,16 +100,23 @@ export const workspaceAgentLogsMachine = createMachine(
 
         const socket = API.watchWorkspaceAgentLogs(ctx.agentID, {
           after,
-          onMessage: (logs) => {
+          onMessage: (logFollow) => {
             callback({
               type: "ADD_LOGS",
-              logs: logs.map((log) => ({
+              logs: logFollow.logs.map((log) => ({
                 id: log.id,
                 level: log.level || "info",
                 output: log.output,
                 time: log.created_at,
+                source: log.source,
               })),
             })
+            if (logFollow.delete_source) {
+              callback({
+                type: "RESET_LOG_SOURCE",
+                source: logFollow.delete_source,
+              })
+            }
           },
           onDone: () => {
             callback({ type: "DONE" })
@@ -123,6 +139,11 @@ export const workspaceAgentLogsMachine = createMachine(
         logs: (context, event) => {
           const previousLogs = context.logs ?? []
           return [...previousLogs, ...event.logs]
+        },
+      }),
+      resetLogSource: assign({
+        logs: (context, event) => {
+          return (context.logs ?? []).filter((log) => log.source !== event.source)
         },
       }),
     },
