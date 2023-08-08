@@ -281,6 +281,64 @@ func AllBuildReasonValues() []BuildReason {
 	}
 }
 
+type GroupSource string
+
+const (
+	GroupSourceUser GroupSource = "user"
+	GroupSourceOidc GroupSource = "oidc"
+)
+
+func (e *GroupSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = GroupSource(s)
+	case string:
+		*e = GroupSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for GroupSource: %T", src)
+	}
+	return nil
+}
+
+type NullGroupSource struct {
+	GroupSource GroupSource `json:"group_source"`
+	Valid       bool        `json:"valid"` // Valid is true if GroupSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullGroupSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.GroupSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.GroupSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullGroupSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.GroupSource), nil
+}
+
+func (e GroupSource) Valid() bool {
+	switch e {
+	case GroupSourceUser,
+		GroupSourceOidc:
+		return true
+	}
+	return false
+}
+
+func AllGroupSourceValues() []GroupSource {
+	return []GroupSource{
+		GroupSourceUser,
+		GroupSourceOidc,
+	}
+}
+
 type LogLevel string
 
 const (
@@ -1498,6 +1556,8 @@ type Group struct {
 	QuotaAllowance int32     `db:"quota_allowance" json:"quota_allowance"`
 	// Display name is a custom, human-friendly group name that user can set. This is not required to be unique and can be the empty string.
 	DisplayName string `db:"display_name" json:"display_name"`
+	// Source indicates how the group was created. It can be created by a user manually, or through some system process like OIDC group sync.
+	Source GroupSource `db:"source" json:"source"`
 }
 
 type GroupMember struct {

@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"os"
 	"reflect"
 	"sync"
 	"time"
@@ -49,6 +50,14 @@ const (
 	WorkspaceAgentReconnectingPTYPort = 2
 	WorkspaceAgentSpeedtestPort       = 3
 )
+
+// EnvMagicsockDebugLogging enables super-verbose logging for the magicsock
+// internals. A logger must be supplied to the connection with the debug level
+// enabled.
+//
+// With this disabled, you still get a lot of output if you have a valid logger
+// with the debug level enabled.
+const EnvMagicsockDebugLogging = "CODER_MAGICSOCK_DEBUG_LOGGING"
 
 func init() {
 	// Globally disable network namespacing. All networking happens in
@@ -166,6 +175,18 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	magicConn := sys.MagicSock.Get()
 	if options.DERPHeader != nil {
 		magicConn.SetDERPHeader(options.DERPHeader.Clone())
+	}
+
+	if v, ok := os.LookupEnv(EnvMagicsockDebugLogging); ok {
+		vBool, err := strconv.ParseBool(v)
+		if err != nil {
+			options.Logger.Debug(context.Background(), fmt.Sprintf("magicsock debug logging disabled due to invalid value %s=%q, use true or false", EnvMagicsockDebugLogging, v))
+		} else {
+			magicConn.SetDebugLoggingEnabled(vBool)
+			options.Logger.Debug(context.Background(), fmt.Sprintf("magicsock debug logging set by %s=%t", EnvMagicsockDebugLogging, vBool))
+		}
+	} else {
+		options.Logger.Debug(context.Background(), fmt.Sprintf("magicsock debug logging disabled, use %s=true to enable", EnvMagicsockDebugLogging))
 	}
 
 	// Update the keys for the magic connection!
@@ -351,6 +372,10 @@ type Conn struct {
 	nodeCallback             func(node *Node)
 
 	trafficStats *connstats.Statistics
+}
+
+func (c *Conn) MagicsockSetDebugLoggingEnabled(enabled bool) {
+	c.magicConn.SetDebugLoggingEnabled(enabled)
 }
 
 func (c *Conn) SetAddresses(ips []netip.Prefix) error {

@@ -31,6 +31,11 @@ CREATE TYPE build_reason AS ENUM (
     'autodelete'
 );
 
+CREATE TYPE group_source AS ENUM (
+    'user',
+    'oidc'
+);
+
 CREATE TYPE log_level AS ENUM (
     'trace',
     'debug',
@@ -299,10 +304,13 @@ CREATE TABLE groups (
     organization_id uuid NOT NULL,
     avatar_url text DEFAULT ''::text NOT NULL,
     quota_allowance integer DEFAULT 0 NOT NULL,
-    display_name text DEFAULT ''::text NOT NULL
+    display_name text DEFAULT ''::text NOT NULL,
+    source group_source DEFAULT 'user'::group_source NOT NULL
 );
 
 COMMENT ON COLUMN groups.display_name IS 'Display name is a custom, human-friendly group name that user can set. This is not required to be unique and can be the empty string.';
+
+COMMENT ON COLUMN groups.source IS 'Source indicates how the group was created. It can be created by a user manually, or through some system process like OIDC group sync.';
 
 CREATE TABLE licenses (
     id integer NOT NULL,

@@ -22,7 +22,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/database"
 )
@@ -460,6 +459,17 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		}
 		return nil
 	})
+	eg.Go(func() error {
+		proxies, err := r.options.Database.GetWorkspaceProxies(ctx)
+		if err != nil {
+			return xerrors.Errorf("get workspace proxies: %w", err)
+		}
+		snapshot.WorkspaceProxies = make([]WorkspaceProxy, 0, len(proxies))
+		for _, proxy := range proxies {
+			snapshot.WorkspaceProxies = append(snapshot.WorkspaceProxies, ConvertWorkspaceProxy(proxy))
+		}
+		return nil
+	})
 
 	err := eg.Wait()
 	if err != nil {
@@ -665,6 +675,19 @@ func ConvertLicense(license database.License) License {
 	}
 }
 
+// ConvertWorkspaceProxy anonymizes a workspace proxy.
+func ConvertWorkspaceProxy(proxy database.WorkspaceProxy) WorkspaceProxy {
+	return WorkspaceProxy{
+		ID:          proxy.ID,
+		Name:        proxy.Name,
+		DisplayName: proxy.DisplayName,
+		DerpEnabled: proxy.DerpEnabled,
+		DerpOnly:    proxy.DerpOnly,
+		CreatedAt:   proxy.CreatedAt,
+		UpdatedAt:   proxy.UpdatedAt,
+	}
+}
+
 // Snapshot represents a point-in-time anonymized database dump.
 // Data is aggregated by latest on the server-side, so partial data
 // can be sent without issue.
@@ -684,6 +707,7 @@ type Snapshot struct {
 	WorkspaceBuilds           []WorkspaceBuild            `json:"workspace_build"`
 	WorkspaceResources        []WorkspaceResource         `json:"workspace_resources"`
 	WorkspaceResourceMetadata []WorkspaceResourceMetadata `json:"workspace_resource_metadata"`
+	WorkspaceProxies          []WorkspaceProxy            `json:"workspace_proxies"`
 	CLIInvocations            []CLIInvocation             `json:"cli_invocations"`
 }
 
@@ -870,6 +894,18 @@ type CLIInvocation struct {
 	Options []CLIOption `json:"options"`
 	// InvokedAt is provided for deduplication purposes.
 	InvokedAt time.Time `json:"invoked_at"`
+}
+
+type WorkspaceProxy struct {
+	ID          uuid.UUID `json:"id"`
+	Name        string    `json:"name"`
+	DisplayName string    `json:"display_name"`
+	// No URLs since we don't send deployment URL.
+	DerpEnabled bool `json:"derp_enabled"`
+	DerpOnly    bool `json:"derp_only"`
+	// No Status since it may contain sensitive information.
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type noopReporter struct{}

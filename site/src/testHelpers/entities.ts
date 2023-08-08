@@ -1670,6 +1670,7 @@ export const MockGroup: TypesGen.Group = {
   organization_id: MockOrganization.id,
   members: [MockUser, MockUser2],
   quota_allowance: 5,
+  source: "user",
 }
 
 export const MockTemplateACL: TypesGen.TemplateACL = {

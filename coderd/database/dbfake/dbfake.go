@@ -3649,6 +3649,7 @@ func (q *FakeQuerier) InsertGroup(_ context.Context, arg database.InsertGroupPar
 		OrganizationID: arg.OrganizationID,
 		AvatarURL:      arg.AvatarURL,
 		QuotaAllowance: arg.QuotaAllowance,
+		Source:         database.GroupSourceUser,
 	}
 
 	q.groups = append(q.groups, group)
@@ -3699,6 +3700,45 @@ func (q *FakeQuerier) InsertLicense(
 	q.lastLicenseID = l.ID
 	q.licenses = append(q.licenses, l)
 	return l, nil
+}
+
+func (q *FakeQuerier) InsertMissingGroups(_ context.Context, arg database.InsertMissingGroupsParams) ([]database.Group, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	groupNameMap := make(map[string]struct{})
+	for _, g := range arg.GroupNames {
+		groupNameMap[g] = struct{}{}
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, g := range q.groups {
+		if g.OrganizationID != arg.OrganizationID {
+			continue
+		}
+		delete(groupNameMap, g.Name)
+	}
+
+	newGroups := make([]database.Group, 0, len(groupNameMap))
+	for k := range groupNameMap {
+		g := database.Group{
+			ID:             uuid.New(),
+			Name:           k,
+			OrganizationID: arg.OrganizationID,
+			AvatarURL:      "",
+			QuotaAllowance: 0,
+			DisplayName:    "",
+			Source:         arg.Source,
+		}
+		q.groups = append(q.groups, g)
+		newGroups = append(newGroups, g)
+	}
+
+	return newGroups, nil
 }
 
 func (q *FakeQuerier) InsertOrganization(_ context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {

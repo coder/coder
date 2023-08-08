@@ -59,9 +59,9 @@ func TestBatchStats(t *testing.T) {
 	require.Empty(t, stats, "should have no stats for workspace")
 
 	// Given: a single data point is added for workspace
-	t2 := database.Now()
+	t2 := t1.Add(time.Second)
 	t.Logf("inserting 1 stat")
-	require.NoError(t, b.Add(deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randAgentSDKStats(t)))
+	require.NoError(t, b.Add(t2.Add(time.Millisecond), deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randAgentSDKStats(t)))
 
 	// When: it becomes time to report stats
 	// Signal a tick and wait for a flush to complete.
@@ -77,7 +77,7 @@ func TestBatchStats(t *testing.T) {
 
 	// Given: a lot of data points are added for both workspaces
 	// (equal to batch size)
-	t3 := database.Now()
+	t3 := t2.Add(time.Second)
 	done := make(chan struct{})
 
 	go func() {
@@ -85,9 +85,9 @@ func TestBatchStats(t *testing.T) {
 		t.Logf("inserting %d stats", defaultBufferSize)
 		for i := 0; i < defaultBufferSize; i++ {
 			if i%2 == 0 {
-				require.NoError(t, b.Add(deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randAgentSDKStats(t)))
+				require.NoError(t, b.Add(t3.Add(time.Millisecond), deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randAgentSDKStats(t)))
 			} else {
-				require.NoError(t, b.Add(deps2.Agent.ID, deps2.User.ID, deps2.Template.ID, deps2.Workspace.ID, randAgentSDKStats(t)))
+				require.NoError(t, b.Add(t3.Add(time.Millisecond), deps2.Agent.ID, deps2.User.ID, deps2.Template.ID, deps2.Workspace.ID, randAgentSDKStats(t)))
 			}
 		}
 	}()
@@ -105,7 +105,7 @@ func TestBatchStats(t *testing.T) {
 	require.Len(t, stats, 2, "should have stats for both workspaces")
 
 	// Ensures that a subsequent flush pushes all the remaining data
-	t4 := database.Now()
+	t4 := t3.Add(time.Second)
 	tick <- t4
 	f2 := <-flushed
 	t.Logf("flush 4 completed")
@@ -113,7 +113,7 @@ func TestBatchStats(t *testing.T) {
 	require.Equal(t, expectedCount, f2, "did not flush expected remaining rows")
 
 	// Ensure that a subsequent flush does not push stale data.
-	t5 := database.Now()
+	t5 := t4.Add(time.Second)
 	tick <- t5
 	f = <-flushed
 	require.Zero(t, f, "expected zero stats to have been flushed")

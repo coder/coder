@@ -6624,6 +6624,9 @@ const docTemplate = `{
                 }
             }
         },
+        "clibase.Regexp": {
+            "type": "object"
+        },
         "clibase.Struct-array_codersdk_GitAuthConfig": {
             "type": "object",
             "properties": {
@@ -8024,7 +8027,8 @@ const docTemplate = `{
                 "tailnet_pg_coordinator",
                 "single_tailnet",
                 "template_restart_requirement",
-                "deployment_health_page"
+                "deployment_health_page",
+                "template_parameters_insights"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
@@ -8032,7 +8036,8 @@ const docTemplate = `{
                 "ExperimentTailnetPGCoordinator",
                 "ExperimentSingleTailnet",
                 "ExperimentTemplateRestartRequirement",
-                "ExperimentDeploymentHealthPage"
+                "ExperimentDeploymentHealthPage",
+                "ExperimentTemplateParametersInsights"
             ]
         },
         "codersdk.Feature": {
@@ -8272,8 +8277,22 @@ const docTemplate = `{
                 },
                 "quota_allowance": {
                     "type": "integer"
+                },
+                "source": {
+                    "$ref": "#/definitions/codersdk.GroupSource"
                 }
             }
+        },
+        "codersdk.GroupSource": {
+            "type": "string",
+            "enum": [
+                "user",
+                "oidc"
+            ],
+            "x-enum-varnames": [
+                "GroupSourceUser",
+                "GroupSourceOIDC"
+            ]
         },
         "codersdk.Healthcheck": {
             "type": "object",
@@ -8581,8 +8600,14 @@ const docTemplate = `{
                 "email_field": {
                     "type": "string"
                 },
+                "group_auto_create": {
+                    "type": "boolean"
+                },
                 "group_mapping": {
                     "type": "object"
+                },
+                "group_regex_filter": {
+                    "$ref": "#/definitions/clibase.Regexp"
                 },
                 "groups_field": {
                     "type": "string"

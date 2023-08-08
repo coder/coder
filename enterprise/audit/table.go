@@ -156,6 +156,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"avatar_url":      ActionTrack,
 		"quota_allowance": ActionTrack,
 		"members":         ActionTrack,
+		"source":          ActionIgnore,
 	},
 	&database.APIKey{}: {
 		"id":               ActionIgnore,
