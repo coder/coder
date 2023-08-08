@@ -210,9 +210,12 @@ func (b *screenBackend) attach(ctx context.Context, _ string, conn net.Conn, hei
 }
 
 // close asks screen to kill the session by its ID.
-func (b *screenBackend) close(_ context.Context, _ slog.Logger) error {
+func (b *screenBackend) close(ctx context.Context, logger slog.Logger) {
 	// If the command errors that the session is already gone that is fine.
-	return b.sendCommand(context.Background(), "quit", []string{"No screen session found"})
+	err := b.sendCommand(context.Background(), "quit", []string{"No screen session found"})
+	if err != nil {
+		logger.Error(ctx, "close screen session", slog.Error(err))
+	}
 }
 
 // sendCommand runs a screen command against a running screen session.  If the

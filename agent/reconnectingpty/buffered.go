@@ -147,13 +147,15 @@ func (b *bufferedBackend) attach(ctx context.Context, connID string, conn net.Co
 
 // close closes all connections to the reconnecting PTY, clears the circular
 // buffer, and kills the process.
-func (b *bufferedBackend) close(ctx context.Context, logger slog.Logger) error {
-	var err error
+func (b *bufferedBackend) close(ctx context.Context, logger slog.Logger) {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 	b.circularBuffer.Reset()
 	for _, conn := range b.activeConns {
-		err = errors.Join(err, conn.Close())
+		connErr := conn.Close()
+		if connErr != nil {
+			logger.Error(ctx, "closed conn with error", slog.Error(connErr))
+		}
 	}
 	pttyErr := b.ptty.Close()
 	if pttyErr != nil {
@@ -163,5 +165,4 @@ func (b *bufferedBackend) close(ctx context.Context, logger slog.Logger) error {
 	if procErr != nil {
 		logger.Debug(ctx, "killed process with error", slog.Error(procErr))
 	}
-	return err
 }

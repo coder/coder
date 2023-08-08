@@ -53,7 +53,7 @@ const (
 type backend interface {
 	start(ctx context.Context, logger slog.Logger) error
 	attach(ctx context.Context, connID string, conn net.Conn, height, width uint16, logger slog.Logger) (pty.PTYCmd, error)
-	close(ctx context.Context, logger slog.Logger) error
+	close(ctx context.Context, logger slog.Logger)
 }
 
 // ReconnectingPTY is a pty that can be reconnected within a timeout and to
@@ -222,12 +222,8 @@ func (rpty *ReconnectingPTY) lifecycle(ctx context.Context, logger slog.Logger) 
 		rpty.setState(StateClosing, xerrors.Errorf("reconnecting pty closing: %w", reasonErr))
 	}
 	rpty.timer.Stop()
-	closeErr := rpty.backend.close(ctx, logger)
-	if closeErr != nil {
-		logger.Error(ctx, "closed reconnecting pty", slog.Error(closeErr))
-	} else {
-		logger.Debug(ctx, "closed reconnecting pty")
-	}
+	rpty.backend.close(ctx, logger)
+	logger.Debug(ctx, "closed reconnecting pty")
 	rpty.setState(StateDone, xerrors.Errorf("reconnecting pty closed: %w", reasonErr))
 }
 
