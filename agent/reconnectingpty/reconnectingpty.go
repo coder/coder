@@ -281,11 +281,17 @@ func (rpty *ReconnectingPTY) waitForState(state State) (State, error) {
 // waitForStateOrContext blocks until the state or a greater one is reached or
 // the provided context ends.
 func (rpty *ReconnectingPTY) waitForStateOrContext(ctx context.Context, state State) (State, error) {
+	nevermind := make(chan struct{})
+	defer close(nevermind)
 	go func() {
-		// Wake up when the context ends.
-		defer rpty.cond.Broadcast()
-		<-ctx.Done()
+		select {
+		case <-ctx.Done():
+			// Wake up when the context ends.
+			rpty.cond.Broadcast()
+		case <-nevermind:
+		}
 	}()
+
 	rpty.cond.L.Lock()
 	defer rpty.cond.L.Unlock()
 	for ctx.Err() == nil && state > rpty.state {
