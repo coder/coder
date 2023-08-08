@@ -545,14 +545,11 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		}()
 
 		matches := []string{
-			"added_parameter", "",
-			`Enter a value (default: "foobar")`, "abc",
+			"Planning workspace...", "",
 		}
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
-			value := matches[i+1]
 			pty.ExpectMatch(match)
-			pty.WriteLine(value)
 		}
 		<-doneChan
 	})
