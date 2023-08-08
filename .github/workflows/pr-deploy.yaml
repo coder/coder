@@ -53,7 +53,7 @@ jobs:
       - name: Get PR number, title, and branch name
         id: pr_info
         run: |
-          set -e pipefail
+          set -euo pipefail
           PR_NUMBER=${{ github.event.inputs.pr_number || github.event.pull_request.number }}
           PR_TITLE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/coder/coder/pulls/$PR_NUMBER | jq -r '.title')
           PR_BRANCH=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/coder/coder/pulls/$PR_NUMBER | jq -r '.head.ref')
@@ -65,7 +65,7 @@ jobs:
       - name: Set required tags
         id: set_tags
         run: |
-          set -e pipefail
+          set -euo pipefail
           echo "CODER_BASE_IMAGE_TAG=$CODER_BASE_IMAGE_TAG" >> $GITHUB_OUTPUT
           echo "CODER_IMAGE_TAG=$CODER_IMAGE_TAG" >> $GITHUB_OUTPUT
         env:
@@ -74,7 +74,7 @@ jobs:
 
       - name: Set up kubeconfig
         run: |
-          set -e pipefail
+          set -euo pipefail
           mkdir -p ~/.kube
           echo "${{ secrets.PR_DEPLOYMENTS_KUBECONFIG }}" > ~/.kube/config
           export KUBECONFIG=~/.kube/config
@@ -82,7 +82,7 @@ jobs:
       - name: Check if the helm deployment already exists
         id: check_deployment
         run: |
-          set -e pipefail
+          set -euo pipefail
           if helm status "pr${{ steps.pr_info.outputs.PR_NUMBER }}" --namespace "pr${{ steps.pr_info.outputs.PR_NUMBER }}" > /dev/null 2>&1; then
             echo "Deployment already exists. Skipping deployment."
             new=false
@@ -151,7 +151,7 @@ jobs:
       - name: Print number of changed files
         if: github.event_name == 'workflow_dispatch' || steps.check_deployment.outputs.NEW == 'false'
         run: |
-          set -e pipefail
+          set -euo pipefail
           echo "Total number of changed files: ${{ steps.filter.outputs.all_count }}"
           echo "Number of ignored files: ${{ steps.filter.outputs.ignored_count }}"
 
@@ -190,7 +190,7 @@ jobs:
 
       - name: Build and push Linux amd64 Docker image
         run: |
-          set -e pipefail
+          set -euo pipefail
           go mod download
           make gen/mark-fresh
           export DOCKER_IMAGE_NO_PREREQUISITES=true
@@ -221,7 +221,7 @@ jobs:
     steps:
       - name: Set up kubeconfig
         run: |
-          set -e pipefail
+          set -euo pipefail
           mkdir -p ~/.kube
           echo "${{ secrets.PR_DEPLOYMENTS_KUBECONFIG }}" > ~/.kube/config
           export KUBECONFIG=~/.kube/config
@@ -229,7 +229,7 @@ jobs:
       - name: Check if image exists
         if: needs.get_info.outputs.NEW == 'true'
         run: |
-          set -e pipefail
+          set -euo pipefail
           foundTag=$(curl -fsSL https://github.com/coder/coder/pkgs/container/coder-preview | grep -o ${{ env.CODER_IMAGE_TAG }} | head -n 1)
           if [ -z "$foundTag" ]; then
             echo "Image not found"
@@ -254,7 +254,7 @@ jobs:
       - name: Create PR namespace
         if: needs.get_info.outputs.NEW == 'true'
         run: |
-          set -e pipefail
+          set -euo pipefail
           # try to delete the namespace, but don't fail if it doesn't exist
           kubectl delete namespace "pr${{ env.PR_NUMBER }}" || true
           kubectl create namespace "pr${{ env.PR_NUMBER }}"
@@ -313,7 +313,7 @@ jobs:
         if: needs.get_info.outputs.NEW == 'true'
         # This service account will be used to grant full access to the namespace from the workspace
         run: |
-          set -e pipefail
+          set -euo pipefail
           # Create service account, role, rolebinding and secret
           cat <<EOF | kubectl apply -f -
           apiVersion: v1
@@ -446,7 +446,7 @@ jobs:
 
       - name: Install/Upgrade Helm chart
         run: |
-          set -e pipefail
+          set -euo pipefail
           if [[ ${{ github.event_name }} == "workflow_dispatch" ]]; then
             helm upgrade --install "pr${{ env.PR_NUMBER }}" ./helm \
             --namespace "pr${{ env.PR_NUMBER }}" \
@@ -474,7 +474,7 @@ jobs:
       - name: Get Coder binary
         if: needs.get_info.outputs.NEW == 'true'
         run: |
-          set -e pipefail
+          set -euo pipefail
 
           DEST="${HOME}/coder"
           URL="https://${{ env.PR_DEPLOYMENT_ACCESS_URL }}/bin/coder-linux-amd64"
@@ -501,7 +501,7 @@ jobs:
         if: needs.get_info.outputs.NEW == 'true'
         id: setup_deployment
         run: |
-          set -e pipefail
+          set -euo pipefail
 
           # Create first user
 
