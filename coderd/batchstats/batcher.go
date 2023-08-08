@@ -126,6 +126,7 @@ func New(ctx context.Context, opts ...Option) (*Batcher, func(), error) {
 
 // Add adds a stat to the batcher for the given workspace and agent.
 func (b *Batcher) Add(
+	now time.Time,
 	agentID uuid.UUID,
 	templateID uuid.UUID,
 	userID uuid.UUID,
@@ -135,7 +136,7 @@ func (b *Batcher) Add(
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	now := database.Now()
+	now = database.Time(now)
 
 	b.buf.ID = append(b.buf.ID, uuid.New())
 	b.buf.CreatedAt = append(b.buf.CreatedAt, now)

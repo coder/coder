@@ -59,9 +59,9 @@ func TestBatchStats(t *testing.T) {
 	require.Empty(t, stats, "should have no stats for workspace")
 
 	// Given: a single data point is added for workspace
-	t2 := database.Now()
+	t2 := t1.Add(time.Millisecond)
 	t.Logf("inserting 1 stat")
-	require.NoError(t, b.Add(deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randAgentSDKStats(t)))
+	require.NoError(t, b.Add(t2, deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randAgentSDKStats(t)))
 
 	// When: it becomes time to report stats
 	// Signal a tick and wait for a flush to complete.
@@ -77,7 +77,7 @@ func TestBatchStats(t *testing.T) {
 
 	// Given: a lot of data points are added for both workspaces
 	// (equal to batch size)
-	t3 := database.Now()
+	t3 := t2.Add(time.Millisecond)
 	done := make(chan struct{})
 
 	go func() {
@@ -85,9 +85,9 @@ func TestBatchStats(t *testing.T) {
 		t.Logf("inserting %d stats", defaultBufferSize)
 		for i := 0; i < defaultBufferSize; i++ {
 			if i%2 == 0 {
-				require.NoError(t, b.Add(deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randAgentSDKStats(t)))
+				require.NoError(t, b.Add(t3, deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randAgentSDKStats(t)))
 			} else {
-				require.NoError(t, b.Add(deps2.Agent.ID, deps2.User.ID, deps2.Template.ID, deps2.Workspace.ID, randAgentSDKStats(t)))
+				require.NoError(t, b.Add(t3, deps2.Agent.ID, deps2.User.ID, deps2.Template.ID, deps2.Workspace.ID, randAgentSDKStats(t)))
 			}
 		}
 	}()
