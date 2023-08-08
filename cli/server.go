@@ -597,6 +597,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					AuthURLParams:       cfg.OIDC.AuthURLParams.Value,
 					IgnoreUserInfo:      cfg.OIDC.IgnoreUserInfo.Value(),
 					GroupField:          cfg.OIDC.GroupField.String(),
+					GroupFilter:         cfg.OIDC.GroupRegexFilter.Value(),
+					CreateMissingGroups: cfg.OIDC.GroupAutoCreate.Value(),
 					GroupMapping:        cfg.OIDC.GroupMapping.Value,
 					UserRoleField:       cfg.OIDC.UserRoleField.String(),
 					UserRoleMapping:     cfg.OIDC.UserRoleMapping.Value,
