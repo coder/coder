@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"fmt"
+
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
@@ -178,9 +180,11 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 			continue
 		}
 
+		firstTimeUse := pr.isFirstTimeUse(tvp)
+
 		if (tvp.Ephemeral && pr.promptBuildOptions) ||
 			tvp.Required ||
-			(action == WorkspaceUpdate && !tvp.Mutable && pr.isFirstTimeUse(tvp)) ||
+			(action == WorkspaceUpdate && !tvp.Mutable && firstTimeUse) ||
 			(action == WorkspaceUpdate && tvp.Mutable && !tvp.Ephemeral && pr.promptRichParameters) ||
 			(action == WorkspaceCreate && !tvp.Ephemeral) {
 
@@ -193,6 +197,8 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 				Name:  tvp.Name,
 				Value: parameterValue,
 			})
+		} else if action == WorkspaceUpdate && !tvp.Mutable && !firstTimeUse {
+			_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Warn.Render(fmt.Sprintf("Parameter %q is not mutable, so can't be customized after workspace creation.", tvp.Name)))
 		}
 	}
 	return resolved, nil
