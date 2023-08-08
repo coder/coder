@@ -46,12 +46,9 @@ func (r *RootCmd) update() *clibase.Cmd {
 				return err
 			}
 
-			var existingRichParams []codersdk.WorkspaceBuildParameter
-			if !alwaysPrompt {
-				existingRichParams, err = client.WorkspaceBuildParameters(inv.Context(), workspace.LatestBuild.ID)
-				if err != nil {
-					return err
-				}
+			lastBuildParameters, err := client.WorkspaceBuildParameters(inv.Context(), workspace.LatestBuild.ID)
+			if err != nil {
+				return err
 			}
 
 			cliRichParameters, err := asWorkspaceBuildParameters(parameterFlags.richParameters)
@@ -65,7 +62,7 @@ func (r *RootCmd) update() *clibase.Cmd {
 				NewWorkspaceName: workspace.Name,
 				WorkspaceID:      workspace.LatestBuild.ID,
 
-				LastBuildParameters: existingRichParams,
+				LastBuildParameters: lastBuildParameters,
 
 				PromptBuildOptions: parameterFlags.promptBuildOptions,
 				BuildOptions:       buildOptions,

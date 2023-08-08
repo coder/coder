@@ -10,7 +10,6 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -99,47 +98,4 @@ func parseParameterMapFile(parameterFile string) (map[string]string, error) {
 		}
 	}
 	return parameterMap, nil
-}
-
-type getParameterArgs struct {
-	templateVersionParameter codersdk.TemplateVersionParameter
-
-	promptBuildOptions bool
-	buildOptions       []codersdk.WorkspaceBuildParameter
-	parameterMap       map[string]string
-}
-
-func getParameter(inv *clibase.Invocation, args getParameterArgs) (codersdk.WorkspaceBuildParameter, error) {
-	if args.parameterMap != nil {
-		if parameterValue, ok := args.parameterMap[args.templateVersionParameter.Name]; ok {
-			return codersdk.WorkspaceBuildParameter{
-				Name:  args.templateVersionParameter.Name,
-				Value: parameterValue,
-			}, nil
-		}
-	}
-	return getParameterFromCommandLineOrInput(inv, args.promptBuildOptions, args.buildOptions, args.templateVersionParameter)
-}
-
-//nolint:revive
-func getParameterFromCommandLineOrInput(inv *clibase.Invocation, promptBuildOptions bool, buildOptions []codersdk.WorkspaceBuildParameter, templateVersionParameter codersdk.TemplateVersionParameter) (codersdk.WorkspaceBuildParameter, error) {
-	if templateVersionParameter.Ephemeral {
-		for _, bo := range buildOptions {
-			if bo.Name == templateVersionParameter.Name {
-				return codersdk.WorkspaceBuildParameter{
-					Name:  templateVersionParameter.Name,
-					Value: bo.Value,
-				}, nil
-			}
-		}
-	}
-
-	parameterValue, err := cliui.RichParameter(inv, templateVersionParameter)
-	if err != nil {
-		return codersdk.WorkspaceBuildParameter{}, err
-	}
-	return codersdk.WorkspaceBuildParameter{
-		Name:  templateVersionParameter.Name,
-		Value: parameterValue,
-	}, nil
 }

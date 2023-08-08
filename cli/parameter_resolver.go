@@ -4,6 +4,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -17,9 +18,6 @@ const (
 )
 
 type ParameterResolver struct {
-	action                    WorkspaceCLIAction
-	templateVersionParameters []codersdk.TemplateVersionParameter
-
 	lastBuildParameters []codersdk.WorkspaceBuildParameter
 
 	richParameters     []codersdk.WorkspaceBuildParameter
@@ -66,11 +64,13 @@ func (pr *ParameterResolver) Resolve(inv *clibase.Invocation, action WorkspaceCL
 
 	staged = pr.resolveWithParametersMapFile(staged)
 	staged = pr.resolveWithCommandLineOrEnv(staged)
-	staged = pr.resolveWithLastBuildParameters(staged, action)
-	if err = pr.verifyConstraints(staged, action); err != nil {
+	staged = pr.resolveWithLastBuildParameters(staged, action, templateVersionParameters)
+	if err = pr.verifyConstraints(staged, action, templateVersionParameters); err != nil {
 		return nil, err
 	}
-	staged = pr.resolveWithInput(staged, inv, action)
+	if staged, err = pr.resolveWithInput(staged, inv, action, templateVersionParameters); err != nil {
+		return nil, err
+	}
 	return staged, nil
 }
 
@@ -121,9 +121,13 @@ func (pr *ParameterResolver) resolveWithCommandLineOrEnv(resolved []codersdk.Wor
 	return resolved
 }
 
-func (pr *ParameterResolver) resolveWithLastBuildParameters(resolved []codersdk.WorkspaceBuildParameter, action WorkspaceCLIAction) []codersdk.WorkspaceBuildParameter {
+func (pr *ParameterResolver) resolveWithLastBuildParameters(resolved []codersdk.WorkspaceBuildParameter, action WorkspaceCLIAction, templateVersionParameters []codersdk.TemplateVersionParameter) []codersdk.WorkspaceBuildParameter {
+	if pr.promptRichParameters {
+		return resolved // don't pull parameters from last build
+	}
+
 	for _, buildParameter := range pr.lastBuildParameters {
-		tvp := pr.findTemplateVersionParameter(buildParameter)
+		tvp := findTemplateVersionParameter(buildParameter, templateVersionParameters)
 		if tvp == nil {
 			continue // it looks like this parameter is not present anymore
 		}
@@ -149,9 +153,9 @@ func (pr *ParameterResolver) resolveWithLastBuildParameters(resolved []codersdk.
 	return resolved
 }
 
-func (pr *ParameterResolver) verifyConstraints(resolved []codersdk.WorkspaceBuildParameter, action WorkspaceCLIAction) error {
+func (pr *ParameterResolver) verifyConstraints(resolved []codersdk.WorkspaceBuildParameter, action WorkspaceCLIAction, templateVersionParameters []codersdk.TemplateVersionParameter) error {
 	for _, r := range resolved {
-		tvp := pr.findTemplateVersionParameter(r)
+		tvp := findTemplateVersionParameter(r, templateVersionParameters)
 		if tvp == nil {
 			return xerrors.Errorf("parameter %q is not present in the template", r.Name)
 		}
@@ -167,19 +171,45 @@ func (pr *ParameterResolver) verifyConstraints(resolved []codersdk.WorkspaceBuil
 	return nil
 }
 
-func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuildParameter, inv *clibase.Invocation, action WorkspaceCLIAction) []codersdk.WorkspaceBuildParameter {
-	// update == then skip if in last build parameters unless prompt-all, build options
-	// update == immutable
+func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuildParameter, inv *clibase.Invocation, action WorkspaceCLIAction, templateVersionParameters []codersdk.TemplateVersionParameter) ([]codersdk.WorkspaceBuildParameter, error) {
+	for _, tvp := range templateVersionParameters {
+		p := findWorkspaceBuildParameter(tvp, resolved)
+		if p != nil {
+			continue
+		}
 
-	panic("not implemented yet")
+		if (tvp.Ephemeral && pr.promptBuildOptions) ||
+			tvp.Required ||
+			(!tvp.Mutable && action == WorkspaceUpdate) {
 
-	return resolved
+			parameterValue, err := cliui.RichParameter(inv, tvp)
+			if err != nil {
+				return nil, err
+			}
+
+			resolved = append(resolved, codersdk.WorkspaceBuildParameter{
+				Name:  tvp.Name,
+				Value: parameterValue,
+			})
+		}
+
+	}
+	return resolved, nil
 }
 
-func (pr *ParameterResolver) findTemplateVersionParameter(workspaceBuildParameter codersdk.WorkspaceBuildParameter) *codersdk.TemplateVersionParameter {
-	for _, tvp := range pr.templateVersionParameters {
+func findTemplateVersionParameter(workspaceBuildParameter codersdk.WorkspaceBuildParameter, templateVersionParameters []codersdk.TemplateVersionParameter) *codersdk.TemplateVersionParameter {
+	for _, tvp := range templateVersionParameters {
 		if tvp.Name == workspaceBuildParameter.Name {
 			return &tvp
+		}
+	}
+	return nil
+}
+
+func findWorkspaceBuildParameter(tvp codersdk.TemplateVersionParameter, resolved []codersdk.WorkspaceBuildParameter) *codersdk.WorkspaceBuildParameter {
+	for _, r := range resolved {
+		if r.Name == tvp.Name {
+			return &r
 		}
 	}
 	return nil
