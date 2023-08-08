@@ -785,7 +785,11 @@ func (q *querier) GetActiveUserCount(ctx context.Context) (int64, error) {
 }
 
 func (q *querier) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]database.WorkspaceBuild, error) {
-	panic("not implemented")
+	// This is a system-only function.
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return []database.WorkspaceBuild{}, err
+	}
+	return q.db.GetActiveWorkspaceBuildsByTemplateID(ctx, templateID)
 }
 
 func (q *querier) GetAllTailnetAgents(ctx context.Context) ([]database.TailnetAgent, error) {
