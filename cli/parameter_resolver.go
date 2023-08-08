@@ -180,8 +180,9 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 
 		if (tvp.Ephemeral && pr.promptBuildOptions) ||
 			tvp.Required ||
-			(!tvp.Mutable && action == WorkspaceUpdate) ||
-			(!tvp.Ephemeral && action == WorkspaceCreate) {
+			(action == WorkspaceUpdate && !tvp.Mutable && pr.isFirstTimeUse(tvp)) ||
+			(action == WorkspaceUpdate && tvp.Mutable && !tvp.Ephemeral && pr.promptRichParameters) ||
+			(action == WorkspaceCreate && !tvp.Ephemeral) {
 
 			parameterValue, err := cliui.RichParameter(inv, tvp)
 			if err != nil {
@@ -198,6 +199,10 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 	return resolved, nil
 }
 
+func (pr *ParameterResolver) isFirstTimeUse(tvp codersdk.TemplateVersionParameter) bool {
+	return findWorkspaceBuildParameter(tvp, pr.lastBuildParameters) == nil
+}
+
 func findTemplateVersionParameter(workspaceBuildParameter codersdk.WorkspaceBuildParameter, templateVersionParameters []codersdk.TemplateVersionParameter) *codersdk.TemplateVersionParameter {
 	for _, tvp := range templateVersionParameters {
 		if tvp.Name == workspaceBuildParameter.Name {
@@ -207,10 +212,10 @@ func findTemplateVersionParameter(workspaceBuildParameter codersdk.WorkspaceBuil
 	return nil
 }
 
-func findWorkspaceBuildParameter(tvp codersdk.TemplateVersionParameter, resolved []codersdk.WorkspaceBuildParameter) *codersdk.WorkspaceBuildParameter {
-	for _, r := range resolved {
-		if r.Name == tvp.Name {
-			return &r
+func findWorkspaceBuildParameter(tvp codersdk.TemplateVersionParameter, params []codersdk.WorkspaceBuildParameter) *codersdk.WorkspaceBuildParameter {
+	for _, p := range params {
+		if p.Name == tvp.Name {
+			return &p
 		}
 	}
 	return nil
