@@ -70,8 +70,9 @@ func (r *RootCmd) update() *clibase.Cmd {
 				PromptBuildOptions: parameterFlags.promptBuildOptions,
 				BuildOptions:       buildOptions,
 
-				RichParameterFile: parameterFlags.richParameterFile,
-				RichParameters:    cliRichParameters,
+				PromptRichParameters: alwaysPrompt,
+				RichParameters:       cliRichParameters,
+				RichParameterFile:    parameterFlags.richParameterFile,
 			})
 			if err != nil {
 				return err

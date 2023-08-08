@@ -1,6 +1,9 @@
 package cli
 
-import "github.com/coder/coder/codersdk"
+import (
+	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/codersdk"
+)
 
 type WorkspaceCLIAction int
 
@@ -16,12 +19,13 @@ type ParameterResolver struct {
 	templateVersionParameters []codersdk.TemplateVersionParameter
 
 	lastBuildParameters []codersdk.WorkspaceBuildParameter
-	richParameters      []codersdk.WorkspaceBuildParameter
-	buildOptions        []codersdk.WorkspaceBuildParameter
-	richParametersFile  map[string]string
 
-	alwaysPrompt       bool
-	promptBuildOptions bool
+	richParameters     []codersdk.WorkspaceBuildParameter
+	richParametersFile map[string]string
+	buildOptions       []codersdk.WorkspaceBuildParameter
+
+	promptRichParameters bool
+	promptBuildOptions   bool
 }
 
 func (pr *ParameterResolver) WithLastBuildParameters(params []codersdk.WorkspaceBuildParameter) *ParameterResolver {
@@ -44,8 +48,8 @@ func (pr *ParameterResolver) WithRichParametersFile(fileMap map[string]string) *
 	return pr
 }
 
-func (pr *ParameterResolver) WithAlwaysPrompt(alwaysPrompt bool) *ParameterResolver {
-	pr.alwaysPrompt = alwaysPrompt
+func (pr *ParameterResolver) WithPromptRichParameters(promptRichParameters bool) *ParameterResolver {
+	pr.promptRichParameters = promptRichParameters
 	return pr
 }
 
@@ -54,101 +58,91 @@ func (pr *ParameterResolver) WithPromptBuildOptions(promptBuildOptions bool) *Pa
 	return pr
 }
 
-func (pr *ParameterResolver) Resolve(action WorkspaceCLIAction, templateVersionParameters []codersdk.TemplateVersionParameter) ([]codersdk.WorkspaceBuildParameter, error) {
+func (pr *ParameterResolver) Resolve(inv *clibase.Invocation, action WorkspaceCLIAction, templateVersionParameters []codersdk.TemplateVersionParameter) ([]codersdk.WorkspaceBuildParameter, error) {
+	var staged []codersdk.WorkspaceBuildParameter
+	var err error
+
+	staged = pr.resolveWithParametersMapFile(staged)
+	staged = pr.resolveWithCommandLineOrEnv(staged)
+	if err = pr.verifyConstraints(staged); err != nil {
+		return nil, err
+	}
+	staged = pr.resolveWithLastBuildParameters(staged)
+	staged = pr.resolveWithInput(staged, inv, action)
+	return staged, nil
+}
+
+func (pr *ParameterResolver) resolveWithParametersMapFile(resolved []codersdk.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
+	for name, value := range pr.richParametersFile {
+		for i, r := range resolved {
+			if r.Name == name {
+				resolved[i].Value = value
+				goto done
+			}
+		}
+
+		resolved = append(resolved, codersdk.WorkspaceBuildParameter{
+			Name:  name,
+			Value: value,
+		})
+	done:
+	}
+	return resolved
+}
+
+func (pr *ParameterResolver) resolveWithCommandLineOrEnv(resolved []codersdk.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
+	for _, richParameter := range pr.richParameters {
+		for i, r := range resolved {
+			if r.Name == richParameter.Name {
+				resolved[i].Value = richParameter.Value
+				goto richParameterDone
+			}
+		}
+
+		resolved = append(resolved, richParameter)
+	richParameterDone:
+	}
+
+	if pr.promptBuildOptions {
+		for _, buildOption := range pr.buildOptions {
+			for i, r := range resolved {
+				if r.Name == buildOption.Name {
+					resolved[i].Value = buildOption.Value
+					goto buildOptionDone
+				}
+			}
+
+			resolved = append(resolved, buildOption)
+		buildOptionDone:
+		}
+	}
+	return resolved
+}
+
+func (pr *ParameterResolver) resolveWithLastBuildParameters(resolved []codersdk.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
+	for _, buildParameter := range pr.lastBuildParameters {
+		for i, r := range resolved {
+			if r.Name == buildParameter.Name {
+				resolved[i].Value = buildParameter.Value
+				goto done
+			}
+		}
+
+		resolved = append(resolved, buildParameter)
+	done:
+	}
+	return resolved
+}
+
+func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuildParameter, iv *clibase.Invocation, action WorkspaceCLIAction) []codersdk.WorkspaceBuildParameter {
+	// update == then skip if in last build parameters unless prompt-all, build options
+	// update == immutable
+
 	panic("not implemented yet")
-	/*
-	   if Start or Restart {
 
-	   	richParameters := make([]codersdk.WorkspaceBuildParameter, 0)
-	   	if !args.PromptBuildOptions && len(args.BuildOptions) == 0 {
-	   		return &buildParameters{
-	   			richParameters: richParameters,
-	   		}, nil
-	   	}
+	return resolved
+}
 
-	   	for _, templateVersionParameter := range templateVersionParameters {
-	   		if !templateVersionParameter.Ephemeral {
-	   			continue
-	   		}
+func (pr *ParameterResolver) verifyConstraints(resolved []codersdk.WorkspaceBuildParameter) error {
 
-	   		buildOption, err := getParameterFromCommandLineOrInput(inv, args.PromptBuildOptions, args.BuildOptions, templateVersionParameter)
-	   		if err != nil {
-	   			return nil, err
-	   		}
-	   		richParameters = append(richParameters, buildOption)
-	   	}
-
-	   }
-
-	   if Create or Update {
-
-	   	parameterMapFromFile := map[string]string{}
-	   	useParamFile := false
-	   	if args.RichParameterFile != "" {
-	   		useParamFile = true
-	   		_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Paragraph.Render("Attempting to read parameters from the rich parameter file.")+"\r\n")
-	   		parameterMapFromFile, err = createParameterMapFromFile(args.RichParameterFile)
-	   		if err != nil {
-	   			return nil, err
-	   		}
-	   	}
-	   	disclaimerPrinted := false
-	   	richParameters := make([]codersdk.WorkspaceBuildParameter, 0)
-
-	   PromptRichParamLoop:
-
-	   	for _, templateVersionParameter := range templateVersionParameters {
-	   		if !args.PromptBuildOptions && len(args.BuildOptions) == 0 && templateVersionParameter.Ephemeral {
-	   			continue
-	   		}
-
-	   		if !disclaimerPrinted {
-	   			_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Paragraph.Render("This template has customizable parameters. Values can be changed after create, but may have unintended side effects (like data loss).")+"\r\n")
-	   			disclaimerPrinted = true
-	   		}
-
-	   		// Param file is all or nothing
-	   		if !useParamFile && !templateVersionParameter.Ephemeral {
-	   			for _, e := range args.ExistingRichParams {
-	   				if e.Name == templateVersionParameter.Name {
-	   					// If the param already exists, we do not need to prompt it again.
-	   					// The workspace scope will reuse params for each build.
-	   					continue PromptRichParamLoop
-	   				}
-	   			}
-	   		}
-
-	   		if args.UpdateWorkspace && !templateVersionParameter.Mutable {
-	   			// Check if the immutable parameter was used in the previous build. If so, then it isn't a fresh one
-	   			// and the user should be warned.
-	   			exists, err := workspaceBuildParameterExists(ctx, client, args.WorkspaceID, templateVersionParameter)
-	   			if err != nil {
-	   				return nil, err
-	   			}
-
-	   			if exists {
-	   				_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Warn.Render(fmt.Sprintf(`Parameter %q is not mutable, so can't be customized after workspace creation.`, templateVersionParameter.Name)))
-	   				continue
-	   			}
-	   		}
-
-	   		parameter, err := getParameter(inv, getParameterArgs{
-	   			promptBuildOptions:       args.PromptBuildOptions,
-	   			buildOptions:             args.BuildOptions,
-	   			parameterMap:             parameterMapFromFile,
-	   			templateVersionParameter: templateVersionParameter,
-	   		})
-	   		if err != nil {
-	   			return nil, err
-	   		}
-
-	   		richParameters = append(richParameters, parameter)
-	   	}
-
-	   	if disclaimerPrinted {
-	   		_, _ = fmt.Fprintln(inv.Stdout)
-	   	}
-
-	   }
-	*/
 }

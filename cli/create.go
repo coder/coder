@@ -212,12 +212,14 @@ type prepWorkspaceBuildArgs struct {
 	NewWorkspaceName string
 	WorkspaceID      uuid.UUID
 
+	LastBuildParameters []codersdk.WorkspaceBuildParameter
+
 	PromptBuildOptions bool
 	BuildOptions       []codersdk.WorkspaceBuildParameter
 
-	LastBuildParameters []codersdk.WorkspaceBuildParameter
-	RichParameterFile   string
-	RichParameters      []codersdk.WorkspaceBuildParameter
+	PromptRichParameters bool
+	RichParameters       []codersdk.WorkspaceBuildParameter
+	RichParameterFile    string
 }
 
 // prepWorkspaceBuild will ensure a workspace build will succeed on the latest template version.
@@ -244,12 +246,13 @@ func prepWorkspaceBuild(inv *clibase.Invocation, client *codersdk.Client, args p
 	}
 
 	resolver := new(ParameterResolver).
+		WithLastBuildParameters(args.LastBuildParameters).
 		WithPromptBuildOptions(args.PromptBuildOptions).
 		WithBuildOptions(args.BuildOptions).
-		WithLastBuildParameters(args.LastBuildParameters).
+		WithPromptRichParameters(args.PromptRichParameters).
 		WithRichParameters(args.RichParameters).
 		WithRichParametersFile(parameterFile)
-	buildParameters, err := resolver.Resolve(args.Action, templateVersionParameters)
+	buildParameters, err := resolver.Resolve(inv, args.Action, templateVersionParameters)
 	if err != nil {
 		return nil, err
 	}

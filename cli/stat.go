@@ -241,7 +241,7 @@ func (*RootCmd) statDisk(s *clistat.Statter) *clibase.Cmd {
 			if err != nil {
 				if os.IsNotExist(err) {
 					// fmt.Errorf produces a more concise error.
-					return fmt.Errorf("not found: %q", pathArg)
+					return xerrors.New("not found: %q", pathArg)
 				}
 				return err
 			}
