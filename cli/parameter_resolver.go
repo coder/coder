@@ -1,9 +1,10 @@
 package cli
 
 import (
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/codersdk"
-	"golang.org/x/xerrors"
 )
 
 type WorkspaceCLIAction int
