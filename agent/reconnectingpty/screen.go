@@ -111,7 +111,7 @@ func newScreen(ctx context.Context, cmd *pty.Cmd, options *Options, logger slog.
 		return rpty
 	}
 
-	os.WriteFile(rpty.configFile, []byte(strings.Join(settings, "\n")), 0o600)
+	err = os.WriteFile(rpty.configFile, []byte(strings.Join(settings, "\n")), 0o600)
 	if err != nil {
 		rpty.state.setState(StateDone, xerrors.Errorf("create config file: %w", err))
 		return rpty
@@ -148,13 +148,13 @@ func (rpty *screenReconnectingPTY) lifecycle(ctx context.Context, logger slog.Lo
 	rpty.state.setState(StateDone, xerrors.Errorf("reconnecting pty closed: %w", reasonErr))
 }
 
-func (rpty *screenReconnectingPTY) Attach(ctx context.Context, connID string, conn net.Conn, height, width uint16, logger slog.Logger) error {
+func (rpty *screenReconnectingPTY) Attach(ctx context.Context, _ string, conn net.Conn, height, width uint16, logger slog.Logger) error {
 	// This will kill the heartbeat once we hit EOF or an error.
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	logger.Debug(ctx, "reconnecting pty attach")
-	ptty, process, err := rpty.attach(ctx, connID, conn, height, width, logger)
+	ptty, process, err := rpty.doAttach(ctx, height, width, logger)
 	if err != nil {
 		return err
 	}
@@ -224,10 +224,10 @@ func (rpty *screenReconnectingPTY) Attach(ctx context.Context, connID string, co
 	return nil
 }
 
-// attach spawns the screen client and starts the heartbeat.  It exists
+// doAttach spawns the screen client and starts the heartbeat.  It exists
 // separately only so we can defer the mutex unlock which is not possible in
 // Attach since it blocks.
-func (rpty *screenReconnectingPTY) attach(ctx context.Context, connID string, conn net.Conn, height, width uint16, logger slog.Logger) (pty.PTYCmd, pty.Process, error) {
+func (rpty *screenReconnectingPTY) doAttach(ctx context.Context, height, width uint16, logger slog.Logger) (pty.PTYCmd, pty.Process, error) {
 	// Ensure another attach does not come in and spawn a duplicate session.
 	rpty.mutex.Lock()
 	defer rpty.mutex.Unlock()

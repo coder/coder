@@ -176,7 +176,7 @@ func (rpty *bufferedReconnectingPTY) Attach(ctx context.Context, connID string, 
 	defer cancel()
 
 	logger.Debug(ctx, "reconnecting pty attach")
-	err := rpty.attach(ctx, connID, conn, height, width, logger)
+	err := rpty.doAttach(ctx, connID, conn, height, width, logger)
 	if err != nil {
 		return err
 	}
@@ -192,10 +192,10 @@ func (rpty *bufferedReconnectingPTY) Attach(ctx context.Context, connID string, 
 	return nil
 }
 
-// attach adds the connection to the map, replays the buffer, and starts the
+// doAttach adds the connection to the map, replays the buffer, and starts the
 // heartbeat.  It exists separately only so we can defer the mutex unlock which
 // is not possible in Attach since it blocks.
-func (rpty *bufferedReconnectingPTY) attach(ctx context.Context, connID string, conn net.Conn, height, width uint16, logger slog.Logger) error {
+func (rpty *bufferedReconnectingPTY) doAttach(ctx context.Context, connID string, conn net.Conn, height, width uint16, logger slog.Logger) error {
 	// Ensure we do not write to or close connections while we attach.
 	rpty.mutex.Lock()
 	defer rpty.mutex.Unlock()
