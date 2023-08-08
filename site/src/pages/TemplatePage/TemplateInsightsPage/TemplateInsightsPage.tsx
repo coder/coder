@@ -25,28 +25,40 @@ import {
   TemplateParameterValue,
   UserLatencyInsightsResponse,
 } from "api/typesGenerated"
-import { ComponentProps } from "react"
-import { subDays, addHours, startOfHour } from "date-fns"
+import { ComponentProps, ReactNode, useState } from "react"
+import { subDays, isToday } from "date-fns"
+import "react-date-range/dist/styles.css"
+import "react-date-range/dist/theme/default.css"
+import { DateRange, DateRangeValue } from "./DateRange"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined"
 import Link from "@mui/material/Link"
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined"
 import CancelOutlined from "@mui/icons-material/CancelOutlined"
+import { getDateRangeFilter } from "./utils"
 
 export default function TemplateInsightsPage() {
   const now = new Date()
+  const [dateRangeValue, setDateRangeValue] = useState<DateRangeValue>({
+    startDate: subDays(now, 6),
+    endDate: now,
+  })
   const { template } = useTemplateLayoutContext()
   const insightsFilter = {
     template_ids: template.id,
-    start_time: toStartTimeFilter(subDays(now, 7)),
-    end_time: startOfHour(addHours(now, 1)).toISOString(),
+    ...getDateRangeFilter({
+      startDate: dateRangeValue.startDate,
+      endDate: dateRangeValue.endDate,
+      now,
+      isToday,
+    }),
   }
   const { data: templateInsights } = useQuery({
-    queryKey: ["templates", template.id, "usage"],
+    queryKey: ["templates", template.id, "usage", insightsFilter],
     queryFn: () => getInsightsTemplate(insightsFilter),
   })
   const { data: userLatency } = useQuery({
-    queryKey: ["templates", template.id, "user-latency"],
+    queryKey: ["templates", template.id, "user-latency", insightsFilter],
     queryFn: () => getInsightsUserLatency(insightsFilter),
   })
   const dashboard = useDashboard()
@@ -60,6 +72,9 @@ export default function TemplateInsightsPage() {
         <title>{getTemplatePageTitle("Insights", template)}</title>
       </Helmet>
       <TemplateInsightsPageView
+        dateRange={
+          <DateRange value={dateRangeValue} onChange={setDateRangeValue} />
+        }
         templateInsights={templateInsights}
         userLatency={userLatency}
         shouldDisplayParameters={shouldDisplayParameters}
@@ -72,36 +87,41 @@ export const TemplateInsightsPageView = ({
   templateInsights,
   userLatency,
   shouldDisplayParameters,
+  dateRange,
 }: {
   templateInsights: TemplateInsightsResponse | undefined
   userLatency: UserLatencyInsightsResponse | undefined
   shouldDisplayParameters: boolean
+  dateRange: ReactNode
 }) => {
   return (
-    <Box
-      sx={{
-        display: "grid",
-        gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-        gridTemplateRows: "440px auto",
-        gap: (theme) => theme.spacing(3),
-      }}
-    >
-      <DailyUsersPanel
-        sx={{ gridColumn: "span 2" }}
-        data={templateInsights?.interval_reports}
-      />
-      <UserLatencyPanel data={userLatency} />
-      <TemplateUsagePanel
-        sx={{ gridColumn: "span 3" }}
-        data={templateInsights?.report.apps_usage}
-      />
-      {shouldDisplayParameters && (
-        <TemplateParametersUsagePanel
-          sx={{ gridColumn: "span 3" }}
-          data={templateInsights?.report.parameters_usage}
+    <>
+      <Box sx={{ mb: 4 }}>{dateRange}</Box>
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+          gridTemplateRows: "440px auto",
+          gap: (theme) => theme.spacing(3),
+        }}
+      >
+        <DailyUsersPanel
+          sx={{ gridColumn: "span 2" }}
+          data={templateInsights?.interval_reports}
         />
-      )}
-    </Box>
+        <UserLatencyPanel data={userLatency} />
+        <TemplateUsagePanel
+          sx={{ gridColumn: "span 3" }}
+          data={templateInsights?.report.apps_usage}
+        />
+        {shouldDisplayParameters && (
+          <TemplateParametersUsagePanel
+            sx={{ gridColumn: "span 3" }}
+            data={templateInsights?.report.parameters_usage}
+          />
+        )}
+      </Box>
+    </>
   )
 }
 
@@ -551,18 +571,10 @@ function mapToDAUsResponse(
     entries: data.map((d) => {
       return {
         amount: d.active_users,
-        date: d.end_time,
+        date: d.start_time,
       }
     }),
   }
-}
-
-function toStartTimeFilter(date: Date) {
-  date.setHours(0, 0, 0, 0)
-  const year = date.getUTCFullYear()
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0")
-  const day = String(date.getUTCDate()).padStart(2, "0")
-  return `${year}-${month}-${day}T00:00:00Z`
 }
 
 function formatTime(seconds: number): string {

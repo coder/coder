@@ -60,6 +60,9 @@ dependencies:
   '@types/react-color':
     specifier: 3.0.6
     version: 3.0.6
+  '@types/react-date-range':
+    specifier: 1.4.4
+    version: 1.4.4
   '@types/semver':
     specifier: 7.5.0
     version: 7.5.0
@@ -147,6 +150,9 @@ dependencies:
   react-confetti:
     specifier: 6.1.0
     version: 6.1.0(react@18.2.0)
+  react-date-range:
+    specifier: 1.4.0
+    version: 1.4.0(date-fns@2.30.0)(react@18.2.0)
   react-dom:
     specifier: 18.2.0
     version: 18.2.0(react@18.2.0)
@@ -4952,6 +4958,13 @@ packages:
       '@types/reactcss': 1.2.6
     dev: false
 
+  /@types/react-date-range@1.4.4:
+    resolution: {integrity: sha512-9Y9NyNgaCsEVN/+O4HKuxzPbVjRVBGdOKRxMDcsTRWVG62lpYgnxefNckTXDWup8FvczoqPW0+ESZR6R1yymDg==}
+    dependencies:
+      '@types/react': 18.2.6
+      date-fns: 2.30.0
+    dev: false
+
   /@types/react-dom@18.2.4:
     resolution: {integrity: sha512-G2mHoTMTL4yoydITgOGwWdWMVd8sNgyEP85xVmMKAPUBwQWm9wBPQUmvbeF4V3WBY1P7mmL4BkjQ0SqUpf1snw==}
     dependencies:
@@ -6225,6 +6238,10 @@ packages:
   /cjs-module-lexer@1.2.3:
     resolution: {integrity: sha512-0TNiGstbQmCFwt4akjjBg5pLRTSyj/PkWQ1ZoO2zntmg9yLqSRxwEa4iCfQLGjqhiqBfOJa7W/E8wfGrTDmlZQ==}
     dev: true
+
+  /classnames@2.3.2:
+    resolution: {integrity: sha512-CSbhY4cFEJRe6/GQzIk5qXZ4Jeg5pcsP7b5peFSDpffpe1cqjASH/n9UTjBwOp6XpMSTwQ8Za2K5V02ueA7Tmw==}
+    dev: false
 
   /clean-regexp@1.0.0:
     resolution: {integrity: sha512-GfisEZEJvzKrmGWkvfhgzcz/BllN1USeqD2V6tg14OAOgaCD2Z/PUEuxnAZ/nPvmaHRG7a8y77p1T/IRQ4D1Hw==}
@@ -11179,6 +11196,20 @@ packages:
       tween-functions: 1.2.0
     dev: false
 
+  /react-date-range@1.4.0(date-fns@2.30.0)(react@18.2.0):
+    resolution: {integrity: sha512-+9t0HyClbCqw1IhYbpWecjsiaftCeRN5cdhsi9v06YdimwyMR2yYHWcgVn3URwtN/txhqKpEZB6UX1fHpvK76w==}
+    peerDependencies:
+      date-fns: 2.0.0-alpha.7 || >=2.0.0
+      react: ^0.14 || ^15.0.0-rc || >=15.0
+    dependencies:
+      classnames: 2.3.2
+      date-fns: 2.30.0
+      prop-types: 15.8.1
+      react: 18.2.0
+      react-list: 0.8.17(react@18.2.0)
+      shallow-equal: 1.2.1
+    dev: false
+
   /react-docgen-typescript@2.2.2(typescript@5.1.6):
     resolution: {integrity: sha512-tvg2ZtOpOi6QDwsb3GZhOjDkkX0h8Z2gipvTg6OVMUyoYoURhEiRNePT8NZItTVCDh39JJHnLdfCOkzoLbFnTg==}
     peerDependencies:
@@ -11312,6 +11343,15 @@ packages:
 
   /react-is@18.2.0:
     resolution: {integrity: sha512-xWGDIW6x921xtzPkhiULtthJHoJvBbF3q26fzloPCK0hsvxtPVelvftw3zjbHWSkR2km9Z+4uxbDDK/6Zw9B8w==}
+
+  /react-list@0.8.17(react@18.2.0):
+    resolution: {integrity: sha512-pgmzGi0G5uGrdHzMhgO7KR1wx5ZXVvI3SsJUmkblSAKtewIhMwbQiMuQiTE83ozo04BQJbe0r3WIWzSO0dR1xg==}
+    peerDependencies:
+      react: 0.14 || 15 - 18
+    dependencies:
+      prop-types: 15.8.1
+      react: 18.2.0
+    dev: false
 
   /react-markdown@8.0.3(@types/react@18.2.6)(react@18.2.0):
     resolution: {integrity: sha512-We36SfqaKoVNpN1QqsZwWSv/OZt5J15LNgTLWynwAN5b265hrQrsjMtlRNwUvS+YyR3yDM8HpTNc4pK9H/Gc0A==}
@@ -12000,6 +12040,10 @@ packages:
     dependencies:
       kind-of: 6.0.3
     dev: true
+
+  /shallow-equal@1.2.1:
+    resolution: {integrity: sha512-S4vJDjHHMBaiZuT9NPb616CSmLf618jawtv3sufLl6ivK8WocjAo58cXwbRV1cgqxH0Qbv+iUt6m05eqEa2IRA==}
+    dev: false
 
   /shallowequal@1.1.0:
     resolution: {integrity: sha512-y0m1JoUZSlPAjXVtPPW70aZWfIL/dSP7AFkRnniLCrK/8MDKog3TySTBmckD+RObVxH0v4Tox67+F14PdED2oQ==}
