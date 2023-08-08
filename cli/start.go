@@ -93,5 +93,5 @@ func prepStartWorkspace(inv *clibase.Invocation, client *codersdk.Client, args p
 	resolver := new(ParameterResolver).
 		WithPromptBuildOptions(args.PromptBuildOptions).
 		WithBuildOptions(args.BuildOptions)
-	return resolver.Resolve(args.Action, templateVersionParameters)
+	return resolver.Resolve(inv, args.Action, templateVersionParameters)
 }

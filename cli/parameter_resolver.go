@@ -3,6 +3,7 @@ package cli
 import (
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/codersdk"
+	"golang.org/x/xerrors"
 )
 
 type WorkspaceCLIAction int
@@ -64,10 +65,10 @@ func (pr *ParameterResolver) Resolve(inv *clibase.Invocation, action WorkspaceCL
 
 	staged = pr.resolveWithParametersMapFile(staged)
 	staged = pr.resolveWithCommandLineOrEnv(staged)
-	if err = pr.verifyConstraints(staged); err != nil {
+	staged = pr.resolveWithLastBuildParameters(staged, action)
+	if err = pr.verifyConstraints(staged, action); err != nil {
 		return nil, err
 	}
-	staged = pr.resolveWithLastBuildParameters(staged)
 	staged = pr.resolveWithInput(staged, inv, action)
 	return staged, nil
 }
@@ -119,8 +120,21 @@ func (pr *ParameterResolver) resolveWithCommandLineOrEnv(resolved []codersdk.Wor
 	return resolved
 }
 
-func (pr *ParameterResolver) resolveWithLastBuildParameters(resolved []codersdk.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
+func (pr *ParameterResolver) resolveWithLastBuildParameters(resolved []codersdk.WorkspaceBuildParameter, action WorkspaceCLIAction) []codersdk.WorkspaceBuildParameter {
 	for _, buildParameter := range pr.lastBuildParameters {
+		tvp := pr.findTemplateVersionParameter(buildParameter)
+		if tvp == nil {
+			continue // it looks like this parameter is not present anymore
+		}
+
+		if tvp.Ephemeral {
+			continue // ephemeral parameters should not be passed to consecutive builds
+		}
+
+		if !tvp.Mutable {
+			continue // immutables should not be passed to consecutive builds
+		}
+
 		for i, r := range resolved {
 			if r.Name == buildParameter.Name {
 				resolved[i].Value = buildParameter.Value
@@ -134,7 +148,25 @@ func (pr *ParameterResolver) resolveWithLastBuildParameters(resolved []codersdk.
 	return resolved
 }
 
-func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuildParameter, iv *clibase.Invocation, action WorkspaceCLIAction) []codersdk.WorkspaceBuildParameter {
+func (pr *ParameterResolver) verifyConstraints(resolved []codersdk.WorkspaceBuildParameter, action WorkspaceCLIAction) error {
+	for _, r := range resolved {
+		tvp := pr.findTemplateVersionParameter(r)
+		if tvp == nil {
+			return xerrors.Errorf("parameter %q is not present in the template", r.Name)
+		}
+
+		if tvp.Ephemeral && !pr.promptBuildOptions {
+			return xerrors.Errorf("ephemeral parameter %q can be used only with --build-options flag", r.Name)
+		}
+
+		if !tvp.Mutable && action != WorkspaceCreate {
+			return xerrors.Errorf("parameter %q is immutable and can't be updated", r.Name)
+		}
+	}
+	return nil
+}
+
+func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuildParameter, inv *clibase.Invocation, action WorkspaceCLIAction) []codersdk.WorkspaceBuildParameter {
 	// update == then skip if in last build parameters unless prompt-all, build options
 	// update == immutable
 
@@ -143,6 +175,11 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 	return resolved
 }
 
-func (pr *ParameterResolver) verifyConstraints(resolved []codersdk.WorkspaceBuildParameter) error {
-	panic("not implemented yet")
+func (pr *ParameterResolver) findTemplateVersionParameter(workspaceBuildParameter codersdk.WorkspaceBuildParameter) *codersdk.TemplateVersionParameter {
+	for _, tvp := range pr.templateVersionParameters {
+		if tvp.Name == workspaceBuildParameter.Name {
+			return &tvp
+		}
+	}
+	return nil
 }
