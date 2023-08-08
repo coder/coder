@@ -180,7 +180,8 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 
 		if (tvp.Ephemeral && pr.promptBuildOptions) ||
 			tvp.Required ||
-			(!tvp.Mutable && action == WorkspaceUpdate) {
+			(!tvp.Mutable && action == WorkspaceUpdate) ||
+			(!tvp.Ephemeral && action == WorkspaceCreate) {
 
 			parameterValue, err := cliui.RichParameter(inv, tvp)
 			if err != nil {

@@ -30,6 +30,11 @@ func (r *RootCmd) start() *clibase.Cmd {
 				return err
 			}
 
+			lastBuildParameters, err := client.WorkspaceBuildParameters(inv.Context(), workspace.LatestBuild.ID)
+			if err != nil {
+				return err
+			}
+
 			template, err := client.Template(inv.Context(), workspace.TemplateID)
 			if err != nil {
 				return err
@@ -41,8 +46,11 @@ func (r *RootCmd) start() *clibase.Cmd {
 			}
 
 			buildParameters, err := prepStartWorkspace(inv, client, prepStartWorkspaceArgs{
-				Action:             WorkspaceStart,
-				Template:           template,
+				Action:   WorkspaceStart,
+				Template: template,
+
+				LastBuildParameters: lastBuildParameters,
+
 				PromptBuildOptions: parameterFlags.promptBuildOptions,
 				BuildOptions:       buildOptions,
 			})
@@ -71,8 +79,11 @@ func (r *RootCmd) start() *clibase.Cmd {
 }
 
 type prepStartWorkspaceArgs struct {
-	Action             WorkspaceCLIAction
-	Template           codersdk.Template
+	Action   WorkspaceCLIAction
+	Template codersdk.Template
+
+	LastBuildParameters []codersdk.WorkspaceBuildParameter
+
 	PromptBuildOptions bool
 	BuildOptions       []codersdk.WorkspaceBuildParameter
 }
@@ -91,6 +102,7 @@ func prepStartWorkspace(inv *clibase.Invocation, client *codersdk.Client, args p
 	}
 
 	resolver := new(ParameterResolver).
+		WithLastBuildParameters(args.LastBuildParameters).
 		WithPromptBuildOptions(args.PromptBuildOptions).
 		WithBuildOptions(args.BuildOptions)
 	return resolver.Resolve(inv, args.Action, templateVersionParameters)

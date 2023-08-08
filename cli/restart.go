@@ -33,6 +33,11 @@ func (r *RootCmd) restart() *clibase.Cmd {
 				return err
 			}
 
+			lastBuildParameters, err := client.WorkspaceBuildParameters(inv.Context(), workspace.LatestBuild.ID)
+			if err != nil {
+				return err
+			}
+
 			template, err := client.Template(inv.Context(), workspace.TemplateID)
 			if err != nil {
 				return err
@@ -44,8 +49,11 @@ func (r *RootCmd) restart() *clibase.Cmd {
 			}
 
 			buildParameters, err := prepStartWorkspace(inv, client, prepStartWorkspaceArgs{
-				Action:             WorkspaceRestart,
-				Template:           template,
+				Action:   WorkspaceRestart,
+				Template: template,
+
+				LastBuildParameters: lastBuildParameters,
+
 				PromptBuildOptions: parameterFlags.promptBuildOptions,
 				BuildOptions:       buildOptions,
 			})
