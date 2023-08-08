@@ -153,13 +153,6 @@ func (rpty *screenReconnectingPTY) Attach(ctx context.Context, connID string, co
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	defer func() {
-		connErr := conn.Close()
-		if connErr != nil {
-			logger.Debug(ctx, "closed connection with error", slog.Error(connErr))
-		}
-	}()
-
 	logger.Debug(ctx, "reconnecting pty attach")
 	ptty, process, err := rpty.attach(ctx, connID, conn, height, width, logger)
 	if err != nil {
@@ -167,6 +160,8 @@ func (rpty *screenReconnectingPTY) Attach(ctx context.Context, connID string, co
 	}
 
 	defer func() {
+		// Log only for debugging since the process might have already exited on its
+		// own.
 		err := ptty.Close()
 		if err != nil {
 			logger.Debug(ctx, "closed ptty with error", slog.Error(err))
@@ -182,6 +177,14 @@ func (rpty *screenReconnectingPTY) Attach(ctx context.Context, connID string, co
 	// exits, our ptty.OutputReader() will return EOF after reading all process
 	// output.
 	go func() {
+		// Close the connection when the process exits.  Log only for debugging
+		// since the connection might have already closed on its own.
+		defer func() {
+			err := conn.Close()
+			if err != nil {
+				logger.Debug(ctx, "closed connection with error", slog.Error(err))
+			}
+		}()
 		buffer := make([]byte, 1024)
 		for {
 			read, err := ptty.OutputReader().Read(buffer)
@@ -195,7 +198,7 @@ func (rpty *screenReconnectingPTY) Attach(ctx context.Context, connID string, co
 					rpty.metrics.WithLabelValues("screen_output_reader").Add(1)
 				}
 				// The process might have died because the session itself died or it
-				// might have been separately killed and the session is still up (
+				// might have been separately killed and the session is still up (for
 				// example `exit` or we killed it when the connection closed).  If the
 				// session is still up we might leave the reconnecting pty in memory
 				// around longer than it needs to be but it will eventually clean up

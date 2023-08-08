@@ -147,6 +147,8 @@ func (rpty *bufferedReconnectingPTY) lifecycle(ctx context.Context, logger slog.
 
 	rpty.circularBuffer.Reset()
 
+	// Log these closes only for debugging since the connections or processes
+	// might have already closed on their own.
 	for _, conn := range rpty.activeConns {
 		err := conn.Close()
 		if err != nil {
