@@ -9,7 +9,9 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/db2sdk"
 	agpl "github.com/coder/coder/coderd/schedule"
+	"github.com/coder/coder/codersdk"
 )
 
 // EnterpriseTemplateScheduleStore provides an agpl.TemplateScheduleStore that
@@ -20,12 +22,18 @@ type EnterpriseTemplateScheduleStore struct {
 	// workspace build. This value is determined by a feature flag, licensing,
 	// and whether a default user quiet hours schedule is set.
 	UseRestartRequirement atomic.Bool
+
+	// UserQuietHoursScheduleStore is used when recalculating build deadlines on
+	// update.
+	UserQuietHoursScheduleStore *atomic.Pointer[agpl.UserQuietHoursScheduleStore]
 }
 
 var _ agpl.TemplateScheduleStore = &EnterpriseTemplateScheduleStore{}
 
-func NewEnterpriseTemplateScheduleStore() *EnterpriseTemplateScheduleStore {
-	return &EnterpriseTemplateScheduleStore{}
+func NewEnterpriseTemplateScheduleStore(userQuietHoursStore *atomic.Pointer[agpl.UserQuietHoursScheduleStore]) *EnterpriseTemplateScheduleStore {
+	return &EnterpriseTemplateScheduleStore{
+		UserQuietHoursScheduleStore: userQuietHoursStore,
+	}
 }
 
 // Get implements agpl.TemplateScheduleStore.
@@ -65,7 +73,7 @@ func (s *EnterpriseTemplateScheduleStore) Get(ctx context.Context, db database.S
 }
 
 // Set implements agpl.TemplateScheduleStore.
-func (*EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.Store, tpl database.Template, opts agpl.TemplateScheduleOptions) (database.Template, error) {
+func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.Store, tpl database.Template, opts agpl.TemplateScheduleOptions) (database.Template, error) {
 	if int64(opts.DefaultTTL) == tpl.DefaultTTL &&
 		int64(opts.MaxTTL) == tpl.MaxTTL &&
 		int16(opts.RestartRequirement.DaysOfWeek) == tpl.RestartRequirementDaysOfWeek &&
@@ -115,7 +123,75 @@ func (*EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.Sto
 			return xerrors.Errorf("update deleting_at of all workspaces for new locked_ttl %q: %w", opts.LockedTTL, err)
 		}
 
-		// TODO: update all workspace max_deadlines to be within new bounds
+		// Recalculate max_deadline and deadline for all running workspace
+		// builds on this template.
+		builds, err := db.GetActiveWorkspaceBuildsByTemplateID(ctx, template.ID)
+		if err != nil {
+			return xerrors.Errorf("get active workspace builds: %w", err)
+		}
+		for _, build := range builds {
+			if !build.MaxDeadline.IsZero() && build.MaxDeadline.Before(time.Now().Add(time.Hour)) {
+				// Skip this since it's already too close to the max_deadline.
+				continue
+			}
+
+			workspace, err := db.GetWorkspaceByID(ctx, build.WorkspaceID)
+			if err != nil {
+				return xerrors.Errorf("get workspace %q: %w", build.WorkspaceID, err)
+			}
+
+			job, err := db.GetProvisionerJobByID(ctx, build.JobID)
+			if err != nil {
+				return xerrors.Errorf("get provisioner job %q: %w", build.JobID, err)
+			}
+			if db2sdk.ProvisionerJobStatus(job) != codersdk.ProvisionerJobSucceeded {
+				continue
+			}
+
+			// If the job completed before the autostop epoch, then it must be
+			// skipped to avoid failures below.
+			if job.CompletedAt.Time.Before(agpl.TemplateRestartRequirementEpoch(time.UTC).Add(time.Hour * 7 * 24)) {
+				continue
+			}
+
+			autostop, err := agpl.CalculateAutostop(ctx, agpl.CalculateAutostopParams{
+				Database:                    db,
+				TemplateScheduleStore:       s,
+				UserQuietHoursScheduleStore: *s.UserQuietHoursScheduleStore.Load(),
+				// Use the job completion time as the time we calculate autostop
+				// from.
+				Now:       job.CompletedAt.Time,
+				Workspace: workspace,
+			})
+			if err != nil {
+				return xerrors.Errorf("calculate new autostop for workspace %q: %w", workspace.ID, err)
+			}
+
+			// If max deadline is before now, then set it to two hours from now.
+			now := database.Now()
+			if autostop.MaxDeadline.Before(now) {
+				autostop.MaxDeadline = now.Add(time.Hour * 2)
+			}
+
+			// If the current deadline on the build is after the new
+			// max_deadline, then set it to the max_deadline.
+			autostop.Deadline = build.Deadline
+			if build.Deadline.After(build.MaxDeadline) {
+				autostop.Deadline = build.MaxDeadline
+			}
+
+			// Update the workspace build.
+			err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+				ID:          build.ID,
+				UpdatedAt:   database.Now(),
+				Deadline:    autostop.Deadline,
+				MaxDeadline: autostop.MaxDeadline,
+			})
+			if err != nil {
+				return xerrors.Errorf("update workspace build %q: %w", build.ID, err)
+			}
+		}
+
 		template, err = db.GetTemplateByID(ctx, tpl.ID)
 		if err != nil {
 			return xerrors.Errorf("get updated template schedule: %w", err)
