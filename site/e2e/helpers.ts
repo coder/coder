@@ -70,17 +70,13 @@ export const sshIntoWorkspace = async (
 ): Promise<ssh.Client> => {
   const sessionToken = await findSessionToken(page)
   return new Promise<ssh.Client>((resolve, reject) => {
-    const cp = spawn(
-      binaryPath,
-      [...binaryArgs, "ssh", "--stdio", workspace],
-      {
-        env: {
-          ...process.env,
-          CODER_SESSION_TOKEN: sessionToken,
-          CODER_URL: "http://localhost:3000",
-        },
+    const cp = spawn(binaryPath, [...binaryArgs, "ssh", "--stdio", workspace], {
+      env: {
+        ...process.env,
+        CODER_SESSION_TOKEN: sessionToken,
+        CODER_URL: "http://localhost:3000",
       },
-    )
+    })
     cp.on("error", (err) => reject(err))
     const proxyStream = new Duplex({
       read: (size) => {
