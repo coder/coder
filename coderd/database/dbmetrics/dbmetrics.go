@@ -1236,6 +1236,13 @@ func (m metricsStore) InsertWorkspaceAgentStat(ctx context.Context, arg database
 	return stat, err
 }
 
+func (m metricsStore) InsertWorkspaceAgentStats(ctx context.Context, arg database.InsertWorkspaceAgentStatsParams) error {
+	start := time.Now()
+	r0 := m.s.InsertWorkspaceAgentStats(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentStats").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) InsertWorkspaceApp(ctx context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
 	start := time.Now()
 	app, err := m.s.InsertWorkspaceApp(ctx, arg)
