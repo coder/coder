@@ -24,7 +24,15 @@ import {
   UserLatencyInsightsResponse,
 } from "api/typesGenerated"
 import { ComponentProps, ReactNode, useState } from "react"
-import { subDays, addHours, startOfHour } from "date-fns"
+import {
+  subDays,
+  addHours,
+  startOfHour,
+  startOfDay,
+  format,
+  isToday,
+  addDays,
+} from "date-fns"
 import "react-date-range/dist/styles.css"
 import "react-date-range/dist/theme/default.css"
 import { DateRange, DateRangeValue } from "./DateRange"
@@ -33,13 +41,17 @@ export default function TemplateInsightsPage() {
   const now = new Date()
   const [dateRangeValue, setDateRangeValue] = useState<DateRangeValue>({
     startDate: subDays(now, 6),
-    endDate: addHours(now, 1),
+    endDate: now,
   })
   const { template } = useTemplateLayoutContext()
   const insightsFilter = {
     template_ids: template.id,
-    start_time: toStartTimeFilter(dateRangeValue.startDate),
-    end_time: startOfHour(dateRangeValue.endDate).toISOString(),
+    start_time: toISOLocal(startOfDay(dateRangeValue.startDate)),
+    end_time: toISOLocal(
+      isToday(dateRangeValue.endDate)
+        ? startOfHour(addHours(now, 1))
+        : startOfDay(addDays(dateRangeValue.endDate, 1)),
+    ),
   }
   const { data: templateInsights } = useQuery({
     queryKey: ["templates", template.id, "usage", insightsFilter],
@@ -333,18 +345,14 @@ function mapToDAUsResponse(
     entries: data.map((d) => {
       return {
         amount: d.active_users,
-        date: d.end_time,
+        date: d.start_time,
       }
     }),
   }
 }
 
-function toStartTimeFilter(date: Date) {
-  date.setHours(0, 0, 0, 0)
-  const year = date.getUTCFullYear()
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0")
-  const day = String(date.getUTCDate()).padStart(2, "0")
-  return `${year}-${month}-${day}T00:00:00Z`
+function toISOLocal(d: Date) {
+  return format(d, "yyyy-MM-dd'T'HH:mm:ssxxx")
 }
 
 function formatTime(seconds: number): string {
