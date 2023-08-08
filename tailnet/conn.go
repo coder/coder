@@ -186,9 +186,14 @@ func NewConn(options *Options) (conn *Conn, err error) {
 
 	if v, ok := os.LookupEnv(EnvMagicsockDebugLogging); ok {
 		vBool, err := strconv.ParseBool(v)
-		if err == nil {
+		if err != nil {
+			options.Logger.Debug(context.Background(), fmt.Sprintf("magicsock debug logging disabled due to invalid value %s=%q, use true or false", EnvMagicsockDebugLogging, v))
+		} else {
 			magicConn.SetDebugLoggingEnabled(vBool)
+			options.Logger.Debug(context.Background(), fmt.Sprintf("magicsock debug logging set by %s=%t", EnvMagicsockDebugLogging, vBool))
 		}
+	} else {
+		options.Logger.Debug(context.Background(), fmt.Sprintf("magicsock debug logging disabled, use %s=true to enable", EnvMagicsockDebugLogging))
 	}
 
 	// Update the keys for the magic connection!
