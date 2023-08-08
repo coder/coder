@@ -144,5 +144,5 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 }
 
 func (pr *ParameterResolver) verifyConstraints(resolved []codersdk.WorkspaceBuildParameter) error {
-
+	panic("not implemented yet")
 }
