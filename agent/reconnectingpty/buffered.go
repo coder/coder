@@ -52,8 +52,6 @@ func newBuffered(ctx context.Context, cmd *pty.Cmd, options *Options, logger slo
 		timeout:     options.Timeout,
 	}
 
-	go rpty.lifecycle(ctx, logger)
-
 	// Default to buffer 64KiB.
 	circularBuffer, err := circbuf.NewBuffer(64 << 10)
 	if err != nil {
@@ -74,6 +72,8 @@ func newBuffered(ctx context.Context, cmd *pty.Cmd, options *Options, logger slo
 	}
 	rpty.ptty = ptty
 	rpty.process = process
+
+	go rpty.lifecycle(ctx, logger)
 
 	// Multiplex the output onto the circular buffer and each active connection.
 	// We do not need to separately monitor for the process exiting.  When it
@@ -125,7 +125,7 @@ func newBuffered(ctx context.Context, cmd *pty.Cmd, options *Options, logger slo
 }
 
 // lifecycle manages the lifecycle of the reconnecting pty.  If the context ends
-// the reconnecting pty will be closed.
+// the reconnecting pty and every connection will be closed.
 func (rpty *bufferedReconnectingPTY) lifecycle(ctx context.Context, logger slog.Logger) {
 	rpty.timer = time.AfterFunc(attachTimeout, func() {
 		rpty.Close("reconnecting pty timeout")
