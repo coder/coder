@@ -88,7 +88,8 @@ You can test your changes by creating a PR deployment. There are two ways to do 
 
 #### Available options
 
-- `-f` or `--force`, force builds the Docker image. (generally not needed as we are intelligently checking if the image needs to be built)
+- `-d` or `--deploy`, force deploys the PR by deleting the existing deployment.
+- `-b` or `--build`, force builds the Docker image. (generally not needed as we are intelligently checking if the image needs to be built)
 - `-e EXPERIMENT1,EXPERIMENT2` or `--experiments EXPERIMENT1,EXPERIMENT2`, will enable the specified experiments. (defaults to `*`)
 - `-n` or `--dry-run` will display the context without deployment. e.g., branch name and PR number, etc.
 - `-y` or `--yes`, will skip the CLI confirmation prompt.
