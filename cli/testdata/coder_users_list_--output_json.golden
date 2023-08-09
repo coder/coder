@@ -24,7 +24,7 @@
     "email": "testuser2@coder.com",
     "created_at": "[timestamp]",
     "last_seen_at": "[timestamp]",
-    "status": "active",
+    "status": "dormant",
     "organization_ids": [
       "[first org ID]"
     ],

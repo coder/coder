@@ -15,6 +15,7 @@ import { Stack } from "components/Stack/Stack"
 
 type FormData = {
   name: string
+  display_name: string
   avatar_url: string
   quota_allowance: number
 }
@@ -34,6 +35,7 @@ const UpdateGroupForm: FC<{
   const form = useFormik<FormData>({
     initialValues: {
       name: group.name,
+      display_name: group.display_name,
       avatar_url: group.avatar_url,
       quota_allowance: group.quota_allowance,
     },
@@ -55,7 +57,17 @@ const UpdateGroupForm: FC<{
             fullWidth
             label="Name"
           />
-
+          <TextField
+            {...getFieldHelpers(
+              "display_name",
+              "Optional: keep empty to default to the name.",
+            )}
+            onChange={onChangeTrimmed(form)}
+            autoComplete="display_name"
+            autoFocus
+            fullWidth
+            label="Display Name"
+          />
           <LazyIconField
             {...getFieldHelpers("avatar_url")}
             onChange={onChangeTrimmed(form)}
@@ -63,7 +75,6 @@ const UpdateGroupForm: FC<{
             label={t("form.fields.icon")}
             onPickEmoji={(value) => form.setFieldValue("avatar_url", value)}
           />
-
           <TextField
             {...getFieldHelpers(
               "quota_allowance",

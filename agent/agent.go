@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/armon/circbuf"
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
@@ -63,7 +64,7 @@ type Options struct {
 	IgnorePorts                  map[int]string
 	SSHMaxTimeout                time.Duration
 	TailnetListenPort            uint16
-	Subsystem                    codersdk.AgentSubsystem
+	Subsystems                   []codersdk.AgentSubsystem
 	Addresses                    []netip.Prefix
 	PrometheusRegistry           *prometheus.Registry
 	ReportMetadataInterval       time.Duration
@@ -144,7 +145,7 @@ func New(options Options) Agent {
 		reportMetadataInterval:       options.ReportMetadataInterval,
 		serviceBannerRefreshInterval: options.ServiceBannerRefreshInterval,
 		sshMaxTimeout:                options.SSHMaxTimeout,
-		subsystem:                    options.Subsystem,
+		subsystems:                   options.Subsystems,
 		addresses:                    options.Addresses,
 
 		prometheusRegistry: prometheusRegistry,
@@ -166,7 +167,7 @@ type agent struct {
 	// listing all listening ports. This is helpful to hide ports that
 	// are used by the agent, that the user does not care about.
 	ignorePorts map[int]string
-	subsystem   codersdk.AgentSubsystem
+	subsystems  []codersdk.AgentSubsystem
 
 	reconnectingPTYs       sync.Map
 	reconnectingPTYTimeout time.Duration
@@ -236,7 +237,9 @@ func (a *agent) runLoop(ctx context.Context) {
 		if err == nil {
 			continue
 		}
-		if errors.Is(err, context.Canceled) {
+		if ctx.Err() != nil {
+			// Context canceled errors may come from websocket pings, so we
+			// don't want to use `errors.Is(err, context.Canceled)` here.
 			return
 		}
 		if a.isClosed() {
@@ -606,7 +609,7 @@ func (a *agent) run(ctx context.Context) error {
 	err = a.client.PostStartup(ctx, agentsdk.PostStartupRequest{
 		Version:           buildinfo.Version(),
 		ExpandedDirectory: manifest.Directory,
-		Subsystem:         a.subsystem,
+		Subsystems:        a.subsystems,
 	})
 	if err != nil {
 		return xerrors.Errorf("update workspace agent version: %w", err)
@@ -1406,24 +1409,57 @@ func (a *agent) isClosed() bool {
 }
 
 func (a *agent) HTTPDebug() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r := chi.NewRouter()
+
+	requireNetwork := func(w http.ResponseWriter) (*tailnet.Conn, bool) {
 		a.closeMutex.Lock()
 		network := a.network
 		a.closeMutex.Unlock()
 
 		if network == nil {
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(http.StatusNotFound)
 			_, _ = w.Write([]byte("network is not ready yet"))
+			return nil, false
+		}
+
+		return network, true
+	}
+
+	r.Get("/debug/magicsock", func(w http.ResponseWriter, r *http.Request) {
+		network, ok := requireNetwork(w)
+		if !ok {
+			return
+		}
+		network.MagicsockServeHTTPDebug(w, r)
+	})
+
+	r.Get("/debug/magicsock/debug-logging/{state}", func(w http.ResponseWriter, r *http.Request) {
+		state := chi.URLParam(r, "state")
+		stateBool, err := strconv.ParseBool(state)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = fmt.Fprintf(w, "invalid state %q, must be a boolean", state)
 			return
 		}
 
-		if r.URL.Path == "/debug/magicsock" {
-			network.MagicsockServeHTTPDebug(w, r)
-		} else {
-			w.WriteHeader(http.StatusNotFound)
-			_, _ = w.Write([]byte("404 not found"))
+		network, ok := requireNetwork(w)
+		if !ok {
+			return
 		}
+
+		network.MagicsockSetDebugLoggingEnabled(stateBool)
+		a.logger.Info(r.Context(), "updated magicsock debug logging due to debug request", slog.F("new_state", stateBool))
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprintf(w, "updated magicsock debug logging to %v", stateBool)
 	})
+
+	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte("404 not found"))
+	})
+
+	return r
 }
 
 func (a *agent) Close() error {

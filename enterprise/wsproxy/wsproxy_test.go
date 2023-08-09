@@ -9,7 +9,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"tailscale.com/derp/derphttp"
 	"tailscale.com/tailcfg"
+	"tailscale.com/types/key"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -28,6 +30,54 @@ import (
 	"github.com/coder/coder/tailnet"
 	"github.com/coder/coder/testutil"
 )
+
+func TestDERPOnly(t *testing.T) {
+	t.Parallel()
+
+	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues.Experiments = []string{
+		string(codersdk.ExperimentMoons),
+		"*",
+	}
+
+	client, closer, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			DeploymentValues:         deploymentValues,
+			AppHostname:              "*.primary.test.coder.com",
+			IncludeProvisionerDaemon: true,
+			RealIPConfig: &httpmw.RealIPConfig{
+				TrustedOrigins: []*net.IPNet{{
+					IP:   net.ParseIP("127.0.0.1"),
+					Mask: net.CIDRMask(8, 32),
+				}},
+				TrustedHeaders: []string{
+					"CF-Connecting-IP",
+				},
+			},
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureWorkspaceProxy: 1,
+			},
+		},
+	})
+	t.Cleanup(func() {
+		_ = closer.Close()
+	})
+
+	// Create an external proxy.
+	_ = coderdenttest.NewWorkspaceProxy(t, api, client, &coderdenttest.ProxyOptions{
+		Name:     "best-proxy",
+		DerpOnly: true,
+	})
+
+	// Should not show up in the regions list.
+	ctx := testutil.Context(t, testutil.WaitLong)
+	regions, err := client.Regions(ctx)
+	require.NoError(t, err)
+	require.Len(t, regions, 1)
+	require.Equal(t, api.Options.AccessURL.String(), regions[0].PathAppURL)
+}
 
 func TestDERP(t *testing.T) {
 	t.Parallel()
@@ -71,6 +121,12 @@ func TestDERP(t *testing.T) {
 		Name: "worst-proxy",
 	})
 
+	// Create a running external proxy with DERP disabled.
+	proxyAPI3 := coderdenttest.NewWorkspaceProxy(t, api, client, &coderdenttest.ProxyOptions{
+		Name:         "no-derp-proxy",
+		DerpDisabled: true,
+	})
+
 	// Create a proxy that is never started.
 	createProxyCtx := testutil.Context(t, testutil.WaitLong)
 	_, err := client.CreateWorkspaceProxy(createProxyCtx, codersdk.CreateWorkspaceProxyRequest{
@@ -90,19 +146,19 @@ func TestDERP(t *testing.T) {
 		if !assert.NoError(t, err) {
 			return false
 		}
-		if !assert.Len(t, regions, 4) {
+		if !assert.Len(t, regions, 5) {
 			return false
 		}
 
 		// The first 3 regions should be healthy.
-		for _, r := range regions[:3] {
+		for _, r := range regions[:4] {
 			if !r.Healthy {
 				return false
 			}
 		}
 
 		// The last region should never be healthy.
-		assert.False(t, regions[3].Healthy)
+		assert.False(t, regions[4].Healthy)
 		return true
 	}, testutil.WaitLong, testutil.IntervalMedium)
 
@@ -170,6 +226,9 @@ resourceLoop:
 				proxy2Region = r
 				continue
 			}
+			// The no-derp-proxy shouldn't show up in the map.
+			// The last region is never started, which means it's never healthy,
+			// which means it's never added to the DERP map.
 
 			t.Fatalf("unexpected region: %+v", r)
 		}
@@ -237,6 +296,18 @@ resourceLoop:
 				require.True(t, report.Healthy, "healthcheck failed, see report dump")
 			})
 		}
+	})
+
+	t.Run("DERPDisabled", func(t *testing.T) {
+		t.Parallel()
+
+		// Try to connect to the DERP server on the no-derp-proxy region.
+		client, err := derphttp.NewClient(key.NewNode(), proxyAPI3.Options.AccessURL.String(), func(format string, args ...any) {})
+		require.NoError(t, err)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err = client.Connect(ctx)
+		require.Error(t, err)
 	})
 }
 

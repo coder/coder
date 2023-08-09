@@ -63,7 +63,7 @@ func TestWebsocket(t *testing.T) {
 		})
 
 		require.NotNil(t, wsReport.Error)
-		assert.Equal(t, wsReport.Response.Body, "test error")
-		assert.Equal(t, wsReport.Response.Code, http.StatusBadRequest)
+		assert.Equal(t, wsReport.Body, "test error")
+		assert.Equal(t, wsReport.Code, http.StatusBadRequest)
 	})
 }

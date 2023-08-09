@@ -1,4 +1,4 @@
-package generics
+package codersdk
 
 import "time"
 
@@ -10,26 +10,26 @@ type Custom interface {
 	string | bool | int | time.Duration | []string | *int
 }
 
-// StaticGeneric has all generic fields defined in the field
-type StaticGeneric struct {
-	Static GenericFields[string, int, time.Duration, string] `json:"static"`
+// Static has all generic fields defined in the field
+type Static struct {
+	Static Fields[string, int, time.Duration, string] `json:"static"`
 }
 
-// DynamicGeneric can has some dynamic fields
-type DynamicGeneric[A any, S Single] struct {
-	Dynamic    GenericFields[bool, A, string, S] `json:"dynamic"`
-	Comparable bool                              `json:"comparable"`
+// Dynamic has some dynamic fields.
+type Dynamic[A any, S Single] struct {
+	Dynamic    Fields[bool, A, string, S] `json:"dynamic"`
+	Comparable bool                       `json:"comparable"`
 }
 
-type ComplexGeneric[C comparable, S Single, T Custom] struct {
-	Dynamic    GenericFields[C, bool, string, S]       `json:"dynamic"`
-	Order      GenericFieldsDiffOrder[C, string, S, T] `json:"order"`
-	Comparable C                                       `json:"comparable"`
-	Single     S                                       `json:"single"`
-	Static     StaticGeneric                           `json:"static"`
+type Complex[C comparable, S Single, T Custom] struct {
+	Dynamic    Fields[C, bool, string, S]       `json:"dynamic"`
+	Order      FieldsDiffOrder[C, string, S, T] `json:"order"`
+	Comparable C                                `json:"comparable"`
+	Single     S                                `json:"single"`
+	Static     Static                           `json:"static"`
 }
 
-type GenericFields[C comparable, A any, T Custom, S Single] struct {
+type Fields[C comparable, A any, T Custom, S Single] struct {
 	Comparable C `json:"comparable"`
 	Any        A `json:"any"`
 
@@ -38,6 +38,6 @@ type GenericFields[C comparable, A any, T Custom, S Single] struct {
 	SingleConstraint S `json:"single_constraint"`
 }
 
-type GenericFieldsDiffOrder[A any, C comparable, S Single, T Custom] struct {
-	GenericFields[C, A, T, S]
+type FieldsDiffOrder[A any, C comparable, S Single, T Custom] struct {
+	Fields Fields[C, A, T, S]
 }

@@ -21,9 +21,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-security
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-env:
-  CODER_GO_VERSION: "1.20.6"
-
 jobs:
   codeql:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
@@ -69,16 +66,8 @@ jobs:
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
-      - name: Cache Node
-        id: cache-node
-        uses: buildjet/cache@v3
-        with:
-          path: |
-            **/node_modules
-            .eslintcache
-          key: js-${{ runner.os }}-test-${{ hashFiles('**/yarn.lock') }}
-          restore-keys: |
-            js-${{ runner.os }}-
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
 
       - name: Setup sqlc
         uses: ./.github/actions/setup-sqlc

@@ -48,7 +48,7 @@ if [ "${CODER_BUILD_AGPL:-0}" -gt "0" ] && [ "${use_proxy}" -gt "0" ]; then
 fi
 
 # Preflight checks: ensure we have our required dependencies, and make sure nothing is listening on port 3000 or 8080
-dependencies curl git go make yarn
+dependencies curl git go make pnpm
 curl --fail http://127.0.0.1:3000 >/dev/null 2>&1 && echo '== ERROR: something is listening on port 3000. Kill it and re-run this script.' && exit 1
 curl --fail http://127.0.0.1:8080 >/dev/null 2>&1 && echo '== ERROR: something is listening on port 8080. Kill it and re-run this script.' && exit 1
 
@@ -190,7 +190,7 @@ fatal() {
 	fi
 
 	# Start the frontend once we have a template up and running
-	CODER_HOST=http://127.0.0.1:3000 start_cmd SITE date yarn --cwd=./site dev --host
+	CODER_HOST=http://127.0.0.1:3000 start_cmd SITE date pnpm --dir ./site dev --host
 
 	interfaces=(localhost)
 	if command -v ip >/dev/null; then

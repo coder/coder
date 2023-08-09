@@ -99,47 +99,6 @@ resource "coder_app" "code-server" {
 }
 ```
 
-## Microsoft VS Code Server
-
-Microsoft has a VS Code in a browser IDE as well called [VS Code Server](https://code.visualstudio.com/docs/remote/vscode-server) which can be added to a Coder template.
-
-```hcl
-resource "coder_agent" "main" {
-    arch           = "amd64"
-    os             = "linux"
-    startup_script = <<EOF
-    #!/bin/sh
-
-    # install vs code server
-    # alternatively install in a container image Dockerfile
-    wget -O- https://aka.ms/install-vscode-server/setup.sh | sh
-
-    # start vs code server
-    code-server --accept-server-license-terms serve-local --without-connection-token --quality stable --telemetry-level off >/dev/null 2>&1 &
-
-    EOF
-}
-```
-
-```hcl
-# microsoft vs code server
-resource "coder_app" "msft-code-server" {
-  agent_id      = coder_agent.main.id
-  slug          = "msft-code-server"
-  display_name  = "VS Code Server"
-  icon          = "/icon/code.svg"
-  url           = "http://localhost:8000?folder=/home/coder"
-  subdomain     = true
-  share         = "owner"
-
-  healthcheck {
-    url       = "http://localhost:8000/healthz"
-    interval  = 5
-    threshold = 15
-  }
-}
-```
-
 ## JupyterLab
 
 Configure your agent and `coder_app` like so to use Jupyter. Notice the

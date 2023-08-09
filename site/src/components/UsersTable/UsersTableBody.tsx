@@ -155,6 +155,9 @@ export const UsersTableBody: FC<
                       ))}
                     </Stack>
                   </TableCell>
+                  <TableCell>
+                    <pre>{user.login_type}</pre>
+                  </TableCell>
                   <TableCell
                     className={combineClasses([
                       styles.status,
@@ -174,7 +177,7 @@ export const UsersTableBody: FC<
                         data={user}
                         menuItems={
                           // Return either suspend or activate depending on status
-                          (user.status === "active"
+                          (user.status === "active" || user.status === "dormant"
                             ? [
                                 {
                                   label: t(

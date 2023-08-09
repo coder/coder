@@ -78,3 +78,5 @@ scripts/apitypings/testdata/**/*.ts
 
 # Generated files shouldn't be formatted.
 site/e2e/provisionerGenerated.ts
+
+**/pnpm-lock.yaml

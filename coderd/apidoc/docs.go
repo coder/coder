@@ -6097,7 +6097,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
+                            "$ref": "#/definitions/codersdk.Workspace"
                         }
                     }
                 }
@@ -6447,8 +6447,11 @@ const docTemplate = `{
                 "expanded_directory": {
                     "type": "string"
                 },
-                "subsystem": {
-                    "$ref": "#/definitions/codersdk.AgentSubsystem"
+                "subsystems": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AgentSubsystem"
+                    }
                 },
                 "version": {
                     "type": "string"
@@ -6623,6 +6626,9 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "clibase.Regexp": {
+            "type": "object"
         },
         "clibase.Struct-array_codersdk_GitAuthConfig": {
             "type": "object",
@@ -6900,10 +6906,14 @@ const docTemplate = `{
         "codersdk.AgentSubsystem": {
             "type": "string",
             "enum": [
-                "envbox"
+                "envbox",
+                "envbuilder",
+                "exectrace"
             ],
             "x-enum-varnames": [
-                "AgentSubsystemEnvbox"
+                "AgentSubsystemEnvbox",
+                "AgentSubsystemEnvbuilder",
+                "AgentSubsystemExectrace"
             ]
         },
         "codersdk.AppHostResponse": {
@@ -7261,6 +7271,9 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "avatar_url": {
+                    "type": "string"
+                },
+                "display_name": {
                     "type": "string"
                 },
                 "name": {
@@ -8021,7 +8034,8 @@ const docTemplate = `{
                 "tailnet_pg_coordinator",
                 "single_tailnet",
                 "template_restart_requirement",
-                "template_insights_page"
+                "deployment_health_page",
+                "template_parameters_insights"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
@@ -8029,7 +8043,8 @@ const docTemplate = `{
                 "ExperimentTailnetPGCoordinator",
                 "ExperimentSingleTailnet",
                 "ExperimentTemplateRestartRequirement",
-                "ExperimentTemplateInsightsPage"
+                "ExperimentDeploymentHealthPage",
+                "ExperimentTemplateParametersInsights"
             ]
         },
         "codersdk.Feature": {
@@ -8247,6 +8262,9 @@ const docTemplate = `{
                 "avatar_url": {
                     "type": "string"
                 },
+                "display_name": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -8266,8 +8284,22 @@ const docTemplate = `{
                 },
                 "quota_allowance": {
                     "type": "integer"
+                },
+                "source": {
+                    "$ref": "#/definitions/codersdk.GroupSource"
                 }
             }
+        },
+        "codersdk.GroupSource": {
+            "type": "string",
+            "enum": [
+                "user",
+                "oidc"
+            ],
+            "x-enum-varnames": [
+                "GroupSourceUser",
+                "GroupSourceOIDC"
+            ]
         },
         "codersdk.Healthcheck": {
             "type": "object",
@@ -8575,8 +8607,14 @@ const docTemplate = `{
                 "email_field": {
                     "type": "string"
                 },
+                "group_auto_create": {
+                    "type": "boolean"
+                },
                 "group_mapping": {
                     "type": "object"
+                },
+                "group_regex_filter": {
+                    "$ref": "#/definitions/clibase.Regexp"
                 },
                 "groups_field": {
                     "type": "string"
@@ -8746,6 +8784,9 @@ const docTemplate = `{
                 },
                 "daemon_poll_jitter": {
                     "type": "integer"
+                },
+                "daemon_psk": {
+                    "type": "string"
                 },
                 "daemons": {
                     "type": "integer"
@@ -9540,6 +9581,12 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "parameters_usage": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateParameterUsage"
+                    }
+                },
                 "start_time": {
                     "type": "string",
                     "format": "date-time"
@@ -9564,6 +9611,53 @@ const docTemplate = `{
                 },
                 "report": {
                     "$ref": "#/definitions/codersdk.TemplateInsightsReport"
+                }
+            }
+        },
+        "codersdk.TemplateParameterUsage": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "options": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateVersionParameterOption"
+                    }
+                },
+                "template_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "type": {
+                    "type": "string"
+                },
+                "values": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateParameterValue"
+                    }
+                }
+            }
+        },
+        "codersdk.TemplateParameterValue": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "value": {
+                    "type": "string"
                 }
             }
         },
@@ -10227,10 +10321,12 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "active",
+                "dormant",
                 "suspended"
             ],
             "x-enum-varnames": [
                 "UserStatusActive",
+                "UserStatusDormant",
                 "UserStatusSuspended"
             ]
         },
@@ -10467,8 +10563,11 @@ const docTemplate = `{
                 "status": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentStatus"
                 },
-                "subsystem": {
-                    "$ref": "#/definitions/codersdk.AgentSubsystem"
+                "subsystems": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AgentSubsystem"
+                    }
                 },
                 "troubleshooting_url": {
                     "type": "string"
@@ -10924,6 +11023,9 @@ const docTemplate = `{
                 "derp_enabled": {
                     "type": "boolean"
                 },
+                "derp_only": {
+                    "type": "boolean"
+                },
                 "display_name": {
                     "type": "string"
                 },
@@ -11190,6 +11292,9 @@ const docTemplate = `{
                     "$ref": "#/definitions/derp.ServerInfoMessage"
                 },
                 "round_trip_ping": {
+                    "type": "string"
+                },
+                "round_trip_ping_ms": {
                     "type": "integer"
                 },
                 "stun": {
@@ -11258,7 +11363,9 @@ const docTemplate = `{
                 "enabled": {
                     "type": "boolean"
                 },
-                "error": {}
+                "error": {
+                    "type": "string"
+                }
             }
         },
         "healthcheck.DatabaseReport": {
@@ -11271,6 +11378,9 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "latency": {
+                    "type": "string"
+                },
+                "latency_ms": {
                     "type": "integer"
                 },
                 "reachable": {
@@ -11317,25 +11427,17 @@ const docTemplate = `{
         "healthcheck.WebsocketReport": {
             "type": "object",
             "properties": {
-                "error": {
-                    "type": "string"
-                },
-                "healthy": {
-                    "type": "boolean"
-                },
-                "response": {
-                    "$ref": "#/definitions/healthcheck.WebsocketResponse"
-                }
-            }
-        },
-        "healthcheck.WebsocketResponse": {
-            "type": "object",
-            "properties": {
                 "body": {
                     "type": "string"
                 },
                 "code": {
                     "type": "integer"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "healthy": {
+                    "type": "boolean"
                 }
             }
         },
@@ -11650,6 +11752,10 @@ const docTemplate = `{
                 },
                 "derp_enabled": {
                     "description": "DerpEnabled indicates whether the proxy should be included in the DERP\nmap or not.",
+                    "type": "boolean"
+                },
+                "derp_only": {
+                    "description": "DerpOnly indicates whether the proxy should only be included in the DERP\nmap and should not be used for serving apps.",
                     "type": "boolean"
                 },
                 "hostname": {
