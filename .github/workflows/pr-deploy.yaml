@@ -162,7 +162,7 @@ jobs:
 
   build:
     needs: get_info
-    # Run build job only if there are changes in the files that we care about or if the workflow is manually triggered with --force
+    # Run build job only if there are changes in the files that we care about or if the workflow is manually triggered with --build flag
     if: needs.get_info.outputs.BUILD == 'true' || github.event.inputs.build == 'true'
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     env:
