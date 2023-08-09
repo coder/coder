@@ -299,12 +299,12 @@ resource "kubernetes_deployment" "main" {
             name       = "home"
             read_only  = false
           }
-          volume_mount {
-            mount_path = "/tmp/config"
-            sub_path   = "kubeconfig"
-            name       = "kubeconfig"
-            read_only  = true
-          }
+          # volume_mount {
+          #   mount_path = "/tmp/config"
+          #   sub_path   = "kubeconfig"
+          #   name       = "kubeconfig"
+          #   read_only  = true
+          # }
         }
 
         volume {
@@ -316,12 +316,12 @@ resource "kubernetes_deployment" "main" {
         }
 
         # mount kubeconfig secret as a volume to /home/coder/.kube/config
-        volume {
-          name = "kubeconfig"
-          secret {
-            secret_name = "coder-namespace-kubeconfig"
-          }
-        }
+        # volume {
+        #   name = "kubeconfig"
+        #   secret {
+        #     secret_name = "coder-namespace-kubeconfig"
+        #   }
+        # }
 
         affinity {
           // This affinity attempts to spread out all workspace pods evenly across
