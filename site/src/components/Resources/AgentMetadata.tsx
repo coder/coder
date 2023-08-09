@@ -201,7 +201,8 @@ const StaticWidth = (props: BoxProps) => {
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!ref.current) {
+    // Ignore this in storybook
+    if (!ref.current || process.env.STORYBOOK === "true") {
       return
     }
 
