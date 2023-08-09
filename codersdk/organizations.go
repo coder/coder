@@ -149,10 +149,11 @@ func (c *Client) Organization(ctx context.Context, id uuid.UUID) (Organization, 
 	return organization, json.NewDecoder(res.Body).Decode(&organization)
 }
 
-// ProvisionerDaemonsByOrganization returns provisioner daemons available for an organization.
+// ProvisionerDaemons returns provisioner daemons available.
 func (c *Client) ProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, error) {
 	res, err := c.Request(ctx, http.MethodGet,
-		"/api/v2/provisionerdaemons",
+		// TODO: the organization path parameter is currently ignored.
+		"/api/v2/organizations/default/provisionerdaemons",
 		nil,
 	)
 	if err != nil {

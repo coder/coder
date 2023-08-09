@@ -67,7 +67,7 @@ func TestDERP(t *testing.T) {
 			for _, node := range region.NodeReports {
 				assert.True(t, node.Healthy)
 				assert.True(t, node.CanExchangeMessages)
-				assert.Positive(t, node.RoundTripPing)
+				assert.NotEmpty(t, node.RoundTripPing)
 				assert.Len(t, node.ClientLogs, 2)
 				assert.Len(t, node.ClientLogs[0], 1)
 				assert.Len(t, node.ClientErrs[0], 0)
@@ -76,7 +76,7 @@ func TestDERP(t *testing.T) {
 
 				assert.False(t, node.STUN.Enabled)
 				assert.False(t, node.STUN.CanSTUN)
-				assert.NoError(t, node.STUN.Error)
+				assert.Nil(t, node.STUN.Error)
 			}
 		}
 	})
@@ -111,7 +111,7 @@ func TestDERP(t *testing.T) {
 			for _, node := range region.NodeReports {
 				assert.True(t, node.Healthy)
 				assert.True(t, node.CanExchangeMessages)
-				assert.Positive(t, node.RoundTripPing)
+				assert.NotEmpty(t, node.RoundTripPing)
 				assert.Len(t, node.ClientLogs, 2)
 				assert.Len(t, node.ClientLogs[0], 1)
 				assert.Len(t, node.ClientErrs[0], 0)
@@ -120,7 +120,7 @@ func TestDERP(t *testing.T) {
 
 				assert.True(t, node.STUN.Enabled)
 				assert.True(t, node.STUN.CanSTUN)
-				assert.NoError(t, node.STUN.Error)
+				assert.Nil(t, node.STUN.Error)
 			}
 		}
 	})
@@ -174,7 +174,7 @@ func TestDERP(t *testing.T) {
 			for _, node := range region.NodeReports {
 				assert.False(t, node.Healthy)
 				assert.True(t, node.CanExchangeMessages)
-				assert.Positive(t, node.RoundTripPing)
+				assert.NotEmpty(t, node.RoundTripPing)
 				assert.Len(t, node.ClientLogs, 2)
 				assert.Len(t, node.ClientLogs[0], 3)
 				assert.Len(t, node.ClientLogs[1], 3)
@@ -185,7 +185,7 @@ func TestDERP(t *testing.T) {
 
 				assert.False(t, node.STUN.Enabled)
 				assert.False(t, node.STUN.CanSTUN)
-				assert.NoError(t, node.STUN.Error)
+				assert.Nil(t, node.STUN.Error)
 			}
 		}
 	})
@@ -227,7 +227,7 @@ func TestDERP(t *testing.T) {
 
 				assert.True(t, node.STUN.Enabled)
 				assert.True(t, node.STUN.CanSTUN)
-				assert.NoError(t, node.STUN.Error)
+				assert.Nil(t, node.STUN.Error)
 			}
 		}
 	})

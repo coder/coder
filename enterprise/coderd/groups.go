@@ -56,6 +56,7 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 	group, err := api.Database.InsertGroup(ctx, database.InsertGroupParams{
 		ID:             uuid.New(),
 		Name:           req.Name,
+		DisplayName:    req.DisplayName,
 		OrganizationID: org.ID,
 		AvatarURL:      req.AvatarURL,
 		QuotaAllowance: int32(req.QuotaAllowance),
@@ -177,6 +178,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 			ID:             group.ID,
 			AvatarURL:      group.AvatarURL,
 			Name:           group.Name,
+			DisplayName:    group.DisplayName,
 			QuotaAllowance: group.QuotaAllowance,
 		}
 
@@ -189,6 +191,9 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		}
 		if req.QuotaAllowance != nil {
 			updateGroupParams.QuotaAllowance = int32(*req.QuotaAllowance)
+		}
+		if req.DisplayName != nil {
+			updateGroupParams.DisplayName = *req.DisplayName
 		}
 
 		group, err = tx.UpdateGroupByID(ctx, updateGroupParams)
@@ -395,13 +400,16 @@ func convertGroup(g database.Group, users []database.User) codersdk.Group {
 	for _, user := range users {
 		orgs[user.ID] = []uuid.UUID{g.OrganizationID}
 	}
+
 	return codersdk.Group{
 		ID:             g.ID,
 		Name:           g.Name,
+		DisplayName:    g.DisplayName,
 		OrganizationID: g.OrganizationID,
 		AvatarURL:      g.AvatarURL,
 		QuotaAllowance: int(g.QuotaAllowance),
 		Members:        convertUsers(users, orgs),
+		Source:         codersdk.GroupSource(g.Source),
 	}
 }
 

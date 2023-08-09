@@ -233,8 +233,16 @@ func (*RootCmd) statDisk(s *clistat.Statter) *clibase.Cmd {
 		},
 		Handler: func(inv *clibase.Invocation) error {
 			pfx := clistat.ParsePrefix(prefixArg)
+			// Users may also call `coder stat disk <path>`.
+			if len(inv.Args) > 0 {
+				pathArg = inv.Args[0]
+			}
 			ds, err := s.Disk(pfx, pathArg)
 			if err != nil {
+				if os.IsNotExist(err) {
+					//nolint:gocritic // fmt.Errorf produces a more concise error.
+					return fmt.Errorf("not found: %q", pathArg)
+				}
 				return err
 			}
 

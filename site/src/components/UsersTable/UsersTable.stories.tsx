@@ -25,7 +25,32 @@ Example.args = {
 
 export const Editable = Template.bind({})
 Editable.args = {
-  users: [MockUser, MockUser2],
+  users: [
+    MockUser,
+    MockUser2,
+    {
+      ...MockUser,
+      username: "John Doe",
+      email: "john.doe@coder.com",
+      roles: [],
+      status: "dormant",
+    },
+    {
+      ...MockUser,
+      username: "Roger Moore",
+      email: "roger.moore@coder.com",
+      roles: [],
+      status: "suspended",
+    },
+    {
+      ...MockUser,
+      username: "OIDC User",
+      email: "oidc.user@coder.com",
+      roles: [],
+      status: "active",
+      login_type: "oidc",
+    },
+  ],
   roles: MockAssignableSiteRoles,
   canEditUsers: true,
   canViewActivity: true,

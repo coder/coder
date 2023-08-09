@@ -42,6 +42,15 @@ How often to poll for provisioner jobs.
 
 How much to jitter the poll interval by.
 
+### --psk
+
+|             |                                            |
+| ----------- | ------------------------------------------ |
+| Type        | <code>string</code>                        |
+| Environment | <code>$CODER_PROVISIONER_DAEMON_PSK</code> |
+
+Pre-shared key to authenticate with Coder server.
+
 ### -t, --tag
 
 |             |                                       |

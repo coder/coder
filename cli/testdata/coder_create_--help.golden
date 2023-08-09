@@ -7,6 +7,9 @@ Create a workspace
      [40m [0m[91;40m$ coder create <username>/<workspace_name>[0m[40m [0m
 
 [1mOptions[0m
+      --parameter string-array, $CODER_RICH_PARAMETER
+          Rich parameter value in the format "name=value".
+
       --rich-parameter-file string, $CODER_RICH_PARAMETER_FILE
           Specify a file path with values for rich parameters defined in the
           template.

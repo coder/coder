@@ -48,6 +48,13 @@ func TestWorkspaceParam(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		user, err = db.UpdateUserStatus(context.Background(), database.UpdateUserStatusParams{
+			ID:        user.ID,
+			Status:    database.UserStatusActive,
+			UpdatedAt: database.Now(),
+		})
+		require.NoError(t, err)
+
 		_, err = db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
 			ID:           id,
 			UserID:       user.ID,

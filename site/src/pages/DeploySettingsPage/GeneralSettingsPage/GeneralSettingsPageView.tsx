@@ -43,6 +43,7 @@ export const GeneralSettingsPageView = ({
             deploymentOptions,
             "Access URL",
             "Wildcard Access URL",
+            "Experiments",
           )}
         />
       </Stack>

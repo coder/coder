@@ -224,6 +224,13 @@ func User(t testing.TB, db database.Store, orig database.User) database.User {
 	})
 	require.NoError(t, err, "insert user")
 
+	user, err = db.UpdateUserStatus(genCtx, database.UpdateUserStatusParams{
+		ID:        user.ID,
+		Status:    database.UserStatusActive,
+		UpdatedAt: database.Now(),
+	})
+	require.NoError(t, err, "insert user")
+
 	if !orig.LastSeenAt.IsZero() {
 		user, err = db.UpdateUserLastSeenAt(genCtx, database.UpdateUserLastSeenAtParams{
 			ID:         user.ID,
@@ -272,9 +279,11 @@ func OrganizationMember(t testing.TB, db database.Store, orig database.Organizat
 }
 
 func Group(t testing.TB, db database.Store, orig database.Group) database.Group {
+	name := takeFirst(orig.Name, namesgenerator.GetRandomName(1))
 	group, err := db.InsertGroup(genCtx, database.InsertGroupParams{
 		ID:             takeFirst(orig.ID, uuid.New()),
-		Name:           takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
+		Name:           name,
+		DisplayName:    takeFirst(orig.DisplayName, name),
 		OrganizationID: takeFirst(orig.OrganizationID, uuid.New()),
 		AvatarURL:      takeFirst(orig.AvatarURL, "https://logo.example.com"),
 		QuotaAllowance: takeFirst(orig.QuotaAllowance, 0),

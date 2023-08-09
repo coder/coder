@@ -33,6 +33,8 @@ import { pageTitle } from "utils/page"
 import { groupMachine } from "xServices/groups/groupXService"
 import { Maybe } from "components/Conditionals/Maybe"
 import { makeStyles } from "@mui/styles"
+import { PaginationStatus } from "components/PaginationStatus/PaginationStatus"
+import { UserAvatar } from "components/UserAvatar/UserAvatar"
 
 const AddGroupMember: React.FC<{
   isLoading: boolean
@@ -101,7 +103,9 @@ export const GroupPage: React.FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle(group?.name ?? "Loading...")}</title>
+        <title>
+          {pageTitle((group?.display_name || group?.name) ?? "Loading...")}
+        </title>
       </Helmet>
       <ChooseOne>
         <Cond condition={isLoading}>
@@ -127,13 +131,18 @@ export const GroupPage: React.FC = () => {
                 </Maybe>
               }
             >
-              <PageHeaderTitle>{group?.name}</PageHeaderTitle>
+              <PageHeaderTitle>
+                {group?.display_name || group?.name}
+              </PageHeaderTitle>
               <PageHeaderSubtitle>
-                {group?.members.length} members
+                {/* Show the name if it differs from the display name. */}
+                {group?.display_name && group?.display_name !== group?.name
+                  ? group?.name
+                  : ""}{" "}
               </PageHeaderSubtitle>
             </PageHeader>
 
-            <Stack spacing={2.5}>
+            <Stack spacing={1}>
               <Maybe condition={canUpdateGroup}>
                 <AddGroupMember
                   isLoading={state.matches("addingMember")}
@@ -146,6 +155,13 @@ export const GroupPage: React.FC = () => {
                   }}
                 />
               </Maybe>
+              <PaginationStatus
+                isLoading={Boolean(isLoading)}
+                showing={group?.members.length ?? 0}
+                total={group?.members.length ?? 0}
+                label="members"
+              />
+
               <TableContainer>
                 <Table>
                   <TableHead>
@@ -173,6 +189,12 @@ export const GroupPage: React.FC = () => {
                           <TableRow key={member.id}>
                             <TableCell width="99%">
                               <AvatarData
+                                avatar={
+                                  <UserAvatar
+                                    username={member.username}
+                                    avatarURL={member.avatar_url}
+                                  />
+                                }
                                 title={member.username}
                                 subtitle={member.email}
                               />

@@ -51,11 +51,13 @@ import (
 	"tailscale.com/types/nettype"
 
 	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/autobuild"
 	"github.com/coder/coder/coderd/awsidentity"
+	"github.com/coder/coder/coderd/batchstats"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/database/dbtestutil"
@@ -140,7 +142,8 @@ type Options struct {
 	SwaggerEndpoint bool
 	// Logger should only be overridden if you expect errors
 	// as part of your test.
-	Logger *slog.Logger
+	Logger       *slog.Logger
+	StatsBatcher *batchstats.Batcher
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -241,6 +244,18 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	if options.FilesRateLimit == 0 {
 		options.FilesRateLimit = -1
 	}
+	if options.StatsBatcher == nil {
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		batcher, closeBatcher, err := batchstats.New(ctx,
+			batchstats.WithStore(options.Database),
+			// Avoid cluttering up test output.
+			batchstats.WithLogger(slog.Make(sloghuman.Sink(io.Discard))),
+		)
+		require.NoError(t, err, "create stats batcher")
+		options.StatsBatcher = batcher
+		t.Cleanup(closeBatcher)
+	}
 
 	var templateScheduleStore atomic.Pointer[schedule.TemplateScheduleStore]
 	if options.TemplateScheduleStore == nil {
@@ -303,9 +318,21 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		accessURL = serverURL
 	}
 
-	stunAddr, stunCleanup := stuntest.ServeWithPacketListener(t, nettype.Std{})
-	stunAddr.IP = net.ParseIP("127.0.0.1")
-	t.Cleanup(stunCleanup)
+	// If the STUNAddresses setting is empty or the default, start a STUN
+	// server. Otherwise, use the value as is.
+	var (
+		stunAddresses   []string
+		dvStunAddresses = options.DeploymentValues.DERP.Server.STUNAddresses.Value()
+	)
+	if len(dvStunAddresses) == 0 || (len(dvStunAddresses) == 1 && dvStunAddresses[0] == "stun.l.google.com:19302") {
+		stunAddr, stunCleanup := stuntest.ServeWithPacketListener(t, nettype.Std{})
+		stunAddr.IP = net.ParseIP("127.0.0.1")
+		t.Cleanup(stunCleanup)
+		stunAddresses = []string{stunAddr.String()}
+		options.DeploymentValues.DERP.Server.STUNAddresses = stunAddresses
+	} else if dvStunAddresses[0] != "disable" {
+		stunAddresses = options.DeploymentValues.DERP.Server.STUNAddresses.Value()
+	}
 
 	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(slogtest.Make(t, nil).Named("derp").Leveled(slog.LevelDebug)))
 	derpServer.SetMeshKey("test-key")
@@ -346,7 +373,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	if !options.DeploymentValues.DERP.Server.Enable.Value() {
 		region = nil
 	}
-	derpMap, err := tailnet.NewDERPMap(ctx, region, []string{stunAddr.String()}, "", "", options.DeploymentValues.DERP.Config.BlockDirect.Value())
+	derpMap, err := tailnet.NewDERPMap(ctx, region, stunAddresses, "", "", options.DeploymentValues.DERP.Config.BlockDirect.Value())
 	require.NoError(t, err)
 
 	return func(h http.Handler) {
@@ -397,6 +424,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			HealthcheckFunc:             options.HealthcheckFunc,
 			HealthcheckTimeout:          options.HealthcheckTimeout,
 			HealthcheckRefresh:          options.HealthcheckRefresh,
+			StatsBatcher:                options.StatsBatcher,
 		}
 }
 
@@ -485,7 +513,11 @@ func NewExternalProvisionerDaemon(t *testing.T, client *codersdk.Client, org uui
 	}()
 
 	closer := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
-		return client.ServeProvisionerDaemon(ctx, org, []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho}, tags)
+		return client.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+			Organization: org,
+			Provisioners: []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho},
+			Tags:         tags,
+		})
 	}, &provisionerd.Options{
 		Filesystem:          fs,
 		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
@@ -573,6 +605,14 @@ func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationI
 		})
 		require.NoError(t, err)
 		sessionToken = token.Key
+	}
+
+	if user.Status == codersdk.UserStatusDormant {
+		// Use admin client so that user's LastSeenAt is not updated.
+		// In general we need to refresh the user status, which should
+		// transition from "dormant" to "active".
+		user, err = client.User(context.Background(), user.Username)
+		require.NoError(t, err)
 	}
 
 	other := codersdk.New(client.URL)
@@ -982,9 +1022,31 @@ func NewAWSInstanceIdentity(t *testing.T, instanceID string) (awsidentity.Certif
 type OIDCConfig struct {
 	key    *rsa.PrivateKey
 	issuer string
+	// These are optional
+	refreshToken     string
+	oidcTokenExpires func() time.Time
+	tokenSource      func() (*oauth2.Token, error)
 }
 
-func NewOIDCConfig(t *testing.T, issuer string) *OIDCConfig {
+func WithRefreshToken(token string) func(cfg *OIDCConfig) {
+	return func(cfg *OIDCConfig) {
+		cfg.refreshToken = token
+	}
+}
+
+func WithTokenExpires(expFunc func() time.Time) func(cfg *OIDCConfig) {
+	return func(cfg *OIDCConfig) {
+		cfg.oidcTokenExpires = expFunc
+	}
+}
+
+func WithTokenSource(src func() (*oauth2.Token, error)) func(cfg *OIDCConfig) {
+	return func(cfg *OIDCConfig) {
+		cfg.tokenSource = src
+	}
+}
+
+func NewOIDCConfig(t *testing.T, issuer string, opts ...func(cfg *OIDCConfig)) *OIDCConfig {
 	t.Helper()
 
 	block, _ := pem.Decode([]byte(testRSAPrivateKey))
@@ -995,33 +1057,58 @@ func NewOIDCConfig(t *testing.T, issuer string) *OIDCConfig {
 		issuer = "https://coder.com"
 	}
 
-	return &OIDCConfig{
+	cfg := &OIDCConfig{
 		key:    pkey,
 		issuer: issuer,
 	}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+	return cfg
 }
 
 func (*OIDCConfig) AuthCodeURL(state string, _ ...oauth2.AuthCodeOption) string {
 	return "/?state=" + url.QueryEscape(state)
 }
 
-func (*OIDCConfig) TokenSource(context.Context, *oauth2.Token) oauth2.TokenSource {
-	return nil
+type tokenSource struct {
+	src func() (*oauth2.Token, error)
 }
 
-func (*OIDCConfig) Exchange(_ context.Context, code string, _ ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
+func (s tokenSource) Token() (*oauth2.Token, error) {
+	return s.src()
+}
+
+func (cfg *OIDCConfig) TokenSource(context.Context, *oauth2.Token) oauth2.TokenSource {
+	if cfg.tokenSource == nil {
+		return nil
+	}
+	return tokenSource{
+		src: cfg.tokenSource,
+	}
+}
+
+func (cfg *OIDCConfig) Exchange(_ context.Context, code string, _ ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
 	token, err := base64.StdEncoding.DecodeString(code)
 	if err != nil {
 		return nil, xerrors.Errorf("decode code: %w", err)
 	}
+
+	var exp time.Time
+	if cfg.oidcTokenExpires != nil {
+		exp = cfg.oidcTokenExpires()
+	}
+
 	return (&oauth2.Token{
-		AccessToken: "token",
+		AccessToken:  "token",
+		RefreshToken: cfg.refreshToken,
+		Expiry:       exp,
 	}).WithExtra(map[string]interface{}{
 		"id_token": string(token),
 	}), nil
 }
 
-func (o *OIDCConfig) EncodeClaims(t *testing.T, claims jwt.MapClaims) string {
+func (cfg *OIDCConfig) EncodeClaims(t *testing.T, claims jwt.MapClaims) string {
 	t.Helper()
 
 	if _, ok := claims["exp"]; !ok {
@@ -1029,20 +1116,20 @@ func (o *OIDCConfig) EncodeClaims(t *testing.T, claims jwt.MapClaims) string {
 	}
 
 	if _, ok := claims["iss"]; !ok {
-		claims["iss"] = o.issuer
+		claims["iss"] = cfg.issuer
 	}
 
 	if _, ok := claims["sub"]; !ok {
 		claims["sub"] = "testme"
 	}
 
-	signed, err := jwt.NewWithClaims(jwt.SigningMethodRS256, claims).SignedString(o.key)
+	signed, err := jwt.NewWithClaims(jwt.SigningMethodRS256, claims).SignedString(cfg.key)
 	require.NoError(t, err)
 
 	return base64.StdEncoding.EncodeToString([]byte(signed))
 }
 
-func (o *OIDCConfig) OIDCConfig(t *testing.T, userInfoClaims jwt.MapClaims, opts ...func(cfg *coderd.OIDCConfig)) *coderd.OIDCConfig {
+func (cfg *OIDCConfig) OIDCConfig(t *testing.T, userInfoClaims jwt.MapClaims, opts ...func(cfg *coderd.OIDCConfig)) *coderd.OIDCConfig {
 	// By default, the provider can be empty.
 	// This means it won't support any endpoints!
 	provider := &oidc.Provider{}
@@ -1059,10 +1146,10 @@ func (o *OIDCConfig) OIDCConfig(t *testing.T, userInfoClaims jwt.MapClaims, opts
 		}
 		provider = cfg.NewProvider(context.Background())
 	}
-	cfg := &coderd.OIDCConfig{
-		OAuth2Config: o,
-		Verifier: oidc.NewVerifier(o.issuer, &oidc.StaticKeySet{
-			PublicKeys: []crypto.PublicKey{o.key.Public()},
+	newCFG := &coderd.OIDCConfig{
+		OAuth2Config: cfg,
+		Verifier: oidc.NewVerifier(cfg.issuer, &oidc.StaticKeySet{
+			PublicKeys: []crypto.PublicKey{cfg.key.Public()},
 		}, &oidc.Config{
 			SkipClientIDCheck: true,
 		}),
@@ -1073,9 +1160,9 @@ func (o *OIDCConfig) OIDCConfig(t *testing.T, userInfoClaims jwt.MapClaims, opts
 		GroupField:    "groups",
 	}
 	for _, opt := range opts {
-		opt(cfg)
+		opt(newCFG)
 	}
-	return cfg
+	return newCFG
 }
 
 // NewAzureInstanceIdentity returns a metadata client and ID token validator for faking

@@ -2,6 +2,7 @@ package healthcheck
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -10,8 +11,6 @@ import (
 
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
-
-	"github.com/coder/coder/coderd/httpapi"
 )
 
 type WebsocketReportOptions struct {
@@ -20,15 +19,12 @@ type WebsocketReportOptions struct {
 	HTTPClient *http.Client
 }
 
+// @typescript-generate WebsocketReport
 type WebsocketReport struct {
-	Healthy  bool              `json:"healthy"`
-	Response WebsocketResponse `json:"response"`
-	Error    *string           `json:"error"`
-}
-
-type WebsocketResponse struct {
-	Body string `json:"body"`
-	Code int    `json:"code"`
+	Healthy bool    `json:"healthy"`
+	Body    string  `json:"body"`
+	Code    int     `json:"code"`
+	Error   *string `json:"error"`
 }
 
 func (r *WebsocketReport) Run(ctx context.Context, opts *WebsocketReportOptions) {
@@ -60,10 +56,8 @@ func (r *WebsocketReport) Run(ctx context.Context, opts *WebsocketReportOptions)
 			}
 		}
 
-		r.Response = WebsocketResponse{
-			Body: body,
-			Code: res.StatusCode,
-		}
+		r.Body = body
+		r.Code = res.StatusCode
 	}
 	if err != nil {
 		r.Error = convertError(xerrors.Errorf("websocket dial: %w", err))
@@ -115,7 +109,8 @@ func (s *WebsocketEchoServer) ServeHTTP(rw http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 	c, err := websocket.Accept(rw, r, &websocket.AcceptOptions{})
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, "unable to accept: "+err.Error())
+		rw.WriteHeader(http.StatusBadRequest)
+		_, _ = rw.Write([]byte(fmt.Sprint("unable to accept:", err)))
 		return
 	}
 	defer c.Close(websocket.StatusGoingAway, "goodbye")

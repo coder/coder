@@ -155,7 +155,7 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	//nolint:gocritic
-	user, err := api.Database.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
+	dbUser, err := api.Database.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
 		Email:    email,
 		Username: sUser.UserName,
 	})
@@ -164,8 +164,22 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err == nil {
-		sUser.ID = user.ID.String()
-		sUser.UserName = user.Username
+		sUser.ID = dbUser.ID.String()
+		sUser.UserName = dbUser.Username
+
+		if sUser.Active && dbUser.Status == database.UserStatusSuspended {
+			//nolint:gocritic
+			_, err = api.Database.UpdateUserStatus(dbauthz.AsSystemRestricted(r.Context()), database.UpdateUserStatusParams{
+				ID: dbUser.ID,
+				// The user will get transitioned to Active after logging in.
+				Status:    database.UserStatusDormant,
+				UpdatedAt: database.Now(),
+			})
+			if err != nil {
+				_ = handlerutil.WriteError(rw, err)
+				return
+			}
+		}
 
 		httpapi.Write(ctx, rw, http.StatusOK, sUser)
 		return
@@ -201,7 +215,7 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	//nolint:gocritic // needed for SCIM
-	user, _, err = api.AGPL.CreateUser(dbauthz.AsSystemRestricted(ctx), api.Database, agpl.CreateUserRequest{
+	dbUser, _, err = api.AGPL.CreateUser(dbauthz.AsSystemRestricted(ctx), api.Database, agpl.CreateUserRequest{
 		CreateUserRequest: codersdk.CreateUserRequest{
 			Username:       sUser.UserName,
 			Email:          email,
@@ -214,8 +228,8 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sUser.ID = user.ID.String()
-	sUser.UserName = user.Username
+	sUser.ID = dbUser.ID.String()
+	sUser.UserName = dbUser.Username
 
 	httpapi.Write(ctx, rw, http.StatusOK, sUser)
 }
@@ -263,7 +277,8 @@ func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 
 	var status database.UserStatus
 	if sUser.Active {
-		status = database.UserStatusActive
+		// The user will get transitioned to Active after logging in.
+		status = database.UserStatusDormant
 	} else {
 		status = database.UserStatusSuspended
 	}

@@ -19,6 +19,7 @@ type UserStatus string
 
 const (
 	UserStatusActive    UserStatus = "active"
+	UserStatusDormant   UserStatus = "dormant"
 	UserStatusSuspended UserStatus = "suspended"
 )
 
@@ -160,10 +161,9 @@ type CreateOrganizationRequest struct {
 
 // AuthMethods contains authentication method information like whether they are enabled or not or custom text, etc.
 type AuthMethods struct {
-	ConvertToOIDCEnabled bool           `json:"convert_to_oidc_enabled"`
-	Password             AuthMethod     `json:"password"`
-	Github               AuthMethod     `json:"github"`
-	OIDC                 OIDCAuthMethod `json:"oidc"`
+	Password AuthMethod     `json:"password"`
+	Github   AuthMethod     `json:"github"`
+	OIDC     OIDCAuthMethod `json:"oidc"`
 }
 
 type AuthMethod struct {

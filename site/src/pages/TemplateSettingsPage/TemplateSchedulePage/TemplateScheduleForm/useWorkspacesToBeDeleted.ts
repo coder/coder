@@ -1,32 +1,65 @@
 import { useQuery } from "@tanstack/react-query"
 import { getWorkspaces } from "api/api"
-import { compareAsc, add, endOfToday } from "date-fns"
-import { WorkspaceStatus, Workspace } from "api/typesGenerated"
+import { compareAsc } from "date-fns"
+import { Workspace, Template } from "api/typesGenerated"
 import { TemplateScheduleFormValues } from "./formHelpers"
 
-const inactiveStatuses: WorkspaceStatus[] = [
-  "stopped",
-  "canceled",
-  "failed",
-  "deleted",
-]
-
-export const useWorkspacesToBeDeleted = (
+export const useWorkspacesToBeLocked = (
+  template: Template,
   formValues: TemplateScheduleFormValues,
 ) => {
   const { data: workspacesData } = useQuery({
     queryKey: ["workspaces"],
-    queryFn: () => getWorkspaces({}),
+    queryFn: () =>
+      getWorkspaces({
+        q: "template:" + template.name,
+      }),
     enabled: formValues.inactivity_cleanup_enabled,
   })
+
   return workspacesData?.workspaces?.filter((workspace: Workspace) => {
-    const isInactive = inactiveStatuses.includes(workspace.latest_build.status)
+    if (!formValues.inactivity_ttl_ms) {
+      return
+    }
 
-    const proposedDeletion = add(new Date(workspace.last_used_at), {
-      days: formValues.inactivity_ttl_ms,
-    })
+    if (workspace.locked_at) {
+      return
+    }
 
-    if (isInactive && compareAsc(proposedDeletion, endOfToday()) < 1) {
+    const proposedLocking = new Date(
+      new Date(workspace.last_used_at).getTime() +
+        formValues.inactivity_ttl_ms * 86400000,
+    )
+
+    if (compareAsc(proposedLocking, new Date()) < 1) {
+      return workspace
+    }
+  })
+}
+
+export const useWorkspacesToBeDeleted = (
+  template: Template,
+  formValues: TemplateScheduleFormValues,
+) => {
+  const { data: workspacesData } = useQuery({
+    queryKey: ["workspaces"],
+    queryFn: () =>
+      getWorkspaces({
+        q: "template:" + template.name,
+      }),
+    enabled: formValues.locked_cleanup_enabled,
+  })
+  return workspacesData?.workspaces?.filter((workspace: Workspace) => {
+    if (!workspace.locked_at || !formValues.locked_ttl_ms) {
+      return false
+    }
+
+    const proposedLocking = new Date(
+      new Date(workspace.locked_at).getTime() +
+        formValues.locked_ttl_ms * 86400000,
+    )
+
+    if (compareAsc(proposedLocking, new Date()) < 1) {
       return workspace
     }
   })

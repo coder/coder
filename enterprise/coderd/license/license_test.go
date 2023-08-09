@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
@@ -259,14 +260,36 @@ func TestEntitlements(t *testing.T) {
 	t.Run("TooManyUsers", func(t *testing.T) {
 		t.Parallel()
 		db := dbfake.New()
-		db.InsertUser(context.Background(), database.InsertUserParams{
+		activeUser1, err := db.InsertUser(context.Background(), database.InsertUserParams{
+			ID:        uuid.New(),
 			Username:  "test1",
 			LoginType: database.LoginTypePassword,
 		})
-		db.InsertUser(context.Background(), database.InsertUserParams{
+		require.NoError(t, err)
+		_, err = db.UpdateUserStatus(context.Background(), database.UpdateUserStatusParams{
+			ID:        activeUser1.ID,
+			Status:    database.UserStatusActive,
+			UpdatedAt: database.Now(),
+		})
+		require.NoError(t, err)
+		activeUser2, err := db.InsertUser(context.Background(), database.InsertUserParams{
+			ID:        uuid.New(),
 			Username:  "test2",
 			LoginType: database.LoginTypePassword,
 		})
+		require.NoError(t, err)
+		_, err = db.UpdateUserStatus(context.Background(), database.UpdateUserStatusParams{
+			ID:        activeUser2.ID,
+			Status:    database.UserStatusActive,
+			UpdatedAt: database.Now(),
+		})
+		require.NoError(t, err)
+		_, err = db.InsertUser(context.Background(), database.InsertUserParams{
+			ID:        uuid.New(),
+			Username:  "dormant-user",
+			LoginType: database.LoginTypePassword,
+		})
+		require.NoError(t, err)
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				Features: license.Features{

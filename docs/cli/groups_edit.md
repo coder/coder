@@ -28,6 +28,15 @@ Add users to the group. Accepts emails or IDs.
 
 Update the group avatar.
 
+### --display-name
+
+|             |                                  |
+| ----------- | -------------------------------- |
+| Type        | <code>string</code>              |
+| Environment | <code>$CODER_DISPLAY_NAME</code> |
+
+Optional human friendly name for the group.
+
 ### -n, --name
 
 |      |                     |
