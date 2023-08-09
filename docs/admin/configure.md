@@ -66,6 +66,9 @@ You must have the certificate `.key` and `.crt` files in your working directory 
 kubectl create secret tls coder-tls -n <coder-namespace> --key="tls.key" --cert="tls.crt"
 ```
 
+> You can use a single certificate for the both the access URL and wildcard access URL.
+> The certificate CN must match the wildcard domain, such as `*.example.coder.com`.
+
 1. Reference the TLS secret in your Coder Helm chart values
 
 ```yaml
@@ -74,7 +77,7 @@ coder:
     secretName:
       - coder-tls
 
-  # alternatively, if you use an Ingress controller to terminate TLS,
+  # Alternatively, if you use an Ingress controller to terminate TLS,
   # set the following values:
   ingress:
     enable: true
