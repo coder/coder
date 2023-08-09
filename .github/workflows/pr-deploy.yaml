@@ -222,7 +222,7 @@ jobs:
       PR_TITLE: ${{ needs.get_info.outputs.PR_TITLE }}
       PR_URL: ${{ needs.get_info.outputs.PR_URL }}
       PR_BRANCH: ${{ needs.get_info.outputs.PR_BRANCH }}
-      PR_DEPLOYMENT_ACCESS_URL: "pr${{ needs.get_info.outputs.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
+      HOSTNAME: "pr${{ needs.get_info.outputs.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
     steps:
       - name: Set up kubeconfig
         run: |
@@ -248,7 +248,7 @@ jobs:
           curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records" \
             -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
             -H "Content-Type:application/json" \
-            --data '{"type":"CNAME","name":"*.${{ env.PR_DEPLOYMENT_ACCESS_URL }}","content":"${{ env.PR_DEPLOYMENT_ACCESS_URL }}","ttl":1,"proxied":false}'
+            --data '{"type":"CNAME","name":"*.${{ env.HOSTNAME }}","content":"${{ env.HOSTNAME }}","ttl":1,"proxied":false}'
 
       - name: Checkout
         uses: actions/checkout@v3
@@ -362,7 +362,7 @@ jobs:
           set -euo pipefail
 
           DEST="${HOME}/coder"
-          URL="https://${{ env.PR_DEPLOYMENT_ACCESS_URL }}/bin/coder-linux-amd64"
+          URL="https://${{ env.HOSTNAME }}/bin/coder-linux-amd64"
 
           mkdir -p "$(dirname ${DEST})"
 
@@ -403,7 +403,7 @@ jobs:
             --first-user-password $password \
             --first-user-trial \
             --use-token-as-session \
-            https://${{ env.PR_DEPLOYMENT_ACCESS_URL }}
+            https://${{ env.HOSTNAME }}
 
           # Create template
           cd ./.github/pr-deployments/template
@@ -428,7 +428,7 @@ jobs:
               "pr_number": "'"${{ env.PR_NUMBER }}"'",
               "pr_url": "'"${{ env.PR_URL }}"'",
               "pr_title": "'"${{ env.PR_TITLE }}"'",
-              "pr_access_url": "'"https://${{ env.PR_DEPLOYMENT_ACCESS_URL }}"'",
+              "pr_access_url": "'"https://${{ env.HOSTNAME }}"'",
               "pr_username": "'"test"'",
               "pr_email": "'"pr${{ env.PR_NUMBER }}@coder.com"'",
               "pr_password": "'"${{ steps.setup_deployment.outputs.password }}"'",
