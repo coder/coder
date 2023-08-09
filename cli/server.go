@@ -63,6 +63,7 @@ import (
 	"github.com/coder/coder/cli/config"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/autobuild"
+	"github.com/coder/coder/coderd/batchstats"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbfake"
 	"github.com/coder/coder/coderd/database/dbmetrics"
@@ -596,6 +597,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					AuthURLParams:       cfg.OIDC.AuthURLParams.Value,
 					IgnoreUserInfo:      cfg.OIDC.IgnoreUserInfo.Value(),
 					GroupField:          cfg.OIDC.GroupField.String(),
+					GroupFilter:         cfg.OIDC.GroupRegexFilter.Value(),
+					CreateMissingGroups: cfg.OIDC.GroupAutoCreate.Value(),
 					GroupMapping:        cfg.OIDC.GroupMapping.Value,
 					UserRoleField:       cfg.OIDC.UserRoleField.String(),
 					UserRoleMapping:     cfg.OIDC.UserRoleMapping.Value,
@@ -812,6 +815,16 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if cfg.Swagger.Enable {
 				options.SwaggerEndpoint = cfg.Swagger.Enable.Value()
 			}
+
+			batcher, closeBatcher, err := batchstats.New(ctx,
+				batchstats.WithLogger(options.Logger.Named("batchstats")),
+				batchstats.WithStore(options.Database),
+			)
+			if err != nil {
+				return xerrors.Errorf("failed to create agent stats batcher: %w", err)
+			}
+			options.StatsBatcher = batcher
+			defer closeBatcher()
 
 			closeCheckInactiveUsersFunc := dormancy.CheckInactiveUsers(ctx, logger, options.Database)
 			defer closeCheckInactiveUsersFunc()

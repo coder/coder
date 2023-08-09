@@ -1,7 +1,6 @@
 package cli_test
 
 import (
-	"bytes"
 	"context"
 	"path/filepath"
 	"testing"
@@ -72,9 +71,10 @@ func TestScaleTestWorkspaceTraffic(t *testing.T) {
 		"--ssh",
 	)
 	clitest.SetupConfig(t, client, root)
-	var stdout, stderr bytes.Buffer
-	inv.Stdout = &stdout
-	inv.Stderr = &stderr
+	pty := ptytest.New(t)
+	inv.Stdout = pty.Output()
+	inv.Stderr = pty.Output()
+
 	err := inv.WithContext(ctx).Run()
 	require.ErrorContains(t, err, "no scaletest workspaces exist")
 }
@@ -98,9 +98,10 @@ func TestScaleTestDashboard(t *testing.T) {
 		"--scaletest-prometheus-wait", "0s",
 	)
 	clitest.SetupConfig(t, client, root)
-	var stdout, stderr bytes.Buffer
-	inv.Stdout = &stdout
-	inv.Stderr = &stderr
+	pty := ptytest.New(t)
+	inv.Stdout = pty.Output()
+	inv.Stderr = pty.Output()
+
 	err := inv.WithContext(ctx).Run()
 	require.NoError(t, err, "")
 }

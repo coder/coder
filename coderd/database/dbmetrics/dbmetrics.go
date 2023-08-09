@@ -634,6 +634,13 @@ func (m metricsStore) GetTemplateInsights(ctx context.Context, arg database.GetT
 	return r0, r1
 }
 
+func (m metricsStore) GetTemplateParameterInsights(ctx context.Context, arg database.GetTemplateParameterInsightsParams) ([]database.GetTemplateParameterInsightsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateParameterInsights(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetTemplateParameterInsights").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (database.TemplateVersion, error) {
 	start := time.Now()
 	version, err := m.s.GetTemplateVersionByID(ctx, id)
@@ -1103,6 +1110,13 @@ func (m metricsStore) InsertLicense(ctx context.Context, arg database.InsertLice
 	return license, err
 }
 
+func (m metricsStore) InsertMissingGroups(ctx context.Context, arg database.InsertMissingGroupsParams) ([]database.Group, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertMissingGroups(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertMissingGroups").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) InsertOrganization(ctx context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {
 	start := time.Now()
 	organization, err := m.s.InsertOrganization(ctx, arg)
@@ -1227,6 +1241,13 @@ func (m metricsStore) InsertWorkspaceAgentStat(ctx context.Context, arg database
 	stat, err := m.s.InsertWorkspaceAgentStat(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentStat").Observe(time.Since(start).Seconds())
 	return stat, err
+}
+
+func (m metricsStore) InsertWorkspaceAgentStats(ctx context.Context, arg database.InsertWorkspaceAgentStatsParams) error {
+	start := time.Now()
+	r0 := m.s.InsertWorkspaceAgentStats(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentStats").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m metricsStore) InsertWorkspaceApp(ctx context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
@@ -1565,11 +1586,11 @@ func (m metricsStore) UpdateWorkspaceLastUsedAt(ctx context.Context, arg databas
 	return err
 }
 
-func (m metricsStore) UpdateWorkspaceLockedDeletingAt(ctx context.Context, arg database.UpdateWorkspaceLockedDeletingAtParams) error {
+func (m metricsStore) UpdateWorkspaceLockedDeletingAt(ctx context.Context, arg database.UpdateWorkspaceLockedDeletingAtParams) (database.Workspace, error) {
 	start := time.Now()
-	r0 := m.s.UpdateWorkspaceLockedDeletingAt(ctx, arg)
+	ws, r0 := m.s.UpdateWorkspaceLockedDeletingAt(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateWorkspaceLockedDeletingAt").Observe(time.Since(start).Seconds())
-	return r0
+	return ws, r0
 }
 
 func (m metricsStore) UpdateWorkspaceProxy(ctx context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {

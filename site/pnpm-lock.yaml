@@ -60,6 +60,9 @@ dependencies:
   '@types/react-color':
     specifier: 3.0.6
     version: 3.0.6
+  '@types/react-date-range':
+    specifier: 1.4.4
+    version: 1.4.4
   '@types/semver':
     specifier: 7.5.0
     version: 7.5.0
@@ -147,6 +150,9 @@ dependencies:
   react-confetti:
     specifier: 6.1.0
     version: 6.1.0(react@18.2.0)
+  react-date-range:
+    specifier: 1.4.0
+    version: 1.4.0(date-fns@2.30.0)(react@18.2.0)
   react-dom:
     specifier: 18.2.0
     version: 18.2.0(react@18.2.0)
@@ -408,8 +414,8 @@ devDependencies:
     specifier: 7.2.0
     version: 7.2.0
   storybook-addon-react-router-v6:
-    specifier: 1.0.2
-    version: 1.0.2(@storybook/blocks@7.2.0)(@storybook/components@7.2.0)(@storybook/core-events@7.2.0)(@storybook/manager-api@7.2.0)(@storybook/preview-api@7.2.0)(@storybook/theming@7.2.0)(@storybook/types@7.2.0)(react-dom@18.2.0)(react-router-dom@6.14.1)(react-router@6.14.2)(react@18.2.0)
+    specifier: 2.0.0
+    version: 2.0.0(@storybook/blocks@7.2.0)(@storybook/channels@7.2.0)(@storybook/components@7.2.0)(@storybook/core-events@7.2.0)(@storybook/manager-api@7.2.0)(@storybook/preview-api@7.2.0)(@storybook/theming@7.2.0)(react-dom@18.2.0)(react-router-dom@6.14.1)(react-router@6.14.2)(react@18.2.0)
   storybook-react-context:
     specifier: 0.6.0
     version: 0.6.0(react-dom@18.2.0)
@@ -4956,6 +4962,13 @@ packages:
       '@types/reactcss': 1.2.6
     dev: false
 
+  /@types/react-date-range@1.4.4:
+    resolution: {integrity: sha512-9Y9NyNgaCsEVN/+O4HKuxzPbVjRVBGdOKRxMDcsTRWVG62lpYgnxefNckTXDWup8FvczoqPW0+ESZR6R1yymDg==}
+    dependencies:
+      '@types/react': 18.2.6
+      date-fns: 2.30.0
+    dev: false
+
   /@types/react-dom@18.2.4:
     resolution: {integrity: sha512-G2mHoTMTL4yoydITgOGwWdWMVd8sNgyEP85xVmMKAPUBwQWm9wBPQUmvbeF4V3WBY1P7mmL4BkjQ0SqUpf1snw==}
     dependencies:
@@ -6232,6 +6245,10 @@ packages:
   /cjs-module-lexer@1.2.3:
     resolution: {integrity: sha512-0TNiGstbQmCFwt4akjjBg5pLRTSyj/PkWQ1ZoO2zntmg9yLqSRxwEa4iCfQLGjqhiqBfOJa7W/E8wfGrTDmlZQ==}
     dev: true
+
+  /classnames@2.3.2:
+    resolution: {integrity: sha512-CSbhY4cFEJRe6/GQzIk5qXZ4Jeg5pcsP7b5peFSDpffpe1cqjASH/n9UTjBwOp6XpMSTwQ8Za2K5V02ueA7Tmw==}
+    dev: false
 
   /clean-regexp@1.0.0:
     resolution: {integrity: sha512-GfisEZEJvzKrmGWkvfhgzcz/BllN1USeqD2V6tg14OAOgaCD2Z/PUEuxnAZ/nPvmaHRG7a8y77p1T/IRQ4D1Hw==}
@@ -11186,6 +11203,20 @@ packages:
       tween-functions: 1.2.0
     dev: false
 
+  /react-date-range@1.4.0(date-fns@2.30.0)(react@18.2.0):
+    resolution: {integrity: sha512-+9t0HyClbCqw1IhYbpWecjsiaftCeRN5cdhsi9v06YdimwyMR2yYHWcgVn3URwtN/txhqKpEZB6UX1fHpvK76w==}
+    peerDependencies:
+      date-fns: 2.0.0-alpha.7 || >=2.0.0
+      react: ^0.14 || ^15.0.0-rc || >=15.0
+    dependencies:
+      classnames: 2.3.2
+      date-fns: 2.30.0
+      prop-types: 15.8.1
+      react: 18.2.0
+      react-list: 0.8.17(react@18.2.0)
+      shallow-equal: 1.2.1
+    dev: false
+
   /react-docgen-typescript@2.2.2(typescript@5.1.6):
     resolution: {integrity: sha512-tvg2ZtOpOi6QDwsb3GZhOjDkkX0h8Z2gipvTg6OVMUyoYoURhEiRNePT8NZItTVCDh39JJHnLdfCOkzoLbFnTg==}
     peerDependencies:
@@ -11319,6 +11350,15 @@ packages:
 
   /react-is@18.2.0:
     resolution: {integrity: sha512-xWGDIW6x921xtzPkhiULtthJHoJvBbF3q26fzloPCK0hsvxtPVelvftw3zjbHWSkR2km9Z+4uxbDDK/6Zw9B8w==}
+
+  /react-list@0.8.17(react@18.2.0):
+    resolution: {integrity: sha512-pgmzGi0G5uGrdHzMhgO7KR1wx5ZXVvI3SsJUmkblSAKtewIhMwbQiMuQiTE83ozo04BQJbe0r3WIWzSO0dR1xg==}
+    peerDependencies:
+      react: 0.14 || 15 - 18
+    dependencies:
+      prop-types: 15.8.1
+      react: 18.2.0
+    dev: false
 
   /react-markdown@8.0.3(@types/react@18.2.6)(react@18.2.0):
     resolution: {integrity: sha512-We36SfqaKoVNpN1QqsZwWSv/OZt5J15LNgTLWynwAN5b265hrQrsjMtlRNwUvS+YyR3yDM8HpTNc4pK9H/Gc0A==}
@@ -12008,6 +12048,10 @@ packages:
       kind-of: 6.0.3
     dev: true
 
+  /shallow-equal@1.2.1:
+    resolution: {integrity: sha512-S4vJDjHHMBaiZuT9NPb616CSmLf618jawtv3sufLl6ivK8WocjAo58cXwbRV1cgqxH0Qbv+iUt6m05eqEa2IRA==}
+    dev: false
+
   /shallowequal@1.1.0:
     resolution: {integrity: sha512-y0m1JoUZSlPAjXVtPPW70aZWfIL/dSP7AFkRnniLCrK/8MDKog3TySTBmckD+RObVxH0v4Tox67+F14PdED2oQ==}
     dev: false
@@ -12213,20 +12257,20 @@ packages:
     resolution: {integrity: sha512-siT1RiqlfQnGqgT/YzXVUNsom9S0H1OX+dpdGN1xkyYATo4I6sep5NmsRD/40s3IIOvlCq6akxkqG82urIZW1w==}
     dev: true
 
-  /storybook-addon-react-router-v6@1.0.2(@storybook/blocks@7.2.0)(@storybook/components@7.2.0)(@storybook/core-events@7.2.0)(@storybook/manager-api@7.2.0)(@storybook/preview-api@7.2.0)(@storybook/theming@7.2.0)(@storybook/types@7.2.0)(react-dom@18.2.0)(react-router-dom@6.14.1)(react-router@6.14.2)(react@18.2.0):
-    resolution: {integrity: sha512-38W+9D2sIrYAi+oRSbsLhR/umNoLVw2DWF84Jp4f/ZoB8Cg0Qtbvwk043oHqzNOpZrfgj0FaV006oaJBVpE8Kw==}
+  /storybook-addon-react-router-v6@2.0.0(@storybook/blocks@7.2.0)(@storybook/channels@7.2.0)(@storybook/components@7.2.0)(@storybook/core-events@7.2.0)(@storybook/manager-api@7.2.0)(@storybook/preview-api@7.2.0)(@storybook/theming@7.2.0)(react-dom@18.2.0)(react-router-dom@6.14.1)(react-router@6.14.2)(react@18.2.0):
+    resolution: {integrity: sha512-M+PR7rdacFDwUCQZRBJVnzyEOqHrDVrTqN8ufqo+TuXxk33QZvb3QeZuo0d2UTYctgA1GY74EX9RJCEXZpv6VQ==}
     peerDependencies:
       '@storybook/blocks': ^7.0.0
+      '@storybook/channels': ^7.0.0
       '@storybook/components': ^7.0.0
       '@storybook/core-events': ^7.0.0
       '@storybook/manager-api': ^7.0.0
       '@storybook/preview-api': ^7.0.0
       '@storybook/theming': ^7.0.0
-      '@storybook/types': ^7.0.0
       react: ^16.8.0 || ^17.0.0 || ^18.0.0
       react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0
-      react-router: ^6.3.0
-      react-router-dom: ^6.3.0
+      react-router: ^6.4.0
+      react-router-dom: ^6.4.0
     peerDependenciesMeta:
       react:
         optional: true
@@ -12234,12 +12278,12 @@ packages:
         optional: true
     dependencies:
       '@storybook/blocks': 7.2.0(@types/react-dom@18.2.4)(@types/react@18.2.6)(react-dom@18.2.0)(react@18.2.0)
+      '@storybook/channels': 7.2.0
       '@storybook/components': 7.2.0(@types/react-dom@18.2.4)(@types/react@18.2.6)(react-dom@18.2.0)(react@18.2.0)
       '@storybook/core-events': 7.2.0
       '@storybook/manager-api': 7.2.0(react-dom@18.2.0)(react@18.2.0)
       '@storybook/preview-api': 7.2.0
       '@storybook/theming': 7.2.0(react-dom@18.2.0)(react@18.2.0)
-      '@storybook/types': 7.2.0
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
       react-inspector: 6.0.2(react@18.2.0)

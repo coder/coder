@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/mail"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -688,6 +689,13 @@ type OIDCConfig struct {
 	// groups. If the group field is the empty string, then no group updates
 	// will ever come from the OIDC provider.
 	GroupField string
+	// CreateMissingGroups controls whether groups returned by the OIDC provider
+	// are automatically created in Coder if they are missing.
+	CreateMissingGroups bool
+	// GroupFilter is a regular expression that filters the groups returned by
+	// the OIDC provider. Any group not matched by this regex will be ignored.
+	// If the group filter is nil, then no group filtering will occur.
+	GroupFilter *regexp.Regexp
 	// GroupMapping controls how groups returned by the OIDC provider get mapped
 	// to groups within Coder.
 	// map[oidcGroupName]coderGroupName
@@ -1029,19 +1037,21 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	params := (&oauthLoginParams{
-		User:         user,
-		Link:         link,
-		State:        state,
-		LinkedID:     oidcLinkedID(idToken),
-		LoginType:    database.LoginTypeOIDC,
-		AllowSignups: api.OIDCConfig.AllowSignups,
-		Email:        email,
-		Username:     username,
-		AvatarURL:    picture,
-		UsingGroups:  usingGroups,
-		UsingRoles:   api.OIDCConfig.RoleSyncEnabled(),
-		Roles:        roles,
-		Groups:       groups,
+		User:                user,
+		Link:                link,
+		State:               state,
+		LinkedID:            oidcLinkedID(idToken),
+		LoginType:           database.LoginTypeOIDC,
+		AllowSignups:        api.OIDCConfig.AllowSignups,
+		Email:               email,
+		Username:            username,
+		AvatarURL:           picture,
+		UsingGroups:         usingGroups,
+		UsingRoles:          api.OIDCConfig.RoleSyncEnabled(),
+		Roles:               roles,
+		Groups:              groups,
+		CreateMissingGroups: api.OIDCConfig.CreateMissingGroups,
+		GroupFilter:         api.OIDCConfig.GroupFilter,
 	}).SetInitAuditRequest(func(params *audit.RequestParams) (*audit.Request[database.User], func()) {
 		return audit.InitRequest[database.User](rw, params)
 	})
@@ -1125,8 +1135,10 @@ type oauthLoginParams struct {
 	AvatarURL    string
 	// Is UsingGroups is true, then the user will be assigned
 	// to the Groups provided.
-	UsingGroups bool
-	Groups      []string
+	UsingGroups         bool
+	CreateMissingGroups bool
+	Groups              []string
+	GroupFilter         *regexp.Regexp
 	// Is UsingRoles is true, then the user will be assigned
 	// the roles provided.
 	UsingRoles bool
@@ -1342,8 +1354,18 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 
 		// Ensure groups are correct.
 		if params.UsingGroups {
+			filtered := params.Groups
+			if params.GroupFilter != nil {
+				filtered = make([]string, 0, len(params.Groups))
+				for _, group := range params.Groups {
+					if params.GroupFilter.MatchString(group) {
+						filtered = append(filtered, group)
+					}
+				}
+			}
+
 			//nolint:gocritic
-			err := api.Options.SetUserGroups(dbauthz.AsSystemRestricted(ctx), tx, user.ID, params.Groups)
+			err := api.Options.SetUserGroups(dbauthz.AsSystemRestricted(ctx), logger, tx, user.ID, filtered, params.CreateMissingGroups)
 			if err != nil {
 				return xerrors.Errorf("set user groups: %w", err)
 			}
@@ -1362,7 +1384,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			}
 
 			//nolint:gocritic
-			err := api.Options.SetUserSiteRoles(dbauthz.AsSystemRestricted(ctx), tx, user.ID, filtered)
+			err := api.Options.SetUserSiteRoles(dbauthz.AsSystemRestricted(ctx), logger, tx, user.ID, filtered)
 			if err != nil {
 				return httpError{
 					code:             http.StatusBadRequest,
@@ -1427,7 +1449,8 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 	}
 
 	var key database.APIKey
-	if oldKey, ok := httpmw.APIKeyOptional(r); ok && isConvertLoginType {
+	oldKey, _, ok := httpmw.APIKeyFromRequest(ctx, api.Database, nil, r)
+	if ok && oldKey != nil && isConvertLoginType {
 		// If this is a convert login type, and it succeeds, then delete the old
 		// session. Force the user to log back in.
 		err := api.Database.DeleteAPIKeyByID(r.Context(), oldKey.ID)
@@ -1447,7 +1470,9 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			Secure:   api.SecureAuthCookie,
 			HttpOnly: true,
 		})
-		key = oldKey
+		// This is intentional setting the key to the deleted old key,
+		// as the user needs to be forced to log back in.
+		key = *oldKey
 	} else {
 		//nolint:gocritic
 		cookie, newKey, err := api.createAPIKey(dbauthz.AsSystemRestricted(ctx), apikey.CreateParams{
@@ -1648,7 +1673,7 @@ func clearOAuthConvertCookie() *http.Cookie {
 func wrongLoginTypeHTTPError(user database.LoginType, params database.LoginType) httpError {
 	addedMsg := ""
 	if user == database.LoginTypePassword {
-		addedMsg = " Try logging in with your password."
+		addedMsg = " You can convert your account to use this login type by visiting your account settings."
 	}
 	return httpError{
 		code:             http.StatusForbidden,

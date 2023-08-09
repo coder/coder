@@ -281,6 +281,64 @@ func AllBuildReasonValues() []BuildReason {
 	}
 }
 
+type GroupSource string
+
+const (
+	GroupSourceUser GroupSource = "user"
+	GroupSourceOidc GroupSource = "oidc"
+)
+
+func (e *GroupSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = GroupSource(s)
+	case string:
+		*e = GroupSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for GroupSource: %T", src)
+	}
+	return nil
+}
+
+type NullGroupSource struct {
+	GroupSource GroupSource `json:"group_source"`
+	Valid       bool        `json:"valid"` // Valid is true if GroupSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullGroupSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.GroupSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.GroupSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullGroupSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.GroupSource), nil
+}
+
+func (e GroupSource) Valid() bool {
+	switch e {
+	case GroupSourceUser,
+		GroupSourceOidc:
+		return true
+	}
+	return false
+}
+
+func AllGroupSourceValues() []GroupSource {
+	return []GroupSource{
+		GroupSourceUser,
+		GroupSourceOidc,
+	}
+}
+
 type LogLevel string
 
 const (
@@ -1249,6 +1307,7 @@ const (
 	WorkspaceAgentSubsystemEnvbuilder WorkspaceAgentSubsystem = "envbuilder"
 	WorkspaceAgentSubsystemEnvbox     WorkspaceAgentSubsystem = "envbox"
 	WorkspaceAgentSubsystemNone       WorkspaceAgentSubsystem = "none"
+	WorkspaceAgentSubsystemExectrace  WorkspaceAgentSubsystem = "exectrace"
 )
 
 func (e *WorkspaceAgentSubsystem) Scan(src interface{}) error {
@@ -1290,7 +1349,8 @@ func (e WorkspaceAgentSubsystem) Valid() bool {
 	switch e {
 	case WorkspaceAgentSubsystemEnvbuilder,
 		WorkspaceAgentSubsystemEnvbox,
-		WorkspaceAgentSubsystemNone:
+		WorkspaceAgentSubsystemNone,
+		WorkspaceAgentSubsystemExectrace:
 		return true
 	}
 	return false
@@ -1301,6 +1361,7 @@ func AllWorkspaceAgentSubsystemValues() []WorkspaceAgentSubsystem {
 		WorkspaceAgentSubsystemEnvbuilder,
 		WorkspaceAgentSubsystemEnvbox,
 		WorkspaceAgentSubsystemNone,
+		WorkspaceAgentSubsystemExectrace,
 	}
 }
 
@@ -1498,6 +1559,8 @@ type Group struct {
 	QuotaAllowance int32     `db:"quota_allowance" json:"quota_allowance"`
 	// Display name is a custom, human-friendly group name that user can set. This is not required to be unique and can be the empty string.
 	DisplayName string `db:"display_name" json:"display_name"`
+	// Source indicates how the group was created. It can be created by a user manually, or through some system process like OIDC group sync.
+	Source GroupSource `db:"source" json:"source"`
 }
 
 type GroupMember struct {
@@ -1884,14 +1947,14 @@ type WorkspaceAgent struct {
 	// Total length of startup logs
 	LogsLength int32 `db:"logs_length" json:"logs_length"`
 	// Whether the startup logs overflowed in length
-	LogsOverflowed bool                    `db:"logs_overflowed" json:"logs_overflowed"`
-	Subsystem      WorkspaceAgentSubsystem `db:"subsystem" json:"subsystem"`
+	LogsOverflowed bool `db:"logs_overflowed" json:"logs_overflowed"`
 	// When startup script behavior is non-blocking, the workspace will be ready and accessible upon agent connection, when it is blocking, workspace will wait for the startup script to complete before becoming ready and accessible.
 	StartupScriptBehavior StartupScriptBehavior `db:"startup_script_behavior" json:"startup_script_behavior"`
 	// The time the agent entered the starting lifecycle state
 	StartedAt sql.NullTime `db:"started_at" json:"started_at"`
 	// The time the agent entered the ready or start_error lifecycle state
-	ReadyAt sql.NullTime `db:"ready_at" json:"ready_at"`
+	ReadyAt    sql.NullTime              `db:"ready_at" json:"ready_at"`
+	Subsystems []WorkspaceAgentSubsystem `db:"subsystems" json:"subsystems"`
 }
 
 type WorkspaceAgentLog struct {

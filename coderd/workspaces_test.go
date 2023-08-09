@@ -1407,6 +1407,46 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		// and template.InactivityTTL should be 0
 		assert.Len(t, res.Workspaces, 0)
 	})
+
+	t.Run("LockedAt", func(t *testing.T) {
+		// this test has a licensed counterpart in enterprise/coderd/workspaces_test.go: FilterQueryHasDeletingByAndLicensed
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		authToken := uuid.NewString()
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		// update template with inactivity ttl
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		lockedWorkspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, lockedWorkspace.LatestBuild.ID)
+
+		// Create another workspace to validate that we do not return unlocked workspaces.
+		_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, lockedWorkspace.LatestBuild.ID)
+
+		err := client.UpdateWorkspaceLock(ctx, lockedWorkspace.ID, codersdk.UpdateWorkspaceLock{
+			Lock: true,
+		})
+		require.NoError(t, err)
+
+		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: fmt.Sprintf("locked_at:%s", time.Now().Add(-time.Minute).Format("2006-01-02")),
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Workspaces, 1)
+		require.NotNil(t, res.Workspaces[0].LockedAt)
+	})
 }
 
 func TestOffsetLimit(t *testing.T) {
@@ -2081,9 +2121,14 @@ func TestWorkspaceWatcher(t *testing.T) {
 			case w, ok := <-wc:
 				require.True(t, ok, "watch channel closed: %s", event)
 				if ready == nil || ready(w) {
-					logger.Info(ctx, "done waiting for event", slog.F("event", event))
+					logger.Info(ctx, "done waiting for event",
+						slog.F("event", event),
+						slog.F("workspace", w))
 					return
 				}
+				logger.Info(ctx, "skipped update for event",
+					slog.F("event", event),
+					slog.F("workspace", w))
 			}
 		}
 	}
@@ -2154,12 +2199,23 @@ func TestWorkspaceWatcher(t *testing.T) {
 	})
 	// We want to verify pending state here, but it's possible that we reach
 	// failed state fast enough that we never see pending.
+	sawFailed := false
 	wait("workspace build pending or failed", func(w codersdk.Workspace) bool {
-		return w.LatestBuild.Status == codersdk.WorkspaceStatusPending || w.LatestBuild.Status == codersdk.WorkspaceStatusFailed
+		switch w.LatestBuild.Status {
+		case codersdk.WorkspaceStatusPending:
+			return true
+		case codersdk.WorkspaceStatusFailed:
+			sawFailed = true
+			return true
+		default:
+			return false
+		}
 	})
-	wait("workspace build failed", func(w codersdk.Workspace) bool {
-		return w.LatestBuild.Status == codersdk.WorkspaceStatusFailed
-	})
+	if !sawFailed {
+		wait("workspace build failed", func(w codersdk.Workspace) bool {
+			return w.LatestBuild.Status == codersdk.WorkspaceStatusFailed
+		})
+	}
 
 	closeFunc.Close()
 	build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart)

@@ -137,7 +137,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@v1.16.1
+        uses: crate-ci/typos@v1.16.2
         with:
           config: .github/workflows/typos.toml
 
@@ -224,7 +224,7 @@ jobs:
         with:
           # This doesn't need caching. It's super fast anyways!
           cache: false
-          go-version: 1.20.6
+          go-version: 1.20.7
 
       - name: Install shfmt
         run: go install mvdan.cc/sh/v3/cmd/shfmt@v3.5.0
@@ -668,6 +668,7 @@ jobs:
       - test-go-pg
       - test-go-race
       - test-js
+      - test-e2e
       - offlinedocs
     # Allow this job to run even if the needed jobs fail, are skipped or
     # cancelled.
@@ -724,6 +725,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push Linux amd64 Docker image
+        id: build_and_push
         run: |
           set -euxo pipefail
           go mod download
@@ -738,3 +740,19 @@ jobs:
             --version $version \
             --push \
             build/coder_linux_amd64
+
+          # Tag image with new package tag and push
+          tag=$(echo "$version" | sed 's/+/-/g')
+          docker tag ghcr.io/coder/coder-preview:main ghcr.io/coder/coder-preview:main-$tag
+          docker push ghcr.io/coder/coder-preview:main-$tag
+
+      - name: Prune old images
+        uses: vlaurin/action-ghcr-prune@v0.5.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          organization: coder
+          container: coder-preview
+          keep-younger-than: 7 # days
+          keep-tags-regexes: ^pr
+          prune-tags-regexes: ^main-
+          prune-untagged: true

@@ -190,7 +190,7 @@ fatal() {
 	fi
 
 	# Start the frontend once we have a template up and running
-	CODER_HOST=http://127.0.0.1:3000 start_cmd SITE date pnpm --cwd=./site dev --host
+	CODER_HOST=http://127.0.0.1:3000 start_cmd SITE date pnpm --dir ./site dev --host
 
 	interfaces=(localhost)
 	if command -v ip >/dev/null; then
