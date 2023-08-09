@@ -168,16 +168,17 @@ func (rpty *bufferedReconnectingPTY) lifecycle(ctx context.Context, logger slog.
 		logger.Debug(ctx, "killed process with error", slog.Error(err))
 	}
 
-	logger.Debug(ctx, "closed reconnecting pty")
+	logger.Info(ctx, "closed reconnecting pty")
 	rpty.state.setState(StateDone, xerrors.Errorf("reconnecting pty closed: %w", reasonErr))
 }
 
 func (rpty *bufferedReconnectingPTY) Attach(ctx context.Context, connID string, conn net.Conn, height, width uint16, logger slog.Logger) error {
+	logger.Info(ctx, "attach to reconnecting pty")
+
 	// This will kill the heartbeat once we hit EOF or an error.
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	logger.Debug(ctx, "reconnecting pty attach")
 	err := rpty.doAttach(ctx, connID, conn, height, width, logger)
 	if err != nil {
 		return err

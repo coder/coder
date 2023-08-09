@@ -76,6 +76,9 @@ func New(ctx context.Context, cmd *pty.Cmd, options *Options, logger slog.Logger
 		}
 		logger.Debug(ctx, "auto backend selection", slog.F("backend", options.BackendType))
 	}
+
+	logger.Info(ctx, "start reconnecting pty")
+
 	switch options.BackendType {
 	case codersdk.ReconnectingPTYBackendTypeScreen:
 		return newScreen(ctx, cmd, options, logger)

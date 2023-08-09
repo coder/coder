@@ -144,16 +144,17 @@ func (rpty *screenReconnectingPTY) lifecycle(ctx context.Context, logger slog.Lo
 		logger.Error(ctx, "close screen session", slog.Error(err))
 	}
 
-	logger.Debug(ctx, "closed reconnecting pty")
+	logger.Info(ctx, "closed reconnecting pty")
 	rpty.state.setState(StateDone, xerrors.Errorf("reconnecting pty closed: %w", reasonErr))
 }
 
 func (rpty *screenReconnectingPTY) Attach(ctx context.Context, _ string, conn net.Conn, height, width uint16, logger slog.Logger) error {
+	logger.Info(ctx, "attach to reconnecting pty")
+
 	// This will kill the heartbeat once we hit EOF or an error.
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	logger.Debug(ctx, "reconnecting pty attach")
 	ptty, process, err := rpty.doAttach(ctx, height, width, logger)
 	if err != nil {
 		return err
