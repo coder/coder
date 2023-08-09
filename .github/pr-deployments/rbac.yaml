@@ -31,7 +31,6 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: coder-workspace-pr${PR_NUMBER}
-
 # ---
 # apiVersion: v1
 # kind: Secret
