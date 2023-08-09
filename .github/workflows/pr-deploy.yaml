@@ -385,7 +385,7 @@ jobs:
           echo "password=$password" >> $GITHUB_OUTPUT
 
           coder login \
-            --first-user-username test \
+            --first-user-username coder \
             --first-user-email pr${{ env.PR_NUMBER }}@coder.com \
             --first-user-password $password \
             --first-user-trial \
