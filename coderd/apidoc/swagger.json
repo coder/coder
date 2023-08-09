@@ -5697,8 +5697,11 @@
         "expanded_directory": {
           "type": "string"
         },
-        "subsystem": {
-          "$ref": "#/definitions/codersdk.AgentSubsystem"
+        "subsystems": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/codersdk.AgentSubsystem"
+          }
         },
         "version": {
           "type": "string"
@@ -5873,6 +5876,9 @@
           "type": "string"
         }
       }
+    },
+    "clibase.Regexp": {
+      "type": "object"
     },
     "clibase.Struct-array_codersdk_GitAuthConfig": {
       "type": "object",
@@ -6127,8 +6133,12 @@
     },
     "codersdk.AgentSubsystem": {
       "type": "string",
-      "enum": ["envbox"],
-      "x-enum-varnames": ["AgentSubsystemEnvbox"]
+      "enum": ["envbox", "envbuilder", "exectrace"],
+      "x-enum-varnames": [
+        "AgentSubsystemEnvbox",
+        "AgentSubsystemEnvbuilder",
+        "AgentSubsystemExectrace"
+      ]
     },
     "codersdk.AppHostResponse": {
       "type": "object",
@@ -7185,7 +7195,8 @@
         "tailnet_pg_coordinator",
         "single_tailnet",
         "template_restart_requirement",
-        "deployment_health_page"
+        "deployment_health_page",
+        "template_parameters_insights"
       ],
       "x-enum-varnames": [
         "ExperimentMoons",
@@ -7193,7 +7204,8 @@
         "ExperimentTailnetPGCoordinator",
         "ExperimentSingleTailnet",
         "ExperimentTemplateRestartRequirement",
-        "ExperimentDeploymentHealthPage"
+        "ExperimentDeploymentHealthPage",
+        "ExperimentTemplateParametersInsights"
       ]
     },
     "codersdk.Feature": {
@@ -7428,8 +7440,16 @@
         },
         "quota_allowance": {
           "type": "integer"
+        },
+        "source": {
+          "$ref": "#/definitions/codersdk.GroupSource"
         }
       }
+    },
+    "codersdk.GroupSource": {
+      "type": "string",
+      "enum": ["user", "oidc"],
+      "x-enum-varnames": ["GroupSourceUser", "GroupSourceOIDC"]
     },
     "codersdk.Healthcheck": {
       "type": "object",
@@ -7701,8 +7721,14 @@
         "email_field": {
           "type": "string"
         },
+        "group_auto_create": {
+          "type": "boolean"
+        },
         "group_mapping": {
           "type": "object"
+        },
+        "group_regex_filter": {
+          "$ref": "#/definitions/clibase.Regexp"
         },
         "groups_field": {
           "type": "string"
@@ -9552,8 +9578,11 @@
         "status": {
           "$ref": "#/definitions/codersdk.WorkspaceAgentStatus"
         },
-        "subsystem": {
-          "$ref": "#/definitions/codersdk.AgentSubsystem"
+        "subsystems": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/codersdk.AgentSubsystem"
+          }
         },
         "troubleshooting_url": {
           "type": "string"

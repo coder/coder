@@ -513,6 +513,7 @@ export interface Group {
   readonly members: User[]
   readonly avatar_url: string
   readonly quota_allowance: number
+  readonly source: GroupSource
 }
 
 // From codersdk/workspaceapps.go
@@ -626,6 +627,10 @@ export interface OIDCConfig {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly auth_url_params: any
   readonly ignore_user_info: boolean
+  readonly group_auto_create: boolean
+  // Named type "github.com/coder/coder/cli/clibase.Regexp" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
+  readonly group_regex_filter: any
   readonly groups_field: string
   // Named type "github.com/coder/coder/cli/clibase.Struct[map[string]string]" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
@@ -1335,7 +1340,7 @@ export interface WorkspaceAgent {
   readonly login_before_ready: boolean
   readonly shutdown_script?: string
   readonly shutdown_script_timeout_seconds: number
-  readonly subsystem: AgentSubsystem
+  readonly subsystems: AgentSubsystem[]
   readonly health: WorkspaceAgentHealth
 }
 
@@ -1540,8 +1545,12 @@ export type APIKeyScope = "all" | "application_connect"
 export const APIKeyScopes: APIKeyScope[] = ["all", "application_connect"]
 
 // From codersdk/workspaceagents.go
-export type AgentSubsystem = "envbox"
-export const AgentSubsystems: AgentSubsystem[] = ["envbox"]
+export type AgentSubsystem = "envbox" | "envbuilder" | "exectrace"
+export const AgentSubsystems: AgentSubsystem[] = [
+  "envbox",
+  "envbuilder",
+  "exectrace",
+]
 
 // From codersdk/audit.go
 export type AuditAction =
@@ -1586,6 +1595,7 @@ export type Experiment =
   | "moons"
   | "single_tailnet"
   | "tailnet_pg_coordinator"
+  | "template_parameters_insights"
   | "template_restart_requirement"
   | "workspace_actions"
 export const Experiments: Experiment[] = [
@@ -1593,6 +1603,7 @@ export const Experiments: Experiment[] = [
   "moons",
   "single_tailnet",
   "tailnet_pg_coordinator",
+  "template_parameters_insights",
   "template_restart_requirement",
   "workspace_actions",
 ]
@@ -1636,6 +1647,10 @@ export const GitProviders: GitProvider[] = [
   "github",
   "gitlab",
 ]
+
+// From codersdk/groups.go
+export type GroupSource = "oidc" | "user"
+export const GroupSources: GroupSource[] = ["oidc", "user"]
 
 // From codersdk/insights.go
 export type InsightsReportInterval = "day"

@@ -1064,8 +1064,10 @@ func (s *MethodTestSuite) TestWorkspace() {
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
 		check.Args(database.UpdateWorkspaceAgentStartupByIDParams{
-			ID:        agt.ID,
-			Subsystem: database.WorkspaceAgentSubsystemNone,
+			ID: agt.ID,
+			Subsystems: []database.WorkspaceAgentSubsystem{
+				database.WorkspaceAgentSubsystemEnvbox,
+			},
 		}).Asserts(ws, rbac.ActionUpdate).Returns()
 	}))
 	s.Run("GetWorkspaceAgentLogsAfter", s.Subtest(func(db database.Store, check *expects) {

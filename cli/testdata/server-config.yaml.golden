@@ -271,6 +271,14 @@ oidc:
   # for when OIDC providers only return group IDs.
   # (default: {}, type: struct[map[string]string])
   groupMapping: {}
+  # Automatically creates missing groups from a user's groups claim.
+  # (default: false, type: bool)
+  enableGroupAutoCreate: false
+  # If provided any group name not matching the regex is ignored. This allows for
+  # filtering out groups that are not needed. This filter is applied after the group
+  # mapping.
+  # (default: .*, type: regexp)
+  groupRegexFilter: .*
   # This field must be set if using the user roles sync feature. Set this to the
   # name of the claim used to store the user's role. The roles should be sent as an
   # array of strings.
