@@ -659,7 +659,7 @@ var (
 	lastDerpConflictLog   time.Time
 )
 
-func derpMapper(logger slog.Logger, cfg *codersdk.DeploymentValues, proxyHealth *proxyhealth.ProxyHealth) func(*tailcfg.DERPMap) *tailcfg.DERPMap {
+func derpMapper(logger slog.Logger, _ *codersdk.DeploymentValues, proxyHealth *proxyhealth.ProxyHealth) func(*tailcfg.DERPMap) *tailcfg.DERPMap {
 	return func(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap {
 		derpMap = derpMap.Clone()
 
