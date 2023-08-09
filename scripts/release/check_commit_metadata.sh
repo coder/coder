@@ -84,7 +84,7 @@ main() {
 	)"
 
 	declare -A authors labels
-	if [ -n "$pr_list_out" ]; then
+	if [[ -n $pr_list_out ]]; then
 		mapfile -t pr_metadata_raw <<<"$pr_list_out"
 
 		for entry in "${pr_metadata_raw[@]}"; do
