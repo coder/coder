@@ -38,6 +38,11 @@ replace github.com/dlclark/regexp2 => github.com/dlclark/regexp2 v1.7.0
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
 replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20230803194128-b940c19ca61b
 
+// This is replaced to include a fix that causes a deadlock when closing the
+// wireguard network.
+// The branch used is from https://github.com/coder/wireguard-go/tree/colin/tailscale
+// It is based on https://github.com/tailscale/wireguard-go/tree/tailscale, but
+// includes the upstream fix https://github.com/WireGuard/wireguard-go/commit/b7cd547315bed421a648d0a0f1ee5a0fc1b1151e
 replace github.com/tailscale/wireguard-go => github.com/coder/wireguard-go v0.0.0-20230807234434-d825b45ccbf5
 
 // Use our tempfork of gvisor that includes a fix for TCP connection stalls:
