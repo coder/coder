@@ -68,7 +68,7 @@ fi
 branchName=$(gh pr view --json headRefName | jq -r .headRefName)
 prNumber=$(gh pr view --json number | jq -r .number)
 
-if $dryRun; then
+if [[ "$dryRun" = true ]]; then
 	echo "dry run"
 	echo "branchName: ${branchName}"
 	echo "prNumber: ${prNumber}"
