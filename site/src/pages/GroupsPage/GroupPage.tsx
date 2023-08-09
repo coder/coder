@@ -34,6 +34,7 @@ import { groupMachine } from "xServices/groups/groupXService"
 import { Maybe } from "components/Conditionals/Maybe"
 import { makeStyles } from "@mui/styles"
 import { PaginationStatus } from "components/PaginationStatus/PaginationStatus"
+import { UserAvatar } from "components/UserAvatar/UserAvatar"
 
 const AddGroupMember: React.FC<{
   isLoading: boolean
@@ -188,6 +189,12 @@ export const GroupPage: React.FC = () => {
                           <TableRow key={member.id}>
                             <TableCell width="99%">
                               <AvatarData
+                                avatar={
+                                  <UserAvatar
+                                    username={member.username}
+                                    avatarURL={member.avatar_url}
+                                  />
+                                }
                                 title={member.username}
                                 subtitle={member.email}
                               />
