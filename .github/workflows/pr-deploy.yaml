@@ -300,7 +300,7 @@ jobs:
         run: |
           set -euo pipefail
           # Create service account, role, rolebinding and secret
-          envsubst < ./.github/pr-deployments/rbac.yaml | kubectl -n pr${{ env.PR_NUMBER }} apply -f -
+          envsubst < ./.github/pr-deployments/rbac.yaml | kubectl apply -f -
 
           # Get the token for the service account
           TOKEN=$(kubectl -n pr${{ env.PR_NUMBER }} get secret coder-workspace-token -o jsonpath='{.data.token}' | base64 --decode)

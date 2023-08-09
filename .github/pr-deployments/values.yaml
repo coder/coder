@@ -27,7 +27,7 @@ coder:
     - name: "CODER_ACCESS_URL"
       value: "https://${PR_DEPLOYMENT_ACCESS_URL}"
     - name: "CODER_WILDCARD_ACCESS_URL"
-      value: "*.${env.PR_DEPLOYMENT_ACCESS_URL}"
+      value: "*.${PR_DEPLOYMENT_ACCESS_URL}"
     - name: "CODER_EXPERIMENTS"
       value: "${EXPERIMENTS}"
     - name: CODER_PG_CONNECTION_URL

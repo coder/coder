@@ -10,4 +10,4 @@ spec:
     kind: ClusterIssuer
   dnsNames:
     - "${PR_DEPLOYMENT_ACCESS_URL}"
-    - "*.{$PR_DEPLOYMENT_ACCESS_URL}"
+    - "*.${PR_DEPLOYMENT_ACCESS_URL}"
