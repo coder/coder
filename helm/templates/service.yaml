@@ -16,13 +16,17 @@ spec:
       port: 80
       targetPort: "http"
       protocol: TCP
-      {{ if eq .Values.coder.service.type "NodePort" }}nodePort: {{ .Values.coder.service.httpNodePort }}{{ end }}
+      {{ if eq .Values.coder.service.type "NodePort" }}
+      nodePort: {{ .Values.coder.service.httpNodePort }}
+      {{ end }}
     {{- if eq (include "coder.tlsEnabled" .) "true" }}
     - name: "https"
       port: 443
       targetPort: "https"
       protocol: TCP
-      {{ if eq .Values.coder.service.type "NodePort" }}nodePort: {{ .Values.coder.service.httpsNodePort }}{{ end }}
+      {{ if eq .Values.coder.service.type "NodePort" }}
+      nodePort: {{ .Values.coder.service.httpsNodePort }}
+      {{ end }}
     {{- end }}
   {{- if eq "LoadBalancer" .Values.coder.service.type }}
   {{- with .Values.coder.service.loadBalancerIP }}

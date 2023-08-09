@@ -241,11 +241,11 @@ coder:
     # coder.service.annotations -- The service annotations. See:
     # https://kubernetes.io/docs/concepts/services-networking/service/#internal-load-balancer
     annotations: {}
-    # coder.service.httpNodePort -- Must be set if coder.service.type is set to NodePort. If not set by default and for convenience,
-    # the Kubernetes control plane will allocate a port from a range (default: 30000-32767)
+    # coder.service.httpNodePort -- Enabled if coder.service.type is set to NodePort.
+    # If not set, Kubernetes will allocate a port from the default range, 30000-32767.
     httpNodePort: ""
-    # coder.service.httpsNodePort -- Must be set if coder.service.type is set to NodePort. If not set by default and for convenience,
-    # the Kubernetes control plane will allocate a port from a range (default: 30000-32767)
+    # coder.service.httpsNodePort -- Enabled if coder.service.type is set to NodePort.
+    # If not set, Kubernetes will allocate a port from the default range, 30000-32767.
     httpsNodePort: ""
 
   # coder.ingress -- The Ingress object to expose for Coder.
