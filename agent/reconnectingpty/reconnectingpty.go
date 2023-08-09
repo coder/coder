@@ -44,7 +44,7 @@ type ReconnectingPTY interface {
 	// history, then blocks until EOF, an error, or the context's end.  The
 	// connection is expected to send JSON-encoded messages and accept raw output
 	// from the ptty.  If the context ends or the process dies the connection will
-	// be detached and closed.
+	// be detached.
 	Attach(ctx context.Context, connID string, conn net.Conn, height, width uint16, logger slog.Logger) error
 	// Wait waits for the reconnecting pty to close.  The underlying process might
 	// still be exiting.
