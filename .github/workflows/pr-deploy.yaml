@@ -46,7 +46,7 @@ jobs:
       CODER_BASE_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_BASE_IMAGE_TAG }}
       CODER_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_IMAGE_TAG }}
       NEW: ${{ steps.check_deployment.outputs.new }}
-      BUILD: ${{ steps.filter.outputs.all_count > steps.filter.outputs.ignored_count || steps.check_deployment.outputs.new }}
+      BUILD: ${{ steps.filter.outputs.all_count > steps.filter.outputs.ignored_count || steps.check_deployment.outputs.new || github.event.inputs.force == 'true' }}
 
     runs-on: "ubuntu-latest"
     steps:
@@ -158,7 +158,7 @@ jobs:
   build:
     needs: get_info
     # Run build job only if there are changes in the files that we care about or if the workflow is manually triggered with --force
-    if: needs.get_info.outputs.BUILD == 'true' || github.event.inputs.force == 'true'
+    if: needs.get_info.outputs.BUILD == 'true'
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
@@ -227,19 +227,18 @@ jobs:
           export KUBECONFIG=~/.kube/config
 
       - name: Check if image exists
-        if: needs.get_info.outputs.NEW == 'true'
+        if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.force == 'true'
         run: |
           set -euo pipefail
           foundTag=$(curl -fsSL https://github.com/coder/coder/pkgs/container/coder-preview | grep -o ${{ env.CODER_IMAGE_TAG }} | head -n 1)
           if [ -z "$foundTag" ]; then
             echo "Image not found"
             echo "${{ env.CODER_IMAGE_TAG }} not found in ghcr.io/coder/coder-preview"
-            echo "Please remove --skip-build from the comment and try again"
             exit 1
           fi
 
       - name: Add DNS record to Cloudflare
-        if: needs.get_info.outputs.NEW == 'true'
+        if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.force == 'true'
         run: |
           curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records" \
             -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
@@ -252,7 +251,7 @@ jobs:
           ref: ${{ env.PR_BRANCH }}
 
       - name: Create PR namespace
-        if: needs.get_info.outputs.NEW == 'true'
+        if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.force == 'true'
         run: |
           set -euo pipefail
           # try to delete the namespace, but don't fail if it doesn't exist
@@ -260,7 +259,7 @@ jobs:
           kubectl create namespace "pr${{ env.PR_NUMBER }}"
 
       - name: Check and Create Certificate
-        if: needs.get_info.outputs.NEW == 'true'
+        if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.force == 'true'
         run: |
           # Using kubectl to check if a Certificate resource already exists
           # we are doing this to avoid letsenrypt rate limits
@@ -283,7 +282,7 @@ jobs:
           )
 
       - name: Set up PostgreSQL database
-        if: needs.get_info.outputs.NEW == 'true'
+        if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.force == 'true'
         run: |
           helm repo add bitnami https://charts.bitnami.com/bitnami
           helm install coder-db bitnami/postgresql \
@@ -296,7 +295,7 @@ jobs:
             --from-literal=url="postgres://coder:coder@coder-db-postgresql.pr${{ env.PR_NUMBER }}.svc.cluster.local:5432/coder?sslmode=disable"
 
       - name: Create a kubeconfig for the workspace
-        if: needs.get_info.outputs.NEW == 'true'
+        if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.force == 'true'
         run: |
           set -euo pipefail
           # Create service account, role, rolebinding and secret
@@ -345,7 +344,7 @@ jobs:
           fi
 
       - name: Install coder-logstream-kube
-        if: needs.get_info.outputs.NEW == 'true'
+        if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.force == 'true'
         run: |
           helm repo add coder-logstream-kube https://helm.coder.com/logstream-kube
           helm upgrade --install coder-logstream-kube coder-logstream-kube/coder-logstream-kube \
@@ -353,7 +352,7 @@ jobs:
             --set url="https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
 
       - name: Get Coder binary
-        if: needs.get_info.outputs.NEW == 'true'
+        if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.force == 'true'
         run: |
           set -euo pipefail
 
@@ -379,7 +378,7 @@ jobs:
           mv "${DEST}" /usr/local/bin/coder
 
       - name: Create first user, template and workspace
-        if: needs.get_info.outputs.NEW == 'true'
+        if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.force == 'true'
         id: setup_deployment
         run: |
           set -euo pipefail
@@ -416,7 +415,7 @@ jobs:
           coder stop kube -y
 
       - name: Send Slack notification
-        if: needs.get_info.outputs.NEW == 'true'
+        if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.force == 'true'
         run: |
           curl -s -o /dev/null -X POST -H 'Content-type: application/json' \
             -d \
