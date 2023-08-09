@@ -1195,16 +1195,23 @@ func TestWorkspaceAgent_Startup(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
-		const (
-			expectedVersion   = "v1.2.3"
-			expectedDir       = "/home/coder"
-			expectedSubsystem = codersdk.AgentSubsystemEnvbox
+		var (
+			expectedVersion    = "v1.2.3"
+			expectedDir        = "/home/coder"
+			expectedSubsystems = []codersdk.AgentSubsystem{
+				codersdk.AgentSubsystemEnvbox,
+				codersdk.AgentSubsystemExectrace,
+			}
 		)
 
 		err := agentClient.PostStartup(ctx, agentsdk.PostStartupRequest{
 			Version:           expectedVersion,
 			ExpandedDirectory: expectedDir,
-			Subsystem:         expectedSubsystem,
+			Subsystems: []codersdk.AgentSubsystem{
+				// Not sorted.
+				expectedSubsystems[1],
+				expectedSubsystems[0],
+			},
 		})
 		require.NoError(t, err)
 
@@ -1215,7 +1222,8 @@ func TestWorkspaceAgent_Startup(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, expectedVersion, wsagent.Version)
 		require.Equal(t, expectedDir, wsagent.ExpandedDirectory)
-		require.Equal(t, expectedSubsystem, wsagent.Subsystem)
+		// Sorted
+		require.Equal(t, expectedSubsystems, wsagent.Subsystems)
 	})
 
 	t.Run("InvalidSemver", func(t *testing.T) {

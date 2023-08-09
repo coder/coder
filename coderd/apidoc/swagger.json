@@ -5697,8 +5697,11 @@
         "expanded_directory": {
           "type": "string"
         },
-        "subsystem": {
-          "$ref": "#/definitions/codersdk.AgentSubsystem"
+        "subsystems": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/codersdk.AgentSubsystem"
+          }
         },
         "version": {
           "type": "string"
@@ -6130,8 +6133,12 @@
     },
     "codersdk.AgentSubsystem": {
       "type": "string",
-      "enum": ["envbox"],
-      "x-enum-varnames": ["AgentSubsystemEnvbox"]
+      "enum": ["envbox", "envbuilder", "exectrace"],
+      "x-enum-varnames": [
+        "AgentSubsystemEnvbox",
+        "AgentSubsystemEnvbuilder",
+        "AgentSubsystemExectrace"
+      ]
     },
     "codersdk.AppHostResponse": {
       "type": "object",
@@ -9571,8 +9578,11 @@
         "status": {
           "$ref": "#/definitions/codersdk.WorkspaceAgentStatus"
         },
-        "subsystem": {
-          "$ref": "#/definitions/codersdk.AgentSubsystem"
+        "subsystems": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/codersdk.AgentSubsystem"
+          }
         },
         "troubleshooting_url": {
           "type": "string"

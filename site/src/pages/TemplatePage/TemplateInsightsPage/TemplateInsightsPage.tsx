@@ -137,7 +137,6 @@ const DailyUsersPanel = ({
         <PanelTitle>
           <DAUTitle />
         </PanelTitle>
-        <PanelSubtitle>Last 7 days</PanelSubtitle>
       </PanelHeader>
       <PanelContent>
         {!data && <Loader sx={{ height: "100%" }} />}
@@ -167,7 +166,6 @@ const UserLatencyPanel = ({
             </HelpTooltipText>
           </HelpTooltip>
         </PanelTitle>
-        <PanelSubtitle>Last 7 days</PanelSubtitle>
       </PanelHeader>
       <PanelContent>
         {!data && <Loader sx={{ height: "100%" }} />}
@@ -228,7 +226,6 @@ const TemplateUsagePanel = ({
     <Panel {...panelProps}>
       <PanelHeader>
         <PanelTitle>App & IDE Usage</PanelTitle>
-        <PanelSubtitle>Last 7 days</PanelSubtitle>
       </PanelHeader>
       <PanelContent>
         {!data && <Loader sx={{ height: 200 }} />}
@@ -311,7 +308,6 @@ const TemplateParametersUsagePanel = ({
     <Panel {...panelProps}>
       <PanelHeader>
         <PanelTitle>Parameters usage</PanelTitle>
-        <PanelSubtitle>Last 7 days</PanelSubtitle>
       </PanelHeader>
       <PanelContent>
         {!data && <Loader sx={{ height: 200 }} />}
@@ -531,11 +527,6 @@ const PanelHeader = styled(Box)(({ theme }) => ({
 const PanelTitle = styled(Box)(() => ({
   fontSize: 14,
   fontWeight: 500,
-}))
-
-const PanelSubtitle = styled(Box)(({ theme }) => ({
-  fontSize: 13,
-  color: theme.palette.text.secondary,
 }))
 
 const PanelContent = styled(Box)(({ theme }) => ({

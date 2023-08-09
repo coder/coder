@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -264,8 +265,8 @@ func TestWorkspaceAgent(t *testing.T) {
 			"--agent-url", client.URL.String(),
 			"--log-dir", logDir,
 		)
-		// Set the subsystem for the agent.
-		inv.Environ.Set(agent.EnvAgentSubsystem, string(codersdk.AgentSubsystemEnvbox))
+		// Set the subsystems for the agent.
+		inv.Environ.Set(agent.EnvAgentSubsystem, fmt.Sprintf("%s,%s", codersdk.AgentSubsystemExectrace, codersdk.AgentSubsystemEnvbox))
 
 		pty := ptytest.New(t).Attach(inv)
 
@@ -275,6 +276,9 @@ func TestWorkspaceAgent(t *testing.T) {
 		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 		require.Len(t, resources, 1)
 		require.Len(t, resources[0].Agents, 1)
-		require.Equal(t, codersdk.AgentSubsystemEnvbox, resources[0].Agents[0].Subsystem)
+		require.Len(t, resources[0].Agents[0].Subsystems, 2)
+		// Sorted
+		require.Equal(t, codersdk.AgentSubsystemEnvbox, resources[0].Agents[0].Subsystems[0])
+		require.Equal(t, codersdk.AgentSubsystemExectrace, resources[0].Agents[0].Subsystems[1])
 	})
 }

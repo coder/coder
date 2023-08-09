@@ -6447,8 +6447,11 @@ const docTemplate = `{
                 "expanded_directory": {
                     "type": "string"
                 },
-                "subsystem": {
-                    "$ref": "#/definitions/codersdk.AgentSubsystem"
+                "subsystems": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AgentSubsystem"
+                    }
                 },
                 "version": {
                     "type": "string"
@@ -6903,10 +6906,14 @@ const docTemplate = `{
         "codersdk.AgentSubsystem": {
             "type": "string",
             "enum": [
-                "envbox"
+                "envbox",
+                "envbuilder",
+                "exectrace"
             ],
             "x-enum-varnames": [
-                "AgentSubsystemEnvbox"
+                "AgentSubsystemEnvbox",
+                "AgentSubsystemEnvbuilder",
+                "AgentSubsystemExectrace"
             ]
         },
         "codersdk.AppHostResponse": {
@@ -10556,8 +10563,11 @@ const docTemplate = `{
                 "status": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentStatus"
                 },
-                "subsystem": {
-                    "$ref": "#/definitions/codersdk.AgentSubsystem"
+                "subsystems": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AgentSubsystem"
+                    }
                 },
                 "troubleshooting_url": {
                     "type": "string"

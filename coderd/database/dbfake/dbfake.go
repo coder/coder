@@ -5211,6 +5211,23 @@ func (q *FakeQuerier) UpdateWorkspaceAgentStartupByID(_ context.Context, arg dat
 		return err
 	}
 
+	if len(arg.Subsystems) > 0 {
+		seen := map[database.WorkspaceAgentSubsystem]struct{}{
+			arg.Subsystems[0]: {},
+		}
+		for i := 1; i < len(arg.Subsystems); i++ {
+			s := arg.Subsystems[i]
+			if _, ok := seen[s]; ok {
+				return xerrors.Errorf("duplicate subsystem %q", s)
+			}
+			seen[s] = struct{}{}
+
+			if arg.Subsystems[i-1] > arg.Subsystems[i] {
+				return xerrors.Errorf("subsystems not sorted: %q > %q", arg.Subsystems[i-1], arg.Subsystems[i])
+			}
+		}
+	}
+
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -5221,7 +5238,7 @@ func (q *FakeQuerier) UpdateWorkspaceAgentStartupByID(_ context.Context, arg dat
 
 		agent.Version = arg.Version
 		agent.ExpandedDirectory = arg.ExpandedDirectory
-		agent.Subsystem = arg.Subsystem
+		agent.Subsystems = arg.Subsystems
 		q.workspaceAgents[index] = agent
 		return nil
 	}
