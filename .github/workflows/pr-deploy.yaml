@@ -402,8 +402,8 @@ jobs:
             https://${{ env.PR_DEPLOYMENT_ACCESS_URL }}
 
           # Create template
-          git clone https://github.com/matifali/coder-templates.git && cd ./coder-templates/k8s-namespace/
-          coder templates create -y --variable namespace=pr${{ env.PR_NUMBER }}
+          cd ./.github/pr-deployments/template
+          coder templates create -y --variable namespace=pr${{ env.PR_NUMBER }} kubernetes
 
           # Create workspace
           cat <<EOF > workspace.yaml
@@ -412,8 +412,8 @@ jobs:
           home_disk_size: "2"
           EOF
 
-          coder create --template="k8s-namespace" test --rich-parameter-file ./workspace.yaml -y
-          coder stop test -y
+          coder create --template="kubernetes" kube --rich-parameter-file ./workspace.yaml -y
+          coder stop kube -y
 
       - name: Send Slack notification
         if: needs.get_info.outputs.NEW == 'true'
