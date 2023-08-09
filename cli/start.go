@@ -42,7 +42,7 @@ func (r *RootCmd) start() *clibase.Cmd {
 
 			buildOptions, err := asWorkspaceBuildParameters(parameterFlags.buildOptions)
 			if err != nil {
-				return xerrors.Errorf("can't parse build options: %w", err)
+				return xerrors.Errorf("unable to parse build options: %w", err)
 			}
 
 			buildParameters, err := prepStartWorkspace(inv, client, prepStartWorkspaceArgs{
