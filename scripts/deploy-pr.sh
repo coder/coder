@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: ./deploy-pr.sh [--dry-run -n] [--yes -y] [--experiments -e <experiments>] [--force -f]
+# Usage: ./deploy-pr.sh [--dry-run -n] [--yes -y] [--experiments -e <experiments>] [--build -b] [--deploy -d]
 # deploys the current branch to a PR environment and posts login credentials to
 # [#pr-deployments](https://codercom.slack.com/archives/C05DNE982E8) Slack channel
 
@@ -8,14 +8,19 @@ set -euo pipefail
 # default settings
 dryRun=false
 confirm=true
-force=false
+build=false
+deploy=false
 experiments=""
 
 # parse arguments
 while (("$#")); do
 	case "$1" in
-	-f | --force)
-		force=true
+	-b | --build)
+		build=true
+		shift
+		;;
+	-d | --deploy)
+		deploy=true
 		shift
 		;;
 	-n | --dry-run)
@@ -68,13 +73,15 @@ if $dryRun; then
 	echo "branchName: ${branchName}"
 	echo "prNumber: ${prNumber}"
 	echo "experiments: ${experiments}"
-	echo "force: ${force}"
+	echo "build: ${build}"
+	echo "deploy: ${deploy}"
 	exit 0
 fi
 
 echo "branchName: ${branchName}"
 echo "prNumber: ${prNumber}"
 echo "experiments: ${experiments}"
-echo "force: ${force}"
+echo "build: ${build}"
+echo "deploy: ${deploy}"
 
-gh workflow run pr-deploy.yaml --ref "${branchName}" -f "pr_number=${prNumber}" -f "experiments=${experiments}" -f "force=${force}"
+gh workflow run pr-deploy.yaml --ref "${branchName}" -f "pr_number=${prNumber}" -f "experiments=${experiments}" -f "build=${build}" -f "deploy=${deploy}"
