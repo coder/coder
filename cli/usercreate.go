@@ -142,7 +142,8 @@ Create a workspace  `+cliui.DefaultStyles.Code.Render("coder create")+`!`)
 			Flag: "login-type",
 			Description: fmt.Sprintf("Optionally specify the login type for the user. Valid values are: %s.",
 				strings.Join([]string{
-					string(codersdk.LoginTypePassword), string(codersdk.LoginTypeNone), string(codersdk.LoginTypeGithub), string(codersdk.LoginTypeOIDC)}, ", ",
+					string(codersdk.LoginTypePassword), string(codersdk.LoginTypeNone), string(codersdk.LoginTypeGithub), string(codersdk.LoginTypeOIDC),
+				}, ", ",
 				)),
 			Value: clibase.StringOf(&loginType),
 		},
