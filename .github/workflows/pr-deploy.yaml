@@ -51,7 +51,7 @@ jobs:
       CODER_BASE_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_BASE_IMAGE_TAG }}
       CODER_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_IMAGE_TAG }}
       NEW: ${{ steps.check_deployment.outputs.new }}
-      BUILD: ${{ steps.filter.outputs.all_count > steps.filter.outputs.ignored_count || steps.check_deployment.outputs.new || github.event.inputs.build == 'true' }}
+      BUILD: ${{ steps.filter.outputs.all_count > steps.filter.outputs.ignored_count || steps.check_deployment.outputs.new }}
 
     runs-on: "ubuntu-latest"
     steps:
@@ -163,7 +163,7 @@ jobs:
   build:
     needs: get_info
     # Run build job only if there are changes in the files that we care about or if the workflow is manually triggered with --force
-    if: needs.get_info.outputs.BUILD == 'true'
+    if: needs.get_info.outputs.BUILD == 'true' || github.event.inputs.build == 'true'
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
