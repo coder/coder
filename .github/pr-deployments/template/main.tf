@@ -14,20 +14,6 @@ terraform {
 provider "coder" {
 }
 
-variable "use_kubeconfig" {
-  type        = bool
-  description = <<-EOF
-  Use host kubeconfig? (true/false)
-
-  Set this to false if the Coder host is itself running as a Pod on the same
-  Kubernetes cluster as you are deploying workspaces to.
-
-  Set this to true if the Coder host is running outside the Kubernetes cluster
-  for workspaces.  A valid "~/.kube/config" must be present on the Coder host.
-  EOF
-  default     = false
-}
-
 variable "namespace" {
   type        = string
   description = "The Kubernetes namespace to create workspaces in (must exist prior to creating workspaces)"
@@ -98,8 +84,7 @@ data "coder_parameter" "home_disk_size" {
 }
 
 provider "kubernetes" {
-  # Authenticate via ~/.kube/config or a Coder-specific ServiceAccount, depending on admin preferences
-  config_path = var.use_kubeconfig == true ? "~/.kube/config" : null
+  config_path = null
 }
 
 data "coder_workspace" "me" {}
@@ -114,11 +99,6 @@ resource "coder_agent" "main" {
     # install and start code-server
     curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server
     /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
-
-    # # Set KUBECONFIG env var to the path of the mounted secret
-    # mkdir -p /home/coder/.kube
-    # sudo cp /tmp/config /home/coder/.kube/config
-    # export KUBECONFIG=/home/coder/.kube/config
 
   EOT
 
@@ -251,7 +231,6 @@ resource "kubernetes_deployment" "main" {
   }
 
   spec {
-    # replicas = data.coder_workspace.me.start_count
     replicas = 1
     selector {
       match_labels = {
