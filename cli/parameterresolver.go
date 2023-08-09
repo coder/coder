@@ -195,7 +195,7 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 				Value: parameterValue,
 			})
 		} else if action == WorkspaceUpdate && !tvp.Mutable && !firstTimeUse {
-			_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Warn.Render(fmt.Sprintf("Parameter %q is not mutable, so can't be customized after workspace creation.", tvp.Name)))
+			_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Warn.Render(fmt.Sprintf("Parameter %q is not mutable, and cannot be customized after workspace creation.", tvp.Name)))
 		}
 	}
 	return resolved, nil

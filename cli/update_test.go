@@ -159,7 +159,7 @@ func TestUpdateWithRichParameters(t *testing.T) {
 
 		matches := []string{
 			firstParameterDescription, firstParameterValue,
-			fmt.Sprintf("Parameter %q is not mutable, so can't be customized after workspace creation.", immutableParameterName), "",
+			fmt.Sprintf("Parameter %q is not mutable, and cannot be customized after workspace creation.", immutableParameterName), "",
 			secondParameterDescription, secondParameterValue,
 		}
 		for i := 0; i < len(matches); i += 2 {
