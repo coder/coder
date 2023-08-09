@@ -57,12 +57,12 @@ func (r *RootCmd) userCreate() *clibase.Cmd {
 				}
 			}
 			userLoginType := codersdk.LoginTypePassword
+			if disableLogin && loginType != "" {
+				return xerrors.New("You cannot specify both --disable-login and --login-type")
+			}
 			if disableLogin {
 				userLoginType = codersdk.LoginTypeNone
 			} else if loginType != "" {
-				if disableLogin {
-					return xerrors.New("You cannot specify both --disable-login and --login-type")
-				}
 				userLoginType = codersdk.LoginType(loginType)
 			}
 
