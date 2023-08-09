@@ -165,7 +165,7 @@ func (pr *ParameterResolver) verifyConstraints(resolved []codersdk.WorkspaceBuil
 		}
 
 		if !tvp.Mutable && action != WorkspaceCreate {
-			return xerrors.Errorf("parameter %q is immutable and can't be updated", r.Name)
+			return xerrors.Errorf("parameter %q is immutable and cannot be updated", r.Name)
 		}
 	}
 	return nil
