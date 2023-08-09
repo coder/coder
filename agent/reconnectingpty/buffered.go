@@ -155,6 +155,10 @@ func (rpty *bufferedReconnectingPTY) lifecycle(ctx context.Context, logger slog.
 			logger.Debug(ctx, "closed conn with error", slog.Error(err))
 		}
 	}
+	// Connections get removed once the pty closes but it is possible there is
+	// still some data that needs to be written so clear the map now to avoid
+	// writing to closed connections.
+	rpty.activeConns = map[string]net.Conn{}
 
 	err := rpty.ptty.Close()
 	if err != nil {
