@@ -1,4 +1,4 @@
-import { fireEvent, screen } from "@testing-library/react"
+import { fireEvent, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { rest } from "msw"
 import { Language as FormLanguage } from "../../../components/CreateUserForm/CreateUserForm"
@@ -29,12 +29,15 @@ const fillForm = async ({
 }) => {
   const usernameField = screen.getByLabelText(FormLanguage.usernameLabel)
   const emailField = screen.getByLabelText(FormLanguage.emailLabel)
-  const passwordField = screen.getByTestId("password-input")
+  const passwordField = screen
+    .getByTestId("password-input")
+    .querySelector("input")
+
   const loginTypeField = screen.getByTestId("login-type-input")
   await userEvent.type(usernameField, username)
   await userEvent.type(emailField, email)
   await userEvent.type(loginTypeField, "password")
-  await userEvent.type(passwordField, password)
+  await userEvent.type(passwordField as HTMLElement, password)
   const submitButton = await screen.findByText(
     FooterLanguage.defaultSubmitLabel,
   )
