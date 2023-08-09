@@ -563,7 +563,7 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   logs_overflowed: false,
   startup_script_timeout_seconds: 120,
   shutdown_script_timeout_seconds: 120,
-  subsystem: "envbox",
+  subsystems: ["envbox", "exectrace"],
   health: {
     healthy: true,
   },
@@ -1670,6 +1670,7 @@ export const MockGroup: TypesGen.Group = {
   organization_id: MockOrganization.id,
   members: [MockUser, MockUser2],
   quota_allowance: 5,
+  source: "user",
 }
 
 export const MockTemplateACL: TypesGen.TemplateACL = {
