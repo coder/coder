@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/netip"
@@ -24,10 +23,12 @@ import (
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/connstats"
 	"tailscale.com/net/dns"
+	"tailscale.com/net/netmon"
 	"tailscale.com/net/netns"
 	"tailscale.com/net/tsdial"
 	"tailscale.com/net/tstun"
 	"tailscale.com/tailcfg"
+	"tailscale.com/tsd"
 	"tailscale.com/types/ipproto"
 	"tailscale.com/types/key"
 	tslogger "tailscale.com/types/logger"
@@ -36,7 +37,6 @@ import (
 	"tailscale.com/wgengine"
 	"tailscale.com/wgengine/filter"
 	"tailscale.com/wgengine/magicsock"
-	"tailscale.com/wgengine/monitor"
 	"tailscale.com/wgengine/netstack"
 	"tailscale.com/wgengine/router"
 	"tailscale.com/wgengine/wgcfg/nmcfg"
@@ -138,7 +138,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		AllowedIPs: options.Addresses,
 	}
 
-	wireguardMonitor, err := monitor.New(Logger(options.Logger.Named("net.wgmonitor")))
+	wireguardMonitor, err := netmon.New(Logger(options.Logger.Named("net.wgmonitor")))
 	if err != nil {
 		return nil, xerrors.Errorf("create wireguard link monitor: %w", err)
 	}
@@ -148,14 +148,15 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		}
 	}()
 
-	IP()
 	dialer := &tsdial.Dialer{
 		Logf: Logger(options.Logger.Named("net.tsdial")),
 	}
+	sys := new(tsd.System)
 	wireguardEngine, err := wgengine.NewUserspaceEngine(Logger(options.Logger.Named("net.wgengine")), wgengine.Config{
-		LinkMonitor: wireguardMonitor,
-		Dialer:      dialer,
-		ListenPort:  options.ListenPort,
+		NetMon:       wireguardMonitor,
+		Dialer:       dialer,
+		ListenPort:   options.ListenPort,
+		SetSubsystem: sys.Set,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create wgengine: %w", err)
@@ -170,16 +171,9 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		return ok
 	}
 
-	// This is taken from Tailscale:
-	// https://github.com/tailscale/tailscale/blob/0f05b2c13ff0c305aa7a1655fa9c17ed969d65be/tsnet/tsnet.go#L247-L255
-	wireguardInternals, ok := wireguardEngine.(wgengine.InternalsGetter)
-	if !ok {
-		return nil, xerrors.Errorf("wireguard engine isn't the correct type %T", wireguardEngine)
-	}
-	tunDevice, magicConn, dnsManager, ok := wireguardInternals.GetInternals()
-	if !ok {
-		return nil, xerrors.New("get wireguard internals")
-	}
+	sys.Set(wireguardEngine)
+
+	magicConn := sys.MagicSock.Get()
 	if options.DERPHeader != nil {
 		magicConn.SetDERPHeader(options.DERPHeader.Clone())
 	}
@@ -205,11 +199,11 @@ func NewConn(options *Options) (conn *Conn, err error) {
 
 	netStack, err := netstack.Create(
 		Logger(options.Logger.Named("net.netstack")),
-		tunDevice,
+		sys.Tun.Get(),
 		wireguardEngine,
 		magicConn,
 		dialer,
-		dnsManager,
+		sys.DNSManager.Get(),
 	)
 	if err != nil {
 		return nil, xerrors.Errorf("create netstack: %w", err)
@@ -252,7 +246,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		listeners:                map[listenKey]*listener{},
 		peerMap:                  map[tailcfg.NodeID]*tailcfg.Node{},
 		lastDERPForcedWebsockets: map[int]string{},
-		tunDevice:                tunDevice,
+		tunDevice:                sys.Tun.Get(),
 		netMap:                   netMap,
 		netStack:                 netStack,
 		wireguardMonitor:         wireguardMonitor,
@@ -313,8 +307,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		server.sendNode()
 	})
 
-	netStack.ForwardTCPIn = server.forwardTCP
-	netStack.ForwardTCPSockOpts = server.forwardTCPSockOpts
+	netStack.GetTCPHandlerForFlow = server.forwardTCP
 
 	err = netStack.Start(nil)
 	if err != nil {
@@ -363,7 +356,7 @@ type Conn struct {
 	netMap           *netmap.NetworkMap
 	netStack         *netstack.Impl
 	magicConn        *magicsock.Conn
-	wireguardMonitor *monitor.Mon
+	wireguardMonitor *netmon.Monitor
 	wireguardRouter  *router.Config
 	wireguardEngine  wgengine.Engine
 	listeners        map[listenKey]*listener
@@ -449,6 +442,11 @@ func (c *Conn) SetDERPRegionDialer(dialer func(ctx context.Context, region *tail
 func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+
+	if c.isClosed() {
+		return xerrors.New("connection closed")
+	}
+
 	status := c.Status()
 	if replacePeers {
 		c.netMap.Peers = []*tailcfg.Node{}
@@ -481,7 +479,6 @@ func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 		}
 		c.logger.Debug(context.Background(), "adding node", slog.F("node", node))
 
-		peerStatus, ok := status.Peer[node.Key]
 		peerNode := &tailcfg.Node{
 			ID:         node.ID,
 			Created:    time.Now(),
@@ -492,10 +489,6 @@ func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 			Endpoints:  node.Endpoints,
 			DERP:       fmt.Sprintf("%s:%d", tailcfg.DerpMagicIP, node.PreferredDERP),
 			Hostinfo:   hostinfo.New().View(),
-			// Starting KeepAlive messages at the initialization
-			// of a connection cause it to hang for an unknown
-			// reason. TODO: @kylecarbs debug this!
-			KeepAlive: ok && peerStatus.Active,
 		}
 		if c.blockEndpoints {
 			peerNode.Endpoints = nil
@@ -823,68 +816,31 @@ func (c *Conn) DialContextUDP(ctx context.Context, ipp netip.AddrPort) (*gonet.U
 	return c.netStack.DialContextUDP(ctx, ipp)
 }
 
-func (c *Conn) forwardTCP(conn net.Conn, port uint16) {
+func (c *Conn) forwardTCP(_, dst netip.AddrPort) (handler func(net.Conn), opts []tcpip.SettableSocketOption, intercept bool) {
 	c.mutex.Lock()
-	ln, ok := c.listeners[listenKey{"tcp", "", fmt.Sprint(port)}]
+	ln, ok := c.listeners[listenKey{"tcp", "", fmt.Sprint(dst.Port())}]
 	c.mutex.Unlock()
 	if !ok {
-		c.forwardTCPToLocal(conn, port)
-		return
+		return nil, nil, false
 	}
-
-	t := time.NewTimer(time.Second)
-	defer t.Stop()
-	select {
-	case ln.conn <- conn:
-		return
-	case <-ln.closed:
-	case <-c.closed:
-	case <-t.C:
-	}
-	_ = conn.Close()
-}
-
-func (*Conn) forwardTCPSockOpts(port uint16) []tcpip.SettableSocketOption {
-	opts := []tcpip.SettableSocketOption{}
-
 	// See: https://github.com/tailscale/tailscale/blob/c7cea825aea39a00aca71ea02bab7266afc03e7c/wgengine/netstack/netstack.go#L888
-	if port == WorkspaceAgentSSHPort || port == 22 {
-		opt := tcpip.KeepaliveIdleOption(72*time.Hour + time.Minute) // Default ssh-max-timeout is 72h, so let's add some extra time.
+	if dst.Port() == WorkspaceAgentSSHPort || dst.Port() == 22 {
+		opt := tcpip.KeepaliveIdleOption(72 * time.Hour)
 		opts = append(opts, &opt)
 	}
 
-	return opts
-}
-
-func (c *Conn) forwardTCPToLocal(conn net.Conn, port uint16) {
-	defer conn.Close()
-	dialAddrStr := net.JoinHostPort("127.0.0.1", strconv.Itoa(int(port)))
-	var stdDialer net.Dialer
-	server, err := stdDialer.DialContext(c.dialContext, "tcp", dialAddrStr)
-	if err != nil {
-		c.logger.Debug(c.dialContext, "dial local port", slog.F("port", port), slog.Error(err))
-		return
-	}
-	defer server.Close()
-
-	connClosed := make(chan error, 2)
-	go func() {
-		_, err := io.Copy(server, conn)
-		connClosed <- err
-	}()
-	go func() {
-		_, err := io.Copy(conn, server)
-		connClosed <- err
-	}()
-	select {
-	case err = <-connClosed:
-	case <-c.closed:
-		return
-	}
-	if err != nil {
-		c.logger.Debug(c.dialContext, "proxy connection closed with error", slog.Error(err))
-	}
-	c.logger.Debug(c.dialContext, "forwarded connection closed", slog.F("local_addr", dialAddrStr))
+	return func(conn net.Conn) {
+		t := time.NewTimer(time.Second)
+		defer t.Stop()
+		select {
+		case ln.conn <- conn:
+			return
+		case <-ln.closed:
+		case <-c.closed:
+		case <-t.C:
+		}
+		_ = conn.Close()
+	}, opts, true
 }
 
 // SetConnStatsCallback sets a callback to be called after maxPeriod or
