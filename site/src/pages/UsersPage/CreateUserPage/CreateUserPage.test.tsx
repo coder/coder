@@ -29,7 +29,7 @@ const fillForm = async ({
 }) => {
   const usernameField = screen.getByLabelText(FormLanguage.usernameLabel)
   const emailField = screen.getByLabelText(FormLanguage.emailLabel)
-  const passwordField = screen.getByLabelText(FormLanguage.passwordLabel)
+  const passwordField = screen.getByTestId("password")
   await userEvent.type(usernameField, username)
   await userEvent.type(emailField, email)
   await userEvent.type(passwordField, password)

@@ -151,6 +151,7 @@ export const CreateUserForm: FC<
             autoComplete="current-password"
             fullWidth
             id="password"
+            data-testid="password"
             disabled={form.values.login_type !== "password"}
             label={Language.passwordLabel}
             type="password"
