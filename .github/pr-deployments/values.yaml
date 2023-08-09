@@ -14,15 +14,6 @@ coder:
       enable: true
       secretName: pr${PR_NUMBER}-tls
       wildcardSecretName: pr${PR_NUMBER}-tls
-  # volumes:
-  #   - name: coder-namespace-kubeconfig
-  #     secret:
-  #       secretName: coder-namespace-kubeconfig
-  # volumeMounts:
-  #   - name: coder-namespace-kubeconfig
-  #     mountPath: /home/coder/.kube/config
-  #     subPath: kubeconfig
-  #     readOnly: true
   env:
     - name: "CODER_ACCESS_URL"
       value: "https://${HOSTNAME}"

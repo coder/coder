@@ -3,8 +3,6 @@ kind: ServiceAccount
 metadata:
   name: coder-workspace-pr${PR_NUMBER}
   namespace: pr${PR_NUMBER}
-# secrets:
-#   - name: coder-workspace-token
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -31,12 +29,3 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: coder-workspace-pr${PR_NUMBER}
-# ---
-# apiVersion: v1
-# kind: Secret
-# metadata:
-#   name: coder-workspace-token-pr${PR_NUMBER}
-#   namespace: pr${PR_NUMBER}
-#   annotations:
-#     kubernetes.io/service-account.name: coder-workspace
-# type: kubernetes.io/service-account-token
