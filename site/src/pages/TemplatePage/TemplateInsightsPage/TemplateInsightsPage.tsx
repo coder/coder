@@ -529,11 +529,6 @@ const PanelTitle = styled(Box)(() => ({
   fontWeight: 500,
 }))
 
-const PanelSubtitle = styled(Box)(({ theme }) => ({
-  fontSize: 13,
-  color: theme.palette.text.secondary,
-}))
-
 const PanelContent = styled(Box)(({ theme }) => ({
   padding: theme.spacing(0, 3, 3),
   flex: 1,
