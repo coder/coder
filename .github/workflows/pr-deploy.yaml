@@ -243,7 +243,7 @@ jobs:
           fi
 
       - name: Add DNS record to Cloudflare
-        if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
+        if: needs.get_info.outputs.NEW == 'true'
         run: |
           curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records" \
             -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
