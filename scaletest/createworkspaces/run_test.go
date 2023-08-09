@@ -106,10 +106,9 @@ func Test_Runner(t *testing.T) {
 			},
 			ReconnectingPTY: &reconnectingpty.Config{
 				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
-					Height:      24,
-					Width:       80,
-					Command:     "echo hello",
-					BackendType: codersdk.ReconnectingPTYBackendTypeBuffered,
+					Height:  24,
+					Width:   80,
+					Command: "echo hello",
 				},
 				Timeout: httpapi.Duration(testutil.WaitLong),
 			},
@@ -231,10 +230,9 @@ func Test_Runner(t *testing.T) {
 			},
 			ReconnectingPTY: &reconnectingpty.Config{
 				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
-					Height:      24,
-					Width:       80,
-					Command:     "echo hello",
-					BackendType: codersdk.ReconnectingPTYBackendTypeBuffered,
+					Height:  24,
+					Width:   80,
+					Command: "echo hello",
 				},
 				Timeout: httpapi.Duration(testutil.WaitLong),
 			},

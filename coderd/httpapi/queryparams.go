@@ -161,7 +161,7 @@ func (p *QueryParamParser) Strings(vals url.Values, def []string, queryParam str
 // ValidEnum parses enum query params. Add more to the list as needed.
 type ValidEnum interface {
 	database.ResourceType | database.AuditAction | database.BuildReason | database.UserStatus |
-		database.WorkspaceStatus | codersdk.ReconnectingPTYBackendType
+		database.WorkspaceStatus
 
 	// Valid is required on the enum type to be used with ParseEnum.
 	Valid() bool

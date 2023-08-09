@@ -103,7 +103,7 @@ func TestAgent_Stats_ReconnectingPTY(t *testing.T) {
 	//nolint:dogsled
 	conn, _, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 
-	ptyConn, err := conn.ReconnectingPTY(ctx, uuid.New(), 128, 128, "bash", codersdk.ReconnectingPTYBackendTypeBuffered)
+	ptyConn, err := conn.ReconnectingPTY(ctx, uuid.New(), 128, 128, "bash")
 	require.NoError(t, err)
 	defer ptyConn.Close()
 
@@ -1601,18 +1601,15 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 		t.Skip("ConPTY appears to be inconsistent on Windows.")
 	}
 
-	backends := []codersdk.ReconnectingPTYBackendType{
-		codersdk.ReconnectingPTYBackendTypeBuffered,
-		codersdk.ReconnectingPTYBackendTypeScreen,
-	}
+	backends := []string{"Buffered", "Screen"}
 
 	for _, backendType := range backends {
 		backendType := backendType
-		t.Run(string(backendType), func(t *testing.T) {
+		t.Run(backendType, func(t *testing.T) {
 			t.Parallel()
 			if runtime.GOOS == "darwin" {
 				t.Skip("`screen` is flaky on darwin")
-			} else if backendType == codersdk.ReconnectingPTYBackendTypeScreen {
+			} else if backendType == "Screen" {
 				_, err := exec.LookPath("screen")
 				if err != nil {
 					t.Skip("`screen` not found")
@@ -1625,14 +1622,14 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			//nolint:dogsled
 			conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 			id := uuid.New()
-			netConn1, err := conn.ReconnectingPTY(ctx, id, 100, 100, "bash", backendType)
+			netConn1, err := conn.ReconnectingPTY(ctx, id, 100, 100, "bash")
 			require.NoError(t, err)
 			defer netConn1.Close()
 
 			scanner1 := bufio.NewScanner(netConn1)
 
 			// A second simultaneous connection.
-			netConn2, err := conn.ReconnectingPTY(ctx, id, 100, 100, "bash", backendType)
+			netConn2, err := conn.ReconnectingPTY(ctx, id, 100, 100, "bash")
 			require.NoError(t, err)
 			defer netConn2.Close()
 			scanner2 := bufio.NewScanner(netConn2)
@@ -1683,7 +1680,7 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 
 			_ = netConn1.Close()
 			_ = netConn2.Close()
-			netConn3, err := conn.ReconnectingPTY(ctx, id, 100, 100, "bash", backendType)
+			netConn3, err := conn.ReconnectingPTY(ctx, id, 100, 100, "bash")
 			require.NoError(t, err)
 			defer netConn3.Close()
 

@@ -1108,7 +1108,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 		}
 		c <- rpty // Put it back for the next reconnect.
 	} else {
-		logger.Debug(ctx, "creating new reconnecting pty", slog.F("backend", msg.BackendType))
+		logger.Debug(ctx, "creating new reconnecting pty")
 
 		connected := false
 		defer func() {
@@ -1126,9 +1126,8 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 		}
 
 		rpty = reconnectingpty.New(ctx, cmd, &reconnectingpty.Options{
-			BackendType: msg.BackendType,
-			Timeout:     a.reconnectingPTYTimeout,
-			Metrics:     a.metrics.reconnectingPTYErrors,
+			Timeout: a.reconnectingPTYTimeout,
+			Metrics: a.metrics.reconnectingPTYErrors,
 		}, logger.With(slog.F("message_id", msg.ID)))
 
 		if err = a.trackConnGoroutine(func() {

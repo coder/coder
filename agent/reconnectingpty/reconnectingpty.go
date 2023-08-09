@@ -32,8 +32,6 @@ type Options struct {
 	Timeout time.Duration
 	// Metrics tracks various error counters.
 	Metrics *prometheus.CounterVec
-	// BackendType indicates which backend to use for reconnections.
-	BackendType codersdk.ReconnectingPTYBackendType
 }
 
 // ReconnectingPTY is a pty that can be reconnected within a timeout and to
@@ -64,23 +62,20 @@ func New(ctx context.Context, cmd *pty.Cmd, options *Options, logger slog.Logger
 	}
 	// Screen seems flaky on Darwin.  Locally the tests pass 100% of the time (100
 	// runs) but in CI screen often incorrectly claims the session name does not
-	// exist even though screen -list shows it.
-	if runtime.GOOS == "darwin" {
-		options.BackendType = codersdk.ReconnectingPTYBackendTypeBuffered
-	} else if options.BackendType == "" || options.BackendType == codersdk.ReconnectingPTYBackendTypeAuto {
+	// exist even though screen -list shows it.  For now, restrict screen to
+	// Linux.
+	backendType := "buffered"
+	if runtime.GOOS == "linux" {
 		_, err := exec.LookPath("screen")
 		if err == nil {
-			options.BackendType = codersdk.ReconnectingPTYBackendTypeScreen
-		} else {
-			options.BackendType = codersdk.ReconnectingPTYBackendTypeBuffered
+			backendType = "screen"
 		}
-		logger.Debug(ctx, "auto backend selection", slog.F("backend", options.BackendType))
 	}
 
-	logger.Info(ctx, "start reconnecting pty")
+	logger.Info(ctx, "start reconnecting pty", slog.F("backend_type", backendType))
 
-	switch options.BackendType {
-	case codersdk.ReconnectingPTYBackendTypeScreen:
+	switch backendType {
+	case "screen":
 		return newScreen(ctx, cmd, options, logger)
 	default:
 		return newBuffered(ctx, cmd, options, logger)

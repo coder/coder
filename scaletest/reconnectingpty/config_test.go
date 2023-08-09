@@ -32,11 +32,10 @@ func Test_Config(t *testing.T) {
 			config: reconnectingpty.Config{
 				AgentID: id,
 				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
-					ID:          id,
-					Width:       80,
-					Height:      24,
-					Command:     "echo 'hello world'",
-					BackendType: codersdk.ReconnectingPTYBackendTypeBuffered,
+					ID:      id,
+					Width:   80,
+					Height:  24,
+					Command: "echo 'hello world'",
 				},
 				Timeout:       httpapi.Duration(time.Minute),
 				ExpectTimeout: false,

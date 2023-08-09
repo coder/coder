@@ -676,11 +676,10 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 					config.ReconnectingPTY = &reconnectingpty.Config{
 						// AgentID is set by the test automatically.
 						Init: codersdk.WorkspaceAgentReconnectingPTYInit{
-							ID:          uuid.Nil,
-							Height:      24,
-							Width:       80,
-							Command:     runCommand,
-							BackendType: codersdk.ReconnectingPTYBackendTypeBuffered,
+							ID:      uuid.Nil,
+							Height:  24,
+							Width:   80,
+							Command: runCommand,
 						},
 						Timeout:       httpapi.Duration(runTimeout),
 						ExpectTimeout: runExpectTimeout,

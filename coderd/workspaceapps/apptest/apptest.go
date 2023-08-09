@@ -11,7 +11,6 @@ import (
 	"net/http/cookiejar"
 	"net/http/httputil"
 	"net/url"
-	"os/exec"
 	"path"
 	"regexp"
 	"runtime"
@@ -57,81 +56,59 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			t.Skip("ConPTY appears to be inconsistent on Windows.")
 		}
 
-		backends := []codersdk.ReconnectingPTYBackendType{
-			codersdk.ReconnectingPTYBackendTypeBuffered,
-			codersdk.ReconnectingPTYBackendTypeScreen,
-		}
+		t.Run("OK", func(t *testing.T) {
+			t.Parallel()
+			appDetails := setupProxyTest(t, nil)
 
-		for _, backendType := range backends {
-			backendType := backendType
-			t.Run(string(backendType), func(t *testing.T) {
-				t.Parallel()
-				if runtime.GOOS == "darwin" {
-					t.Skip("`screen` is flaky on darwin")
-				} else if backendType == codersdk.ReconnectingPTYBackendTypeScreen {
-					_, err := exec.LookPath("screen")
-					if err != nil {
-						t.Skip("`screen` not found")
-					}
-				}
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
 
-				t.Run("OK", func(t *testing.T) {
-					t.Parallel()
-					appDetails := setupProxyTest(t, nil)
-
-					ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-					defer cancel()
-
-					// Run the test against the path app hostname since that's where the
-					// reconnecting-pty proxy server we want to test is mounted.
-					client := appDetails.AppClient(t)
-					testReconnectingPTY(ctx, t, client, codersdk.WorkspaceAgentReconnectingPTYOpts{
-						AgentID:     appDetails.Agent.ID,
-						Reconnect:   uuid.New(),
-						Height:      80,
-						Width:       80,
-						Command:     "bash",
-						BackendType: backendType,
-					})
-				})
-
-				t.Run("SignedTokenQueryParameter", func(t *testing.T) {
-					t.Parallel()
-					if appHostIsPrimary {
-						t.Skip("Tickets are not used for terminal requests on the primary.")
-					}
-
-					appDetails := setupProxyTest(t, nil)
-
-					u := *appDetails.PathAppBaseURL
-					if u.Scheme == "http" {
-						u.Scheme = "ws"
-					} else {
-						u.Scheme = "wss"
-					}
-					u.Path = fmt.Sprintf("/api/v2/workspaceagents/%s/pty", appDetails.Agent.ID.String())
-
-					ctx := testutil.Context(t, testutil.WaitLong)
-					issueRes, err := appDetails.SDKClient.IssueReconnectingPTYSignedToken(ctx, codersdk.IssueReconnectingPTYSignedTokenRequest{
-						URL:     u.String(),
-						AgentID: appDetails.Agent.ID,
-					})
-					require.NoError(t, err)
-
-					// Make an unauthenticated client.
-					unauthedAppClient := codersdk.New(appDetails.AppClient(t).URL)
-					testReconnectingPTY(ctx, t, unauthedAppClient, codersdk.WorkspaceAgentReconnectingPTYOpts{
-						AgentID:     appDetails.Agent.ID,
-						Reconnect:   uuid.New(),
-						Height:      80,
-						Width:       80,
-						Command:     "bash",
-						SignedToken: issueRes.SignedToken,
-						BackendType: backendType,
-					})
-				})
+			// Run the test against the path app hostname since that's where the
+			// reconnecting-pty proxy server we want to test is mounted.
+			client := appDetails.AppClient(t)
+			testReconnectingPTY(ctx, t, client, codersdk.WorkspaceAgentReconnectingPTYOpts{
+				AgentID:   appDetails.Agent.ID,
+				Reconnect: uuid.New(),
+				Height:    80,
+				Width:     80,
+				Command:   "bash",
 			})
-		}
+		})
+
+		t.Run("SignedTokenQueryParameter", func(t *testing.T) {
+			t.Parallel()
+			if appHostIsPrimary {
+				t.Skip("Tickets are not used for terminal requests on the primary.")
+			}
+
+			appDetails := setupProxyTest(t, nil)
+
+			u := *appDetails.PathAppBaseURL
+			if u.Scheme == "http" {
+				u.Scheme = "ws"
+			} else {
+				u.Scheme = "wss"
+			}
+			u.Path = fmt.Sprintf("/api/v2/workspaceagents/%s/pty", appDetails.Agent.ID.String())
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			issueRes, err := appDetails.SDKClient.IssueReconnectingPTYSignedToken(ctx, codersdk.IssueReconnectingPTYSignedTokenRequest{
+				URL:     u.String(),
+				AgentID: appDetails.Agent.ID,
+			})
+			require.NoError(t, err)
+
+			// Make an unauthenticated client.
+			unauthedAppClient := codersdk.New(appDetails.AppClient(t).URL)
+			testReconnectingPTY(ctx, t, unauthedAppClient, codersdk.WorkspaceAgentReconnectingPTYOpts{
+				AgentID:     appDetails.Agent.ID,
+				Reconnect:   uuid.New(),
+				Height:      80,
+				Width:       80,
+				Command:     "bash",
+				SignedToken: issueRes.SignedToken,
+			})
+		})
 	})
 
 	t.Run("WorkspaceAppsProxyPath", func(t *testing.T) {
