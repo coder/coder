@@ -19,6 +19,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/agent/agentssh"
+	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/tracing"
@@ -109,7 +110,8 @@ type Server struct {
 	DisablePathApps  bool
 	SecureAuthCookie bool
 
-	AgentProvider AgentProvider
+	AgentProvider  AgentProvider
+	StatsCollector *StatsCollector
 
 	websocketWaitMutex sync.Mutex
 	websocketWaitGroup sync.WaitGroup
@@ -586,7 +588,13 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 	// end span so we don't get long lived trace data
 	tracing.EndHTTPSpan(r, http.StatusOK, trace.SpanFromContext(ctx))
 
+	report := newStatsReportFromSignedToken(appToken)
+	s.StatsCollector.Collect(report)
+
 	proxy.ServeHTTP(rw, r)
+
+	report.SessionEndTime = codersdk.NewNullTime(database.Now(), true)
+	s.StatsCollector.Collect(report)
 }
 
 // workspaceAgentPTY spawns a PTY and pipes it over a WebSocket.
@@ -678,8 +686,15 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	}
 	defer ptNetConn.Close()
 	log.Debug(ctx, "obtained PTY")
+
+	report := newStatsReportFromSignedToken(*appToken)
+	s.StatsCollector.Collect(report)
+
 	agentssh.Bicopy(ctx, wsNetConn, ptNetConn)
 	log.Debug(ctx, "pty Bicopy finished")
+
+	report.SessionEndTime = codersdk.NewNullTime(database.Now(), true)
+	s.StatsCollector.Collect(report)
 }
 
 // wsNetConn wraps net.Conn created by websocket.NetConn(). Cancel func

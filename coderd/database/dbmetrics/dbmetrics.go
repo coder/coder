@@ -1250,6 +1250,13 @@ func (m metricsStore) InsertWorkspaceApp(ctx context.Context, arg database.Inser
 	return app, err
 }
 
+func (m metricsStore) InsertWorkspaceAppStats(ctx context.Context, arg database.InsertWorkspaceAppStatsParams) error {
+	start := time.Now()
+	r0 := m.s.InsertWorkspaceAppStats(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertWorkspaceAppStats").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) InsertWorkspaceBuild(ctx context.Context, arg database.InsertWorkspaceBuildParams) error {
 	start := time.Now()
 	err := m.s.InsertWorkspaceBuild(ctx, arg)

@@ -5479,6 +5479,45 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceproxies/me/app-stats": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Report workspace app stats",
+                "operationId": "report-workspace-app-stats",
+                "parameters": [
+                    {
+                        "description": "Report app stats request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/wsproxysdk.ReportAppStatsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/workspaceproxies/me/coordinate": {
             "get": {
                 "security": [
@@ -11679,6 +11718,35 @@ const docTemplate = `{
                 }
             }
         },
+        "workspaceapps.StatsReport": {
+            "type": "object",
+            "properties": {
+                "access_method": {
+                    "$ref": "#/definitions/workspaceapps.AccessMethod"
+                },
+                "agent_id": {
+                    "type": "string"
+                },
+                "session_end_time": {
+                    "type": "string"
+                },
+                "session_id": {
+                    "type": "string"
+                },
+                "session_start_time": {
+                    "type": "string"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                },
+                "workspace_id": {
+                    "type": "string"
+                }
+            }
+        },
         "wsproxysdk.AgentIsLegacyResponse": {
             "type": "object",
             "properties": {
@@ -11766,6 +11834,17 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.Replica"
+                    }
+                }
+            }
+        },
+        "wsproxysdk.ReportAppStatsRequest": {
+            "type": "object",
+            "properties": {
+                "stats": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workspaceapps.StatsReport"
                     }
                 }
             }

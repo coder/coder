@@ -417,8 +417,9 @@ func New(options *Options) *API {
 		}
 	}
 
+	workspaceAppsLogger := options.Logger.Named("workspaceapps")
 	api.workspaceAppServer = &workspaceapps.Server{
-		Logger: options.Logger.Named("workspaceapps"),
+		Logger: workspaceAppsLogger,
 
 		DashboardURL:  api.AccessURL,
 		AccessURL:     api.AccessURL,
@@ -429,6 +430,11 @@ func New(options *Options) *API {
 		SignedTokenProvider: api.WorkspaceAppsProvider,
 		AgentProvider:       api.agentProvider,
 		AppSecurityKey:      options.AppSecurityKey,
+		StatsCollector: workspaceapps.NewStatsCollector(
+			workspaceAppsLogger.Named("stats_collector"),
+			workspaceapps.NewStatsDBReporter(options.Database),
+			workspaceapps.DefaultStatsCollectorReportInterval,
+		),
 
 		DisablePathApps:  options.DeploymentValues.DisablePathApps.Value(),
 		SecureAuthCookie: options.DeploymentValues.SecureAuthCookie.Value(),

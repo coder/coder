@@ -2627,6 +2627,20 @@ func (mr *MockStoreMockRecorder) InsertWorkspaceApp(arg0, arg1 interface{}) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceApp", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceApp), arg0, arg1)
 }
 
+// InsertWorkspaceAppStats mocks base method.
+func (m *MockStore) InsertWorkspaceAppStats(arg0 context.Context, arg1 database.InsertWorkspaceAppStatsParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertWorkspaceAppStats", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertWorkspaceAppStats indicates an expected call of InsertWorkspaceAppStats.
+func (mr *MockStoreMockRecorder) InsertWorkspaceAppStats(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceAppStats", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceAppStats), arg0, arg1)
+}
+
 // InsertWorkspaceBuild mocks base method.
 func (m *MockStore) InsertWorkspaceBuild(arg0 context.Context, arg1 database.InsertWorkspaceBuildParams) error {
 	m.ctrl.T.Helper()

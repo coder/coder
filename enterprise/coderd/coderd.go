@@ -167,6 +167,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				)
 				r.Get("/coordinate", api.workspaceProxyCoordinate)
 				r.Post("/issue-signed-app-token", api.workspaceProxyIssueSignedAppToken)
+				r.Post("/app-stats", api.workspaceProxyReportAppStats)
 				r.Post("/register", api.workspaceProxyRegister)
 				r.Post("/deregister", api.workspaceProxyDeregister)
 			})

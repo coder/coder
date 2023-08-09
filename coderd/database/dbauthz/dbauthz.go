@@ -2031,6 +2031,11 @@ func (q *querier) InsertWorkspaceApp(ctx context.Context, arg database.InsertWor
 	return q.db.InsertWorkspaceApp(ctx, arg)
 }
 
+func (q *querier) InsertWorkspaceAppStats(ctx context.Context, arg database.InsertWorkspaceAppStatsParams) error {
+	// TODO(mafredri): Add auth.
+	return q.db.InsertWorkspaceAppStats(ctx, arg)
+}
+
 func (q *querier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertWorkspaceBuildParams) error {
 	w, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
 	if err != nil {

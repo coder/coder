@@ -278,9 +278,15 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		},
 		AppSecurityKey: secKey,
 
-		AgentProvider:    agentProvider,
 		DisablePathApps:  opts.DisablePathApps,
 		SecureAuthCookie: opts.SecureAuthCookie,
+
+		AgentProvider: agentProvider,
+		StatsCollector: workspaceapps.NewStatsCollector(
+			opts.Logger.Named("stats_collector"),
+			&appStatsReporter{Client: client},
+			workspaceapps.DefaultStatsCollectorReportInterval,
+		),
 	}
 
 	derpHandler := derphttp.Handler(derpServer)

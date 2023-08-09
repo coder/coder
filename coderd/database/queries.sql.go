@@ -7766,6 +7766,59 @@ func (q *sqlQuerier) UpdateWorkspaceAppHealthByID(ctx context.Context, arg Updat
 	return err
 }
 
+const insertWorkspaceAppStats = `-- name: InsertWorkspaceAppStats :exec
+INSERT INTO
+	workspace_app_stats (
+		id,
+		user_id,
+		workspace_id,
+		agent_id,
+		access_method,
+		slug_or_port,
+		session_id,
+		session_started_at,
+		session_ended_at
+	)
+VALUES
+	($1, $2, $3, $4, $5, $6, $7, $8, $9)
+ON CONFLICT
+	(agent_id, session_id)
+DO
+	UPDATE SET
+		-- Only session end can be updated.
+		session_ended_at = $9
+	WHERE
+		workspace_app_stats.agent_id = $4
+		AND workspace_app_stats.session_id = $7
+`
+
+type InsertWorkspaceAppStatsParams struct {
+	ID               uuid.UUID    `db:"id" json:"id"`
+	UserID           uuid.UUID    `db:"user_id" json:"user_id"`
+	WorkspaceID      uuid.UUID    `db:"workspace_id" json:"workspace_id"`
+	AgentID          uuid.UUID    `db:"agent_id" json:"agent_id"`
+	AccessMethod     string       `db:"access_method" json:"access_method"`
+	SlugOrPort       string       `db:"slug_or_port" json:"slug_or_port"`
+	SessionID        uuid.UUID    `db:"session_id" json:"session_id"`
+	SessionStartedAt time.Time    `db:"session_started_at" json:"session_started_at"`
+	SessionEndedAt   sql.NullTime `db:"session_ended_at" json:"session_ended_at"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceAppStats(ctx context.Context, arg InsertWorkspaceAppStatsParams) error {
+	_, err := q.db.ExecContext(ctx, insertWorkspaceAppStats,
+		arg.ID,
+		arg.UserID,
+		arg.WorkspaceID,
+		arg.AgentID,
+		arg.AccessMethod,
+		arg.SlugOrPort,
+		arg.SessionID,
+		arg.SessionStartedAt,
+		arg.SessionEndedAt,
+	)
+	return err
+}
+
 const getWorkspaceBuildParameters = `-- name: GetWorkspaceBuildParameters :many
 SELECT
     workspace_build_id, name, value

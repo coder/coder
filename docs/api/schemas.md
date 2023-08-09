@@ -7472,6 +7472,34 @@ _None_
 | `username_or_id`       | string                                                   | false    |              | For the following fields, if the AccessMethod is AccessMethodTerminal, then only AgentNameOrID may be set and it must be a UUID. The other fields must be left blank.                 |
 | `workspace_name_or_id` | string                                                   | false    |              |                                                                                                                                                                                       |
 
+## workspaceapps.StatsReport
+
+```json
+{
+  "access_method": "path",
+  "agent_id": "string",
+  "session_end_time": "string",
+  "session_id": "string",
+  "session_start_time": "string",
+  "slug": "string",
+  "user_id": "string",
+  "workspace_id": "string"
+}
+```
+
+### Properties
+
+| Name                 | Type                                                     | Required | Restrictions | Description |
+| -------------------- | -------------------------------------------------------- | -------- | ------------ | ----------- |
+| `access_method`      | [workspaceapps.AccessMethod](#workspaceappsaccessmethod) | false    |              |             |
+| `agent_id`           | string                                                   | false    |              |             |
+| `session_end_time`   | string                                                   | false    |              |             |
+| `session_id`         | string                                                   | false    |              |             |
+| `session_start_time` | string                                                   | false    |              |             |
+| `slug`               | string                                                   | false    |              |             |
+| `user_id`            | string                                                   | false    |              |             |
+| `workspace_id`       | string                                                   | false    |              |             |
+
 ## wsproxysdk.AgentIsLegacyResponse
 
 ```json
@@ -7576,3 +7604,28 @@ _None_
 | `derp_mesh_key`    | string                                        | false    |              |                                                                                        |
 | `derp_region_id`   | integer                                       | false    |              |                                                                                        |
 | `sibling_replicas` | array of [codersdk.Replica](#codersdkreplica) | false    |              | Sibling replicas is a list of all other replicas of the proxy that have not timed out. |
+
+## wsproxysdk.ReportAppStatsRequest
+
+```json
+{
+  "stats": [
+    {
+      "access_method": "path",
+      "agent_id": "string",
+      "session_end_time": "string",
+      "session_id": "string",
+      "session_start_time": "string",
+      "slug": "string",
+      "user_id": "string",
+      "workspace_id": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                                            | Required | Restrictions | Description |
+| ------- | --------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `stats` | array of [workspaceapps.StatsReport](#workspaceappsstatsreport) | false    |              |             |
