@@ -544,6 +544,11 @@ func ConvertProvisionerJob(job database.ProvisionerJob) ProvisionerJob {
 
 // ConvertWorkspaceAgent anonymizes a workspace agent.
 func ConvertWorkspaceAgent(agent database.WorkspaceAgent) WorkspaceAgent {
+	subsystems := []string{}
+	for _, subsystem := range agent.Subsystems {
+		subsystems = append(subsystems, string(subsystem))
+	}
+
 	snapAgent := WorkspaceAgent{
 		ID:                       agent.ID,
 		CreatedAt:                agent.CreatedAt,
@@ -556,7 +561,7 @@ func ConvertWorkspaceAgent(agent database.WorkspaceAgent) WorkspaceAgent {
 		Directory:                agent.Directory != "",
 		ConnectionTimeoutSeconds: agent.ConnectionTimeoutSeconds,
 		ShutdownScript:           agent.ShutdownScript.Valid,
-		Subsystem:                string(agent.Subsystem),
+		Subsystems:               subsystems,
 	}
 	if agent.FirstConnectedAt.Valid {
 		snapAgent.FirstConnectedAt = &agent.FirstConnectedAt.Time
@@ -792,7 +797,7 @@ type WorkspaceAgent struct {
 	DisconnectedAt           *time.Time `json:"disconnected_at"`
 	ConnectionTimeoutSeconds int32      `json:"connection_timeout_seconds"`
 	ShutdownScript           bool       `json:"shutdown_script"`
-	Subsystem                string     `json:"subsystem"`
+	Subsystems               []string   `json:"subsystems"`
 }
 
 type WorkspaceAgentStat struct {
