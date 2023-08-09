@@ -84,7 +84,7 @@ You can test your changes by creating a PR deployment. There are two ways to do 
 
 1. By running `./scripts/deploy-pr.sh`
 2. By manually triggering the [`pr-deploy.yaml`](https://github.com/coder/coder/actions/workflows/pr-deploy.yaml) GitHub Action workflow
-   ![Deploy PR manually](./images/pr-deploy-manual.png)
+   ![Deploy PR manually](./images/deploy-pr-manually.png)
 
 #### Available options
 
