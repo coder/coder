@@ -1592,8 +1592,8 @@ const ansi = "[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)
 
 var re = regexp.MustCompile(ansi)
 
+//nolint:paralleltest // This test sets an environment variable.
 func TestAgent_ReconnectingPTY(t *testing.T) {
-	t.Parallel()
 	if runtime.GOOS == "windows" {
 		// This might be our implementation, or ConPTY itself.
 		// It's difficult to find extensive tests for it, so
@@ -1603,17 +1603,30 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 
 	backends := []string{"Buffered", "Screen"}
 
+	_, err := exec.LookPath("screen")
+	hasScreen := err == nil
+
 	for _, backendType := range backends {
 		backendType := backendType
 		t.Run(backendType, func(t *testing.T) {
-			t.Parallel()
-			if runtime.GOOS == "darwin" {
-				t.Skip("`screen` is flaky on darwin")
-			} else if backendType == "Screen" {
-				_, err := exec.LookPath("screen")
-				if err != nil {
+			if backendType == "Screen" {
+				t.Parallel()
+				if runtime.GOOS != "linux" {
+					t.Skipf("`screen` is not supported on %s", runtime.GOOS)
+				} else if !hasScreen {
 					t.Skip("`screen` not found")
 				}
+			} else if hasScreen && runtime.GOOS == "linux" {
+				// Set up a PATH that does not have screen in it.
+				bashPath, err := exec.LookPath("bash")
+				require.NoError(t, err)
+				dir, err := os.MkdirTemp("/tmp", "coder-test-reconnecting-pty-PATH")
+				require.NoError(t, err, "create temp dir for reconnecting pty PATH")
+				err = os.Symlink(bashPath, filepath.Join(dir, "bash"))
+				require.NoError(t, err, "symlink bash into reconnecting pty PATH")
+				t.Setenv("PATH", dir)
+			} else {
+				t.Parallel()
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
