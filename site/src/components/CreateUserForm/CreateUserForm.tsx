@@ -13,6 +13,8 @@ import { FullPageForm } from "../FullPageForm/FullPageForm"
 import { Stack } from "../Stack/Stack"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
 import { hasApiFieldErrors, isApiError } from "api/errors"
+import Select from "@mui/material/Select"
+import MenuItem from "@mui/material/MenuItem"
 
 export const Language = {
   emailLabel: "Email",
@@ -31,6 +33,7 @@ export interface CreateUserFormProps {
   error?: unknown
   isLoading: boolean
   myOrgId: string
+  authMethods?: TypesGen.AuthMethods
 }
 
 const validationSchema = Yup.object({
@@ -42,9 +45,13 @@ const validationSchema = Yup.object({
   username: nameValidator(Language.usernameLabel),
 })
 
+const authMethodSelect = (title: string, value: string) => {
+  return <MenuItem value={value}>{title}</MenuItem>
+}
+
 export const CreateUserForm: FC<
   React.PropsWithChildren<CreateUserFormProps>
-> = ({ onSubmit, onCancel, error, isLoading, myOrgId }) => {
+> = ({ onSubmit, onCancel, error, isLoading, myOrgId, authMethods }) => {
   const form: FormikContextType<TypesGen.CreateUserRequest> =
     useFormik<TypesGen.CreateUserRequest>({
       initialValues: {
@@ -53,7 +60,7 @@ export const CreateUserForm: FC<
         username: "",
         organization_id: myOrgId,
         disable_login: false,
-        login_type: "",
+        login_type: "password",
       },
       validationSchema,
       onSubmit,
@@ -62,6 +69,18 @@ export const CreateUserForm: FC<
     form,
     error,
   )
+
+  const methods = []
+  if (authMethods?.password.enabled) {
+    methods.push(authMethodSelect("Password", "password"))
+  }
+  if (authMethods?.oidc.enabled) {
+    methods.push(authMethodSelect("OIDC", "oidc"))
+  }
+  if (authMethods?.github.enabled) {
+    methods.push(authMethodSelect("Github", "github"))
+  }
+  methods.push(authMethodSelect("None", "none"))
 
   return (
     <FullPageForm title="Create user">
@@ -93,6 +112,16 @@ export const CreateUserForm: FC<
             label={Language.passwordLabel}
             type="password"
           />
+          <Select
+            // {...getFieldHelpers("userLoginType", "ss")}
+            labelId="user-login-type"
+            id="login_type"
+            value={form.values.login_type}
+            label="Login Type"
+            onChange={form.handleChange}
+          >
+            {methods}
+          </Select>
         </Stack>
         <FormFooter onCancel={onCancel} isLoading={isLoading} />
       </form>
