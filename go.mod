@@ -197,7 +197,7 @@ require (
 	gvisor.dev/gvisor v0.0.0-20230504175454-7b0a1988a28f
 	nhooyr.io/websocket v1.8.7
 	storj.io/drpc v0.0.33-0.20230420154621-9716137f6037
-	tailscale.com v0.0.0-00010101000000-000000000000
+	tailscale.com v1.46.1
 )
 
 require (
