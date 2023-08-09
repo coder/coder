@@ -155,6 +155,13 @@ func (rpty *screenReconnectingPTY) Attach(ctx context.Context, _ string, conn ne
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	state, err := rpty.state.waitForStateOrContext(ctx, StateReady)
+	if state != StateReady {
+		return xerrors.Errorf("reconnecting pty ready wait: %w", err)
+	}
+
+	go heartbeat(ctx, rpty.timer, rpty.timeout)
+
 	ptty, process, err := rpty.doAttach(ctx, height, width, logger)
 	if err != nil {
 		return err
@@ -232,13 +239,6 @@ func (rpty *screenReconnectingPTY) doAttach(ctx context.Context, height, width u
 	// Ensure another attach does not come in and spawn a duplicate session.
 	rpty.mutex.Lock()
 	defer rpty.mutex.Unlock()
-
-	state, err := rpty.state.waitForStateOrContext(ctx, StateReady)
-	if state != StateReady {
-		return nil, nil, xerrors.Errorf("reconnecting pty ready wait: %w", err)
-	}
-
-	go heartbeat(ctx, rpty.timer, rpty.timeout)
 
 	logger.Debug(ctx, "spawning screen client", slog.F("screen_id", rpty.id))
 
