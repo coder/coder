@@ -8450,6 +8450,7 @@ const docTemplate = `{
         "codersdk.LoginType": {
             "type": "string",
             "enum": [
+                "",
                 "password",
                 "github",
                 "oidc",
@@ -8457,6 +8458,7 @@ const docTemplate = `{
                 "none"
             ],
             "x-enum-varnames": [
+                "LoginTypeUnknown",
                 "LoginTypePassword",
                 "LoginTypeGithub",
                 "LoginTypeOIDC",

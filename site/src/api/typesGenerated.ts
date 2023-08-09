@@ -1671,8 +1671,9 @@ export type LogSource = "provisioner" | "provisioner_daemon"
 export const LogSources: LogSource[] = ["provisioner", "provisioner_daemon"]
 
 // From codersdk/apikey.go
-export type LoginType = "github" | "none" | "oidc" | "password" | "token"
+export type LoginType = "" | "github" | "none" | "oidc" | "password" | "token"
 export const LoginTypes: LoginType[] = [
+  "",
   "github",
   "none",
   "oidc",

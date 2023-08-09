@@ -28,6 +28,7 @@ type APIKey struct {
 type LoginType string
 
 const (
+	LoginTypeUnknown  LoginType = ""
 	LoginTypePassword LoginType = "password"
 	LoginTypeGithub   LoginType = "github"
 	LoginTypeOIDC     LoginType = "oidc"

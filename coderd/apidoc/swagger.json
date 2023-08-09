@@ -7577,8 +7577,9 @@
     },
     "codersdk.LoginType": {
       "type": "string",
-      "enum": ["password", "github", "oidc", "token", "none"],
+      "enum": ["", "password", "github", "oidc", "token", "none"],
       "x-enum-varnames": [
+        "LoginTypeUnknown",
         "LoginTypePassword",
         "LoginTypeGithub",
         "LoginTypeOIDC",
