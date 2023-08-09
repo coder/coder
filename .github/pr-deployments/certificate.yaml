@@ -9,5 +9,5 @@ spec:
     name: letsencrypt
     kind: ClusterIssuer
   dnsNames:
-    - "${HOSTNAME}"
-    - "*.${HOSTNAME}"
+    - "${PR_HOSTNAME}"
+    - "*.${PR_HOSTNAME}"
