@@ -13,7 +13,6 @@ import { FullPageForm } from "../FullPageForm/FullPageForm"
 import { Stack } from "../Stack/Stack"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
 import { hasApiFieldErrors, isApiError } from "api/errors"
-import Select from "@mui/material/Select"
 import MenuItem from "@mui/material/MenuItem"
 
 export const Language = {
@@ -41,13 +40,18 @@ const validationSchema = Yup.object({
     .trim()
     .email(Language.emailInvalid)
     .required(Language.emailRequired),
-  password: Yup.string().required(Language.passwordRequired),
+  password: Yup.string().when("login_type", {
+    is: "password",
+    then: (schema) => schema.required(Language.passwordRequired),
+    otherwise: (schema) => schema,
+  }),
   username: nameValidator(Language.usernameLabel),
 })
 
 const authMethodSelect = (
   title: string,
   value: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- future will use this
   description: string,
 ) => {
   return (
@@ -138,25 +142,37 @@ export const CreateUserForm: FC<
             label={Language.emailLabel}
           />
           <TextField
-            {...getFieldHelpers("password")}
+            {...getFieldHelpers(
+              "password",
+              form.values.login_type === "password"
+                ? ""
+                : "No password required for this login type",
+            )}
             autoComplete="current-password"
             fullWidth
             id="password"
+            disabled={form.values.login_type !== "password"}
             label={Language.passwordLabel}
             type="password"
           />
-          <Select
-            // {...getFieldHelpers("userLoginType", "ss")}
-            labelId="user-login-type"
+          <TextField
+            {...getFieldHelpers(
+              "login_type",
+              "Authentication method for this user",
+            )}
+            select
             id="login_type"
             value={form.values.login_type}
             label="Login Type"
             onChange={async (e) => {
+              if (e.target.value !== "password") {
+                await form.setFieldValue("password", "")
+              }
               await form.setFieldValue("login_type", e.target.value)
             }}
           >
             {methods}
-          </Select>
+          </TextField>
         </Stack>
         <FormFooter onCancel={onCancel} isLoading={isLoading} />
       </form>
