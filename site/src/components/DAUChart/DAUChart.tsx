@@ -69,7 +69,9 @@ export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
         },
       },
       x: {
-        ticks: {},
+        ticks: {
+          stepSize: 2,
+        },
         type: "time",
         time: {
           unit: "day",
