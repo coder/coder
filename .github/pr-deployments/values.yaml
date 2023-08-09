@@ -8,8 +8,8 @@ coder:
   ingress:
     enable: true
     className: traefik
-    host: ${PR_DEPLOYMENT_ACCESS_URL}
-    wildcardHost: "*.${PR_DEPLOYMENT_ACCESS_URL}"
+    host: ${HOSTNAME}
+    wildcardHost: "*.${HOSTNAME}"
     tls:
       enable: true
       secretName: pr${PR_NUMBER}-tls
@@ -25,9 +25,9 @@ coder:
   #     readOnly: true
   env:
     - name: "CODER_ACCESS_URL"
-      value: "https://${PR_DEPLOYMENT_ACCESS_URL}"
+      value: "https://${HOSTNAME}"
     - name: "CODER_WILDCARD_ACCESS_URL"
-      value: "*.${PR_DEPLOYMENT_ACCESS_URL}"
+      value: "*.${HOSTNAME}"
     - name: "CODER_EXPERIMENTS"
       value: "${EXPERIMENTS}"
     - name: CODER_PG_CONNECTION_URL
