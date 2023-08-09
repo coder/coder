@@ -45,8 +45,17 @@ const validationSchema = Yup.object({
   username: nameValidator(Language.usernameLabel),
 })
 
-const authMethodSelect = (title: string, value: string) => {
-  return <MenuItem value={value}>{title}</MenuItem>
+const authMethodSelect = (
+  title: string,
+  value: string,
+  description: string,
+) => {
+  return (
+    <MenuItem id={value} value={value}>
+      {title}
+      {/* TODO: Add description */}
+    </MenuItem>
+  )
 }
 
 export const CreateUserForm: FC<
@@ -72,15 +81,39 @@ export const CreateUserForm: FC<
 
   const methods = []
   if (authMethods?.password.enabled) {
-    methods.push(authMethodSelect("Password", "password"))
+    methods.push(
+      authMethodSelect(
+        "Password",
+        "password",
+        "User can provide their email and password to login.",
+      ),
+    )
   }
   if (authMethods?.oidc.enabled) {
-    methods.push(authMethodSelect("OIDC", "oidc"))
+    methods.push(
+      authMethodSelect(
+        "OIDC",
+        "oidc",
+        "Uses an OIDC provider to authenticate the user.",
+      ),
+    )
   }
   if (authMethods?.github.enabled) {
-    methods.push(authMethodSelect("Github", "github"))
+    methods.push(
+      authMethodSelect(
+        "Github",
+        "github",
+        "Uses github oauth to authenticate the user.",
+      ),
+    )
   }
-  methods.push(authMethodSelect("None", "none"))
+  methods.push(
+    authMethodSelect(
+      "None",
+      "none",
+      "User authentication is disabled. This user an only be used if an api token is created for them.",
+    ),
+  )
 
   return (
     <FullPageForm title="Create user">
@@ -118,7 +151,9 @@ export const CreateUserForm: FC<
             id="login_type"
             value={form.values.login_type}
             label="Login Type"
-            onChange={form.handleChange}
+            onChange={async (e) => {
+              await form.setFieldValue("login_type", e.target.value)
+            }}
           >
             {methods}
           </Select>
