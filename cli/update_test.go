@@ -236,6 +236,55 @@ func TestUpdateWithRichParameters(t *testing.T) {
 			Value: ephemeralParameterValue,
 		})
 	})
+
+	t.Run("BuildOptionFlags", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, echoResponses)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		const workspaceName = "my-workspace"
+
+		inv, root := clitest.New(t, "create", workspaceName, "--template", template.Name, "-y",
+			"--parameter", fmt.Sprintf("%s=%s", firstParameterName, firstParameterValue),
+			"--parameter", fmt.Sprintf("%s=%s", immutableParameterName, immutableParameterValue),
+			"--parameter", fmt.Sprintf("%s=%s", secondParameterName, secondParameterValue))
+		clitest.SetupConfig(t, client, root)
+		err := inv.Run()
+		assert.NoError(t, err)
+
+		inv, root = clitest.New(t, "update", workspaceName,
+			"--build-option", fmt.Sprintf("%s=%s", ephemeralParameterName, ephemeralParameterValue))
+		clitest.SetupConfig(t, client, root)
+
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t).Attach(inv)
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		pty.ExpectMatch("Planning workspace")
+		<-doneChan
+
+		// Verify if build option is set
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		workspace, err := client.WorkspaceByOwnerAndName(ctx, user.UserID.String(), workspaceName, codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		actualParameters, err := client.WorkspaceBuildParameters(ctx, workspace.LatestBuild.ID)
+		require.NoError(t, err)
+		require.Contains(t, actualParameters, codersdk.WorkspaceBuildParameter{
+			Name:  ephemeralParameterName,
+			Value: ephemeralParameterValue,
+		})
+	})
 }
 
 func TestUpdateValidateRichParameters(t *testing.T) {

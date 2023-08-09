@@ -31,7 +31,7 @@ func (r *RootCmd) update() *clibase.Cmd {
 			if err != nil {
 				return err
 			}
-			if !workspace.Outdated && !alwaysPrompt && !parameterFlags.promptBuildOptions {
+			if !workspace.Outdated && !alwaysPrompt && !parameterFlags.promptBuildOptions && len(parameterFlags.buildOptions) == 0 {
 				_, _ = fmt.Fprintf(inv.Stdout, "Workspace isn't outdated!\n")
 				return nil
 			}
