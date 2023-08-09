@@ -10,7 +10,9 @@ export const RequireAuth: FC = () => {
   const [authState] = useAuth()
   const location = useLocation()
   const isHomePage = location.pathname === "/"
-  const navigateTo = isHomePage ? "/login" : embedRedirect(location.pathname)
+  const navigateTo = isHomePage
+    ? "/login"
+    : embedRedirect(`${location.pathname}${location.search}`)
 
   if (authState.matches("signedOut")) {
     return <Navigate to={navigateTo} state={{ isRedirect: !isHomePage }} />
