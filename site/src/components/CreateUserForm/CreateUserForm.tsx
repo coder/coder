@@ -55,7 +55,7 @@ const authMethodSelect = (
   description: string,
 ) => {
   return (
-    <MenuItem id={value} value={value}>
+    <MenuItem key="value" id={"item-" + value} value={value}>
       {title}
       {/* TODO: Add description */}
     </MenuItem>
@@ -151,7 +151,7 @@ export const CreateUserForm: FC<
             autoComplete="current-password"
             fullWidth
             id="password"
-            data-testid="password"
+            data-testid="password-input"
             disabled={form.values.login_type !== "password"}
             label={Language.passwordLabel}
             type="password"
@@ -163,6 +163,7 @@ export const CreateUserForm: FC<
             )}
             select
             id="login_type"
+            data-testid="login-type-input"
             value={form.values.login_type}
             label="Login Type"
             onChange={async (e) => {
