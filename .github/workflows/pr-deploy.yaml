@@ -303,21 +303,21 @@ jobs:
         if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
         run: |
           set -euo pipefail
-          # Create service account, role, rolebinding and secret
+          # Create service account, role, rolebinding
           envsubst < ./.github/pr-deployments/rbac.yaml | kubectl apply -f -
 
-          # Get the token for the service account
-          export TOKEN=$(kubectl -n pr${{ env.PR_NUMBER }} get secret coder-workspace-token -o jsonpath='{.data.token}' | base64 --decode)
+          # # Get the token for the service account
+          # export TOKEN=$(kubectl -n pr${{ env.PR_NUMBER }} get secret coder-workspace-token -o jsonpath='{.data.token}' | base64 --decode)
 
-          # get CLUSTER_CA and CLUSTER_ENDPOINT
-          export CLUSTER_CA=$(kubectl config view --raw --minify --flatten -o jsonpath='{.clusters[].cluster.certificate-authority-data}')
-          export CLUSTER_ENDPOINT=$(kubectl config view --raw --minify --flatten -o jsonpath='{.clusters[].cluster.server}')
+          # # get CLUSTER_CA and CLUSTER_ENDPOINT
+          # export CLUSTER_CA=$(kubectl config view --raw --minify --flatten -o jsonpath='{.clusters[].cluster.certificate-authority-data}')
+          # export CLUSTER_ENDPOINT=$(kubectl config view --raw --minify --flatten -o jsonpath='{.clusters[].cluster.server}')
 
-          # Create a kubeconfig for the namespace to be used in the workspace
-          envsubst < ./.github/pr-deployments/kubeconfig.yaml > ./namespace-kubeconfig.yaml
+          # # Create a kubeconfig for the namespace to be used in the workspace
+          # envsubst < ./.github/pr-deployments/kubeconfig.yaml > ./namespace-kubeconfig.yaml
 
-          # Create a secret from the kubeconfig
-          kubectl create secret generic coder-namespace-kubeconfig -n pr${{ env.PR_NUMBER }} --from-file=kubeconfig=./namespace-kubeconfig.yaml
+          # # Create a secret from the kubeconfig
+          # kubectl create secret generic coder-namespace-kubeconfig -n pr${{ env.PR_NUMBER }} --from-file=kubeconfig=./namespace-kubeconfig.yaml
 
       - name: Create values.yaml
         if: github.event_name == 'workflow_dispatch'

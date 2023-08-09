@@ -115,10 +115,10 @@ resource "coder_agent" "main" {
     curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server
     /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
 
-    # Set KUBECONFIG env var to the path of the mounted secret
-    mkdir -p /home/coder/.kube
-    sudo cp /tmp/config /home/coder/.kube/config
-    export KUBECONFIG=/home/coder/.kube/config
+    # # Set KUBECONFIG env var to the path of the mounted secret
+    # mkdir -p /home/coder/.kube
+    # sudo cp /tmp/config /home/coder/.kube/config
+    # export KUBECONFIG=/home/coder/.kube/config
 
   EOT
 
@@ -271,6 +271,7 @@ resource "kubernetes_deployment" "main" {
           fs_group    = 1000
         }
 
+        service_account_name = "coder-workspace-${var.namespace}"
         container {
           name              = "dev"
           image             = "bencdr/devops-tools"
