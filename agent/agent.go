@@ -1071,8 +1071,8 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 	defer a.connCountReconnectingPTY.Add(-1)
 
 	connectionID := uuid.NewString()
-	logger = logger.With(slog.F("message_id", msg.ID), slog.F("connection_id", connectionID))
-	logger.Debug(ctx, "starting handler")
+	connLogger := logger.With(slog.F("message_id", msg.ID), slog.F("connection_id", connectionID))
+	connLogger.Debug(ctx, "starting handler")
 
 	defer func() {
 		if err := retErr; err != nil {
@@ -1083,12 +1083,12 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 			// If the agent is closed, we don't want to
 			// log this as an error since it's expected.
 			if closed {
-				logger.Debug(ctx, "reconnecting pty failed with attach error (agent closed)", slog.Error(err))
+				connLogger.Debug(ctx, "reconnecting pty failed with attach error (agent closed)", slog.Error(err))
 			} else {
-				logger.Error(ctx, "reconnecting pty failed with attach error", slog.Error(err))
+				connLogger.Error(ctx, "reconnecting pty failed with attach error", slog.Error(err))
 			}
 		}
-		logger.Debug(ctx, "reconnecting pty connection closed")
+		connLogger.Debug(ctx, "reconnecting pty connection closed")
 	}()
 
 	var rpty reconnectingpty.ReconnectingPTY
@@ -1097,7 +1097,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 	waitReady, ok := a.reconnectingPTYs.LoadOrStore(msg.ID, sendConnected)
 	if ok {
 		close(sendConnected) // Unused.
-		logger.Debug(ctx, "connecting to existing reconnecting pty")
+		connLogger.Debug(ctx, "connecting to existing reconnecting pty")
 		c, ok := waitReady.(chan reconnectingpty.ReconnectingPTY)
 		if !ok {
 			return xerrors.Errorf("found invalid type in reconnecting pty map: %T", waitReady)
@@ -1108,7 +1108,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 		}
 		c <- rpty // Put it back for the next reconnect.
 	} else {
-		logger.Debug(ctx, "creating new reconnecting pty")
+		connLogger.Debug(ctx, "creating new reconnecting pty")
 
 		connected := false
 		defer func() {
@@ -1141,7 +1141,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 		connected = true
 		sendConnected <- rpty
 	}
-	return rpty.Attach(ctx, connectionID, conn, msg.Height, msg.Width, logger)
+	return rpty.Attach(ctx, connectionID, conn, msg.Height, msg.Width, connLogger)
 }
 
 // startReportingConnectionStats runs the connection stats reporting goroutine.
