@@ -320,13 +320,13 @@ jobs:
         run: |
           set -euo pipefail
           if [[ ${{ github.event_name }} == "workflow_dispatch" ]]; then
-            helm upgrade --install "pr${{ env.PR_NUMBER }}" ./helm \
+            helm upgrade --install "pr${{ env.PR_NUMBER }}" ./helm/coder \
             --namespace "pr${{ env.PR_NUMBER }}" \
             --values ./pr-deploy-values.yaml \
             --force
           else
             if [[ ${{ needs.get_info.outputs.BUILD }} == "true" ]]; then
-              helm upgrade --install "pr${{ env.PR_NUMBER }}" ./helm \
+              helm upgrade --install "pr${{ env.PR_NUMBER }}" ./helm/coder \
               --namespace "pr${{ env.PR_NUMBER }}" \
               --reuse-values \
               --force
