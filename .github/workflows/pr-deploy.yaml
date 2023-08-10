@@ -4,8 +4,7 @@
 # 3. when a PR is updated
 name: Deploy PR
 on:
-  pull_request:
-    types: synchronize
+  push:
   workflow_dispatch:
     inputs:
       pr_number:
@@ -37,12 +36,30 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: ${{ github.workflow }}-PR-${{ github.event.pull_request.number || github.event.inputs.pr_number }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  check_pr:
+    runs-on: ubuntu-latest
+    outputs:
+      PR_OPEN: ${{ steps.check_pr.outputs.pr_open }}
+    steps:
+      - name: Check if PR is open
+        id: check_pr
+        run: |
+          set -euo pipefail
+          if [[ $(gh pr view --json state | jq -r '.state') != "OPEN" ]]; then
+            echo "a PR is not open. skipping"
+            pr_open=$(gh pr view --json state | jq -r '.state' != "OPEN")
+          fi
+          echo "pr_open=$pr_open" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   get_info:
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
+    needs: check_pr
+    if: ${{ needs.check_pr.outputs.PR_OPEN == 'true' }}
     outputs:
       PR_NUMBER: ${{ steps.pr_info.outputs.PR_NUMBER }}
       PR_TITLE: ${{ steps.pr_info.outputs.PR_TITLE }}
@@ -59,13 +76,16 @@ jobs:
         id: pr_info
         run: |
           set -euo pipefail
-          PR_NUMBER=${{ github.event.inputs.pr_number || github.event.pull_request.number }}
-          PR_TITLE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/coder/coder/pulls/$PR_NUMBER | jq -r '.title')
-          PR_BRANCH=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/coder/coder/pulls/$PR_NUMBER | jq -r '.head.ref')
-          echo "PR_URL=https://github.com/coder/coder/pull/$PR_NUMBER" >> $GITHUB_OUTPUT
+          PR_NUMBER=$(gh pr view --json number | jq -r '.number')
+          PR_TITLE=$(gh pr view --json title | jq -r '.title')
+          PR_URL=$(gh pr view --json url | jq -r '.url')
+          echo "PR_URL=$PR_URL" >> $GITHUB_OUTPUT
           echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_OUTPUT
           echo "PR_TITLE=$PR_TITLE" >> $GITHUB_OUTPUT
           echo "PR_BRANCH=$PR_BRANCH" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_BRANCH: ${{ github.ref }}
 
       - name: Set required tags
         id: set_tags
@@ -134,6 +154,7 @@ jobs:
         uses: dorny/paths-filter@v2
         id: filter
         with:
+          base: ${{ steps.pr_info.outputs.PR_BRANCH }}
           filters: |
             all:
               - "**"
