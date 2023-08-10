@@ -20,10 +20,10 @@ import (
 // All values and golden files are located in the `testdata` directory.
 // To update golden files, run `go test . -update`.
 
-// UpdateGoldenFiles is a flag that can be set to update golden files.
-var UpdateGoldenFiles = flag.Bool("update", false, "Update golden files")
+// updateGoldenFiles is a flag that can be set to update golden files.
+var updateGoldenFiles = flag.Bool("update", false, "Update golden files")
 
-var TestCases = []TestCase{
+var testCases = []testCase{
 	{
 		name:          "default_values",
 		expectedError: "",
@@ -54,22 +54,22 @@ var TestCases = []TestCase{
 	},
 }
 
-type TestCase struct {
+type testCase struct {
 	name          string // Name of the test case. This is used to control which values and golden file are used.
 	expectedError string // Expected error from running `helm template`.
 }
 
-func (tc TestCase) valuesFilePath() string {
+func (tc testCase) valuesFilePath() string {
 	return filepath.Join("./testdata", tc.name+".yaml")
 }
 
-func (tc TestCase) goldenFilePath() string {
+func (tc testCase) goldenFilePath() string {
 	return filepath.Join("./testdata", tc.name+".golden")
 }
 
 func TestRenderChart(t *testing.T) {
 	t.Parallel()
-	if *UpdateGoldenFiles {
+	if *updateGoldenFiles {
 		t.Skip("Golden files are being updated. Skipping test.")
 	}
 	if testutil.InCI() {
@@ -81,7 +81,7 @@ func TestRenderChart(t *testing.T) {
 
 	// Ensure that Helm is available in $PATH
 	helmPath := lookupHelm(t)
-	for _, tc := range TestCases {
+	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -117,12 +117,12 @@ func TestRenderChart(t *testing.T) {
 
 func TestUpdateGoldenFiles(t *testing.T) {
 	t.Parallel()
-	if !*UpdateGoldenFiles {
+	if !*updateGoldenFiles {
 		t.Skip("Run with -update to update golden files")
 	}
 
 	helmPath := lookupHelm(t)
-	for _, tc := range TestCases {
+	for _, tc := range testCases {
 		if tc.expectedError != "" {
 			t.Logf("skipping test case %q with render error", tc.name)
 			continue
