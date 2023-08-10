@@ -512,7 +512,7 @@ func (api *API) workspaceProxyReportAppStats(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	if err := workspaceapps.NewStatsDBReporter(api.Database).Report(ctx, stats); err != nil {
+	if err := workspaceapps.NewStatsDBReporter(api.Database, workspaceapps.DefaultStatsDBReporterBatchSize).Report(ctx, stats); err != nil {
 		api.Logger.Error(ctx, "report app stats failed", slog.Error(err))
 		httpapi.InternalServerError(rw, err)
 		return

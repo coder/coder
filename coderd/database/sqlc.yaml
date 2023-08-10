@@ -27,6 +27,13 @@ overrides:
       - column: "template_with_users.group_acl"
         go_type:
           type: "TemplateACL"
+      # Type alias to allow batch inserts of timestamptz[] arrays containing
+      # nullable values.
+      - db_type: "nulltimestamptz"
+        engine: "postgresql"
+        go_type:
+          import: "database/sql"
+          type: "NullTime"
     rename:
       template: TemplateTable
       template_with_user: Template

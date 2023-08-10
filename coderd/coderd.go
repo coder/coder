@@ -432,7 +432,7 @@ func New(options *Options) *API {
 		AppSecurityKey:      options.AppSecurityKey,
 		StatsCollector: workspaceapps.NewStatsCollector(
 			workspaceAppsLogger.Named("stats_collector"),
-			workspaceapps.NewStatsDBReporter(options.Database),
+			workspaceapps.NewStatsDBReporter(options.Database, workspaceapps.DefaultStatsDBReporterBatchSize),
 			workspaceapps.DefaultStatsCollectorReportInterval,
 		),
 

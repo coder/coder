@@ -11,14 +11,22 @@ INSERT INTO
 		session_started_at,
 		session_ended_at
 	)
-VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9)
+SELECT
+	unnest(@id::uuid[]) AS id,
+	unnest(@user_id::uuid[]) AS user_id,
+	unnest(@workspace_id::uuid[]) AS workspace_id,
+	unnest(@agent_id::uuid[]) AS agent_id,
+	unnest(@access_method::text[]) AS access_method,
+	unnest(@slug_or_port::text[]) AS slug_or_port,
+	unnest(@session_id::uuid[]) AS session_id,
+	unnest(@session_started_at::timestamptz[]) AS session_started_at,
+	unnest(@session_ended_at::nulltimestamptz[]) AS session_ended_at
 ON CONFLICT
 	(agent_id, session_id)
 DO
 	UPDATE SET
 		-- Only session end can be updated.
-		session_ended_at = $9
+		session_ended_at = EXCLUDED.session_ended_at
 	WHERE
-		workspace_app_stats.agent_id = $4
-		AND workspace_app_stats.session_id = $7;
+		workspace_app_stats.agent_id = EXCLUDED.agent_id
+		AND workspace_app_stats.session_id = EXCLUDED.session_id;

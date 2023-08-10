@@ -16,6 +16,7 @@ import (
 
 const (
 	DefaultStatsCollectorReportInterval = 30 * time.Second
+	DefaultStatsDBReporterBatchSize     = 1024
 )
 
 // StatsReport is a report of a workspace app session.
@@ -47,33 +48,49 @@ type StatsReporter interface {
 	Report(context.Context, []StatsReport) error
 }
 
+var _ StatsReporter = (*StatsDBReporter)(nil)
+
 // StatsDBReporter writes workspace app StatsReports to the database.
 type StatsDBReporter struct {
-	Database database.Store
+	db        database.Store
+	batchSize int
 }
 
 // NewStatsDBReporter returns a new StatsDBReporter.
-func NewStatsDBReporter(db database.Store) *StatsDBReporter {
+func NewStatsDBReporter(db database.Store, batchSize int) *StatsDBReporter {
 	return &StatsDBReporter{
-		Database: db,
+		db:        db,
+		batchSize: batchSize,
 	}
 }
 
 // Report writes the given StatsReports to the database.
 func (r *StatsDBReporter) Report(ctx context.Context, stats []StatsReport) error {
-	err := r.Database.InTx(func(tx database.Store) error {
+	err := r.db.InTx(func(tx database.Store) error {
+		var batch database.InsertWorkspaceAppStatsParams
 		for _, stat := range stats {
-			err := tx.InsertWorkspaceAppStats(ctx, database.InsertWorkspaceAppStatsParams{
-				ID:               uuid.New(),
-				UserID:           stat.UserID,
-				WorkspaceID:      stat.WorkspaceID,
-				AgentID:          stat.AgentID,
-				AccessMethod:     string(stat.AccessMethod),
-				SlugOrPort:       stat.SlugOrPort,
-				SessionID:        stat.SessionID,
-				SessionStartedAt: stat.SessionStartTime,
-				SessionEndedAt:   stat.SessionEndTime.NullTime,
-			})
+			batch.ID = append(batch.ID, uuid.New())
+			batch.UserID = append(batch.UserID, stat.UserID)
+			batch.WorkspaceID = append(batch.WorkspaceID, stat.WorkspaceID)
+			batch.AgentID = append(batch.AgentID, stat.AgentID)
+			batch.AccessMethod = append(batch.AccessMethod, string(stat.AccessMethod))
+			batch.SlugOrPort = append(batch.SlugOrPort, stat.SlugOrPort)
+			batch.SessionID = append(batch.SessionID, stat.SessionID)
+			batch.SessionStartedAt = append(batch.SessionStartedAt, stat.StartTime)
+			batch.SessionEndedAt = append(batch.SessionEndedAt, stat.EndTime.NullTime)
+
+			if len(batch.ID) >= r.batchSize {
+				err := tx.InsertWorkspaceAppStats(ctx, batch)
+				if err != nil {
+					return err
+				}
+
+				// Reset batch.
+				batch = database.InsertWorkspaceAppStatsParams{}
+			}
+		}
+		if len(batch.ID) > 0 {
+			err := tx.InsertWorkspaceAppStats(ctx, batch)
 			if err != nil {
 				return err
 			}

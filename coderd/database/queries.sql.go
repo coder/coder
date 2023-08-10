@@ -7779,42 +7779,50 @@ INSERT INTO
 		session_started_at,
 		session_ended_at
 	)
-VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9)
+SELECT
+	unnest($1::uuid[]) AS id,
+	unnest($2::uuid[]) AS user_id,
+	unnest($3::uuid[]) AS workspace_id,
+	unnest($4::uuid[]) AS agent_id,
+	unnest($5::text[]) AS access_method,
+	unnest($6::text[]) AS slug_or_port,
+	unnest($7::uuid[]) AS session_id,
+	unnest($8::timestamptz[]) AS session_started_at,
+	unnest($9::nulltimestamptz[]) AS session_ended_at
 ON CONFLICT
 	(agent_id, session_id)
 DO
 	UPDATE SET
 		-- Only session end can be updated.
-		session_ended_at = $9
+		session_ended_at = EXCLUDED.session_ended_at
 	WHERE
-		workspace_app_stats.agent_id = $4
-		AND workspace_app_stats.session_id = $7
+		workspace_app_stats.agent_id = EXCLUDED.agent_id
+		AND workspace_app_stats.session_id = EXCLUDED.session_id
 `
 
 type InsertWorkspaceAppStatsParams struct {
-	ID               uuid.UUID    `db:"id" json:"id"`
-	UserID           uuid.UUID    `db:"user_id" json:"user_id"`
-	WorkspaceID      uuid.UUID    `db:"workspace_id" json:"workspace_id"`
-	AgentID          uuid.UUID    `db:"agent_id" json:"agent_id"`
-	AccessMethod     string       `db:"access_method" json:"access_method"`
-	SlugOrPort       string       `db:"slug_or_port" json:"slug_or_port"`
-	SessionID        uuid.UUID    `db:"session_id" json:"session_id"`
-	SessionStartedAt time.Time    `db:"session_started_at" json:"session_started_at"`
-	SessionEndedAt   sql.NullTime `db:"session_ended_at" json:"session_ended_at"`
+	ID               []uuid.UUID    `db:"id" json:"id"`
+	UserID           []uuid.UUID    `db:"user_id" json:"user_id"`
+	WorkspaceID      []uuid.UUID    `db:"workspace_id" json:"workspace_id"`
+	AgentID          []uuid.UUID    `db:"agent_id" json:"agent_id"`
+	AccessMethod     []string       `db:"access_method" json:"access_method"`
+	SlugOrPort       []string       `db:"slug_or_port" json:"slug_or_port"`
+	SessionID        []uuid.UUID    `db:"session_id" json:"session_id"`
+	SessionStartedAt []time.Time    `db:"session_started_at" json:"session_started_at"`
+	SessionEndedAt   []sql.NullTime `db:"session_ended_at" json:"session_ended_at"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAppStats(ctx context.Context, arg InsertWorkspaceAppStatsParams) error {
 	_, err := q.db.ExecContext(ctx, insertWorkspaceAppStats,
-		arg.ID,
-		arg.UserID,
-		arg.WorkspaceID,
-		arg.AgentID,
-		arg.AccessMethod,
-		arg.SlugOrPort,
-		arg.SessionID,
-		arg.SessionStartedAt,
-		arg.SessionEndedAt,
+		pq.Array(arg.ID),
+		pq.Array(arg.UserID),
+		pq.Array(arg.WorkspaceID),
+		pq.Array(arg.AgentID),
+		pq.Array(arg.AccessMethod),
+		pq.Array(arg.SlugOrPort),
+		pq.Array(arg.SessionID),
+		pq.Array(arg.SessionStartedAt),
+		pq.Array(arg.SessionEndedAt),
 	)
 	return err
 }
