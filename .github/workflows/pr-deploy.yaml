@@ -33,7 +33,7 @@ env:
 permissions:
   contents: read
   packages: write
-  pull-requests: read
+  pull-requests: write # needed for commenting on PRs
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
