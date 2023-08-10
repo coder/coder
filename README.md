@@ -123,3 +123,5 @@ We are always working on new integrations. Feel free to open an issue to request
 - [**Provision Coder with Terraform**](https://github.com/ElliotG/coder-oss-tf): Provision Coder on Google GKE, Azure AKS, AWS EKS, DigitalOcean DOKS, IBMCloud K8s, OVHCloud K8s, and Scaleway K8s Kapsule with Terraform
 - [**Coder GitHub Action**](https://github.com/marketplace/actions/update-coder-template): A GitHub Action that updates Coder templates
 - [**Various Templates**](./examples/templates/community-templates.md): Hetzner Cloud, Docker in Docker, and other templates the community has built.
+
+### Test heading remove it later
