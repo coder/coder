@@ -45,13 +45,17 @@ jobs:
     outputs:
       PR_OPEN: ${{ steps.check_pr.outputs.pr_open }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
       - name: Check if PR is open
         id: check_pr
         run: |
           set -euo pipefail
-          if [[ $(gh pr view --json state | jq -r '.state') != "OPEN" ]]; then
-            echo "a PR is not open. skipping"
-            pr_open=$(gh pr view --json state | jq -r '.state' != "OPEN")
+          pr_open=$(gh pr view --json state | jq -r '.state' != "OPEN")
+          if [[ "$pr_open" == "true" ]]; then
+            echo "PR is closed. Exiting."
+            exit 0
           fi
           echo "pr_open=$pr_open" >> $GITHUB_OUTPUT
         env:
