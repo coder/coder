@@ -69,14 +69,9 @@ export const AgentLatency: FC<{ agent: WorkspaceAgent }> = ({ agent }) => {
 
         <HelpTooltipText>
           <Stack direction="column" spacing={1} className={styles.regions}>
-            {Object.keys(agent.latency).map((regionName) => {
-              if (!agent.latency) {
-                throw new Error("No latency found on agent")
-              }
-
-              const region = agent.latency[regionName]
-
-              return (
+            {Object.entries(agent.latency)
+              .sort(([, a], [, b]) => (a.preferred ? -1 : b.preferred ? 1 : 0))
+              .map(([regionName, region]) => (
                 <Stack
                   direction="row"
                   key={regionName}
@@ -87,8 +82,7 @@ export const AgentLatency: FC<{ agent: WorkspaceAgent }> = ({ agent }) => {
                   <strong>{regionName}</strong>
                   {Math.round(region.latency_ms)}ms
                 </Stack>
-              )
-            })}
+              ))}
           </Stack>
         </HelpTooltipText>
       </HelpPopover>
