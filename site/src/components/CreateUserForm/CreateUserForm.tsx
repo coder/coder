@@ -96,9 +96,9 @@ export const CreateUserForm: FC<
   if (authMethods?.oidc.enabled) {
     methods.push(
       authMethodSelect(
-        "OIDC",
+        "OpenID Connect",
         "oidc",
-        "Uses an OIDC provider to authenticate the user.",
+        "Uses an OpenID connect provider to authenticate the user.",
       ),
     )
   }
