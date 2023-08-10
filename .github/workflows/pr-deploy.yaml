@@ -358,8 +358,6 @@ jobs:
                 value: "${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_SECRET }}"
               - name: "CODER_OAUTH2_GITHUB_ALLOWED_ORGS"
                 value: "coder"
-              - name: "CODER_DERP_CONFIG_URL"
-                value: "https://controlplane.tailscale.com/derpmap/default"
           EOF
 
       - name: Install/Upgrade Helm chart
