@@ -409,6 +409,7 @@ func convertGroup(g database.Group, users []database.User) codersdk.Group {
 		AvatarURL:      g.AvatarURL,
 		QuotaAllowance: int(g.QuotaAllowance),
 		Members:        convertUsers(users, orgs),
+		Source:         codersdk.GroupSource(g.Source),
 	}
 }
 

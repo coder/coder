@@ -605,8 +605,8 @@ func uniqueSortedUUIDs(uuids []uuid.UUID) []uuid.UUID {
 	for id := range set {
 		unique = append(unique, id)
 	}
-	slices.SortFunc(unique, func(a, b uuid.UUID) bool {
-		return a.String() < b.String()
+	slices.SortFunc(unique, func(a, b uuid.UUID) int {
+		return slice.Ascending(a.String(), b.String())
 	})
 	return unique
 }
@@ -2060,8 +2060,8 @@ func (q *FakeQuerier) GetTemplateDailyInsights(_ context.Context, arg database.G
 		for templateID := range ds.templateIDSet {
 			templateIDs = append(templateIDs, templateID)
 		}
-		slices.SortFunc(templateIDs, func(a, b uuid.UUID) bool {
-			return a.String() < b.String()
+		slices.SortFunc(templateIDs, func(a, b uuid.UUID) int {
+			return slice.Ascending(a.String(), b.String())
 		})
 		result = append(result, database.GetTemplateDailyInsightsRow{
 			StartTime:   ds.startTime,
@@ -2119,8 +2119,8 @@ func (q *FakeQuerier) GetTemplateInsights(_ context.Context, arg database.GetTem
 	for templateID := range templateIDSet {
 		templateIDs = append(templateIDs, templateID)
 	}
-	slices.SortFunc(templateIDs, func(a, b uuid.UUID) bool {
-		return a.String() < b.String()
+	slices.SortFunc(templateIDs, func(a, b uuid.UUID) int {
+		return slice.Ascending(a.String(), b.String())
 	})
 	result := database.GetTemplateInsightsRow{
 		TemplateIDs: templateIDs,
@@ -2343,13 +2343,16 @@ func (q *FakeQuerier) GetTemplateVersionsByTemplateID(_ context.Context, arg dat
 	}
 
 	// Database orders by created_at
-	slices.SortFunc(version, func(a, b database.TemplateVersion) bool {
+	slices.SortFunc(version, func(a, b database.TemplateVersion) int {
 		if a.CreatedAt.Equal(b.CreatedAt) {
 			// Technically the postgres database also orders by uuid. So match
 			// that behavior
-			return a.ID.String() < b.ID.String()
+			return slice.Ascending(a.ID.String(), b.ID.String())
 		}
-		return a.CreatedAt.Before(b.CreatedAt)
+		if a.CreatedAt.Before(b.CreatedAt) {
+			return -1
+		}
+		return 1
 	})
 
 	if arg.AfterID != uuid.Nil {
@@ -2408,11 +2411,11 @@ func (q *FakeQuerier) GetTemplates(_ context.Context) ([]database.Template, erro
 	defer q.mutex.RUnlock()
 
 	templates := slices.Clone(q.templates)
-	slices.SortFunc(templates, func(i, j database.TemplateTable) bool {
-		if i.Name != j.Name {
-			return i.Name < j.Name
+	slices.SortFunc(templates, func(a, b database.TemplateTable) int {
+		if a.Name != b.Name {
+			return slice.Ascending(a.Name, b.Name)
 		}
-		return i.ID.String() < j.ID.String()
+		return slice.Ascending(a.ID.String(), b.ID.String())
 	})
 
 	return q.templatesWithUserNoLock(templates), nil
@@ -2525,8 +2528,8 @@ func (q *FakeQuerier) GetUserLatencyInsights(_ context.Context, arg database.Get
 		for templateID := range templateIDSet {
 			templateIDs = append(templateIDs, templateID)
 		}
-		slices.SortFunc(templateIDs, func(a, b uuid.UUID) bool {
-			return a.String() < b.String()
+		slices.SortFunc(templateIDs, func(a, b uuid.UUID) int {
+			return slice.Ascending(a.String(), b.String())
 		})
 		user, err := q.getUserByIDNoLock(userID)
 		if err != nil {
@@ -2542,8 +2545,8 @@ func (q *FakeQuerier) GetUserLatencyInsights(_ context.Context, arg database.Get
 		}
 		rows = append(rows, row)
 	}
-	slices.SortFunc(rows, func(a, b database.GetUserLatencyInsightsRow) bool {
-		return a.UserID.String() < b.UserID.String()
+	slices.SortFunc(rows, func(a, b database.GetUserLatencyInsightsRow) int {
+		return slice.Ascending(a.UserID.String(), b.UserID.String())
 	})
 
 	return rows, nil
@@ -2590,8 +2593,8 @@ func (q *FakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 	copy(users, q.users)
 
 	// Database orders by username
-	slices.SortFunc(users, func(a, b database.User) bool {
-		return strings.ToLower(a.Username) < strings.ToLower(b.Username)
+	slices.SortFunc(users, func(a, b database.User) int {
+		return slice.Ascending(strings.ToLower(a.Username), strings.ToLower(b.Username))
 	})
 
 	// Filter out deleted since they should never be returned..
@@ -2799,14 +2802,14 @@ func (q *FakeQuerier) GetWorkspaceAgentStats(_ context.Context, createdAfter tim
 
 	agentStatsCreatedAfter := make([]database.WorkspaceAgentStat, 0)
 	for _, agentStat := range q.workspaceAgentStats {
-		if agentStat.CreatedAt.After(createdAfter) {
+		if agentStat.CreatedAt.After(createdAfter) || agentStat.CreatedAt.Equal(createdAfter) {
 			agentStatsCreatedAfter = append(agentStatsCreatedAfter, agentStat)
 		}
 	}
 
 	latestAgentStats := map[uuid.UUID]database.WorkspaceAgentStat{}
 	for _, agentStat := range q.workspaceAgentStats {
-		if agentStat.CreatedAt.After(createdAfter) {
+		if agentStat.CreatedAt.After(createdAfter) || agentStat.CreatedAt.Equal(createdAfter) {
 			latestAgentStats[agentStat.AgentID] = agentStat
 		}
 	}
@@ -3132,9 +3135,8 @@ func (q *FakeQuerier) GetWorkspaceBuildsByWorkspaceID(_ context.Context,
 	}
 
 	// Order by build_number
-	slices.SortFunc(history, func(a, b database.WorkspaceBuild) bool {
-		// use greater than since we want descending order
-		return a.BuildNumber > b.BuildNumber
+	slices.SortFunc(history, func(a, b database.WorkspaceBuild) int {
+		return slice.Descending(a.BuildNumber, b.BuildNumber)
 	})
 
 	if params.AfterID != uuid.Nil {
@@ -3533,8 +3535,14 @@ func (q *FakeQuerier) InsertAuditLog(_ context.Context, arg database.InsertAudit
 	alog := database.AuditLog(arg)
 
 	q.auditLogs = append(q.auditLogs, alog)
-	slices.SortFunc(q.auditLogs, func(a, b database.AuditLog) bool {
-		return a.Time.Before(b.Time)
+	slices.SortFunc(q.auditLogs, func(a, b database.AuditLog) int {
+		if a.Time.Before(b.Time) {
+			return -1
+		} else if a.Time.Equal(b.Time) {
+			return 0
+		} else {
+			return 1
+		}
 	})
 
 	return alog, nil
@@ -3641,6 +3649,7 @@ func (q *FakeQuerier) InsertGroup(_ context.Context, arg database.InsertGroupPar
 		OrganizationID: arg.OrganizationID,
 		AvatarURL:      arg.AvatarURL,
 		QuotaAllowance: arg.QuotaAllowance,
+		Source:         database.GroupSourceUser,
 	}
 
 	q.groups = append(q.groups, group)
@@ -3691,6 +3700,45 @@ func (q *FakeQuerier) InsertLicense(
 	q.lastLicenseID = l.ID
 	q.licenses = append(q.licenses, l)
 	return l, nil
+}
+
+func (q *FakeQuerier) InsertMissingGroups(_ context.Context, arg database.InsertMissingGroupsParams) ([]database.Group, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	groupNameMap := make(map[string]struct{})
+	for _, g := range arg.GroupNames {
+		groupNameMap[g] = struct{}{}
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, g := range q.groups {
+		if g.OrganizationID != arg.OrganizationID {
+			continue
+		}
+		delete(groupNameMap, g.Name)
+	}
+
+	newGroups := make([]database.Group, 0, len(groupNameMap))
+	for k := range groupNameMap {
+		g := database.Group{
+			ID:             uuid.New(),
+			Name:           k,
+			OrganizationID: arg.OrganizationID,
+			AvatarURL:      "",
+			QuotaAllowance: 0,
+			DisplayName:    "",
+			Source:         arg.Source,
+		}
+		q.groups = append(q.groups, g)
+		newGroups = append(newGroups, g)
+	}
+
+	return newGroups, nil
 }
 
 func (q *FakeQuerier) InsertOrganization(_ context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {
@@ -5163,6 +5211,23 @@ func (q *FakeQuerier) UpdateWorkspaceAgentStartupByID(_ context.Context, arg dat
 		return err
 	}
 
+	if len(arg.Subsystems) > 0 {
+		seen := map[database.WorkspaceAgentSubsystem]struct{}{
+			arg.Subsystems[0]: {},
+		}
+		for i := 1; i < len(arg.Subsystems); i++ {
+			s := arg.Subsystems[i]
+			if _, ok := seen[s]; ok {
+				return xerrors.Errorf("duplicate subsystem %q", s)
+			}
+			seen[s] = struct{}{}
+
+			if arg.Subsystems[i-1] > arg.Subsystems[i] {
+				return xerrors.Errorf("subsystems not sorted: %q > %q", arg.Subsystems[i-1], arg.Subsystems[i])
+			}
+		}
+	}
+
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -5173,7 +5238,7 @@ func (q *FakeQuerier) UpdateWorkspaceAgentStartupByID(_ context.Context, arg dat
 
 		agent.Version = arg.Version
 		agent.ExpandedDirectory = arg.ExpandedDirectory
-		agent.Subsystem = arg.Subsystem
+		agent.Subsystems = arg.Subsystems
 		q.workspaceAgents[index] = agent
 		return nil
 	}
@@ -5531,11 +5596,11 @@ func (q *FakeQuerier) GetAuthorizedTemplates(ctx context.Context, arg database.G
 		templates = append(templates, template)
 	}
 	if len(templates) > 0 {
-		slices.SortFunc(templates, func(i, j database.Template) bool {
-			if i.Name != j.Name {
-				return i.Name < j.Name
+		slices.SortFunc(templates, func(a, b database.Template) int {
+			if a.Name != b.Name {
+				return slice.Ascending(a.Name, b.Name)
 			}
-			return i.ID.String() < j.ID.String()
+			return slice.Ascending(a.ID.String(), b.ID.String())
 		})
 		return templates, nil
 	}

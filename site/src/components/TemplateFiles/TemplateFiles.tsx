@@ -87,6 +87,7 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "baseline",
     borderBottom: `1px solid ${theme.palette.divider}`,
     gap: 1,
+    overflowX: "auto",
   },
 
   tab: {
@@ -101,6 +102,7 @@ const useStyles = makeStyles((theme) => ({
     gap: theme.spacing(0.5),
     position: "relative",
     color: theme.palette.text.secondary,
+    whiteSpace: "nowrap",
 
     "& svg": {
       width: 22,

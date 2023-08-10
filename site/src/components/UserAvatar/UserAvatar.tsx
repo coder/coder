@@ -9,7 +9,6 @@ export type UserAvatarProps = {
 export const UserAvatar: FC<UserAvatarProps> = ({
   username,
   avatarURL,
-
   ...avatarProps
 }) => {
   return (

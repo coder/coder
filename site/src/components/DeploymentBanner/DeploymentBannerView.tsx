@@ -268,12 +268,8 @@ const useStyles = makeStyles((theme) => ({
     fontSize: 12,
     gap: theme.spacing(4),
     borderTop: `1px solid ${theme.palette.divider}`,
-
-    [theme.breakpoints.down("lg")]: {
-      flexDirection: "column",
-      gap: theme.spacing(1),
-      alignItems: "left",
-    },
+    overflowX: "auto",
+    whiteSpace: "nowrap",
   },
   group: {
     display: "flex",

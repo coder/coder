@@ -10,6 +10,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/coderd/util/slice"
 	"github.com/coder/coder/cryptorand"
 )
 
@@ -115,8 +116,8 @@ func FindClosestNode(nodes []Node) (Node, error) {
 		return Node{}, err
 	}
 
-	slices.SortFunc(nodes, func(i, j Node) bool {
-		return i.AvgLatency < j.AvgLatency
+	slices.SortFunc(nodes, func(a, b Node) int {
+		return slice.Ascending(a.AvgLatency, b.AvgLatency)
 	})
 	return nodes[0], nil
 }

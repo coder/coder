@@ -243,6 +243,17 @@ Disable automatic session expiry bumping due to activity. This forces all sessio
 
 Specifies the custom docs URL.
 
+### --oidc-group-auto-create
+
+|             |                                            |
+| ----------- | ------------------------------------------ |
+| Type        | <code>bool</code>                          |
+| Environment | <code>$CODER_OIDC_GROUP_AUTO_CREATE</code> |
+| YAML        | <code>oidc.enableGroupAutoCreate</code>    |
+| Default     | <code>false</code>                         |
+
+Automatically creates missing groups from a user's groups claim.
+
 ### --enable-terraform-debug-mode
 
 |             |                                                             |
@@ -520,6 +531,17 @@ Ignore the userinfo endpoint and only use the ID token for user information.
 | YAML        | <code>oidc.issuerURL</code>         |
 
 Issuer URL to use for Login with OIDC.
+
+### --oidc-group-regex-filter
+
+|             |                                             |
+| ----------- | ------------------------------------------- |
+| Type        | <code>regexp</code>                         |
+| Environment | <code>$CODER_OIDC_GROUP_REGEX_FILTER</code> |
+| YAML        | <code>oidc.groupRegexFilter</code>          |
+| Default     | <code>.\*</code>                            |
+
+If provided any group name not matching the regex is ignored. This allows for filtering out groups that are not needed. This filter is applied after the group mapping.
 
 ### --oidc-scopes
 

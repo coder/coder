@@ -102,6 +102,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
             "error": "string",
             "healthy": true,
             "node": {
+              "canPort80": true,
               "certName": "string",
               "derpport": 0,
               "forceHTTP": true,
@@ -134,6 +135,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
           "embeddedRelay": true,
           "nodes": [
             {
+              "canPort80": true,
               "certName": "string",
               "derpport": 0,
               "forceHTTP": true,
@@ -164,6 +166,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
             "error": "string",
             "healthy": true,
             "node": {
+              "canPort80": true,
               "certName": "string",
               "derpport": 0,
               "forceHTTP": true,
@@ -196,6 +199,7 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
           "embeddedRelay": true,
           "nodes": [
             {
+              "canPort80": true,
               "certName": "string",
               "derpport": 0,
               "forceHTTP": true,

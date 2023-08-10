@@ -1,7 +1,7 @@
 # This is the base image used for Coder images. It's a multi-arch image that is
 # built in depot.dev for all supported architectures. Since it's built on real
 # hardware and not cross-compiled, it can have "RUN" commands.
-FROM alpine:3.18.2
+FROM alpine:3.18.3
 
 # We use a single RUN command to reduce the number of layers in the image.
 # NOTE: Keep the Terraform version in sync with minTerraformVersion and
@@ -12,8 +12,6 @@ RUN apk add --no-cache \
 		bash \
 		jq \
 		git \
-		# Fixes CVE-2023-3446 and CVE-2023-2975. Only necessary until Alpine 3.18.3.
-		openssl \
 		openssh-client && \
 	# Use the edge repo, since Terraform doesn't seem to be backported to 3.18.
 	apk add --no-cache --repository=https://dl-cdn.alpinelinux.org/alpine/edge/community \

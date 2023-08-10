@@ -55,6 +55,36 @@ The Coder server can directly use TLS certificates with `CODER_TLS_ENABLE` and a
 - [Caddy](https://github.com/coder/coder/tree/main/examples/web-server/caddy)
 - [NGINX](https://github.com/coder/coder/tree/main/examples/web-server/nginx)
 
+### Kubernetes TLS configuration
+
+Below are the steps to configure Coder to terminate TLS when running on Kubernetes.
+You must have the certificate `.key` and `.crt` files in your working directory prior to step 1.
+
+1. Create the TLS secret in your Kubernetes cluster
+
+```console
+kubectl create secret tls coder-tls -n <coder-namespace> --key="tls.key" --cert="tls.crt"
+```
+
+> You can use a single certificate for the both the access URL and wildcard access URL.
+> The certificate CN must match the wildcard domain, such as `*.example.coder.com`.
+
+1. Reference the TLS secret in your Coder Helm chart values
+
+```yaml
+coder:
+  tls:
+    secretName:
+      - coder-tls
+
+  # Alternatively, if you use an Ingress controller to terminate TLS,
+  # set the following values:
+  ingress:
+    enable: true
+    secretName: coder-tls
+    wildcardSecretName: coder-tls
+```
+
 ## PostgreSQL Database
 
 Coder uses a PostgreSQL database to store users, workspace metadata, and other deployment information.

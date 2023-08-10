@@ -659,7 +659,7 @@ var (
 	lastDerpConflictLog   time.Time
 )
 
-func derpMapper(logger slog.Logger, cfg *codersdk.DeploymentValues, proxyHealth *proxyhealth.ProxyHealth) func(*tailcfg.DERPMap) *tailcfg.DERPMap {
+func derpMapper(logger slog.Logger, _ *codersdk.DeploymentValues, proxyHealth *proxyhealth.ProxyHealth) func(*tailcfg.DERPMap) *tailcfg.DERPMap {
 	return func(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap {
 		derpMap = derpMap.Clone()
 
@@ -754,25 +754,28 @@ func derpMapper(logger slog.Logger, cfg *codersdk.DeploymentValues, proxyHealth 
 			}
 
 			var stunNodes []*tailcfg.DERPNode
-			if !cfg.DERP.Config.BlockDirect.Value() {
-				stunNodes, err = agpltailnet.STUNNodes(regionID, cfg.DERP.Server.STUNAddresses)
-				if err != nil {
-					// Log a warning if we haven't logged one in the last
-					// minute.
-					lastDerpConflictMutex.Lock()
-					shouldLog := lastDerpConflictLog.IsZero() || time.Since(lastDerpConflictLog) > time.Minute
-					if shouldLog {
-						lastDerpConflictLog = time.Now()
-					}
-					lastDerpConflictMutex.Unlock()
-					if shouldLog {
-						logger.Error(context.Background(), "failed to calculate STUN nodes", slog.Error(err))
-					}
+			// TODO(@dean): potentially re-enable this depending on impact
+			/*
+				if !cfg.DERP.Config.BlockDirect.Value() {
+					stunNodes, err = agpltailnet.STUNNodes(regionID, cfg.DERP.Server.STUNAddresses)
+					if err != nil {
+						// Log a warning if we haven't logged one in the last
+						// minute.
+						lastDerpConflictMutex.Lock()
+						shouldLog := lastDerpConflictLog.IsZero() || time.Since(lastDerpConflictLog) > time.Minute
+						if shouldLog {
+							lastDerpConflictLog = time.Now()
+						}
+						lastDerpConflictMutex.Unlock()
+						if shouldLog {
+							logger.Error(context.Background(), "failed to calculate STUN nodes", slog.Error(err))
+						}
 
-					// No continue because we can keep going.
-					stunNodes = []*tailcfg.DERPNode{}
+						// No continue because we can keep going.
+						stunNodes = []*tailcfg.DERPNode{}
+					}
 				}
-			}
+			*/
 
 			nodes := append(stunNodes, &tailcfg.DERPNode{
 				Name:      fmt.Sprintf("%da", regionID),

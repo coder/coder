@@ -351,7 +351,7 @@ func TestProvision(t *testing.T) {
 			Files: map[string]string{
 				"main.tf": `a`,
 			},
-			ErrorContains:     "plan terraform",
+			ErrorContains:     "initialize terraform",
 			ExpectLogContains: "Argument or block definition required",
 		},
 		{
@@ -359,7 +359,7 @@ func TestProvision(t *testing.T) {
 			Files: map[string]string{
 				"main.tf": `;asdf;`,
 			},
-			ErrorContains:     "plan terraform",
+			ErrorContains:     "initialize terraform",
 			ExpectLogContains: `The ";" character is not valid.`,
 		},
 		{
