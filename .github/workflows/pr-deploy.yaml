@@ -121,7 +121,7 @@ jobs:
             echo "Deployment doesn't exist."
             NEW=true
           fi
-          echo "NEW=$new" >> $GITHUB_OUTPUT
+          echo "NEW=$NEW" >> $GITHUB_OUTPUT
 
       - name: Check changed files
         uses: dorny/paths-filter@v2
