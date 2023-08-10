@@ -69,7 +69,9 @@ cdroot
 temp_dir="$(mktemp -d)"
 
 cdroot
-cd ./helm
+cd ./helm/coder
+log "--- Updating dependencies"
+helm dependency update .
 log "--- Packaging helm chart for version $version ($output_path)"
 helm package \
 	--version "$version" \
