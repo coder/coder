@@ -204,7 +204,7 @@ func (p *Server) connect(ctx context.Context) {
 		p.clientValue.Store(ptr.Ref(client))
 		p.mutex.Unlock()
 
-		p.opts.Logger.Debug(context.Background(), "connected")
+		p.opts.Logger.Info(ctx, "provisionerd successfully connected to coderd")
 		break
 	}
 	select {
