@@ -18,7 +18,10 @@ import { LockedWorkspaceBanner, Count } from "components/WorkspaceDeletion"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
 import { WorkspacesFilter } from "./filter/filter"
 import { hasError, isApiValidationError } from "api/errors"
-import { PaginationStatus } from "components/PaginationStatus/PaginationStatus"
+import {
+  PaginationStatus,
+  TableToolbar,
+} from "components/TableToolbar/TableToolbar"
 import Box from "@mui/material/Box"
 import Button from "@mui/material/Button"
 import DeleteOutlined from "@mui/icons-material/DeleteOutlined"
@@ -111,43 +114,34 @@ export const WorkspacesPageView: FC<
         <WorkspacesFilter error={error} {...filterProps} />
       </Stack>
 
-      {checkedWorkspaces.length > 0 ? (
-        <Box
-          sx={{
-            position: "relative",
-            display: "flex",
-            alignItems: "center",
-            fontSize: 13,
-            mb: 2,
-            mt: 1,
-            color: (theme) => theme.palette.text.secondary,
-            "& strong": { color: (theme) => theme.palette.text.primary },
-          }}
-        >
-          <Box>
-            Selected <strong>{checkedWorkspaces.length}</strong> of{" "}
-            <strong>{workspaces?.length}</strong>{" "}
-            {workspaces?.length === 1 ? "workspace" : "workspaces"}
-          </Box>
+      <TableToolbar>
+        {checkedWorkspaces.length > 0 ? (
+          <>
+            <Box>
+              Selected <strong>{checkedWorkspaces.length}</strong> of{" "}
+              <strong>{workspaces?.length}</strong>{" "}
+              {workspaces?.length === 1 ? "workspace" : "workspaces"}
+            </Box>
 
-          <Box sx={{ position: "absolute", right: 0 }}>
-            <Button
-              size="small"
-              startIcon={<DeleteOutlined />}
-              onClick={onDeleteAll}
-            >
-              Delete all
-            </Button>
-          </Box>
-        </Box>
-      ) : (
-        <PaginationStatus
-          isLoading={!workspaces && !error}
-          showing={workspaces?.length ?? 0}
-          total={count ?? 0}
-          label="workspaces"
-        />
-      )}
+            <Box sx={{ marginLeft: "auto" }}>
+              <Button
+                size="small"
+                startIcon={<DeleteOutlined />}
+                onClick={onDeleteAll}
+              >
+                Delete all
+              </Button>
+            </Box>
+          </>
+        ) : (
+          <PaginationStatus
+            isLoading={!workspaces && !error}
+            showing={workspaces?.length ?? 0}
+            total={count ?? 0}
+            label="workspaces"
+          />
+        )}
+      </TableToolbar>
 
       <WorkspacesTable
         workspaces={workspaces}

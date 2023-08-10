@@ -4,7 +4,10 @@ import { PaginationMachineRef } from "xServices/pagination/paginationXService"
 import * as TypesGen from "../../api/typesGenerated"
 import { UsersTable } from "../../components/UsersTable/UsersTable"
 import { UsersFilter } from "./UsersFilter"
-import { PaginationStatus } from "components/PaginationStatus/PaginationStatus"
+import {
+  PaginationStatus,
+  TableToolbar,
+} from "components/TableToolbar/TableToolbar"
 
 export const Language = {
   activeUsersFilterName: "Active users",
@@ -60,12 +63,14 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
     <>
       <UsersFilter {...filterProps} />
 
-      <PaginationStatus
-        isLoading={Boolean(isLoading)}
-        showing={users?.length ?? 0}
-        total={count ?? 0}
-        label="users"
-      />
+      <TableToolbar>
+        <PaginationStatus
+          isLoading={Boolean(isLoading)}
+          showing={users?.length ?? 0}
+          total={count ?? 0}
+          label="users"
+        />
+      </TableToolbar>
 
       <UsersTable
         users={users}
