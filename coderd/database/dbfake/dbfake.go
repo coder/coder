@@ -135,6 +135,7 @@ type data struct {
 	workspaceAgentMetadata    []database.WorkspaceAgentMetadatum
 	workspaceAgentLogs        []database.WorkspaceAgentLog
 	workspaceApps             []database.WorkspaceApp
+	workspaceAppStats         []database.WorkspaceAppStat
 	workspaceBuilds           []database.WorkspaceBuildTable
 	workspaceBuildParameters  []database.WorkspaceBuildParameter
 	workspaceResourceMetadata []database.WorkspaceResourceMetadatum
@@ -4266,7 +4267,39 @@ func (q *FakeQuerier) InsertWorkspaceAppStats(ctx context.Context, arg database.
 		return err
 	}
 
-	panic("not implemented")
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	nextID := int64(1)
+	if len(q.workspaceAppStats) > 0 {
+		nextID = q.workspaceAppStats[len(q.workspaceAppStats)-1].ID + 1
+	}
+InsertWorkspaceAppStatsLoop:
+	for i := 0; i < len(arg.UserID); i++ {
+		stat := database.WorkspaceAppStat{
+			ID:               nextID,
+			UserID:           arg.UserID[i],
+			WorkspaceID:      arg.WorkspaceID[i],
+			AgentID:          arg.AgentID[i],
+			AccessMethod:     arg.AccessMethod[i],
+			SlugOrPort:       arg.SlugOrPort[i],
+			SessionID:        arg.SessionID[i],
+			SessionStartedAt: arg.SessionStartedAt[i],
+			SessionEndedAt:   arg.SessionEndedAt[i],
+			Requests:         arg.Requests[i],
+		}
+		for j, s := range q.workspaceAppStats {
+			// Check unique constraint for upsert.
+			if s.UserID == stat.UserID && s.AgentID == stat.AgentID && s.SessionID == stat.SessionID {
+				q.workspaceAppStats[j].SessionEndedAt = stat.SessionEndedAt
+				q.workspaceAppStats[j].Requests = stat.Requests
+				continue InsertWorkspaceAppStatsLoop
+			}
+		}
+		q.workspaceAppStats = append(q.workspaceAppStats, stat)
+	}
+
+	return nil
 }
 
 func (q *FakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.InsertWorkspaceBuildParams) error {

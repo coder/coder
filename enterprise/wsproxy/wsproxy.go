@@ -261,8 +261,9 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		}
 	}
 
+	workspaceAppsLogger := opts.Logger.Named("workspaceapps")
 	s.AppServer = &workspaceapps.Server{
-		Logger:        opts.Logger.Named("workspaceapps"),
+		Logger:        workspaceAppsLogger,
 		DashboardURL:  opts.DashboardURL,
 		AccessURL:     opts.AccessURL,
 		Hostname:      opts.AppHostname,
@@ -282,11 +283,10 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		SecureAuthCookie: opts.SecureAuthCookie,
 
 		AgentProvider: agentProvider,
-		StatsCollector: workspaceapps.NewStatsCollector(
-			opts.Logger.Named("stats_collector"),
-			&appStatsReporter{Client: client},
-			workspaceapps.DefaultStatsCollectorReportInterval,
-		),
+		StatsCollector: workspaceapps.NewStatsCollector(workspaceapps.StatsCollectorOptions{
+			Logger:   workspaceAppsLogger.Named("stats_collector"),
+			Reporter: &appStatsReporter{Client: client},
+		}),
 	}
 
 	derpHandler := derphttp.Handler(derpServer)

@@ -10701,16 +10701,20 @@
         "agent_id": {
           "type": "string"
         },
-        "session_end_time": {
+        "requests": {
+          "type": "integer"
+        },
+        "session_ended_at": {
+          "description": "Updated periodically while app is in use active and when the last connection is closed.",
           "type": "string"
         },
         "session_id": {
           "type": "string"
         },
-        "session_start_time": {
+        "session_started_at": {
           "type": "string"
         },
-        "slug": {
+        "slug_or_port": {
           "type": "string"
         },
         "user_id": {

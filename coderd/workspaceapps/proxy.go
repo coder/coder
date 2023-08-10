@@ -593,7 +593,7 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 
 	proxy.ServeHTTP(rw, r)
 
-	report.SessionEndTime = codersdk.NewNullTime(database.Now(), true)
+	report.SessionEndedAt = database.Now()
 	s.StatsCollector.Collect(report)
 }
 
@@ -693,7 +693,7 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	agentssh.Bicopy(ctx, wsNetConn, ptNetConn)
 	log.Debug(ctx, "pty Bicopy finished")
 
-	report.SessionEndTime = codersdk.NewNullTime(database.Now(), true)
+	report.SessionEndedAt = database.Now()
 	s.StatsCollector.Collect(report)
 }
 

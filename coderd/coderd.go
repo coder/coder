@@ -430,11 +430,10 @@ func New(options *Options) *API {
 		SignedTokenProvider: api.WorkspaceAppsProvider,
 		AgentProvider:       api.agentProvider,
 		AppSecurityKey:      options.AppSecurityKey,
-		StatsCollector: workspaceapps.NewStatsCollector(
-			workspaceAppsLogger.Named("stats_collector"),
-			workspaceapps.NewStatsDBReporter(options.Database, workspaceapps.DefaultStatsDBReporterBatchSize),
-			workspaceapps.DefaultStatsCollectorReportInterval,
-		),
+		StatsCollector: workspaceapps.NewStatsCollector(workspaceapps.StatsCollectorOptions{
+			Logger:   workspaceAppsLogger.Named("stats_collector"),
+			Reporter: workspaceapps.NewStatsDBReporter(options.Database, workspaceapps.DefaultStatsDBReporterBatchSize),
+		}),
 
 		DisablePathApps:  options.DeploymentValues.DisablePathApps.Value(),
 		SecureAuthCookie: options.DeploymentValues.SecureAuthCookie.Value(),

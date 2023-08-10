@@ -7478,10 +7478,11 @@ _None_
 {
   "access_method": "path",
   "agent_id": "string",
-  "session_end_time": "string",
+  "requests": 0,
+  "session_ended_at": "string",
   "session_id": "string",
-  "session_start_time": "string",
-  "slug": "string",
+  "session_started_at": "string",
+  "slug_or_port": "string",
   "user_id": "string",
   "workspace_id": "string"
 }
@@ -7489,16 +7490,17 @@ _None_
 
 ### Properties
 
-| Name                 | Type                                                     | Required | Restrictions | Description |
-| -------------------- | -------------------------------------------------------- | -------- | ------------ | ----------- |
-| `access_method`      | [workspaceapps.AccessMethod](#workspaceappsaccessmethod) | false    |              |             |
-| `agent_id`           | string                                                   | false    |              |             |
-| `session_end_time`   | string                                                   | false    |              |             |
-| `session_id`         | string                                                   | false    |              |             |
-| `session_start_time` | string                                                   | false    |              |             |
-| `slug`               | string                                                   | false    |              |             |
-| `user_id`            | string                                                   | false    |              |             |
-| `workspace_id`       | string                                                   | false    |              |             |
+| Name                 | Type                                                     | Required | Restrictions | Description                                                                             |
+| -------------------- | -------------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------- |
+| `access_method`      | [workspaceapps.AccessMethod](#workspaceappsaccessmethod) | false    |              |                                                                                         |
+| `agent_id`           | string                                                   | false    |              |                                                                                         |
+| `requests`           | integer                                                  | false    |              |                                                                                         |
+| `session_ended_at`   | string                                                   | false    |              | Updated periodically while app is in use active and when the last connection is closed. |
+| `session_id`         | string                                                   | false    |              |                                                                                         |
+| `session_started_at` | string                                                   | false    |              |                                                                                         |
+| `slug_or_port`       | string                                                   | false    |              |                                                                                         |
+| `user_id`            | string                                                   | false    |              |                                                                                         |
+| `workspace_id`       | string                                                   | false    |              |                                                                                         |
 
 ## wsproxysdk.AgentIsLegacyResponse
 
@@ -7613,10 +7615,11 @@ _None_
     {
       "access_method": "path",
       "agent_id": "string",
-      "session_end_time": "string",
+      "requests": 0,
+      "session_ended_at": "string",
       "session_id": "string",
-      "session_start_time": "string",
-      "slug": "string",
+      "session_started_at": "string",
+      "slug_or_port": "string",
       "user_id": "string",
       "workspace_id": "string"
     }
