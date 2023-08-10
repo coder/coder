@@ -1720,6 +1720,18 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 				line := scanner3.Text()
 				t.Logf("bash tty stdout = %s", re.ReplaceAllString(line, ""))
 			}
+
+			// Try a non-shell command.  It should output then immediately exit.
+			netConn4, err := conn.ReconnectingPTY(ctx, uuid.New(), 100, 100, "echo test")
+			require.NoError(t, err)
+			defer netConn4.Close()
+
+			scanner4 := bufio.NewScanner(netConn4)
+			require.True(t, hasLine(scanner4, matchEchoOutput), "find exit command")
+			for scanner4.Scan() {
+				line := scanner4.Text()
+				t.Logf("bash tty stdout = %s", re.ReplaceAllString(line, ""))
+			}
 		})
 	}
 }

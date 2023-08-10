@@ -94,6 +94,8 @@ func newBuffered(ctx context.Context, cmd *pty.Cmd, options *Options, logger slo
 				}
 				// Could have been killed externally or failed to start at all (command
 				// not found for example).
+				// TODO: Should we check the process's exit code in case the command was
+				//       invalid?
 				rpty.Close("unable to read pty output, command might have exited")
 				break
 			}

@@ -162,8 +162,15 @@ func (rpty *screenReconnectingPTY) Attach(ctx context.Context, _ string, conn ne
 
 	go heartbeat(ctx, rpty.timer, rpty.timeout)
 
-	ptty, process, err := rpty.doAttach(ctx, height, width, logger)
+	ptty, process, err := rpty.doAttach(ctx, conn, height, width, logger)
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			// Likely the process was too short-lived and canceled the version command.
+			// TODO: Is it worth distinguishing between that and a cancel from the
+			//       Attach() caller?  Additionally, since this could also happen if
+			//       the command was invalid, should we check the process's exit code?
+			return nil
+		}
 		return err
 	}
 
@@ -180,53 +187,6 @@ func (rpty *screenReconnectingPTY) Attach(ctx context.Context, _ string, conn ne
 		}
 	}()
 
-	// Pipe pty -> conn.
-	// We do not need to separately monitor for the process exiting.  When it
-	// exits, our ptty.OutputReader() will return EOF after reading all process
-	// output.
-	go func() {
-		// Close the connection when the process exits.  Log only for debugging
-		// since the connection might have already closed on its own.
-		defer func() {
-			err := conn.Close()
-			if err != nil {
-				logger.Debug(ctx, "closed connection with error", slog.Error(err))
-			}
-		}()
-		buffer := make([]byte, 1024)
-		for {
-			read, err := ptty.OutputReader().Read(buffer)
-			if err != nil {
-				// When the PTY is closed, this is triggered.
-				// Error is typically a benign EOF, so only log for debugging.
-				if errors.Is(err, io.EOF) {
-					logger.Debug(ctx, "unable to read pty output; screen might have exited", slog.Error(err))
-				} else {
-					logger.Warn(ctx, "unable to read pty output; screen might have exited", slog.Error(err))
-					rpty.metrics.WithLabelValues("screen_output_reader").Add(1)
-				}
-				// The process might have died because the session itself died or it
-				// might have been separately killed and the session is still up (for
-				// example `exit` or we killed it when the connection closed).  If the
-				// session is still up we might leave the reconnecting pty in memory
-				// around longer than it needs to be but it will eventually clean up
-				// with the timer or context, or the next attach will respawn the screen
-				// daemon which is fine too.
-				break
-			}
-			part := buffer[:read]
-			_, err = conn.Write(part)
-			if err != nil {
-				// Connection might have been closed.
-				if errors.Unwrap(err).Error() != "endpoint is closed for send" {
-					logger.Warn(ctx, "error writing to active conn", slog.Error(err))
-					rpty.metrics.WithLabelValues("screen_write").Add(1)
-				}
-				break
-			}
-		}
-	}()
-
 	// Pipe conn -> pty and block.
 	readConnLoop(ctx, conn, ptty, rpty.metrics, logger)
 	return nil
@@ -235,7 +195,7 @@ func (rpty *screenReconnectingPTY) Attach(ctx context.Context, _ string, conn ne
 // doAttach spawns the screen client and starts the heartbeat.  It exists
 // separately only so we can defer the mutex unlock which is not possible in
 // Attach since it blocks.
-func (rpty *screenReconnectingPTY) doAttach(ctx context.Context, height, width uint16, logger slog.Logger) (pty.PTYCmd, pty.Process, error) {
+func (rpty *screenReconnectingPTY) doAttach(ctx context.Context, conn net.Conn, height, width uint16, logger slog.Logger) (pty.PTYCmd, pty.Process, error) {
 	// Ensure another attach does not come in and spawn a duplicate session.
 	rpty.mutex.Lock()
 	defer rpty.mutex.Unlock()
@@ -273,12 +233,65 @@ func (rpty *screenReconnectingPTY) doAttach(ctx context.Context, height, width u
 		return nil, nil, err
 	}
 
+	// This context lets us abort the version command if the process dies.
+	versionCtx, versionCancel := context.WithCancel(ctx)
+	defer versionCancel()
+
+	// Pipe pty -> conn and close the connection when the process exits.
+	// We do not need to separately monitor for the process exiting.  When it
+	// exits, our ptty.OutputReader() will return EOF after reading all process
+	// output.
+	go func() {
+		defer versionCancel()
+		defer func() {
+			err := conn.Close()
+			if err != nil {
+				// Log only for debugging since the connection might have already closed
+				// on its own.
+				logger.Debug(ctx, "closed connection with error", slog.Error(err))
+			}
+		}()
+		buffer := make([]byte, 1024)
+		for {
+			read, err := ptty.OutputReader().Read(buffer)
+			if err != nil {
+				// When the PTY is closed, this is triggered.
+				// Error is typically a benign EOF, so only log for debugging.
+				if errors.Is(err, io.EOF) {
+					logger.Debug(ctx, "unable to read pty output; screen might have exited", slog.Error(err))
+				} else {
+					logger.Warn(ctx, "unable to read pty output; screen might have exited", slog.Error(err))
+					rpty.metrics.WithLabelValues("screen_output_reader").Add(1)
+				}
+				// The process might have died because the session itself died or it
+				// might have been separately killed and the session is still up (for
+				// example `exit` or we killed it when the connection closed).  If the
+				// session is still up we might leave the reconnecting pty in memory
+				// around longer than it needs to be but it will eventually clean up
+				// with the timer or context, or the next attach will respawn the screen
+				// daemon which is fine too.
+				break
+			}
+			part := buffer[:read]
+			_, err = conn.Write(part)
+			if err != nil {
+				// Connection might have been closed.
+				if errors.Unwrap(err).Error() != "endpoint is closed for send" {
+					logger.Warn(ctx, "error writing to active conn", slog.Error(err))
+					rpty.metrics.WithLabelValues("screen_write").Add(1)
+				}
+				break
+			}
+		}
+	}()
+
 	// Version seems to be the only command without a side effect (other than
 	// making the version pop up briefly) so use it to wait for the session to
 	// come up.  If we do not wait we could end up spawning multiple sessions with
 	// the same name.
-	err = rpty.sendCommand(ctx, "version", nil)
+	err = rpty.sendCommand(versionCtx, "version", nil)
 	if err != nil {
+		// Log only for debugging since the process might already have closed.
 		closeErr := ptty.Close()
 		if closeErr != nil {
 			logger.Debug(ctx, "closed ptty with error", slog.Error(closeErr))
@@ -298,8 +311,9 @@ func (rpty *screenReconnectingPTY) doAttach(ctx context.Context, height, width u
 // command fails with an error matching anything in successErrors it will be
 // considered a success state (for example "no session" when quitting and the
 // session is already dead).  The command will be retried until successful, the
-// timeout is reached, or the context ends in which case the context error is
-// returned together with the last error from the command.
+// timeout is reached, or the context ends.  A canceled context will return the
+// canceled context's error as-is while a timed-out context returns together
+// with the last error from the command.
 func (rpty *screenReconnectingPTY) sendCommand(ctx context.Context, command string, successErrors []string) error {
 	ctx, cancel := context.WithTimeout(ctx, attachTimeout)
 	defer cancel()
@@ -352,6 +366,9 @@ func (rpty *screenReconnectingPTY) sendCommand(ctx context.Context, command stri
 	for {
 		select {
 		case <-ctx.Done():
+			if errors.Is(ctx.Err(), context.Canceled) {
+				return ctx.Err()
+			}
 			return errors.Join(ctx.Err(), lastErr)
 		case <-ticker.C:
 			if done := run(); done {
