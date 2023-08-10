@@ -254,7 +254,7 @@ jobs:
           set -euo pipefail
           foundTag=$(
             gh api /orgs/coder/packages/container/coder-preview/versions |
-            jq -r --arg tag "${{ env.CODER_IMAGE_TAG }}" '.[] |
+            jq -r --arg tag "pr${{ env.PR_NUMBER }}" '.[] |
             select(.metadata.container.tags == [$tag]) |
             .metadata.container.tags[0]'
           )
