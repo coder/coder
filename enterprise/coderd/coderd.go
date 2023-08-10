@@ -594,7 +594,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 	if initial, changed, enabled := featureChanged(codersdk.FeatureWorkspaceProxy); shouldUpdate(initial, changed, enabled) {
 		if enabled {
-			fn := derpMapper(api.Logger, api.DeploymentValues, api.ProxyHealth)
+			fn := derpMapper(api.Logger, api.ProxyHealth)
 			api.AGPL.DERPMapper.Store(&fn)
 		} else {
 			api.AGPL.DERPMapper.Store(nil)
@@ -659,7 +659,7 @@ var (
 	lastDerpConflictLog   time.Time
 )
 
-func derpMapper(logger slog.Logger, _ *codersdk.DeploymentValues, proxyHealth *proxyhealth.ProxyHealth) func(*tailcfg.DERPMap) *tailcfg.DERPMap {
+func derpMapper(logger slog.Logger, proxyHealth *proxyhealth.ProxyHealth) func(*tailcfg.DERPMap) *tailcfg.DERPMap {
 	return func(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap {
 		derpMap = derpMap.Clone()
 
@@ -753,46 +753,22 @@ func derpMapper(logger slog.Logger, _ *codersdk.DeploymentValues, proxyHealth *p
 				}
 			}
 
-			var stunNodes []*tailcfg.DERPNode
-			// TODO(@dean): potentially re-enable this depending on impact
-			/*
-				if !cfg.DERP.Config.BlockDirect.Value() {
-					stunNodes, err = agpltailnet.STUNNodes(regionID, cfg.DERP.Server.STUNAddresses)
-					if err != nil {
-						// Log a warning if we haven't logged one in the last
-						// minute.
-						lastDerpConflictMutex.Lock()
-						shouldLog := lastDerpConflictLog.IsZero() || time.Since(lastDerpConflictLog) > time.Minute
-						if shouldLog {
-							lastDerpConflictLog = time.Now()
-						}
-						lastDerpConflictMutex.Unlock()
-						if shouldLog {
-							logger.Error(context.Background(), "failed to calculate STUN nodes", slog.Error(err))
-						}
-
-						// No continue because we can keep going.
-						stunNodes = []*tailcfg.DERPNode{}
-					}
-				}
-			*/
-
-			nodes := append(stunNodes, &tailcfg.DERPNode{
-				Name:      fmt.Sprintf("%da", regionID),
-				RegionID:  regionID,
-				HostName:  u.Hostname(),
-				DERPPort:  portInt,
-				STUNPort:  -1,
-				ForceHTTP: u.Scheme == "http",
-			})
-
 			derpMap.Regions[regionID] = &tailcfg.DERPRegion{
 				// EmbeddedRelay ONLY applies to the primary.
 				EmbeddedRelay: false,
 				RegionID:      regionID,
 				RegionCode:    regionCode,
 				RegionName:    regionName,
-				Nodes:         nodes,
+				Nodes: []*tailcfg.DERPNode{
+					{
+						Name:      fmt.Sprintf("%da", regionID),
+						RegionID:  regionID,
+						HostName:  u.Hostname(),
+						DERPPort:  portInt,
+						STUNPort:  -1,
+						ForceHTTP: u.Scheme == "http",
+					},
+				},
 			}
 		}
 
