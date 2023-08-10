@@ -127,7 +127,7 @@ export const WorkspacesPageView: FC<
           <Box>
             Selected <strong>{checkedWorkspaces.length}</strong> of{" "}
             <strong>{workspaces?.length}</strong>{" "}
-            {checkedWorkspaces.length === 1 ? "workspace" : "workspaces"}
+            {workspaces?.length === 1 ? "workspace" : "workspaces"}
           </Box>
 
           <Box sx={{ position: "absolute", right: 0 }}>
