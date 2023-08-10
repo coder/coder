@@ -47,8 +47,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-        with:
-          ref: ${{ github.ref }}
 
       - name: Check if PR is open
         id: check_pr
@@ -70,7 +68,6 @@ jobs:
       PR_NUMBER: ${{ steps.pr_info.outputs.PR_NUMBER }}
       PR_TITLE: ${{ steps.pr_info.outputs.PR_TITLE }}
       PR_URL: ${{ steps.pr_info.outputs.PR_URL }}
-      PR_BRANCH: ${{ steps.pr_info.outputs.PR_BRANCH }}
       CODER_BASE_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_BASE_IMAGE_TAG }}
       CODER_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_IMAGE_TAG }}
       NEW: ${{ steps.check_deployment.outputs.new }}
@@ -78,6 +75,11 @@ jobs:
 
     runs-on: "ubuntu-latest"
     steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
       - name: Get PR number, title, and branch name
         id: pr_info
         run: |
@@ -88,10 +90,9 @@ jobs:
           echo "PR_URL=$PR_URL" >> $GITHUB_OUTPUT
           echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_OUTPUT
           echo "PR_TITLE=$PR_TITLE" >> $GITHUB_OUTPUT
-          echo "PR_BRANCH=$PR_BRANCH" >> $GITHUB_OUTPUT
+
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_BRANCH: ${${{ github.ref}}#refs/heads/}
 
       - name: Set required tags
         id: set_tags
@@ -148,19 +149,12 @@ jobs:
           reactions: eyes
           reactions-edit-mode: replace
 
-      - name: Checkout
-        if: github.event_name == 'workflow_dispatch' || steps.check_deployment.outputs.NEW == 'false'
-        uses: actions/checkout@v3
-        with:
-          ref: ${{ steps.pr_info.outputs.PR_BRANCH }}
-          fetch-depth: 0
-
       - name: Check changed files
         if: github.event_name == 'workflow_dispatch' || steps.check_deployment.outputs.NEW == 'false'
         uses: dorny/paths-filter@v2
         id: filter
         with:
-          base: ${{ steps.pr_info.outputs.PR_BRANCH }}
+          base: ${{ github.ref }}
           filters: |
             all:
               - "**"
@@ -195,13 +189,10 @@ jobs:
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
       CODER_IMAGE_TAG: ${{ needs.get_info.outputs.CODER_IMAGE_TAG }}
-      PR_NUMBER: ${{ needs.get_info.outputs.PR_NUMBER }}
-      PR_BRANCH: ${{ needs.get_info.outputs.PR_BRANCH }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
         with:
-          ref: ${{ env.PR_BRANCH }}
           fetch-depth: 0
 
       - name: Setup Node
@@ -248,7 +239,6 @@ jobs:
       PR_NUMBER: ${{ needs.get_info.outputs.PR_NUMBER }}
       PR_TITLE: ${{ needs.get_info.outputs.PR_TITLE }}
       PR_URL: ${{ needs.get_info.outputs.PR_URL }}
-      PR_BRANCH: ${{ needs.get_info.outputs.PR_BRANCH }}
       PR_HOSTNAME: "pr${{ needs.get_info.outputs.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
     steps:
       - name: Set up kubeconfig
@@ -279,8 +269,6 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@v3
-        with:
-          ref: ${{ env.PR_BRANCH }}
 
       - name: Create PR namespace
         if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
