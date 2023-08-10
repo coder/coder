@@ -64,7 +64,7 @@ coder:
       value: "533...des"
     - name: CODER_OAUTH2_GITHUB_CLIENT_SECRET
       value: "G0CSP...7qSM"
-    # If setting allowd orgs, comment out CODER_OAUTH2_GITHUB_ALLOW_EVERYONE and its value
+    # If setting allowed orgs, comment out CODER_OAUTH2_GITHUB_ALLOW_EVERYONE and its value
     - name: CODER_OAUTH2_GITHUB_ALLOWED_ORGS
       value: "your-org"
     # If allowing everyone, comment out CODER_OAUTH2_GITHUB_ALLOWED_ORGS and it's value
