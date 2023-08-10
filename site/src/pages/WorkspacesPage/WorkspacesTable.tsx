@@ -31,18 +31,23 @@ import { LastUsed } from "components/LastUsed/LastUsed"
 import { WorkspaceOutdatedTooltip } from "components/Tooltips"
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
 import { getDisplayWorkspaceTemplateName } from "utils/workspace"
+import Checkbox from "@mui/material/Checkbox"
 
 export interface WorkspacesTableProps {
   workspaces?: Workspace[]
+  checkedWorkspaces: Workspace[]
+  error?: unknown
   isUsingFilter: boolean
   onUpdateWorkspace: (workspace: Workspace) => void
-  error?: unknown
+  onCheckChange: (checkedWorkspaces: Workspace[]) => void
 }
 
 export const WorkspacesTable: FC<WorkspacesTableProps> = ({
   workspaces,
+  checkedWorkspaces,
   isUsingFilter,
   onUpdateWorkspace,
+  onCheckChange,
 }) => {
   const { t } = useTranslation("workspacesPage")
   const styles = useStyles()
@@ -52,7 +57,31 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
       <Table>
         <TableHead>
           <TableRow>
-            <TableCell width="40%">Name</TableCell>
+            <TableCell
+              width="40%"
+              sx={{
+                paddingLeft: (theme) => `${theme.spacing(1.5)} !important`,
+              }}
+            >
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Checkbox
+                  checked={checkedWorkspaces.length === workspaces?.length}
+                  size="small"
+                  onChange={(_, checked) => {
+                    if (!workspaces) {
+                      return
+                    }
+
+                    if (!checked) {
+                      onCheckChange([])
+                    } else {
+                      onCheckChange(workspaces)
+                    }
+                  }}
+                />
+                Name
+              </Box>
+            </TableCell>
             <TableCell width="25%">Template</TableCell>
             <TableCell width="20%">Last used</TableCell>
             <TableCell width="15%">Status</TableCell>
@@ -94,33 +123,61 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
           {workspaces &&
             workspaces.map((workspace) => (
               <WorkspacesRow workspace={workspace} key={workspace.id}>
-                <TableCell>
-                  <AvatarData
-                    title={
-                      <Stack direction="row" spacing={0} alignItems="center">
-                        {workspace.name}
-                        {workspace.outdated && (
-                          <WorkspaceOutdatedTooltip
-                            templateName={workspace.template_name}
-                            templateId={workspace.template_id}
-                            onUpdateVersion={() => {
-                              onUpdateWorkspace(workspace)
-                            }}
-                          />
-                        )}
-                      </Stack>
-                    }
-                    subtitle={workspace.owner_name}
-                    avatar={
-                      <Avatar
-                        src={workspace.template_icon}
-                        variant={workspace.template_icon ? "square" : undefined}
-                        fitImage={Boolean(workspace.template_icon)}
-                      >
-                        {workspace.name}
-                      </Avatar>
-                    }
-                  />
+                <TableCell
+                  sx={{
+                    paddingLeft: (theme) => `${theme.spacing(1.5)} !important`,
+                  }}
+                >
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Checkbox
+                      size="small"
+                      checked={checkedWorkspaces.some(
+                        (w) => w.id === workspace.id,
+                      )}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                      }}
+                      onChange={(e) => {
+                        if (e.currentTarget.checked) {
+                          onCheckChange([...checkedWorkspaces, workspace])
+                        } else {
+                          onCheckChange(
+                            checkedWorkspaces.filter(
+                              (w) => w.id !== workspace.id,
+                            ),
+                          )
+                        }
+                      }}
+                    />
+                    <AvatarData
+                      title={
+                        <Stack direction="row" spacing={0} alignItems="center">
+                          {workspace.name}
+                          {workspace.outdated && (
+                            <WorkspaceOutdatedTooltip
+                              templateName={workspace.template_name}
+                              templateId={workspace.template_id}
+                              onUpdateVersion={() => {
+                                onUpdateWorkspace(workspace)
+                              }}
+                            />
+                          )}
+                        </Stack>
+                      }
+                      subtitle={workspace.owner_name}
+                      avatar={
+                        <Avatar
+                          src={workspace.template_icon}
+                          variant={
+                            workspace.template_icon ? "square" : undefined
+                          }
+                          fitImage={Boolean(workspace.template_icon)}
+                        >
+                          {workspace.name}
+                        </Avatar>
+                      }
+                    />
+                  </Box>
                 </TableCell>
 
                 <TableCell>

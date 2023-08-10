@@ -19,6 +19,9 @@ import { ErrorAlert } from "components/Alert/ErrorAlert"
 import { WorkspacesFilter } from "./filter/filter"
 import { hasError, isApiValidationError } from "api/errors"
 import { PaginationStatus } from "components/PaginationStatus/PaginationStatus"
+import Box from "@mui/material/Box"
+import Button from "@mui/material/Button"
+import DeleteOutlined from "@mui/icons-material/DeleteOutlined"
 
 export const Language = {
   pageTitle: "Workspaces",
@@ -33,12 +36,15 @@ export interface WorkspacesPageViewProps {
   error: unknown
   workspaces?: Workspace[]
   lockedWorkspaces?: Workspace[]
+  checkedWorkspaces: Workspace[]
   count?: number
   filterProps: ComponentProps<typeof WorkspacesFilter>
   page: number
   limit: number
   onPageChange: (page: number) => void
   onUpdateWorkspace: (workspace: Workspace) => void
+  onCheckChange: (checkedWorkspaces: Workspace[]) => void
+  onDeleteAll: () => void
 }
 
 export const WorkspacesPageView: FC<
@@ -53,6 +59,9 @@ export const WorkspacesPageView: FC<
   onPageChange,
   onUpdateWorkspace,
   page,
+  checkedWorkspaces,
+  onCheckChange,
+  onDeleteAll,
 }) => {
   const { saveLocal } = useLocalStorage()
 
@@ -102,17 +111,50 @@ export const WorkspacesPageView: FC<
         <WorkspacesFilter error={error} {...filterProps} />
       </Stack>
 
-      <PaginationStatus
-        isLoading={!workspaces && !error}
-        showing={workspaces?.length ?? 0}
-        total={count ?? 0}
-        label="workspaces"
-      />
+      {checkedWorkspaces.length > 0 ? (
+        <Box
+          sx={{
+            position: "relative",
+            display: "flex",
+            alignItems: "center",
+            fontSize: 13,
+            mb: 2,
+            mt: 1,
+            color: (theme) => theme.palette.text.secondary,
+            "& strong": { color: (theme) => theme.palette.text.primary },
+          }}
+        >
+          <Box>
+            Selected <strong>{checkedWorkspaces.length}</strong> of{" "}
+            <strong>{workspaces?.length}</strong>{" "}
+            {checkedWorkspaces.length === 1 ? "workspace" : "workspaces"}
+          </Box>
+
+          <Box sx={{ position: "absolute", right: 0 }}>
+            <Button
+              size="small"
+              startIcon={<DeleteOutlined />}
+              onClick={onDeleteAll}
+            >
+              Delete all
+            </Button>
+          </Box>
+        </Box>
+      ) : (
+        <PaginationStatus
+          isLoading={!workspaces && !error}
+          showing={workspaces?.length ?? 0}
+          total={count ?? 0}
+          label="workspaces"
+        />
+      )}
 
       <WorkspacesTable
         workspaces={workspaces}
         isUsingFilter={filterProps.filter.used}
         onUpdateWorkspace={onUpdateWorkspace}
+        checkedWorkspaces={checkedWorkspaces}
+        onCheckChange={onCheckChange}
       />
       {count !== undefined && (
         <PaginationWidgetBase

@@ -12,6 +12,7 @@ import { useSearchParams } from "react-router-dom"
 import { useFilter } from "components/Filter/filter"
 import { useUserFilterMenu } from "components/Filter/UserFilter"
 import { getWorkspaces } from "api/api"
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 
 const WorkspacesPage: FC = () => {
   const [lockedWorkspaces, setLockedWorkspaces] = useState<Workspace[]>([])
@@ -55,8 +56,9 @@ const WorkspacesPage: FC = () => {
       setLockedWorkspaces([])
     }
   }, [experimentEnabled, data, filterProps.filter.query])
-
   const updateWorkspace = useWorkspaceUpdate(queryKey)
+  const [checkedWorkspaces, setCheckedWorkspaces] = useState<Workspace[]>([])
+  const [isDeletingAll, setIsDeletingAll] = useState(false)
 
   return (
     <>
@@ -65,6 +67,8 @@ const WorkspacesPage: FC = () => {
       </Helmet>
 
       <WorkspacesPageView
+        checkedWorkspaces={checkedWorkspaces}
+        onCheckChange={setCheckedWorkspaces}
         workspaces={data?.workspaces}
         lockedWorkspaces={lockedWorkspaces}
         error={error}
@@ -75,6 +79,25 @@ const WorkspacesPage: FC = () => {
         filterProps={filterProps}
         onUpdateWorkspace={(workspace) => {
           updateWorkspace.mutate(workspace)
+        }}
+        onDeleteAll={() => {
+          setIsDeletingAll(true)
+        }}
+      />
+
+      <ConfirmDialog
+        type="delete"
+        title={`Delete ${checkedWorkspaces?.length} ${
+          checkedWorkspaces.length === 1 ? "workspace" : "workspaces"
+        }`}
+        description="Deleting these workspaces is irreversible! Are you sure you want to proceed?"
+        open={isDeletingAll}
+        confirmLoading={false}
+        onConfirm={() => {
+          alert("DO IT!")
+        }}
+        onClose={() => {
+          setIsDeletingAll(false)
         }}
       />
     </>
