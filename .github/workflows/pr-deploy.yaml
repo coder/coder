@@ -232,7 +232,7 @@ jobs:
     # Run deploy job only if build job was successful or skipped
     if: |
       always() && (needs.build.result == 'success' || needs.build.result == 'skipped') &&
-      (github.event_name == 'workflow_dispatch' || needs.get_info.outputs.NEW == 'false' || github.event.inputs.deploy == 'true')
+      (github.event_name == 'workflow_dispatch' || needs.get_info.outputs.NEW == 'false')
     runs-on: "ubuntu-latest"
     env:
       CODER_IMAGE_TAG: ${{ needs.get_info.outputs.CODER_IMAGE_TAG }}
@@ -267,9 +267,6 @@ jobs:
             -H "Content-Type:application/json" \
             --data '{"type":"CNAME","name":"*.${{ env.PR_HOSTNAME }}","content":"${{ env.PR_HOSTNAME }}","ttl":1,"proxied":false}'
 
-      - name: Checkout
-        uses: actions/checkout@v3
-
       - name: Create PR namespace
         if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
         run: |
@@ -277,6 +274,10 @@ jobs:
           # try to delete the namespace, but don't fail if it doesn't exist
           kubectl delete namespace "pr${{ env.PR_NUMBER }}" || true
           kubectl create namespace "pr${{ env.PR_NUMBER }}"
+
+      - name: Checkout
+        if: github.event_name == 'workflow_dispatch' || needs.get_info.outputs.BUILD == 'true'
+        uses: actions/checkout@v3
 
       - name: Check and Create Certificate
         if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
@@ -332,6 +333,7 @@ jobs:
           envsubst < ./.github/pr-deployments/values.yaml > ./pr-deploy-values.yaml
 
       - name: Install/Upgrade Helm chart
+        if: github.event_name == 'workflow_dispatch' || needs.get_info.outputs.BUILD == 'true'
         run: |
           set -euo pipefail
           if [[ ${{ github.event_name }} == "workflow_dispatch" ]]; then
@@ -345,8 +347,6 @@ jobs:
               --namespace "pr${{ env.PR_NUMBER }}" \
               --reuse-values \
               --force
-            else
-              echo "Skipping helm upgrade, as there is no new image to deploy"
             fi
           fi
 
