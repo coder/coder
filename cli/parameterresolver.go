@@ -77,11 +77,12 @@ func (pr *ParameterResolver) Resolve(inv *clibase.Invocation, action WorkspaceCL
 }
 
 func (pr *ParameterResolver) resolveWithParametersMapFile(resolved []codersdk.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
+next:
 	for name, value := range pr.richParametersFile {
 		for i, r := range resolved {
 			if r.Name == name {
 				resolved[i].Value = value
-				goto done
+				continue next
 			}
 		}
 
@@ -89,34 +90,33 @@ func (pr *ParameterResolver) resolveWithParametersMapFile(resolved []codersdk.Wo
 			Name:  name,
 			Value: value,
 		})
-	done:
 	}
 	return resolved
 }
 
 func (pr *ParameterResolver) resolveWithCommandLineOrEnv(resolved []codersdk.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
+nextRichParameter:
 	for _, richParameter := range pr.richParameters {
 		for i, r := range resolved {
 			if r.Name == richParameter.Name {
 				resolved[i].Value = richParameter.Value
-				goto richParameterDone
+				continue nextRichParameter
 			}
 		}
 
 		resolved = append(resolved, richParameter)
-	richParameterDone:
 	}
 
+nextBuildOption:
 	for _, buildOption := range pr.buildOptions {
 		for i, r := range resolved {
 			if r.Name == buildOption.Name {
 				resolved[i].Value = buildOption.Value
-				goto buildOptionDone
+				continue nextBuildOption
 			}
 		}
 
 		resolved = append(resolved, buildOption)
-	buildOptionDone:
 	}
 	return resolved
 }
@@ -126,6 +126,7 @@ func (pr *ParameterResolver) resolveWithLastBuildParameters(resolved []codersdk.
 		return resolved // don't pull parameters from last build
 	}
 
+next:
 	for _, buildParameter := range pr.lastBuildParameters {
 		tvp := findTemplateVersionParameter(buildParameter, templateVersionParameters)
 		if tvp == nil {
@@ -143,12 +144,11 @@ func (pr *ParameterResolver) resolveWithLastBuildParameters(resolved []codersdk.
 		for i, r := range resolved {
 			if r.Name == buildParameter.Name {
 				resolved[i].Value = buildParameter.Value
-				goto done
+				continue next
 			}
 		}
 
 		resolved = append(resolved, buildParameter)
-	done:
 	}
 	return resolved
 }
