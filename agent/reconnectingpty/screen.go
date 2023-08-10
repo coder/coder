@@ -130,7 +130,7 @@ func (rpty *screenReconnectingPTY) lifecycle(ctx context.Context, logger slog.Lo
 	logger.Debug(ctx, "reconnecting pty ready")
 	rpty.state.setState(StateReady, nil)
 
-	state, reasonErr := rpty.state.waitForStateOrContext(ctx, StateClosing)
+	state, reasonErr := rpty.state.waitForStateOrContext(ctx, StateClosing, nil)
 	if state < StateClosing {
 		// If we have not closed yet then the context is what unblocked us (which
 		// means the agent is shutting down) so move into the closing phase.
@@ -155,7 +155,7 @@ func (rpty *screenReconnectingPTY) Attach(ctx context.Context, _ string, conn ne
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	state, err := rpty.state.waitForStateOrContext(ctx, StateReady)
+	state, err := rpty.state.waitForStateOrContext(ctx, StateReady, nil)
 	if state != StateReady {
 		return xerrors.Errorf("reconnecting pty ready wait: %w", err)
 	}

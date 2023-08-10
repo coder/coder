@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"net"
-	"sync"
 	"time"
 
 	"github.com/armon/circbuf"
@@ -22,9 +21,6 @@ import (
 // scrollback.
 type bufferedReconnectingPTY struct {
 	command *pty.Cmd
-
-	// mutex protects writing to the circular buffer and connections.
-	mutex sync.RWMutex
 
 	activeConns    map[string]net.Conn
 	circularBuffer *circbuf.Buffer
@@ -100,7 +96,7 @@ func newBuffered(ctx context.Context, cmd *pty.Cmd, options *Options, logger slo
 				break
 			}
 			part := buffer[:read]
-			rpty.mutex.Lock()
+			rpty.state.cond.L.Lock()
 			_, err = rpty.circularBuffer.Write(part)
 			if err != nil {
 				logger.Error(ctx, "write to circular buffer", slog.Error(err))
@@ -119,7 +115,7 @@ func newBuffered(ctx context.Context, cmd *pty.Cmd, options *Options, logger slo
 					rpty.metrics.WithLabelValues("write").Add(1)
 				}
 			}
-			rpty.mutex.Unlock()
+			rpty.state.cond.L.Unlock()
 		}
 	}()
 
@@ -136,13 +132,28 @@ func (rpty *bufferedReconnectingPTY) lifecycle(ctx context.Context, logger slog.
 	logger.Debug(ctx, "reconnecting pty ready")
 	rpty.state.setState(StateReady, nil)
 
-	state, reasonErr := rpty.state.waitForStateOrContext(ctx, StateClosing)
+	state, reasonErr := rpty.state.waitForStateOrContext(ctx, StateClosing, nil)
 	if state < StateClosing {
 		// If we have not closed yet then the context is what unblocked us (which
 		// means the agent is shutting down) so move into the closing phase.
 		rpty.Close(reasonErr.Error())
 	}
 	rpty.timer.Stop()
+
+	rpty.state.cond.L.Lock()
+	// Log these closes only for debugging since the connections or processes
+	// might have already closed on their own.
+	for _, conn := range rpty.activeConns {
+		err := conn.Close()
+		if err != nil {
+			logger.Debug(ctx, "closed conn with error", slog.Error(err))
+		}
+	}
+	// Connections get removed once they close but it is possible there is still
+	// some data that will be written before that happens so clear the map now to
+	// avoid writing to closed connections.
+	rpty.activeConns = map[string]net.Conn{}
+	rpty.state.cond.L.Unlock()
 
 	// Log close/kill only for debugging since the process might have already
 	// closed on its own.
@@ -167,62 +178,46 @@ func (rpty *bufferedReconnectingPTY) Attach(ctx context.Context, connID string, 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	state, err := rpty.state.waitForStateOrContext(ctx, StateReady)
-	if state != StateReady {
-		return xerrors.Errorf("reconnecting pty ready wait: %w", err)
-	}
+	// Once we are ready, attach the active connection while we hold the mutex.
+	_, err := rpty.state.waitForStateOrContext(ctx, StateReady, func(state State, err error) error {
+		if state != StateReady {
+			return xerrors.Errorf("reconnecting pty ready wait: %w", err)
+		}
 
-	go heartbeat(ctx, rpty.timer, rpty.timeout)
+		go heartbeat(ctx, rpty.timer, rpty.timeout)
 
-	err = rpty.doAttach(ctx, connID, conn, height, width, logger)
+		// Resize the PTY to initial height + width.
+		err = rpty.ptty.Resize(height, width)
+		if err != nil {
+			// We can continue after this, it's not fatal!
+			logger.Warn(ctx, "reconnecting PTY initial resize failed, but will continue", slog.Error(err))
+			rpty.metrics.WithLabelValues("resize").Add(1)
+		}
+
+		// Write any previously stored data for the TTY and store the connection for
+		// future writes.
+		prevBuf := slices.Clone(rpty.circularBuffer.Bytes())
+		_, err = conn.Write(prevBuf)
+		if err != nil {
+			rpty.metrics.WithLabelValues("write").Add(1)
+			return xerrors.Errorf("write buffer to conn: %w", err)
+		}
+		rpty.activeConns[connID] = conn
+
+		return nil
+	})
 	if err != nil {
 		return err
 	}
 
-	go func() {
-		_, _ = rpty.state.waitForStateOrContext(ctx, StateClosing)
-		rpty.mutex.Lock()
-		defer rpty.mutex.Unlock()
+	defer func() {
+		rpty.state.cond.L.Lock()
+		defer rpty.state.cond.L.Unlock()
 		delete(rpty.activeConns, connID)
-		// Log closes only for debugging since the connection might have already
-		// closed on its own.
-		err := conn.Close()
-		if err != nil {
-			logger.Debug(ctx, "closed conn with error", slog.Error(err))
-		}
 	}()
 
 	// Pipe conn -> pty and block.  pty -> conn is handled in newBuffered().
 	readConnLoop(ctx, conn, rpty.ptty, rpty.metrics, logger)
-	return nil
-}
-
-// doAttach adds the connection to the map, replays the buffer, and starts the
-// heartbeat.  It exists separately only so we can defer the mutex unlock which
-// is not possible in Attach since it blocks.
-func (rpty *bufferedReconnectingPTY) doAttach(ctx context.Context, connID string, conn net.Conn, height, width uint16, logger slog.Logger) error {
-	// Ensure we do not write to or close connections while we attach.
-	rpty.mutex.Lock()
-	defer rpty.mutex.Unlock()
-
-	// Resize the PTY to initial height + width.
-	err := rpty.ptty.Resize(height, width)
-	if err != nil {
-		// We can continue after this, it's not fatal!
-		logger.Warn(ctx, "reconnecting PTY initial resize failed, but will continue", slog.Error(err))
-		rpty.metrics.WithLabelValues("resize").Add(1)
-	}
-
-	// Write any previously stored data for the TTY and store the connection for
-	// future writes.
-	prevBuf := slices.Clone(rpty.circularBuffer.Bytes())
-	_, err = conn.Write(prevBuf)
-	if err != nil {
-		rpty.metrics.WithLabelValues("write").Add(1)
-		return xerrors.Errorf("write buffer to conn: %w", err)
-	}
-	rpty.activeConns[connID] = conn
-
 	return nil
 }
 
