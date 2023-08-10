@@ -1,0 +1,85 @@
+{{- define "libcoder.deployment.tpl" -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "coder.name" .}}
+  labels:
+    {{- include "coder.labels" . | nindent 4 }}
+    {{- with .Values.coder.labels }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+  annotations: {{ toYaml .Values.coder.annotations | nindent 4}}
+spec:
+  replicas: {{ .Values.coder.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "coder.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "coder.labels" . | nindent 8 }}
+          {{- with .Values.coder.podLabels }}
+          {{- toYaml . | nindent 8 }}
+          {{- end }}
+      annotations:
+        {{- toYaml .Values.coder.podAnnotations | nindent 8  }}
+    spec:
+      serviceAccountName: {{ .Values.coder.serviceAccount.name | quote }}
+      restartPolicy: Always
+      {{- with .Values.coder.image.pullSecrets }}
+      imagePullSecrets:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: 60
+      {{- with .Values.coder.affinity }}
+      affinity:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.coder.tolerations }}
+      tolerations:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.coder.nodeSelector }}
+      nodeSelector:
+      {{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.coder.initContainers }}
+      initContainers:
+      {{ toYaml . | nindent 8 }}
+      {{- end }}
+      containers: []
+      {{- include "coder.volumes" . | nindent 6 }}
+{{- end -}}
+{{- define "libcoder.deployment" -}}
+{{- include "libcoder.util.merge" (append . "libcoder.deployment.tpl") -}}
+{{- end -}}
+
+{{- define "libcoder.containerspec.tpl" -}}
+name: coder
+image: {{ include "coder.image" . | quote }}
+imagePullPolicy: {{ .Values.coder.image.pullPolicy }}
+command:
+  {{- toYaml .Values.coder.command | nindent 2 }}
+resources:
+  {{- toYaml .Values.coder.resources | nindent 2 }}
+lifecycle:
+  {{- toYaml .Values.coder.lifecycle | nindent 2 }}
+securityContext: {{ toYaml .Values.coder.securityContext | nindent 2 }}
+{{ include "coder.volumeMounts" . }}
+{{- end -}}
+{{- define "libcoder.containerspec" -}}
+{{- include "libcoder.util.merge" (append . "libcoder.containerspec.tpl") -}}
+{{- end -}}
+
+{{- define "libcoder.serviceaccount.tpl" -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.coder.serviceAccount.name | quote }}
+  annotations: {{ toYaml .Values.coder.serviceAccount.annotations | nindent 4 }}
+  labels:
+    {{- include "coder.labels" . | nindent 4 }}
+{{- end -}}
+{{- define "libcoder.serviceaccount" -}}
+{{- include "libcoder.util.merge" (append . "libcoder.serviceaccount.tpl") -}}
+{{- end -}}

@@ -42,7 +42,7 @@ If you are providing TLS certificates directly to the Coder server, either
 
 1. Use a single certificate and key for both the root and wildcard domains.
 2. Configure multiple certificates and keys via
-   [`coder.tls.secretNames`](https://github.com/coder/coder/blob/main/helm/values.yaml) in the Helm Chart, or
+   [`coder.tls.secretNames`](https://github.com/coder/coder/blob/main/helm/coder/values.yaml) in the Helm Chart, or
    [`--tls-cert-file`](../cli/server.md#--tls-cert-file) and [`--tls-key-file`](../cli/server.md#--tls-key-file) command
    line options (these both take a comma separated list of files; list certificates and their respective keys in the
    same order).
@@ -54,6 +54,36 @@ The Coder server can directly use TLS certificates with `CODER_TLS_ENABLE` and a
 - [Apache](https://github.com/coder/coder/tree/main/examples/web-server/apache)
 - [Caddy](https://github.com/coder/coder/tree/main/examples/web-server/caddy)
 - [NGINX](https://github.com/coder/coder/tree/main/examples/web-server/nginx)
+
+### Kubernetes TLS configuration
+
+Below are the steps to configure Coder to terminate TLS when running on Kubernetes.
+You must have the certificate `.key` and `.crt` files in your working directory prior to step 1.
+
+1. Create the TLS secret in your Kubernetes cluster
+
+```console
+kubectl create secret tls coder-tls -n <coder-namespace> --key="tls.key" --cert="tls.crt"
+```
+
+> You can use a single certificate for the both the access URL and wildcard access URL.
+> The certificate CN must match the wildcard domain, such as `*.example.coder.com`.
+
+1. Reference the TLS secret in your Coder Helm chart values
+
+```yaml
+coder:
+  tls:
+    secretName:
+      - coder-tls
+
+  # Alternatively, if you use an Ingress controller to terminate TLS,
+  # set the following values:
+  ingress:
+    enable: true
+    secretName: coder-tls
+    wildcardSecretName: coder-tls
+```
 
 ## PostgreSQL Database
 

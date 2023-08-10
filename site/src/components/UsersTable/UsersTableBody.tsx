@@ -205,7 +205,7 @@ export const UsersTableBody: FC<
                             {
                               label: t("resetPasswordMenuItem"),
                               onClick: onResetUserPassword,
-                              disabled: false,
+                              disabled: user.login_type !== "password",
                             },
                             {
                               label: t("listWorkspacesMenuItem"),

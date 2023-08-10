@@ -3,6 +3,9 @@ Usage: coder start [flags] <workspace>
 Start a workspace
 
 [1mOptions[0m
+      --build-option string-array, $CODER_BUILD_OPTION
+          Build option value in the format "name=value".
+
       --build-options bool
           Prompt for one-time build options defined with ephemeral parameters.
 
