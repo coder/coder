@@ -217,7 +217,7 @@ jobs:
     needs: [build, get_info]
     # Run deploy job only if build job was successful or skipped
     if: |
-      always() && (needs.build.result == 'success' || needs.build.result == 'skipped') &&
+      always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && 
       (github.event_name == 'workflow_dispatch' || needs.get_info.outputs.NEW == 'false')
     runs-on: "ubuntu-latest"
     env:
