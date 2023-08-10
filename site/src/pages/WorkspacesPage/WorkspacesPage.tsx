@@ -13,6 +13,9 @@ import { useFilter } from "components/Filter/filter"
 import { useUserFilterMenu } from "components/Filter/UserFilter"
 import { getWorkspaces } from "api/api"
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
+import Box from "@mui/material/Box"
+import { MONOSPACE_FONT_FAMILY } from "theme/constants"
+import TextField from "@mui/material/TextField"
 
 const WorkspacesPage: FC = () => {
   const [lockedWorkspaces, setLockedWorkspaces] = useState<Workspace[]>([])
@@ -92,17 +95,9 @@ const WorkspacesPage: FC = () => {
         }}
       />
 
-      <ConfirmDialog
-        type="delete"
-        title={`Delete ${checkedWorkspaces?.length} ${
-          checkedWorkspaces.length === 1 ? "workspace" : "workspaces"
-        }`}
-        description="Deleting these workspaces is irreversible! Are you sure you want to proceed?"
+      <BatchDeleteConfirmation
+        checkedWorkspaces={checkedWorkspaces}
         open={isDeletingAll}
-        confirmLoading={false}
-        onConfirm={() => {
-          alert("DO IT!")
-        }}
         onClose={() => {
           setIsDeletingAll(false)
         }}
@@ -158,4 +153,78 @@ const useWorkspacesFilter = ({
       status: statusMenu,
     },
   }
+}
+
+const BatchDeleteConfirmation = ({
+  checkedWorkspaces,
+  open,
+  onClose,
+}: {
+  checkedWorkspaces: Workspace[]
+  open: boolean
+  onClose: () => void
+}) => {
+  const [confirmValue, setConfirmValue] = useState("")
+  const [confirmError, setConfirmError] = useState(false)
+
+  const confirmDeletion = () => {
+    if (confirmValue.toLowerCase() !== "delete") {
+      setConfirmError(true)
+      return
+    }
+  }
+
+  return (
+    <ConfirmDialog
+      open={open}
+      onClose={() => {
+        onClose()
+        setConfirmValue("")
+        setConfirmError(false)
+      }}
+      type="delete"
+      title={`Delete ${checkedWorkspaces?.length} ${
+        checkedWorkspaces.length === 1 ? "workspace" : "workspaces"
+      }`}
+      description={
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            confirmDeletion()
+          }}
+        >
+          <Box>
+            Deleting these workspaces is irreversible! Are you sure you want to
+            proceed? Type{" "}
+            <Box
+              component="code"
+              sx={{
+                fontFamily: MONOSPACE_FONT_FAMILY,
+                color: (theme) => theme.palette.text.primary,
+                fontWeight: 600,
+              }}
+            >
+              `DELETE`
+            </Box>{" "}
+            to confirm.
+          </Box>
+          <TextField
+            value={confirmValue}
+            required
+            autoFocus
+            fullWidth
+            placeholder="Type DELETE to confirm"
+            sx={{ mt: 2 }}
+            onChange={(e) => {
+              setConfirmValue(e.currentTarget.value)
+            }}
+            error={confirmError}
+            helperText={confirmError && "Please type DELETE to confirm"}
+          />
+        </form>
+      }
+      confirmLoading={false}
+      onConfirm={confirmDeletion}
+    />
+  )
 }
