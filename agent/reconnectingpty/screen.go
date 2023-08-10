@@ -279,13 +279,13 @@ func (rpty *screenReconnectingPTY) doAttach(ctx context.Context, height, width u
 	// the same name.
 	err = rpty.sendCommand(ctx, "version", nil)
 	if err != nil {
-		err := ptty.Close()
-		if err != nil {
-			logger.Debug(ctx, "closed ptty with error", slog.Error(err))
+		closeErr := ptty.Close()
+		if closeErr != nil {
+			logger.Debug(ctx, "closed ptty with error", slog.Error(closeErr))
 		}
-		err = process.Kill()
-		if err != nil {
-			logger.Debug(ctx, "killed process with error", slog.Error(err))
+		closeErr = process.Kill()
+		if closeErr != nil {
+			logger.Debug(ctx, "killed process with error", slog.Error(closeErr))
 		}
 		rpty.metrics.WithLabelValues("screen_wait").Add(1)
 		return nil, nil, err
