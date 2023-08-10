@@ -163,7 +163,7 @@ jobs:
         uses: peter-evans/find-comment@v2
         id: fc
         with:
-          issue-number: ${{ steps.pr_info.outputs.PR_NUMBER }}
+          issue-number: ${{ needs.get_info.outputs.PR_NUMBER }}
           comment-author: "github-actions[bot]"
           body-includes: ":rocket:"
           direction: last
@@ -173,11 +173,11 @@ jobs:
         uses: peter-evans/create-or-update-comment@v3
         with:
           comment-id: ${{ steps.fc.outputs.comment-id }}
-          issue-number: ${{ steps.pr_info.outputs.PR_NUMBER }}
+          issue-number: ${{ needs.get_info.outputs.PR_NUMBER }}
           edit-mode: replace
           body: |
             ---
-            :rocket: Deploying PR ${{ steps.pr_info.outputs.PR_NUMBER }} ...
+            :rocket: Deploying PR ${{ needs.get_info.outputs.PR_NUMBER }} ...
             ---
           reactions: eyes
           reactions-edit-mode: replace
