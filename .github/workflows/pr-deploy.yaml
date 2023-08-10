@@ -252,12 +252,22 @@ jobs:
       - name: Check if image exists
         run: |
           set -euo pipefail
-          foundTag=$(curl -fsSL https://github.com/coder/coder/pkgs/container/coder-preview | grep -o ${{ env.CODER_IMAGE_TAG }} | head -n 1)
+          foundTag=$(
+            gh api /orgs/coder/packages/container/coder-preview/versions |
+            jq -r --arg tag "${{ env.CODER_IMAGE_TAG }}" '.[] |
+            select(.metadata.container.tags == [$tag]) |
+            .metadata.container.tags[0]'
+          )
           if [ -z "$foundTag" ]; then
             echo "Image not found"
             echo "${{ env.CODER_IMAGE_TAG }} not found in ghcr.io/coder/coder-preview"
             exit 1
+          else
+            echo "Image found"
+            echo "$foundTag tag found in ghcr.io/coder/coder-preview"
           fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Add DNS record to Cloudflare
         run: |
