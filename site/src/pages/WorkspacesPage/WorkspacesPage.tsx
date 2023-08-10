@@ -59,6 +59,13 @@ const WorkspacesPage: FC = () => {
   const updateWorkspace = useWorkspaceUpdate(queryKey)
   const [checkedWorkspaces, setCheckedWorkspaces] = useState<Workspace[]>([])
   const [isDeletingAll, setIsDeletingAll] = useState(false)
+  const [urlSearchParams] = searchParamsResult
+
+  // We want to uncheck the selected workspaces always when the url changes
+  // because of filtering or pagination
+  useEffect(() => {
+    setCheckedWorkspaces([])
+  }, [urlSearchParams])
 
   return (
     <>
