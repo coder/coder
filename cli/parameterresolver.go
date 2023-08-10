@@ -160,7 +160,7 @@ func (pr *ParameterResolver) verifyConstraints(resolved []codersdk.WorkspaceBuil
 			return xerrors.Errorf("parameter %q is not present in the template", r.Name)
 		}
 
-		if tvp.Ephemeral && !pr.promptBuildOptions && len(pr.buildOptions) == 0 {
+		if tvp.Ephemeral && !pr.promptBuildOptions && findWorkspaceBuildParameter(tvp.Name, pr.buildOptions) == nil {
 			return xerrors.Errorf("ephemeral parameter %q can be used only with --build-options or --build-option flag", r.Name)
 		}
 
@@ -173,12 +173,12 @@ func (pr *ParameterResolver) verifyConstraints(resolved []codersdk.WorkspaceBuil
 
 func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuildParameter, inv *clibase.Invocation, action WorkspaceCLIAction, templateVersionParameters []codersdk.TemplateVersionParameter) ([]codersdk.WorkspaceBuildParameter, error) {
 	for _, tvp := range templateVersionParameters {
-		p := findWorkspaceBuildParameter(tvp, resolved)
+		p := findWorkspaceBuildParameter(tvp.Name, resolved)
 		if p != nil {
 			continue
 		}
 
-		firstTimeUse := pr.isFirstTimeUse(tvp)
+		firstTimeUse := pr.isFirstTimeUse(tvp.Name)
 
 		if (tvp.Ephemeral && pr.promptBuildOptions) ||
 			tvp.Required ||
@@ -201,8 +201,8 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 	return resolved, nil
 }
 
-func (pr *ParameterResolver) isFirstTimeUse(tvp codersdk.TemplateVersionParameter) bool {
-	return findWorkspaceBuildParameter(tvp, pr.lastBuildParameters) == nil
+func (pr *ParameterResolver) isFirstTimeUse(parameterName string) bool {
+	return findWorkspaceBuildParameter(parameterName, pr.lastBuildParameters) == nil
 }
 
 func findTemplateVersionParameter(workspaceBuildParameter codersdk.WorkspaceBuildParameter, templateVersionParameters []codersdk.TemplateVersionParameter) *codersdk.TemplateVersionParameter {
@@ -214,9 +214,9 @@ func findTemplateVersionParameter(workspaceBuildParameter codersdk.WorkspaceBuil
 	return nil
 }
 
-func findWorkspaceBuildParameter(tvp codersdk.TemplateVersionParameter, params []codersdk.WorkspaceBuildParameter) *codersdk.WorkspaceBuildParameter {
+func findWorkspaceBuildParameter(parameterName string, params []codersdk.WorkspaceBuildParameter) *codersdk.WorkspaceBuildParameter {
 	for _, p := range params {
-		if p.Name == tvp.Name {
+		if p.Name == parameterName {
 			return &p
 		}
 	}
