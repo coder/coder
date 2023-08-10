@@ -217,7 +217,7 @@ jobs:
     needs: [build, get_info]
     # Run deploy job only if build job was successful or skipped
     if: |
-      always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && 
+      always() && (needs.build.result == 'success' || needs.build.result == 'skipped') &&
       (github.event_name == 'workflow_dispatch' || needs.get_info.outputs.NEW == 'false')
     runs-on: "ubuntu-latest"
     env:
@@ -358,6 +358,8 @@ jobs:
                 value: "${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_SECRET }}"
               - name: "CODER_OAUTH2_GITHUB_ALLOWED_ORGS"
                 value: "coder"
+              - name: "CODER_DERP_CONFIG_URL"
+                value: "https://controlplane.tailscale.com/derpmap/default"
           EOF
 
       - name: Install/Upgrade Helm chart
