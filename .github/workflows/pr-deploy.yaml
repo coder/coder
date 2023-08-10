@@ -124,7 +124,6 @@ jobs:
           echo "new=$new" >> $GITHUB_OUTPUT
 
       - name: Check changed files
-        if: github.event_name == 'workflow_dispatch' || steps.check_deployment.outputs.NEW == 'false'
         uses: dorny/paths-filter@v2
         id: filter
         with:
