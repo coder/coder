@@ -59,15 +59,17 @@ If deploying Coder via Helm, you can set the above environment variables in the
 coder:
   env:
     - name: CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS
-      value: true
-    - name: CODER_OAUTH2_GITHUB_ALLOWED_ORGS
-      value: "your-org"
+      value: "true"
     - name: CODER_OAUTH2_GITHUB_CLIENT_ID
       value: "533...des"
     - name: CODER_OAUTH2_GITHUB_CLIENT_SECRET
       value: "G0CSP...7qSM"
-    - name: CODER_OAUTH2_GITHUB_ALLOW_EVERYONE
-      value: true
+    # If setting allowd orgs, comment out CODER_OAUTH2_GITHUB_ALLOW_EVERYONE and its value
+    - name: CODER_OAUTH2_GITHUB_ALLOWED_ORGS
+      value: "your-org"
+    # If allowing everyone, comment out CODER_OAUTH2_GITHUB_ALLOWED_ORGS and it's value
+    #- name: CODER_OAUTH2_GITHUB_ALLOW_EVERYONE
+    #  value: "true"
 ```
 
 To upgrade Coder, run:
