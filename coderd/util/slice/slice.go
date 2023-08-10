@@ -1,5 +1,9 @@
 package slice
 
+import (
+	"golang.org/x/exp/constraints"
+)
+
 // SameElements returns true if the 2 lists have the same elements in any
 // order.
 func SameElements[T comparable](a []T, b []T) bool {
@@ -68,4 +72,18 @@ func OverlapCompare[T any](a []T, b []T, equal func(a, b T) bool) bool {
 // New is a convenience method for creating []T.
 func New[T any](items ...T) []T {
 	return items
+}
+
+func Ascending[T constraints.Ordered](a, b T) int {
+	if a < b {
+		return -1
+	} else if a == b {
+		return 0
+	} else {
+		return 1
+	}
+}
+
+func Descending[T constraints.Ordered](a, b T) int {
+	return -Ascending[T](a, b)
 }

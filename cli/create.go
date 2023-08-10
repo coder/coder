@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/cli/cliui"
 	"github.com/coder/coder/coderd/util/ptr"
+	"github.com/coder/coder/coderd/util/slice"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -81,8 +82,8 @@ func (r *RootCmd) create() *clibase.Cmd {
 					return err
 				}
 
-				slices.SortFunc(templates, func(a, b codersdk.Template) bool {
-					return a.ActiveUserCount > b.ActiveUserCount
+				slices.SortFunc(templates, func(a, b codersdk.Template) int {
+					return slice.Descending(a.ActiveUserCount, b.ActiveUserCount)
 				})
 
 				templateNames := make([]string, 0, len(templates))

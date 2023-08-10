@@ -21,6 +21,7 @@ import { Stack } from "components/Stack/Stack"
 import { useFormik } from "formik"
 import { useTheme } from "@mui/styles"
 import Link from "@mui/material/Link"
+import { colors } from "theme/colors"
 
 export type AppearanceSettingsPageViewProps = {
   appearance: UpdateAppearanceConfig
@@ -53,7 +54,8 @@ export const AppearanceSettingsPageView = ({
       initialValues: {
         message: appearance.service_banner.message,
         enabled: appearance.service_banner.enabled,
-        background_color: appearance.service_banner.background_color,
+        background_color:
+          appearance.service_banner.background_color ?? colors.blue[7],
       },
       onSubmit: (values) =>
         updateAppearance(

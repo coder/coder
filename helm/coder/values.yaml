@@ -280,6 +280,16 @@ coder:
   # coder.commandArgs -- Set arguments for the entrypoint command of the Coder pod.
   commandArgs: []
 
+# provisionerDaemon -- Configuration for external provisioner daemons.
+#
+# This is an Enterprise feature. Contact sales@coder.com.
+provisionerDaemon:
+  # provisionerDaemon.pskSecretName -- The name of the Kubernetes secret that contains the
+  # Pre-Shared Key (PSK) to use to authenticate external provisioner daemons with Coder.  The
+  # secret must be in the same namespace as the Helm deployment, and contain an item called "psk"
+  # which contains the pre-shared key.
+  pskSecretName: ""
+
 # extraTemplates -- Array of extra objects to deploy with the release. Strings
 # are evaluated as a template and can use template expansions and functions. All
 # other objects are used as yaml.
