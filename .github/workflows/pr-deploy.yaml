@@ -90,7 +90,6 @@ jobs:
           echo "PR_URL=$PR_URL" >> $GITHUB_OUTPUT
           echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_OUTPUT
           echo "PR_TITLE=$PR_TITLE" >> $GITHUB_OUTPUT
-
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -124,31 +123,6 @@ jobs:
           fi
           echo "new=$new" >> $GITHUB_OUTPUT
 
-      - name: Find Comment
-        uses: peter-evans/find-comment@v2
-        if: github.event_name == 'workflow_dispatch' || steps.check_deployment.outputs.NEW == 'false'
-        id: fc
-        with:
-          issue-number: ${{ steps.pr_info.outputs.PR_NUMBER }}
-          comment-author: "github-actions[bot]"
-          body-includes: ":rocket:"
-          direction: last
-
-      - name: Comment on PR
-        id: comment_id
-        if: github.event_name == 'workflow_dispatch' || steps.check_deployment.outputs.NEW == 'false'
-        uses: peter-evans/create-or-update-comment@v3
-        with:
-          comment-id: ${{ steps.fc.outputs.comment-id }}
-          issue-number: ${{ steps.pr_info.outputs.PR_NUMBER }}
-          edit-mode: replace
-          body: |
-            ---
-            :rocket: Deploying PR ${{ steps.pr_info.outputs.PR_NUMBER }} ...
-            ---
-          reactions: eyes
-          reactions-edit-mode: replace
-
       - name: Check changed files
         if: github.event_name == 'workflow_dispatch' || steps.check_deployment.outputs.NEW == 'false'
         uses: dorny/paths-filter@v2
@@ -175,11 +149,38 @@ jobs:
               - "scripts/**/*[^D][^o][^c][^k][^e][^r][^f][^i][^l][^e][.][b][^a][^s][^e]*"
 
       - name: Print number of changed files
-        if: github.event_name == 'workflow_dispatch' || steps.check_deployment.outputs.NEW == 'false'
         run: |
           set -euo pipefail
           echo "Total number of changed files: ${{ steps.filter.outputs.all_count }}"
           echo "Number of ignored files: ${{ steps.filter.outputs.ignored_count }}"
+
+  comment-pr:
+    needs: [check_pr, get_info]
+    if: ${{ needs.get_info.outputs.BUILD == 'true' || github.event.inputs.deploy == 'true' || github.event.inputs.build == 'true' }}
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: Find Comment
+        uses: peter-evans/find-comment@v2
+        id: fc
+        with:
+          issue-number: ${{ steps.pr_info.outputs.PR_NUMBER }}
+          comment-author: "github-actions[bot]"
+          body-includes: ":rocket:"
+          direction: last
+
+      - name: Comment on PR
+        id: comment_id
+        uses: peter-evans/create-or-update-comment@v3
+        with:
+          comment-id: ${{ steps.fc.outputs.comment-id }}
+          issue-number: ${{ steps.pr_info.outputs.PR_NUMBER }}
+          edit-mode: replace
+          body: |
+            ---
+            :rocket: Deploying PR ${{ steps.pr_info.outputs.PR_NUMBER }} ...
+            ---
+          reactions: eyes
+          reactions-edit-mode: replace
 
   build:
     needs: get_info
@@ -232,7 +233,7 @@ jobs:
     # Run deploy job only if build job was successful or skipped
     if: |
       always() && (needs.build.result == 'success' || needs.build.result == 'skipped') &&
-      (github.event_name == 'workflow_dispatch' || needs.get_info.outputs.NEW == 'false')
+      (needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true')
     runs-on: "ubuntu-latest"
     env:
       CODER_IMAGE_TAG: ${{ needs.get_info.outputs.CODER_IMAGE_TAG }}
@@ -249,7 +250,6 @@ jobs:
           export KUBECONFIG=~/.kube/config
 
       - name: Check if image exists
-        if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
         run: |
           set -euo pipefail
           foundTag=$(curl -fsSL https://github.com/coder/coder/pkgs/container/coder-preview | grep -o ${{ env.CODER_IMAGE_TAG }} | head -n 1)
@@ -260,7 +260,6 @@ jobs:
           fi
 
       - name: Add DNS record to Cloudflare
-        if: needs.get_info.outputs.NEW == 'true'
         run: |
           curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records" \
             -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
@@ -268,7 +267,6 @@ jobs:
             --data '{"type":"CNAME","name":"*.${{ env.PR_HOSTNAME }}","content":"${{ env.PR_HOSTNAME }}","ttl":1,"proxied":false}'
 
       - name: Create PR namespace
-        if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
         run: |
           set -euo pipefail
           # try to delete the namespace, but don't fail if it doesn't exist
@@ -276,11 +274,9 @@ jobs:
           kubectl create namespace "pr${{ env.PR_NUMBER }}"
 
       - name: Checkout
-        if: github.event_name == 'workflow_dispatch' || needs.get_info.outputs.BUILD == 'true'
         uses: actions/checkout@v3
 
       - name: Check and Create Certificate
-        if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
         run: |
           # Using kubectl to check if a Certificate resource already exists
           # we are doing this to avoid letsenrypt rate limits
@@ -303,7 +299,6 @@ jobs:
           )
 
       - name: Set up PostgreSQL database
-        if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
         run: |
           helm repo add bitnami https://charts.bitnami.com/bitnami
           helm install coder-db bitnami/postgresql \
@@ -316,14 +311,12 @@ jobs:
             --from-literal=url="postgres://coder:coder@coder-db-postgresql.pr${{ env.PR_NUMBER }}.svc.cluster.local:5432/coder?sslmode=disable"
 
       - name: Create a kubeconfig for the workspace
-        if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
         run: |
           set -euo pipefail
           # Create service account, role, rolebinding
           envsubst < ./.github/pr-deployments/rbac.yaml | kubectl apply -f -
 
       - name: Create values.yaml
-        if: github.event_name == 'workflow_dispatch'
         env:
           EXPERIMENTS: ${{ github.event.inputs.experiments }}
           PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_ID: ${{ secrets.PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_ID }}
@@ -333,7 +326,6 @@ jobs:
           envsubst < ./.github/pr-deployments/values.yaml > ./pr-deploy-values.yaml
 
       - name: Install/Upgrade Helm chart
-        if: github.event_name == 'workflow_dispatch' || needs.get_info.outputs.BUILD == 'true'
         run: |
           set -euo pipefail
           if [[ ${{ github.event_name }} == "workflow_dispatch" ]]; then
@@ -351,7 +343,6 @@ jobs:
           fi
 
       - name: Install coder-logstream-kube
-        if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
         run: |
           helm repo add coder-logstream-kube https://helm.coder.com/logstream-kube
           helm upgrade --install coder-logstream-kube coder-logstream-kube/coder-logstream-kube \
@@ -359,7 +350,6 @@ jobs:
             --set url="https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
 
       - name: Get Coder binary
-        if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
         run: |
           set -euo pipefail
 
@@ -385,7 +375,6 @@ jobs:
           mv "${DEST}" /usr/local/bin/coder
 
       - name: Create first user, template and workspace
-        if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
         id: setup_deployment
         run: |
           set -euo pipefail
@@ -417,7 +406,6 @@ jobs:
           coder stop kube -y
 
       - name: Send Slack notification
-        if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
         run: |
           curl -s -o /dev/null -X POST -H 'Content-type: application/json' \
             -d \
