@@ -369,7 +369,7 @@ jobs:
           helm repo add coder-logstream-kube https://helm.coder.com/logstream-kube
           helm upgrade --install coder-logstream-kube coder-logstream-kube/coder-logstream-kube \
             --namespace "pr${{ env.PR_NUMBER }}" \
-            --set url="https://pr${{ env.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
+            --set url="https://${{ env.PR_HOSTNAME }}"
 
       - name: Get Coder binary
         run: |
