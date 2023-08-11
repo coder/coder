@@ -1727,7 +1727,7 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			defer netConn4.Close()
 
 			scanner4 := bufio.NewScanner(netConn4)
-			require.True(t, hasLine(scanner4, matchEchoOutput), "find exit command")
+			require.True(t, hasLine(scanner4, matchEchoOutput), "find echo output")
 			for scanner4.Scan() {
 				line := scanner4.Text()
 				t.Logf("bash tty stdout = %s", re.ReplaceAllString(line, ""))
