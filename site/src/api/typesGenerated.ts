@@ -247,6 +247,7 @@ export interface CreateUserRequest {
   readonly email: string
   readonly username: string
   readonly password: string
+  readonly login_type: LoginType
   readonly disable_login: boolean
   readonly organization_id: string
 }
@@ -1674,8 +1675,9 @@ export type LogSource = "provisioner" | "provisioner_daemon"
 export const LogSources: LogSource[] = ["provisioner", "provisioner_daemon"]
 
 // From codersdk/apikey.go
-export type LoginType = "github" | "none" | "oidc" | "password" | "token"
+export type LoginType = "" | "github" | "none" | "oidc" | "password" | "token"
 export const LoginTypes: LoginType[] = [
+  "",
   "github",
   "none",
   "oidc",

@@ -129,7 +129,7 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/convert-login \
 ```json
 {
   "password": "string",
-  "to_type": "password"
+  "to_type": ""
 }
 ```
 
@@ -148,7 +148,7 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/convert-login \
 {
   "expires_at": "2019-08-24T14:15:22Z",
   "state_string": "string",
-  "to_type": "password",
+  "to_type": "",
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
 }
 ```
