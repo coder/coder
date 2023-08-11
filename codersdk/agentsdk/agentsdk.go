@@ -612,9 +612,9 @@ func (c *Client) PostLifecycle(ctx context.Context, req PostLifecycleRequest) er
 }
 
 type PostStartupRequest struct {
-	Version           string                  `json:"version"`
-	ExpandedDirectory string                  `json:"expanded_directory"`
-	Subsystem         codersdk.AgentSubsystem `json:"subsystem"`
+	Version           string                    `json:"version"`
+	ExpandedDirectory string                    `json:"expanded_directory"`
+	Subsystems        []codersdk.AgentSubsystem `json:"subsystems"`
 }
 
 func (c *Client) PostStartup(ctx context.Context, req PostStartupRequest) error {

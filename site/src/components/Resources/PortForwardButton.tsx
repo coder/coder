@@ -58,9 +58,10 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
             sx={{
               fontSize: 12,
               fontWeight: 500,
-              height: 16,
-              padding: (theme) => theme.spacing(0, 1),
-              borderRadius: 7,
+              height: 20,
+              minWidth: 20,
+              padding: (theme) => theme.spacing(0, 0.5),
+              borderRadius: "50%",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -82,11 +83,11 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
         onClose={onClose}
         anchorOrigin={{
           vertical: "bottom",
-          horizontal: "left",
+          horizontal: "right",
         }}
         transformOrigin={{
           vertical: "top",
-          horizontal: "left",
+          horizontal: "right",
         }}
       >
         <PortForwardPopoverView {...props} ports={listeningPorts?.ports} />
@@ -210,7 +211,7 @@ export const PortForwardPopoverView: React.FC<
             max={65535}
             required
             sx={{
-              fontSize: 12,
+              fontSize: 14,
               height: 34,
               p: (theme) => theme.spacing(0, 1.5),
               background: "none",
@@ -248,7 +249,7 @@ const useStyles = makeStyles((theme) => ({
     padding: 0,
     width: theme.spacing(38),
     color: theme.palette.text.secondary,
-    marginTop: theme.spacing(0.25),
+    marginTop: theme.spacing(0.5),
   },
 
   openUrlButton: {

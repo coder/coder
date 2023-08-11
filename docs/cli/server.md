@@ -129,28 +129,6 @@ URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custo
 
 Whether to enable or disable the embedded DERP relay server.
 
-### --derp-server-region-code
-
-|             |                                             |
-| ----------- | ------------------------------------------- |
-| Type        | <code>string</code>                         |
-| Environment | <code>$CODER_DERP_SERVER_REGION_CODE</code> |
-| YAML        | <code>networking.derp.regionCode</code>     |
-| Default     | <code>coder</code>                          |
-
-Region code to use for the embedded DERP server.
-
-### --derp-server-region-id
-
-|             |                                           |
-| ----------- | ----------------------------------------- |
-| Type        | <code>int</code>                          |
-| Environment | <code>$CODER_DERP_SERVER_REGION_ID</code> |
-| YAML        | <code>networking.derp.regionID</code>     |
-| Default     | <code>999</code>                          |
-
-Region ID to use for the embedded DERP server.
-
 ### --derp-server-region-name
 
 |             |                                             |
@@ -174,14 +152,14 @@ An HTTP URL that is accessible by other replicas to relay DERP traffic. Required
 
 ### --derp-server-stun-addresses
 
-|             |                                                |
-| ----------- | ---------------------------------------------- |
-| Type        | <code>string-array</code>                      |
-| Environment | <code>$CODER_DERP_SERVER_STUN_ADDRESSES</code> |
-| YAML        | <code>networking.derp.stunAddresses</code>     |
-| Default     | <code>stun.l.google.com:19302</code>           |
+|             |                                                                                                                                          |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Type        | <code>string-array</code>                                                                                                                |
+| Environment | <code>$CODER_DERP_SERVER_STUN_ADDRESSES</code>                                                                                           |
+| YAML        | <code>networking.derp.stunAddresses</code>                                                                                               |
+| Default     | <code>stun.l.google.com:19302,stun1.l.google.com:19302,stun2.l.google.com:19302,stun3.l.google.com:19302,stun4.l.google.com:19302</code> |
 
-Addresses for STUN servers to establish P2P connections. Use special value 'disable' to turn off STUN.
+Addresses for STUN servers to establish P2P connections. It's recommended to have at least two STUN servers to give users the best chance of connecting P2P to workspaces. Each STUN server will get it's own DERP region, with region IDs starting at `--derp-server-region-id + 1`. Use special value 'disable' to turn off STUN completely.
 
 ### --default-quiet-hours-schedule
 
@@ -242,6 +220,17 @@ Disable automatic session expiry bumping due to activity. This forces all sessio
 | YAML        | <code>networking.docsURL</code> |
 
 Specifies the custom docs URL.
+
+### --oidc-group-auto-create
+
+|             |                                            |
+| ----------- | ------------------------------------------ |
+| Type        | <code>bool</code>                          |
+| Environment | <code>$CODER_OIDC_GROUP_AUTO_CREATE</code> |
+| YAML        | <code>oidc.enableGroupAutoCreate</code>    |
+| Default     | <code>false</code>                         |
+
+Automatically creates missing groups from a user's groups claim.
 
 ### --enable-terraform-debug-mode
 
@@ -520,6 +509,17 @@ Ignore the userinfo endpoint and only use the ID token for user information.
 | YAML        | <code>oidc.issuerURL</code>         |
 
 Issuer URL to use for Login with OIDC.
+
+### --oidc-group-regex-filter
+
+|             |                                             |
+| ----------- | ------------------------------------------- |
+| Type        | <code>regexp</code>                         |
+| Environment | <code>$CODER_OIDC_GROUP_REGEX_FILTER</code> |
+| YAML        | <code>oidc.groupRegexFilter</code>          |
+| Default     | <code>.\*</code>                            |
+
+If provided any group name not matching the regex is ignored. This allows for filtering out groups that are not needed. This filter is applied after the group mapping.
 
 ### --oidc-scopes
 

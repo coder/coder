@@ -14,6 +14,7 @@ import (
 	"net/netip"
 	"net/url"
 	"runtime/pprof"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -38,6 +39,7 @@ import (
 	"github.com/coder/coder/coderd/httpmw"
 	"github.com/coder/coder/coderd/rbac"
 	"github.com/coder/coder/coderd/util/ptr"
+	"github.com/coder/coder/coderd/util/slice"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/tailnet"
@@ -219,11 +221,31 @@ func (api *API) postWorkspaceAgentStartup(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Validate subsystems.
+	seen := make(map[codersdk.AgentSubsystem]bool)
+	for _, s := range req.Subsystems {
+		if !s.Valid() {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid workspace agent subsystem provided.",
+				Detail:  fmt.Sprintf("invalid subsystem: %q", s),
+			})
+			return
+		}
+		if seen[s] {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid workspace agent subsystem provided.",
+				Detail:  fmt.Sprintf("duplicate subsystem: %q", s),
+			})
+			return
+		}
+		seen[s] = true
+	}
+
 	if err := api.Database.UpdateWorkspaceAgentStartupByID(ctx, database.UpdateWorkspaceAgentStartupByIDParams{
 		ID:                apiAgent.ID,
 		Version:           req.Version,
 		ExpandedDirectory: req.ExpandedDirectory,
-		Subsystem:         convertWorkspaceAgentSubsystem(req.Subsystem),
+		Subsystems:        convertWorkspaceAgentSubsystems(req.Subsystems),
 	}); err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Error setting agent version",
@@ -1277,6 +1299,11 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 	if dbAgent.TroubleshootingURL != "" {
 		troubleshootingURL = dbAgent.TroubleshootingURL
 	}
+	subsystems := make([]codersdk.AgentSubsystem, len(dbAgent.Subsystems))
+	for i, subsystem := range dbAgent.Subsystems {
+		subsystems[i] = codersdk.AgentSubsystem(subsystem)
+	}
+
 	workspaceAgent := codersdk.WorkspaceAgent{
 		ID:                           dbAgent.ID,
 		CreatedAt:                    dbAgent.CreatedAt,
@@ -1302,7 +1329,7 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		LoginBeforeReady:             dbAgent.StartupScriptBehavior != database.StartupScriptBehaviorBlocking,
 		ShutdownScript:               dbAgent.ShutdownScript.String,
 		ShutdownScriptTimeoutSeconds: dbAgent.ShutdownScriptTimeoutSeconds,
-		Subsystem:                    codersdk.AgentSubsystem(dbAgent.Subsystem),
+		Subsystems:                   subsystems,
 	}
 	node := coordinator.Node(dbAgent.ID)
 	if node != nil {
@@ -1414,7 +1441,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 
 	var errGroup errgroup.Group
 	errGroup.Go(func() error {
-		if err := api.statsBatcher.Add(workspaceAgent.ID, workspace.TemplateID, workspace.OwnerID, workspace.ID, req); err != nil {
+		if err := api.statsBatcher.Add(time.Now(), workspaceAgent.ID, workspace.TemplateID, workspace.OwnerID, workspace.ID, req); err != nil {
 			api.Logger.Error(ctx, "failed to add stats to batcher", slog.Error(err))
 			return xerrors.Errorf("can't insert workspace agent stat: %w", err)
 		}
@@ -1590,8 +1617,8 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 				})
 				return
 			}
-			slices.SortFunc(lastDBMeta, func(i, j database.WorkspaceAgentMetadatum) bool {
-				return i.Key < j.Key
+			slices.SortFunc(lastDBMeta, func(a, b database.WorkspaceAgentMetadatum) int {
+				return slice.Ascending(a.Key, b.Key)
 			})
 
 			// Avoid sending refresh if the client is about to get a
@@ -2114,11 +2141,23 @@ func convertWorkspaceAgentLog(logEntry database.WorkspaceAgentLog) codersdk.Work
 	}
 }
 
-func convertWorkspaceAgentSubsystem(ss codersdk.AgentSubsystem) database.WorkspaceAgentSubsystem {
-	switch ss {
-	case codersdk.AgentSubsystemEnvbox:
-		return database.WorkspaceAgentSubsystemEnvbox
-	default:
-		return database.WorkspaceAgentSubsystemNone
+func convertWorkspaceAgentSubsystems(ss []codersdk.AgentSubsystem) []database.WorkspaceAgentSubsystem {
+	out := make([]database.WorkspaceAgentSubsystem, 0, len(ss))
+	for _, s := range ss {
+		switch s {
+		case codersdk.AgentSubsystemEnvbox:
+			out = append(out, database.WorkspaceAgentSubsystemEnvbox)
+		case codersdk.AgentSubsystemEnvbuilder:
+			out = append(out, database.WorkspaceAgentSubsystemEnvbuilder)
+		case codersdk.AgentSubsystemExectrace:
+			out = append(out, database.WorkspaceAgentSubsystemExectrace)
+		default:
+			// Invalid, drop it.
+		}
 	}
+
+	sort.Slice(out, func(i, j int) bool {
+		return out[i] < out[j]
+	})
+	return out
 }
