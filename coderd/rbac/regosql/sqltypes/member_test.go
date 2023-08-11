@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/rbac/regosql/sqltypes"
+	"github.com/coder/coder/v2/coderd/rbac/regosql/sqltypes"
 )
 
 func TestMembership(t *testing.T) {

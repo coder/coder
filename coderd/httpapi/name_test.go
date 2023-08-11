@@ -6,7 +6,7 @@ import (
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpapi"
 )
 
 func TestUsernameValid(t *testing.T) {

@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/goleak"
 
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestMain(m *testing.M) {

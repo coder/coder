@@ -16,8 +16,8 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/cli/clibase"
 )
 
 // Entitlement represents whether a feature is licensed.

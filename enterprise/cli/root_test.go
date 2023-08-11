@@ -5,10 +5,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/clitest"
-	"github.com/coder/coder/cli/config"
-	"github.com/coder/coder/enterprise/cli"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/cli/config"
+	"github.com/coder/coder/v2/enterprise/cli"
 )
 
 func newCLI(t *testing.T, args ...string) (*clibase.Invocation, config.Root) {

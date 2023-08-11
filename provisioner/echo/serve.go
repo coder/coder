@@ -14,8 +14,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/afero"
 
-	"github.com/coder/coder/provisionersdk"
-	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 // ProvisionApplyWithAgent returns provision responses that will mock a fake

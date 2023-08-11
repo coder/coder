@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/enterprise/audit/audittest"
-	"github.com/coder/coder/enterprise/audit/backends"
+	"github.com/coder/coder/v2/enterprise/audit/audittest"
+	"github.com/coder/coder/v2/enterprise/audit/backends"
 )
 
 func TestSlogBackend(t *testing.T) {

@@ -9,8 +9,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/gitauth"
-	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/coderd/httpmw"
 )
 
 //nolint:bodyclose

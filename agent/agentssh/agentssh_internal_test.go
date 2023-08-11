@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/pty"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/pty"
+	"github.com/coder/coder/v2/testutil"
 
 	"cdr.dev/slog/sloggers/slogtest"
 )

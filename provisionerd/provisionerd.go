@@ -21,12 +21,12 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/coderd/util/ptr"
-	"github.com/coder/coder/cryptorand"
-	"github.com/coder/coder/provisionerd/proto"
-	"github.com/coder/coder/provisionerd/runner"
-	sdkproto "github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/provisionerd/proto"
+	"github.com/coder/coder/v2/provisionerd/runner"
+	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/retry"
 )
 
