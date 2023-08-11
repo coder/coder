@@ -33,8 +33,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/coder/coder/coderd/oauthpki"
-
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/coreos/go-systemd/daemon"
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
@@ -78,6 +76,7 @@ import (
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/oauthpki"
 	"github.com/coder/coder/coderd/prometheusmetrics"
 	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/telemetry"
@@ -1525,7 +1524,13 @@ func configureOIDCPKI(orig *oauth2.Config, keyFile string, certFile string) (*oa
 		}
 	}
 
-	return oauthpki.NewOauth2PKIConfig(orig, keyData, certData)
+	return oauthpki.NewOauth2PKIConfig(oauthpki.ConfigParams{
+		ClientID:       orig.ClientID,
+		TokenURL:       orig.Endpoint.TokenURL,
+		PemEncodedKey:  keyData,
+		PemEncodedCert: certData,
+		Config:         orig,
+	})
 }
 
 func configureCAPool(tlsClientCAFile string, tlsConfig *tls.Config) error {

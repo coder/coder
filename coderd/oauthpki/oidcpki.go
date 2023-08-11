@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coder/coder/coderd/httpmw"
+
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
@@ -26,14 +28,25 @@ import (
 //
 //	https://datatracker.ietf.org/doc/html/rfc7523
 type Config struct {
-	*oauth2.Config
+	cfg httpmw.OAuth2Config
 
+	clientID string
+	tokenURL string
 	// ClientSecret is the private key of the PKI cert.
 	// Azure AD only supports RS256 signing algorithm.
 	clientKey *rsa.PrivateKey
 	// Base64url-encoded SHA-1 thumbprint of the X.509 certificate's DER encoding.
 	// This is specific to Azure AD
 	x5t string
+}
+
+type ConfigParams struct {
+	ClientID       string
+	TokenURL       string
+	PemEncodedKey  []byte
+	PemEncodedCert []byte
+
+	Config httpmw.OAuth2Config
 }
 
 // NewOauth2PKIConfig creates the oauth2 config for PKI based auth. It requires the certificate and it's private key.
@@ -47,30 +60,35 @@ type Config struct {
 // -----BEGIN CERTIFICATE-----
 // ...
 // -----END CERTIFICATE-----
-func NewOauth2PKIConfig(config *oauth2.Config, pemEncodedKey []byte, pemEncodedCert []byte) (*Config, error) {
-	rsaKey, err := decodeKeyCertificate(pemEncodedKey)
+func NewOauth2PKIConfig(params ConfigParams) (*Config, error) {
+	if params.ClientID == "" {
+		return nil, xerrors.Errorf("")
+	}
+	rsaKey, err := decodeClientKey(params.PemEncodedKey)
 	if err != nil {
 		return nil, err
 	}
 
 	// Azure AD requires a certificate. The sha1 of the cert is used to identify the signer.
 	// This is not required in the general specification.
-	if strings.Contains(strings.ToLower(config.Endpoint.TokenURL), "microsoftonline") && len(pemEncodedCert) == 0 {
+	if strings.Contains(strings.ToLower(params.TokenURL), "microsoftonline") && len(params.PemEncodedCert) == 0 {
 		return nil, xerrors.Errorf("oidc client certificate is required and missing")
 	}
 
-	block, _ := pem.Decode(pemEncodedCert)
+	block, _ := pem.Decode(params.PemEncodedCert)
 	hashed := sha1.Sum(block.Bytes)
 
 	return &Config{
-		Config:    config,
+		clientID:  params.ClientID,
+		tokenURL:  params.TokenURL,
+		cfg:       params.Config,
 		clientKey: rsaKey,
 		x5t:       base64.StdEncoding.EncodeToString(hashed[:]),
 	}, nil
 }
 
-// decodeKeyCertificate decodes a PEM encoded PKI cert.
-func decodeKeyCertificate(pemEncoded []byte) (*rsa.PrivateKey, error) {
+// decodeClientKey decodes a PEM encoded rsa secret.
+func decodeClientKey(pemEncoded []byte) (*rsa.PrivateKey, error) {
 	block, _ := pem.Decode(pemEncoded)
 	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
 	if err != nil {
@@ -81,16 +99,16 @@ func decodeKeyCertificate(pemEncoded []byte) (*rsa.PrivateKey, error) {
 }
 
 func (ja *Config) AuthCodeURL(state string, opts ...oauth2.AuthCodeOption) string {
-	return ja.Config.AuthCodeURL(state, opts...)
+	return ja.cfg.AuthCodeURL(state, opts...)
 }
 
 // Exchange includes the client_assertion signed JWT.
 func (ja *Config) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
 	now := time.Now()
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
-		"iss": ja.Config.ClientID,
-		"sub": ja.Config.ClientID,
-		"aud": ja.Config.Endpoint.TokenURL,
+		"iss": ja.clientID,
+		"sub": ja.clientID,
+		"aud": ja.tokenURL,
 		"exp": now.Add(time.Minute * 5).Unix(),
 		"jti": uuid.New().String(),
 		"nbf": now.Unix(),
@@ -107,9 +125,9 @@ func (ja *Config) Exchange(ctx context.Context, code string, opts ...oauth2.Auth
 		oauth2.SetAuthURLParam("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"),
 		oauth2.SetAuthURLParam("client_assertion", signed),
 	)
-	return ja.Config.Exchange(ctx, code, opts...)
+	return ja.cfg.Exchange(ctx, code, opts...)
 }
 
 func (ja *Config) TokenSource(ctx context.Context, token *oauth2.Token) oauth2.TokenSource {
-	return ja.Config.TokenSource(ctx, token)
+	return ja.cfg.TokenSource(ctx, token)
 }
