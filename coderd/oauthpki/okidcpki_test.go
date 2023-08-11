@@ -149,7 +149,7 @@ func TestAzureADPKIOIDC(t *testing.T) {
 			},
 		},
 	})
-	token, err := pkiConfig.Exchange(ctx, base64.StdEncoding.EncodeToString([]byte("random-code")))
+	_, err = pkiConfig.Exchange(ctx, base64.StdEncoding.EncodeToString([]byte("random-code")))
 	// We hijack the request and return an error intentionally
 	require.Error(t, err, "error expected")
 }
