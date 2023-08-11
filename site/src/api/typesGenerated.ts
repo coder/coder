@@ -140,11 +140,6 @@ export interface AuthorizationRequest {
 export type AuthorizationResponse = Record<string, boolean>
 
 // From codersdk/deployment.go
-export interface AzureADOIDCConfig {
-  readonly Certificate: string
-}
-
-// From codersdk/deployment.go
 export interface BuildInfoResponse {
   readonly external_url: string
   readonly version: string
@@ -620,6 +615,8 @@ export interface OIDCConfig {
   readonly allow_signups: boolean
   readonly client_id: string
   readonly client_secret: string
+  readonly client_key_file: string
+  readonly client_cert_file: string
   // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
   readonly email_domain: string[]
   readonly issuer_url: string

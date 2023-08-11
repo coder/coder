@@ -33,7 +33,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/coder/coder/coderd/azureauth"
+	"github.com/coder/coder/coderd/oauthpki"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/coreos/go-systemd/daemon"
@@ -553,7 +553,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 			}
 
-			if true || cfg.OIDC.ClientSecret != "" {
+			if cfg.OIDC.ClientKeyFile != "" || cfg.OIDC.ClientSecret != "" {
 				if cfg.OIDC.ClientID == "" {
 					return xerrors.Errorf("OIDC client ID be set!")
 				}
@@ -587,12 +587,21 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					Endpoint:     oidcProvider.Endpoint(),
 					Scopes:       cfg.OIDC.Scopes,
 				}
-				jwtCfg, err := azureauth.NewJWTAssertion(oauthCfg)
-				if err != nil {
-					return xerrors.Errorf("configure azure auth: %w", err)
+
+				var useCfg httpmw.OAuth2Config = oauthCfg
+				if cfg.OIDC.ClientKeyFile != "" {
+					if cfg.OIDC.ClientSecret != "" {
+						return xerrors.Errorf("cannot specify both oidc client secret and oidc client key file")
+					}
+
+					pkiCfg, err := configureOIDCPKI(oauthCfg, cfg.OIDC.ClientKeyFile.Value(), cfg.OIDC.ClientCertFile.Value())
+					if err != nil {
+						return xerrors.Errorf("configure oauth pki authentication: %w", err)
+					}
+					useCfg = pkiCfg
 				}
 				options.OIDCConfig = &coderd.OIDCConfig{
-					OAuth2Config: jwtCfg,
+					OAuth2Config: useCfg,
 					Provider:     oidcProvider,
 					Verifier: oidcProvider.Verifier(&oidc.Config{
 						ClientID: cfg.OIDC.ClientID.String(),
@@ -1499,6 +1508,24 @@ func configureTLS(tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles
 	}
 
 	return tlsConfig, nil
+}
+
+func configureOIDCPKI(orig *oauth2.Config, keyFile string, certFile string) (*oauthpki.Config, error) {
+	// Read the files
+	keyData, err := os.ReadFile(keyFile)
+	if err != nil {
+		return nil, xerrors.Errorf("read oidc client key file: %w", err)
+	}
+
+	var certData []byte
+	if certFile != "" {
+		certData, err = os.ReadFile(certFile)
+		if err != nil {
+			return nil, xerrors.Errorf("read oidc client cert file: %w", err)
+		}
+	}
+
+	return oauthpki.NewOauth2PKIConfig(orig, keyData, certData)
 }
 
 func configureCAPool(tlsClientCAFile string, tlsConfig *tls.Config) error {

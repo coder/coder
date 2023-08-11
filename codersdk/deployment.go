@@ -260,9 +260,12 @@ type OAuth2GithubConfig struct {
 }
 
 type OIDCConfig struct {
-	AllowSignups        clibase.Bool                        `json:"allow_signups" typescript:",notnull"`
-	ClientID            clibase.String                      `json:"client_id" typescript:",notnull"`
-	ClientSecret        clibase.String                      `json:"client_secret" typescript:",notnull"`
+	AllowSignups clibase.Bool   `json:"allow_signups" typescript:",notnull"`
+	ClientID     clibase.String `json:"client_id" typescript:",notnull"`
+	ClientSecret clibase.String `json:"client_secret" typescript:",notnull"`
+	// ClientKeyFile & ClientCertFile are used in place of ClientSecret for PKI auth.
+	ClientKeyFile       clibase.String                      `json:"client_key_file" typescript:",notnull"`
+	ClientCertFile      clibase.String                      `json:"client_cert_file" typescript:",notnull"`
 	EmailDomain         clibase.StringArray                 `json:"email_domain" typescript:",notnull"`
 	IssuerURL           clibase.String                      `json:"issuer_url" typescript:",notnull"`
 	Scopes              clibase.StringArray                 `json:"scopes" typescript:",notnull"`
@@ -280,17 +283,6 @@ type OIDCConfig struct {
 	UserRolesDefault    clibase.StringArray                 `json:"user_roles_default" typescript:",notnull"`
 	SignInText          clibase.String                      `json:"sign_in_text" typescript:",notnull"`
 	IconURL             clibase.URL                         `json:"icon_url" typescript:",notnull"`
-	// OIDC Provider Specific Configurations
-	// Ideally all OIDC providers would follow all the same standards, but in practice they
-	// all have unique quirks.
-
-}
-
-// AzureADOIDCConfig is the configuration for Azure AD OIDC IDP.
-// Try at all costs to keep configuration in the generic OIDCConfig struct above.
-// Only use this if you absolutely need to.
-type AzureADOIDCConfig struct {
-	Certificate clibase.String
 }
 
 type TelemetryConfig struct {
@@ -976,6 +968,24 @@ when required by your organization's security policy.`,
 			Annotations: clibase.Annotations{}.Mark(annotationSecretKey, "true"),
 			Value:       &c.OIDC.ClientSecret,
 			Group:       &deploymentGroupOIDC,
+		},
+		{
+			Name: "OIDC Client Key File",
+			Description: "Pem encoded RSA private key to use for oauth2 PKI/JWT authorization. " +
+				"This can be used instead of oidc-client-secret if your IDP supports it.",
+			Flag:  "oidc-client-key-file",
+			Env:   "CODER_OIDC_CLIENT_KEY_FILE",
+			Value: &c.OIDC.ClientKeyFile,
+			Group: &deploymentGroupOIDC,
+		},
+		{
+			Name: "OIDC Client Cert File",
+			Description: "Pem encoded certificate file to use for oauth2 PKI/JWT authorization. " +
+				"The public certificate that accompanies oidc-client-key-file. A standard x509 certificate is expected.",
+			Flag:  "oidc-client-cert-file",
+			Env:   "CODER_OIDC_CLIENT_CERT_FILE",
+			Value: &c.OIDC.ClientCertFile,
+			Group: &deploymentGroupOIDC,
 		},
 		{
 			Name:        "OIDC Email Domain",
