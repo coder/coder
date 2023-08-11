@@ -282,6 +282,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Add DNS record to Cloudflare
+        if: needs.get_info.outputs.NEW == 'true'
         run: |
           curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.PR_DEPLOYMENTS_ZONE_ID }}/dns_records" \
             -H "Authorization: Bearer ${{ secrets.PR_DEPLOYMENTS_CLOUDFLARE_API_TOKEN }}" \
@@ -289,6 +290,7 @@ jobs:
             --data '{"type":"CNAME","name":"*.${{ env.PR_HOSTNAME }}","content":"${{ env.PR_HOSTNAME }}","ttl":1,"proxied":false}'
 
       - name: Create PR namespace
+        if: needs.get_info.outputs.NEW == 'true'
         run: |
           set -euo pipefail
           # try to delete the namespace, but don't fail if it doesn't exist
@@ -299,6 +301,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Check and Create Certificate
+        if: needs.get_info.outputs.NEW == 'true'
         run: |
           # Using kubectl to check if a Certificate resource already exists
           # we are doing this to avoid letsenrypt rate limits
@@ -321,6 +324,7 @@ jobs:
           )
 
       - name: Set up PostgreSQL database
+        if: needs.get_info.outputs.NEW == 'true'
         run: |
           helm repo add bitnami https://charts.bitnami.com/bitnami
           helm install coder-db bitnami/postgresql \
@@ -333,6 +337,7 @@ jobs:
             --from-literal=url="postgres://coder:coder@coder-db-postgresql.pr${{ env.PR_NUMBER }}.svc.cluster.local:5432/coder?sslmode=disable"
 
       - name: Create a service account, role, and rolebinding for the PR namespace
+        if: needs.get_info.outputs.NEW == 'true'
         run: |
           set -euo pipefail
           # Create service account, role, rolebinding
@@ -356,6 +361,7 @@ jobs:
           --force
 
       - name: Install coder-logstream-kube
+        if: needs.get_info.outputs.NEW == 'true'
         run: |
           helm repo add coder-logstream-kube https://helm.coder.com/logstream-kube
           helm upgrade --install coder-logstream-kube coder-logstream-kube/coder-logstream-kube \
@@ -363,6 +369,7 @@ jobs:
             --set url="https://${{ env.PR_HOSTNAME }}"
 
       - name: Get Coder binary
+        if: needs.get_info.outputs.NEW == 'true'
         run: |
           set -euo pipefail
 
@@ -388,6 +395,7 @@ jobs:
           mv "${DEST}" /usr/local/bin/coder
 
       - name: Create first user, template and workspace
+        if: needs.get_info.outputs.NEW == 'true'
         id: setup_deployment
         run: |
           set -euo pipefail
@@ -419,6 +427,7 @@ jobs:
           coder stop kube -y
 
       - name: Send Slack notification
+        if: needs.get_info.outputs.NEW == 'true'
         run: |
           curl -s -o /dev/null -X POST -H 'Content-type: application/json' \
             -d \
