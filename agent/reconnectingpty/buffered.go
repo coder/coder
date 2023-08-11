@@ -180,6 +180,16 @@ func (rpty *bufferedReconnectingPTY) Attach(ctx context.Context, connID string, 
 
 	// Once we are ready, attach the active connection while we hold the mutex.
 	_, err := rpty.state.waitForStateOrContext(ctx, StateReady, func(state State, err error) error {
+		// Write any previously stored data for the TTY.  Since the command might be
+		// short-lived and have already exited, make sure we always at least output
+		// the buffer before returning.
+		prevBuf := slices.Clone(rpty.circularBuffer.Bytes())
+		_, writeErr := conn.Write(prevBuf)
+		if writeErr != nil {
+			rpty.metrics.WithLabelValues("write").Add(1)
+			return xerrors.Errorf("write buffer to conn: %w", writeErr)
+		}
+
 		if state != StateReady {
 			return xerrors.Errorf("reconnecting pty ready wait: %w", err)
 		}
@@ -194,14 +204,7 @@ func (rpty *bufferedReconnectingPTY) Attach(ctx context.Context, connID string, 
 			rpty.metrics.WithLabelValues("resize").Add(1)
 		}
 
-		// Write any previously stored data for the TTY and store the connection for
-		// future writes.
-		prevBuf := slices.Clone(rpty.circularBuffer.Bytes())
-		_, err = conn.Write(prevBuf)
-		if err != nil {
-			rpty.metrics.WithLabelValues("write").Add(1)
-			return xerrors.Errorf("write buffer to conn: %w", err)
-		}
+		// Store the connection for future writes.
 		rpty.activeConns[connID] = conn
 
 		return nil
