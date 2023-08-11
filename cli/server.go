@@ -1531,6 +1531,7 @@ func configureOIDCPKI(orig *oauth2.Config, keyFile string, certFile string) (*oa
 	return oauthpki.NewOauth2PKIConfig(oauthpki.ConfigParams{
 		ClientID:       orig.ClientID,
 		TokenURL:       orig.Endpoint.TokenURL,
+		Scopes:         orig.Scopes,
 		PemEncodedKey:  keyData,
 		PemEncodedCert: certData,
 		Config:         orig,
