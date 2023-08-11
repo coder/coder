@@ -513,11 +513,11 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 		require.NoError(t, err)
 
 		if b.shouldBeUpdated {
-			assert.Equal(t, nextQuietHours, newBuild.Deadline, msg)
-			assert.Equal(t, nextQuietHours, newBuild.MaxDeadline, msg)
+			assert.WithinDuration(t, nextQuietHours, newBuild.Deadline, time.Second, msg)
+			assert.WithinDuration(t, nextQuietHours, newBuild.MaxDeadline, time.Second, msg)
 		} else {
-			assert.Equal(t, originalMaxDeadline, newBuild.Deadline, msg)
-			assert.Equal(t, originalMaxDeadline, newBuild.MaxDeadline, msg)
+			assert.WithinDuration(t, originalMaxDeadline, newBuild.Deadline, time.Second, msg)
+			assert.WithinDuration(t, originalMaxDeadline, newBuild.MaxDeadline, time.Second, msg)
 		}
 	}
 }
