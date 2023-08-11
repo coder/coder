@@ -344,15 +344,19 @@ push/$(CODER_MAIN_IMAGE): $(CODER_MAIN_IMAGE)
 	docker manifest push "$$image_tag"
 .PHONY: push/$(CODER_MAIN_IMAGE)
 
+# Helm charts that are available
+charts = coder provisioner
+
 # Shortcut for Helm chart package.
-build/coder_helm.tgz: build/coder_helm_$(VERSION).tgz
+$(foreach chart,$(charts),build/$(chart)_helm.tgz): build/%_helm.tgz: build/%_helm_$(VERSION).tgz
 	rm -f "$@"
 	ln "$<" "$@"
 
 # Helm chart package.
-build/coder_helm_$(VERSION).tgz:
+$(foreach chart,$(charts),build/$(chart)_helm_$(VERSION).tgz): build/%_helm_$(VERSION).tgz:
 	./scripts/helm.sh \
 		--version "$(VERSION)" \
+		--chart $* \
 		--output "$@"
 
 site/out/index.html: site/package.json $(shell find ./site $(FIND_EXCLUSIONS) -type f \( -name '*.ts' -o -name '*.tsx' \))

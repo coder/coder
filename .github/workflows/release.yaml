@@ -141,7 +141,8 @@ jobs:
             build/coder_"$version"_linux_{amd64,armv7,arm64}.{tar.gz,apk,deb,rpm} \
             build/coder_"$version"_{darwin,windows}_{amd64,arm64}.zip \
             build/coder_"$version"_windows_amd64_installer.exe \
-            build/coder_helm_"$version".tgz
+            build/coder_helm_"$version".tgz \
+            build/provisioner_helm_"$version".tgz
         env:
           CODER_SIGN_DARWIN: "1"
           AC_CERTIFICATE_FILE: /tmp/apple_cert.p12
@@ -295,9 +296,11 @@ jobs:
           version="$(./scripts/version.sh)"
           mkdir -p build/helm
           cp "build/coder_helm_${version}.tgz" build/helm
+          cp "build/provisioner_helm_${version}.tgz" build/helm
           gsutil cp gs://helm.coder.com/v2/index.yaml build/helm/index.yaml
           helm repo index build/helm --url https://helm.coder.com/v2 --merge build/helm/index.yaml
           gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/coder_helm_${version}.tgz gs://helm.coder.com/v2
+          gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/provisioner_helm_${version}.tgz gs://helm.coder.com/v2
           gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/index.yaml gs://helm.coder.com/v2
           gsutil -h "Cache-Control:no-cache,max-age=0" cp helm/artifacthub-repo.yml gs://helm.coder.com/v2
 
