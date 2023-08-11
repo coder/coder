@@ -191,7 +191,7 @@ func (rpty *bufferedReconnectingPTY) Attach(ctx context.Context, connID string, 
 		}
 
 		if state != StateReady {
-			return xerrors.Errorf("reconnecting pty ready wait: %w", err)
+			return err
 		}
 
 		go heartbeat(ctx, rpty.timer, rpty.timeout)
@@ -210,7 +210,7 @@ func (rpty *bufferedReconnectingPTY) Attach(ctx context.Context, connID string, 
 		return nil
 	})
 	if err != nil {
-		return err
+		return xerrors.Errorf("reconnecting pty ready wait: %w", err)
 	}
 
 	defer func() {

@@ -168,7 +168,8 @@ func (s *ptyState) waitForState(state State) (State, error) {
 
 // waitForStateOrContext blocks until the state or a greater one is reached or
 // the provided context ends.  If fn is non-nil it will be ran while the lock is
-// held and fn's error will replace waitForStateOrContext's error.
+// held unless the context ends, and fn's error will replace
+// waitForStateOrContext's error.
 func (s *ptyState) waitForStateOrContext(ctx context.Context, state State, fn func(state State, err error) error) (State, error) {
 	nevermind := make(chan struct{})
 	defer close(nevermind)
@@ -186,14 +187,13 @@ func (s *ptyState) waitForStateOrContext(ctx context.Context, state State, fn fu
 	for ctx.Err() == nil && state > s.state {
 		s.cond.Wait()
 	}
-	err := s.error
 	if ctx.Err() != nil {
-		err = ctx.Err()
+		return s.state, ctx.Err()
 	}
 	if fn != nil {
-		return s.state, fn(s.state, err)
+		return s.state, fn(s.state, s.error)
 	}
-	return s.state, err
+	return s.state, s.error
 }
 
 // readConnLoop reads messages from conn and writes to ptty as needed.  Blocks
