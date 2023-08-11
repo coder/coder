@@ -73,7 +73,14 @@ jobs:
       CODER_BASE_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_BASE_IMAGE_TAG }}
       CODER_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_IMAGE_TAG }}
       NEW: ${{ steps.check_deployment.outputs.NEW }}
-      BUILD: ${{ steps.filter.outputs.all_count > steps.filter.outputs.ignored_count || steps.check_deployment.outputs.NEW }}
+      BUILD: |
+        ${{
+          (steps.filter.outputs.all_count > steps.filter.outputs.ignored_count) &&
+          (
+            (github.event_name == 'push' && steps.check_deployment.outputs.NEW == 'false') ||
+            github.event.inputs.build == 'true'
+          )
+        }}
 
     runs-on: "ubuntu-latest"
     steps:
@@ -165,12 +172,12 @@ jobs:
           echo "CODER_BASE_IMAGE_TAG=${{ steps.set_tags.outputs.CODER_BASE_IMAGE_TAG }}"
           echo "CODER_IMAGE_TAG=${{ steps.set_tags.outputs.CODER_IMAGE_TAG }}"
           echo "NEW=${{ steps.check_deployment.outputs.NEW }}"
-          echo "BUILD=${{ steps.filter.outputs.all_count > steps.filter.outputs.ignored_count || steps.check_deployment.outputs.NEW || github.event.inputs.build == 'true' }}"
+          echo "BUILD=${{ (steps.filter.outputs.all_count > steps.filter.outputs.ignored_count) && ((github.event_name == 'push' && steps.check_deployment.outputs.NEW == 'false') || github.event.inputs.build == 'true') }}"
           echo "GITHUB_REF=${{ github.ref }}"
 
   comment-pr:
     needs: [check_pr, get_info]
-    if: ${{ needs.get_info.outputs.BUILD == 'true' || github.event.inputs.deploy == 'true' || github.event.inputs.build == 'true' }}
+    if: needs.get_info.outputs.BUILD == 'true' || github.event.inputs.deploy == 'true'
     runs-on: "ubuntu-latest"
     steps:
       - name: Find Comment
