@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"runtime"
@@ -55,6 +56,7 @@ const (
 	varAgentToken       = "agent-token"
 	varAgentURL         = "agent-url"
 	varHeader           = "header"
+	varHeaderProcess    = "header-process"
 	varNoOpen           = "no-open"
 	varNoVersionCheck   = "no-version-warning"
 	varNoFeatureWarning = "no-feature-warning"
@@ -357,6 +359,13 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 			Group:       globalGroup,
 		},
 		{
+			Flag:        varHeaderProcess,
+			Env:         "CODER_HEADER_PROCESS",
+			Description: "An external process that outputs JSON-encoded key-value pairs to be used as additional HTTP headers added to all requests.",
+			Value:       clibase.StringOf(&r.headerProcess),
+			Group:       globalGroup,
+		},
+		{
 			Flag:        varNoOpen,
 			Env:         "CODER_NO_OPEN",
 			Description: "Suppress opening the browser after logging in.",
@@ -437,6 +446,7 @@ type RootCmd struct {
 	token         string
 	globalConfig  string
 	header        []string
+	headerProcess string
 	agentToken    string
 	agentURL      *url.URL
 	forceTTY      bool
@@ -540,9 +550,7 @@ func (r *RootCmd) initClientInternal(client *codersdk.Client, allowTokenMissing 
 					return err
 				}
 			}
-			err = r.setClient(
-				client, r.clientURL,
-			)
+			err = r.setClient(inv.Context(), client, r.clientURL)
 			if err != nil {
 				return err
 			}
@@ -592,7 +600,7 @@ func (r *RootCmd) initClientInternal(client *codersdk.Client, allowTokenMissing 
 	}
 }
 
-func (r *RootCmd) setClient(client *codersdk.Client, serverURL *url.URL) error {
+func (r *RootCmd) setClient(ctx context.Context, client *codersdk.Client, serverURL *url.URL) error {
 	transport := &headerTransport{
 		transport: http.DefaultTransport,
 		header:    http.Header{},
@@ -604,6 +612,29 @@ func (r *RootCmd) setClient(client *codersdk.Client, serverURL *url.URL) error {
 		}
 		transport.header.Add(parts[0], parts[1])
 	}
+	if r.headerProcess != "" {
+		shell := "sh"
+		caller := "-c"
+		if runtime.GOOS == "windows" {
+			shell = "cmd.exe"
+			caller = "/c"
+		}
+		// #nosec
+		cmd := exec.CommandContext(ctx, shell, caller, r.headerProcess)
+		cmd.Env = append(os.Environ(), "CODER_URL="+serverURL.String())
+		out, err := cmd.Output()
+		if err != nil {
+			return xerrors.Errorf("failed to run %v (out: %q): %w", cmd.Args, out, err)
+		}
+		var headers map[string]string
+		err = json.Unmarshal(out, &headers)
+		if err != nil {
+			return xerrors.Errorf("failed to parse json from %v (out: %q): %w", cmd.Args, out, err)
+		}
+		for key, value := range headers {
+			transport.header.Add(key, value)
+		}
+	}
 	client.URL = serverURL
 	client.HTTPClient = &http.Client{
 		Transport: transport,
@@ -611,9 +642,9 @@ func (r *RootCmd) setClient(client *codersdk.Client, serverURL *url.URL) error {
 	return nil
 }
 
-func (r *RootCmd) createUnauthenticatedClient(serverURL *url.URL) (*codersdk.Client, error) {
+func (r *RootCmd) createUnauthenticatedClient(ctx context.Context, serverURL *url.URL) (*codersdk.Client, error) {
 	var client codersdk.Client
-	err := r.setClient(&client, serverURL)
+	err := r.setClient(ctx, &client, serverURL)
 	return &client, err
 }
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -72,20 +73,28 @@ func TestRoot(t *testing.T) {
 	t.Run("Header", func(t *testing.T) {
 		t.Parallel()
 
+		var url string
 		var called int64
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			atomic.AddInt64(&called, 1)
 			assert.Equal(t, "wow", r.Header.Get("X-Testing"))
 			assert.Equal(t, "Dean was Here!", r.Header.Get("Cool-Header"))
+			assert.Equal(t, "very-wow-"+url, r.Header.Get("X-Process-Testing"))
 			w.WriteHeader(http.StatusGone)
 		}))
 		defer srv.Close()
+		url = srv.URL
 		buf := new(bytes.Buffer)
+		coderURLEnv := "$CODER_URL"
+		if runtime.GOOS == "windows" {
+			coderURLEnv = "%CODER_URL%"
+		}
 		inv, _ := clitest.New(t,
 			"--no-feature-warning",
 			"--no-version-warning",
 			"--header", "X-Testing=wow",
 			"--header", "Cool-Header=Dean was Here!",
+			"--header-process", "printf '{\"X-Process-Testing\": \"very-wow-'"+coderURLEnv+"'\"}'",
 			"login", srv.URL,
 		)
 		inv.Stdout = buf
@@ -97,8 +106,8 @@ func TestRoot(t *testing.T) {
 	})
 }
 
-// TestDERPHeaders ensures that the client sends the global `--header`s to the
-// DERP server when connecting.
+// TestDERPHeaders ensures that the client sends the global `--header`s and
+// `--header-process` to the DERP server when connecting.
 func TestDERPHeaders(t *testing.T) {
 	t.Parallel()
 
@@ -129,8 +138,9 @@ func TestDERPHeaders(t *testing.T) {
 	// Inject custom /derp handler so we can inspect the headers.
 	var (
 		expectedHeaders = map[string]string{
-			"X-Test-Header": "test-value",
-			"Cool-Header":   "Dean was Here!",
+			"X-Test-Header":     "test-value",
+			"Cool-Header":       "Dean was Here!",
+			"X-Process-Testing": "very-wow",
 		}
 		derpCalled int64
 	)
@@ -159,9 +169,12 @@ func TestDERPHeaders(t *testing.T) {
 		"--no-version-warning",
 		"ping", workspace.Name,
 		"-n", "1",
+		"--header-process", "printf '{\"X-Process-Testing\": \"very-wow\"}'",
 	}
 	for k, v := range expectedHeaders {
-		args = append(args, "--header", fmt.Sprintf("%s=%s", k, v))
+		if k != "X-Process-Testing" {
+			args = append(args, "--header", fmt.Sprintf("%s=%s", k, v))
+		}
 	}
 	inv, root := clitest.New(t, args...)
 	clitest.SetupConfig(t, client, root)
