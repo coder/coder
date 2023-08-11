@@ -5,6 +5,8 @@
 name: Deploy PR
 on:
   push:
+    branches-ignore:
+      - main
   workflow_dispatch:
     inputs:
       pr_number:
