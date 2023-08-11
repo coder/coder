@@ -280,6 +280,17 @@ type OIDCConfig struct {
 	UserRolesDefault    clibase.StringArray                 `json:"user_roles_default" typescript:",notnull"`
 	SignInText          clibase.String                      `json:"sign_in_text" typescript:",notnull"`
 	IconURL             clibase.URL                         `json:"icon_url" typescript:",notnull"`
+	// OIDC Provider Specific Configurations
+	// Ideally all OIDC providers would follow all the same standards, but in practice they
+	// all have unique quirks.
+
+}
+
+// AzureADOIDCConfig is the configuration for Azure AD OIDC IDP.
+// Try at all costs to keep configuration in the generic OIDCConfig struct above.
+// Only use this if you absolutely need to.
+type AzureADOIDCConfig struct {
+	Certificate clibase.String
 }
 
 type TelemetryConfig struct {

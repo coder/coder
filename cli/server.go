@@ -33,6 +33,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coder/coder/coderd/azureauth"
+
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/coreos/go-systemd/daemon"
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
@@ -551,7 +553,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 			}
 
-			if cfg.OIDC.ClientSecret != "" {
+			if true || cfg.OIDC.ClientSecret != "" {
 				if cfg.OIDC.ClientID == "" {
 					return xerrors.Errorf("OIDC client ID be set!")
 				}
@@ -578,15 +580,20 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				if slice.Contains(cfg.OIDC.Scopes, "groups") && cfg.OIDC.GroupField == "" {
 					cfg.OIDC.GroupField = "groups"
 				}
+				oauthCfg := &oauth2.Config{
+					ClientID:     cfg.OIDC.ClientID.String(),
+					ClientSecret: cfg.OIDC.ClientSecret.String(),
+					RedirectURL:  redirectURL.String(),
+					Endpoint:     oidcProvider.Endpoint(),
+					Scopes:       cfg.OIDC.Scopes,
+				}
+				jwtCfg, err := azureauth.NewJWTAssertion(oauthCfg)
+				if err != nil {
+					return xerrors.Errorf("configure azure auth: %w", err)
+				}
 				options.OIDCConfig = &coderd.OIDCConfig{
-					OAuth2Config: &oauth2.Config{
-						ClientID:     cfg.OIDC.ClientID.String(),
-						ClientSecret: cfg.OIDC.ClientSecret.String(),
-						RedirectURL:  redirectURL.String(),
-						Endpoint:     oidcProvider.Endpoint(),
-						Scopes:       cfg.OIDC.Scopes,
-					},
-					Provider: oidcProvider,
+					OAuth2Config: jwtCfg,
+					Provider:     oidcProvider,
 					Verifier: oidcProvider.Verifier(&oidc.Config{
 						ClientID: cfg.OIDC.ClientID.String(),
 					}),

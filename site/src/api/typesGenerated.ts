@@ -140,6 +140,11 @@ export interface AuthorizationRequest {
 export type AuthorizationResponse = Record<string, boolean>
 
 // From codersdk/deployment.go
+export interface AzureADOIDCConfig {
+  readonly Certificate: string
+}
+
+// From codersdk/deployment.go
 export interface BuildInfoResponse {
   readonly external_url: string
   readonly version: string
