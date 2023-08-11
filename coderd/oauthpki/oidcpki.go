@@ -104,6 +104,18 @@ func (ja *Config) AuthCodeURL(state string, opts ...oauth2.AuthCodeOption) strin
 
 // Exchange includes the client_assertion signed JWT.
 func (ja *Config) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
+	signed, err := ja.jwtToken()
+	if err != nil {
+		return nil, xerrors.Errorf("failed jwt assertion: %w", err)
+	}
+	opts = append(opts,
+		oauth2.SetAuthURLParam("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"),
+		oauth2.SetAuthURLParam("client_assertion", signed),
+	)
+	return ja.cfg.Exchange(ctx, code, opts...)
+}
+
+func (ja *Config) jwtToken() (string, error) {
 	now := time.Now()
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
 		"iss": ja.clientID,
@@ -118,16 +130,12 @@ func (ja *Config) Exchange(ctx context.Context, code string, opts ...oauth2.Auth
 
 	signed, err := token.SignedString(ja.clientKey)
 	if err != nil {
-		return nil, xerrors.Errorf("failed to sign jwt assertion: %w", err)
+		return "", xerrors.Errorf("sign jwt assertion: %w", err)
 	}
-
-	opts = append(opts,
-		oauth2.SetAuthURLParam("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"),
-		oauth2.SetAuthURLParam("client_assertion", signed),
-	)
-	return ja.cfg.Exchange(ctx, code, opts...)
+	return signed, nil
 }
 
 func (ja *Config) TokenSource(ctx context.Context, token *oauth2.Token) oauth2.TokenSource {
+	// TODO: Hijack the http.Client to insert proper client auth assertions.
 	return ja.cfg.TokenSource(ctx, token)
 }

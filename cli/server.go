@@ -589,6 +589,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 				var useCfg httpmw.OAuth2Config = oauthCfg
 				if cfg.OIDC.ClientKeyFile != "" {
+					// PKI authentication is done in the params. If a
+					// counter example is found, we can add a config option to
+					// change this.
+					oauthCfg.Endpoint.AuthStyle = oauth2.AuthStyleInParams
 					if cfg.OIDC.ClientSecret != "" {
 						return xerrors.Errorf("cannot specify both oidc client secret and oidc client key file")
 					}
