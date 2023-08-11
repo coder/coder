@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -565,6 +566,71 @@ func TestPostUsers(t *testing.T) {
 				require.Zero(t, user.LastSeenAt)
 			}
 		}
+	})
+
+	t.Run("CreateNoneLoginType", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		user, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+			OrganizationID: first.OrganizationID,
+			Email:          "another@user.org",
+			Username:       "someone-else",
+			Password:       "",
+			UserLoginType:  codersdk.LoginTypeNone,
+		})
+		require.NoError(t, err)
+
+		found, err := client.User(ctx, user.ID.String())
+		require.NoError(t, err)
+		require.Equal(t, found.LoginType, codersdk.LoginTypeNone)
+	})
+
+	t.Run("CreateOIDCLoginType", func(t *testing.T) {
+		t.Parallel()
+		email := "another@user.org"
+		conf := coderdtest.NewOIDCConfig(t, "")
+		config := conf.OIDCConfig(t, jwt.MapClaims{
+			"email": email,
+		})
+		config.AllowSignups = false
+		config.IgnoreUserInfo = true
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			OIDCConfig: config,
+		})
+		first := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+			OrganizationID: first.OrganizationID,
+			Email:          email,
+			Username:       "someone-else",
+			Password:       "",
+			UserLoginType:  codersdk.LoginTypeOIDC,
+		})
+		require.NoError(t, err)
+
+		// Try to log in with OIDC.
+		userClient := codersdk.New(client.URL)
+		resp := oidcCallback(t, userClient, conf.EncodeClaims(t, jwt.MapClaims{
+			"email": email,
+		}))
+		require.Equal(t, resp.StatusCode, http.StatusTemporaryRedirect)
+		// Set the client to use this OIDC context
+		authCookie := authCookieValue(resp.Cookies())
+		userClient.SetSessionToken(authCookie)
+		_ = resp.Body.Close()
+
+		found, err := userClient.User(ctx, "me")
+		require.NoError(t, err)
+		require.Equal(t, found.LoginType, codersdk.LoginTypeOIDC)
 	})
 }
 
