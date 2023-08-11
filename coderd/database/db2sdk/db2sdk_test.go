@@ -9,10 +9,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/db2sdk"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 func TestProvisionerJobStatus(t *testing.T) {

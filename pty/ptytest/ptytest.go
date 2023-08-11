@@ -18,9 +18,9 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/pty"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/pty"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func New(t *testing.T, opts ...pty.Option) *PTY {

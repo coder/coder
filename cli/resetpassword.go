@@ -6,11 +6,11 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/migrations"
-	"github.com/coder/coder/coderd/userpassword"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/migrations"
+	"github.com/coder/coder/v2/coderd/userpassword"
 )
 
 func (*RootCmd) resetPassword() *clibase.Cmd {

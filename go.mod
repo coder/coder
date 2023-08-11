@@ -1,4 +1,4 @@
-module github.com/coder/coder
+module github.com/coder/coder/v2
 
 go 1.20
 

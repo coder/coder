@@ -16,8 +16,8 @@ import (
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 
-	"github.com/coder/coder/provisionerd/proto"
-	"github.com/coder/coder/provisionersdk"
+	"github.com/coder/coder/v2/provisionerd/proto"
+	"github.com/coder/coder/v2/provisionersdk"
 )
 
 type LogSource string

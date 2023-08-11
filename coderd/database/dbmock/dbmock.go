@@ -10,8 +10,8 @@ import (
 	reflect "reflect"
 	time "time"
 
-	database "github.com/coder/coder/coderd/database"
-	rbac "github.com/coder/coder/coderd/rbac"
+	database "github.com/coder/coder/v2/coderd/database"
+	rbac "github.com/coder/coder/v2/coderd/rbac"
 	gomock "github.com/golang/mock/gomock"
 	uuid "github.com/google/uuid"
 )

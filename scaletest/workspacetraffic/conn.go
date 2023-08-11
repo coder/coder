@@ -5,7 +5,7 @@ import (
 	"io"
 	"sync"
 
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/codersdk"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"

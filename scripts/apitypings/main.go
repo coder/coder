@@ -22,7 +22,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-	"github.com/coder/coder/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
 var (

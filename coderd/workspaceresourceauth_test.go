@@ -7,12 +7,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/codersdk/agentsdk"
-	"github.com/coder/coder/provisioner/echo"
-	"github.com/coder/coder/provisionersdk/proto"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestPostWorkspaceAuthAzureInstanceIdentity(t *testing.T) {

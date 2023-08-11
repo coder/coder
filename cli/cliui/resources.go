@@ -9,9 +9,9 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 	"golang.org/x/mod/semver"
 
-	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/v2/coderd/database"
 
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type WorkspaceResourcesOptions struct {

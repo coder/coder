@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
 func TestSameElements(t *testing.T) {

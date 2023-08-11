@@ -21,15 +21,15 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/coderd"
-	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/database/dbgen"
-	"github.com/coder/coder/coderd/database/dbtestutil"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // This test specifically tests logging in with OIDC when an expired

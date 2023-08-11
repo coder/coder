@@ -7,7 +7,7 @@
 package proto
 
 import (
-	proto "github.com/coder/coder/provisionersdk/proto"
+	proto "github.com/coder/coder/v2/provisionersdk/proto"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"

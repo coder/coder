@@ -19,10 +19,10 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/wsconncache"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/site"
-	"github.com/coder/coder/tailnet"
+	"github.com/coder/coder/v2/coderd/wsconncache"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/site"
+	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/retry"
 )
 

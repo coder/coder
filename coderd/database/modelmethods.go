@@ -7,7 +7,7 @@ import (
 
 	"golang.org/x/exp/maps"
 
-	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac"
 )
 
 type WorkspaceStatus string

@@ -10,9 +10,9 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/provisionersdk"
-	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/terraform-provider-coder/provider"
 )
 

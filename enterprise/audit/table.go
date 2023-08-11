@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"runtime"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // This mapping creates a relationship between an Auditable Resource

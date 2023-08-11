@@ -10,12 +10,12 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/db2sdk"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/util/slice"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // Duplicated in codersdk.

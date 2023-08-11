@@ -22,10 +22,10 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/coderd/util/slice"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 const (

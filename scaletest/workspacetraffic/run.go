@@ -13,11 +13,11 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 
-	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/cryptorand"
-	"github.com/coder/coder/scaletest/harness"
-	"github.com/coder/coder/scaletest/loadtestutil"
+	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/scaletest/harness"
+	"github.com/coder/coder/v2/scaletest/loadtestutil"
 )
 
 type Runner struct {

@@ -8,13 +8,13 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd"
-	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // @Summary Create group for organization

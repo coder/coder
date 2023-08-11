@@ -7,8 +7,8 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/database"
-	agpl "github.com/coder/coder/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/database"
+	agpl "github.com/coder/coder/v2/coderd/schedule"
 )
 
 // enterpriseUserQuietHoursScheduleStore provides an
