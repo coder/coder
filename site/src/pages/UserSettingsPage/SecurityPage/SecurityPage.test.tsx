@@ -136,6 +136,7 @@ test("change login type to OIDC", async () => {
 
   jest.spyOn(SSO, "redirectToOIDCAuth").mockImplementation(() => {
     // Does a noop
+    return ""
   })
 
   const ssoSection = screen.getByTestId("sso-section")
