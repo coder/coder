@@ -179,19 +179,19 @@ func (rpty *bufferedReconnectingPTY) Attach(ctx context.Context, connID string, 
 	defer cancel()
 
 	// Once we are ready, attach the active connection while we hold the mutex.
-	_, err := rpty.state.waitForStateOrContext(ctx, StateReady, func(state State, err error) error {
+	state, err := rpty.state.waitForStateOrContext(ctx, StateReady, func(state State) error {
 		// Write any previously stored data for the TTY.  Since the command might be
 		// short-lived and have already exited, make sure we always at least output
 		// the buffer before returning.
 		prevBuf := slices.Clone(rpty.circularBuffer.Bytes())
-		_, writeErr := conn.Write(prevBuf)
-		if writeErr != nil {
+		_, err := conn.Write(prevBuf)
+		if err != nil {
 			rpty.metrics.WithLabelValues("write").Add(1)
-			return xerrors.Errorf("write buffer to conn: %w", writeErr)
+			return xerrors.Errorf("write buffer to conn: %w", err)
 		}
 
 		if state != StateReady {
-			return err
+			return nil
 		}
 
 		go heartbeat(ctx, rpty.timer, rpty.timeout)
@@ -209,7 +209,7 @@ func (rpty *bufferedReconnectingPTY) Attach(ctx context.Context, connID string, 
 
 		return nil
 	})
-	if err != nil {
+	if state != StateReady || err != nil {
 		return xerrors.Errorf("reconnecting pty ready wait: %w", err)
 	}
 
