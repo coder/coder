@@ -32,9 +32,11 @@ export const redirectToOIDCAuth = (
 ) => {
   switch (toType) {
     case "github":
-      return (window.location.href = `/api/v2/users/oauth2/github/callback?oidc_merge_state=${stateString}&redirect=${redirectTo}`)
+      window.location.href = `/api/v2/users/oauth2/github/callback?oidc_merge_state=${stateString}&redirect=${redirectTo}`
+      break
     case "oidc":
-      return (window.location.href = `/api/v2/users/oidc/callback?oidc_merge_state=${stateString}&redirect=${redirectTo}`)
+      window.location.href = `/api/v2/users/oidc/callback?oidc_merge_state=${stateString}&redirect=${redirectTo}`
+      break
     default:
       throw new Error(`Unknown login type ${toType}`)
   }
