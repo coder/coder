@@ -332,7 +332,7 @@ jobs:
           kubectl create secret generic coder-db-url -n pr${{ env.PR_NUMBER }} \
             --from-literal=url="postgres://coder:coder@coder-db-postgresql.pr${{ env.PR_NUMBER }}.svc.cluster.local:5432/coder?sslmode=disable"
 
-      - name: Create a kubeconfig for the workspace
+      - name: Create a service account, role, and rolebinding for the PR namespace
         run: |
           set -euo pipefail
           # Create service account, role, rolebinding
@@ -350,19 +350,10 @@ jobs:
       - name: Install/Upgrade Helm chart
         run: |
           set -euo pipefail
-          if [[ ${{ github.event_name }} == "workflow_dispatch" ]]; then
-            helm upgrade --install "pr${{ env.PR_NUMBER }}" ./helm/coder \
-            --namespace "pr${{ env.PR_NUMBER }}" \
-            --values ./pr-deploy-values.yaml \
-            --force
-          else
-            if [[ ${{ needs.get_info.outputs.BUILD }} == "true" ]]; then
-              helm upgrade --install "pr${{ env.PR_NUMBER }}" ./helm/coder \
-              --namespace "pr${{ env.PR_NUMBER }}" \
-              --reuse-values \
-              --force
-            fi
-          fi
+          helm upgrade --install "pr${{ env.PR_NUMBER }}" ./helm/coder \
+          --namespace "pr${{ env.PR_NUMBER }}" \
+          --values ./pr-deploy-values.yaml \
+          --force
 
       - name: Install coder-logstream-kube
         run: |
