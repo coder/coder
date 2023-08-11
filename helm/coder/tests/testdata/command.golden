@@ -90,6 +90,7 @@ spec:
       port: 80
       targetPort: "http"
       protocol: TCP
+      
   externalTrafficPolicy: "Cluster"
   selector:
     app.kubernetes.io/name: coder
