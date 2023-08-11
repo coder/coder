@@ -175,18 +175,15 @@ backed by Tailscale and WireGuard.
       --derp-server-enable bool, $CODER_DERP_SERVER_ENABLE (default: true)
           Whether to enable or disable the embedded DERP relay server.
 
-      --derp-server-region-code string, $CODER_DERP_SERVER_REGION_CODE (default: coder)
-          Region code to use for the embedded DERP server.
-
-      --derp-server-region-id int, $CODER_DERP_SERVER_REGION_ID (default: 999)
-          Region ID to use for the embedded DERP server.
-
       --derp-server-region-name string, $CODER_DERP_SERVER_REGION_NAME (default: Coder Embedded Relay)
           Region name that for the embedded DERP server.
 
-      --derp-server-stun-addresses string-array, $CODER_DERP_SERVER_STUN_ADDRESSES (default: stun.l.google.com:19302)
-          Addresses for STUN servers to establish P2P connections. Use special
-          value 'disable' to turn off STUN.
+      --derp-server-stun-addresses string-array, $CODER_DERP_SERVER_STUN_ADDRESSES (default: stun.l.google.com:19302,stun1.l.google.com:19302,stun2.l.google.com:19302,stun3.l.google.com:19302,stun4.l.google.com:19302)
+          Addresses for STUN servers to establish P2P connections. It's
+          recommended to have at least two STUN servers to give users the best
+          chance of connecting P2P to workspaces. Each STUN server will get it's
+          own DERP region, with region IDs starting at `--derp-server-region-id
+          + 1`. Use special value 'disable' to turn off STUN completely.
 
 [1mNetworking / HTTP Options[0m 
       --disable-password-auth bool, $CODER_DISABLE_PASSWORD_AUTH
