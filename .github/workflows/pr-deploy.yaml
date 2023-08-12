@@ -78,7 +78,8 @@ jobs:
           (steps.filter.outputs.all_count > steps.filter.outputs.ignored_count) &&
           (
             (github.event_name == 'push' && steps.check_deployment.outputs.NEW == 'false') ||
-            github.event.inputs.build == 'true'
+            github.event.inputs.build == 'true' ||
+            (github.event_name == 'workflow_dispatch' &&  steps.check_deployment.outputs.NEW == 'true')
           )
         }}
 
@@ -172,7 +173,7 @@ jobs:
           echo "CODER_BASE_IMAGE_TAG=${{ steps.set_tags.outputs.CODER_BASE_IMAGE_TAG }}"
           echo "CODER_IMAGE_TAG=${{ steps.set_tags.outputs.CODER_IMAGE_TAG }}"
           echo "NEW=${{ steps.check_deployment.outputs.NEW }}"
-          echo "BUILD=${{ (steps.filter.outputs.all_count > steps.filter.outputs.ignored_count) && ((github.event_name == 'push' && steps.check_deployment.outputs.NEW == 'false') || github.event.inputs.build == 'true') }}"
+          echo "BUILD=${{ (steps.filter.outputs.all_count > steps.filter.outputs.ignored_count) && ((github.event_name == 'push' && steps.check_deployment.outputs.NEW == 'false') || github.event.inputs.build == 'true' || (github.event_name == 'workflow_dispatch' &&  steps.check_deployment.outputs.NEW == 'true')) }}"
           echo "GITHUB_REF=${{ github.ref }}"
 
   comment-pr:
