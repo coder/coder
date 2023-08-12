@@ -393,7 +393,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
           </FormSection>
           <FormSection
             title="Inactivity Deletion"
-            description="When enabled, Coder will permanently delete workspaces that have been marked as inactive. specified number of days. Once a workspace is permanently deleted it cannot be recovered."
+            description="When enabled, Coder will permanently delete workspaces that have been marked as inactive. Once a workspace is permanently deleted it cannot be recovered."
           >
             <FormFields>
               <FormControlLabel
