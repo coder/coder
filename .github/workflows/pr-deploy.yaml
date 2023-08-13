@@ -168,9 +168,11 @@ jobs:
           echo "build_input: ${{ github.event.inputs.build }}"
           echo "github_event_name: ${{ github.event_name }}"
           echo "files_changed: ${{ steps.filter.outputs.all_count > steps.filter.outputs.ignored_count }}"
-          echo "test_condition: ${{ (github.event_name == 'workflow_dispatch' && steps.check_deployment.outputs.NEW == 'true') }}"
           echo "new_deployment: ${{ steps.check_deployment.outputs.NEW }}"
-          # The BUILD f this jon defined abobe using these inputs
+          echo "test_condition_1: ${{ github.event.inputs.build }}"
+          echo "test_condition_2: ${{ (github.event_name == 'workflow_dispatch' && steps.check_deployment.outputs.NEW == 'true') }}"
+          echo "test_condition_3: ${{ (github.event_name == 'push' && steps.check_deployment.outputs.NEW == 'false' && steps.filter.outputs.all_count > steps.filter.outputs.ignored_count) }}"
+          echo "test_condition_4: ${{ (steps.check_deployment.outputs.NEW == 'false' && steps.filter.outputs.all_count > steps.filter.outputs.ignored_count) }}"
           echo "BUILD: |
           ${{
             github.event.inputs.build ||
