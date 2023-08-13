@@ -143,7 +143,9 @@ export const workspaceAgentLogsMachine = createMachine(
       }),
       resetLogSource: assign({
         logs: (context, event) => {
-          return (context.logs ?? []).filter((log) => log.source !== event.source)
+          return (context.logs ?? []).filter(
+            (log) => log.source !== event.source,
+          )
         },
       }),
     },
