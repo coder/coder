@@ -14,7 +14,6 @@ The full example template can be found [here](https://github.com/coder/coder/tre
 - 1:1 mapping of users in Coder to users in Artifactory by email address and username
 - Repositories configured in Artifactory for each package manager you want to use
 
-
 <blockquote class="info">
 The admin-level access token is used to provision user tokens and is never exposed to
 developers or stored in workspaces.
