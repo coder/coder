@@ -10,19 +10,25 @@ terraform {
     }
     artifactory = {
       source  = "registry.terraform.io/jfrog/artifactory"
-      version = "6.22.3"
+      version = "~> 8.4.0"
     }
   }
 }
 
 locals {
   username = data.coder_workspace.me.owner
+  artifactory_registry_keys = {
+    "npm"  = "npm"
+    "pypi" = "pypi"
+    "go"   = "go"
+  }
 }
 
 data "coder_provisioner" "me" {
 }
 
 provider "docker" {
+  host = "tcp://100.117.102.81:2375"
 }
 
 data "coder_workspace" "me" {
@@ -38,17 +44,14 @@ variable "artifactory_access_token" {
   description = "The admin-level access token to use for JFrog."
 }
 
-
 # Configure the Artifactory provider
 provider "artifactory" {
-  url          = "${var.jfrog_url}/artifactory"
+  url          = "https://${var.jfrog_url}/artifactory"
   access_token = var.artifactory_access_token
 }
 
-resource "artifactory_access_token" "me" {
-  username = data.coder_workspace.me.owner_email
-  # The token should live for the duration of the workspace.
-  end_date_relative = "0s"
+resource "artifactory_scoped_token" "me" {
+  username = data.coder_workspace.me.owner
 }
 
 resource "coder_agent" "main" {
@@ -67,16 +70,28 @@ resource "coder_agent" "main" {
     export CI=true
 
     jf c rm 0 || true
-    echo ${artifactory_access_token.me.access_token} | \
-      jf c add --access-token-stdin --url ${var.jfrog_url} 0
+    echo ${artifactory_scoped_token.me.access_token} | \
+      jf c add --access-token-stdin --url https://${var.jfrog_url} 0
 
     # Configure the `npm` CLI to use the Artifactory "npm" registry.
     cat << EOF > ~/.npmrc
     email = ${data.coder_workspace.me.owner_email}
-    registry=${var.jfrog_url}/artifactory/api/npm/npm/
+    registry = https://${var.jfrog_url}/artifactory/api/npm/${local.artifactory_registry_keys["npm"]}
     EOF
     jf rt curl /api/npm/auth >> .npmrc
+
+    # Configure the `pip` to use the Artifactory "pypi" registry.
+    mkdir -p ~/.pip
+    cat << EOF > ~/.pip/pip.conf
+    [global]
+    index-url = https://${data.coder_workspace.me.owner}:${artifactory_scoped_token.me.access_token}@${var.jfrog_url}/artifactory/api/pypi/${local.artifactory_registry_keys["pypi"]}/simple
+    EOF
+
   EOT
+  # Set GOPROXY to use the Artifactory "go" registry.
+  env = {
+    GOPROXY : "https://${data.coder_workspace.me.owner}:${artifactory_scoped_token.me.access_token}@${var.jfrog_url}/artifactory/api/go/${local.artifactory_registry_keys["go"]}"
+  }
 }
 
 resource "coder_app" "code-server" {

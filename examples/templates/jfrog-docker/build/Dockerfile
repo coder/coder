@@ -5,6 +5,7 @@ RUN apt-get update \
 	curl \
 	git \
 	golang \
+	python3-pip \
 	sudo \
 	vim \
 	wget \

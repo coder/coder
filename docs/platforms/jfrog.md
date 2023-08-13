@@ -11,8 +11,9 @@ The full example template can be found [here](https://github.com/coder/coder/tre
 
 - A JFrog Artifactory instance
 - An admin-level access token for Artifactory
-- 1:1 mapping of users in Coder to users in Artifactory by email address
-- An npm repository in Artifactory named "npm"
+- 1:1 mapping of users in Coder to users in Artifactory by email address and username
+- Repositories configured in Artifactory for each package manager you want to use
+
 
 <blockquote class="info">
 The admin-level access token is used to provision user tokens and is never exposed to
@@ -40,7 +41,7 @@ terraform {
     }
     artifactory = {
       source  = "registry.terraform.io/jfrog/artifactory"
-      version = "6.22.3"
+      version = "~> 8.4.0"
     }
   }
 }
@@ -57,15 +58,15 @@ variable "artifactory_access_token" {
 
 # Configure the Artifactory provider
 provider "artifactory" {
-  url           = "${var.jfrog_url}/artifactory"
+  url           = "https://${var.jfrog_url}/artifactory"
   access_token  = "${var.artifactory_access_token}"
 }
 ```
 
-When pushing the template, you can pass in the variables using the `-V` flag:
+When pushing the template, you can pass in the variables using the `--var` flag:
 
 ```sh
-coder templates push --var 'jfrog_url=https://YYY.jfrog.io' --var 'artifactory_access_token=XXX'
+coder templates push --var 'jfrog_url=YYY.jfrog.io' --var 'artifactory_access_token=XXX'
 ```
 
 ## Installing JFrog CLI
@@ -107,9 +108,27 @@ resource "coder_agent" "main" {
     export CI=true
 
     jf c rm 0 || true
-    echo ${artifactory_access_token.me.access_token} | \
-      jf c add --access-token-stdin --url ${var.jfrog_url} 0
+    echo ${artifactory_scoped_token.me.access_token} | \
+      jf c add --access-token-stdin --url https://${var.jfrog_url} 0
+
+    # Configure the `npm` CLI to use the Artifactory "npm" registry.
+    cat << EOF > ~/.npmrc
+    email = ${data.coder_workspace.me.owner_email}
+    registry = https://${var.jfrog_url}/artifactory/api/npm/${local.artifactory_registry_keys["npm"]}
+    EOF
+    jf rt curl /api/npm/auth >> .npmrc
+
+    mkdir -p ~/.pip
+    cat << EOF > ~/.pip/pip.conf
+    [global]
+    index-url = https://${data.coder_workspace.me.owner}:${artifactory_scoped_token.me.access_token}@${var.jfrog_url}/artifactory/api/pypi/${local.artifactory_registry_keys["pypi"]}/simple
+    EOF
+
   EOT
+  # Set GOPROXY to use the Artifactory "go" registry.
+  env = {
+    GOPROXY : "https://${data.coder_workspace.me.owner}:${artifactory_scoped_token.me.access_token}@${var.jfrog_url}/artifactory/api/go/${local.artifactory_registry_keys["go"]}"
+  }
 }
 ```
 
@@ -125,7 +144,7 @@ Distribution URL:               https://cdr.jfrog.io/distribution/
 Xray URL:                       https://cdr.jfrog.io/xray/
 Mission Control URL:            https://cdr.jfrog.io/mc/
 Pipelines URL:                  https://cdr.jfrog.io/pipelines/
-User:                           ammar@....com
+User:                           ammar
 Access token:                   ...
 Default:                        true
 ```
@@ -151,11 +170,11 @@ Note that this method will only work if your developers use code-server.
 Add the following line to your `startup_script` to configure `npm` to use
 Artifactory:
 
-```sh
+```shell
     # Configure the `npm` CLI to use the Artifactory "npm" registry.
     cat << EOF > ~/.npmrc
     email = ${data.coder_workspace.me.owner_email}
-    registry=${var.jfrog_url}/artifactory/api/npm/npm/
+    registry = https://${var.jfrog_url}/artifactory/api/npm/npm/
     EOF
     jf rt curl /api/npm/auth >> .npmrc
 ```
@@ -165,8 +184,33 @@ use Artifactory as the package registry. You can verify that `npm` is configured
 correctly by running `npm install --loglevel=http react` and checking that
 npm is only hitting your Artifactory URL.
 
-You can apply the same concepts to Docker, Go, Maven, and other package managers
-supported by Artifactory.
+## Configuring pip
+
+Add the following lines to your `startup_script` to configure `pip` to use
+Artifactory:
+
+```shell
+    mkdir -p ~/.pip
+    cat << EOF > ~/.pip/pip.conf
+    [global]
+    index-url = https://${data.coder_workspace.me.owner}:${artifactory_scoped_token.me.access_token}@${var.jfrog_url}/artifactory/api/pypi/pypi/simple
+    EOF
+```
+
+Now, your developers can run `pip install` and transparently use Artifactory as the package registry. You can verify that `pip` is configured correctly by running `pip install --verbose requests` and checking that pip is only hitting your Artifactory URL.
+
+## Configuring Go
+
+Add the following environment variable to your `coder_agent` block to configure `go` to use Artifactory:
+
+```hcl
+  env = {
+    GOPROXY : "https://${data.coder_workspace.me.owner}:${artifactory_scoped_token.me.access_token}@${var.jfrog_url}/artifactory/api/go/go"
+  }
+```
+
+You can apply the same concepts to Docker, Maven, and other package managers
+supported by Artifactory. See the [JFrog documentation](https://jfrog.com/help/r/jfrog-artifactory-documentation/package-management) for more information.
 
 ## More reading
 
