@@ -4,11 +4,11 @@
 
 We recommend using the [Nix](https://nix.dev/) package manager as it makes any pain related to maintaining dependency versions [just disappear](https://twitter.com/mitchellh/status/1491102567296040961). Once nix [has been installed](https://nixos.org/download.html) the development environment can be _manually instantiated_ through the `nix-shell` command:
 
-```
-$ cd ~/code/coder
+```shell
+cd ~/code/coder
 
 # https://nix.dev/tutorials/declarative-and-reproducible-developer-environments
-$ nix-shell
+nix-shell
 
 ...
 copying path '/nix/store/3ms6cs5210n8vfb5a7jkdvzrzdagqzbp-iana-etc-20210225' from 'https://cache.nixos.org'...
@@ -19,18 +19,17 @@ copying path '/nix/store/v2gvj8whv241nj4lzha3flq8pnllcmvv-ignore-5.2.0.tgz' from
 
 If [direnv](https://direnv.net/) is installed and the [hooks are configured](https://direnv.net/docs/hook.html) then the development environment can be _automatically instantiated_ by creating the following `.envrc`, thus removing the need to run `nix-shell` by hand!
 
-```
-$ cd ~/code/coder
-$ echo "use nix" >.envrc
-$ direnv allow
+```shell
+cd ~/code/coder
+echo "use nix" >.envrc
+direnv allow
 ```
 
-Now, whenever you enter the project folder, `direnv` will prepare the environment for you:
+Now, whenever you enter the project folder, [`direnv`](https://direnv.net/docs/hook.html) will prepare the environment for you:
 
-```
-$ cd ~/code/coder
+```shell
+cd ~/code/coder
 
-# https://direnv.net/docs/hook.html
 direnv: loading ~/code/coder/.envrc
 direnv: using nix
 direnv: export +AR +AS +CC +CONFIG_SHELL +CXX +HOST_PATH +IN_NIX_SHELL +LD +NIX_BINTOOLS +NIX_BINTOOLS_WRAPPER_TARGET_HOST_x86_64_unknown_linux_gnu +NIX_BUILD_CORES +NIX_BUILD_TOP +NIX_CC +NIX_CC_WRAPPER_TARGET_HOST_x86_64_unknown_linux_gnu +NIX_CFLAGS_COMPILE +NIX_ENFORCE_NO_NATIVE +NIX_HARDENING_ENABLE +NIX_INDENT_MAKE +NIX_LDFLAGS +NIX_STORE +NM +NODE_PATH +OBJCOPY +OBJDUMP +RANLIB +READELF +SIZE +SOURCE_DATE_EPOCH +STRINGS +STRIP +TEMP +TEMPDIR +TMP +TMPDIR +XDG_DATA_DIRS +buildInputs +buildPhase +builder +cmakeFlags +configureFlags +depsBuildBuild +depsBuildBuildPropagated +depsBuildTarget +depsBuildTargetPropagated +depsHostHost +depsHostHostPropagated +depsTargetTarget +depsTargetTargetPropagated +doCheck +doInstallCheck +mesonFlags +name +nativeBuildInputs +out +outputs +patches +phases +propagatedBuildInputs +propagatedNativeBuildInputs +shell +shellHook +stdenv +strictDeps +system ~PATH
@@ -53,15 +52,15 @@ Alternatively if you do not want to use nix then you'll need to install the need
 - [`pg_dump`](https://stackoverflow.com/a/49689589)
   - on macOS, run `brew install libpq zstd`
   - on Linux, install [`zstd`](https://github.com/horta/zstd.install)
-- [`pkg-config`]()
+- `pkg-config`
   - on macOS, run `brew install pkg-config`
-- [`pixman`]()
+- `pixman`
   - on macOS, run `brew install pixman`
-- [`cairo`]()
+- `cairo`
   - on macOS, run `brew install cairo`
-- [`pango`]()
+- `pango`
   - on macOS, run `brew install pango`
-- [`pandoc`]()
+- `pandoc`
   - on macOS, run `brew install pandocomatic`
 
 ### Development workflow
@@ -79,6 +78,28 @@ Use the following `make` commands and scripts in development:
 - Access `http://localhost:8080`
 - The default user is `admin@coder.com` and the default password is `SomeSecurePassword!`
 
+### Deploying a PR
+
+You can test your changes by creating a PR deployment. There are two ways to do this:
+
+1. By running `./scripts/deploy-pr.sh`
+2. By manually triggering the [`pr-deploy.yaml`](https://github.com/coder/coder/actions/workflows/pr-deploy.yaml) GitHub Action workflow
+   ![Deploy PR manually](./images/deploy-pr-manually.png)
+
+#### Available options
+
+- `-d` or `--deploy`, force deploys the PR by deleting the existing deployment.
+- `-b` or `--build`, force builds the Docker image. (generally not needed as we are intelligently checking if the image needs to be built)
+- `-e EXPERIMENT1,EXPERIMENT2` or `--experiments EXPERIMENT1,EXPERIMENT2`, will enable the specified experiments. (defaults to `*`)
+- `-n` or `--dry-run` will display the context without deployment. e.g., branch name and PR number, etc.
+- `-y` or `--yes`, will skip the CLI confirmation prompt.
+
+> Note: PR deployment will be re-deployed automatically when the PR is updated. It will use the last values automatically for redeployment.
+
+> You need to be a member or collaborator of the of [coder](github.com/coder) GitHub organization to be able to deploy a PR.
+
+Once the deployment is finished, a unique link and credentials will be posted in the [#pr-deployments](https://codercom.slack.com/archives/C05DNE982E8) Slack channel.
+
 ### Adding database migrations and fixtures
 
 #### Database migrations
@@ -87,12 +108,13 @@ Database migrations are managed with [`migrate`](https://github.com/golang-migra
 
 To add new migrations, use the following command:
 
-```
-$ ./coderd/database/migrations/create_fixture.sh my name
+```shell
+./coderd/database/migrations/create_fixture.sh my name
 /home/coder/src/coder/coderd/database/migrations/000070_my_name.up.sql
 /home/coder/src/coder/coderd/database/migrations/000070_my_name.down.sql
-Run "make gen" to generate models.
 ```
+
+Run "make gen" to generate models.
 
 Then write queries into the generated `.up.sql` and `.down.sql` files and commit
 them into the repository. The down script should make a best-effort to retain as
@@ -119,8 +141,8 @@ migration of multiple features or complex configurations.
 
 To add a new partial fixture, run the following command:
 
-```
-$ ./coderd/database/migrations/create_fixture.sh my fixture
+```shell
+./coderd/database/migrations/create_fixture.sh my fixture
 /home/coder/src/coder/coderd/database/migrations/testdata/fixtures/000070_my_fixture.up.sql
 ```
 
@@ -132,9 +154,9 @@ To create a full dump, run a fully fledged Coder deployment and use it to
 generate data in the database. Then shut down the deployment and take a snapshot
 of the database.
 
-```
-$ mkdir -p coderd/database/migrations/testdata/full_dumps/v0.12.2 && cd $_
-$ pg_dump "postgres://coder@localhost:..." -a --inserts >000069_dump_v0.12.2.up.sql
+```shell
+mkdir -p coderd/database/migrations/testdata/full_dumps/v0.12.2 && cd $_
+pg_dump "postgres://coder@localhost:..." -a --inserts >000069_dump_v0.12.2.up.sql
 ```
 
 Make sure sensitive data in the dump is desensitized, for instance names,
@@ -143,8 +165,8 @@ emails, OAuth tokens and other secrets. Then commit the dump to the project.
 To find out what the latest migration for a version of Coder is, use the
 following command:
 
-```
-$ git ls-files v0.12.2 -- coderd/database/migrations/*.up.sql
+```shell
+git ls-files v0.12.2 -- coderd/database/migrations/*.up.sql
 ```
 
 This helps in naming the dump (e.g. `000069` above).

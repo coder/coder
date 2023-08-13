@@ -11,6 +11,9 @@ import {
 import { FormFooter } from "../FormFooter/FormFooter"
 import { FullPageForm } from "../FullPageForm/FullPageForm"
 import { Stack } from "../Stack/Stack"
+import { ErrorAlert } from "components/Alert/ErrorAlert"
+import { hasApiFieldErrors, isApiError } from "api/errors"
+import MenuItem from "@mui/material/MenuItem"
 
 export const Language = {
   emailLabel: "Email",
@@ -29,6 +32,7 @@ export interface CreateUserFormProps {
   error?: unknown
   isLoading: boolean
   myOrgId: string
+  authMethods?: TypesGen.AuthMethods
 }
 
 const validationSchema = Yup.object({
@@ -36,13 +40,31 @@ const validationSchema = Yup.object({
     .trim()
     .email(Language.emailInvalid)
     .required(Language.emailRequired),
-  password: Yup.string().required(Language.passwordRequired),
+  password: Yup.string().when("login_type", {
+    is: "password",
+    then: (schema) => schema.required(Language.passwordRequired),
+    otherwise: (schema) => schema,
+  }),
   username: nameValidator(Language.usernameLabel),
 })
 
+const authMethodSelect = (
+  title: string,
+  value: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- future will use this
+  description: string,
+) => {
+  return (
+    <MenuItem key="value" id={"item-" + value} value={value}>
+      {title}
+      {/* TODO: Add description */}
+    </MenuItem>
+  )
+}
+
 export const CreateUserForm: FC<
   React.PropsWithChildren<CreateUserFormProps>
-> = ({ onSubmit, onCancel, error, isLoading, myOrgId }) => {
+> = ({ onSubmit, onCancel, error, isLoading, myOrgId, authMethods }) => {
   const form: FormikContextType<TypesGen.CreateUserRequest> =
     useFormik<TypesGen.CreateUserRequest>({
       initialValues: {
@@ -51,6 +73,7 @@ export const CreateUserForm: FC<
         username: "",
         organization_id: myOrgId,
         disable_login: false,
+        login_type: "password",
       },
       validationSchema,
       onSubmit,
@@ -60,8 +83,47 @@ export const CreateUserForm: FC<
     error,
   )
 
+  const methods = []
+  if (authMethods?.password.enabled) {
+    methods.push(
+      authMethodSelect(
+        "Password",
+        "password",
+        "User can provide their email and password to login.",
+      ),
+    )
+  }
+  if (authMethods?.oidc.enabled) {
+    methods.push(
+      authMethodSelect(
+        "OpenID Connect",
+        "oidc",
+        "Uses an OpenID connect provider to authenticate the user.",
+      ),
+    )
+  }
+  if (authMethods?.github.enabled) {
+    methods.push(
+      authMethodSelect(
+        "Github",
+        "github",
+        "Uses github oauth to authenticate the user.",
+      ),
+    )
+  }
+  methods.push(
+    authMethodSelect(
+      "None",
+      "none",
+      "User authentication is disabled. This user an only be used if an api token is created for them.",
+    ),
+  )
+
   return (
     <FullPageForm title="Create user">
+      {isApiError(error) && !hasApiFieldErrors(error) && (
+        <ErrorAlert error={error} sx={{ mb: 4 }} />
+      )}
       <form onSubmit={form.handleSubmit} autoComplete="off">
         <Stack spacing={2.5}>
           <TextField
@@ -80,13 +142,39 @@ export const CreateUserForm: FC<
             label={Language.emailLabel}
           />
           <TextField
-            {...getFieldHelpers("password")}
+            {...getFieldHelpers(
+              "password",
+              form.values.login_type === "password"
+                ? ""
+                : "No password required for this login type",
+            )}
             autoComplete="current-password"
             fullWidth
             id="password"
+            data-testid="password-input"
+            disabled={form.values.login_type !== "password"}
             label={Language.passwordLabel}
             type="password"
           />
+          <TextField
+            {...getFieldHelpers(
+              "login_type",
+              "Authentication method for this user",
+            )}
+            select
+            id="login_type"
+            data-testid="login-type-input"
+            value={form.values.login_type}
+            label="Login Type"
+            onChange={async (e) => {
+              if (e.target.value !== "password") {
+                await form.setFieldValue("password", "")
+              }
+              await form.setFieldValue("login_type", e.target.value)
+            }}
+          >
+            {methods}
+          </TextField>
         </Stack>
         <FormFooter onCancel={onCancel} isLoading={isLoading} />
       </form>

@@ -174,6 +174,7 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group} \
 ```json
 {
   "avatar_url": "string",
+  "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "members": [
     {
@@ -182,7 +183,7 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group} \
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
-      "login_type": "password",
+      "login_type": "",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -196,7 +197,8 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group} \
   ],
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "quota_allowance": 0
+  "quota_allowance": 0,
+  "source": "user"
 }
 ```
 
@@ -234,6 +236,7 @@ curl -X DELETE http://coder-server:8080/api/v2/groups/{group} \
 ```json
 {
   "avatar_url": "string",
+  "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "members": [
     {
@@ -242,7 +245,7 @@ curl -X DELETE http://coder-server:8080/api/v2/groups/{group} \
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
-      "login_type": "password",
+      "login_type": "",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -256,7 +259,8 @@ curl -X DELETE http://coder-server:8080/api/v2/groups/{group} \
   ],
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "quota_allowance": 0
+  "quota_allowance": 0,
+  "source": "user"
 }
 ```
 
@@ -294,6 +298,7 @@ curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
 ```json
 {
   "avatar_url": "string",
+  "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "members": [
     {
@@ -302,7 +307,7 @@ curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
-      "login_type": "password",
+      "login_type": "",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -316,7 +321,8 @@ curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
   ],
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "quota_allowance": 0
+  "quota_allowance": 0,
+  "source": "user"
 }
 ```
 
@@ -429,6 +435,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups 
 [
   {
     "avatar_url": "string",
+    "display_name": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "members": [
       {
@@ -437,7 +444,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups 
         "email": "user@example.com",
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "last_seen_at": "2019-08-24T14:15:22Z",
-        "login_type": "password",
+        "login_type": "",
         "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
         "roles": [
           {
@@ -451,7 +458,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups 
     ],
     "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-    "quota_allowance": 0
+    "quota_allowance": 0,
+    "source": "user"
   }
 ]
 ```
@@ -466,32 +474,35 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups 
 
 Status Code **200**
 
-| Name                  | Type                                                 | Required | Restrictions | Description |
-| --------------------- | ---------------------------------------------------- | -------- | ------------ | ----------- |
-| `[array item]`        | array                                                | false    |              |             |
-| `» avatar_url`        | string                                               | false    |              |             |
-| `» id`                | string(uuid)                                         | false    |              |             |
-| `» members`           | array                                                | false    |              |             |
-| `»» avatar_url`       | string(uri)                                          | false    |              |             |
-| `»» created_at`       | string(date-time)                                    | true     |              |             |
-| `»» email`            | string(email)                                        | true     |              |             |
-| `»» id`               | string(uuid)                                         | true     |              |             |
-| `»» last_seen_at`     | string(date-time)                                    | false    |              |             |
-| `»» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)   | false    |              |             |
-| `»» organization_ids` | array                                                | false    |              |             |
-| `»» roles`            | array                                                | false    |              |             |
-| `»»» display_name`    | string                                               | false    |              |             |
-| `»»» name`            | string                                               | false    |              |             |
-| `»» status`           | [codersdk.UserStatus](schemas.md#codersdkuserstatus) | false    |              |             |
-| `»» username`         | string                                               | true     |              |             |
-| `» name`              | string                                               | false    |              |             |
-| `» organization_id`   | string(uuid)                                         | false    |              |             |
-| `» quota_allowance`   | integer                                              | false    |              |             |
+| Name                  | Type                                                   | Required | Restrictions | Description |
+| --------------------- | ------------------------------------------------------ | -------- | ------------ | ----------- |
+| `[array item]`        | array                                                  | false    |              |             |
+| `» avatar_url`        | string                                                 | false    |              |             |
+| `» display_name`      | string                                                 | false    |              |             |
+| `» id`                | string(uuid)                                           | false    |              |             |
+| `» members`           | array                                                  | false    |              |             |
+| `»» avatar_url`       | string(uri)                                            | false    |              |             |
+| `»» created_at`       | string(date-time)                                      | true     |              |             |
+| `»» email`            | string(email)                                          | true     |              |             |
+| `»» id`               | string(uuid)                                           | true     |              |             |
+| `»» last_seen_at`     | string(date-time)                                      | false    |              |             |
+| `»» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)     | false    |              |             |
+| `»» organization_ids` | array                                                  | false    |              |             |
+| `»» roles`            | array                                                  | false    |              |             |
+| `»»» display_name`    | string                                                 | false    |              |             |
+| `»»» name`            | string                                                 | false    |              |             |
+| `»» status`           | [codersdk.UserStatus](schemas.md#codersdkuserstatus)   | false    |              |             |
+| `»» username`         | string                                                 | true     |              |             |
+| `» name`              | string                                                 | false    |              |             |
+| `» organization_id`   | string(uuid)                                           | false    |              |             |
+| `» quota_allowance`   | integer                                                | false    |              |             |
+| `» source`            | [codersdk.GroupSource](schemas.md#codersdkgroupsource) | false    |              |             |
 
 #### Enumerated Values
 
 | Property     | Value       |
 | ------------ | ----------- |
+| `login_type` | ``          |
 | `login_type` | `password`  |
 | `login_type` | `github`    |
 | `login_type` | `oidc`      |
@@ -499,6 +510,8 @@ Status Code **200**
 | `login_type` | `none`      |
 | `status`     | `active`    |
 | `status`     | `suspended` |
+| `source`     | `user`      |
+| `source`     | `oidc`      |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -521,6 +534,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups
 ```json
 {
   "avatar_url": "string",
+  "display_name": "string",
   "name": "string",
   "quota_allowance": 0
 }
@@ -540,6 +554,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups
 ```json
 {
   "avatar_url": "string",
+  "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "members": [
     {
@@ -548,7 +563,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
-      "login_type": "password",
+      "login_type": "",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -562,7 +577,8 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups
   ],
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "quota_allowance": 0
+  "quota_allowance": 0,
+  "source": "user"
 }
 ```
 
@@ -601,6 +617,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
 ```json
 {
   "avatar_url": "string",
+  "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "members": [
     {
@@ -609,7 +626,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
-      "login_type": "password",
+      "login_type": "",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -623,7 +640,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
   ],
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "quota_allowance": 0
+  "quota_allowance": 0,
+  "source": "user"
 }
 ```
 
@@ -971,7 +989,7 @@ curl -X PATCH http://coder-server:8080/api/v2/scim/v2/Users/{id} \
   "email": "user@example.com",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_seen_at": "2019-08-24T14:15:22Z",
-  "login_type": "password",
+  "login_type": "",
   "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
   "roles": [
     {
@@ -1023,7 +1041,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl \
     "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "last_seen_at": "2019-08-24T14:15:22Z",
-    "login_type": "password",
+    "login_type": "",
     "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "role": "admin",
     "roles": [
@@ -1069,6 +1087,7 @@ Status Code **200**
 
 | Property     | Value       |
 | ------------ | ----------- |
+| `login_type` | ``          |
 | `login_type` | `password`  |
 | `login_type` | `github`    |
 | `login_type` | `oidc`      |
@@ -1171,6 +1190,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
     "groups": [
       {
         "avatar_url": "string",
+        "display_name": "string",
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "members": [
           {
@@ -1179,7 +1199,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
             "email": "user@example.com",
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "last_seen_at": "2019-08-24T14:15:22Z",
-            "login_type": "password",
+            "login_type": "",
             "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
             "roles": [
               {
@@ -1193,7 +1213,8 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
         ],
         "name": "string",
         "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-        "quota_allowance": 0
+        "quota_allowance": 0,
+        "source": "user"
       }
     ],
     "users": [
@@ -1203,7 +1224,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
         "email": "user@example.com",
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "last_seen_at": "2019-08-24T14:15:22Z",
-        "login_type": "password",
+        "login_type": "",
         "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
         "roles": [
           {
@@ -1229,34 +1250,37 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
 
 Status Code **200**
 
-| Name                   | Type                                                 | Required | Restrictions | Description |
-| ---------------------- | ---------------------------------------------------- | -------- | ------------ | ----------- |
-| `[array item]`         | array                                                | false    |              |             |
-| `» groups`             | array                                                | false    |              |             |
-| `»» avatar_url`        | string                                               | false    |              |             |
-| `»» id`                | string(uuid)                                         | false    |              |             |
-| `»» members`           | array                                                | false    |              |             |
-| `»»» avatar_url`       | string(uri)                                          | false    |              |             |
-| `»»» created_at`       | string(date-time)                                    | true     |              |             |
-| `»»» email`            | string(email)                                        | true     |              |             |
-| `»»» id`               | string(uuid)                                         | true     |              |             |
-| `»»» last_seen_at`     | string(date-time)                                    | false    |              |             |
-| `»»» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)   | false    |              |             |
-| `»»» organization_ids` | array                                                | false    |              |             |
-| `»»» roles`            | array                                                | false    |              |             |
-| `»»»» display_name`    | string                                               | false    |              |             |
-| `»»»» name`            | string                                               | false    |              |             |
-| `»»» status`           | [codersdk.UserStatus](schemas.md#codersdkuserstatus) | false    |              |             |
-| `»»» username`         | string                                               | true     |              |             |
-| `»» name`              | string                                               | false    |              |             |
-| `»» organization_id`   | string(uuid)                                         | false    |              |             |
-| `»» quota_allowance`   | integer                                              | false    |              |             |
-| `» users`              | array                                                | false    |              |             |
+| Name                   | Type                                                   | Required | Restrictions | Description |
+| ---------------------- | ------------------------------------------------------ | -------- | ------------ | ----------- |
+| `[array item]`         | array                                                  | false    |              |             |
+| `» groups`             | array                                                  | false    |              |             |
+| `»» avatar_url`        | string                                                 | false    |              |             |
+| `»» display_name`      | string                                                 | false    |              |             |
+| `»» id`                | string(uuid)                                           | false    |              |             |
+| `»» members`           | array                                                  | false    |              |             |
+| `»»» avatar_url`       | string(uri)                                            | false    |              |             |
+| `»»» created_at`       | string(date-time)                                      | true     |              |             |
+| `»»» email`            | string(email)                                          | true     |              |             |
+| `»»» id`               | string(uuid)                                           | true     |              |             |
+| `»»» last_seen_at`     | string(date-time)                                      | false    |              |             |
+| `»»» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)     | false    |              |             |
+| `»»» organization_ids` | array                                                  | false    |              |             |
+| `»»» roles`            | array                                                  | false    |              |             |
+| `»»»» display_name`    | string                                                 | false    |              |             |
+| `»»»» name`            | string                                                 | false    |              |             |
+| `»»» status`           | [codersdk.UserStatus](schemas.md#codersdkuserstatus)   | false    |              |             |
+| `»»» username`         | string                                                 | true     |              |             |
+| `»» name`              | string                                                 | false    |              |             |
+| `»» organization_id`   | string(uuid)                                           | false    |              |             |
+| `»» quota_allowance`   | integer                                                | false    |              |             |
+| `»» source`            | [codersdk.GroupSource](schemas.md#codersdkgroupsource) | false    |              |             |
+| `» users`              | array                                                  | false    |              |             |
 
 #### Enumerated Values
 
 | Property     | Value       |
 | ------------ | ----------- |
+| `login_type` | ``          |
 | `login_type` | `password`  |
 | `login_type` | `github`    |
 | `login_type` | `oidc`      |
@@ -1264,6 +1288,8 @@ Status Code **200**
 | `login_type` | `none`      |
 | `status`     | `active`    |
 | `status`     | `suspended` |
+| `source`     | `user`      |
+| `source`     | `oidc`      |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1452,6 +1478,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceproxies \
         "created_at": "2019-08-24T14:15:22Z",
         "deleted": true,
         "derp_enabled": true,
+        "derp_only": true,
         "display_name": "string",
         "healthy": true,
         "icon_url": "string",
@@ -1491,6 +1518,7 @@ Status Code **200**
 | `»» created_at`        | string(date-time)                                                        | false    |              |                                                                                                                                                                                     |
 | `»» deleted`           | boolean                                                                  | false    |              |                                                                                                                                                                                     |
 | `»» derp_enabled`      | boolean                                                                  | false    |              |                                                                                                                                                                                     |
+| `»» derp_only`         | boolean                                                                  | false    |              |                                                                                                                                                                                     |
 | `»» display_name`      | string                                                                   | false    |              |                                                                                                                                                                                     |
 | `»» healthy`           | boolean                                                                  | false    |              |                                                                                                                                                                                     |
 | `»» icon_url`          | string                                                                   | false    |              |                                                                                                                                                                                     |
@@ -1556,6 +1584,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceproxies \
   "created_at": "2019-08-24T14:15:22Z",
   "deleted": true,
   "derp_enabled": true,
+  "derp_only": true,
   "display_name": "string",
   "healthy": true,
   "icon_url": "string",
@@ -1611,6 +1640,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy} \
   "created_at": "2019-08-24T14:15:22Z",
   "deleted": true,
   "derp_enabled": true,
+  "derp_only": true,
   "display_name": "string",
   "healthy": true,
   "icon_url": "string",
@@ -1724,6 +1754,7 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceproxies/{workspaceproxy} 
   "created_at": "2019-08-24T14:15:22Z",
   "deleted": true,
   "derp_enabled": true,
+  "derp_only": true,
   "display_name": "string",
   "healthy": true,
   "icon_url": "string",

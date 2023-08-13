@@ -1818,6 +1818,15 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	require.Eventually(t, func() bool {
+		conn := closer.TailnetConn()
+		if conn == nil {
+			return false
+		}
+		regionIDs := conn.DERPMap().RegionIDs()
+		return len(regionIDs) == 1 && regionIDs[0] == 2 && conn.Node().PreferredDERP == 2
+	}, testutil.WaitLong, testutil.IntervalFast)
+
 	// Connect from a second client and make sure it uses the new DERP map.
 	conn2 := newClientConn(newDerpMap)
 	require.Equal(t, []int{2}, conn2.DERPMap().RegionIDs())
@@ -1923,6 +1932,96 @@ func TestAgent_WriteVSCodeConfigs(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
+func TestAgent_DebugServer(t *testing.T) {
+	t.Parallel()
+
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
+	//nolint:dogsled
+	conn, _, _, _, agnt := setupAgent(t, agentsdk.Manifest{
+		DERPMap: derpMap,
+	}, 0)
+
+	awaitReachableCtx := testutil.Context(t, testutil.WaitLong)
+	ok := conn.AwaitReachable(awaitReachableCtx)
+	require.True(t, ok)
+	_ = conn.Close()
+
+	srv := httptest.NewServer(agnt.HTTPDebug())
+	t.Cleanup(srv.Close)
+
+	t.Run("MagicsockDebug", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/debug/magicsock", nil)
+		require.NoError(t, err)
+
+		res, err := srv.Client().Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		resBody, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		require.Contains(t, string(resBody), "<h1>magicsock</h1>")
+	})
+
+	t.Run("MagicsockDebugLogging", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("Enable", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/debug/magicsock/debug-logging/t", nil)
+			require.NoError(t, err)
+
+			res, err := srv.Client().Do(req)
+			require.NoError(t, err)
+			defer res.Body.Close()
+			require.Equal(t, http.StatusOK, res.StatusCode)
+
+			resBody, err := io.ReadAll(res.Body)
+			require.NoError(t, err)
+			require.Contains(t, string(resBody), "updated magicsock debug logging to true")
+		})
+
+		t.Run("Disable", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/debug/magicsock/debug-logging/0", nil)
+			require.NoError(t, err)
+
+			res, err := srv.Client().Do(req)
+			require.NoError(t, err)
+			defer res.Body.Close()
+			require.Equal(t, http.StatusOK, res.StatusCode)
+
+			resBody, err := io.ReadAll(res.Body)
+			require.NoError(t, err)
+			require.Contains(t, string(resBody), "updated magicsock debug logging to false")
+		})
+
+		t.Run("Invalid", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/debug/magicsock/debug-logging/blah", nil)
+			require.NoError(t, err)
+
+			res, err := srv.Client().Do(req)
+			require.NoError(t, err)
+			defer res.Body.Close()
+			require.Equal(t, http.StatusBadRequest, res.StatusCode)
+
+			resBody, err := io.ReadAll(res.Body)
+			require.NoError(t, err)
+			require.Contains(t, string(resBody), `invalid state "blah", must be a boolean`)
+		})
+	})
+}
+
 func setupSSHCommand(t *testing.T, beforeArgs []string, afterArgs []string) (*ptytest.PTYCmd, pty.Process) {
 	//nolint:dogsled
 	agentConn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
@@ -2004,7 +2103,7 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	*agenttest.Client,
 	<-chan *agentsdk.Stats,
 	afero.Fs,
-	io.Closer,
+	agent.Agent,
 ) {
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	if metadata.DERPMap == nil {

@@ -56,13 +56,13 @@ func main() {
 	}
 }
 
-func readMetrics() ([]dto.MetricFamily, error) {
+func readMetrics() ([]*dto.MetricFamily, error) {
 	f, err := os.Open(metricsFile)
 	if err != nil {
 		return nil, xerrors.New("can't open metrics file")
 	}
 
-	var metrics []dto.MetricFamily
+	var metrics []*dto.MetricFamily
 
 	decoder := expfmt.NewDecoder(f, expfmt.FmtProtoText)
 	for {
@@ -73,7 +73,7 @@ func readMetrics() ([]dto.MetricFamily, error) {
 		} else if err != nil {
 			return nil, err
 		}
-		metrics = append(metrics, m)
+		metrics = append(metrics, &m)
 	}
 
 	sort.Slice(metrics, func(i, j int) bool {
@@ -90,7 +90,7 @@ func readPrometheusDoc() ([]byte, error) {
 	return doc, nil
 }
 
-func updatePrometheusDoc(doc []byte, metricFamilies []dto.MetricFamily) ([]byte, error) {
+func updatePrometheusDoc(doc []byte, metricFamilies []*dto.MetricFamily) ([]byte, error) {
 	i := bytes.Index(doc, generatorPrefix)
 	if i < 0 {
 		return nil, xerrors.New("generator prefix tag not found")

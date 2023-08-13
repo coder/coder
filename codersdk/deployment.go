@@ -271,6 +271,8 @@ type OIDCConfig struct {
 	EmailField          clibase.String                      `json:"email_field" typescript:",notnull"`
 	AuthURLParams       clibase.Struct[map[string]string]   `json:"auth_url_params" typescript:",notnull"`
 	IgnoreUserInfo      clibase.Bool                        `json:"ignore_user_info" typescript:",notnull"`
+	GroupAutoCreate     clibase.Bool                        `json:"group_auto_create" typescript:",notnull"`
+	GroupRegexFilter    clibase.Regexp                      `json:"group_regex_filter" typescript:",notnull"`
 	GroupField          clibase.String                      `json:"groups_field" typescript:",notnull"`
 	GroupMapping        clibase.Struct[map[string]string]   `json:"group_mapping" typescript:",notnull"`
 	UserRoleField       clibase.String                      `json:"user_role_field" typescript:",notnull"`
@@ -328,6 +330,7 @@ type ProvisionerConfig struct {
 	DaemonPollInterval  clibase.Duration `json:"daemon_poll_interval" typescript:",notnull"`
 	DaemonPollJitter    clibase.Duration `json:"daemon_poll_jitter" typescript:",notnull"`
 	ForceCancelInterval clibase.Duration `json:"force_cancel_interval" typescript:",notnull"`
+	DaemonPSK           clibase.String   `json:"daemon_psk" typescript:",notnull"`
 }
 
 type RateLimitConfig struct {
@@ -730,6 +733,7 @@ when required by your organization's security policy.`,
 			Value:       &c.DERP.Server.RegionID,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "regionID",
+			Hidden:      true,
 			// Does not apply to external proxies as this value is generated.
 		},
 		{
@@ -741,6 +745,7 @@ when required by your organization's security policy.`,
 			Value:       &c.DERP.Server.RegionCode,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "regionCode",
+			Hidden:      true,
 			// Does not apply to external proxies as we use the proxy name.
 		},
 		{
@@ -756,10 +761,10 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "DERP Server STUN Addresses",
-			Description: "Addresses for STUN servers to establish P2P connections. Use special value 'disable' to turn off STUN.",
+			Description: "Addresses for STUN servers to establish P2P connections. It's recommended to have at least two STUN servers to give users the best chance of connecting P2P to workspaces. Each STUN server will get it's own DERP region, with region IDs starting at `--derp-server-region-id + 1`. Use special value 'disable' to turn off STUN completely.",
 			Flag:        "derp-server-stun-addresses",
 			Env:         "CODER_DERP_SERVER_STUN_ADDRESSES",
-			Default:     "stun.l.google.com:19302",
+			Default:     "stun.l.google.com:19302,stun1.l.google.com:19302,stun2.l.google.com:19302,stun3.l.google.com:19302,stun4.l.google.com:19302",
 			Value:       &c.DERP.Server.STUNAddresses,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "stunAddresses",
@@ -1066,6 +1071,26 @@ when required by your organization's security policy.`,
 			YAML:        "groupMapping",
 		},
 		{
+			Name:        "Enable OIDC Group Auto Create",
+			Description: "Automatically creates missing groups from a user's groups claim.",
+			Flag:        "oidc-group-auto-create",
+			Env:         "CODER_OIDC_GROUP_AUTO_CREATE",
+			Default:     "false",
+			Value:       &c.OIDC.GroupAutoCreate,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "enableGroupAutoCreate",
+		},
+		{
+			Name:        "OIDC Regex Group Filter",
+			Description: "If provided any group name not matching the regex is ignored. This allows for filtering out groups that are not needed. This filter is applied after the group mapping.",
+			Flag:        "oidc-group-regex-filter",
+			Env:         "CODER_OIDC_GROUP_REGEX_FILTER",
+			Default:     ".*",
+			Value:       &c.OIDC.GroupRegexFilter,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "groupRegexFilter",
+		},
+		{
 			Name:        "OIDC User Role Field",
 			Description: "This field must be set if using the user roles sync feature. Set this to the name of the claim used to store the user's role. The roles should be sent as an array of strings.",
 			Flag:        "oidc-user-role-field",
@@ -1229,6 +1254,15 @@ when required by your organization's security policy.`,
 			Value:       &c.Provisioner.ForceCancelInterval,
 			Group:       &deploymentGroupProvisioning,
 			YAML:        "forceCancelInterval",
+		},
+		{
+			Name:        "Provisioner Daemon Pre-shared Key (PSK)",
+			Description: "Pre-shared key to authenticate external provisioner daemons to Coder server.",
+			Flag:        "provisioner-daemon-psk",
+			Env:         "CODER_PROVISIONER_DAEMON_PSK",
+			Value:       &c.Provisioner.DaemonPSK,
+			Group:       &deploymentGroupProvisioning,
+			YAML:        "daemonPSK",
 		},
 		// RateLimit settings
 		{
@@ -1846,14 +1880,9 @@ const (
 	// https://github.com/coder/coder/milestone/19
 	ExperimentWorkspaceActions Experiment = "workspace_actions"
 
-	// ExperimentTailnetHACoordinator downgrades to the haCoordinator instead
-	// of PGCoord.  Should only be used if we see issues in prod with PGCoord
-	// which is now the default.
-	ExperimentTailnetHACoordinator Experiment = "tailnet_ha_coordinator"
-
-	// ExperimentConvertToOIDC enables users to convert from password to
-	// oidc.
-	ExperimentConvertToOIDC Experiment = "convert-to-oidc"
+	// ExperimentTailnetPGCoordinator enables the PGCoord in favor of the pubsub-
+	// only Coordinator
+	ExperimentTailnetPGCoordinator Experiment = "tailnet_pg_coordinator"
 
 	// ExperimentSingleTailnet replaces workspace connections inside coderd to
 	// all use a single tailnet, instead of the previous behavior of creating a
@@ -1873,8 +1902,11 @@ const (
 	//   quiet hours instead of max_ttl.
 	ExperimentTemplateRestartRequirement Experiment = "template_restart_requirement"
 
-	// Insights page
-	ExperimentTemplateInsightsPage Experiment = "template_insights_page"
+	// Deployment health page
+	ExperimentDeploymentHealthPage Experiment = "deployment_health_page"
+
+	// Template parameters insights
+	ExperimentTemplateParametersInsights Experiment = "template_parameters_insights"
 
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"
@@ -1885,7 +1917,8 @@ const (
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
 var ExperimentsAll = Experiments{
-	ExperimentTemplateInsightsPage,
+	ExperimentDeploymentHealthPage,
+	ExperimentTemplateParametersInsights,
 }
 
 // Experiments is a list of experiments that are enabled for the deployment.

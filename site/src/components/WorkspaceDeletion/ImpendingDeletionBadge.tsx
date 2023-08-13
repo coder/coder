@@ -1,31 +1,17 @@
 import { Workspace } from "api/typesGenerated"
-import { displayImpendingDeletion } from "./utils"
-import { useDashboard } from "components/Dashboard/DashboardProvider"
+import { useIsWorkspaceActionsEnabled } from "components/Dashboard/DashboardProvider"
 import { Pill } from "components/Pill/Pill"
-import ErrorIcon from "@mui/icons-material/ErrorOutline"
+import LockIcon from "@mui/icons-material/Lock"
 
-export const ImpendingDeletionBadge = ({
+export const LockedBadge = ({
   workspace,
 }: {
   workspace: Workspace
 }): JSX.Element | null => {
-  const { entitlements, experiments } = useDashboard()
-  const allowAdvancedScheduling =
-    entitlements.features["advanced_template_scheduling"].enabled
-  // This check can be removed when https://github.com/coder/coder/milestone/19
-  // is merged up
-  const allowWorkspaceActions = experiments.includes("workspace_actions")
-  // return null
-
-  if (
-    !displayImpendingDeletion(
-      workspace,
-      allowAdvancedScheduling,
-      allowWorkspaceActions,
-    )
-  ) {
+  const experimentEnabled = useIsWorkspaceActionsEnabled()
+  if (!workspace.locked_at || !experimentEnabled) {
     return null
   }
 
-  return <Pill icon={<ErrorIcon />} text="Impending deletion" type="error" />
+  return <Pill icon={<LockIcon />} text="Locked" type="error" />
 }

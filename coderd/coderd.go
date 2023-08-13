@@ -43,6 +43,7 @@ import (
 	"github.com/coder/coder/buildinfo"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/awsidentity"
+	"github.com/coder/coder/coderd/batchstats"
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/database/pubsub"
@@ -126,8 +127,8 @@ type Options struct {
 	BaseDERPMap                 *tailcfg.DERPMap
 	DERPMapUpdateFrequency      time.Duration
 	SwaggerEndpoint             bool
-	SetUserGroups               func(ctx context.Context, tx database.Store, userID uuid.UUID, groupNames []string) error
-	SetUserSiteRoles            func(ctx context.Context, tx database.Store, userID uuid.UUID, roles []string) error
+	SetUserGroups               func(ctx context.Context, logger slog.Logger, tx database.Store, userID uuid.UUID, groupNames []string, createMissingGroups bool) error
+	SetUserSiteRoles            func(ctx context.Context, logger slog.Logger, tx database.Store, userID uuid.UUID, roles []string) error
 	TemplateScheduleStore       *atomic.Pointer[schedule.TemplateScheduleStore]
 	UserQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
 	// AppSecurityKey is the crypto key used to sign and encrypt tokens related to
@@ -160,6 +161,7 @@ type Options struct {
 	HTTPClient *http.Client
 
 	UpdateAgentMetrics func(ctx context.Context, username, workspaceName, agentName string, metrics []agentsdk.AgentMetric)
+	StatsBatcher       *batchstats.Batcher
 }
 
 // @title Coder API
@@ -180,6 +182,8 @@ type Options struct {
 // @in header
 // @name Coder-Session-Token
 // New constructs a Coder API handler.
+//
+//nolint:gocyclo
 func New(options *Options) *API {
 	if options == nil {
 		options = &Options{}
@@ -258,16 +262,16 @@ func New(options *Options) *API {
 		options.TracerProvider = trace.NewNoopTracerProvider()
 	}
 	if options.SetUserGroups == nil {
-		options.SetUserGroups = func(ctx context.Context, _ database.Store, userID uuid.UUID, groups []string) error {
-			options.Logger.Warn(ctx, "attempted to assign OIDC groups without enterprise license",
-				slog.F("user_id", userID), slog.F("groups", groups),
+		options.SetUserGroups = func(ctx context.Context, logger slog.Logger, _ database.Store, userID uuid.UUID, groups []string, createMissingGroups bool) error {
+			logger.Warn(ctx, "attempted to assign OIDC groups without enterprise license",
+				slog.F("user_id", userID), slog.F("groups", groups), slog.F("create_missing_groups", createMissingGroups),
 			)
 			return nil
 		}
 	}
 	if options.SetUserSiteRoles == nil {
-		options.SetUserSiteRoles = func(ctx context.Context, _ database.Store, userID uuid.UUID, roles []string) error {
-			options.Logger.Warn(ctx, "attempted to assign OIDC user roles without enterprise license",
+		options.SetUserSiteRoles = func(ctx context.Context, logger slog.Logger, _ database.Store, userID uuid.UUID, roles []string) error {
+			logger.Warn(ctx, "attempted to assign OIDC user roles without enterprise license",
 				slog.F("user_id", userID), slog.F("roles", roles),
 			)
 			return nil
@@ -286,6 +290,10 @@ func New(options *Options) *API {
 	if options.UserQuietHoursScheduleStore.Load() == nil {
 		v := schedule.NewAGPLUserQuietHoursScheduleStore()
 		options.UserQuietHoursScheduleStore.Store(&v)
+	}
+
+	if options.StatsBatcher == nil {
+		panic("developer error: options.StatsBatcher is nil")
 	}
 
 	siteCacheDir := options.CacheDir
@@ -461,6 +469,8 @@ func New(options *Options) *API {
 	derpHandler, api.derpCloseFunc = tailnet.WithWebsocketSupport(api.DERPServer, derpHandler)
 	cors := httpmw.Cors(options.DeploymentValues.Dangerous.AllowAllCors.Value())
 	prometheusMW := httpmw.Prometheus(options.PrometheusRegistry)
+
+	api.statsBatcher = options.StatsBatcher
 
 	r.Use(
 		httpmw.Recover(api.Logger),
@@ -683,7 +693,6 @@ func New(options *Options) *API {
 					r.Route("/github", func(r chi.Router) {
 						r.Use(
 							httpmw.ExtractOAuth2(options.GithubOAuth2Config, options.HTTPClient, nil),
-							apiKeyMiddlewareOptional,
 						)
 						r.Get("/callback", api.userOAuth2Github)
 					})
@@ -691,7 +700,6 @@ func New(options *Options) *API {
 				r.Route("/oidc/callback", func(r chi.Router) {
 					r.Use(
 						httpmw.ExtractOAuth2(options.OIDCConfig, options.HTTPClient, oidcAuthURLParams),
-						apiKeyMiddlewareOptional,
 					)
 					r.Get("/", api.userOIDC)
 				})
@@ -995,6 +1003,8 @@ type API struct {
 
 	healthCheckGroup *singleflight.Group[string, *healthcheck.Report]
 	healthCheckCache atomic.Pointer[healthcheck.Report]
+
+	statsBatcher *batchstats.Batcher
 }
 
 // Close waits for all WebSocket connections to drain before returning.

@@ -9,6 +9,7 @@ import (
 	"net/http/cookiejar"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/golang-jwt/jwt"
@@ -20,16 +21,100 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/cli/clibase"
 	"github.com/coder/coder/coderd"
 	"github.com/coder/coder/coderd/audit"
 	"github.com/coder/coder/coderd/coderdtest"
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 	"github.com/coder/coder/coderd/database/dbgen"
 	"github.com/coder/coder/coderd/database/dbtestutil"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
 )
+
+// This test specifically tests logging in with OIDC when an expired
+// OIDC session token exists.
+// The token refreshing should not happen since we are reauthenticating.
+func TestOIDCOauthLoginWithExisting(t *testing.T) {
+	t.Parallel()
+
+	conf := coderdtest.NewOIDCConfig(t, "",
+		// Provide a refresh token so we use the refresh token flow
+		coderdtest.WithRefreshToken("refresh_token"),
+		// We need to set the expire in the future for the first api calls.
+		coderdtest.WithTokenExpires(func() time.Time {
+			return time.Now().Add(time.Hour).UTC()
+		}),
+		// No refresh should actually happen in this test.
+		coderdtest.WithTokenSource(func() (*oauth2.Token, error) {
+			return nil, xerrors.New("token should not require refresh")
+		}),
+	)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	auditor := audit.NewMock()
+	const username = "alice"
+	claims := jwt.MapClaims{
+		"email":              "alice@coder.com",
+		"email_verified":     true,
+		"preferred_username": username,
+	}
+	config := conf.OIDCConfig(t, claims)
+
+	config.AllowSignups = true
+	config.IgnoreUserInfo = true
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		Auditor:    auditor,
+		OIDCConfig: config,
+		Logger:     &logger,
+	})
+
+	// Signup alice
+	resp := oidcCallback(t, client, conf.EncodeClaims(t, claims))
+	// Set the client to use this OIDC context
+	authCookie := authCookieValue(resp.Cookies())
+	client.SetSessionToken(authCookie)
+	_ = resp.Body.Close()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	// Verify the user and oauth link
+	user, err := client.User(ctx, "me")
+	require.NoError(t, err)
+	require.Equal(t, username, user.Username)
+
+	// nolint:gocritic
+	link, err := api.Database.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(ctx), database.GetUserLinkByUserIDLoginTypeParams{
+		UserID:    user.ID,
+		LoginType: database.LoginType(user.LoginType),
+	})
+	require.NoError(t, err, "failed to get user link")
+
+	// Expire the link
+	// nolint:gocritic
+	_, err = api.Database.UpdateUserLink(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLinkParams{
+		OAuthAccessToken:  link.OAuthAccessToken,
+		OAuthRefreshToken: link.OAuthRefreshToken,
+		OAuthExpiry:       time.Now().Add(time.Hour * -1).UTC(),
+		UserID:            link.UserID,
+		LoginType:         link.LoginType,
+	})
+	require.NoError(t, err, "failed to update user link")
+
+	// Log in again with OIDC
+	loginAgain := oidcCallbackWithState(t, client, conf.EncodeClaims(t, claims), "seconds_login", func(req *http.Request) {
+		req.AddCookie(&http.Cookie{
+			Name:  codersdk.SessionTokenCookie,
+			Value: authCookie,
+			Path:  "/",
+		})
+	})
+	require.Equal(t, http.StatusTemporaryRedirect, loginAgain.StatusCode)
+	_ = loginAgain.Body.Close()
+
+	// Try to use new login
+	client.SetSessionToken(authCookieValue(resp.Cookies()))
+	_, err = client.User(ctx, "me")
+	require.NoError(t, err, "use new session")
+}
 
 func TestUserLogin(t *testing.T) {
 	t.Parallel()
@@ -60,13 +145,29 @@ func TestUserLogin(t *testing.T) {
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 	})
 	// Password auth should fail if the user is made without password login.
-	t.Run("LoginTypeNone", func(t *testing.T) {
+	t.Run("DisableLoginDeprecatedField", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		anotherClient, anotherUser := coderdtest.CreateAnotherUserMutators(t, client, user.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
 			r.Password = ""
 			r.DisableLogin = true
+		})
+
+		_, err := anotherClient.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
+			Email:    anotherUser.Email,
+			Password: "SomeSecurePassword!",
+		})
+		require.Error(t, err)
+	})
+
+	t.Run("LoginTypeNone", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		anotherClient, anotherUser := coderdtest.CreateAnotherUserMutators(t, client, user.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
+			r.Password = ""
+			r.UserLoginType = codersdk.LoginTypeNone
 		})
 
 		_, err := anotherClient.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
@@ -796,7 +897,6 @@ func TestUserOIDC(t *testing.T) {
 		config.AllowSignups = true
 
 		cfg := coderdtest.DeploymentValues(t)
-		cfg.Experiments = clibase.StringArray{string(codersdk.ExperimentConvertToOIDC)}
 		client := coderdtest.New(t, &coderdtest.Options{
 			Auditor:          auditor,
 			OIDCConfig:       config,
@@ -821,7 +921,7 @@ func TestUserOIDC(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		resp := oidcCallbackWithState(t, user, code, convertResponse.StateString)
+		resp := oidcCallbackWithState(t, user, code, convertResponse.StateString, nil)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 	})
 
@@ -1047,10 +1147,10 @@ func oauth2Callback(t *testing.T, client *codersdk.Client) *http.Response {
 }
 
 func oidcCallback(t *testing.T, client *codersdk.Client, code string) *http.Response {
-	return oidcCallbackWithState(t, client, code, "somestate")
+	return oidcCallbackWithState(t, client, code, "somestate", nil)
 }
 
-func oidcCallbackWithState(t *testing.T, client *codersdk.Client, code, state string) *http.Response {
+func oidcCallbackWithState(t *testing.T, client *codersdk.Client, code, state string, modify func(r *http.Request)) *http.Response {
 	t.Helper()
 
 	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
@@ -1064,6 +1164,9 @@ func oidcCallbackWithState(t *testing.T, client *codersdk.Client, code, state st
 		Name:  codersdk.OAuth2StateCookie,
 		Value: state,
 	})
+	if modify != nil {
+		modify(req)
+	}
 	res, err := client.HTTPClient.Do(req)
 	require.NoError(t, err)
 	defer res.Body.Close()

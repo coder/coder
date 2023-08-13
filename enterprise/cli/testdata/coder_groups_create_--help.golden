@@ -6,5 +6,8 @@ Create a user group
   -u, --avatar-url string, $CODER_AVATAR_URL
           Set an avatar for a group.
 
+      --display-name string, $CODER_DISPLAY_NAME
+          Optional human friendly name for the group.
+
 ---
 Run `coder --help` for a list of global options.

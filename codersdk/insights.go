@@ -94,13 +94,12 @@ type TemplateInsightsResponse struct {
 
 // TemplateInsightsReport is the report from the template insights endpoint.
 type TemplateInsightsReport struct {
-	StartTime   time.Time          `json:"start_time" format:"date-time"`
-	EndTime     time.Time          `json:"end_time" format:"date-time"`
-	TemplateIDs []uuid.UUID        `json:"template_ids" format:"uuid"`
-	ActiveUsers int64              `json:"active_users" example:"22"`
-	AppsUsage   []TemplateAppUsage `json:"apps_usage"`
-	// TODO(mafredri): To be introduced in a future pull request.
-	// TemplateParametersUsage []TemplateParameterUsage `json:"parameters_usage"`
+	StartTime       time.Time                `json:"start_time" format:"date-time"`
+	EndTime         time.Time                `json:"end_time" format:"date-time"`
+	TemplateIDs     []uuid.UUID              `json:"template_ids" format:"uuid"`
+	ActiveUsers     int64                    `json:"active_users" example:"22"`
+	AppsUsage       []TemplateAppUsage       `json:"apps_usage"`
+	ParametersUsage []TemplateParameterUsage `json:"parameters_usage"`
 }
 
 // TemplateInsightsIntervalReport is the report from the template insights
@@ -133,25 +132,24 @@ type TemplateAppUsage struct {
 	Seconds     int64            `json:"seconds" example:"80500"`
 }
 
-// TODO(mafredri): To be introduced in a future pull request.
-/*
 // TemplateParameterUsage shows the usage of a parameter for one or more
 // templates.
 type TemplateParameterUsage struct {
-	TemplateIDs []uuid.UUID              `json:"template_ids" format:"uuid"`
-	DisplayName string                   `json:"display_name"`
-	Name        string                   `json:"name"`
-	Values      []TemplateParameterValue `json:"values"`
+	TemplateIDs []uuid.UUID                      `json:"template_ids" format:"uuid"`
+	DisplayName string                           `json:"display_name"`
+	Name        string                           `json:"name"`
+	Type        string                           `json:"type"`
+	Description string                           `json:"description"`
+	Options     []TemplateVersionParameterOption `json:"options,omitempty"`
+	Values      []TemplateParameterValue         `json:"values"`
 }
 
 // TemplateParameterValue shows the usage of a parameter value for one or more
 // templates.
 type TemplateParameterValue struct {
-	Value *string `json:"value"`
-	Icon  string  `json:"icon"`
-	Count int64   `json:"count"`
+	Value string `json:"value"`
+	Count int64  `json:"count"`
 }
-*/
 
 type TemplateInsightsRequest struct {
 	StartTime   time.Time              `json:"start_time" format:"date-time"`

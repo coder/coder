@@ -394,6 +394,12 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/manifest \
     }
   ],
   "derpmap": {
+    "homeParams": {
+      "regionScore": {
+        "property1": 0,
+        "property2": 0
+      }
+    },
     "omitDefaultRegions": true,
     "regions": {
       "property1": {
@@ -401,6 +407,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/manifest \
         "embeddedRelay": true,
         "nodes": [
           {
+            "canPort80": true,
             "certName": "string",
             "derpport": 0,
             "forceHTTP": true,
@@ -424,6 +431,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/manifest \
         "embeddedRelay": true,
         "nodes": [
           {
+            "canPort80": true,
             "certName": "string",
             "derpport": 0,
             "forceHTTP": true,
@@ -697,7 +705,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
   "startup_script_behavior": "blocking",
   "startup_script_timeout_seconds": 0,
   "status": "connecting",
-  "subsystem": "envbox",
+  "subsystems": ["envbox"],
   "troubleshooting_url": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "version": "string"
@@ -738,6 +746,12 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
 ```json
 {
   "derp_map": {
+    "homeParams": {
+      "regionScore": {
+        "property1": 0,
+        "property2": 0
+      }
+    },
     "omitDefaultRegions": true,
     "regions": {
       "property1": {
@@ -745,6 +759,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
         "embeddedRelay": true,
         "nodes": [
           {
+            "canPort80": true,
             "certName": "string",
             "derpport": 0,
             "forceHTTP": true,
@@ -768,6 +783,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
         "embeddedRelay": true,
         "nodes": [
           {
+            "canPort80": true,
             "certName": "string",
             "derpport": 0,
             "forceHTTP": true,

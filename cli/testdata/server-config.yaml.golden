@@ -111,11 +111,20 @@ networking:
     # Region name that for the embedded DERP server.
     # (default: Coder Embedded Relay, type: string)
     regionName: Coder Embedded Relay
-    # Addresses for STUN servers to establish P2P connections. Use special value
-    # 'disable' to turn off STUN.
-    # (default: stun.l.google.com:19302, type: string-array)
+    # Addresses for STUN servers to establish P2P connections. It's recommended to
+    # have at least two STUN servers to give users the best chance of connecting P2P
+    # to workspaces. Each STUN server will get it's own DERP region, with region IDs
+    # starting at `--derp-server-region-id + 1`. Use special value 'disable' to turn
+    # off STUN completely.
+    # (default:
+    # stun.l.google.com:19302,stun1.l.google.com:19302,stun2.l.google.com:19302,stun3.l.google.com:19302,stun4.l.google.com:19302,
+    # type: string-array)
     stunAddresses:
       - stun.l.google.com:19302
+      - stun1.l.google.com:19302
+      - stun2.l.google.com:19302
+      - stun3.l.google.com:19302
+      - stun4.l.google.com:19302
     # An HTTP URL that is accessible by other replicas to relay DERP traffic. Required
     # for high availability.
     # (default: <unset>, type: url)
@@ -271,6 +280,14 @@ oidc:
   # for when OIDC providers only return group IDs.
   # (default: {}, type: struct[map[string]string])
   groupMapping: {}
+  # Automatically creates missing groups from a user's groups claim.
+  # (default: false, type: bool)
+  enableGroupAutoCreate: false
+  # If provided any group name not matching the regex is ignored. This allows for
+  # filtering out groups that are not needed. This filter is applied after the group
+  # mapping.
+  # (default: .*, type: regexp)
+  groupRegexFilter: .*
   # This field must be set if using the user roles sync feature. Set this to the
   # name of the claim used to store the user's role. The roles should be sent as an
   # array of strings.
@@ -327,6 +344,9 @@ provisioning:
   # Time to force cancel provisioning tasks that are stuck.
   # (default: 10m0s, type: duration)
   forceCancelInterval: 10m0s
+  # Pre-shared key to authenticate external provisioner daemons to Coder server.
+  # (default: <unset>, type: string)
+  daemonPSK: ""
 # Enable one or more experiments. These are not ready for production. Separate
 # multiple experiments with commas, or enter '*' to opt-in to all available
 # experiments.

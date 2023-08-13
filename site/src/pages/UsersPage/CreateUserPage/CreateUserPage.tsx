@@ -2,12 +2,14 @@ import { useMachine } from "@xstate/react"
 import { useOrganizationId } from "hooks/useOrganizationId"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
-import { useNavigate } from "react-router"
+import { useNavigate } from "react-router-dom"
 import { createUserMachine } from "xServices/users/createUserXService"
 import * as TypesGen from "../../../api/typesGenerated"
 import { CreateUserForm } from "../../../components/CreateUserForm/CreateUserForm"
 import { Margins } from "../../../components/Margins/Margins"
 import { pageTitle } from "../../../utils/page"
+import { getAuthMethods } from "api/api"
+import { useQuery } from "@tanstack/react-query"
 
 export const Language = {
   unknownError: "Oops, an unknown error occurred.",
@@ -25,13 +27,22 @@ export const CreateUserPage: FC = () => {
   })
   const { error } = createUserState.context
 
+  // TODO: We should probably place this somewhere else to reduce the number of calls.
+  // This would be called each time this page is loaded.
+  const { data: authMethods } = useQuery({
+    queryKey: ["authMethods"],
+    queryFn: getAuthMethods,
+  })
+
   return (
     <Margins>
       <Helmet>
         <title>{pageTitle("Create User")}</title>
       </Helmet>
+
       <CreateUserForm
         error={error}
+        authMethods={authMethods}
         onSubmit={(user: TypesGen.CreateUserRequest) =>
           createUserSend({ type: "CREATE", user })
         }

@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/url"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -459,6 +460,43 @@ func (e *Enum) Type() string {
 
 func (e *Enum) String() string {
 	return *e.Value
+}
+
+type Regexp regexp.Regexp
+
+func (r *Regexp) MarshalYAML() (interface{}, error) {
+	return yaml.Node{
+		Kind:  yaml.ScalarNode,
+		Value: r.String(),
+	}, nil
+}
+
+func (r *Regexp) UnmarshalYAML(n *yaml.Node) error {
+	return r.Set(n.Value)
+}
+
+func (r *Regexp) Set(v string) error {
+	exp, err := regexp.Compile(v)
+	if err != nil {
+		return xerrors.Errorf("invalid regex expression: %w", err)
+	}
+	*r = Regexp(*exp)
+	return nil
+}
+
+func (r Regexp) String() string {
+	return r.Value().String()
+}
+
+func (r *Regexp) Value() *regexp.Regexp {
+	if r == nil {
+		return nil
+	}
+	return (*regexp.Regexp)(r)
+}
+
+func (Regexp) Type() string {
+	return "regexp"
 }
 
 var _ pflag.Value = (*YAMLConfigPath)(nil)

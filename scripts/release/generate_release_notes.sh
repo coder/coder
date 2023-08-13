@@ -18,11 +18,16 @@ source "$(dirname "$(dirname "${BASH_SOURCE[0]}")")/lib.sh"
 old_version=
 new_version=
 ref=
+check_for_changelog=0
 
-args="$(getopt -o '' -l old-version:,new-version:,ref: -- "$@")"
+args="$(getopt -o '' -l check-for-changelog,old-version:,new-version:,ref: -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
+	--check-for-changelog)
+		check_for_changelog=1
+		shift
+		;;
 	--old-version)
 		old_version="$2"
 		shift 2
@@ -59,6 +64,15 @@ if [[ $new_version != v* ]]; then
 fi
 if [[ -z $ref ]]; then
 	error "No ref specified"
+fi
+
+# Use a manual changelog, if present
+changelog_path="$(git rev-parse --show-toplevel)/docs/changelogs/$new_version.md"
+if [ "$check_for_changelog" -eq 1 ]; then
+	if [ -f "$changelog_path" ]; then
+		cat "$changelog_path"
+		exit 0
+	fi
 fi
 
 # shellcheck source=scripts/release/check_commit_metadata.sh

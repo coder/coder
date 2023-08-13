@@ -167,7 +167,7 @@ type WorkspaceAgent struct {
 	LoginBeforeReady             bool                 `json:"login_before_ready"`
 	ShutdownScript               string               `json:"shutdown_script,omitempty"`
 	ShutdownScriptTimeoutSeconds int32                `json:"shutdown_script_timeout_seconds"`
-	Subsystem                    AgentSubsystem       `json:"subsystem"`
+	Subsystems                   []AgentSubsystem     `json:"subsystems"`
 	Health                       WorkspaceAgentHealth `json:"health"` // Health reports the health of the agent.
 }
 
@@ -760,8 +760,19 @@ type WorkspaceAgentLogFollow struct {
 type AgentSubsystem string
 
 const (
-	AgentSubsystemEnvbox AgentSubsystem = "envbox"
+	AgentSubsystemEnvbox     AgentSubsystem = "envbox"
+	AgentSubsystemEnvbuilder AgentSubsystem = "envbuilder"
+	AgentSubsystemExectrace  AgentSubsystem = "exectrace"
 )
+
+func (s AgentSubsystem) Valid() bool {
+	switch s {
+	case AgentSubsystemEnvbox, AgentSubsystemEnvbuilder, AgentSubsystemExectrace:
+		return true
+	default:
+		return false
+	}
+}
 
 type WorkspaceAgentLogSource string
 

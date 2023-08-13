@@ -204,25 +204,33 @@ func (c *Client) DERPMapUpdates(ctx context.Context) (<-chan DERPMapUpdate, io.C
 		defer close(updates)
 		defer close(updatesClosed)
 		defer cancelFunc()
-		defer conn.Close(websocket.StatusGoingAway, "Listen closed")
+		defer conn.Close(websocket.StatusGoingAway, "DERPMapUpdates closed")
 		for {
 			var update DERPMapUpdate
 			err := dec.Decode(&update.DERPMap)
 			if err != nil {
 				update.Err = err
 				update.DERPMap = nil
-				return
 			}
-			err = c.rewriteDerpMap(update.DERPMap)
-			if err != nil {
-				update.Err = err
-				update.DERPMap = nil
-				return
+			if update.DERPMap != nil {
+				err = c.rewriteDerpMap(update.DERPMap)
+				if err != nil {
+					update.Err = err
+					update.DERPMap = nil
+				}
 			}
 
 			select {
 			case updates <- update:
 			case <-ctx.Done():
+				// Unblock the caller if they're waiting for an update.
+				select {
+				case updates <- DERPMapUpdate{Err: ctx.Err()}:
+				default:
+				}
+				return
+			}
+			if update.Err != nil {
 				return
 			}
 		}
@@ -231,8 +239,8 @@ func (c *Client) DERPMapUpdates(ctx context.Context) (<-chan DERPMapUpdate, io.C
 	return updates, &closer{
 		closeFunc: func() error {
 			cancelFunc()
-			_ = wsNetConn.Close()
 			<-pingClosed
+			_ = conn.Close(websocket.StatusGoingAway, "DERPMapUpdates closed")
 			<-updatesClosed
 			return nil
 		},
@@ -604,9 +612,9 @@ func (c *Client) PostLifecycle(ctx context.Context, req PostLifecycleRequest) er
 }
 
 type PostStartupRequest struct {
-	Version           string                  `json:"version"`
-	ExpandedDirectory string                  `json:"expanded_directory"`
-	Subsystem         codersdk.AgentSubsystem `json:"subsystem"`
+	Version           string                    `json:"version"`
+	ExpandedDirectory string                    `json:"expanded_directory"`
+	Subsystems        []codersdk.AgentSubsystem `json:"subsystems"`
 }
 
 func (c *Client) PostStartup(ctx context.Context, req PostStartupRequest) error {

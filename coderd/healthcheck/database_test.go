@@ -35,7 +35,8 @@ func TestDatabase(t *testing.T) {
 
 		assert.True(t, report.Healthy)
 		assert.True(t, report.Reachable)
-		assert.Equal(t, ping, report.Latency)
+		assert.Equal(t, ping.String(), report.Latency)
+		assert.Equal(t, int(ping.Milliseconds()), report.LatencyMs)
 		assert.Nil(t, report.Error)
 	})
 
@@ -81,7 +82,8 @@ func TestDatabase(t *testing.T) {
 
 		assert.True(t, report.Healthy)
 		assert.True(t, report.Reachable)
-		assert.Equal(t, time.Millisecond, report.Latency)
+		assert.Equal(t, time.Millisecond.String(), report.Latency)
+		assert.Equal(t, 1, report.LatencyMs)
 		assert.Nil(t, report.Error)
 	})
 }

@@ -1271,16 +1271,23 @@ func TestWorkspaceAgent_Startup(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
-		const (
-			expectedVersion   = "v1.2.3"
-			expectedDir       = "/home/coder"
-			expectedSubsystem = codersdk.AgentSubsystemEnvbox
+		var (
+			expectedVersion    = "v1.2.3"
+			expectedDir        = "/home/coder"
+			expectedSubsystems = []codersdk.AgentSubsystem{
+				codersdk.AgentSubsystemEnvbox,
+				codersdk.AgentSubsystemExectrace,
+			}
 		)
 
 		err := agentClient.PostStartup(ctx, agentsdk.PostStartupRequest{
 			Version:           expectedVersion,
 			ExpandedDirectory: expectedDir,
-			Subsystem:         expectedSubsystem,
+			Subsystems: []codersdk.AgentSubsystem{
+				// Not sorted.
+				expectedSubsystems[1],
+				expectedSubsystems[0],
+			},
 		})
 		require.NoError(t, err)
 
@@ -1291,7 +1298,8 @@ func TestWorkspaceAgent_Startup(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, expectedVersion, wsagent.Version)
 		require.Equal(t, expectedDir, wsagent.ExpandedDirectory)
-		require.Equal(t, expectedSubsystem, wsagent.Subsystem)
+		// Sorted
+		require.Equal(t, expectedSubsystems, wsagent.Subsystems)
 	})
 
 	t.Run("InvalidSemver", func(t *testing.T) {
@@ -1346,11 +1354,9 @@ func TestWorkspaceAgent_UpdatedDERP(t *testing.T) {
 	defer closer.Close()
 	user := coderdtest.CreateFirstUser(t, client)
 
-	originalDerpMap := api.DERPMap()
-	require.NotNil(t, originalDerpMap)
-
 	// Change the DERP mapper to our custom one.
 	var currentDerpMap atomic.Pointer[tailcfg.DERPMap]
+	originalDerpMap, _ := tailnettest.RunDERPAndSTUN(t)
 	currentDerpMap.Store(originalDerpMap)
 	derpMapFn := func(_ *tailcfg.DERPMap) *tailcfg.DERPMap {
 		return currentDerpMap.Load().Clone()
@@ -1380,10 +1386,8 @@ func TestWorkspaceAgent_UpdatedDERP(t *testing.T) {
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 	agentID := resources[0].Agents[0].ID
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-
 	// Connect from a client.
+	ctx := testutil.Context(t, testutil.WaitLong)
 	conn1, err := client.DialWorkspaceAgent(ctx, agentID, &codersdk.DialWorkspaceAgentOptions{
 		Logger: logger.Named("client1"),
 	})
@@ -1404,7 +1408,14 @@ func TestWorkspaceAgent_UpdatedDERP(t *testing.T) {
 	currentDerpMap.Store(newDerpMap)
 
 	// Wait for the agent's DERP map to be updated.
-	// TODO: this
+	require.Eventually(t, func() bool {
+		conn := agentCloser.TailnetConn()
+		if conn == nil {
+			return false
+		}
+		regionIDs := conn.DERPMap().RegionIDs()
+		return len(regionIDs) == 1 && regionIDs[0] == 2 && conn.Node().PreferredDERP == 2
+	}, testutil.WaitLong, testutil.IntervalFast)
 
 	// Wait for the DERP map to be updated on the existing client.
 	require.Eventually(t, func() bool {

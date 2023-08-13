@@ -788,6 +788,20 @@ func (q *querier) GetActiveUserCount(ctx context.Context) (int64, error) {
 	return q.db.GetActiveUserCount(ctx)
 }
 
+func (q *querier) GetAllTailnetAgents(ctx context.Context) ([]database.TailnetAgent, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
+		return []database.TailnetAgent{}, err
+	}
+	return q.db.GetAllTailnetAgents(ctx)
+}
+
+func (q *querier) GetAllTailnetClients(ctx context.Context) ([]database.TailnetClient, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
+		return []database.TailnetClient{}, err
+	}
+	return q.db.GetAllTailnetClients(ctx)
+}
+
 func (q *querier) GetAppSecurityKey(ctx context.Context) (string, error) {
 	// No authz checks
 	return q.db.GetAppSecurityKey(ctx)
@@ -943,14 +957,9 @@ func (q *querier) GetLatestWorkspaceBuilds(ctx context.Context) ([]database.Work
 }
 
 func (q *querier) GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceBuild, error) {
-	// This is not ideal as not all builds will be returned if the workspace cannot be read.
-	// This should probably be handled differently? Maybe join workspace builds with workspace
-	// ownership properties and filter on that.
-	for _, id := range ids {
-		_, err := q.GetWorkspaceByID(ctx, id)
-		if err != nil {
-			return nil, err
-		}
+	// This function is a system function until we implement a join for workspace builds.
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
 	}
 
 	return q.db.GetLatestWorkspaceBuildsByWorkspaceIDs(ctx, ids)
@@ -1185,19 +1194,60 @@ func (q *querier) GetTemplateDAUs(ctx context.Context, arg database.GetTemplateD
 }
 
 func (q *querier) GetTemplateDailyInsights(ctx context.Context, arg database.GetTemplateDailyInsightsParams) ([]database.GetTemplateDailyInsightsRow, error) {
-	// FIXME: this should maybe be READ rbac.ResourceTemplate or it's own resource.
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
+	for _, templateID := range arg.TemplateIDs {
+		template, err := q.db.GetTemplateByID(ctx, templateID)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
+			return nil, err
+		}
+	}
+	if len(arg.TemplateIDs) == 0 {
+		if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
+			return nil, err
+		}
 	}
 	return q.db.GetTemplateDailyInsights(ctx, arg)
 }
 
 func (q *querier) GetTemplateInsights(ctx context.Context, arg database.GetTemplateInsightsParams) (database.GetTemplateInsightsRow, error) {
-	// FIXME: this should maybe be READ rbac.ResourceTemplate or it's own resource.
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
-		return database.GetTemplateInsightsRow{}, err
+	for _, templateID := range arg.TemplateIDs {
+		template, err := q.db.GetTemplateByID(ctx, templateID)
+		if err != nil {
+			return database.GetTemplateInsightsRow{}, err
+		}
+
+		if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
+			return database.GetTemplateInsightsRow{}, err
+		}
+	}
+	if len(arg.TemplateIDs) == 0 {
+		if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
+			return database.GetTemplateInsightsRow{}, err
+		}
 	}
 	return q.db.GetTemplateInsights(ctx, arg)
+}
+
+func (q *querier) GetTemplateParameterInsights(ctx context.Context, arg database.GetTemplateParameterInsightsParams) ([]database.GetTemplateParameterInsightsRow, error) {
+	for _, templateID := range arg.TemplateIDs {
+		template, err := q.db.GetTemplateByID(ctx, templateID)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
+			return nil, err
+		}
+	}
+	if len(arg.TemplateIDs) == 0 {
+		if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
+			return nil, err
+		}
+	}
+	return q.db.GetTemplateParameterInsights(ctx, arg)
 }
 
 func (q *querier) GetTemplateVersionByID(ctx context.Context, tvid uuid.UUID) (database.TemplateVersion, error) {
@@ -1367,8 +1417,20 @@ func (q *querier) GetUserCount(ctx context.Context) (int64, error) {
 }
 
 func (q *querier) GetUserLatencyInsights(ctx context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
+	for _, templateID := range arg.TemplateIDs {
+		template, err := q.db.GetTemplateByID(ctx, templateID)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
+			return nil, err
+		}
+	}
+	if len(arg.TemplateIDs) == 0 {
+		if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
+			return nil, err
+		}
 	}
 	return q.db.GetUserLatencyInsights(ctx, arg)
 }
@@ -1795,6 +1857,13 @@ func (q *querier) InsertLicense(ctx context.Context, arg database.InsertLicenseP
 	return q.db.InsertLicense(ctx, arg)
 }
 
+func (q *querier) InsertMissingGroups(ctx context.Context, arg database.InsertMissingGroupsParams) ([]database.Group, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.InsertMissingGroups(ctx, arg)
+}
+
 func (q *querier) InsertOrganization(ctx context.Context, arg database.InsertOrganizationParams) (database.Organization, error) {
 	return insert(q.log, q.auth, rbac.ResourceOrganization, q.db.InsertOrganization)(ctx, arg)
 }
@@ -1958,6 +2027,14 @@ func (q *querier) InsertWorkspaceAgentStat(ctx context.Context, arg database.Ins
 	return q.db.InsertWorkspaceAgentStat(ctx, arg)
 }
 
+func (q *querier) InsertWorkspaceAgentStats(ctx context.Context, arg database.InsertWorkspaceAgentStatsParams) error {
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+
+	return q.db.InsertWorkspaceAgentStats(ctx, arg)
+}
+
 func (q *querier) InsertWorkspaceApp(ctx context.Context, arg database.InsertWorkspaceAppParams) (database.WorkspaceApp, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
 		return database.WorkspaceApp{}, err
@@ -2058,6 +2135,13 @@ func (q *querier) UpdateGroupByID(ctx context.Context, arg database.UpdateGroupB
 		return q.db.GetGroupByID(ctx, arg.ID)
 	}
 	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateGroupByID)(ctx, arg)
+}
+
+func (q *querier) UpdateInactiveUsersToDormant(ctx context.Context, lastSeenAfter database.UpdateInactiveUsersToDormantParams) ([]database.UpdateInactiveUsersToDormantRow, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.UpdateInactiveUsersToDormant(ctx, lastSeenAfter)
 }
 
 func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
@@ -2522,11 +2606,11 @@ func (q *querier) UpdateWorkspaceLastUsedAt(ctx context.Context, arg database.Up
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceLastUsedAt)(ctx, arg)
 }
 
-func (q *querier) UpdateWorkspaceLockedDeletingAt(ctx context.Context, arg database.UpdateWorkspaceLockedDeletingAtParams) error {
+func (q *querier) UpdateWorkspaceLockedDeletingAt(ctx context.Context, arg database.UpdateWorkspaceLockedDeletingAtParams) (database.Workspace, error) {
 	fetch := func(ctx context.Context, arg database.UpdateWorkspaceLockedDeletingAtParams) (database.Workspace, error) {
 		return q.db.GetWorkspaceByID(ctx, arg.ID)
 	}
-	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceLockedDeletingAt)(ctx, arg)
+	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateWorkspaceLockedDeletingAt)(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceProxy(ctx context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {

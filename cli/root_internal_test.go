@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"os"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -67,6 +69,11 @@ func Test_formatExamples(t *testing.T) {
 }
 
 func TestMain(m *testing.M) {
+	if runtime.GOOS == "windows" {
+		// Don't run goleak on windows tests, they're super flaky right now.
+		// See: https://github.com/coder/coder/issues/8954
+		os.Exit(m.Run())
+	}
 	goleak.VerifyTestMain(m,
 		// The lumberjack library is used by by agent and seems to leave
 		// goroutines after Close(), fails TestGitSSH tests.
