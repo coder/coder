@@ -226,13 +226,15 @@ func main() {
 					step()
 					return agent, nil
 				},
-				FetchLogs: func(_ context.Context, _ uuid.UUID, _ int64, follow bool) (<-chan []codersdk.WorkspaceAgentLog, io.Closer, error) {
-					logsC := make(chan []codersdk.WorkspaceAgentLog, len(logs))
+				FetchLogs: func(_ context.Context, _ uuid.UUID, _ int64, follow bool) (<-chan codersdk.WorkspaceAgentLogFollow, io.Closer, error) {
+					logsC := make(chan codersdk.WorkspaceAgentLogFollow, len(logs))
 					if follow {
 						go func() {
 							defer close(logsC)
 							for _, log := range logs {
-								logsC <- []codersdk.WorkspaceAgentLog{log}
+								logsC <- codersdk.WorkspaceAgentLogFollow{
+									Logs: []codersdk.WorkspaceAgentLog{log},
+								}
 								time.Sleep(144 * time.Millisecond)
 							}
 							agent.LifecycleState = codersdk.WorkspaceAgentLifecycleReady
@@ -240,7 +242,9 @@ func main() {
 							agent.ReadyAt = &readyAt
 						}()
 					} else {
-						logsC <- logs
+						logsC <- codersdk.WorkspaceAgentLogFollow{
+							Logs: logs,
+						}
 						close(logsC)
 					}
 					return logsC, closeFunc(func() error {

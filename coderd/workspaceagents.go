@@ -625,6 +625,7 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Delete workspace agent logs
+// @Security CoderSessionToken
 // @ID delete-workspace-agent-logs
 // @Description Delete all logs for a workspace agent for a specific source.
 // @Tags Agents
