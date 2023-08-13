@@ -76,18 +76,9 @@ jobs:
       BUILD: |
         ${{
           github.event.inputs.build ||
-          (
-            github.event_name == 'workflow_dispatch' &&
-            (
-              steps.check_deployment.outputs.NEW ||
-              steps.filter.outputs.all_count > steps.filter.outputs.ignored_count
-            )
-          ) ||
-          (
-            steps.filter.outputs.all_count > steps.filter.outputs.ignored_count &&
-            github.event_name == 'push' &&
-            !steps.check_deployment.outputs.NEW
-          )
+          (github.event_name == 'workflow_dispatch' && steps.check_deployment.outputs.NEW == 'true') ||
+          (github.event_name == 'push' && steps.check_deployment.outputs.NEW == 'false' && steps.filter.outputs.all_count > steps.filter.outputs.ignored_count) ||
+          (steps.check_deployment.outputs.NEW == 'false' && steps.filter.outputs.all_count > steps.filter.outputs.ignored_count)
         }}
 
     runs-on: "ubuntu-latest"
@@ -179,7 +170,13 @@ jobs:
           echo "files_changed: ${{ steps.filter.outputs.all_count > steps.filter.outputs.ignored_count }}"
           echo "new_deployment: ${{ steps.check_deployment.outputs.NEW }}"
           # The BUILD f this jon defined abobe using these inputs
-          echo "BUILD: ${{ github.event.inputs.build || (github.event_name == 'workflow_dispatch' && (steps.check_deployment.outputs.NEW == 'true' || steps.filter.outputs.all_count > steps.filter.outputs.ignored_count)) || (steps.filter.outputs.all_count > steps.filter.outputs.ignored_count && github.event_name == 'push' && steps.check_deployment.outputs.NEW == 'false') }}"
+          echo "BUILD: |
+          ${{
+            github.event.inputs.build == 'true' ||
+            (github.event_name == 'workflow_dispatch' && steps.check_deployment.outputs.NEW == 'true') ||
+            (github.event_name == 'push' && steps.check_deployment.outputs.NEW == 'false' && steps.filter.outputs.all_count > steps.filter.outputs.ignored_count) ||
+            (steps.check_deployment.outputs.NEW == 'false' && steps.filter.outputs.all_count > steps.filter.outputs.ignored_count)
+          }}"
 
   comment-pr:
     needs: [check_pr, get_info]
