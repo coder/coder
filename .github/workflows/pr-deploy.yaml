@@ -75,18 +75,18 @@ jobs:
       NEW: ${{ steps.check_deployment.outputs.NEW }}
       BUILD: |
         ${{
-          github.event.inputs.build == 'true' ||
+          github.event.inputs.build ||
           (
             github.event_name == 'workflow_dispatch' &&
             (
-              steps.check_deployment.outputs.NEW == 'true' ||
+              steps.check_deployment.outputs.NEW ||
               steps.filter.outputs.all_count > steps.filter.outputs.ignored_count
             )
           ) ||
           (
             steps.filter.outputs.all_count > steps.filter.outputs.ignored_count &&
             github.event_name == 'push' &&
-            steps.check_deployment.outputs.NEW == 'false'
+            !steps.check_deployment.outputs.NEW
           )
         }}
 
