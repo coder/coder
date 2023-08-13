@@ -160,9 +160,9 @@ jobs:
         run: |
           set -euo pipefail
           echo "build_condition_1=${{ github.event.inputs.build }}" >> $GITHUB_OUTPUT
-          echo "build_condition_2=${{ (github.event_name == 'workflow_dispatch' && steps.check_deployment.outputs.NEW == 'true') }}" >> $GITHUB_OUTPUT
-          echo "build_condition_3=${{ (github.event_name == 'push' && steps.check_deployment.outputs.NEW == 'false' && steps.filter.outputs.all_count > steps.filter.outputs.ignored_count) }}"
-          echo "build_condition_4=${{ (steps.check_deployment.outputs.NEW == 'false' && steps.filter.outputs.all_count > steps.filter.outputs.ignored_count) }}"
+          echo "build_condition_2=${{ github.event_name == 'workflow_dispatch' && steps.check_deployment.outputs.NEW == 'true' }}" >> $GITHUB_OUTPUT
+          echo "build_condition_3=${{ github.event_name == 'push' && steps.check_deployment.outputs.NEW == 'false' && steps.filter.outputs.all_count > steps.filter.outputs.ignored_count }}" >> $GITHUB_OUTPUT
+          echo "build_condition_4=${{ steps.check_deployment.outputs.NEW == 'false' && steps.filter.outputs.all_count > steps.filter.outputs.ignored_count }}" >> $GITHUB_OUTPUT
 
   comment-pr:
     needs: [check_pr, get_info]
