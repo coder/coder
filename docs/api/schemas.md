@@ -316,17 +316,15 @@
       "output": "string",
       "source": "startup_script"
     }
-  ],
-  "source": "startup_script"
+  ]
 }
 ```
 
 ### Properties
 
-| Name     | Type                                                                 | Required | Restrictions | Description |
-| -------- | -------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `logs`   | array of [agentsdk.Log](#agentsdklog)                                | false    |              |             |
-| `source` | [codersdk.WorkspaceAgentLogSource](#codersdkworkspaceagentlogsource) | false    |              |             |
+| Name   | Type                                  | Required | Restrictions | Description |
+| ------ | ------------------------------------- | -------- | ------------ | ----------- |
+| `logs` | array of [agentsdk.Log](#agentsdklog) | false    |              |             |
 
 ## agentsdk.PostAppHealthsRequest
 

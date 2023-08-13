@@ -5058,6 +5058,49 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "description": "Delete all logs for a workspace agent for a specific source.",
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Delete workspace agent logs",
+                "operationId": "delete-workspace-agent-logs",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "startup_script",
+                            "shutdown_script",
+                            "kubernetes",
+                            "envbox",
+                            "envbuilder",
+                            "external"
+                        ],
+                        "type": "string",
+                        "description": "Log source",
+                        "name": "source",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
             }
         },
         "/workspaceagents/{workspaceagent}/pty": {
@@ -6396,9 +6439,6 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/agentsdk.Log"
                     }
-                },
-                "source": {
-                    "$ref": "#/definitions/codersdk.WorkspaceAgentLogSource"
                 }
             }
         },

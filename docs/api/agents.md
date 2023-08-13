@@ -318,8 +318,7 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/logs \
       "output": "string",
       "source": "startup_script"
     }
-  ],
-  "source": "startup_script"
+  ]
 }
 ```
 
@@ -582,8 +581,7 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/startup-logs \
       "output": "string",
       "source": "startup_script"
     }
-  ],
-  "source": "startup_script"
+  ]
 }
 ```
 
@@ -958,6 +956,46 @@ Status Code **200**
 | `source` | `envbox`          |
 | `source` | `envbuilder`      |
 | `source` | `external`        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Delete workspace agent logs
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/logs?source=startup_script \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /workspaceagents/{workspaceagent}/logs`
+
+Delete all logs for a workspace agent for a specific source.
+
+### Parameters
+
+| Name             | In    | Type         | Required | Description        |
+| ---------------- | ----- | ------------ | -------- | ------------------ |
+| `workspaceagent` | path  | string(uuid) | true     | Workspace agent ID |
+| `source`         | query | string       | true     | Log source         |
+
+#### Enumerated Values
+
+| Parameter | Value             |
+| --------- | ----------------- |
+| `source`  | `startup_script`  |
+| `source`  | `shutdown_script` |
+| `source`  | `kubernetes`      |
+| `source`  | `envbox`          |
+| `source`  | `envbuilder`      |
+| `source`  | `external`        |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+| ------ | --------------------------------------------------------------- | ----------- | ------ |
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
