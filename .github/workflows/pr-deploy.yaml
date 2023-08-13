@@ -73,14 +73,7 @@ jobs:
       CODER_BASE_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_BASE_IMAGE_TAG }}
       CODER_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_IMAGE_TAG }}
       NEW: ${{ steps.check_deployment.outputs.NEW }}
-      BUILD: |
-        ${{
-          (steps.filter.outputs.all_count > steps.filter.outputs.ignored_count) &&
-          (
-            (github.event_name == 'push' && steps.check_deployment.outputs.NEW == 'false') ||
-            github.event.inputs.build == 'true'
-          )
-        }}
+      BUILD: ${{ steps.build_conditionals.outputs.first_or_force_build || steps.build_conditionals.outputs.automatic_rebuild }}
 
     runs-on: "ubuntu-latest"
     steps:
@@ -162,18 +155,14 @@ jobs:
           echo "Total number of changed files: ${{ steps.filter.outputs.all_count }}"
           echo "Number of ignored files: ${{ steps.filter.outputs.ignored_count }}"
 
-      - name: Print job outputs
+      - name: Build conditionals
+        id: build_conditionals
         run: |
           set -euo pipefail
-          # Print all outputs of this job
-          echo "PR_NUMBER=${{ steps.pr_info.outputs.PR_NUMBER }}"
-          echo "PR_TITLE=${{ steps.pr_info.outputs.PR_TITLE }}"
-          echo "PR_URL=${{ steps.pr_info.outputs.PR_URL }}"
-          echo "CODER_BASE_IMAGE_TAG=${{ steps.set_tags.outputs.CODER_BASE_IMAGE_TAG }}"
-          echo "CODER_IMAGE_TAG=${{ steps.set_tags.outputs.CODER_IMAGE_TAG }}"
-          echo "NEW=${{ steps.check_deployment.outputs.NEW }}"
-          echo "BUILD=${{ (steps.filter.outputs.all_count > steps.filter.outputs.ignored_count) && ((github.event_name == 'push' && steps.check_deployment.outputs.NEW == 'false') || github.event.inputs.build == 'true') }}"
-          echo "GITHUB_REF=${{ github.ref }}"
+          # build if the workflow is manually triggered and the deployment doesn't exist (first build or force rebuild)
+          echo "first_or_force_build=${{ (github.event_name == 'workflow_dispatch' && steps.check_deployment.outputs.NEW == 'true') || github.event.inputs.build == 'true' }}" >> $GITHUB_OUTPUT
+          # build if the deployment alreday exist and there are changes in the files that we care about (automatic updates)
+          echo "automatic_rebuild=${{ steps.check_deployment.outputs.NEW == 'false' && steps.filter.outputs.all_count > steps.filter.outputs.ignored_count }}" >> $GITHUB_OUTPUT
 
   comment-pr:
     needs: [check_pr, get_info]
