@@ -108,7 +108,7 @@ The following filters are supported:
 
 - `owner` - Represents the `username` of the owner. You can also use `me` as a convenient alias for the logged-in user.
 - `template` - Specifies the name of the template.
-- `status` - Indicates the status of the workspace. For a list of supported statuses, please refer to the [WorkspaceStatus documentation](https://pkg.go.dev/github.com/coder/coder/codersdk#WorkspaceStatus).
+- `status` - Indicates the status of the workspace. For a list of supported statuses, please refer to the [WorkspaceStatus documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#WorkspaceStatus).
 
 ---
 
