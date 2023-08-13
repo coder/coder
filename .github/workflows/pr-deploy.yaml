@@ -73,13 +73,7 @@ jobs:
       CODER_BASE_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_BASE_IMAGE_TAG }}
       CODER_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_IMAGE_TAG }}
       NEW: ${{ steps.check_deployment.outputs.NEW }}
-      BUILD: |
-        ${{
-          github.event.inputs.build ||
-          (github.event_name == 'workflow_dispatch' && steps.check_deployment.outputs.NEW == 'true') ||
-          (github.event_name == 'push' && steps.check_deployment.outputs.NEW == 'false' && steps.filter.outputs.all_count > steps.filter.outputs.ignored_count) ||
-          (steps.check_deployment.outputs.NEW == 'false' && steps.filter.outputs.all_count > steps.filter.outputs.ignored_count)
-        }}
+      BUILD: ${{ steps.build_conditionals.outputs.build_condition_1 == 'true' || steps.build_conditionals.outputs.build_condition_2 == 'true' || steps.build_conditionals.outputs.build_condition_3 == 'true' || steps.build_conditionals.outputs.build_condition_4 == 'true' }}
 
     runs-on: "ubuntu-latest"
     steps:
@@ -161,25 +155,14 @@ jobs:
           echo "Total number of changed files: ${{ steps.filter.outputs.all_count }}"
           echo "Number of ignored files: ${{ steps.filter.outputs.ignored_count }}"
 
-      - name: Debug
+      - name: Build conditionals
+        id: build_conditionals
         run: |
           set -euo pipefail
-          # Print all inputs of BUILD output
-          echo "build_input: ${{ github.event.inputs.build }}"
-          echo "github_event_name: ${{ github.event_name }}"
-          echo "files_changed: ${{ steps.filter.outputs.all_count > steps.filter.outputs.ignored_count }}"
-          echo "new_deployment: ${{ steps.check_deployment.outputs.NEW }}"
-          echo "test_condition_1: ${{ github.event.inputs.build }}"
-          echo "test_condition_2: ${{ (github.event_name == 'workflow_dispatch' && steps.check_deployment.outputs.NEW == 'true') }}"
-          echo "test_condition_3: ${{ (github.event_name == 'push' && steps.check_deployment.outputs.NEW == 'false' && steps.filter.outputs.all_count > steps.filter.outputs.ignored_count) }}"
-          echo "test_condition_4: ${{ (steps.check_deployment.outputs.NEW == 'false' && steps.filter.outputs.all_count > steps.filter.outputs.ignored_count) }}"
-          echo "BUILD: |
-          ${{
-            github.event.inputs.build ||
-            (github.event_name == 'workflow_dispatch' && steps.check_deployment.outputs.NEW == 'true') ||
-            (github.event_name == 'push' && steps.check_deployment.outputs.NEW == 'false' && steps.filter.outputs.all_count > steps.filter.outputs.ignored_count) ||
-            (steps.check_deployment.outputs.NEW == 'false' && steps.filter.outputs.all_count > steps.filter.outputs.ignored_count)
-          }}"
+          echo "build_condition_1=${{ github.event.inputs.build }}" >> $GITHUB_OUTPUT
+          echo "build_condition_2=${{ (github.event_name == 'workflow_dispatch' && steps.check_deployment.outputs.NEW == 'true') }}" >> $GITHUB_OUTPUT
+          echo "build_condition_3=${{ (github.event_name == 'push' && steps.check_deployment.outputs.NEW == 'false' && steps.filter.outputs.all_count > steps.filter.outputs.ignored_count) }}"
+          echo "build_condition_4=${{ (steps.check_deployment.outputs.NEW == 'false' && steps.filter.outputs.all_count > steps.filter.outputs.ignored_count) }}"
 
   comment-pr:
     needs: [check_pr, get_info]
