@@ -275,6 +275,7 @@ func TestWorkspaceApps(t *testing.T) {
 					"CF-Connecting-IP",
 				},
 			},
+			WorkspaceAppsStatsCollector: opts.StatsCollector,
 		})
 
 		user := coderdtest.CreateFirstUser(t, client)

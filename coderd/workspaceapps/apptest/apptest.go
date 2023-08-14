@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -1406,4 +1407,51 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 		require.Equal(t, []string{"Origin", "X-Foobar"}, deduped)
 		require.Equal(t, []string{"baz"}, resp.Header.Values("X-Foobar"))
 	})
+
+	t.Run("ReportStats", func(t *testing.T) {
+		t.Parallel()
+
+		reporter := &fakeStatsReporter{}
+		collector := workspaceapps.NewStatsCollector(workspaceapps.StatsCollectorOptions{
+			Reporter:       reporter,
+			ReportInterval: time.Second,
+			RollupWindow:   time.Minute,
+		})
+		appDetails := setupProxyTest(t, &DeploymentOptions{
+			StatsCollector: collector,
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		u := appDetails.PathAppURL(appDetails.Apps.Owner)
+		resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		_, err = io.Copy(io.Discard, resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		require.Eventually(t, func() bool {
+			return len(reporter.stats()) > 0
+		}, testutil.WaitLong, testutil.IntervalMedium, "stats not reported")
+	})
+}
+
+type fakeStatsReporter struct {
+	mu sync.Mutex
+	s  []workspaceapps.StatsReport
+}
+
+func (r *fakeStatsReporter) stats() []workspaceapps.StatsReport {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.s
+}
+
+func (r *fakeStatsReporter) Report(_ context.Context, stats []workspaceapps.StatsReport) error {
+	r.mu.Lock()
+	r.s = append(r.s, stats...)
+	r.mu.Unlock()
+	return nil
 }

@@ -144,6 +144,8 @@ type Options struct {
 	// as part of your test.
 	Logger       *slog.Logger
 	StatsBatcher *batchstats.Batcher
+
+	WorkspaceAppsStatsCollector *workspaceapps.StatsCollector
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -425,6 +427,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			HealthcheckTimeout:          options.HealthcheckTimeout,
 			HealthcheckRefresh:          options.HealthcheckRefresh,
 			StatsBatcher:                options.StatsBatcher,
+			WorkspaceAppsStatsCollector: options.WorkspaceAppsStatsCollector,
 		}
 }
 
