@@ -132,7 +132,7 @@ func (rpty *bufferedReconnectingPTY) lifecycle(ctx context.Context, logger slog.
 	logger.Debug(ctx, "reconnecting pty ready")
 	rpty.state.setState(StateReady, nil)
 
-	state, reasonErr := rpty.state.waitForStateOrContext(ctx, StateClosing, nil)
+	state, reasonErr := rpty.state.waitForStateOrContext(ctx, StateClosing)
 	if state < StateClosing {
 		// If we have not closed yet then the context is what unblocked us (which
 		// means the agent is shutting down) so move into the closing phase.

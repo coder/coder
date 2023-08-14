@@ -168,7 +168,7 @@ func (s *ptyState) waitForState(state State) (State, error) {
 
 // waitForStateOrContext blocks until the state or a greater one is reached or
 // the provided context ends.
-func (s *ptyState) waitForStateOrContext(ctx context.Context, state State, fn func(state State) error) (State, error) {
+func (s *ptyState) waitForStateOrContext(ctx context.Context, state State) (State, error) {
 	s.cond.L.Lock()
 	defer s.cond.L.Unlock()
 	return s.waitForStateOrContextLocked(ctx, state)
