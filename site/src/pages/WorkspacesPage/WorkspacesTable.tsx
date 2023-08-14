@@ -38,6 +38,7 @@ export interface WorkspacesTableProps {
   checkedWorkspaces: Workspace[]
   error?: unknown
   isUsingFilter: boolean
+  isWorkspaceBatchActionsEnabled?: boolean
   onUpdateWorkspace: (workspace: Workspace) => void
   onCheckChange: (checkedWorkspaces: Workspace[]) => void
 }
@@ -46,6 +47,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
   workspaces,
   checkedWorkspaces,
   isUsingFilter,
+  isWorkspaceBatchActionsEnabled,
   onUpdateWorkspace,
   onCheckChange,
 }) => {
@@ -57,31 +59,36 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
       <Table>
         <TableHead>
           <TableRow>
-            <TableCell
-              width="40%"
-              sx={{
-                paddingLeft: (theme) => `${theme.spacing(1.5)} !important`,
-              }}
-            >
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <Checkbox
-                  checked={checkedWorkspaces.length === workspaces?.length}
-                  size="small"
-                  onChange={(_, checked) => {
-                    if (!workspaces) {
-                      return
-                    }
+            {isWorkspaceBatchActionsEnabled ? (
+              <TableCell
+                width="40%"
+                sx={{
+                  paddingLeft: (theme) => `${theme.spacing(1.5)} !important`,
+                }}
+              >
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <Checkbox
+                    checked={checkedWorkspaces.length === workspaces?.length}
+                    size="small"
+                    onChange={(_, checked) => {
+                      if (!workspaces) {
+                        return
+                      }
 
-                    if (!checked) {
-                      onCheckChange([])
-                    } else {
-                      onCheckChange(workspaces)
-                    }
-                  }}
-                />
-                Name
-              </Box>
-            </TableCell>
+                      if (!checked) {
+                        onCheckChange([])
+                      } else {
+                        onCheckChange(workspaces)
+                      }
+                    }}
+                  />
+                  Name
+                </Box>
+              </TableCell>
+            ) : (
+              <TableCell width="40%">Name</TableCell>
+            )}
+
             <TableCell width="25%">Template</TableCell>
             <TableCell width="20%">Last used</TableCell>
             <TableCell width="15%">Status</TableCell>
@@ -125,30 +132,35 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
               <WorkspacesRow workspace={workspace} key={workspace.id}>
                 <TableCell
                   sx={{
-                    paddingLeft: (theme) => `${theme.spacing(1.5)} !important`,
+                    paddingLeft: (theme) =>
+                      isWorkspaceBatchActionsEnabled
+                        ? `${theme.spacing(1.5)} !important`
+                        : undefined,
                   }}
                 >
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Checkbox
-                      size="small"
-                      checked={checkedWorkspaces.some(
-                        (w) => w.id === workspace.id,
-                      )}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                      }}
-                      onChange={(e) => {
-                        if (e.currentTarget.checked) {
-                          onCheckChange([...checkedWorkspaces, workspace])
-                        } else {
-                          onCheckChange(
-                            checkedWorkspaces.filter(
-                              (w) => w.id !== workspace.id,
-                            ),
-                          )
-                        }
-                      }}
-                    />
+                    {isWorkspaceBatchActionsEnabled && (
+                      <Checkbox
+                        size="small"
+                        checked={checkedWorkspaces.some(
+                          (w) => w.id === workspace.id,
+                        )}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                        }}
+                        onChange={(e) => {
+                          if (e.currentTarget.checked) {
+                            onCheckChange([...checkedWorkspaces, workspace])
+                          } else {
+                            onCheckChange(
+                              checkedWorkspaces.filter(
+                                (w) => w.id !== workspace.id,
+                              ),
+                            )
+                          }
+                        }}
+                      />
+                    )}
                     <AvatarData
                       title={
                         <Stack direction="row" spacing={0} alignItems="center">
