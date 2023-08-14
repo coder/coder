@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -361,7 +363,7 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 		{
 			Flag:        varHeaderCommand,
 			Env:         "CODER_HEADER_COMMAND",
-			Description: "An external process that outputs JSON-encoded key-value pairs to be used as additional HTTP headers added to all requests.",
+			Description: "An external command that outputs additional HTTP headers added to all requests. The command must output each header as `key=value` on its own line.",
 			Value:       clibase.StringOf(&r.headerCommand),
 			Group:       globalGroup,
 		},
@@ -605,13 +607,7 @@ func (r *RootCmd) setClient(ctx context.Context, client *codersdk.Client, server
 		transport: http.DefaultTransport,
 		header:    http.Header{},
 	}
-	for _, header := range r.header {
-		parts := strings.SplitN(header, "=", 2)
-		if len(parts) < 2 {
-			return xerrors.Errorf("split header %q had less than two parts", header)
-		}
-		transport.header.Add(parts[0], parts[1])
-	}
+	headers := r.header
 	if r.headerCommand != "" {
 		shell := "sh"
 		caller := "-c"
@@ -619,21 +615,30 @@ func (r *RootCmd) setClient(ctx context.Context, client *codersdk.Client, server
 			shell = "cmd.exe"
 			caller = "/c"
 		}
+		var outBuf bytes.Buffer
 		// #nosec
 		cmd := exec.CommandContext(ctx, shell, caller, r.headerCommand)
 		cmd.Env = append(os.Environ(), "CODER_URL="+serverURL.String())
-		out, err := cmd.Output()
+		cmd.Stdout = &outBuf
+		cmd.Stderr = io.Discard
+		err := cmd.Run()
 		if err != nil {
-			return xerrors.Errorf("failed to run %v (out: %q): %w", cmd.Args, out, err)
+			return xerrors.Errorf("failed to run %v: %w", cmd.Args, err)
 		}
-		var headers map[string]string
-		err = json.Unmarshal(out, &headers)
-		if err != nil {
-			return xerrors.Errorf("failed to parse json from %v (out: %q): %w", cmd.Args, out, err)
+		scanner := bufio.NewScanner(&outBuf)
+		for scanner.Scan() {
+			headers = append(headers, scanner.Text())
 		}
-		for key, value := range headers {
-			transport.header.Add(key, value)
+		if err := scanner.Err(); err != nil {
+			return xerrors.Errorf("scan %v: %w", cmd.Args, err)
 		}
+	}
+	for _, header := range headers {
+		parts := strings.SplitN(header, "=", 2)
+		if len(parts) < 2 {
+			return xerrors.Errorf("split header %q had less than two parts", header)
+		}
+		transport.header.Add(parts[0], parts[1])
 	}
 	client.URL = serverURL
 	client.HTTPClient = &http.Client{

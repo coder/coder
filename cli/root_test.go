@@ -80,6 +80,7 @@ func TestRoot(t *testing.T) {
 			assert.Equal(t, "wow", r.Header.Get("X-Testing"))
 			assert.Equal(t, "Dean was Here!", r.Header.Get("Cool-Header"))
 			assert.Equal(t, "very-wow-"+url, r.Header.Get("X-Process-Testing"))
+			assert.Equal(t, "more-wow", r.Header.Get("X-Process-Testing2"))
 			w.WriteHeader(http.StatusGone)
 		}))
 		defer srv.Close()
@@ -94,7 +95,7 @@ func TestRoot(t *testing.T) {
 			"--no-version-warning",
 			"--header", "X-Testing=wow",
 			"--header", "Cool-Header=Dean was Here!",
-			"--header-command", "printf '{\"X-Process-Testing\": \"very-wow-'"+coderURLEnv+"'\"}'",
+			"--header-command", "printf X-Process-Testing=very-wow-"+coderURLEnv+"'\\r\\n'X-Process-Testing2=more-wow",
 			"login", srv.URL,
 		)
 		inv.Stdout = buf
@@ -169,7 +170,7 @@ func TestDERPHeaders(t *testing.T) {
 		"--no-version-warning",
 		"ping", workspace.Name,
 		"-n", "1",
-		"--header-command", "printf '{\"X-Process-Testing\": \"very-wow\"}'",
+		"--header-command", "printf X-Process-Testing=very-wow",
 	}
 	for k, v := range expectedHeaders {
 		if k != "X-Process-Testing" {

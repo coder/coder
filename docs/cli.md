@@ -103,7 +103,7 @@ Additional HTTP headers added to all requests. Provide as key=value. Can be spec
 | Type        | <code>string</code>                |
 | Environment | <code>$CODER_HEADER_COMMAND</code> |
 
-An external command that outputs JSON-encoded key-value pairs to be used as additional HTTP headers added to all requests.
+An external command that outputs additional HTTP headers added to all requests. The command must output each header as `key=value` on its own line.
 
 ### --no-feature-warning
 
