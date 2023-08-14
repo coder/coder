@@ -56,7 +56,7 @@ const (
 	varAgentToken       = "agent-token"
 	varAgentURL         = "agent-url"
 	varHeader           = "header"
-	varHeaderProcess    = "header-process"
+	varHeaderCommand    = "header-command"
 	varNoOpen           = "no-open"
 	varNoVersionCheck   = "no-version-warning"
 	varNoFeatureWarning = "no-feature-warning"
@@ -359,10 +359,10 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 			Group:       globalGroup,
 		},
 		{
-			Flag:        varHeaderProcess,
-			Env:         "CODER_HEADER_PROCESS",
+			Flag:        varHeaderCommand,
+			Env:         "CODER_HEADER_COMMAND",
 			Description: "An external process that outputs JSON-encoded key-value pairs to be used as additional HTTP headers added to all requests.",
-			Value:       clibase.StringOf(&r.headerProcess),
+			Value:       clibase.StringOf(&r.headerCommand),
 			Group:       globalGroup,
 		},
 		{
@@ -446,7 +446,7 @@ type RootCmd struct {
 	token         string
 	globalConfig  string
 	header        []string
-	headerProcess string
+	headerCommand string
 	agentToken    string
 	agentURL      *url.URL
 	forceTTY      bool
@@ -612,7 +612,7 @@ func (r *RootCmd) setClient(ctx context.Context, client *codersdk.Client, server
 		}
 		transport.header.Add(parts[0], parts[1])
 	}
-	if r.headerProcess != "" {
+	if r.headerCommand != "" {
 		shell := "sh"
 		caller := "-c"
 		if runtime.GOOS == "windows" {
@@ -620,7 +620,7 @@ func (r *RootCmd) setClient(ctx context.Context, client *codersdk.Client, server
 			caller = "/c"
 		}
 		// #nosec
-		cmd := exec.CommandContext(ctx, shell, caller, r.headerProcess)
+		cmd := exec.CommandContext(ctx, shell, caller, r.headerCommand)
 		cmd.Env = append(os.Environ(), "CODER_URL="+serverURL.String())
 		out, err := cmd.Output()
 		if err != nil {

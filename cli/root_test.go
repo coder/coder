@@ -94,7 +94,7 @@ func TestRoot(t *testing.T) {
 			"--no-version-warning",
 			"--header", "X-Testing=wow",
 			"--header", "Cool-Header=Dean was Here!",
-			"--header-process", "printf '{\"X-Process-Testing\": \"very-wow-'"+coderURLEnv+"'\"}'",
+			"--header-command", "printf '{\"X-Process-Testing\": \"very-wow-'"+coderURLEnv+"'\"}'",
 			"login", srv.URL,
 		)
 		inv.Stdout = buf
@@ -107,7 +107,7 @@ func TestRoot(t *testing.T) {
 }
 
 // TestDERPHeaders ensures that the client sends the global `--header`s and
-// `--header-process` to the DERP server when connecting.
+// `--header-command` to the DERP server when connecting.
 func TestDERPHeaders(t *testing.T) {
 	t.Parallel()
 
@@ -169,7 +169,7 @@ func TestDERPHeaders(t *testing.T) {
 		"--no-version-warning",
 		"ping", workspace.Name,
 		"-n", "1",
-		"--header-process", "printf '{\"X-Process-Testing\": \"very-wow\"}'",
+		"--header-command", "printf '{\"X-Process-Testing\": \"very-wow\"}'",
 	}
 	for k, v := range expectedHeaders {
 		if k != "X-Process-Testing" {

@@ -96,14 +96,14 @@ Path to the global `coder` config directory.
 
 Additional HTTP headers added to all requests. Provide as key=value. Can be specified multiple times.
 
-### --header-process
+### --header-command
 
 |             |                                    |
 | ----------- | ---------------------------------- |
 | Type        | <code>string</code>                |
-| Environment | <code>$CODER_HEADER_PROCESS</code> |
+| Environment | <code>$CODER_HEADER_COMMAND</code> |
 
-An external process that outputs JSON-encoded key-value pairs to be used as additional HTTP headers added to all requests.
+An external command that outputs JSON-encoded key-value pairs to be used as additional HTTP headers added to all requests.
 
 ### --no-feature-warning
 
