@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/coderd/database/db2sdk"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/coderd/util/slice"
 	"github.com/coder/coder/codersdk"
 )
 
@@ -131,8 +132,8 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 	for templateID := range templateIDSet {
 		seenTemplateIDs = append(seenTemplateIDs, templateID)
 	}
-	slices.SortFunc(seenTemplateIDs, func(a, b uuid.UUID) bool {
-		return a.String() < b.String()
+	slices.SortFunc(seenTemplateIDs, func(a, b uuid.UUID) int {
+		return slice.Ascending(a.String(), b.String())
 	})
 
 	resp := codersdk.UserLatencyInsightsResponse{

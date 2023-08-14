@@ -31,6 +31,11 @@ CREATE TYPE build_reason AS ENUM (
     'autodelete'
 );
 
+CREATE TYPE group_source AS ENUM (
+    'user',
+    'oidc'
+);
+
 CREATE TYPE log_level AS ENUM (
     'trace',
     'debug',
@@ -143,7 +148,8 @@ CREATE TYPE workspace_agent_log_source AS ENUM (
 CREATE TYPE workspace_agent_subsystem AS ENUM (
     'envbuilder',
     'envbox',
-    'none'
+    'none',
+    'exectrace'
 );
 
 CREATE TYPE workspace_app_health AS ENUM (
@@ -299,10 +305,13 @@ CREATE TABLE groups (
     organization_id uuid NOT NULL,
     avatar_url text DEFAULT ''::text NOT NULL,
     quota_allowance integer DEFAULT 0 NOT NULL,
-    display_name text DEFAULT ''::text NOT NULL
+    display_name text DEFAULT ''::text NOT NULL,
+    source group_source DEFAULT 'user'::group_source NOT NULL
 );
 
 COMMENT ON COLUMN groups.display_name IS 'Display name is a custom, human-friendly group name that user can set. This is not required to be unique and can be the empty string.';
+
+COMMENT ON COLUMN groups.source IS 'Source indicates how the group was created. It can be created by a user manually, or through some system process like OIDC group sync.';
 
 CREATE TABLE licenses (
     id integer NOT NULL,
@@ -767,11 +776,12 @@ CREATE TABLE workspace_agents (
     shutdown_script_timeout_seconds integer DEFAULT 0 NOT NULL,
     logs_length integer DEFAULT 0 NOT NULL,
     logs_overflowed boolean DEFAULT false NOT NULL,
-    subsystem workspace_agent_subsystem DEFAULT 'none'::workspace_agent_subsystem NOT NULL,
     startup_script_behavior startup_script_behavior DEFAULT 'non-blocking'::startup_script_behavior NOT NULL,
     started_at timestamp with time zone,
     ready_at timestamp with time zone,
-    CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576))
+    subsystems workspace_agent_subsystem[] DEFAULT '{}'::workspace_agent_subsystem[],
+    CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576)),
+    CONSTRAINT subsystems_not_none CHECK ((NOT ('none'::workspace_agent_subsystem = ANY (subsystems))))
 );
 
 COMMENT ON COLUMN workspace_agents.version IS 'Version tracks the version of the currently running workspace agent. Workspace agents register their version upon start.';

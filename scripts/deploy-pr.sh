@@ -1,21 +1,26 @@
 #!/usr/bin/env bash
-# Usage: ./deploy-pr.sh  [--skip-build -s] [--dry-run -n] [--yes -y]
+# Usage: ./deploy-pr.sh [--dry-run -n] [--yes -y] [--experiments -e <experiments>] [--build -b] [--deploy -d]
 # deploys the current branch to a PR environment and posts login credentials to
 # [#pr-deployments](https://codercom.slack.com/archives/C05DNE982E8) Slack channel
 
 set -euo pipefail
 
 # default settings
-skipBuild=false
 dryRun=false
 confirm=true
+build=false
+deploy=false
 experiments=""
 
 # parse arguments
 while (("$#")); do
 	case "$1" in
-	-s | --skip-build)
-		skipBuild=true
+	-b | --build)
+		build=true
+		shift
+		;;
+	-d | --deploy)
+		deploy=true
 		shift
 		;;
 	-n | --dry-run)
@@ -63,30 +68,20 @@ fi
 branchName=$(gh pr view --json headRefName | jq -r .headRefName)
 prNumber=$(gh pr view --json number | jq -r .number)
 
-if $skipBuild; then
-	#check if the image exists
-	foundTag=$(curl -fsSL https://github.com/coder/coder/pkgs/container/coder-preview | grep -o "$prNumber" | head -n 1) || true
-	echo "foundTag is: '${foundTag}'"
-	if [[ -z "${foundTag}" ]]; then
-		echo "Image not found"
-		echo "${prNumber} tag not found in ghcr.io/coder/coder-preview"
-		echo "Please remove --skip-build and try again"
-		exit 1
-	fi
-fi
-
-if $dryRun; then
+if [[ "$dryRun" = true ]]; then
 	echo "dry run"
 	echo "branchName: ${branchName}"
 	echo "prNumber: ${prNumber}"
-	echo "skipBuild: ${skipBuild}"
 	echo "experiments: ${experiments}"
+	echo "build: ${build}"
+	echo "deploy: ${deploy}"
 	exit 0
 fi
 
 echo "branchName: ${branchName}"
 echo "prNumber: ${prNumber}"
-echo "skipBuild: ${skipBuild}"
 echo "experiments: ${experiments}"
+echo "build: ${build}"
+echo "deploy: ${deploy}"
 
-gh workflow run pr-deploy.yaml --ref "${branchName}" -f "pr_number=${prNumber}" -f "skip_build=${skipBuild}" -f "experiments=${experiments}"
+gh workflow run pr-deploy.yaml --ref "${branchName}" -f "pr_number=${prNumber}" -f "experiments=${experiments}" -f "build=${build}" -f "deploy=${deploy}"

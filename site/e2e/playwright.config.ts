@@ -27,6 +27,7 @@ export default defineConfig({
       use: {
         storageState: STORAGE_STATE,
       },
+      timeout: 60000,
     },
   ],
   use: {

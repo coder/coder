@@ -12,6 +12,11 @@ export const WorkspaceBuildLogsSection = ({
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    // Auto scrolling makes hard to snapshot test using Chromatic
+    if (process.env.STORYBOOK === "true") {
+      return
+    }
+
     const scrollEl = scrollRef.current
     if (scrollEl) {
       scrollEl.scrollTop = scrollEl.scrollHeight

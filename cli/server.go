@@ -597,6 +597,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					AuthURLParams:       cfg.OIDC.AuthURLParams.Value,
 					IgnoreUserInfo:      cfg.OIDC.IgnoreUserInfo.Value(),
 					GroupField:          cfg.OIDC.GroupField.String(),
+					GroupFilter:         cfg.OIDC.GroupRegexFilter.Value(),
+					CreateMissingGroups: cfg.OIDC.GroupAutoCreate.Value(),
 					GroupMapping:        cfg.OIDC.GroupMapping.Value,
 					UserRoleField:       cfg.OIDC.UserRoleField.String(),
 					UserRoleMapping:     cfg.OIDC.UserRoleMapping.Value,
@@ -1028,7 +1030,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					defer wg.Done()
 
 					if ok, _ := inv.ParsedFlags().GetBool(varVerbose); ok {
-						cliui.Infof(inv.Stdout, "Shutting down provisioner daemon %d...\n", id)
+						cliui.Infof(inv.Stdout, "Shutting down provisioner daemon %d...", id)
 					}
 					err := shutdownWithTimeout(provisionerDaemon.Shutdown, 5*time.Second)
 					if err != nil {
@@ -1041,7 +1043,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 						return
 					}
 					if ok, _ := inv.ParsedFlags().GetBool(varVerbose); ok {
-						cliui.Infof(inv.Stdout, "Gracefully shut down provisioner daemon %d\n", id)
+						cliui.Infof(inv.Stdout, "Gracefully shut down provisioner daemon %d", id)
 					}
 				}()
 			}

@@ -142,7 +142,7 @@ func TestSearchWorkspace(t *testing.T) {
 		{
 			Name:                  "ExtraKeys",
 			Query:                 `foo:bar`,
-			ExpectedErrorContains: `Query param "foo" is not a valid query param`,
+			ExpectedErrorContains: `"foo" is not a valid query param`,
 		},
 	}
 
@@ -239,7 +239,7 @@ func TestSearchAudit(t *testing.T) {
 		{
 			Name:                  "ExtraKeys",
 			Query:                 `foo:bar`,
-			ExpectedErrorContains: `Query param "foo" is not a valid query param`,
+			ExpectedErrorContains: `"foo" is not a valid query param`,
 		},
 		{
 			Name:                  "Dates",
@@ -370,7 +370,7 @@ func TestSearchUsers(t *testing.T) {
 		{
 			Name:                  "ExtraKeys",
 			Query:                 `foo:bar`,
-			ExpectedErrorContains: `Query param "foo" is not a valid query param`,
+			ExpectedErrorContains: `"foo" is not a valid query param`,
 		},
 	}
 

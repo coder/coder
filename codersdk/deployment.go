@@ -271,6 +271,8 @@ type OIDCConfig struct {
 	EmailField          clibase.String                      `json:"email_field" typescript:",notnull"`
 	AuthURLParams       clibase.Struct[map[string]string]   `json:"auth_url_params" typescript:",notnull"`
 	IgnoreUserInfo      clibase.Bool                        `json:"ignore_user_info" typescript:",notnull"`
+	GroupAutoCreate     clibase.Bool                        `json:"group_auto_create" typescript:",notnull"`
+	GroupRegexFilter    clibase.Regexp                      `json:"group_regex_filter" typescript:",notnull"`
 	GroupField          clibase.String                      `json:"groups_field" typescript:",notnull"`
 	GroupMapping        clibase.Struct[map[string]string]   `json:"group_mapping" typescript:",notnull"`
 	UserRoleField       clibase.String                      `json:"user_role_field" typescript:",notnull"`
@@ -731,6 +733,7 @@ when required by your organization's security policy.`,
 			Value:       &c.DERP.Server.RegionID,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "regionID",
+			Hidden:      true,
 			// Does not apply to external proxies as this value is generated.
 		},
 		{
@@ -742,6 +745,7 @@ when required by your organization's security policy.`,
 			Value:       &c.DERP.Server.RegionCode,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "regionCode",
+			Hidden:      true,
 			// Does not apply to external proxies as we use the proxy name.
 		},
 		{
@@ -757,10 +761,10 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "DERP Server STUN Addresses",
-			Description: "Addresses for STUN servers to establish P2P connections. Use special value 'disable' to turn off STUN.",
+			Description: "Addresses for STUN servers to establish P2P connections. It's recommended to have at least two STUN servers to give users the best chance of connecting P2P to workspaces. Each STUN server will get it's own DERP region, with region IDs starting at `--derp-server-region-id + 1`. Use special value 'disable' to turn off STUN completely.",
 			Flag:        "derp-server-stun-addresses",
 			Env:         "CODER_DERP_SERVER_STUN_ADDRESSES",
-			Default:     "stun.l.google.com:19302",
+			Default:     "stun.l.google.com:19302,stun1.l.google.com:19302,stun2.l.google.com:19302,stun3.l.google.com:19302,stun4.l.google.com:19302",
 			Value:       &c.DERP.Server.STUNAddresses,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "stunAddresses",
@@ -1065,6 +1069,26 @@ when required by your organization's security policy.`,
 			Value:       &c.OIDC.GroupMapping,
 			Group:       &deploymentGroupOIDC,
 			YAML:        "groupMapping",
+		},
+		{
+			Name:        "Enable OIDC Group Auto Create",
+			Description: "Automatically creates missing groups from a user's groups claim.",
+			Flag:        "oidc-group-auto-create",
+			Env:         "CODER_OIDC_GROUP_AUTO_CREATE",
+			Default:     "false",
+			Value:       &c.OIDC.GroupAutoCreate,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "enableGroupAutoCreate",
+		},
+		{
+			Name:        "OIDC Regex Group Filter",
+			Description: "If provided any group name not matching the regex is ignored. This allows for filtering out groups that are not needed. This filter is applied after the group mapping.",
+			Flag:        "oidc-group-regex-filter",
+			Env:         "CODER_OIDC_GROUP_REGEX_FILTER",
+			Default:     ".*",
+			Value:       &c.OIDC.GroupRegexFilter,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "groupRegexFilter",
 		},
 		{
 			Name:        "OIDC User Role Field",
@@ -1881,6 +1905,9 @@ const (
 	// Deployment health page
 	ExperimentDeploymentHealthPage Experiment = "deployment_health_page"
 
+	// Template parameters insights
+	ExperimentTemplateParametersInsights Experiment = "template_parameters_insights"
+
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"
 )
@@ -1891,6 +1918,7 @@ const (
 // not be included here and will be essentially hidden.
 var ExperimentsAll = Experiments{
 	ExperimentDeploymentHealthPage,
+	ExperimentTemplateParametersInsights,
 }
 
 // Experiments is a list of experiments that are enabled for the deployment.

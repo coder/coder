@@ -2121,9 +2121,14 @@ func TestWorkspaceWatcher(t *testing.T) {
 			case w, ok := <-wc:
 				require.True(t, ok, "watch channel closed: %s", event)
 				if ready == nil || ready(w) {
-					logger.Info(ctx, "done waiting for event", slog.F("event", event))
+					logger.Info(ctx, "done waiting for event",
+						slog.F("event", event),
+						slog.F("workspace", w))
 					return
 				}
+				logger.Info(ctx, "skipped update for event",
+					slog.F("event", event),
+					slog.F("workspace", w))
 			}
 		}
 	}
@@ -2194,12 +2199,23 @@ func TestWorkspaceWatcher(t *testing.T) {
 	})
 	// We want to verify pending state here, but it's possible that we reach
 	// failed state fast enough that we never see pending.
+	sawFailed := false
 	wait("workspace build pending or failed", func(w codersdk.Workspace) bool {
-		return w.LatestBuild.Status == codersdk.WorkspaceStatusPending || w.LatestBuild.Status == codersdk.WorkspaceStatusFailed
+		switch w.LatestBuild.Status {
+		case codersdk.WorkspaceStatusPending:
+			return true
+		case codersdk.WorkspaceStatusFailed:
+			sawFailed = true
+			return true
+		default:
+			return false
+		}
 	})
-	wait("workspace build failed", func(w codersdk.Workspace) bool {
-		return w.LatestBuild.Status == codersdk.WorkspaceStatusFailed
-	})
+	if !sawFailed {
+		wait("workspace build failed", func(w codersdk.Workspace) bool {
+			return w.LatestBuild.Status == codersdk.WorkspaceStatusFailed
+		})
+	}
 
 	closeFunc.Close()
 	build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart)

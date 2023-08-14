@@ -105,7 +105,7 @@ to log in and manage templates.
    > You can view our
    > [Helm README](https://github.com/coder/coder/blob/main/helm#readme) for
    > details on the values that are available, or you can view the
-   > [values.yaml](https://github.com/coder/coder/blob/main/helm/values.yaml)
+   > [values.yaml](https://github.com/coder/coder/blob/main/helm/coder/values.yaml)
    > file directly.
 
 1. Run the following command to install the chart in your cluster.
@@ -157,12 +157,10 @@ AWS recommends a Network load balancer in lieu of the Classic load balancer. Use
 
 ```yaml
 coder:
-   service:
-   externalTrafficPolicy: Local
-   sessionAffinity: None
-   annotations: {
-      service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
- }
+  service:
+    externalTrafficPolicy: Local
+    sessionAffinity: None
+    annotations: { service.beta.kubernetes.io/aws-load-balancer-type: "nlb" }
 ```
 
 By default, Coder will set the `externalTrafficPolicy` to `Cluster` which will

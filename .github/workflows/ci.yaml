@@ -2,10 +2,6 @@ name: ci
 
 on:
   push:
-    branches:
-      - main
-
-  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -47,6 +43,7 @@ jobs:
         uses: dorny/paths-filter@v2
         id: filter
         with:
+          base: ${{ github.ref }}
           filters: |
             all:
               - "**"
@@ -668,6 +665,7 @@ jobs:
       - test-go-pg
       - test-go-race
       - test-js
+      - test-e2e
       - offlinedocs
     # Allow this job to run even if the needed jobs fail, are skipped or
     # cancelled.
