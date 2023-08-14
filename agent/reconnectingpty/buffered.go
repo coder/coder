@@ -178,39 +178,9 @@ func (rpty *bufferedReconnectingPTY) Attach(ctx context.Context, connID string, 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// Once we are ready, attach the active connection while we hold the mutex.
-	state, err := rpty.state.waitForStateOrContext(ctx, StateReady, func(state State) error {
-		// Write any previously stored data for the TTY.  Since the command might be
-		// short-lived and have already exited, make sure we always at least output
-		// the buffer before returning.
-		prevBuf := slices.Clone(rpty.circularBuffer.Bytes())
-		_, err := conn.Write(prevBuf)
-		if err != nil {
-			rpty.metrics.WithLabelValues("write").Add(1)
-			return xerrors.Errorf("write buffer to conn: %w", err)
-		}
-
-		if state != StateReady {
-			return nil
-		}
-
-		go heartbeat(ctx, rpty.timer, rpty.timeout)
-
-		// Resize the PTY to initial height + width.
-		err = rpty.ptty.Resize(height, width)
-		if err != nil {
-			// We can continue after this, it's not fatal!
-			logger.Warn(ctx, "reconnecting PTY initial resize failed, but will continue", slog.Error(err))
-			rpty.metrics.WithLabelValues("resize").Add(1)
-		}
-
-		// Store the connection for future writes.
-		rpty.activeConns[connID] = conn
-
-		return nil
-	})
-	if state != StateReady || err != nil {
-		return xerrors.Errorf("reconnecting pty ready wait: %w", err)
+	err := rpty.doAttach(ctx, connID, conn, height, width, logger)
+	if err != nil {
+		return err
 	}
 
 	defer func() {
@@ -221,6 +191,43 @@ func (rpty *bufferedReconnectingPTY) Attach(ctx context.Context, connID string, 
 
 	// Pipe conn -> pty and block.  pty -> conn is handled in newBuffered().
 	readConnLoop(ctx, conn, rpty.ptty, rpty.metrics, logger)
+	return nil
+}
+
+// doAttach adds the connection to the map, replays the buffer, and starts the
+// heartbeat.  It exists separately only so we can defer the mutex unlock which
+// is not possible in Attach since it blocks.
+func (rpty *bufferedReconnectingPTY) doAttach(ctx context.Context, connID string, conn net.Conn, height, width uint16, logger slog.Logger) error {
+	rpty.state.cond.L.Lock()
+	defer rpty.state.cond.L.Unlock()
+
+	// Write any previously stored data for the TTY.  Since the command might be
+	// short-lived and have already exited, make sure we always at least output
+	// the buffer before returning, mostly just so tests pass.
+	prevBuf := slices.Clone(rpty.circularBuffer.Bytes())
+	_, err := conn.Write(prevBuf)
+	if err != nil {
+		rpty.metrics.WithLabelValues("write").Add(1)
+		return xerrors.Errorf("write buffer to conn: %w", err)
+	}
+
+	state, err := rpty.state.waitForStateOrContextLocked(ctx, StateReady)
+	if state != StateReady {
+		return xerrors.Errorf("reconnecting pty ready wait: %w", err)
+	}
+
+	go heartbeat(ctx, rpty.timer, rpty.timeout)
+
+	// Resize the PTY to initial height + width.
+	err = rpty.ptty.Resize(height, width)
+	if err != nil {
+		// We can continue after this, it's not fatal!
+		logger.Warn(ctx, "reconnecting PTY initial resize failed, but will continue", slog.Error(err))
+		rpty.metrics.WithLabelValues("resize").Add(1)
+	}
+
+	rpty.activeConns[connID] = conn
+
 	return nil
 }
 

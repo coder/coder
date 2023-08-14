@@ -167,10 +167,16 @@ func (s *ptyState) waitForState(state State) (State, error) {
 }
 
 // waitForStateOrContext blocks until the state or a greater one is reached or
-// the provided context ends.  If fn is non-nil it will be ran while the lock is
-// held unless the context ends.  If fn returns an error then fn's error will
-// replace waitForStateOrContext's error.
+// the provided context ends.
 func (s *ptyState) waitForStateOrContext(ctx context.Context, state State, fn func(state State) error) (State, error) {
+	s.cond.L.Lock()
+	defer s.cond.L.Unlock()
+	return s.waitForStateOrContextLocked(ctx, state)
+}
+
+// waitForStateOrContextLocked is the same as waitForStateOrContext except it
+// assumes the caller has already locked cond.
+func (s *ptyState) waitForStateOrContextLocked(ctx context.Context, state State) (State, error) {
 	nevermind := make(chan struct{})
 	defer close(nevermind)
 	go func() {
@@ -182,19 +188,11 @@ func (s *ptyState) waitForStateOrContext(ctx context.Context, state State, fn fu
 		}
 	}()
 
-	s.cond.L.Lock()
-	defer s.cond.L.Unlock()
 	for ctx.Err() == nil && state > s.state {
 		s.cond.Wait()
 	}
 	if ctx.Err() != nil {
 		return s.state, ctx.Err()
-	}
-	if fn != nil {
-		err := fn(s.state)
-		if err != nil {
-			return s.state, err
-		}
 	}
 	return s.state, s.error
 }
