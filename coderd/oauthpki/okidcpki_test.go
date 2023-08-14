@@ -249,6 +249,7 @@ func TestSavedAzureADPKIOIDC(t *testing.T) {
 
 	// This simulates a client logging into the browser. The 307 redirect will
 	// make sure this goes through the full flow.
+	// nolint: noctx
 	resp, err := fakeClient.Get(pki.AuthCodeURL("state", oauth2.AccessTypeOffline))
 	require.NoError(t, err)
 	_ = resp.Body.Close()
