@@ -17,7 +17,7 @@ const AddNewLicensePage: FC = () => {
   } = useMutation(createLicense, {
     onSuccess: () => {
       displaySuccess("You have successfully added a license")
-      navigate("/settings/deployment/licenses?success=true")
+      navigate("/deployment/licenses?success=true")
     },
     onError: () => displayError("Failed to save license key"),
   })
@@ -28,7 +28,7 @@ const AddNewLicensePage: FC = () => {
       {
         onSuccess: () => {
           displaySuccess("You have successfully added a license")
-          navigate("/settings/deployment/licenses?success=true")
+          navigate("/deployment/licenses?success=true")
         },
         onError: () => displayError("Failed to save license key"),
       },

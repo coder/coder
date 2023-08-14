@@ -60,7 +60,7 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
         <Button
           component={RouterLink}
           startIcon={<KeyboardArrowLeft />}
-          to="/settings/deployment/licenses"
+          to="/deployment/licenses"
         >
           All Licenses
         </Button>

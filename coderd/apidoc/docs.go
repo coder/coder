@@ -7536,12 +7536,20 @@ const docTemplate = `{
             ],
             "properties": {
                 "disable_login": {
-                    "description": "DisableLogin sets the user's login type to 'none'. This prevents the user\nfrom being able to use a password or any other authentication method to login.",
+                    "description": "DisableLogin sets the user's login type to 'none'. This prevents the user\nfrom being able to use a password or any other authentication method to login.\nDeprecated: Set UserLoginType=LoginTypeDisabled instead.",
                     "type": "boolean"
                 },
                 "email": {
                     "type": "string",
                     "format": "email"
+                },
+                "login_type": {
+                    "description": "UserLoginType defaults to LoginTypePassword.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.LoginType"
+                        }
+                    ]
                 },
                 "organization_id": {
                     "type": "string",
@@ -8449,6 +8457,7 @@ const docTemplate = `{
         "codersdk.LoginType": {
             "type": "string",
             "enum": [
+                "",
                 "password",
                 "github",
                 "oidc",
@@ -8456,6 +8465,7 @@ const docTemplate = `{
                 "none"
             ],
             "x-enum-varnames": [
+                "LoginTypeUnknown",
                 "LoginTypePassword",
                 "LoginTypeGithub",
                 "LoginTypeOIDC",

@@ -21,7 +21,7 @@ const renderCreateUserPage = async () => {
 const fillForm = async ({
   username = "someuser",
   email = "someone@coder.com",
-  password = "password",
+  password = "SomeSecurePassword!",
 }: {
   username?: string
   email?: string
@@ -29,10 +29,15 @@ const fillForm = async ({
 }) => {
   const usernameField = screen.getByLabelText(FormLanguage.usernameLabel)
   const emailField = screen.getByLabelText(FormLanguage.emailLabel)
-  const passwordField = screen.getByLabelText(FormLanguage.passwordLabel)
+  const passwordField = screen
+    .getByTestId("password-input")
+    .querySelector("input")
+
+  const loginTypeField = screen.getByTestId("login-type-input")
   await userEvent.type(usernameField, username)
   await userEvent.type(emailField, email)
-  await userEvent.type(passwordField, password)
+  await userEvent.type(loginTypeField, "password")
+  await userEvent.type(passwordField as HTMLElement, password)
   const submitButton = await screen.findByText(
     FooterLanguage.defaultSubmitLabel,
   )

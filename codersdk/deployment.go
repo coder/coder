@@ -736,6 +736,7 @@ when required by your organization's security policy.`,
 			Value:       &c.DERP.Server.RegionID,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "regionID",
+			Hidden:      true,
 			// Does not apply to external proxies as this value is generated.
 		},
 		{
@@ -747,6 +748,7 @@ when required by your organization's security policy.`,
 			Value:       &c.DERP.Server.RegionCode,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "regionCode",
+			Hidden:      true,
 			// Does not apply to external proxies as we use the proxy name.
 		},
 		{
@@ -762,10 +764,10 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "DERP Server STUN Addresses",
-			Description: "Addresses for STUN servers to establish P2P connections. Use special value 'disable' to turn off STUN.",
+			Description: "Addresses for STUN servers to establish P2P connections. It's recommended to have at least two STUN servers to give users the best chance of connecting P2P to workspaces. Each STUN server will get it's own DERP region, with region IDs starting at `--derp-server-region-id + 1`. Use special value 'disable' to turn off STUN completely.",
 			Flag:        "derp-server-stun-addresses",
 			Env:         "CODER_DERP_SERVER_STUN_ADDRESSES",
-			Default:     "stun.l.google.com:19302",
+			Default:     "stun.l.google.com:19302,stun1.l.google.com:19302,stun2.l.google.com:19302,stun3.l.google.com:19302,stun4.l.google.com:19302",
 			Value:       &c.DERP.Server.STUNAddresses,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "stunAddresses",

@@ -16,10 +16,14 @@ By default, the Coder server runs [built-in provisioner daemons](../cli/server.m
 
 Each provisioner can run a single [concurrent workspace build](./scale.md#concurrent-workspace-builds). For example, running 30 provisioner containers will allow 30 users to start workspaces at the same time.
 
-### Requirements
+Provisioners are started with the [coder provisionerd start](../cli/provisionerd_start.md) command.
 
-- The [Coder CLI](../cli.md) must installed on and authenticated as a user with the Owner or Template Admin role.
-- Your environment must be [authenticated](../templates/authentication.md) against the cloud environments templates need to provision against.
+### Authentication
+
+The provisioner server must authenticate with your Coder deployment. There are two authentication methods:
+
+- PSK: Set a [provisioner daemon PSK](../cli/server#--provisioner-daemon-psk) on the Coder server and start the provisioner with `coder provisionerd start --psk <your-psk>`
+- User token: [Authenticate](../cli.md#--token) the Coder CLI as a user with the Template Admin or Owner role.
 
 ### Types of provisioners
 
