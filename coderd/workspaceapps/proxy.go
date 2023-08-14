@@ -124,6 +124,10 @@ func (s *Server) Close() error {
 	s.websocketWaitGroup.Wait()
 	s.websocketWaitMutex.Unlock()
 
+	if s.StatsCollector != nil {
+		_ = s.StatsCollector.Close()
+	}
+
 	// The caller must close the SignedTokenProvider and the AgentProvider (if
 	// necessary).
 
@@ -589,12 +593,12 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 	tracing.EndHTTPSpan(r, http.StatusOK, trace.SpanFromContext(ctx))
 
 	report := newStatsReportFromSignedToken(appToken)
-	s.StatsCollector.Collect(report)
+	s.collectStats(report)
 
 	proxy.ServeHTTP(rw, r)
 
 	report.SessionEndedAt = database.Now()
-	s.StatsCollector.Collect(report)
+	s.collectStats(report)
 }
 
 // workspaceAgentPTY spawns a PTY and pipes it over a WebSocket.
@@ -688,13 +692,19 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	log.Debug(ctx, "obtained PTY")
 
 	report := newStatsReportFromSignedToken(*appToken)
-	s.StatsCollector.Collect(report)
+	s.collectStats(report)
 
 	agentssh.Bicopy(ctx, wsNetConn, ptNetConn)
 	log.Debug(ctx, "pty Bicopy finished")
 
 	report.SessionEndedAt = database.Now()
-	s.StatsCollector.Collect(report)
+	s.collectStats(report)
+}
+
+func (s *Server) collectStats(stats StatsReport) {
+	if s.StatsCollector != nil {
+		s.StatsCollector.Collect(stats)
+	}
 }
 
 // wsNetConn wraps net.Conn created by websocket.NetConn(). Cancel func

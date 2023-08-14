@@ -324,7 +324,7 @@ func (sc *StatsCollector) start() {
 	ticker := time.NewTicker(sc.opts.ReportInterval)
 	defer ticker.Stop()
 
-	var flushDone chan<- struct{}
+	var reportFlushDone chan<- struct{}
 	done := false
 	for !done {
 		select {
@@ -332,7 +332,7 @@ func (sc *StatsCollector) start() {
 			ticker.Stop()
 			done = true
 		case <-ticker.C:
-		case flushDone = <-sc.opts.Flush:
+		case reportFlushDone = <-sc.opts.Flush:
 		}
 
 		// Ensure we don't hold up this request for too long. Add a few
@@ -342,9 +342,9 @@ func (sc *StatsCollector) start() {
 		cancel()
 
 		// For tests.
-		if flushDone != nil {
-			flushDone <- struct{}{}
-			flushDone = nil
+		if reportFlushDone != nil {
+			reportFlushDone <- struct{}{}
+			reportFlushDone = nil
 		}
 	}
 }
