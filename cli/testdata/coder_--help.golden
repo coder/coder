@@ -62,6 +62,11 @@ variables or flags.
           Additional HTTP headers added to all requests. Provide as key=value.
           Can be specified multiple times.
 
+      --header-command string, $CODER_HEADER_COMMAND
+          An external command that outputs additional HTTP headers added to all
+          requests. The command must output each header as `key=value` on its
+          own line.
+
       --no-feature-warning bool, $CODER_NO_FEATURE_WARNING
           Suppress warnings about unlicensed features.
 

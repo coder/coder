@@ -76,7 +76,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 				serverURL.Scheme = "https"
 			}
 
-			client, err := r.createUnauthenticatedClient(serverURL)
+			client, err := r.createUnauthenticatedClient(ctx, serverURL)
 			if err != nil {
 				return err
 			}
