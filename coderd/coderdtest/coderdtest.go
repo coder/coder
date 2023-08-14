@@ -588,14 +588,7 @@ func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationI
 	require.NoError(t, err)
 
 	var sessionToken string
-	if !req.DisableLogin {
-		login, err := client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
-			Email:    req.Email,
-			Password: req.Password,
-		})
-		require.NoError(t, err)
-		sessionToken = login.SessionToken
-	} else {
+	if req.DisableLogin || req.UserLoginType == codersdk.LoginTypeNone {
 		// Cannot log in with a disabled login user. So make it an api key from
 		// the client making this user.
 		token, err := client.CreateToken(context.Background(), user.ID.String(), codersdk.CreateTokenRequest{
@@ -605,6 +598,13 @@ func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationI
 		})
 		require.NoError(t, err)
 		sessionToken = token.Key
+	} else {
+		login, err := client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
+			Email:    req.Email,
+			Password: req.Password,
+		})
+		require.NoError(t, err)
+		sessionToken = login.SessionToken
 	}
 
 	if user.Status == codersdk.UserStatusDormant {

@@ -20,6 +20,7 @@ export CODER_TEMPLATE_DIR=.coder/templates/kubernetes
 export CODER_TEMPLATE_VERSION=$(git rev-parse --short HEAD)
 
 # Push the new template version to Coder
+coder login --url $CODER_URL --token $CODER_SESSION_TOKEN
 coder templates push --yes $CODER_TEMPLATE_NAME \
     --directory $CODER_TEMPLATE_DIR \
     --name=$CODER_TEMPLATE_VERSION # Version name is optional

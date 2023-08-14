@@ -2,6 +2,7 @@ package httpmw
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -85,6 +86,7 @@ func ExtractUserParam(db database.Store, redirectToLoginOnMe bool) func(http.Han
 				if err != nil {
 					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 						Message: userErrorMessage,
+						Detail:  fmt.Sprintf("queried user=%q", userQuery),
 					})
 					return
 				}
@@ -96,6 +98,7 @@ func ExtractUserParam(db database.Store, redirectToLoginOnMe bool) func(http.Han
 				if err != nil {
 					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 						Message: userErrorMessage,
+						Detail:  fmt.Sprintf("queried user=%q", userQuery),
 					})
 					return
 				}

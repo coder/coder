@@ -51,9 +51,9 @@ func (r *RootCmd) gitAskpass() *clibase.Cmd {
 			}
 			if token.URL != "" {
 				if err := openURL(inv, token.URL); err == nil {
-					cliui.Infof(inv.Stderr, "Your browser has been opened to authenticate with Git:\n\n%s\n", token.URL)
+					cliui.Infof(inv.Stderr, "Your browser has been opened to authenticate with Git:\n%s", token.URL)
 				} else {
-					cliui.Infof(inv.Stderr, "Open the following URL to authenticate with Git:\n\n%s\n", token.URL)
+					cliui.Infof(inv.Stderr, "Open the following URL to authenticate with Git:\n%s", token.URL)
 				}
 
 				for r := retry.New(250*time.Millisecond, 10*time.Second); r.Wait(ctx); {
@@ -61,7 +61,7 @@ func (r *RootCmd) gitAskpass() *clibase.Cmd {
 					if err != nil {
 						continue
 					}
-					cliui.Infof(inv.Stderr, "You've been authenticated with Git!\n")
+					cliui.Infof(inv.Stderr, "You've been authenticated with Git!")
 					break
 				}
 			}

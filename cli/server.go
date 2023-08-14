@@ -1030,7 +1030,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					defer wg.Done()
 
 					if ok, _ := inv.ParsedFlags().GetBool(varVerbose); ok {
-						cliui.Infof(inv.Stdout, "Shutting down provisioner daemon %d...\n", id)
+						cliui.Infof(inv.Stdout, "Shutting down provisioner daemon %d...", id)
 					}
 					err := shutdownWithTimeout(provisionerDaemon.Shutdown, 5*time.Second)
 					if err != nil {
@@ -1043,7 +1043,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 						return
 					}
 					if ok, _ := inv.ParsedFlags().GetBool(varVerbose); ok {
-						cliui.Infof(inv.Stdout, "Gracefully shut down provisioner daemon %d\n", id)
+						cliui.Infof(inv.Stdout, "Gracefully shut down provisioner daemon %d", id)
 					}
 				}()
 			}

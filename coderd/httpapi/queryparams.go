@@ -45,7 +45,7 @@ func (p *QueryParamParser) ErrorExcessParams(values url.Values) {
 		if _, ok := p.Parsed[k]; !ok {
 			p.Errors = append(p.Errors, codersdk.ValidationError{
 				Field:  k,
-				Detail: fmt.Sprintf("Query param %q is not a valid query param", k),
+				Detail: fmt.Sprintf("%q is not a valid query param", k),
 			})
 		}
 	}
