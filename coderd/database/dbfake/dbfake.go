@@ -4345,6 +4345,7 @@ InsertWorkspaceAppStatsLoop:
 			}
 		}
 		q.workspaceAppStats = append(q.workspaceAppStats, stat)
+		nextID++
 	}
 
 	return nil
