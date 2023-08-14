@@ -3,7 +3,7 @@ package oauthpki
 import (
 	"context"
 	"crypto/rsa"
-	"crypto/sha1"
+	"crypto/sha1" //#nosec // Not used for cryptography.
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -92,6 +92,8 @@ func NewOauth2PKIConfig(params ConfigParams) (*Config, error) {
 	}
 
 	block, _ := pem.Decode(params.PemEncodedCert)
+	// Used as an identifier, not an actual cryptographic hash.
+	//nolint:gosec
 	hashed := sha1.Sum(block.Bytes)
 
 	return &Config{
@@ -196,7 +198,13 @@ func (src *jwtTokenSource) Token() (*oauth2.Token, error) {
 		"refresh_token":         {src.refreshToken},
 	}
 	// Using params based auth
-	resp, err := cli.PostForm(src.cfg.tokenURL, v)
+	req, err := http.NewRequest("POST", src.cfg.tokenURL, strings.NewReader(v.Encode()))
+	if err != nil {
+		return nil, xerrors.Errorf("oauth2: make token refresh request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req = req.WithContext(src.ctx)
+	resp, err := cli.Do(req)
 	if err != nil {
 		return nil, xerrors.Errorf("oauth2: cannot get token: %w", err)
 	}
@@ -235,7 +243,7 @@ func (src *jwtTokenSource) Token() (*oauth2.Token, error) {
 	}
 
 	if unmarshalError != nil {
-		return nil, fmt.Errorf("oauth2: cannot unmarshal token: %v", err)
+		return nil, fmt.Errorf("oauth2: cannot unmarshal token: %w", err)
 	}
 
 	newToken := &oauth2.Token{
@@ -256,7 +264,7 @@ func (src *jwtTokenSource) Token() (*oauth2.Token, error) {
 		// decode returned id token to get expiry
 		claimSet, err := jws.Decode(v)
 		if err != nil {
-			return nil, fmt.Errorf("oauth2: error decoding JWT token: %v", err)
+			return nil, fmt.Errorf("oauth2: error decoding JWT token: %w", err)
 		}
 		newToken.Expiry = time.Unix(claimSet.Exp, 0)
 	}

@@ -84,6 +84,8 @@ B1B7CpkMU55hPP+7nsofCszNrMDXT8Z5w2a3zLKM
 // It runs an oauth2.Exchange method and hijacks the request to only check the
 // request side of the transaction.
 func TestAzureADPKIOIDC(t *testing.T) {
+	t.Parallel()
+
 	oauthCfg := &oauth2.Config{
 		ClientID: "random-client-id",
 		Endpoint: oauth2.Endpoint{
@@ -128,6 +130,8 @@ func TestAzureADPKIOIDC(t *testing.T) {
 // to prevent some regressions by running a full "e2e" oauth and asserting some
 // of the request values.
 func TestSavedAzureADPKIOIDC(t *testing.T) {
+	t.Parallel()
+
 	var (
 		stateString = "random-state"
 		oauth2Code  = base64.StdEncoding.EncodeToString([]byte("random-code"))
@@ -237,15 +241,17 @@ func TestSavedAzureADPKIOIDC(t *testing.T) {
 				}
 
 				return nil, xerrors.Errorf("not implemented")
-			}},
+			},
+		},
 	}
 	fakeCtx = oidc.ClientContext(context.Background(), fakeClient)
-	var _ = fakeCtx
+	_ = fakeCtx
 
 	// This simulates a client logging into the browser. The 307 redirect will
 	// make sure this goes through the full flow.
-	_, err = fakeClient.Get(pki.AuthCodeURL("state", oauth2.AccessTypeOffline))
+	resp, err := fakeClient.Get(pki.AuthCodeURL("state", oauth2.AccessTypeOffline))
 	require.NoError(t, err)
+	_ = resp.Body.Close()
 
 	require.True(t, initialExchange, "initial token exchange complete")
 	require.True(t, tokenRefreshed, "token was refreshed")
