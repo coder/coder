@@ -2707,6 +2707,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `template_restart_requirement` |
 | `deployment_health_page`       |
 | `template_parameters_insights` |
+| `workspaces_batch_actions`     |
 
 ## codersdk.Feature
 

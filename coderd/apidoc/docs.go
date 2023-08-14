@@ -8043,7 +8043,8 @@ const docTemplate = `{
                 "single_tailnet",
                 "template_restart_requirement",
                 "deployment_health_page",
-                "template_parameters_insights"
+                "template_parameters_insights",
+                "workspaces_batch_actions"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
@@ -8052,7 +8053,8 @@ const docTemplate = `{
                 "ExperimentSingleTailnet",
                 "ExperimentTemplateRestartRequirement",
                 "ExperimentDeploymentHealthPage",
-                "ExperimentTemplateParametersInsights"
+                "ExperimentTemplateParametersInsights",
+                "ExperimentWorkspacesBatchActions"
             ]
         },
         "codersdk.Feature": {
