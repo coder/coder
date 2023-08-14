@@ -244,6 +244,15 @@ oidc:
   # Client ID to use for Login with OIDC.
   # (default: <unset>, type: string)
   clientID: ""
+  # Pem encoded RSA private key to use for oauth2 PKI/JWT authorization. This can be
+  # used instead of oidc-client-secret if your IDP supports it.
+  # (default: <unset>, type: string)
+  oidcClientKeyFile: ""
+  # Pem encoded certificate file to use for oauth2 PKI/JWT authorization. The public
+  # certificate that accompanies oidc-client-key-file. A standard x509 certificate
+  # is expected.
+  # (default: <unset>, type: string)
+  oidcClientCertFile: ""
   # Email domains that clients logging in with OIDC must match.
   # (default: <unset>, type: string-array)
   emailDomain: []
