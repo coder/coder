@@ -1,5 +1,7 @@
 # Authentication
 
+[OIDC Sequence Diagram](../images/oidc-sequence-diagram.svg)
+
 By default, Coder is accessible via password authentication. Coder does not
 recommend using password authentication in production, and recommends using an
 authentication provider with properly configured multi-factor authentication
