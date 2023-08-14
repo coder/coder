@@ -99,6 +99,7 @@ func TestAzureADPKIOIDC(t *testing.T) {
 		PemEncodedKey:  []byte(testClientKey),
 		PemEncodedCert: []byte(testClientCert),
 		Config:         oauthCfg,
+		Scopes:         []string{"openid", "email", "profile"},
 	})
 	require.NoError(t, err, "failed to create pki config")
 
