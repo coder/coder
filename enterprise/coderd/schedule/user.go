@@ -40,7 +40,7 @@ func NewEnterpriseUserQuietHoursScheduleStore(defaultSchedule string) (agpl.User
 }
 
 func (s *enterpriseUserQuietHoursScheduleStore) parseSchedule(ctx context.Context, rawSchedule string) (agpl.UserQuietHoursScheduleOptions, error) {
-	ctx, span := tracing.StartSpan(ctx)
+	_, span := tracing.StartSpan(ctx)
 	defer span.End()
 
 	userSet := true

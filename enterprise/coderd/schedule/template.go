@@ -184,7 +184,7 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuilds(ctx context.Cont
 	}
 
 	for _, build := range builds {
-		err := s.updateWorkspaceBuild(ctx, db, template, build)
+		err := s.updateWorkspaceBuild(ctx, db, build)
 		if err != nil {
 			return xerrors.Errorf("update workspace build %q: %w", build.ID, err)
 		}
@@ -193,7 +193,7 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuilds(ctx context.Cont
 	return nil
 }
 
-func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Context, db database.Store, template database.Template, build database.WorkspaceBuild) error {
+func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Context, db database.Store, build database.WorkspaceBuild) error {
 	ctx, span := tracing.StartSpan(ctx,
 		trace.WithAttributes(attribute.String("coder.workspace_id", build.WorkspaceID.String())),
 		trace.WithAttributes(attribute.String("coder.workspace_build_id", build.ID.String())),
