@@ -501,7 +501,6 @@ func (api *API) workspaceProxyIssueSignedAppToken(rw http.ResponseWriter, r *htt
 // @ID report-workspace-app-stats
 // @Security CoderSessionToken
 // @Accept json
-// @Produce json
 // @Tags Enterprise
 // @Param request body wsproxysdk.ReportAppStatsRequest true "Report app stats request"
 // @Success 204

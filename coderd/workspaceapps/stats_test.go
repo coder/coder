@@ -320,17 +320,14 @@ func TestStatsCollector(t *testing.T) {
 			}, testutil.WaitMedium, testutil.IntervalFast)
 
 			// Order is not guaranteed.
-			sortBySessionID := func(a, b workspaceapps.StatsReport) bool {
+			sortBySessionID := func(a, b workspaceapps.StatsReport) int {
 				if a.SessionID == b.SessionID {
-					if !a.SessionEndedAt.IsZero() && !b.SessionEndedAt.IsZero() {
-						return a.SessionEndedAt.Before(b.SessionEndedAt)
-					}
-					if a.SessionEndedAt.IsZero() {
-						return true
-					}
-					return false
+					return int(a.SessionEndedAt.Sub(b.SessionEndedAt))
 				}
-				return a.SessionID.String() < b.SessionID.String()
+				if a.SessionID.String() < b.SessionID.String() {
+					return -1
+				}
+				return 1
 			}
 			slices.SortFunc(tt.want, sortBySessionID)
 			slices.SortFunc(gotStats, sortBySessionID)

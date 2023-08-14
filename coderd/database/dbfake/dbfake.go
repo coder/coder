@@ -4309,7 +4309,7 @@ func (q *FakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 	return workspaceApp, nil
 }
 
-func (q *FakeQuerier) InsertWorkspaceAppStats(ctx context.Context, arg database.InsertWorkspaceAppStatsParams) error {
+func (q *FakeQuerier) InsertWorkspaceAppStats(_ context.Context, arg database.InsertWorkspaceAppStatsParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return err
