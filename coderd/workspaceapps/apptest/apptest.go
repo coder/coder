@@ -1435,14 +1435,20 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
+		var stats []workspaceapps.StatsReport
 		require.Eventually(t, func() bool {
 			// Keep flushing until we get a non-empty stats report.
 			flushDone := make(chan struct{}, 1)
 			flush <- flushDone
 			<-flushDone
 
-			return len(reporter.stats()) > 0
+			stats = reporter.stats()
+			return len(stats) > 0
 		}, testutil.WaitLong, testutil.IntervalFast, "stats not reported")
+
+		assert.Equal(t, workspaceapps.AccessMethodPath, stats[0].AccessMethod)
+		assert.Equal(t, "test-app-owner", stats[0].SlugOrPort)
+		assert.Equal(t, 1, stats[0].Requests)
 	})
 }
 
