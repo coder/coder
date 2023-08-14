@@ -44,7 +44,7 @@ For this instance, we will run Coder as a system service, however you can run Co
 In the Azure VM instance, run the following command to install Coder
 
 ```console
-curl -fsSL <https://coder.com/install.sh> | sh
+curl -fsSL https://coder.com/install.sh | sh
 ```
 
 ## Run Coder
