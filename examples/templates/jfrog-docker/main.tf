@@ -38,9 +38,9 @@ provider "docker" {
 data "coder_workspace" "me" {
 }
 
-variable "jfrog_url" {
+variable "jfrog_host" {
   type        = string
-  description = "The URL of the JFrog instance."
+  description = "JFrog instance hostname. For example, 'YYY.jfrog.io'."
 }
 
 variable "artifactory_access_token" {
@@ -50,7 +50,7 @@ variable "artifactory_access_token" {
 
 # Configure the Artifactory provider
 provider "artifactory" {
-  url          = "https://${var.jfrog_url}/artifactory"
+  url          = "https://${var.jfrog_host}/artifactory"
   access_token = var.artifactory_access_token
 }
 
@@ -75,12 +75,12 @@ resource "coder_agent" "main" {
 
     jf c rm 0 || true
     echo ${artifactory_scoped_token.me.access_token} | \
-      jf c add --access-token-stdin --url https://${var.jfrog_url} 0
+      jf c add --access-token-stdin --url https://${var.jfrog_host} 0
 
     # Configure the `npm` CLI to use the Artifactory "npm" registry.
     cat << EOF > ~/.npmrc
     email = ${data.coder_workspace.me.owner_email}
-    registry = https://${var.jfrog_url}/artifactory/api/npm/${local.artifactory_registry_keys["npm"]}
+    registry = https://${var.jfrog_host}/artifactory/api/npm/${local.artifactory_registry_keys["npm"]}
     EOF
     jf rt curl /api/npm/auth >> .npmrc
 
@@ -88,13 +88,13 @@ resource "coder_agent" "main" {
     mkdir -p ~/.pip
     cat << EOF > ~/.pip/pip.conf
     [global]
-    index-url = https://${local.artifactory_username}:${artifactory_scoped_token.me.access_token}@${var.jfrog_url}/artifactory/api/pypi/${local.artifactory_registry_keys["python"]}/simple
+    index-url = https://${local.artifactory_username}:${artifactory_scoped_token.me.access_token}@${var.jfrog_host}/artifactory/api/pypi/${local.artifactory_registry_keys["python"]}/simple
     EOF
 
   EOT
   # Set GOPROXY to use the Artifactory "go" registry.
   env = {
-    GOPROXY : "https://${local.artifactory_username}:${artifactory_scoped_token.me.access_token}@${var.jfrog_url}/artifactory/api/go/${local.artifactory_registry_keys["go"]}"
+    GOPROXY : "https://${local.artifactory_username}:${artifactory_scoped_token.me.access_token}@${var.jfrog_host}/artifactory/api/go/${local.artifactory_registry_keys["go"]}"
   }
 }
 
