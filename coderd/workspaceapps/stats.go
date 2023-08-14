@@ -11,6 +11,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/database/dbauthz"
 )
 
 const (
@@ -293,12 +294,12 @@ func (sc *StatsCollector) rollup() []StatsReport {
 }
 
 func (sc *StatsCollector) flush(ctx context.Context) (err error) {
-	sc.opts.Logger.Debug(sc.ctx, "flushing workspace app stats")
+	sc.opts.Logger.Debug(ctx, "flushing workspace app stats")
 	defer func() {
 		if err != nil {
-			sc.opts.Logger.Error(sc.ctx, "failed to flush workspace app stats", "error", err)
+			sc.opts.Logger.Error(ctx, "failed to flush workspace app stats", "error", err)
 		} else {
-			sc.opts.Logger.Debug(sc.ctx, "flushed workspace app stats")
+			sc.opts.Logger.Debug(ctx, "flushed workspace app stats")
 		}
 	}()
 
@@ -361,7 +362,8 @@ func (sc *StatsCollector) start() {
 		// Ensure we don't hold up this request for too long. Add a few
 		// seconds to prevent very short intervals from causing a timeout.
 		ctx, cancel := context.WithTimeout(context.Background(), sc.opts.ReportInterval+5*time.Second)
-		_ = sc.flush(ctx)
+		//nolint:gocritic // Inserting app stats is a system function.
+		_ = sc.flush(dbauthz.AsSystemRestricted(ctx))
 		cancel()
 
 		// For tests.
