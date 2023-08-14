@@ -157,12 +157,10 @@ AWS recommends a Network load balancer in lieu of the Classic load balancer. Use
 
 ```yaml
 coder:
-   service:
-   externalTrafficPolicy: Local
-   sessionAffinity: None
-   annotations: {
-      service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
- }
+  service:
+    externalTrafficPolicy: Local
+    sessionAffinity: None
+    annotations: { service.beta.kubernetes.io/aws-load-balancer-type: "nlb" }
 ```
 
 By default, Coder will set the `externalTrafficPolicy` to `Cluster` which will
