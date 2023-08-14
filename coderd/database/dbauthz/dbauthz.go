@@ -2032,7 +2032,9 @@ func (q *querier) InsertWorkspaceApp(ctx context.Context, arg database.InsertWor
 }
 
 func (q *querier) InsertWorkspaceAppStats(ctx context.Context, arg database.InsertWorkspaceAppStatsParams) error {
-	// TODO(mafredri): Add auth.
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+		return err
+	}
 	return q.db.InsertWorkspaceAppStats(ctx, arg)
 }
 
