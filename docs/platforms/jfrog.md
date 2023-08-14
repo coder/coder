@@ -137,12 +137,12 @@ running `jf c show`. It should display output like:
 ```text
 coder@jf:~$ jf c show
 Server ID:                      0
-JFrog Platform URL:             https://cdr.jfrog.io/
-Artifactory URL:                https://cdr.jfrog.io/artifactory/
-Distribution URL:               https://cdr.jfrog.io/distribution/
-Xray URL:                       https://cdr.jfrog.io/xray/
-Mission Control URL:            https://cdr.jfrog.io/mc/
-Pipelines URL:                  https://cdr.jfrog.io/pipelines/
+JFrog Platform URL:             https://YYY.jfrog.io/
+Artifactory URL:                https://YYY.jfrog.io/artifactory/
+Distribution URL:               https://YYY.jfrog.io/distribution/
+Xray URL:                       https://YYY.jfrog.io/xray/
+Mission Control URL:            https://YYY.jfrog.io/mc/
+Pipelines URL:                  https://YYY.jfrog.io/pipelines/
 User:                           ammar@....com
 Access token:                   ...
 Default:                        true
