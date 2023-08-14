@@ -439,8 +439,16 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
             setIsScheduleDialogOpen(false)
             // These fields are request-scoped so they should be reset
             // after every submission.
-            form.setFieldValue("update_workspace_locked_at", false)
-            form.setFieldValue("update_workspace_last_used_at", false)
+            form
+              .setFieldValue("update_workspace_locked_at", false)
+              .catch((error) => {
+                throw error
+              })
+            form
+              .setFieldValue("update_workspace_last_used_at", false)
+              .catch((error) => {
+                throw error
+              })
           }}
           inactiveWorkspaceToBeLocked={workspacesToBeLockedToday.length}
           lockedWorkspacesToBeDeleted={workspacesToBeDeletedToday.length}
