@@ -554,7 +554,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			if cfg.OIDC.ClientKeyFile != "" || cfg.OIDC.ClientSecret != "" {
 				if cfg.OIDC.ClientID == "" {
-					return xerrors.Errorf("OIDC client ID be set!")
+					return xerrors.Errorf("OIDC client ID must be set!")
 				}
 				if cfg.OIDC.IssuerURL == "" {
 					return xerrors.Errorf("OIDC issuer URL must be set!")
