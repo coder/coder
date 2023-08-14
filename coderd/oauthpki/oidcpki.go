@@ -138,6 +138,8 @@ func (ja *Config) jwtToken() (string, error) {
 		"iss": ja.clientID,
 		"sub": ja.clientID,
 		"aud": ja.tokenURL,
+		// 5-10 minutes is recommended in the Azure docs.
+		// So we'll use 5 minutes.
 		"exp": now.Add(time.Minute * 5).Unix(),
 		"jti": uuid.New().String(),
 		"nbf": now.Unix(),
