@@ -247,6 +247,7 @@ export interface CreateUserRequest {
   readonly email: string
   readonly username: string
   readonly password: string
+  readonly login_type: LoginType
   readonly disable_login: boolean
   readonly organization_id: string
 }
@@ -1340,7 +1341,7 @@ export interface WorkspaceAgent {
   readonly login_before_ready: boolean
   readonly shutdown_script?: string
   readonly shutdown_script_timeout_seconds: number
-  readonly subsystem: AgentSubsystem
+  readonly subsystems: AgentSubsystem[]
   readonly health: WorkspaceAgentHealth
 }
 
@@ -1545,8 +1546,12 @@ export type APIKeyScope = "all" | "application_connect"
 export const APIKeyScopes: APIKeyScope[] = ["all", "application_connect"]
 
 // From codersdk/workspaceagents.go
-export type AgentSubsystem = "envbox"
-export const AgentSubsystems: AgentSubsystem[] = ["envbox"]
+export type AgentSubsystem = "envbox" | "envbuilder" | "exectrace"
+export const AgentSubsystems: AgentSubsystem[] = [
+  "envbox",
+  "envbuilder",
+  "exectrace",
+]
 
 // From codersdk/audit.go
 export type AuditAction =
@@ -1670,8 +1675,9 @@ export type LogSource = "provisioner" | "provisioner_daemon"
 export const LogSources: LogSource[] = ["provisioner", "provisioner_daemon"]
 
 // From codersdk/apikey.go
-export type LoginType = "github" | "none" | "oidc" | "password" | "token"
+export type LoginType = "" | "github" | "none" | "oidc" | "password" | "token"
 export const LoginTypes: LoginType[] = [
+  "",
   "github",
   "none",
   "oidc",

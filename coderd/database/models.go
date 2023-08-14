@@ -1307,6 +1307,7 @@ const (
 	WorkspaceAgentSubsystemEnvbuilder WorkspaceAgentSubsystem = "envbuilder"
 	WorkspaceAgentSubsystemEnvbox     WorkspaceAgentSubsystem = "envbox"
 	WorkspaceAgentSubsystemNone       WorkspaceAgentSubsystem = "none"
+	WorkspaceAgentSubsystemExectrace  WorkspaceAgentSubsystem = "exectrace"
 )
 
 func (e *WorkspaceAgentSubsystem) Scan(src interface{}) error {
@@ -1348,7 +1349,8 @@ func (e WorkspaceAgentSubsystem) Valid() bool {
 	switch e {
 	case WorkspaceAgentSubsystemEnvbuilder,
 		WorkspaceAgentSubsystemEnvbox,
-		WorkspaceAgentSubsystemNone:
+		WorkspaceAgentSubsystemNone,
+		WorkspaceAgentSubsystemExectrace:
 		return true
 	}
 	return false
@@ -1359,6 +1361,7 @@ func AllWorkspaceAgentSubsystemValues() []WorkspaceAgentSubsystem {
 		WorkspaceAgentSubsystemEnvbuilder,
 		WorkspaceAgentSubsystemEnvbox,
 		WorkspaceAgentSubsystemNone,
+		WorkspaceAgentSubsystemExectrace,
 	}
 }
 
@@ -1944,14 +1947,14 @@ type WorkspaceAgent struct {
 	// Total length of startup logs
 	LogsLength int32 `db:"logs_length" json:"logs_length"`
 	// Whether the startup logs overflowed in length
-	LogsOverflowed bool                    `db:"logs_overflowed" json:"logs_overflowed"`
-	Subsystem      WorkspaceAgentSubsystem `db:"subsystem" json:"subsystem"`
+	LogsOverflowed bool `db:"logs_overflowed" json:"logs_overflowed"`
 	// When startup script behavior is non-blocking, the workspace will be ready and accessible upon agent connection, when it is blocking, workspace will wait for the startup script to complete before becoming ready and accessible.
 	StartupScriptBehavior StartupScriptBehavior `db:"startup_script_behavior" json:"startup_script_behavior"`
 	// The time the agent entered the starting lifecycle state
 	StartedAt sql.NullTime `db:"started_at" json:"started_at"`
 	// The time the agent entered the ready or start_error lifecycle state
-	ReadyAt sql.NullTime `db:"ready_at" json:"ready_at"`
+	ReadyAt    sql.NullTime              `db:"ready_at" json:"ready_at"`
+	Subsystems []WorkspaceAgentSubsystem `db:"subsystems" json:"subsystems"`
 }
 
 type WorkspaceAgentLog struct {

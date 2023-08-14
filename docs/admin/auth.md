@@ -59,15 +59,17 @@ If deploying Coder via Helm, you can set the above environment variables in the
 coder:
   env:
     - name: CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS
-      value: true
-    - name: CODER_OAUTH2_GITHUB_ALLOWED_ORGS
-      value: "your-org"
+      value: "true"
     - name: CODER_OAUTH2_GITHUB_CLIENT_ID
       value: "533...des"
     - name: CODER_OAUTH2_GITHUB_CLIENT_SECRET
       value: "G0CSP...7qSM"
-    - name: CODER_OAUTH2_GITHUB_ALLOW_EVERYONE
-      value: true
+    # If setting allowed orgs, comment out CODER_OAUTH2_GITHUB_ALLOW_EVERYONE and its value
+    - name: CODER_OAUTH2_GITHUB_ALLOWED_ORGS
+      value: "your-org"
+    # If allowing everyone, comment out CODER_OAUTH2_GITHUB_ALLOWED_ORGS and it's value
+    #- name: CODER_OAUTH2_GITHUB_ALLOW_EVERYONE
+    #  value: "true"
 ```
 
 To upgrade Coder, run:
@@ -287,6 +289,28 @@ OIDC provider will be added to the `myCoderGroupName` group in Coder.
 ### Troubleshooting
 
 Some common issues when enabling group sync.
+
+#### User not being assigned / Group does not exist
+
+If you want Coder to create groups that do not exist, you can set the following environment variable. If you enable this, your OIDC provider might be sending over many unnecessary groups. Use filtering options on the OIDC provider to limit the groups sent over to prevent creating excess groups.
+
+```console
+# as an environment variable
+CODER_OIDC_GROUP_AUTO_CREATE=true
+
+# as a flag
+--oidc-group-auto-create=true
+```
+
+A basic regex filtering option on the Coder side is available. This is applied **after** the group mapping (`CODER_OIDC_GROUP_MAPPING`), meaning if the group is remapped, the remapped value is tested in the regex. This is useful if you want to filter out groups that do not match a certain pattern. For example, if you want to only allow groups that start with `my-group-` to be created, you can set the following environment variable.
+
+```console
+# as an environment variable
+CODER_OIDC_GROUP_REGEX_FILTER="^my-group-.*$"
+
+# as a flag
+--oidc-group-regex-filter="^my-group-.*$"
+```
 
 #### Invalid Scope
 

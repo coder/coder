@@ -13,11 +13,11 @@ import (
 	"tailscale.com/tailcfg"
 )
 
-func STUNNodes(regionID int, stunAddrs []string) ([]*tailcfg.DERPNode, error) {
-	nodes := []*tailcfg.DERPNode{}
+func STUNRegions(baseRegionID int, stunAddrs []string) ([]*tailcfg.DERPRegion, error) {
+	regions := make([]*tailcfg.DERPRegion, 0, len(stunAddrs))
 	for index, stunAddr := range stunAddrs {
 		if stunAddr == "disable" {
-			return []*tailcfg.DERPNode{}, nil
+			return []*tailcfg.DERPRegion{}, nil
 		}
 
 		host, rawPort, err := net.SplitHostPort(stunAddr)
@@ -28,16 +28,24 @@ func STUNNodes(regionID int, stunAddrs []string) ([]*tailcfg.DERPNode, error) {
 		if err != nil {
 			return nil, xerrors.Errorf("parse port for %q: %w", stunAddr, err)
 		}
-		nodes = append([]*tailcfg.DERPNode{{
-			Name:     fmt.Sprintf("%dstun%d", regionID, index),
-			RegionID: regionID,
-			HostName: host,
-			STUNOnly: true,
-			STUNPort: port,
-		}}, nodes...)
+
+		regionID := baseRegionID + index + 1
+		regions = append(regions, &tailcfg.DERPRegion{
+			EmbeddedRelay: false,
+			RegionID:      regionID,
+			RegionCode:    fmt.Sprintf("coder_stun_%d", regionID),
+			RegionName:    fmt.Sprintf("Coder STUN %d", regionID),
+			Nodes: []*tailcfg.DERPNode{{
+				Name:     fmt.Sprintf("%dstun0", regionID),
+				RegionID: regionID,
+				HostName: host,
+				STUNOnly: true,
+				STUNPort: port,
+			}},
+		})
 	}
 
-	return nodes, nil
+	return regions, nil
 }
 
 // NewDERPMap constructs a DERPMap from a set of STUN addresses and optionally a remote
@@ -52,13 +60,17 @@ func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []str
 		stunAddrs = nil
 	}
 
+	// stunAddrs only applies when a default region is set. Each STUN node gets
+	// it's own region ID because netcheck will only try a single STUN server in
+	// each region before canceling the region's STUN check.
+	addRegions := []*tailcfg.DERPRegion{}
 	if region != nil {
-		stunNodes, err := STUNNodes(region.RegionID, stunAddrs)
+		addRegions = append(addRegions, region)
+		stunRegions, err := STUNRegions(region.RegionID, stunAddrs)
 		if err != nil {
-			return nil, xerrors.Errorf("construct stun nodes: %w", err)
+			return nil, xerrors.Errorf("create stun regions: %w", err)
 		}
-
-		region.Nodes = append(stunNodes, region.Nodes...)
+		addRegions = append(addRegions, stunRegions...)
 	}
 
 	derpMap := &tailcfg.DERPMap{
@@ -89,13 +101,18 @@ func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []str
 			return nil, xerrors.Errorf("unmarshal derpmap: %w", err)
 		}
 	}
-	if region != nil {
-		_, conflicts := derpMap.Regions[region.RegionID]
-		if conflicts {
-			return nil, xerrors.Errorf("the default region ID conflicts with a remote region from %q", remoteURL)
+
+	// Add our custom regions to the DERP map.
+	if len(addRegions) > 0 {
+		for _, region := range addRegions {
+			_, conflicts := derpMap.Regions[region.RegionID]
+			if conflicts {
+				return nil, xerrors.Errorf("a default region ID %d (%s - %q) conflicts with a remote region from %q", region.RegionID, region.RegionCode, region.RegionName, remoteURL)
+			}
+			derpMap.Regions[region.RegionID] = region
 		}
-		derpMap.Regions[region.RegionID] = region
 	}
+
 	// Remove all STUNPorts from DERPy nodes, and fully remove all STUNOnly
 	// nodes.
 	if disableSTUN {

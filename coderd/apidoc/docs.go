@@ -6447,8 +6447,11 @@ const docTemplate = `{
                 "expanded_directory": {
                     "type": "string"
                 },
-                "subsystem": {
-                    "$ref": "#/definitions/codersdk.AgentSubsystem"
+                "subsystems": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AgentSubsystem"
+                    }
                 },
                 "version": {
                     "type": "string"
@@ -6903,10 +6906,14 @@ const docTemplate = `{
         "codersdk.AgentSubsystem": {
             "type": "string",
             "enum": [
-                "envbox"
+                "envbox",
+                "envbuilder",
+                "exectrace"
             ],
             "x-enum-varnames": [
-                "AgentSubsystemEnvbox"
+                "AgentSubsystemEnvbox",
+                "AgentSubsystemEnvbuilder",
+                "AgentSubsystemExectrace"
             ]
         },
         "codersdk.AppHostResponse": {
@@ -7529,12 +7536,20 @@ const docTemplate = `{
             ],
             "properties": {
                 "disable_login": {
-                    "description": "DisableLogin sets the user's login type to 'none'. This prevents the user\nfrom being able to use a password or any other authentication method to login.",
+                    "description": "DisableLogin sets the user's login type to 'none'. This prevents the user\nfrom being able to use a password or any other authentication method to login.\nDeprecated: Set UserLoginType=LoginTypeDisabled instead.",
                     "type": "boolean"
                 },
                 "email": {
                     "type": "string",
                     "format": "email"
+                },
+                "login_type": {
+                    "description": "UserLoginType defaults to LoginTypePassword.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.LoginType"
+                        }
+                    ]
                 },
                 "organization_id": {
                     "type": "string",
@@ -8442,6 +8457,7 @@ const docTemplate = `{
         "codersdk.LoginType": {
             "type": "string",
             "enum": [
+                "",
                 "password",
                 "github",
                 "oidc",
@@ -8449,6 +8465,7 @@ const docTemplate = `{
                 "none"
             ],
             "x-enum-varnames": [
+                "LoginTypeUnknown",
                 "LoginTypePassword",
                 "LoginTypeGithub",
                 "LoginTypeOIDC",
@@ -10556,8 +10573,11 @@ const docTemplate = `{
                 "status": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentStatus"
                 },
-                "subsystem": {
-                    "$ref": "#/definitions/codersdk.AgentSubsystem"
+                "subsystems": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AgentSubsystem"
+                    }
                 },
                 "troubleshooting_url": {
                     "type": "string"
@@ -11533,11 +11553,31 @@ const docTemplate = `{
                 }
             }
         },
+        "tailcfg.DERPHomeParams": {
+            "type": "object",
+            "properties": {
+                "regionScore": {
+                    "description": "RegionScore scales latencies of DERP regions by a given scaling\nfactor when determining which region to use as the home\n(\"preferred\") DERP. Scores in the range (0, 1) will cause this\nregion to be proportionally more preferred, and scores in the range\n(1, ∞) will penalize a region.\n\nIf a region is not present in this map, it is treated as having a\nscore of 1.0.\n\nScores should not be 0 or negative; such scores will be ignored.\n\nA nil map means no change from the previous value (if any); an empty\nnon-nil map can be sent to reset all scores back to 1.0.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "number"
+                    }
+                }
+            }
+        },
         "tailcfg.DERPMap": {
             "type": "object",
             "properties": {
+                "homeParams": {
+                    "description": "HomeParams, if non-nil, is a change in home parameters.\n\nThe rest of the DEPRMap fields, if zero, means unchanged.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/tailcfg.DERPHomeParams"
+                        }
+                    ]
+                },
                 "omitDefaultRegions": {
-                    "description": "OmitDefaultRegions specifies to not use Tailscale's DERP servers, and only use those\nspecified in this DERPMap. If there are none set outside of the defaults, this is a noop.",
+                    "description": "OmitDefaultRegions specifies to not use Tailscale's DERP servers, and only use those\nspecified in this DERPMap. If there are none set outside of the defaults, this is a noop.\n\nThis field is only meaningful if the Regions map is non-nil (indicating a change).",
                     "type": "boolean"
                 },
                 "regions": {
@@ -11552,6 +11592,10 @@ const docTemplate = `{
         "tailcfg.DERPNode": {
             "type": "object",
             "properties": {
+                "canPort80": {
+                    "description": "CanPort80 specifies whether this DERP node is accessible over HTTP\non port 80 specifically. This is used for captive portal checks.",
+                    "type": "boolean"
+                },
                 "certName": {
                     "description": "CertName optionally specifies the expected TLS cert common\nname. If empty, HostName is used. If CertName is non-empty,\nHostName is only used for the TCP dial (if IPv4/IPv6 are\nnot present) + TLS ClientHello.",
                     "type": "string"

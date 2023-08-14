@@ -1673,7 +1673,7 @@ func clearOAuthConvertCookie() *http.Cookie {
 func wrongLoginTypeHTTPError(user database.LoginType, params database.LoginType) httpError {
 	addedMsg := ""
 	if user == database.LoginTypePassword {
-		addedMsg = " Try logging in with your password."
+		addedMsg = " You can convert your account to use this login type by visiting your account settings."
 	}
 	return httpError{
 		code:             http.StatusForbidden,

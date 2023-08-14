@@ -563,7 +563,7 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   logs_overflowed: false,
   startup_script_timeout_seconds: 120,
   shutdown_script_timeout_seconds: 120,
-  subsystem: "envbox",
+  subsystems: ["envbox", "exectrace"],
   health: {
     healthy: true,
   },

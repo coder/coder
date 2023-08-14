@@ -287,11 +287,27 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.UserLoginType == "" && req.DisableLogin {
+		// Handle the deprecated field
+		req.UserLoginType = codersdk.LoginTypeNone
+	}
+	if req.UserLoginType == "" {
+		// Default to password auth
+		req.UserLoginType = codersdk.LoginTypePassword
+	}
+
+	if req.UserLoginType != codersdk.LoginTypePassword && req.Password != "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Password cannot be set for non-password (%q) authentication.", req.UserLoginType),
+		})
+		return
+	}
+
 	// If password auth is disabled, don't allow new users to be
 	// created with a password!
-	if api.DeploymentValues.DisablePasswordAuth {
+	if api.DeploymentValues.DisablePasswordAuth && req.UserLoginType == codersdk.LoginTypePassword {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "You cannot manually provision new users with password authentication disabled!",
+			Message: "Password based authentication is disabled! Unable to provision new users with password authentication.",
 		})
 		return
 	}
@@ -353,17 +369,11 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if req.DisableLogin && req.Password != "" {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Cannot set password when disabling login.",
-		})
-		return
-	}
-
 	var loginType database.LoginType
-	if req.DisableLogin {
+	switch req.UserLoginType {
+	case codersdk.LoginTypeNone:
 		loginType = database.LoginTypeNone
-	} else {
+	case codersdk.LoginTypePassword:
 		err = userpassword.Validate(req.Password)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -376,6 +386,14 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		loginType = database.LoginTypePassword
+	case codersdk.LoginTypeOIDC:
+		loginType = database.LoginTypeOIDC
+	case codersdk.LoginTypeGithub:
+		loginType = database.LoginTypeGithub
+	default:
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Unsupported login type %q for manually creating new users.", req.UserLoginType),
+		})
 	}
 
 	user, _, err := api.CreateUser(ctx, api.Database, CreateUserRequest{
@@ -730,6 +748,13 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	aReq.Old = user
 
 	if !httpapi.Read(ctx, rw, r, &params) {
+		return
+	}
+
+	if user.LoginType != database.LoginTypePassword {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Users without password login type cannot change their password.",
+		})
 		return
 	}
 

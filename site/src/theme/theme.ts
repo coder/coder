@@ -92,6 +92,10 @@ dark = createTheme(dark, {
         input:-webkit-autofill:active  {
           -webkit-box-shadow: 0 0 0 100px ${dark.palette.background.default} inset !important;
         }
+
+        ::placeholder {
+          color: ${dark.palette.text.disabled};
+        }
       `,
     },
     MuiAvatar: {

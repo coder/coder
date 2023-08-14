@@ -42,7 +42,7 @@ Users accessing workspaces via SSH will consume fewer resources, as SSH connecti
 
 Workspace builds are CPU-intensive, as it relies on Terraform. Various [Terraform providers](https://registry.terraform.io/browse/providers) have different resource requirements.
 When tested with our [kubernetes](https://github.com/coder/coder/tree/main/examples/templates/kubernetes) template, `coderd` will consume roughly 0.25 cores per concurrent workspace build.
-For effective provisioning, our helm chart prefers to schedule [one coderd replica per-node](https://github.com/coder/coder/blob/main/helm/values.yaml#L188-L202).
+For effective provisioning, our helm chart prefers to schedule [one coderd replica per-node](https://github.com/coder/coder/blob/main/helm/coder/values.yaml#L188-L202).
 
 We recommend:
 

@@ -179,3 +179,9 @@ cd /opt/idea/bin
 [Here is the JetBrains
 article](https://www.jetbrains.com/help/idea/remote-development-troubleshooting.html#setup:~:text=Can%20I%20point%20Remote%20Development%20to%20an%20existing%20IDE%20on%20my%20remote%20server%3F%20Is%20it%20possible%20to%20install%20IDE%20manually%3F)
 explaining this IDE specification.
+
+## JetBrains Gateway in an offline environment
+
+In networks that restrict access to the internet, you will need to leverage the
+JetBrains Client Installer to download and save the IDE clients locally. Please
+see the [JetBrains documentation for more information](https://www.jetbrains.com/help/idea/fully-offline-mode.html).

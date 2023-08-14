@@ -84,11 +84,12 @@ You can test your changes by creating a PR deployment. There are two ways to do 
 
 1. By running `./scripts/deploy-pr.sh`
 2. By manually triggering the [`pr-deploy.yaml`](https://github.com/coder/coder/actions/workflows/pr-deploy.yaml) GitHub Action workflow
-   ![Deploy PR manually](./images/pr-deploy-manual.png)
+   ![Deploy PR manually](./images/deploy-pr-manually.png)
 
 #### Available options
 
-- `-s` or `--skip-build`, force prevents the build of the Docker image.(generally not needed as we are intelligently checking if the image needs to be built)
+- `-d` or `--deploy`, force deploys the PR by deleting the existing deployment.
+- `-b` or `--build`, force builds the Docker image. (generally not needed as we are intelligently checking if the image needs to be built)
 - `-e EXPERIMENT1,EXPERIMENT2` or `--experiments EXPERIMENT1,EXPERIMENT2`, will enable the specified experiments. (defaults to `*`)
 - `-n` or `--dry-run` will display the context without deployment. e.g., branch name and PR number, etc.
 - `-y` or `--yes`, will skip the CLI confirmation prompt.

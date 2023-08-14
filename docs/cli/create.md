@@ -20,6 +20,15 @@ coder create [flags] [name]
 
 ## Options
 
+### --parameter
+
+|             |                                    |
+| ----------- | ---------------------------------- |
+| Type        | <code>string-array</code>          |
+| Environment | <code>$CODER_RICH_PARAMETER</code> |
+
+Rich parameter value in the format "name=value".
+
 ### --rich-parameter-file
 
 |             |                                         |

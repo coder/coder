@@ -202,6 +202,12 @@
     }
   ],
   "derpmap": {
+    "homeParams": {
+      "regionScore": {
+        "property1": 0,
+        "property2": 0
+      }
+    },
     "omitDefaultRegions": true,
     "regions": {
       "property1": {
@@ -209,6 +215,7 @@
         "embeddedRelay": true,
         "nodes": [
           {
+            "canPort80": true,
             "certName": "string",
             "derpport": 0,
             "forceHTTP": true,
@@ -232,6 +239,7 @@
         "embeddedRelay": true,
         "nodes": [
           {
+            "canPort80": true,
             "certName": "string",
             "derpport": 0,
             "forceHTTP": true,
@@ -377,18 +385,18 @@
 ```json
 {
   "expanded_directory": "string",
-  "subsystem": "envbox",
+  "subsystems": ["envbox"],
   "version": "string"
 }
 ```
 
 ### Properties
 
-| Name                 | Type                                               | Required | Restrictions | Description |
-| -------------------- | -------------------------------------------------- | -------- | ------------ | ----------- |
-| `expanded_directory` | string                                             | false    |              |             |
-| `subsystem`          | [codersdk.AgentSubsystem](#codersdkagentsubsystem) | false    |              |             |
-| `version`            | string                                             | false    |              |             |
+| Name                 | Type                                                        | Required | Restrictions | Description |
+| -------------------- | ----------------------------------------------------------- | -------- | ------------ | ----------- |
+| `expanded_directory` | string                                                      | false    |              |             |
+| `subsystems`         | array of [codersdk.AgentSubsystem](#codersdkagentsubsystem) | false    |              |             |
+| `version`            | string                                                      | false    |              |             |
 
 ## agentsdk.Stats
 
@@ -784,7 +792,7 @@ _None_
           "email": "user@example.com",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "last_seen_at": "2019-08-24T14:15:22Z",
-          "login_type": "password",
+          "login_type": "",
           "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
           "roles": [
             {
@@ -809,7 +817,7 @@ _None_
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
-      "login_type": "password",
+      "login_type": "",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -913,9 +921,11 @@ _None_
 
 #### Enumerated Values
 
-| Value    |
-| -------- |
-| `envbox` |
+| Value        |
+| ------------ |
+| `envbox`     |
+| `envbuilder` |
+| `exectrace`  |
 
 ## codersdk.AppHostResponse
 
@@ -1076,7 +1086,7 @@ _None_
     "email": "user@example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "last_seen_at": "2019-08-24T14:15:22Z",
-    "login_type": "password",
+    "login_type": "",
     "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "roles": [
       {
@@ -1153,7 +1163,7 @@ _None_
         "email": "user@example.com",
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "last_seen_at": "2019-08-24T14:15:22Z",
-        "login_type": "password",
+        "login_type": "",
         "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
         "roles": [
           {
@@ -1378,7 +1388,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "password": "string",
-  "to_type": "password"
+  "to_type": ""
 }
 ```
 
@@ -1655,6 +1665,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "disable_login": true,
   "email": "user@example.com",
+  "login_type": "",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "password": "string",
   "username": "string"
@@ -1663,13 +1674,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description                                                                                                                                               |
-| ----------------- | ------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `disable_login`   | boolean | false    |              | Disable login sets the user's login type to 'none'. This prevents the user from being able to use a password or any other authentication method to login. |
-| `email`           | string  | true     |              |                                                                                                                                                           |
-| `organization_id` | string  | false    |              |                                                                                                                                                           |
-| `password`        | string  | false    |              |                                                                                                                                                           |
-| `username`        | string  | true     |              |                                                                                                                                                           |
+| Name              | Type                                     | Required | Restrictions | Description                                                                                                                                                                                                        |
+| ----------------- | ---------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `disable_login`   | boolean                                  | false    |              | Disable login sets the user's login type to 'none'. This prevents the user from being able to use a password or any other authentication method to login. Deprecated: Set UserLoginType=LoginTypeDisabled instead. |
+| `email`           | string                                   | true     |              |                                                                                                                                                                                                                    |
+| `login_type`      | [codersdk.LoginType](#codersdklogintype) | false    |              | Login type defaults to LoginTypePassword.                                                                                                                                                                          |
+| `organization_id` | string                                   | false    |              |                                                                                                                                                                                                                    |
+| `password`        | string                                   | false    |              |                                                                                                                                                                                                                    |
+| `username`        | string                                   | true     |              |                                                                                                                                                                                                                    |
 
 ## codersdk.CreateWorkspaceBuildRequest
 
@@ -2742,7 +2754,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
-      "login_type": "password",
+      "login_type": "",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -2960,7 +2972,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
-      "login_type": "password",
+      "login_type": "",
       "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
       "roles": [
         {
@@ -3178,7 +3190,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ## codersdk.LoginType
 
 ```json
-"password"
+""
 ```
 
 ### Properties
@@ -3187,6 +3199,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Value      |
 | ---------- |
+| ``         |
 | `password` |
 | `github`   |
 | `oidc`     |
@@ -3295,7 +3308,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "expires_at": "2019-08-24T14:15:22Z",
   "state_string": "string",
-  "to_type": "password",
+  "to_type": "",
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
 }
 ```
@@ -4553,7 +4566,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "email": "user@example.com",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_seen_at": "2019-08-24T14:15:22Z",
-  "login_type": "password",
+  "login_type": "",
   "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
   "role": "admin",
   "roles": [
@@ -5061,7 +5074,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "email": "user@example.com",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_seen_at": "2019-08-24T14:15:22Z",
-  "login_type": "password",
+  "login_type": "",
   "organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
   "roles": [
     {
@@ -5186,7 +5199,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "login_type": "password"
+  "login_type": ""
 }
 ```
 
@@ -5402,7 +5415,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "startup_script_behavior": "blocking",
             "startup_script_timeout_seconds": 0,
             "status": "connecting",
-            "subsystem": "envbox",
+            "subsystems": ["envbox"],
             "troubleshooting_url": "string",
             "updated_at": "2019-08-24T14:15:22Z",
             "version": "string"
@@ -5543,7 +5556,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "startup_script_behavior": "blocking",
   "startup_script_timeout_seconds": 0,
   "status": "connecting",
-  "subsystem": "envbox",
+  "subsystems": ["envbox"],
   "troubleshooting_url": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "version": "string"
@@ -5585,7 +5598,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `startup_script_behavior`         | [codersdk.WorkspaceAgentStartupScriptBehavior](#codersdkworkspaceagentstartupscriptbehavior) | false    |              |                                                                                                                                                                                                            |
 | `startup_script_timeout_seconds`  | integer                                                                                      | false    |              | Startup script timeout seconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout. |
 | `status`                          | [codersdk.WorkspaceAgentStatus](#codersdkworkspaceagentstatus)                               | false    |              |                                                                                                                                                                                                            |
-| `subsystem`                       | [codersdk.AgentSubsystem](#codersdkagentsubsystem)                                           | false    |              |                                                                                                                                                                                                            |
+| `subsystems`                      | array of [codersdk.AgentSubsystem](#codersdkagentsubsystem)                                  | false    |              |                                                                                                                                                                                                            |
 | `troubleshooting_url`             | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `updated_at`                      | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `version`                         | string                                                                                       | false    |              |                                                                                                                                                                                                            |
@@ -5595,6 +5608,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
   "derp_map": {
+    "homeParams": {
+      "regionScore": {
+        "property1": 0,
+        "property2": 0
+      }
+    },
     "omitDefaultRegions": true,
     "regions": {
       "property1": {
@@ -5602,6 +5621,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "embeddedRelay": true,
         "nodes": [
           {
+            "canPort80": true,
             "certName": "string",
             "derpport": 0,
             "forceHTTP": true,
@@ -5625,6 +5645,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "embeddedRelay": true,
         "nodes": [
           {
+            "canPort80": true,
             "certName": "string",
             "derpport": 0,
             "forceHTTP": true,
@@ -6001,7 +6022,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "startup_script_behavior": "blocking",
           "startup_script_timeout_seconds": 0,
           "status": "connecting",
-          "subsystem": "envbox",
+          "subsystems": ["envbox"],
           "troubleshooting_url": "string",
           "updated_at": "2019-08-24T14:15:22Z",
           "version": "string"
@@ -6312,7 +6333,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "startup_script_behavior": "blocking",
       "startup_script_timeout_seconds": 0,
       "status": "connecting",
-      "subsystem": "envbox",
+      "subsystems": ["envbox"],
       "troubleshooting_url": "string",
       "updated_at": "2019-08-24T14:15:22Z",
       "version": "string"
@@ -6524,7 +6545,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 "startup_script_behavior": "blocking",
                 "startup_script_timeout_seconds": 0,
                 "status": "connecting",
-                "subsystem": "envbox",
+                "subsystems": ["envbox"],
                 "troubleshooting_url": "string",
                 "updated_at": "2019-08-24T14:15:22Z",
                 "version": "string"
@@ -6635,6 +6656,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "error": "string",
   "healthy": true,
   "node": {
+    "canPort80": true,
     "certName": "string",
     "derpport": 0,
     "forceHTTP": true,
@@ -6693,6 +6715,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "error": "string",
       "healthy": true,
       "node": {
+        "canPort80": true,
         "certName": "string",
         "derpport": 0,
         "forceHTTP": true,
@@ -6725,6 +6748,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "embeddedRelay": true,
     "nodes": [
       {
+        "canPort80": true,
         "certName": "string",
         "derpport": 0,
         "forceHTTP": true,
@@ -6805,6 +6829,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "error": "string",
           "healthy": true,
           "node": {
+            "canPort80": true,
             "certName": "string",
             "derpport": 0,
             "forceHTTP": true,
@@ -6837,6 +6862,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "embeddedRelay": true,
         "nodes": [
           {
+            "canPort80": true,
             "certName": "string",
             "derpport": 0,
             "forceHTTP": true,
@@ -6867,6 +6893,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "error": "string",
           "healthy": true,
           "node": {
+            "canPort80": true,
             "certName": "string",
             "derpport": 0,
             "forceHTTP": true,
@@ -6899,6 +6926,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "embeddedRelay": true,
         "nodes": [
           {
+            "canPort80": true,
             "certName": "string",
             "derpport": 0,
             "forceHTTP": true,
@@ -7041,6 +7069,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "error": "string",
             "healthy": true,
             "node": {
+              "canPort80": true,
               "certName": "string",
               "derpport": 0,
               "forceHTTP": true,
@@ -7073,6 +7102,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "embeddedRelay": true,
           "nodes": [
             {
+              "canPort80": true,
               "certName": "string",
               "derpport": 0,
               "forceHTTP": true,
@@ -7103,6 +7133,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "error": "string",
             "healthy": true,
             "node": {
+              "canPort80": true,
               "certName": "string",
               "derpport": 0,
               "forceHTTP": true,
@@ -7135,6 +7166,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "embeddedRelay": true,
           "nodes": [
             {
+              "canPort80": true,
               "certName": "string",
               "derpport": 0,
               "forceHTTP": true,
@@ -7279,10 +7311,38 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `time`  | string  | false    |              |                                   |
 | `valid` | boolean | false    |              | Valid is true if Time is not NULL |
 
+## tailcfg.DERPHomeParams
+
+```json
+{
+  "regionScore": {
+    "property1": 0,
+    "property2": 0
+  }
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description                                                                                                                                                                                                                                                                               |
+| ------------- | ------ | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `regionScore` | object | false    |              | Regionscore scales latencies of DERP regions by a given scaling factor when determining which region to use as the home ("preferred") DERP. Scores in the range (0, 1) will cause this region to be proportionally more preferred, and scores in the range (1, ∞) will penalize a region. |
+
+If a region is not present in this map, it is treated as having a score of 1.0.
+Scores should not be 0 or negative; such scores will be ignored.
+A nil map means no change from the previous value (if any); an empty non-nil map can be sent to reset all scores back to 1.0.|
+|» `[any property]`|number|false|||
+
 ## tailcfg.DERPMap
 
 ```json
 {
+  "homeParams": {
+    "regionScore": {
+      "property1": 0,
+      "property2": 0
+    }
+  },
   "omitDefaultRegions": true,
   "regions": {
     "property1": {
@@ -7290,6 +7350,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "embeddedRelay": true,
       "nodes": [
         {
+          "canPort80": true,
           "certName": "string",
           "derpport": 0,
           "forceHTTP": true,
@@ -7313,6 +7374,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "embeddedRelay": true,
       "nodes": [
         {
+          "canPort80": true,
           "certName": "string",
           "derpport": 0,
           "forceHTTP": true,
@@ -7337,10 +7399,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                 | Type    | Required | Restrictions | Description                                                                                                                                                                    |
-| -------------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `omitDefaultRegions` | boolean | false    |              | Omitdefaultregions specifies to not use Tailscale's DERP servers, and only use those specified in this DERPMap. If there are none set outside of the defaults, this is a noop. |
-| `regions`            | object  | false    |              | Regions is the set of geographic regions running DERP node(s).                                                                                                                 |
+| Name                                                                               | Type                                             | Required | Restrictions | Description                                                                                                                                                                    |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------ | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `homeParams`                                                                       | [tailcfg.DERPHomeParams](#tailcfgderphomeparams) | false    |              | Homeparams if non-nil, is a change in home parameters.                                                                                                                         |
+| The rest of the DEPRMap fields, if zero, means unchanged.                          |
+| `omitDefaultRegions`                                                               | boolean                                          | false    |              | Omitdefaultregions specifies to not use Tailscale's DERP servers, and only use those specified in this DERPMap. If there are none set outside of the defaults, this is a noop. |
+| This field is only meaningful if the Regions map is non-nil (indicating a change). |
+| `regions`                                                                          | object                                           | false    |              | Regions is the set of geographic regions running DERP node(s).                                                                                                                 |
 
 It's keyed by the DERPRegion.RegionID.
 The numbers are not necessarily contiguous.|
@@ -7350,6 +7415,7 @@ The numbers are not necessarily contiguous.|
 
 ```json
 {
+  "canPort80": true,
   "certName": "string",
   "derpport": 0,
   "forceHTTP": true,
@@ -7369,6 +7435,7 @@ The numbers are not necessarily contiguous.|
 
 | Name                                                                                                                  | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                       |
 | --------------------------------------------------------------------------------------------------------------------- | ------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `canPort80`                                                                                                           | boolean | false    |              | Canport80 specifies whether this DERP node is accessible over HTTP on port 80 specifically. This is used for captive portal checks.                                                                                                                               |
 | `certName`                                                                                                            | string  | false    |              | Certname optionally specifies the expected TLS cert common name. If empty, HostName is used. If CertName is non-empty, HostName is only used for the TCP dial (if IPv4/IPv6 are not present) + TLS ClientHello.                                                   |
 | `derpport`                                                                                                            | integer | false    |              | Derpport optionally provides an alternate TLS port number for the DERP HTTPS server.                                                                                                                                                                              |
 | If zero, 443 is used.                                                                                                 |
@@ -7392,6 +7459,7 @@ The numbers are not necessarily contiguous.|
   "embeddedRelay": true,
   "nodes": [
     {
+      "canPort80": true,
       "certName": "string",
       "derpport": 0,
       "forceHTTP": true,
