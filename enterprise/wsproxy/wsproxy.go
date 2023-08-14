@@ -250,6 +250,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 			connInfo.DERPMap,
 			s.DialCoordinator,
 			wsconncache.New(s.DialWorkspaceAgent, 0),
+			s.TracerProvider,
 		)
 		if err != nil {
 			return nil, xerrors.Errorf("create server tailnet: %w", err)
