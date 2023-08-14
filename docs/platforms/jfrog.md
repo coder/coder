@@ -47,7 +47,7 @@ terraform {
 
 variable "jfrog_url" {
   type        = string
-  description = "The URL of the JFrog instance."
+  description = "The URL of the JFrog instance. e.g. YYY.jfrog.io"
 }
 
 variable "artifactory_access_token" {
@@ -143,7 +143,7 @@ Distribution URL:               https://cdr.jfrog.io/distribution/
 Xray URL:                       https://cdr.jfrog.io/xray/
 Mission Control URL:            https://cdr.jfrog.io/mc/
 Pipelines URL:                  https://cdr.jfrog.io/pipelines/
-User:                           ammar
+User:                           ammar@....com
 Access token:                   ...
 Default:                        true
 ```

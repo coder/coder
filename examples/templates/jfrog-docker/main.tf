@@ -16,19 +16,23 @@ terraform {
 }
 
 locals {
-  username = data.coder_workspace.me.owner
+  # if the jfrog username is same as the coder username, you can use the following
+  # username = data.coder_workspace.me.owner
+  # if the username is same as email, you can use the following
+  # username = urlencode(data.coder_workspace.me.owner_email)
+  artifactory_username = data.coder_workspace.me.owner
   artifactory_registry_keys = {
-    "npm"  = "npm"
-    "pypi" = "pypi"
-    "go"   = "go"
+    "npm"    = "npm"
+    "python" = "python"
+    "go"     = "go"
   }
+  workspace_user = data.coder_workspace.me.owner
 }
 
 data "coder_provisioner" "me" {
 }
 
 provider "docker" {
-  host = "tcp://100.117.102.81:2375"
 }
 
 data "coder_workspace" "me" {
@@ -51,7 +55,7 @@ provider "artifactory" {
 }
 
 resource "artifactory_scoped_token" "me" {
-  username = data.coder_workspace.me.owner
+  username = local.artifactory_username
 }
 
 resource "coder_agent" "main" {
@@ -84,13 +88,13 @@ resource "coder_agent" "main" {
     mkdir -p ~/.pip
     cat << EOF > ~/.pip/pip.conf
     [global]
-    index-url = https://${data.coder_workspace.me.owner}:${artifactory_scoped_token.me.access_token}@${var.jfrog_url}/artifactory/api/pypi/${local.artifactory_registry_keys["pypi"]}/simple
+    index-url = https://${local.artifactory_username}:${artifactory_scoped_token.me.access_token}@${var.jfrog_url}/artifactory/api/pypi/${local.artifactory_registry_keys["python"]}/simple
     EOF
 
   EOT
   # Set GOPROXY to use the Artifactory "go" registry.
   env = {
-    GOPROXY : "https://${data.coder_workspace.me.owner}:${artifactory_scoped_token.me.access_token}@${var.jfrog_url}/artifactory/api/go/${local.artifactory_registry_keys["go"]}"
+    GOPROXY : "https://${local.artifactory_username}:${artifactory_scoped_token.me.access_token}@${var.jfrog_url}/artifactory/api/go/${local.artifactory_registry_keys["go"]}"
   }
 }
 
@@ -98,7 +102,7 @@ resource "coder_app" "code-server" {
   agent_id     = coder_agent.main.id
   slug         = "code-server"
   display_name = "code-server"
-  url          = "http://localhost:13337/?folder=/home/${local.username}"
+  url          = "http://localhost:13337/?folder=/home/${local.workspace_user}"
   icon         = "/icon/code.svg"
   subdomain    = false
   share        = "owner"
@@ -123,7 +127,7 @@ resource "docker_image" "main" {
   build {
     context = "./build"
     build_args = {
-      USER = local.username
+      USER = local.workspace_user
     }
   }
   triggers = {
@@ -145,7 +149,7 @@ resource "docker_container" "workspace" {
     ip   = "host-gateway"
   }
   volumes {
-    container_path = "/home/${local.username}"
+    container_path = "/home/${local.workspace_user}"
     volume_name    = docker_volume.home_volume.name
     read_only      = false
   }
