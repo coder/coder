@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
 	"github.com/coder/coder/coderd/workspaceapps"
@@ -18,8 +19,10 @@ import (
 )
 
 type fakeReporter struct {
-	mu sync.Mutex
-	s  []workspaceapps.StatsReport
+	mu   sync.Mutex
+	s    []workspaceapps.StatsReport
+	err  error
+	errN int
 }
 
 func (r *fakeReporter) stats() []workspaceapps.StatsReport {
@@ -28,8 +31,25 @@ func (r *fakeReporter) stats() []workspaceapps.StatsReport {
 	return r.s
 }
 
+func (r *fakeReporter) errors() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.errN
+}
+
+func (r *fakeReporter) setError(err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.err = err
+}
+
 func (r *fakeReporter) Report(_ context.Context, stats []workspaceapps.StatsReport) error {
 	r.mu.Lock()
+	if r.err != nil {
+		r.errN++
+		r.mu.Unlock()
+		return r.err
+	}
 	r.s = append(r.s, stats...)
 	r.mu.Unlock()
 	return nil
@@ -296,7 +316,6 @@ func TestStatsCollector(t *testing.T) {
 			var gotStats []workspaceapps.StatsReport
 			require.Eventually(t, func() bool {
 				gotStats = reporter.stats()
-				t.Logf("len(reporter.stats()) = %d, len(tt.want) = %d", len(gotStats), len(tt.want))
 				return len(gotStats) == len(tt.want)
 			}, testutil.WaitMedium, testutil.IntervalFast)
 
@@ -327,6 +346,63 @@ func TestStatsCollector(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestStatsCollector_backlog(t *testing.T) {
+	t.Parallel()
+
+	rollupWindow := time.Minute
+	flush := make(chan chan<- struct{}, 1)
+
+	start := database.Now().Truncate(time.Minute).UTC()
+	var now atomic.Pointer[time.Time]
+	now.Store(&start)
+
+	reporter := &fakeReporter{}
+	collector := workspaceapps.NewStatsCollector(workspaceapps.StatsCollectorOptions{
+		Reporter:       reporter,
+		ReportInterval: time.Hour,
+		RollupWindow:   rollupWindow,
+
+		Flush: flush,
+		Now:   func() time.Time { return *now.Load() },
+	})
+
+	reporter.setError(xerrors.New("some error"))
+
+	// The first collected stat is "rolled up" and moved into the
+	// backlog during the first flush. On the second flush nothing is
+	// rolled up due to being unable to report the backlog.
+	for i := 0; i < 2; i++ {
+		collector.Collect(workspaceapps.StatsReport{
+			SessionID:        uuid.New(),
+			SessionStartedAt: start,
+			SessionEndedAt:   start.Add(10 * time.Second),
+			Requests:         1,
+		})
+		start = start.Add(time.Minute)
+		now.Store(&start)
+
+		flushDone := make(chan struct{}, 1)
+		flush <- flushDone
+		<-flushDone
+	}
+
+	// Flush was performed 2 times, 2 reports should have failed.
+	wantErrors := 2
+	assert.Equal(t, wantErrors, reporter.errors())
+	assert.Empty(t, reporter.stats())
+
+	reporter.setError(nil)
+
+	// Flush again, this time the backlog should be reported in addition
+	// to the second collected stat being rolled up and reported.
+	flushDone := make(chan struct{}, 1)
+	flush <- flushDone
+	<-flushDone
+
+	assert.Equal(t, wantErrors, reporter.errors())
+	assert.Len(t, reporter.stats(), 2)
 }
 
 func TestStatsCollector_Close(t *testing.T) {

@@ -142,6 +142,7 @@ type StatsCollector struct {
 	mu               sync.Mutex                       // Protects following.
 	statsBySessionID map[uuid.UUID]*StatsReport       // Track unique sessions.
 	groupedStats     map[statsGroupKey][]*StatsReport // Rolled up stats for sessions in close proximity.
+	backlog          []StatsReport                    // Stats that have not been reported yet (due to error).
 }
 
 type StatsCollectorOptions struct {
@@ -242,7 +243,7 @@ func (sc *StatsCollector) rollup() []StatsReport {
 				rolledUp:         true,
 			}
 		}
-
+		rollupChanged := false
 		newGroup := []*StatsReport{rolledUp} // Must be first in slice for future iterations (see group[0] above).
 		for _, stat := range group {
 			if !stat.SessionEndedAt.IsZero() && stat.SessionEndedAt.Sub(stat.SessionStartedAt) <= sc.opts.RollupWindow {
@@ -251,6 +252,7 @@ func (sc *StatsCollector) rollup() []StatsReport {
 					rolledUp.SessionID = stat.SessionID // Borrow the first session ID, useful in tests.
 				}
 				rolledUp.Requests += stat.Requests
+				rollupChanged = true
 				continue
 			}
 			if stat.SessionEndedAt.IsZero() && sc.opts.Now().Sub(stat.SessionStartedAt) <= sc.opts.RollupWindow {
@@ -273,7 +275,7 @@ func (sc *StatsCollector) rollup() []StatsReport {
 				newGroup = append(newGroup, stat) // Keep it for future updates.
 			}
 		}
-		if rolledUp.Requests > 0 {
+		if rollupChanged {
 			report = append(report, *rolledUp)
 		}
 
@@ -300,12 +302,33 @@ func (sc *StatsCollector) flush(ctx context.Context) (err error) {
 		}
 	}()
 
+	// We keep the backlog as a simple slice so that we don't need to
+	// attempt to merge it with the stats we're about to report. This
+	// is because the rollup is a one-way operation and the backlog may
+	// contain stats that are still in the statsBySessionID map and will
+	// be reported again in the future. It is possible to merge the
+	// backlog and the stats we're about to report, but it's not worth
+	// the complexity.
+	if len(sc.backlog) > 0 {
+		err = sc.opts.Reporter.Report(ctx, sc.backlog)
+		if err != nil {
+			return xerrors.Errorf("report workspace app stats from backlog failed: %w", err)
+		}
+		sc.backlog = nil
+	}
+
 	stats := sc.rollup()
 	if len(stats) == 0 {
 		return nil
 	}
 
-	return sc.opts.Reporter.Report(ctx, stats)
+	err = sc.opts.Reporter.Report(ctx, stats)
+	if err != nil {
+		sc.backlog = stats
+		return xerrors.Errorf("report workspace app stats failed: %w", err)
+	}
+
+	return nil
 }
 
 func (sc *StatsCollector) Close() error {

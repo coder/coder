@@ -7799,6 +7799,10 @@ DO
 		workspace_app_stats.user_id = EXCLUDED.user_id
 		AND workspace_app_stats.agent_id = EXCLUDED.agent_id
 		AND workspace_app_stats.session_id = EXCLUDED.session_id
+		-- Since stats are updated in place as time progresses, we only
+		-- want to update this row if it's fresh.
+		AND workspace_app_stats.session_ended_at <= EXCLUDED.session_ended_at
+		AND workspace_app_stats.requests <= EXCLUDED.requests
 `
 
 type InsertWorkspaceAppStatsParams struct {
