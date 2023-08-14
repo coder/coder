@@ -68,6 +68,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
               >
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                   <Checkbox
+                    disabled={!workspaces || workspaces.length === 0}
                     checked={checkedWorkspaces.length === workspaces?.length}
                     size="small"
                     onChange={(_, checked) => {
