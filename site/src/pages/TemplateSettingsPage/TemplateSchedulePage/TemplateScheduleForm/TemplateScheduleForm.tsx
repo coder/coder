@@ -359,8 +359,8 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
             </FormFields>
           </FormSection>
           <FormSection
-            title="Inactivity Soft Deletion"
-            description="When enabled, Coder will soft-delete workspaces that have not been accessed after a specified number of days. A soft-deleted workspace cannot be interacted with until it is recovered by the user."
+            title="Inactivity Threshold"
+            description="When enabled, Coder will mark workspaces as inactive after a period of time with no connections. Inactive workspaces can be auto-deleted (see below) or manually reviewed by the workspace owner or admins."
           >
             <FormFields>
               <FormControlLabel
@@ -371,7 +371,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                     onChange={handleToggleInactivityCleanup}
                   />
                 }
-                label="Enable Inactivity Soft Deletion"
+                label="Enable Inactivity Threshold"
               />
               <TextField
                 {...getFieldHelpers(
@@ -392,8 +392,8 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
             </FormFields>
           </FormSection>
           <FormSection
-            title="Deletion Retention"
-            description="When enabled, Coder will permanently delete workspaces that have been soft-deleted for a specified number of days. Once a workspace is permanently deleted it cannot be recovered."
+            title="Inactivity Deletion"
+            description="When enabled, Coder will permanently delete workspaces that have been marked as inactive. Once a workspace is permanently deleted it cannot be recovered."
           >
             <FormFields>
               <FormControlLabel
@@ -404,7 +404,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                     onChange={handleToggleLockedCleanup}
                   />
                 }
-                label="Enable Deletion Retention"
+                label="Enable Inactivity Deletion"
               />
               <TextField
                 {...getFieldHelpers(
