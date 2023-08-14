@@ -45,9 +45,9 @@ terraform {
   }
 }
 
-variable "jfrog_url" {
+variable "jfrog_host" {
   type        = string
-  description = "The URL of the JFrog instance. e.g. YYY.jfrog.io"
+  description = "JFrog instance hostname. e.g. YYY.jfrog.io"
 }
 
 variable "artifactory_access_token" {
@@ -57,7 +57,7 @@ variable "artifactory_access_token" {
 
 # Configure the Artifactory provider
 provider "artifactory" {
-  url           = "https://${var.jfrog_url}/artifactory"
+  url           = "https://${var.jfrog_host}/artifactory"
   access_token  = "${var.artifactory_access_token}"
 }
 ```
@@ -65,7 +65,7 @@ provider "artifactory" {
 When pushing the template, you can pass in the variables using the `--var` flag:
 
 ```sh
-coder templates push --var 'jfrog_url=YYY.jfrog.io' --var 'artifactory_access_token=XXX'
+coder templates push --var 'jfrog_host=YYY.jfrog.io' --var 'artifactory_access_token=XXX'
 ```
 
 ## Installing JFrog CLI
@@ -108,25 +108,25 @@ resource "coder_agent" "main" {
 
     jf c rm 0 || true
     echo ${artifactory_scoped_token.me.access_token} | \
-      jf c add --access-token-stdin --url https://${var.jfrog_url} 0
+      jf c add --access-token-stdin --url https://${var.jfrog_host} 0
 
     # Configure the `npm` CLI to use the Artifactory "npm" registry.
     cat << EOF > ~/.npmrc
     email = ${data.coder_workspace.me.owner_email}
-    registry = https://${var.jfrog_url}/artifactory/api/npm/${local.artifactory_registry_keys["npm"]}
+    registry = https://${var.jfrog_host}/artifactory/api/npm/${local.artifactory_registry_keys["npm"]}
     EOF
     jf rt curl /api/npm/auth >> .npmrc
 
     mkdir -p ~/.pip
     cat << EOF > ~/.pip/pip.conf
     [global]
-    index-url = https://${data.coder_workspace.me.owner}:${artifactory_scoped_token.me.access_token}@${var.jfrog_url}/artifactory/api/pypi/${local.artifactory_registry_keys["pypi"]}/simple
+    index-url = https://${data.coder_workspace.me.owner}:${artifactory_scoped_token.me.access_token}@${var.jfrog_host}/artifactory/api/pypi/${local.artifactory_registry_keys["pypi"]}/simple
     EOF
 
   EOT
   # Set GOPROXY to use the Artifactory "go" registry.
   env = {
-    GOPROXY : "https://${data.coder_workspace.me.owner}:${artifactory_scoped_token.me.access_token}@${var.jfrog_url}/artifactory/api/go/${local.artifactory_registry_keys["go"]}"
+    GOPROXY : "https://${data.coder_workspace.me.owner}:${artifactory_scoped_token.me.access_token}@${var.jfrog_host}/artifactory/api/go/${local.artifactory_registry_keys["go"]}"
   }
 }
 ```
@@ -173,7 +173,7 @@ Artifactory:
     # Configure the `npm` CLI to use the Artifactory "npm" registry.
     cat << EOF > ~/.npmrc
     email = ${data.coder_workspace.me.owner_email}
-    registry = https://${var.jfrog_url}/artifactory/api/npm/npm/
+    registry = https://${var.jfrog_host}/artifactory/api/npm/npm/
     EOF
     jf rt curl /api/npm/auth >> .npmrc
 ```
@@ -192,7 +192,7 @@ Artifactory:
     mkdir -p ~/.pip
     cat << EOF > ~/.pip/pip.conf
     [global]
-    index-url = https://${data.coder_workspace.me.owner}:${artifactory_scoped_token.me.access_token}@${var.jfrog_url}/artifactory/api/pypi/pypi/simple
+    index-url = https://${data.coder_workspace.me.owner}:${artifactory_scoped_token.me.access_token}@${var.jfrog_host}/artifactory/api/pypi/pypi/simple
     EOF
 ```
 
@@ -204,7 +204,7 @@ Add the following environment variable to your `coder_agent` block to configure 
 
 ```hcl
   env = {
-    GOPROXY : "https://${data.coder_workspace.me.owner}:${artifactory_scoped_token.me.access_token}@${var.jfrog_url}/artifactory/api/go/go"
+    GOPROXY : "https://${data.coder_workspace.me.owner}:${artifactory_scoped_token.me.access_token}@${var.jfrog_host}/artifactory/api/go/go"
   }
 ```
 
