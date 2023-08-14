@@ -17,9 +17,9 @@ terraform {
 
 locals {
   # if the jfrog username is same as the coder username, you can use the following
-  # username = data.coder_workspace.me.owner
+  # artifactory_username = data.coder_workspace.me.owner
   # if the username is same as email, you can use the following
-  # username = urlencode(data.coder_workspace.me.owner_email)
+  # artifactory_username = urlencode(data.coder_workspace.me.owner_email)
   artifactory_username = data.coder_workspace.me.owner
   artifactory_registry_keys = {
     "npm"    = "npm"
