@@ -1521,6 +1521,8 @@ func configureOIDCPKI(orig *oauth2.Config, keyFile string, certFile string) (*oa
 	}
 
 	var certData []byte
+	// According to the spec, this is not required. So do not require it on the initial loading
+	// of the PKI config.
 	if certFile != "" {
 		certData, err = os.ReadFile(certFile)
 		if err != nil {

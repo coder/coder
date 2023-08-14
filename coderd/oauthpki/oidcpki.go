@@ -36,9 +36,13 @@ import (
 type Config struct {
 	cfg httpmw.OAuth2Config
 
+	// These values should match those provided in the oauth2.Config.
+	// Because the inner config is an interface, we need to duplicate these
+	// values here.
 	scopes   []string
 	clientID string
 	tokenURL string
+
 	// ClientSecret is the private key of the PKI cert.
 	// Azure AD only supports RS256 signing algorithm.
 	clientKey *rsa.PrivateKey
