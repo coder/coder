@@ -79,6 +79,8 @@ type Options struct {
 	// By default, CORs is set to accept external requests
 	// from the dashboardURL. This should only be used in development.
 	AllowAllCors bool
+
+	StatsCollectorOptions workspaceapps.StatsCollectorOptions
 }
 
 func (o *Options) Validate() error {
@@ -262,6 +264,14 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	}
 
 	workspaceAppsLogger := opts.Logger.Named("workspaceapps")
+	if opts.StatsCollectorOptions.Logger == nil {
+		named := workspaceAppsLogger.Named("stats_collector")
+		opts.StatsCollectorOptions.Logger = &named
+	}
+	if opts.StatsCollectorOptions.Reporter == nil {
+		opts.StatsCollectorOptions.Reporter = &appStatsReporter{Client: client}
+	}
+
 	s.AppServer = &workspaceapps.Server{
 		Logger:        workspaceAppsLogger,
 		DashboardURL:  opts.DashboardURL,
@@ -282,11 +292,8 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		DisablePathApps:  opts.DisablePathApps,
 		SecureAuthCookie: opts.SecureAuthCookie,
 
-		AgentProvider: agentProvider,
-		StatsCollector: workspaceapps.NewStatsCollector(workspaceapps.StatsCollectorOptions{
-			Logger:   workspaceAppsLogger.Named("stats_collector"),
-			Reporter: &appStatsReporter{Client: client},
-		}),
+		AgentProvider:  agentProvider,
+		StatsCollector: workspaceapps.NewStatsCollector(opts.StatsCollectorOptions),
 	}
 
 	derpHandler := derphttp.Handler(derpServer)

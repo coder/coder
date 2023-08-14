@@ -147,7 +147,7 @@ type StatsCollector struct {
 }
 
 type StatsCollectorOptions struct {
-	Logger   slog.Logger
+	Logger   *slog.Logger
 	Reporter StatsReporter
 	// ReportInterval is the interval at which stats are reported, both partial
 	// and fully formed stats.
@@ -163,6 +163,9 @@ type StatsCollectorOptions struct {
 }
 
 func NewStatsCollector(opts StatsCollectorOptions) *StatsCollector {
+	if opts.Logger == nil {
+		opts.Logger = &slog.Logger{}
+	}
 	if opts.ReportInterval == 0 {
 		opts.ReportInterval = DefaultStatsCollectorReportInterval
 	}

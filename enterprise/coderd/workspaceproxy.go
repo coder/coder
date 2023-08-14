@@ -511,14 +511,15 @@ func (api *API) workspaceProxyReportAppStats(rw http.ResponseWriter, r *http.Req
 	ctx := r.Context()
 	_ = httpmw.WorkspaceProxy(r) // Ensure the proxy is authenticated.
 
-	var stats []workspaceapps.StatsReport
-	if !httpapi.Read(ctx, rw, r, &stats) {
+	var req wsproxysdk.ReportAppStatsRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
-	// Reporter has no state, so we can use an ephemeral instance here.
-	reporter := workspaceapps.NewStatsDBReporter(api.Database, workspaceapps.DefaultStatsDBReporterBatchSize)
-	if err := reporter.Report(ctx, stats); err != nil {
+	api.Logger.Debug(ctx, "report app stats", slog.F("stats", req.Stats))
+
+	reporter := api.WorkspaceAppsStatsCollectorOptions.Reporter
+	if err := reporter.Report(ctx, req.Stats); err != nil {
 		api.Logger.Error(ctx, "report app stats failed", slog.Error(err))
 		httpapi.InternalServerError(rw, err)
 		return

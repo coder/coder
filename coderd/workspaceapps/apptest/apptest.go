@@ -1411,14 +1411,17 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 	t.Run("ReportStats", func(t *testing.T) {
 		t.Parallel()
 
+		flush := make(chan chan<- struct{}, 1)
+
 		reporter := &fakeStatsReporter{}
-		collector := workspaceapps.NewStatsCollector(workspaceapps.StatsCollectorOptions{
-			Reporter:       reporter,
-			ReportInterval: time.Second,
-			RollupWindow:   time.Minute,
-		})
 		appDetails := setupProxyTest(t, &DeploymentOptions{
-			StatsCollector: collector,
+			StatsCollectorOptions: workspaceapps.StatsCollectorOptions{
+				Reporter:       reporter,
+				ReportInterval: time.Hour,
+				RollupWindow:   time.Minute,
+
+				Flush: flush,
+			},
 		})
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -1433,8 +1436,13 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
 		require.Eventually(t, func() bool {
+			// Keep flushing until we get a non-empty stats report.
+			flushDone := make(chan struct{}, 1)
+			flush <- flushDone
+			<-flushDone
+
 			return len(reporter.stats()) > 0
-		}, testutil.WaitLong, testutil.IntervalMedium, "stats not reported")
+		}, testutil.WaitLong, testutil.IntervalFast, "stats not reported")
 	})
 }
 

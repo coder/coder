@@ -52,7 +52,7 @@ type DeploymentOptions struct {
 	DangerousAllowPathAppSiteOwnerAccess bool
 	ServeHTTPS                           bool
 
-	StatsCollector *workspaceapps.StatsCollector
+	StatsCollectorOptions workspaceapps.StatsCollectorOptions
 
 	// The following fields are only used by setupProxyTestWithFactory.
 	noWorkspace bool

@@ -163,7 +163,7 @@ type Options struct {
 	UpdateAgentMetrics func(ctx context.Context, username, workspaceName, agentName string, metrics []agentsdk.AgentMetric)
 	StatsBatcher       *batchstats.Batcher
 
-	WorkspaceAppsStatsCollector *workspaceapps.StatsCollector
+	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 }
 
 // @title Coder API
@@ -418,13 +418,16 @@ func New(options *Options) *API {
 			Cache: wsconncache.New(api._dialWorkspaceAgentTailnet, 0),
 		}
 	}
+
 	workspaceAppsLogger := options.Logger.Named("workspaceapps")
-	if options.WorkspaceAppsStatsCollector == nil {
-		options.WorkspaceAppsStatsCollector = workspaceapps.NewStatsCollector(workspaceapps.StatsCollectorOptions{
-			Logger:   workspaceAppsLogger.Named("stats_collector"),
-			Reporter: workspaceapps.NewStatsDBReporter(options.Database, workspaceapps.DefaultStatsDBReporterBatchSize),
-		})
+	if options.WorkspaceAppsStatsCollectorOptions.Logger == nil {
+		named := workspaceAppsLogger.Named("stats_collector")
+		options.WorkspaceAppsStatsCollectorOptions.Logger = &named
 	}
+	if options.WorkspaceAppsStatsCollectorOptions.Reporter == nil {
+		options.WorkspaceAppsStatsCollectorOptions.Reporter = workspaceapps.NewStatsDBReporter(options.Database, workspaceapps.DefaultStatsDBReporterBatchSize)
+	}
+
 	api.workspaceAppServer = &workspaceapps.Server{
 		Logger: workspaceAppsLogger,
 
@@ -437,7 +440,7 @@ func New(options *Options) *API {
 		SignedTokenProvider: api.WorkspaceAppsProvider,
 		AgentProvider:       api.agentProvider,
 		AppSecurityKey:      options.AppSecurityKey,
-		StatsCollector:      options.WorkspaceAppsStatsCollector,
+		StatsCollector:      workspaceapps.NewStatsCollector(options.WorkspaceAppsStatsCollectorOptions),
 
 		DisablePathApps:  options.DeploymentValues.DisablePathApps.Value(),
 		SecureAuthCookie: options.DeploymentValues.SecureAuthCookie.Value(),
