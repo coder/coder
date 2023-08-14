@@ -128,104 +128,116 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
             </ChooseOne>
           )}
           {workspaces &&
-            workspaces.map((workspace) => (
-              <WorkspacesRow workspace={workspace} key={workspace.id}>
-                <TableCell
-                  sx={{
-                    paddingLeft: (theme) =>
-                      isWorkspaceBatchActionsEnabled
-                        ? `${theme.spacing(1.5)} !important`
-                        : undefined,
-                  }}
+            workspaces.map((workspace) => {
+              const checked = checkedWorkspaces.some(
+                (w) => w.id === workspace.id,
+              )
+              return (
+                <WorkspacesRow
+                  workspace={workspace}
+                  key={workspace.id}
+                  checked={checked}
                 >
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    {isWorkspaceBatchActionsEnabled && (
-                      <Checkbox
-                        size="small"
-                        checked={checkedWorkspaces.some(
-                          (w) => w.id === workspace.id,
-                        )}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                        }}
-                        onChange={(e) => {
-                          if (e.currentTarget.checked) {
-                            onCheckChange([...checkedWorkspaces, workspace])
-                          } else {
-                            onCheckChange(
-                              checkedWorkspaces.filter(
-                                (w) => w.id !== workspace.id,
-                              ),
-                            )
-                          }
-                        }}
-                      />
-                    )}
-                    <AvatarData
-                      title={
-                        <Stack direction="row" spacing={0} alignItems="center">
-                          {workspace.name}
-                          {workspace.outdated && (
-                            <WorkspaceOutdatedTooltip
-                              templateName={workspace.template_name}
-                              templateId={workspace.template_id}
-                              onUpdateVersion={() => {
-                                onUpdateWorkspace(workspace)
-                              }}
-                            />
-                          )}
-                        </Stack>
-                      }
-                      subtitle={workspace.owner_name}
-                      avatar={
-                        <Avatar
-                          src={workspace.template_icon}
-                          variant={
-                            workspace.template_icon ? "square" : undefined
-                          }
-                          fitImage={Boolean(workspace.template_icon)}
-                        >
-                          {workspace.name}
-                        </Avatar>
-                      }
-                    />
-                  </Box>
-                </TableCell>
-
-                <TableCell>
-                  {getDisplayWorkspaceTemplateName(workspace)}
-                </TableCell>
-
-                <TableCell>
-                  <LastUsed lastUsedAt={workspace.last_used_at} />
-                </TableCell>
-
-                <TableCell>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <WorkspaceStatusBadge workspace={workspace} />
-                    {workspace.latest_build.status === "running" &&
-                      !workspace.health.healthy && <UnhealthyTooltip />}
-                  </Box>
-                </TableCell>
-
-                <TableCell>
-                  <Box
+                  <TableCell
                     sx={{
-                      display: "flex",
-                      paddingLeft: (theme) => theme.spacing(2),
+                      paddingLeft: (theme) =>
+                        isWorkspaceBatchActionsEnabled
+                          ? `${theme.spacing(1.5)} !important`
+                          : undefined,
                     }}
                   >
-                    <KeyboardArrowRight
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      {isWorkspaceBatchActionsEnabled && (
+                        <Checkbox
+                          size="small"
+                          disabled={cantBeChecked(workspace)}
+                          checked={checked}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                          }}
+                          onChange={(e) => {
+                            if (e.currentTarget.checked) {
+                              onCheckChange([...checkedWorkspaces, workspace])
+                            } else {
+                              onCheckChange(
+                                checkedWorkspaces.filter(
+                                  (w) => w.id !== workspace.id,
+                                ),
+                              )
+                            }
+                          }}
+                        />
+                      )}
+                      <AvatarData
+                        title={
+                          <Stack
+                            direction="row"
+                            spacing={0}
+                            alignItems="center"
+                          >
+                            {workspace.name}
+                            {workspace.outdated && (
+                              <WorkspaceOutdatedTooltip
+                                templateName={workspace.template_name}
+                                templateId={workspace.template_id}
+                                onUpdateVersion={() => {
+                                  onUpdateWorkspace(workspace)
+                                }}
+                              />
+                            )}
+                          </Stack>
+                        }
+                        subtitle={workspace.owner_name}
+                        avatar={
+                          <Avatar
+                            src={workspace.template_icon}
+                            variant={
+                              workspace.template_icon ? "square" : undefined
+                            }
+                            fitImage={Boolean(workspace.template_icon)}
+                          >
+                            {workspace.name}
+                          </Avatar>
+                        }
+                      />
+                    </Box>
+                  </TableCell>
+
+                  <TableCell>
+                    {getDisplayWorkspaceTemplateName(workspace)}
+                  </TableCell>
+
+                  <TableCell>
+                    <LastUsed lastUsedAt={workspace.last_used_at} />
+                  </TableCell>
+
+                  <TableCell>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <WorkspaceStatusBadge workspace={workspace} />
+                      {workspace.latest_build.status === "running" &&
+                        !workspace.health.healthy && <UnhealthyTooltip />}
+                    </Box>
+                  </TableCell>
+
+                  <TableCell>
+                    <Box
                       sx={{
-                        color: (theme) => theme.palette.text.secondary,
-                        width: 20,
-                        height: 20,
+                        display: "flex",
+                        paddingLeft: (theme) => theme.spacing(2),
                       }}
-                    />
-                  </Box>
-                </TableCell>
-              </WorkspacesRow>
-            ))}
+                    >
+                      <KeyboardArrowRight
+                        sx={{
+                          color: (theme) => theme.palette.text.secondary,
+                          width: 20,
+                          height: 20,
+                        }}
+                      />
+                    </Box>
+                  </TableCell>
+                </WorkspacesRow>
+              )
+            })}
         </TableBody>
       </Table>
     </TableContainer>
@@ -235,7 +247,8 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 const WorkspacesRow: FC<{
   workspace: Workspace
   children: ReactNode
-}> = ({ workspace, children }) => {
+  checked: boolean
+}> = ({ workspace, children, checked }) => {
   const navigate = useNavigate()
   const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`
   const clickable = useClickableTableRow(() => {
@@ -243,7 +256,14 @@ const WorkspacesRow: FC<{
   })
 
   return (
-    <TableRow data-testid={`workspace-${workspace.id}`} {...clickable}>
+    <TableRow
+      data-testid={`workspace-${workspace.id}`}
+      {...clickable}
+      sx={{
+        backgroundColor: (theme) =>
+          checked ? theme.palette.action.hover : undefined,
+      }}
+    >
       {children}
     </TableRow>
   )
@@ -265,6 +285,10 @@ export const UnhealthyTooltip = () => {
       </HelpTooltipText>
     </HelpTooltip>
   )
+}
+
+const cantBeChecked = (workspace: Workspace) => {
+  return ["deleting", "pending"].includes(workspace.latest_build.status)
 }
 
 const useUnhealthyTooltipStyles = makeStyles(() => ({
