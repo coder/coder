@@ -4839,7 +4839,6 @@
           }
         ],
         "consumes": ["application/json"],
-        "produces": ["application/json"],
         "tags": ["Enterprise"],
         "summary": "Report workspace app stats",
         "operationId": "report-workspace-app-stats",
