@@ -424,6 +424,7 @@ OIDC auth URL parameters to pass to the upstream provider.
 | ----------- | ----------------------------------------- |
 | Type        | <code>string</code>                       |
 | Environment | <code>$CODER_OIDC_CLIENT_CERT_FILE</code> |
+| YAML        | <code>oidc.oidcClientCertFile</code>      |
 
 Pem encoded certificate file to use for oauth2 PKI/JWT authorization. The public certificate that accompanies oidc-client-key-file. A standard x509 certificate is expected.
 
@@ -443,6 +444,7 @@ Client ID to use for Login with OIDC.
 | ----------- | ---------------------------------------- |
 | Type        | <code>string</code>                      |
 | Environment | <code>$CODER_OIDC_CLIENT_KEY_FILE</code> |
+| YAML        | <code>oidc.oidcClientKeyFile</code>      |
 
 Pem encoded RSA private key to use for oauth2 PKI/JWT authorization. This can be used instead of oidc-client-secret if your IDP supports it.
 
