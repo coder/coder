@@ -93,7 +93,7 @@ const NavItems: React.FC<
       )}
       {canViewDeployment && (
         <ListItem button className={styles.item}>
-          <NavLink className={styles.link} to="/settings/deployment/general">
+          <NavLink className={styles.link} to="/deployment/general">
             {Language.deployment}
           </NavLink>
         </ListItem>
@@ -307,7 +307,9 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
             }}
           >
             Workspace proxies improve terminal and web app connections to
-            workspaces. This does not apply to SSH connections.
+            workspaces. This does not apply to CLI connections. A region must be
+            manually selected, otherwise the default primary region will be
+            used.
           </Typography>
         </Box>
         <Divider sx={{ borderColor: (theme) => theme.palette.divider }} />

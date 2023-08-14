@@ -66,11 +66,10 @@ export const AgentLatency: FC<{ agent: WorkspaceAgent }> = ({ agent }) => {
           This is the latency overhead on non peer to peer connections. The
           first row is the preferred relay.
         </HelpTooltipText>
-
         <HelpTooltipText>
           <Stack direction="column" spacing={1} className={styles.regions}>
             {Object.entries(agent.latency)
-              .sort(([, a], [, b]) => (a.preferred ? -1 : b.preferred ? 1 : 0))
+              .sort(([, a], [, b]) => a.latency_ms - b.latency_ms)
               .map(([regionName, region]) => (
                 <Stack
                   direction="row"

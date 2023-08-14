@@ -272,10 +272,7 @@ export const AppRouter: FC = () => {
 
               <Route path="/audit" element={<AuditPage />} />
 
-              <Route
-                path="/settings/deployment"
-                element={<DeploySettingsLayout />}
-              >
+              <Route path="/deployment" element={<DeploySettingsLayout />}>
                 <Route path="general" element={<GeneralSettingsPage />} />
                 <Route path="licenses" element={<LicensesSettingsPage />} />
                 <Route path="licenses/add" element={<AddNewLicensePage />} />

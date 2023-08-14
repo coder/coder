@@ -51,7 +51,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *clibase.Cmd {
 			defer cancel()
 
 			if newUserDBURL == "" {
-				cliui.Infof(inv.Stdout, "Using built-in PostgreSQL (%s)\n", cfg.PostgresPath())
+				cliui.Infof(inv.Stdout, "Using built-in PostgreSQL (%s)", cfg.PostgresPath())
 				url, closePg, err := startBuiltinPostgres(ctx, cfg, logger)
 				if err != nil {
 					return err
