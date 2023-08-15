@@ -62,7 +62,7 @@
           finalImageTag = "lunar";
         };
         dockerImage = pkgs.dockerTools.streamLayeredImage {
-          name = "codercom/dogfood-oss";
+          name = "codercom/oss-dogfood";
           tag = "testing";
           fromImage = baseImage;
           extraCommands = ''
