@@ -88,7 +88,21 @@ In our Docker-based example, we install `jf` by adding these lines to our `Docke
 RUN curl -fL https://install-cli.jfrog.io | sh && chmod 755 $(which jf)
 ```
 
-and use this `coder_agent` block:
+## Configuring Coder workspace to use JFrog Artifactory repositories
+
+Create a `locals` block to store the Artifactory repository keys for each package manager you want to use in your workspace. For example, if you want to use artifactory repositories with keys `npm`, `pypi`, and `go`, you can create a `locals` block like this:
+
+```hcl
+locals {
+  artifactory_repository_keys = {
+    npm    = "npm"
+    python = "pypi"
+    go     = "go"
+  }
+}
+```
+
+To automatically configure `jf` CLI and Artifactory repositories for each user, add the following lines to your `startup_script` in the `coder_agent` block:
 
 ```hcl
 resource "coder_agent" "main" {
@@ -110,23 +124,24 @@ resource "coder_agent" "main" {
     echo ${artifactory_scoped_token.me.access_token} | \
       jf c add --access-token-stdin --url https://${var.jfrog_host} 0
 
-    # Configure the `npm` CLI to use the Artifactory "npm" registry.
+    # Configure the `npm` CLI to use the Artifactory "npm" repository.
     cat << EOF > ~/.npmrc
     email = ${data.coder_workspace.me.owner_email}
-    registry = https://${var.jfrog_host}/artifactory/api/npm/${local.artifactory_registry_keys["npm"]}
+    registry = https://${var.jfrog_host}/artifactory/api/npm/${local.artifactory_repository_keys["npm"]}
     EOF
     jf rt curl /api/npm/auth >> .npmrc
 
+    # Configure the `pip` to use the Artifactory "python" repository.
     mkdir -p ~/.pip
     cat << EOF > ~/.pip/pip.conf
     [global]
-    index-url = https://${data.coder_workspace.me.owner}:${artifactory_scoped_token.me.access_token}@${var.jfrog_host}/artifactory/api/pypi/${local.artifactory_registry_keys["pypi"]}/simple
+    index-url = https://${local.artifactory_username}:${artifactory_scoped_token.me.access_token}@${var.jfrog_host}/artifactory/api/pypi/${local.artifactory_repository_keys["python"]}/simple
     EOF
 
   EOT
-  # Set GOPROXY to use the Artifactory "go" registry.
+  # Set GOPROXY to use the Artifactory "go" repository.
   env = {
-    GOPROXY : "https://${data.coder_workspace.me.owner}:${artifactory_scoped_token.me.access_token}@${var.jfrog_host}/artifactory/api/go/${local.artifactory_registry_keys["go"]}"
+    GOPROXY : "https://${local.artifactory_username}:${artifactory_scoped_token.me.access_token}@${var.jfrog_host}/artifactory/api/go/${local.artifactory_repository_keys["go"]}"
   }
 }
 ```

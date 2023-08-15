@@ -21,7 +21,7 @@ locals {
   # if the username is same as email, you can use the following
   # artifactory_username = urlencode(data.coder_workspace.me.owner_email)
   artifactory_username = data.coder_workspace.me.owner
-  artifactory_registry_keys = {
+  artifactory_repository_keys = {
     "npm"    = "npm"
     "python" = "python"
     "go"     = "go"
@@ -77,24 +77,24 @@ resource "coder_agent" "main" {
     echo ${artifactory_scoped_token.me.access_token} | \
       jf c add --access-token-stdin --url https://${var.jfrog_host} 0
 
-    # Configure the `npm` CLI to use the Artifactory "npm" registry.
+    # Configure the `npm` CLI to use the Artifactory "npm" repository.
     cat << EOF > ~/.npmrc
     email = ${data.coder_workspace.me.owner_email}
-    registry = https://${var.jfrog_host}/artifactory/api/npm/${local.artifactory_registry_keys["npm"]}
+    registry = https://${var.jfrog_host}/artifactory/api/npm/${local.artifactory_repository_keys["npm"]}
     EOF
     jf rt curl /api/npm/auth >> .npmrc
 
-    # Configure the `pip` to use the Artifactory "pypi" registry.
+    # Configure the `pip` to use the Artifactory "python" repository.
     mkdir -p ~/.pip
     cat << EOF > ~/.pip/pip.conf
     [global]
-    index-url = https://${local.artifactory_username}:${artifactory_scoped_token.me.access_token}@${var.jfrog_host}/artifactory/api/pypi/${local.artifactory_registry_keys["python"]}/simple
+    index-url = https://${local.artifactory_username}:${artifactory_scoped_token.me.access_token}@${var.jfrog_host}/artifactory/api/pypi/${local.artifactory_repository_keys["python"]}/simple
     EOF
 
   EOT
-  # Set GOPROXY to use the Artifactory "go" registry.
+  # Set GOPROXY to use the Artifactory "go" repository.
   env = {
-    GOPROXY : "https://${local.artifactory_username}:${artifactory_scoped_token.me.access_token}@${var.jfrog_host}/artifactory/api/go/${local.artifactory_registry_keys["go"]}"
+    GOPROXY : "https://${local.artifactory_username}:${artifactory_scoped_token.me.access_token}@${var.jfrog_host}/artifactory/api/go/${local.artifactory_repository_keys["go"]}"
   }
 }
 
