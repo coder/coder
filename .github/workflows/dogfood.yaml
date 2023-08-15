@@ -23,11 +23,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Login to DockerHub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+      - run: skopeo login docker.io -u $DOCKERHUB_USERNAME -p $DOCKERHUB_PASSWORD
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+          REGISTRY_AUTH_FILE: ~/.auth.json
 
       - uses: cachix/install-nix-action@v22
         with:
@@ -35,6 +35,8 @@ jobs:
           nix_path: nixpkgs=channel:nixos-unstable
 
       - run: nix build .#devEnvironmentDocker && ./result | skopeo --insecure-policy copy docker-archive:/dev/stdin docker://codercom/oss-dogfood:testing
+        env:
+          REGISTRY_AUTH_FILE: ~/.auth.json
 
   deploy_template:
     needs: deploy_image
