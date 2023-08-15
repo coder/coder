@@ -19,12 +19,12 @@ Provisioners are started with the [coder provisionerd start](../cli/provisionerd
 The provisioner daemon must authenticate with your Coder deployment.
 
 Set a [provisioner daemon PSK](../cli/server.md#--provisioner-daemon-psk) on the Coder server and start the provisioner with
-`coder provisionerd start --psk <your-psk>`.  If you are [installing with Helm](../install/kubernetes#install-coder-with-helm),
+`coder provisionerd start --psk <your-psk>`. If you are [installing with Helm](../install/kubernetes#install-coder-with-helm),
 see the [Helm example](#example-running-an-external-provisioner-with-helm) below.
 
 > Coder still supports authenticating the provisioner daemon with a [token](../cli.md#--token) from a user with the
 > Template Admin or Owner role. This method is deprecated in favor of the PSK, which only has permission to access
-> provisioner daemon APIs.  We recommend migrating to the PSK as soon as practical.
+> provisioner daemon APIs. We recommend migrating to the PSK as soon as practical.
 
 ## Types of provisioners
 
@@ -84,7 +84,7 @@ for deploying the Coder server.
      pskSecretName: "coder-provisioner-psk"
    ```
 
-1. Redeploy Coder with the new `values.yaml` to roll out the PSK.  You can omit `--version <your version>` to also upgrade
+1. Redeploy Coder with the new `values.yaml` to roll out the PSK. You can omit `--version <your version>` to also upgrade
    Coder to the latest version.
 
    ```shell
@@ -94,7 +94,7 @@ for deploying the Coder server.
        --values values.yaml
    ```
 
-1. Create a `provisioner-values.yaml` file for the provisioner daemons Helm chart.  For example
+1. Create a `provisioner-values.yaml` file for the provisioner daemons Helm chart. For example
 
    ```yaml
    coder:
@@ -109,7 +109,7 @@ for deploying the Coder server.
        kind: k8s
    ```
 
-   This example creates a deployment of 10 provisioner daemons (for 10 concurrent builds) with the listed tags.  For
+   This example creates a deployment of 10 provisioner daemons (for 10 concurrent builds) with the listed tags. For
    generic provisioners, remove the tags.
 
    > Refer to the [values.yaml](https://github.com/coder/coder/blob/main/helm/provisioner/values.yaml) file for the
