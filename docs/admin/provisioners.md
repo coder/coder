@@ -18,7 +18,7 @@ Provisioners are started with the [coder provisionerd start](../cli/provisionerd
 
 The provisioner daemon must authenticate with your Coder deployment.
 
-Set a [provisioner daemon PSK](../cli/server.md#--provisioner-daemon-psk) on the Coder server and start the provisioner with
+Set a [provisioner daemon pre-shared key (PSK)](../cli/server.md#--provisioner-daemon-psk) on the Coder server and start the provisioner with
 `coder provisionerd start --psk <your-psk>`. If you are [installing with Helm](../install/kubernetes#install-coder-with-helm),
 see the [Helm example](#example-running-an-external-provisioner-with-helm) below.
 
@@ -71,7 +71,7 @@ see the [Helm example](#example-running-an-external-provisioner-with-helm) below
 Coder provides a Helm chart for running external provisioner daemons, which you will use in concert with the Helm chart
 for deploying the Coder server.
 
-1. Create a long, random PSK and store it in a Kubernetes secret
+1. Create a long, random pre-shared key (PSK) and store it in a Kubernetes secret
 
    ```shell
    kubectl create secret generic coder-provisioner-psk --from-literal=psk=`head /dev/urandom | tr -dc A-Za-z0-9 | head -c 26`
