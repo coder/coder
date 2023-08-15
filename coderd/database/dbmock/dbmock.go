@@ -1736,6 +1736,21 @@ func (mr *MockStoreMockRecorder) GetWorkspaceAgentStatsAndLabels(arg0, arg1 inte
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentStatsAndLabels", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentStatsAndLabels), arg0, arg1)
 }
 
+// GetWorkspaceAgentWithOwnerByAgentToken mocks base method.
+func (m *MockStore) GetWorkspaceAgentWithOwnerByAgentToken(arg0 context.Context, arg1 uuid.UUID) (database.GetWorkspaceAgentWithOwnerByAgentTokenRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentWithOwnerByAgentToken", arg0, arg1)
+	ret0, _ := ret[0].(database.GetWorkspaceAgentWithOwnerByAgentTokenRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceAgentWithOwnerByAgentToken indicates an expected call of GetWorkspaceAgentWithOwnerByAgentToken.
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentWithOwnerByAgentToken(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentWithOwnerByAgentToken", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentWithOwnerByAgentToken), arg0, arg1)
+}
+
 // GetWorkspaceAgentsByResourceIDs mocks base method.
 func (m *MockStore) GetWorkspaceAgentsByResourceIDs(arg0 context.Context, arg1 []uuid.UUID) ([]database.WorkspaceAgent, error) {
 	m.ctrl.T.Helper()

@@ -74,8 +74,9 @@ func ExtractWorkspaceAgent(opts ExtractWorkspaceAgentConfig) func(http.Handler) 
 				})
 				return
 			}
+
 			//nolint:gocritic // System needs to be able to get workspace agents.
-			agent, err := opts.DB.GetWorkspaceAgentByAuthToken(dbauthz.AsSystemRestricted(ctx), token)
+			row, err := opts.DB.GetWorkspaceAgentAndOwnerByAuthToken(dbauthz.AsSystemRestricted(ctx), token)
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
 					optionalWrite(http.StatusUnauthorized, codersdk.Response{
@@ -86,23 +87,21 @@ func ExtractWorkspaceAgent(opts ExtractWorkspaceAgentConfig) func(http.Handler) 
 				}
 
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal error fetching workspace agent.",
+					Message: "Internal error authorizing workspace agent.",
 					Detail:  err.Error(),
 				})
 				return
 			}
 
-			//nolint:gocritic // System needs to be able to get workspace agents.
-			subject, err := getAgentSubject(dbauthz.AsSystemRestricted(ctx), opts.DB, agent)
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal error fetching workspace agent.",
-					Detail:  err.Error(),
-				})
-				return
-			}
+			subject := rbac.Subject{
+				ID:     row.OwnerID.String(),
+				Roles:  rbac.RoleNames(row.OwnerRoles),
+				Groups: row.OwnerGroups,
+				// Note: this is generated as a NullUUID even though it shouldn't be nullable based on the query.
+				Scope: rbac.WorkspaceAgentScope(row.WorkspaceID, row.OwnerID),
+			}.WithCachedASTValue()
 
-			ctx = context.WithValue(ctx, workspaceAgentContextKey{}, agent)
+			ctx = context.WithValue(ctx, workspaceAgentContextKey{}, row.WorkspaceAgent)
 			// Also set the dbauthz actor for the request.
 			ctx = dbauthz.As(ctx, subject)
 			next.ServeHTTP(rw, r.WithContext(ctx))

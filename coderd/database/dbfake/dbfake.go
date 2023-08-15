@@ -651,6 +651,48 @@ func (q *FakeQuerier) isEveryoneGroup(id uuid.UUID) bool {
 	return false
 }
 
+func (q *FakeQuerier) GetWorkspaceAgentAndOwnerByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndOwnerByAuthTokenRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	var resp database.GetWorkspaceAgentAndOwnerByAuthTokenRow
+	var found bool
+	for _, agt := range q.workspaceAgents {
+		if agt.AuthToken == authToken {
+			resp.WorkspaceAgent = agt
+			found = true
+			break
+		}
+	}
+	if !found {
+		return resp, sql.ErrNoRows
+	}
+
+	// get the related workspace and user
+	for _, res := range q.workspaceResources {
+		if resp.WorkspaceAgent.ResourceID != res.ID {
+			continue
+		}
+		for _, build := range q.workspaceBuilds {
+			if build.JobID != res.JobID {
+				continue
+			}
+			for _, ws := range q.workspaces {
+				if build.WorkspaceID != ws.ID {
+					continue
+				}
+				resp.WorkspaceID = ws.ID
+				if usr, err := q.getUserByIDNoLock(ws.OwnerID); err == nil {
+					resp.OwnerID = usr.ID
+					resp.OwnerRoles = usr.RBACRoles
+					resp.OwnerName = usr.Username
+					return resp, nil
+				}
+			}
+		}
+	}
+	return database.GetWorkspaceAgentAndOwnerByAuthTokenRow{}, sql.ErrNoRows
+}
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }

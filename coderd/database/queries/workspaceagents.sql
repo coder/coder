@@ -200,3 +200,57 @@ WHERE
     	WHERE
 			wb.workspace_id = @workspace_id :: uuid
 	);
+
+-- name: GetWorkspaceAgentAndOwnerByAuthToken :one
+SELECT
+	sqlc.embed(workspace_agents),
+	workspaces.id AS workspace_id,
+	users.id AS owner_id,
+	users.username AS owner_name,
+	users.status AS owner_status,
+	array_cat(
+		-- All users are members
+		array_append(users.rbac_roles, 'member'),
+		(
+			SELECT
+				array_agg(org_roles)
+			FROM
+				organization_members,
+				-- All org_members get the org-member role for their orgs
+				unnest(
+					array_append(roles, 'organization-member:' || organization_members.organization_id::text)
+					) AS org_roles
+			WHERE
+					user_id = users.id
+		)
+		) :: text[] AS owner_roles,
+	(
+		SELECT
+			array_agg(
+				group_members.group_id :: text
+				)
+		FROM
+			group_members
+		WHERE
+				user_id = users.id
+	) :: text[] AS owner_groups
+FROM users
+		 INNER JOIN
+	 workspaces
+	 ON
+			 workspaces.owner_id = users.id
+		 INNER JOIN
+	 workspace_builds
+	 ON
+			 workspace_builds.workspace_id = workspaces.id
+		 INNER JOIN
+	 workspace_resources
+	 ON
+			 workspace_resources.job_id = workspace_builds.job_id
+		 INNER JOIN
+	 workspace_agents
+	 ON
+			 workspace_agents.resource_id = workspace_resources.id
+WHERE
+		workspace_agents.auth_token = @auth_token
+LIMIT 1;
