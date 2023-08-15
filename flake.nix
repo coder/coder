@@ -14,6 +14,7 @@
         formatter = pkgs.nixpkgs-fmt;
         devShellPackages = with pkgs; [
           bat
+          bash
           cairo
           curl
           docker
@@ -56,22 +57,22 @@
         baseImage = pkgs.dockerTools.pullImage {
           imageName = "ubuntu";
           imageDigest = "sha256:7a520eeb6c18bc6d32a21bb7edcf673a7830813c169645d51c949cecb62387d0";
-          sha256 = "090zricz7n1kbphd7gwhvavj7m1j7bhh4aq3c3mrik5q8pxh4j58";
+          sha256 = "1qa9nq3rir0wnhbs15mwbilzw530x7ih9pq5q1wv3axz44ap6dka";
           finalImageName = "ubuntu";
           finalImageTag = "lunar";
         };
-        dockerImage = pkgs.dockerTools.buildLayeredImage {
+        dockerImage = pkgs.dockerTools.streamLayeredImage {
           name = "dev-environment";
           fromImage = baseImage;
-          contents = with pkgs; [
-            terraform
-          ];
-          # extraCommands = ''
-          # mv bin nixbin
-          # ln -s usr/bin bin
-          # '';
+          extraCommands = ''
+          touch ./.wh.bin
+          ln -s usr/bin bin
+          '';
+
           config = {
-            # Env = [ "PATH=${pkgs.lib.makeBinPath devShellPackages}:$PATH" ];
+            Env = [
+              "PATH=${pkgs.lib.makeBinPath devShellPackages}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+            ];
             Entrypoint = [ "/bin/bash" ];
           };
         };
