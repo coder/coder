@@ -729,6 +729,7 @@
             "CoderSessionToken": []
           }
         ],
+        "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["Enterprise"],
         "summary": "Update group by name",

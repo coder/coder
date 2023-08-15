@@ -81,6 +81,7 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 // @Summary Update group by name
 // @ID update-group-by-name
 // @Security CoderSessionToken
+// @Accept json
 // @Produce json
 // @Tags Enterprise
 // @Param group path string true "Group name"
