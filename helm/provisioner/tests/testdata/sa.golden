@@ -132,5 +132,5 @@ spec:
         volumeMounts: []
       restartPolicy: Always
       serviceAccountName: coder-service-account
-      terminationGracePeriodSeconds: 60
+      terminationGracePeriodSeconds: 600
       volumes: []
