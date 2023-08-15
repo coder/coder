@@ -407,6 +407,7 @@ func New(options *Options) *API {
 				return (*api.TailnetCoordinator.Load()).ServeMultiAgent(uuid.New()), nil
 			},
 			wsconncache.New(api._dialWorkspaceAgentTailnet, 0),
+			api.TracerProvider,
 		)
 		if err != nil {
 			panic("failed to setup server tailnet: " + err.Error())

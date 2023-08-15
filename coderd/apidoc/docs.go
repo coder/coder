@@ -8602,7 +8602,14 @@ const docTemplate = `{
                 "auth_url_params": {
                     "type": "object"
                 },
+                "client_cert_file": {
+                    "type": "string"
+                },
                 "client_id": {
+                    "type": "string"
+                },
+                "client_key_file": {
+                    "description": "ClientKeyFile \u0026 ClientCertFile are used in place of ClientSecret for PKI auth.",
                     "type": "string"
                 },
                 "client_secret": {

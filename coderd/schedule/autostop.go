@@ -4,9 +4,12 @@ import (
 	"context"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/tracing"
 )
 
 const (
@@ -72,6 +75,13 @@ type AutostopTime struct {
 // Deadline is a cost saving measure, while max deadline is a
 // compliance/updating measure.
 func CalculateAutostop(ctx context.Context, params CalculateAutostopParams) (AutostopTime, error) {
+	ctx, span := tracing.StartSpan(ctx,
+		trace.WithAttributes(attribute.String("coder.workspace_id", params.Workspace.ID.String())),
+		trace.WithAttributes(attribute.String("coder.template_id", params.Workspace.TemplateID.String())),
+	)
+	defer span.End()
+	defer span.End()
+
 	var (
 		db        = params.Database
 		workspace = params.Workspace
