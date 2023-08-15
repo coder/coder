@@ -8,6 +8,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/coderd/tracing"
 )
 
 const MaxTemplateRestartRequirementWeeks = 16
@@ -122,6 +123,9 @@ func NewAGPLTemplateScheduleStore() TemplateScheduleStore {
 }
 
 func (*agplTemplateScheduleStore) Get(ctx context.Context, db database.Store, templateID uuid.UUID) (TemplateScheduleOptions, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
 	tpl, err := db.GetTemplateByID(ctx, templateID)
 	if err != nil {
 		return TemplateScheduleOptions{}, err
@@ -148,6 +152,9 @@ func (*agplTemplateScheduleStore) Get(ctx context.Context, db database.Store, te
 }
 
 func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tpl database.Template, opts TemplateScheduleOptions) (database.Template, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
 	if int64(opts.DefaultTTL) == tpl.DefaultTTL {
 		// Avoid updating the UpdatedAt timestamp if nothing will be changed.
 		return tpl, nil
