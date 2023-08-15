@@ -31,6 +31,14 @@ CREATE TYPE build_reason AS ENUM (
     'autodelete'
 );
 
+CREATE TYPE display_app AS ENUM (
+    'vscode',
+    'vscode_insiders',
+    'web_terminal',
+    'ssh_helper',
+    'port_forwarding_helper'
+);
+
 CREATE TYPE group_source AS ENUM (
     'user',
     'oidc'
@@ -780,6 +788,7 @@ CREATE TABLE workspace_agents (
     started_at timestamp with time zone,
     ready_at timestamp with time zone,
     subsystems workspace_agent_subsystem[] DEFAULT '{}'::workspace_agent_subsystem[],
+    display_apps display_app[] DEFAULT '{vscode,vscode_insiders,web_terminal,ssh_helper,port_forwarding_helper}'::display_app[],
     CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576)),
     CONSTRAINT subsystems_not_none CHECK ((NOT ('none'::workspace_agent_subsystem = ANY (subsystems))))
 );

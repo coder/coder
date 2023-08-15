@@ -1360,6 +1360,7 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		ShutdownScript:               dbAgent.ShutdownScript.String,
 		ShutdownScriptTimeoutSeconds: dbAgent.ShutdownScriptTimeoutSeconds,
 		Subsystems:                   subsystems,
+		DisplayApps:                  convertDisplayApps(dbAgent.DisplayApps),
 	}
 	node := coordinator.Node(dbAgent.ID)
 	if node != nil {
@@ -1419,6 +1420,18 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 	}
 
 	return workspaceAgent, nil
+}
+
+func convertDisplayApps(apps []database.DisplayApp) []codersdk.DisplayApp {
+	dapps := make([]codersdk.DisplayApp, 0, len(apps))
+	for _, app := range apps {
+		switch codersdk.DisplayApp(app) {
+		case codersdk.DisplayAppVSCodeDesktop, codersdk.DisplayAppVSCodeInsiders, codersdk.DisplayAppPortForward, codersdk.DisplayAppWebTerminal, codersdk.DisplayAppSSH:
+			dapps = append(dapps, codersdk.DisplayApp(app))
+		}
+	}
+
+	return dapps
 }
 
 // @Summary Submit workspace agent stats

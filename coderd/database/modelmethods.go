@@ -10,6 +10,8 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 )
 
+var DefaultDisplayApps = []DisplayApp{DisplayAppVscode, DisplayAppWebTerminal, DisplayAppSSHHelper, DisplayAppPortForwardingHelper}
+
 type WorkspaceStatus string
 
 const (

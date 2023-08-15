@@ -1350,6 +1350,7 @@ export interface WorkspaceAgent {
   readonly shutdown_script_timeout_seconds: number
   readonly subsystems: AgentSubsystem[]
   readonly health: WorkspaceAgentHealth
+  readonly display_apps: DisplayApp[]
 }
 
 // From codersdk/workspaceagents.go
@@ -1587,6 +1588,21 @@ export const BuildReasons: BuildReason[] = [
   "autostart",
   "autostop",
   "initiator",
+]
+
+// From codersdk/workspaceagents.go
+export type DisplayApp =
+  | "port_forwarding_helper"
+  | "ssh_helper"
+  | "vscode"
+  | "vscode_insiders"
+  | "web_terminal"
+export const DisplayApps: DisplayApp[] = [
+  "port_forwarding_helper",
+  "ssh_helper",
+  "vscode",
+  "vscode_insiders",
+  "web_terminal",
 ]
 
 // From codersdk/deployment.go

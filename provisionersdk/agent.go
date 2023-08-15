@@ -35,6 +35,11 @@ var (
 			"arm64": darwinScript,
 		},
 	}
+
+	// AllDisplayApps indicates that a user has not specified a 'display_apps' block in their template.
+	// There is no way to distinguish between a nil array (unset) and an empty array in protobuf and an
+	// empty array already signifies that all display apps should be disabled.
+	AllDisplayApps = "*"
 )
 
 // AgentScriptEnv returns a key-pair of scripts that are consumed

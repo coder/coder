@@ -2645,6 +2645,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `wildcard_access_url`                | [clibase.URL](#clibaseurl)                                                                 | false    |              |                                                                    |
 | `write_config`                       | boolean                                                                                    | false    |              |                                                                    |
 
+## codersdk.DisplayApp
+
+```json
+"vscode"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value                    |
+| ------------------------ |
+| `vscode`                 |
+| `vscode_insiders`        |
+| `web_terminal`           |
+| `port_forwarding_helper` |
+| `ssh_helper`             |
+
 ## codersdk.Entitlement
 
 ```json
@@ -5420,6 +5438,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "created_at": "2019-08-24T14:15:22Z",
             "directory": "string",
             "disconnected_at": "2019-08-24T14:15:22Z",
+            "display_apps": ["vscode"],
             "environment_variables": {
               "property1": "string",
               "property2": "string"
@@ -5562,6 +5581,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "created_at": "2019-08-24T14:15:22Z",
   "directory": "string",
   "disconnected_at": "2019-08-24T14:15:22Z",
+  "display_apps": ["vscode"],
   "environment_variables": {
     "property1": "string",
     "property2": "string"
@@ -5617,6 +5637,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `created_at`                      | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `directory`                       | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `disconnected_at`                 | string                                                                                       | false    |              |                                                                                                                                                                                                            |
+| `display_apps`                    | array of [codersdk.DisplayApp](#codersdkdisplayapp)                                          | false    |              |                                                                                                                                                                                                            |
 | `environment_variables`           | object                                                                                       | false    |              |                                                                                                                                                                                                            |
 | » `[any property]`                | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `expanded_directory`              | string                                                                                       | false    |              |                                                                                                                                                                                                            |
@@ -6030,6 +6051,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "created_at": "2019-08-24T14:15:22Z",
           "directory": "string",
           "disconnected_at": "2019-08-24T14:15:22Z",
+          "display_apps": ["vscode"],
           "environment_variables": {
             "property1": "string",
             "property2": "string"
@@ -6341,6 +6363,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "created_at": "2019-08-24T14:15:22Z",
       "directory": "string",
       "disconnected_at": "2019-08-24T14:15:22Z",
+      "display_apps": ["vscode"],
       "environment_variables": {
         "property1": "string",
         "property2": "string"
@@ -6554,6 +6577,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 "created_at": "2019-08-24T14:15:22Z",
                 "directory": "string",
                 "disconnected_at": "2019-08-24T14:15:22Z",
+                "display_apps": ["vscode"],
                 "environment_variables": {
                   "property1": "string",
                   "property2": "string"

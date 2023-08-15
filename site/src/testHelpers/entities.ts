@@ -567,6 +567,13 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   health: {
     healthy: true,
   },
+  display_apps: [
+    "ssh_helper",
+    "port_forwarding_helper",
+    "vscode",
+    "vscode_insiders",
+    "web_terminal",
+  ],
 }
 
 export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
