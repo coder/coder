@@ -374,7 +374,7 @@ func TestAgents(t *testing.T) {
 
 func TestAgentStats(t *testing.T) {
 	t.Parallel()
-
+	start := database.Now()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 
@@ -386,7 +386,7 @@ func TestAgentStats(t *testing.T) {
 		// We want our stats, and we want them NOW.
 		batchstats.WithBatchSize(1),
 		batchstats.WithInterval(time.Hour),
-		batchstats.WithLogger(log),
+		batchstats.WithLogger(log.Leveled(slog.LevelDebug).Named("batcher")),
 	)
 	require.NoError(t, err, "create stats batcher failed")
 	t.Cleanup(closeBatcher)
@@ -437,11 +437,10 @@ func TestAgentStats(t *testing.T) {
 
 	// when
 	//
-	// Set initialCreateAfter to some time in the past, so that AgentStats would include all above PostStats,
-	// and it doesn't depend on the real time.
+	// Set initialCreateAfter to a time in the past that would include all above PostStats,
 	closeFunc, err := prometheusmetrics.AgentStats(ctx, slogtest.Make(t, &slogtest.Options{
 		IgnoreErrors: true,
-	}), registry, db, time.Now().Add(-time.Minute), time.Millisecond)
+	}), registry, db, start, time.Millisecond)
 	require.NoError(t, err)
 	t.Cleanup(closeFunc)
 

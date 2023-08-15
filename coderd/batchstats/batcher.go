@@ -193,7 +193,7 @@ func (b *Batcher) run(ctx context.Context) {
 // flush flushes the batcher's buffer.
 func (b *Batcher) flush(ctx context.Context, forced bool, reason string) {
 	b.mu.Lock()
-	b.flushForced.Store(true)
+	b.flushForced.Store(forced)
 	start := time.Now()
 	count := len(b.buf.ID)
 	defer func() {
