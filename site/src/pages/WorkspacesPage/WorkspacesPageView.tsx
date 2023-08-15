@@ -117,7 +117,7 @@ export const WorkspacesPageView: FC<
       </Stack>
 
       <TableToolbar>
-        {checkedWorkspaces.length > 0 && isWorkspaceBatchActionsEnabled ? (
+        {checkedWorkspaces.length > 0 ? (
           <>
             <Box>
               Selected <strong>{checkedWorkspaces.length}</strong> of{" "}
