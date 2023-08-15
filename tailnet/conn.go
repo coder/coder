@@ -19,6 +19,7 @@ import (
 	"golang.org/x/xerrors"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
+	"tailscale.com/envknob"
 	"tailscale.com/hostinfo"
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/connstats"
@@ -64,6 +65,22 @@ func init() {
 	// Globally disable network namespacing. All networking happens in
 	// userspace.
 	netns.SetEnabled(false)
+	// Tailscale, by default, "trims" the set of peers down to ones that we are "actively" communicating with in
+	// an effort to save memory.  But, we want to make sure the Wireguard connection is up and handshaked before sending
+	// TCP traffic over it to avoid anomalously long round-trip time of the initial handshake
+	// c.f. https://github.com/coder/coder/issues/7388#issuecomment-1625463069 for more details.
+	//
+	// If Tailscale is waiting for traffic to bring up Wireguard, and we wait for Wireguard to send traffic, that's a
+	// deadlock.  So, disable this feature.
+	//
+	// Note that Tailscale.com's use case is very different from ours: in their use case, users create one persistent
+	// tailnet per device, and it allows connections to every other thing in Tailscale that belongs to them.  The
+	// tailnet stays up as long as your laptop or phone is turned on.
+	//
+	// Our use case is different: for clients, it's a point-to-point connection to a single workspace, and lasts only as
+	// long as the connection.  For agents, it's connections to a small number of clients (CLI or Coderd) that are being
+	// actively used by the end user.
+	envknob.Setenv("TS_DEBUG_TRIM_WIREGUARD", "false")
 }
 
 type Options struct {
