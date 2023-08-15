@@ -3,12 +3,26 @@ SELECT
 	users.*
 FROM
 	users
-JOIN
+LEFT JOIN
 	group_members
 ON
-	users.id = group_members.user_id
+	CASE WHEN @id:: uuid != @organization_id :: uuid THEN
+	group_members.user_id = users.id
+	END
+LEFT JOIN
+	organization_members
+ON
+    CASE WHEN @id :: uuid = @organization_id :: uuid THEN
+        organization_members.user_id = users.id
+    END
 WHERE
-	group_members.group_id = $1
+    CASE WHEN @id :: uuid != @organization_id :: uuid THEN
+        group_members.group_id = @id
+    ELSE true END
+AND
+    CASE WHEN @id :: uuid = @organization_id :: uuid THEN
+        organization_members.organization_id = @organization_id
+    ELSE true END
 AND
 	users.status = 'active'
 AND

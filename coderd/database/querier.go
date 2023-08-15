@@ -72,7 +72,7 @@ type sqlcQuerier interface {
 	GetGitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSHKey, error)
 	GetGroupByID(ctx context.Context, id uuid.UUID) (Group, error)
 	GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrgAndNameParams) (Group, error)
-	GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]User, error)
+	GetGroupMembers(ctx context.Context, arg GetGroupMembersParams) ([]User, error)
 	GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]Group, error)
 	GetHungProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]ProvisionerJob, error)
 	GetLastUpdateCheck(ctx context.Context) (string, error)

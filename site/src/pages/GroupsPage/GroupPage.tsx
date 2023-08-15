@@ -124,6 +124,7 @@ export const GroupPage: React.FC = () => {
                     <Button startIcon={<SettingsOutlined />}>Settings</Button>
                   </Link>
                   <Button
+                    disabled={group?.id == group?.organization_id}
                     onClick={() => {
                       send("DELETE")
                     }}
@@ -146,7 +147,13 @@ export const GroupPage: React.FC = () => {
             </PageHeader>
 
             <Stack spacing={1}>
-              <Maybe condition={canUpdateGroup}>
+              <Maybe
+                condition={
+                  canUpdateGroup &&
+                  group !== undefined &&
+                  group?.id != group?.organization_id
+                }
+              >
                 <AddGroupMember
                   isLoading={state.matches("addingMember")}
                   onSubmit={(user, reset) => {
@@ -217,7 +224,8 @@ export const GroupPage: React.FC = () => {
                                           userId: member.id,
                                         })
                                       },
-                                      disabled: false,
+                                      disabled:
+                                        group.id == group.organization_id,
                                     },
                                   ]}
                                 />

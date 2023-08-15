@@ -1069,20 +1069,39 @@ SELECT
 	users.id, users.email, users.username, users.hashed_password, users.created_at, users.updated_at, users.status, users.rbac_roles, users.login_type, users.avatar_url, users.deleted, users.last_seen_at, users.quiet_hours_schedule
 FROM
 	users
-JOIN
+LEFT JOIN
 	group_members
 ON
-	users.id = group_members.user_id
+	CASE WHEN $1:: uuid != $2 :: uuid THEN
+	group_members.user_id = users.id
+	END
+LEFT JOIN
+	organization_members
+ON
+    CASE WHEN $1 :: uuid = $2 :: uuid THEN
+        organization_members.user_id = users.id
+    END
 WHERE
-	group_members.group_id = $1
+    CASE WHEN $1 :: uuid != $2 :: uuid THEN
+        group_members.group_id = $1
+    ELSE true END
+AND
+    CASE WHEN $1 :: uuid = $2 :: uuid THEN
+        organization_members.organization_id = $2
+    ELSE true END
 AND
 	users.status = 'active'
 AND
 	users.deleted = 'false'
 `
 
-func (q *sqlQuerier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]User, error) {
-	rows, err := q.db.QueryContext(ctx, getGroupMembers, groupID)
+type GetGroupMembersParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) GetGroupMembers(ctx context.Context, arg GetGroupMembersParams) ([]User, error) {
+	rows, err := q.db.QueryContext(ctx, getGroupMembers, arg.ID, arg.OrganizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -1244,8 +1263,6 @@ FROM
 	groups
 WHERE
 	organization_id = $1
-AND
-	id != $1
 `
 
 func (q *sqlQuerier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]Group, error) {
@@ -3398,11 +3415,13 @@ const getQuotaAllowanceForUser = `-- name: GetQuotaAllowanceForUser :one
 SELECT
 	coalesce(SUM(quota_allowance), 0)::BIGINT
 FROM
-	group_members gm
-JOIN groups g ON
+	groups g
+LEFT JOIN group_members gm ON
 	g.id = gm.group_id
 WHERE
 	user_id = $1
+OR
+    g.id = g.organization_id
 `
 
 func (q *sqlQuerier) GetQuotaAllowanceForUser(ctx context.Context, userID uuid.UUID) (int64, error) {

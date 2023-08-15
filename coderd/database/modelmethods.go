@@ -362,3 +362,7 @@ func ConvertWorkspaceRows(rows []GetWorkspacesRow) []Workspace {
 
 	return workspaces
 }
+
+func (g Group) IsEveryoneGroup() bool {
+	return g.ID == g.OrganizationID
+}

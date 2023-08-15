@@ -1376,13 +1376,18 @@ func (q *FakeQuerier) GetGroupByOrgAndName(_ context.Context, arg database.GetGr
 	return database.Group{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) GetGroupMembers(_ context.Context, groupID uuid.UUID) ([]database.User, error) {
+func (q *FakeQuerier) GetGroupMembers(_ context.Context, arg database.GetGroupMembersParams) ([]database.User, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
+	if arg.ID == arg.OrganizationID {
+		var cp []database.User
+		return append(cp, q.users...), nil
+	}
+
 	var members []database.GroupMember
 	for _, member := range q.groupMembers {
-		if member.GroupID == groupID {
+		if member.GroupID == arg.ID {
 			members = append(members, member)
 		}
 	}
@@ -1401,17 +1406,12 @@ func (q *FakeQuerier) GetGroupMembers(_ context.Context, groupID uuid.UUID) ([]d
 	return users, nil
 }
 
-func (q *FakeQuerier) GetGroupsByOrganizationID(_ context.Context, organizationID uuid.UUID) ([]database.Group, error) {
+func (q *FakeQuerier) GetGroupsByOrganizationID(_ context.Context, _ uuid.UUID) ([]database.Group, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	var groups []database.Group
-	for _, group := range q.groups {
-		// Omit the allUsers group.
-		if group.OrganizationID == organizationID && group.ID != organizationID {
-			groups = append(groups, group)
-		}
-	}
+	groups = append(groups, q.groups...)
 
 	return groups, nil
 }
@@ -1838,7 +1838,15 @@ func (q *FakeQuerier) GetQuotaAllowanceForUser(_ context.Context, userID uuid.UU
 		for _, group := range q.groups {
 			if group.ID == member.GroupID {
 				sum += int64(group.QuotaAllowance)
+				continue
 			}
+		}
+	}
+	// Grab the quota for the Everyone group.
+	for _, group := range q.groups {
+		if group.ID == group.OrganizationID {
+			sum += int64(group.QuotaAllowance)
+			break
 		}
 	}
 	return sum, nil

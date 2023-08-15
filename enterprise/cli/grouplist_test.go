@@ -74,10 +74,10 @@ func TestGroupList(t *testing.T) {
 		}
 	})
 
-	t.Run("NoGroups", func(t *testing.T) {
+	t.Run("EveryoneGroup", func(t *testing.T) {
 		t.Parallel()
 
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureTemplateRBAC: 1,
 			},
@@ -87,13 +87,19 @@ func TestGroupList(t *testing.T) {
 
 		pty := ptytest.New(t)
 
-		inv.Stderr = pty.Output()
+		inv.Stdout = pty.Output()
 		clitest.SetupConfig(t, client, conf)
 
 		err := inv.Run()
 		require.NoError(t, err)
 
-		pty.ExpectMatch("No groups found")
-		pty.ExpectMatch("coder groups create <name>")
+		matches := []string{
+			"NAME", "ORGANIZATION ID", "MEMBERS", " AVATAR URL",
+			"Everyone", user.OrganizationID.String(), coderdtest.FirstUserParams.Email, "",
+		}
+
+		for _, match := range matches {
+			pty.ExpectMatch(match)
+		}
 	})
 }

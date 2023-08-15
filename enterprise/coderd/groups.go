@@ -102,16 +102,28 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 
-	currentMembers, currentMembersErr := api.Database.GetGroupMembers(ctx, group.ID)
-	if currentMembersErr != nil {
-		httpapi.InternalServerError(rw, currentMembersErr)
+	var req codersdk.PatchGroupRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
-	aReq.Old = group.Auditable(currentMembers)
+	// If the name matches the existing group name pretend we aren't
+	// updating the name at all.
+	if req.Name == group.Name {
+		req.Name = ""
+	}
 
-	var req codersdk.PatchGroupRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
+	if group.ID == group.OrganizationID && req.Name != "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Cannot rename the %q group!", database.AllUsersGroup),
+		})
+		return
+	}
+
+	if group.ID == group.OrganizationID && (req.DisplayName != nil && *req.DisplayName != "") {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Cannot update the Display Name for the %q group!", database.AllUsersGroup),
+		})
 		return
 	}
 
@@ -122,15 +134,26 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If the name matches the existing group name pretend we aren't
-	// updating the name at all.
-	if req.Name == group.Name {
-		req.Name = ""
-	}
-
 	users := make([]string, 0, len(req.AddUsers)+len(req.RemoveUsers))
 	users = append(users, req.AddUsers...)
 	users = append(users, req.RemoveUsers...)
+
+	if len(users) > 0 && group.Name == database.AllUsersGroup {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Cannot add or remove users from the %q group!", database.AllUsersGroup),
+		})
+		return
+	}
+
+	currentMembers, currentMembersErr := api.Database.GetGroupMembers(ctx, database.GetGroupMembersParams{
+		ID:             group.ID,
+		OrganizationID: group.OrganizationID,
+	})
+	if currentMembersErr != nil {
+		httpapi.InternalServerError(rw, currentMembersErr)
+		return
+	}
+	aReq.Old = group.Auditable(currentMembers)
 
 	for _, id := range users {
 		if _, err := uuid.Parse(id); err != nil {
@@ -156,6 +179,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
 	if req.Name != "" && req.Name != group.Name {
 		_, err := api.Database.GetGroupByOrgAndName(ctx, database.GetGroupByOrgAndNameParams{
 			OrganizationID: group.OrganizationID,
@@ -230,7 +254,9 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 		return nil
-	}, nil)
+	}, &sql.TxOptions{
+		Isolation: sql.LevelRepeatableRead,
+	})
 	if database.IsUniqueViolation(err) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Cannot add the same user to a group twice!",
@@ -250,7 +276,10 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	patchedMembers, err := api.Database.GetGroupMembers(ctx, group.ID)
+	patchedMembers, err := api.Database.GetGroupMembers(ctx, database.GetGroupMembersParams{
+		ID:             group.ID,
+		OrganizationID: group.OrganizationID,
+	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -283,20 +312,23 @@ func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 
-	groupMembers, getMembersErr := api.Database.GetGroupMembers(ctx, group.ID)
-	if getMembersErr != nil {
-		httpapi.InternalServerError(rw, getMembersErr)
-		return
-	}
-
-	aReq.Old = group.Auditable(groupMembers)
-
 	if group.Name == database.AllUsersGroup {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("%q is a reserved group and cannot be deleted!", database.AllUsersGroup),
 		})
 		return
 	}
+
+	groupMembers, getMembersErr := api.Database.GetGroupMembers(ctx, database.GetGroupMembersParams{
+		ID:             group.ID,
+		OrganizationID: group.OrganizationID,
+	})
+	if getMembersErr != nil {
+		httpapi.InternalServerError(rw, getMembersErr)
+		return
+	}
+
+	aReq.Old = group.Auditable(groupMembers)
 
 	err := api.Database.DeleteGroupByID(ctx, group.ID)
 	if err != nil {
@@ -336,7 +368,10 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 		group = httpmw.GroupParam(r)
 	)
 
-	users, err := api.Database.GetGroupMembers(ctx, group.ID)
+	users, err := api.Database.GetGroupMembers(ctx, database.GetGroupMembersParams{
+		ID:             group.ID,
+		OrganizationID: group.OrganizationID,
+	})
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -381,7 +416,10 @@ func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 
 	resp := make([]codersdk.Group, 0, len(groups))
 	for _, group := range groups {
-		members, err := api.Database.GetGroupMembers(ctx, group.ID)
+		members, err := api.Database.GetGroupMembers(ctx, database.GetGroupMembersParams{
+			ID:             group.ID,
+			OrganizationID: group.OrganizationID,
+		})
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return

@@ -58,7 +58,10 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 	sdkGroups := make([]codersdk.Group, 0, len(groups))
 	for _, group := range groups {
 		// nolint:gocritic
-		members, err := api.Database.GetGroupMembers(dbauthz.AsSystemRestricted(ctx), group.ID)
+		members, err := api.Database.GetGroupMembers(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersParams{
+			ID:             group.ID,
+			OrganizationID: group.OrganizationID,
+		})
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return
@@ -128,7 +131,10 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 		// them read the group members.
 		// We should probably at least return more truncated user data here.
 		// nolint:gocritic
-		members, err = api.Database.GetGroupMembers(dbauthz.AsSystemRestricted(ctx), group.ID)
+		members, err = api.Database.GetGroupMembers(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersParams{
+			ID:             group.ID,
+			OrganizationID: group.OrganizationID,
+		})
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return

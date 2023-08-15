@@ -525,7 +525,7 @@ func TestGroupSync(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, group := range orgGroups {
-				if slice.Contains(tc.initialOrgGroups, group.Name) {
+				if slice.Contains(tc.initialOrgGroups, group.Name) || group.OrganizationID == group.ID {
 					require.Equal(t, group.Source, codersdk.GroupSourceUser)
 				} else {
 					require.Equal(t, group.Source, codersdk.GroupSourceOIDC)
@@ -543,6 +543,7 @@ func TestGroupSync(t *testing.T) {
 				}
 				delete(orgGroupsMap, expected)
 			}
+			delete(orgGroupsMap, database.AllUsersGroup)
 			require.Empty(t, orgGroupsMap, "unexpected groups found")
 
 			expectedUserGroups := make(map[string]struct{})
@@ -554,7 +555,9 @@ func TestGroupSync(t *testing.T) {
 				userInGroup := slice.ContainsCompare(group.Members, codersdk.User{Email: user.Email}, func(a, b codersdk.User) bool {
 					return a.Email == b.Email
 				})
-				if _, ok := expectedUserGroups[group.Name]; ok {
+				if group.ID == group.OrganizationID {
+					require.True(t, userInGroup, "user cannot be removed from 'Everyone' group")
+				} else if _, ok := expectedUserGroups[group.Name]; ok {
 					require.Truef(t, userInGroup, "user should be in group %s", group.Name)
 				} else {
 					require.Falsef(t, userInGroup, "user should not be in group %s", group.Name)

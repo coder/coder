@@ -916,11 +916,11 @@ func (q *querier) GetGroupByOrgAndName(ctx context.Context, arg database.GetGrou
 	return fetch(q.log, q.auth, q.db.GetGroupByOrgAndName)(ctx, arg)
 }
 
-func (q *querier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]database.User, error) {
-	if _, err := q.GetGroupByID(ctx, groupID); err != nil { // AuthZ check
+func (q *querier) GetGroupMembers(ctx context.Context, arg database.GetGroupMembersParams) ([]database.User, error) {
+	if _, err := q.GetGroupByID(ctx, arg.ID); err != nil { // AuthZ check
 		return nil, err
 	}
-	return q.db.GetGroupMembers(ctx, groupID)
+	return q.db.GetGroupMembers(ctx, arg)
 }
 
 func (q *querier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.Group, error) {
