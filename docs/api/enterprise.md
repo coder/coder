@@ -148,7 +148,7 @@ curl -X GET http://coder-server:8080/api/v2/entitlements \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get group by name
+## Get group by ID
 
 ### Code samples
 
@@ -165,7 +165,7 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group} \
 
 | Name    | In   | Type   | Required | Description |
 | ------- | ---- | ------ | -------- | ----------- |
-| `group` | path | string | true     | Group name  |
+| `group` | path | string | true     | Group id    |
 
 ### Example responses
 

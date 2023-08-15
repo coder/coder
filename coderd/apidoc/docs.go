@@ -787,12 +787,12 @@ const docTemplate = `{
                 "tags": [
                     "Enterprise"
                 ],
-                "summary": "Get group by name",
-                "operationId": "get-group-by-name",
+                "summary": "Get group by ID",
+                "operationId": "get-group-by-id",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Group name",
+                        "description": "Group id",
                         "name": "group",
                         "in": "path",
                         "required": true
