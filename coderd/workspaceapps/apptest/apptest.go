@@ -12,6 +12,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"path"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -30,6 +31,10 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
 )
+
+const ansi = "[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))"
+
+var re = regexp.MustCompile(ansi)
 
 // Run runs the entire workspace app test suite against deployments minted
 // by the provided factory.
@@ -52,23 +57,8 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			t.Skip("ConPTY appears to be inconsistent on Windows.")
 		}
 
-		expectLine := func(t *testing.T, r *bufio.Reader, matcher func(string) bool) {
-			for {
-				line, err := r.ReadString('\n')
-				require.NoError(t, err)
-				if matcher(line) {
-					break
-				}
-			}
-		}
-		matchEchoCommand := func(line string) bool {
-			return strings.Contains(line, "echo test")
-		}
-		matchEchoOutput := func(line string) bool {
-			return strings.Contains(line, "test") && !strings.Contains(line, "echo")
-		}
-
 		t.Run("OK", func(t *testing.T) {
+			t.Parallel()
 			appDetails := setupProxyTest(t, nil)
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -77,40 +67,13 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			// Run the test against the path app hostname since that's where the
 			// reconnecting-pty proxy server we want to test is mounted.
 			client := appDetails.AppClient(t)
-			conn, err := client.WorkspaceAgentReconnectingPTY(ctx, codersdk.WorkspaceAgentReconnectingPTYOpts{
+			testReconnectingPTY(ctx, t, client, codersdk.WorkspaceAgentReconnectingPTYOpts{
 				AgentID:   appDetails.Agent.ID,
 				Reconnect: uuid.New(),
 				Height:    80,
 				Width:     80,
-				Command:   "/bin/bash",
+				Command:   "bash",
 			})
-			require.NoError(t, err)
-			defer conn.Close()
-
-			// First attempt to resize the TTY.
-			// The websocket will close if it fails!
-			data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
-				Height: 250,
-				Width:  250,
-			})
-			require.NoError(t, err)
-			_, err = conn.Write(data)
-			require.NoError(t, err)
-			bufRead := bufio.NewReader(conn)
-
-			// Brief pause to reduce the likelihood that we send keystrokes while
-			// the shell is simultaneously sending a prompt.
-			time.Sleep(100 * time.Millisecond)
-
-			data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
-				Data: "echo test\r\n",
-			})
-			require.NoError(t, err)
-			_, err = conn.Write(data)
-			require.NoError(t, err)
-
-			expectLine(t, bufRead, matchEchoCommand)
-			expectLine(t, bufRead, matchEchoOutput)
 		})
 
 		t.Run("SignedTokenQueryParameter", func(t *testing.T) {
@@ -138,41 +101,14 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 
 			// Make an unauthenticated client.
 			unauthedAppClient := codersdk.New(appDetails.AppClient(t).URL)
-			conn, err := unauthedAppClient.WorkspaceAgentReconnectingPTY(ctx, codersdk.WorkspaceAgentReconnectingPTYOpts{
+			testReconnectingPTY(ctx, t, unauthedAppClient, codersdk.WorkspaceAgentReconnectingPTYOpts{
 				AgentID:     appDetails.Agent.ID,
 				Reconnect:   uuid.New(),
 				Height:      80,
 				Width:       80,
-				Command:     "/bin/bash",
+				Command:     "bash",
 				SignedToken: issueRes.SignedToken,
 			})
-			require.NoError(t, err)
-			defer conn.Close()
-
-			// First attempt to resize the TTY.
-			// The websocket will close if it fails!
-			data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
-				Height: 250,
-				Width:  250,
-			})
-			require.NoError(t, err)
-			_, err = conn.Write(data)
-			require.NoError(t, err)
-			bufRead := bufio.NewReader(conn)
-
-			// Brief pause to reduce the likelihood that we send keystrokes while
-			// the shell is simultaneously sending a prompt.
-			time.Sleep(100 * time.Millisecond)
-
-			data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
-				Data: "echo test\r\n",
-			})
-			require.NoError(t, err)
-			_, err = conn.Write(data)
-			require.NoError(t, err)
-
-			expectLine(t, bufRead, matchEchoCommand)
-			expectLine(t, bufRead, matchEchoOutput)
 		})
 	})
 
@@ -1468,4 +1404,76 @@ func (r *fakeStatsReporter) Report(_ context.Context, stats []workspaceapps.Stat
 	r.s = append(r.s, stats...)
 	r.mu.Unlock()
 	return nil
+}
+
+func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Client, opts codersdk.WorkspaceAgentReconnectingPTYOpts) {
+	hasLine := func(scanner *bufio.Scanner, matcher func(string) bool) bool {
+		for scanner.Scan() {
+			line := scanner.Text()
+			t.Logf("bash tty stdout = %s", re.ReplaceAllString(line, ""))
+			if matcher(line) {
+				return true
+			}
+		}
+		return false
+	}
+	matchEchoCommand := func(line string) bool {
+		return strings.Contains(line, "echo test")
+	}
+	matchEchoOutput := func(line string) bool {
+		return strings.Contains(line, "test") && !strings.Contains(line, "echo")
+	}
+	matchExitCommand := func(line string) bool {
+		return strings.Contains(line, "exit")
+	}
+	matchExitOutput := func(line string) bool {
+		return strings.Contains(line, "exit") || strings.Contains(line, "logout")
+	}
+
+	conn, err := client.WorkspaceAgentReconnectingPTY(ctx, opts)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	// First attempt to resize the TTY.
+	// The websocket will close if it fails!
+	data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
+		Height: 250,
+		Width:  250,
+	})
+	require.NoError(t, err)
+	_, err = conn.Write(data)
+	require.NoError(t, err)
+	scanner := bufio.NewScanner(conn)
+
+	// Brief pause to reduce the likelihood that we send keystrokes while
+	// the shell is simultaneously sending a prompt.
+	time.Sleep(100 * time.Millisecond)
+
+	data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
+		Data: "echo test\r\n",
+	})
+	require.NoError(t, err)
+	_, err = conn.Write(data)
+	require.NoError(t, err)
+
+	require.True(t, hasLine(scanner, matchEchoCommand), "find echo command")
+	require.True(t, hasLine(scanner, matchEchoOutput), "find echo output")
+
+	// Exit should cause the connection to close.
+	data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
+		Data: "exit\r\n",
+	})
+	require.NoError(t, err)
+	_, err = conn.Write(data)
+	require.NoError(t, err)
+
+	// Once for the input and again for the output.
+	require.True(t, hasLine(scanner, matchExitCommand), "find exit command")
+	require.True(t, hasLine(scanner, matchExitOutput), "find exit output")
+
+	// Ensure the connection closes.
+	for scanner.Scan() {
+		line := scanner.Text()
+		t.Logf("bash tty stdout = %s", re.ReplaceAllString(line, ""))
+	}
 }

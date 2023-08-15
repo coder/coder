@@ -44,6 +44,7 @@
             postgresql
             protoc-gen-go
             ripgrep
+            screen
             shellcheck
             shfmt
             sqlc

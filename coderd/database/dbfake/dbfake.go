@@ -919,6 +919,34 @@ func (q *FakeQuerier) GetActiveUserCount(_ context.Context) (int64, error) {
 	return active, nil
 }
 
+func (q *FakeQuerier) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]database.WorkspaceBuild, error) {
+	workspaceIDs := func() []uuid.UUID {
+		q.mutex.RLock()
+		defer q.mutex.RUnlock()
+
+		ids := []uuid.UUID{}
+		for _, workspace := range q.workspaces {
+			if workspace.TemplateID == templateID {
+				ids = append(ids, workspace.ID)
+			}
+		}
+		return ids
+	}()
+
+	builds, err := q.GetLatestWorkspaceBuildsByWorkspaceIDs(ctx, workspaceIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	filteredBuilds := []database.WorkspaceBuild{}
+	for _, build := range builds {
+		if build.Transition == database.WorkspaceTransitionStart {
+			filteredBuilds = append(filteredBuilds, build)
+		}
+	}
+	return filteredBuilds, nil
+}
+
 func (*FakeQuerier) GetAllTailnetAgents(_ context.Context) ([]database.TailnetAgent, error) {
 	return nil, ErrUnimplemented
 }

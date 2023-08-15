@@ -162,6 +162,7 @@ RUN apt-get update --quiet && apt-get install --yes \
 	fish \
 	unzip \
 	zstd \
+	screen \
 	gettext-base && \
 	# Delete package cache to avoid consuming space in layer
 	apt-get clean && \
