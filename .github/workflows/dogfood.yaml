@@ -20,23 +20,8 @@ jobs:
   deploy_image:
     runs-on: buildjet-4vcpu-ubuntu-2204
     steps:
-      - name: Get branch name
-        id: branch-name
-        uses: tj-actions/branch-names@v6.5
-
-      - name: "Branch name to Docker tag name"
-        id: docker-tag-name
-        run: |
-          tag=${{ steps.branch-name.outputs.current_branch }}
-          # Replace / with --, e.g. user/feature => user--feature.
-          tag=${tag//\//--}
-          echo "tag=${tag}" >> $GITHUB_OUTPUT
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+      - name: Checkout
+        uses: actions/checkout@v3
 
       - name: Login to DockerHub
         uses: docker/login-action@v2
