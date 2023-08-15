@@ -186,23 +186,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	name := namesgenerator.GetRandomName(1)
-	daemon, err := api.Database.InsertProvisionerDaemon(ctx, database.InsertProvisionerDaemonParams{
-		ID:           uuid.New(),
-		CreatedAt:    database.Now(),
-		Name:         name,
-		Provisioners: provisioners,
-		Tags:         tags,
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error writing provisioner daemon.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	rawTags, err := json.Marshal(daemon.Tags)
+	rawTags, err := json.Marshal(tags)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error marshaling daemon tags.",
@@ -243,19 +227,22 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 	mux := drpcmux.New()
+	daemonName := namesgenerator.GetRandomName(1)
+	logger := api.Logger.Named(fmt.Sprintf("ext-provisionerd-%s", daemonName))
+	logger.Info(ctx, "starting external provisioner daemon")
 	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdserver.Server{
 		AccessURL:                   api.AccessURL,
 		GitAuthConfigs:              api.GitAuthConfigs,
 		OIDCConfig:                  api.OIDCConfig,
-		ID:                          daemon.ID,
+		ID:                          uuid.New(),
 		Database:                    api.Database,
 		Pubsub:                      api.Pubsub,
-		Provisioners:                daemon.Provisioners,
+		Provisioners:                provisioners,
 		Telemetry:                   api.Telemetry,
 		Auditor:                     &api.AGPL.Auditor,
 		TemplateScheduleStore:       api.AGPL.TemplateScheduleStore,
 		UserQuietHoursScheduleStore: api.AGPL.UserQuietHoursScheduleStore,
-		Logger:                      api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
+		Logger:                      logger,
 		Tags:                        rawTags,
 		Tracer:                      trace.NewNoopTracerProvider().Tracer("noop"),
 		DeploymentValues:            api.DeploymentValues,
@@ -269,12 +256,12 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 			if xerrors.Is(err, io.EOF) {
 				return
 			}
-			api.Logger.Debug(ctx, "drpc server error", slog.Error(err))
+			logger.Debug(ctx, "drpc server error", slog.Error(err))
 		},
 	})
 	err = server.Serve(ctx, session)
+	logger.Info(ctx, "provisioner daemon disconnected", slog.Error(err))
 	if err != nil && !xerrors.Is(err, io.EOF) {
-		api.Logger.Debug(ctx, "provisioner daemon disconnected", slog.Error(err))
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("serve: %s", err))
 		return
 	}

@@ -40,9 +40,6 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		})
 		require.NoError(t, err)
 		srv.DRPCConn().Close()
-		daemons, err := client.ProvisionerDaemons(ctx)
-		require.NoError(t, err)
-		require.Len(t, daemons, 1)
 	})
 
 	t.Run("NoLicense", func(t *testing.T) {
@@ -59,11 +56,6 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		})
 		require.Error(t, err)
 		var apiError *codersdk.Error
-		require.ErrorAs(t, err, &apiError)
-		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
-
-		// querying provisioner daemons is forbidden without license
-		_, err = client.ProvisionerDaemons(ctx)
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
 	})
@@ -91,9 +83,6 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		var apiError *codersdk.Error
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
-		daemons, err := client.ProvisionerDaemons(ctx)
-		require.NoError(t, err)
-		require.Len(t, daemons, 0)
 	})
 
 	t.Run("OrganizationNoPerms", func(t *testing.T) {
@@ -119,9 +108,6 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		var apiError *codersdk.Error
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
-		daemons, err := client.ProvisionerDaemons(ctx)
-		require.NoError(t, err)
-		require.Len(t, daemons, 0)
 	})
 
 	t.Run("UserLocal", func(t *testing.T) {
@@ -207,9 +193,6 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		require.NoError(t, err)
 		err = srv.DRPCConn().Close()
 		require.NoError(t, err)
-		daemons, err := client.ProvisionerDaemons(ctx)
-		require.NoError(t, err)
-		require.Len(t, daemons, 1)
 	})
 
 	t.Run("BadPSK", func(t *testing.T) {
@@ -239,9 +222,6 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		var apiError *codersdk.Error
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
-		daemons, err := client.ProvisionerDaemons(ctx)
-		require.NoError(t, err)
-		require.Len(t, daemons, 0)
 	})
 
 	t.Run("NoAuth", func(t *testing.T) {
@@ -270,9 +250,6 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		var apiError *codersdk.Error
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
-		daemons, err := client.ProvisionerDaemons(ctx)
-		require.NoError(t, err)
-		require.Len(t, daemons, 0)
 	})
 
 	t.Run("NoPSK", func(t *testing.T) {
@@ -301,8 +278,5 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		var apiError *codersdk.Error
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
-		daemons, err := client.ProvisionerDaemons(ctx)
-		require.NoError(t, err)
-		require.Len(t, daemons, 0)
 	})
 }
