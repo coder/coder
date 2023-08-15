@@ -76,6 +76,7 @@ import (
 	"github.com/coder/coder/coderd/gitsshkey"
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/coderd/oauthpki"
 	"github.com/coder/coder/coderd/prometheusmetrics"
 	"github.com/coder/coder/coderd/schedule"
 	"github.com/coder/coder/coderd/telemetry"
@@ -551,9 +552,9 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 			}
 
-			if cfg.OIDC.ClientSecret != "" {
+			if cfg.OIDC.ClientKeyFile != "" || cfg.OIDC.ClientSecret != "" {
 				if cfg.OIDC.ClientID == "" {
-					return xerrors.Errorf("OIDC client ID be set!")
+					return xerrors.Errorf("OIDC client ID must be set!")
 				}
 				if cfg.OIDC.IssuerURL == "" {
 					return xerrors.Errorf("OIDC issuer URL must be set!")
@@ -578,15 +579,33 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				if slice.Contains(cfg.OIDC.Scopes, "groups") && cfg.OIDC.GroupField == "" {
 					cfg.OIDC.GroupField = "groups"
 				}
+				oauthCfg := &oauth2.Config{
+					ClientID:     cfg.OIDC.ClientID.String(),
+					ClientSecret: cfg.OIDC.ClientSecret.String(),
+					RedirectURL:  redirectURL.String(),
+					Endpoint:     oidcProvider.Endpoint(),
+					Scopes:       cfg.OIDC.Scopes,
+				}
+
+				var useCfg httpmw.OAuth2Config = oauthCfg
+				if cfg.OIDC.ClientKeyFile != "" {
+					// PKI authentication is done in the params. If a
+					// counter example is found, we can add a config option to
+					// change this.
+					oauthCfg.Endpoint.AuthStyle = oauth2.AuthStyleInParams
+					if cfg.OIDC.ClientSecret != "" {
+						return xerrors.Errorf("cannot specify both oidc client secret and oidc client key file")
+					}
+
+					pkiCfg, err := configureOIDCPKI(oauthCfg, cfg.OIDC.ClientKeyFile.Value(), cfg.OIDC.ClientCertFile.Value())
+					if err != nil {
+						return xerrors.Errorf("configure oauth pki authentication: %w", err)
+					}
+					useCfg = pkiCfg
+				}
 				options.OIDCConfig = &coderd.OIDCConfig{
-					OAuth2Config: &oauth2.Config{
-						ClientID:     cfg.OIDC.ClientID.String(),
-						ClientSecret: cfg.OIDC.ClientSecret.String(),
-						RedirectURL:  redirectURL.String(),
-						Endpoint:     oidcProvider.Endpoint(),
-						Scopes:       cfg.OIDC.Scopes,
-					},
-					Provider: oidcProvider,
+					OAuth2Config: useCfg,
+					Provider:     oidcProvider,
 					Verifier: oidcProvider.Verifier(&oidc.Config{
 						ClientID: cfg.OIDC.ClientID.String(),
 					}),
@@ -1030,7 +1049,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					defer wg.Done()
 
 					if ok, _ := inv.ParsedFlags().GetBool(varVerbose); ok {
-						cliui.Infof(inv.Stdout, "Shutting down provisioner daemon %d...\n", id)
+						cliui.Infof(inv.Stdout, "Shutting down provisioner daemon %d...", id)
 					}
 					err := shutdownWithTimeout(provisionerDaemon.Shutdown, 5*time.Second)
 					if err != nil {
@@ -1043,7 +1062,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 						return
 					}
 					if ok, _ := inv.ParsedFlags().GetBool(varVerbose); ok {
-						cliui.Infof(inv.Stdout, "Gracefully shut down provisioner daemon %d\n", id)
+						cliui.Infof(inv.Stdout, "Gracefully shut down provisioner daemon %d", id)
 					}
 				}()
 			}
@@ -1492,6 +1511,33 @@ func configureTLS(tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles
 	}
 
 	return tlsConfig, nil
+}
+
+func configureOIDCPKI(orig *oauth2.Config, keyFile string, certFile string) (*oauthpki.Config, error) {
+	// Read the files
+	keyData, err := os.ReadFile(keyFile)
+	if err != nil {
+		return nil, xerrors.Errorf("read oidc client key file: %w", err)
+	}
+
+	var certData []byte
+	// According to the spec, this is not required. So do not require it on the initial loading
+	// of the PKI config.
+	if certFile != "" {
+		certData, err = os.ReadFile(certFile)
+		if err != nil {
+			return nil, xerrors.Errorf("read oidc client cert file: %w", err)
+		}
+	}
+
+	return oauthpki.NewOauth2PKIConfig(oauthpki.ConfigParams{
+		ClientID:       orig.ClientID,
+		TokenURL:       orig.Endpoint.TokenURL,
+		Scopes:         orig.Scopes,
+		PemEncodedKey:  keyData,
+		PemEncodedCert: certData,
+		Config:         orig,
+	})
 }
 
 func configureCAPool(tlsClientCAFile string, tlsConfig *tls.Config) error {

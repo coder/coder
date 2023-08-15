@@ -2,10 +2,6 @@ name: ci
 
 on:
   push:
-    branches:
-      - main
-
-  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -24,7 +20,7 @@ permissions:
 # additional changes
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   changes:
@@ -47,6 +43,7 @@ jobs:
         uses: dorny/paths-filter@v2
         id: filter
         with:
+          base: ${{ github.ref }}
           filters: |
             all:
               - "**"

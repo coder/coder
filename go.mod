@@ -78,7 +78,7 @@ require (
 	github.com/armon/circbuf v0.0.0-20190214190532-5111143e8da2
 	github.com/awalterschulze/gographviz v2.0.3+incompatible
 	github.com/bep/debounce v1.2.1
-	github.com/bgentry/speakeasy v0.1.0
+	github.com/bgentry/speakeasy v0.1.1-0.20220910012023-760eaf8b6816
 	github.com/bramvdbogaerde/go-scp v1.2.1-0.20221219230748-977ee74ac37b
 	github.com/briandowns/spinner v1.18.1
 	github.com/cakturk/go-netstat v0.0.0-20200220111822-e5b49efee7a5
@@ -186,7 +186,7 @@ require (
 	golang.org/x/sys v0.11.0
 	golang.org/x/term v0.11.0
 	golang.org/x/text v0.12.0
-	golang.org/x/tools v0.11.0
+	golang.org/x/tools v0.12.0
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	golang.zx2c4.com/wireguard v0.0.0-20230325221338-052af4a8072b
 	google.golang.org/api v0.134.0

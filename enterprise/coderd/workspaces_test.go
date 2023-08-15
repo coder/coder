@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -23,6 +24,16 @@ import (
 	"github.com/coder/coder/provisioner/echo"
 	"github.com/coder/coder/testutil"
 )
+
+// agplUserQuietHoursScheduleStore is passed to
+// NewEnterpriseTemplateScheduleStore as we don't care about updating the
+// schedule and having it recalculate the build deadline in these tests.
+func agplUserQuietHoursScheduleStore() *atomic.Pointer[agplschedule.UserQuietHoursScheduleStore] {
+	store := agplschedule.NewAGPLUserQuietHoursScheduleStore()
+	p := &atomic.Pointer[agplschedule.UserQuietHoursScheduleStore]{}
+	p.Store(&store)
+	return p
+}
 
 func TestCreateWorkspace(t *testing.T) {
 	t.Parallel()
@@ -100,7 +111,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 				AutobuildTicker:          ticker,
 				IncludeProvisionerDaemon: true,
 				AutobuildStats:           statCh,
-				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(),
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore()),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
@@ -147,7 +158,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 				AutobuildTicker:          ticker,
 				IncludeProvisionerDaemon: true,
 				AutobuildStats:           statCh,
-				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(),
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore()),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
@@ -193,7 +204,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 				AutobuildTicker:          ticker,
 				IncludeProvisionerDaemon: true,
 				AutobuildStats:           statCh,
-				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(),
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore()),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
@@ -235,7 +246,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 				AutobuildTicker:          ticker,
 				IncludeProvisionerDaemon: true,
 				AutobuildStats:           statCh,
-				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(),
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore()),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
@@ -292,7 +303,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 				AutobuildTicker:          ticker,
 				IncludeProvisionerDaemon: true,
 				AutobuildStats:           statCh,
-				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(),
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore()),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
@@ -334,7 +345,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 				AutobuildTicker:          ticker,
 				IncludeProvisionerDaemon: true,
 				AutobuildStats:           statCh,
-				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(),
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore()),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
@@ -376,7 +387,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 				AutobuildTicker:          ticker,
 				IncludeProvisionerDaemon: true,
 				AutobuildStats:           statCh,
-				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(),
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore()),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
@@ -427,7 +438,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 				AutobuildTicker:          ticker,
 				IncludeProvisionerDaemon: true,
 				AutobuildStats:           statCh,
-				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(),
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore()),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
@@ -497,7 +508,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 				AutobuildTicker:          ticker,
 				IncludeProvisionerDaemon: true,
 				AutobuildStats:           statCh,
-				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(),
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore()),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
@@ -558,7 +569,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 				AutobuildTicker:          tickCh,
 				IncludeProvisionerDaemon: true,
 				AutobuildStats:           statsCh,
-				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(),
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore()),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
