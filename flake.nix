@@ -62,7 +62,8 @@
           finalImageTag = "lunar";
         };
         dockerImage = pkgs.dockerTools.streamLayeredImage {
-          name = "dev-environment";
+          name = "codercom/dogfood-oss";
+          tag = "testing";
           fromImage = baseImage;
           extraCommands = ''
           touch ./.wh.bin
