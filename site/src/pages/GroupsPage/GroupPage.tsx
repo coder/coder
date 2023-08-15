@@ -33,7 +33,10 @@ import { pageTitle } from "utils/page"
 import { groupMachine } from "xServices/groups/groupXService"
 import { Maybe } from "components/Conditionals/Maybe"
 import { makeStyles } from "@mui/styles"
-import { PaginationStatus } from "components/PaginationStatus/PaginationStatus"
+import {
+  PaginationStatus,
+  TableToolbar,
+} from "components/TableToolbar/TableToolbar"
 import { UserAvatar } from "components/UserAvatar/UserAvatar"
 
 const AddGroupMember: React.FC<{
@@ -155,12 +158,14 @@ export const GroupPage: React.FC = () => {
                   }}
                 />
               </Maybe>
-              <PaginationStatus
-                isLoading={Boolean(isLoading)}
-                showing={group?.members.length ?? 0}
-                total={group?.members.length ?? 0}
-                label="members"
-              />
+              <TableToolbar>
+                <PaginationStatus
+                  isLoading={Boolean(isLoading)}
+                  showing={group?.members.length ?? 0}
+                  total={group?.members.length ?? 0}
+                  label="members"
+                />
+              </TableToolbar>
 
               <TableContainer>
                 <Table>

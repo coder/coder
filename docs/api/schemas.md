@@ -2711,6 +2711,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `template_restart_requirement` |
 | `deployment_health_page`       |
 | `template_parameters_insights` |
+| `workspaces_batch_actions`     |
 
 ## codersdk.Feature
 
@@ -3458,6 +3459,30 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `roles`           | array of [codersdk.Role](#codersdkrole) | false    |              |             |
 | `updated_at`      | string                                  | false    |              |             |
 | `user_id`         | string                                  | false    |              |             |
+
+## codersdk.PatchGroupRequest
+
+```json
+{
+  "add_users": ["string"],
+  "avatar_url": "string",
+  "display_name": "string",
+  "name": "string",
+  "quota_allowance": 0,
+  "remove_users": ["string"]
+}
+```
+
+### Properties
+
+| Name              | Type            | Required | Restrictions | Description |
+| ----------------- | --------------- | -------- | ------------ | ----------- |
+| `add_users`       | array of string | false    |              |             |
+| `avatar_url`      | string          | false    |              |             |
+| `display_name`    | string          | false    |              |             |
+| `name`            | string          | false    |              |             |
+| `quota_allowance` | integer         | false    |              |             |
+| `remove_users`    | array of string | false    |              |             |
 
 ## codersdk.PatchTemplateVersionRequest
 
