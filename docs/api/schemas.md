@@ -2073,7 +2073,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "oidc": {
       "allow_signups": true,
       "auth_url_params": {},
+      "client_cert_file": "string",
       "client_id": "string",
+      "client_key_file": "string",
       "client_secret": "string",
       "email_domain": ["string"],
       "email_field": "string",
@@ -2433,7 +2435,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "oidc": {
     "allow_signups": true,
     "auth_url_params": {},
+    "client_cert_file": "string",
     "client_id": "string",
+    "client_key_file": "string",
     "client_secret": "string",
     "email_domain": ["string"],
     "email_field": "string",
@@ -3347,7 +3351,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "allow_signups": true,
   "auth_url_params": {},
+  "client_cert_file": "string",
   "client_id": "string",
+  "client_key_file": "string",
   "client_secret": "string",
   "email_domain": ["string"],
   "email_field": "string",
@@ -3382,28 +3388,30 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                    | Type                             | Required | Restrictions | Description |
-| ----------------------- | -------------------------------- | -------- | ------------ | ----------- |
-| `allow_signups`         | boolean                          | false    |              |             |
-| `auth_url_params`       | object                           | false    |              |             |
-| `client_id`             | string                           | false    |              |             |
-| `client_secret`         | string                           | false    |              |             |
-| `email_domain`          | array of string                  | false    |              |             |
-| `email_field`           | string                           | false    |              |             |
-| `group_auto_create`     | boolean                          | false    |              |             |
-| `group_mapping`         | object                           | false    |              |             |
-| `group_regex_filter`    | [clibase.Regexp](#clibaseregexp) | false    |              |             |
-| `groups_field`          | string                           | false    |              |             |
-| `icon_url`              | [clibase.URL](#clibaseurl)       | false    |              |             |
-| `ignore_email_verified` | boolean                          | false    |              |             |
-| `ignore_user_info`      | boolean                          | false    |              |             |
-| `issuer_url`            | string                           | false    |              |             |
-| `scopes`                | array of string                  | false    |              |             |
-| `sign_in_text`          | string                           | false    |              |             |
-| `user_role_field`       | string                           | false    |              |             |
-| `user_role_mapping`     | object                           | false    |              |             |
-| `user_roles_default`    | array of string                  | false    |              |             |
-| `username_field`        | string                           | false    |              |             |
+| Name                    | Type                             | Required | Restrictions | Description                                                                      |
+| ----------------------- | -------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------- |
+| `allow_signups`         | boolean                          | false    |              |                                                                                  |
+| `auth_url_params`       | object                           | false    |              |                                                                                  |
+| `client_cert_file`      | string                           | false    |              |                                                                                  |
+| `client_id`             | string                           | false    |              |                                                                                  |
+| `client_key_file`       | string                           | false    |              | Client key file & ClientCertFile are used in place of ClientSecret for PKI auth. |
+| `client_secret`         | string                           | false    |              |                                                                                  |
+| `email_domain`          | array of string                  | false    |              |                                                                                  |
+| `email_field`           | string                           | false    |              |                                                                                  |
+| `group_auto_create`     | boolean                          | false    |              |                                                                                  |
+| `group_mapping`         | object                           | false    |              |                                                                                  |
+| `group_regex_filter`    | [clibase.Regexp](#clibaseregexp) | false    |              |                                                                                  |
+| `groups_field`          | string                           | false    |              |                                                                                  |
+| `icon_url`              | [clibase.URL](#clibaseurl)       | false    |              |                                                                                  |
+| `ignore_email_verified` | boolean                          | false    |              |                                                                                  |
+| `ignore_user_info`      | boolean                          | false    |              |                                                                                  |
+| `issuer_url`            | string                           | false    |              |                                                                                  |
+| `scopes`                | array of string                  | false    |              |                                                                                  |
+| `sign_in_text`          | string                           | false    |              |                                                                                  |
+| `user_role_field`       | string                           | false    |              |                                                                                  |
+| `user_role_mapping`     | object                           | false    |              |                                                                                  |
+| `user_roles_default`    | array of string                  | false    |              |                                                                                  |
+| `username_field`        | string                           | false    |              |                                                                                  |
 
 ## codersdk.Organization
 

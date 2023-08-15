@@ -10,13 +10,23 @@ terraform {
     }
     artifactory = {
       source  = "registry.terraform.io/jfrog/artifactory"
-      version = "6.22.3"
+      version = "~> 8.4.0"
     }
   }
 }
 
 locals {
-  username = data.coder_workspace.me.owner
+  # if the jfrog username is same as the coder username, you can use the following
+  # artifactory_username = data.coder_workspace.me.owner
+  # if the username is same as email, you can use the following
+  # artifactory_username = urlencode(data.coder_workspace.me.owner_email)
+  artifactory_username = data.coder_workspace.me.owner
+  artifactory_repository_keys = {
+    "npm"    = "npm"
+    "python" = "python"
+    "go"     = "go"
+  }
+  workspace_user = data.coder_workspace.me.owner
 }
 
 data "coder_provisioner" "me" {
@@ -28,9 +38,9 @@ provider "docker" {
 data "coder_workspace" "me" {
 }
 
-variable "jfrog_url" {
+variable "jfrog_host" {
   type        = string
-  description = "The URL of the JFrog instance."
+  description = "JFrog instance hostname. For example, 'YYY.jfrog.io'."
 }
 
 variable "artifactory_access_token" {
@@ -38,17 +48,14 @@ variable "artifactory_access_token" {
   description = "The admin-level access token to use for JFrog."
 }
 
-
 # Configure the Artifactory provider
 provider "artifactory" {
-  url          = "${var.jfrog_url}/artifactory"
+  url          = "https://${var.jfrog_host}/artifactory"
   access_token = var.artifactory_access_token
 }
 
-resource "artifactory_access_token" "me" {
-  username = data.coder_workspace.me.owner_email
-  # The token should live for the duration of the workspace.
-  end_date_relative = "0s"
+resource "artifactory_scoped_token" "me" {
+  username = local.artifactory_username
 }
 
 resource "coder_agent" "main" {
@@ -67,23 +74,35 @@ resource "coder_agent" "main" {
     export CI=true
 
     jf c rm 0 || true
-    echo ${artifactory_access_token.me.access_token} | \
-      jf c add --access-token-stdin --url ${var.jfrog_url} 0
+    echo ${artifactory_scoped_token.me.access_token} | \
+      jf c add --access-token-stdin --url https://${var.jfrog_host} 0
 
-    # Configure the `npm` CLI to use the Artifactory "npm" registry.
+    # Configure the `npm` CLI to use the Artifactory "npm" repository.
     cat << EOF > ~/.npmrc
     email = ${data.coder_workspace.me.owner_email}
-    registry=${var.jfrog_url}/artifactory/api/npm/npm/
+    registry = https://${var.jfrog_host}/artifactory/api/npm/${local.artifactory_repository_keys["npm"]}
     EOF
     jf rt curl /api/npm/auth >> .npmrc
+
+    # Configure the `pip` to use the Artifactory "python" repository.
+    mkdir -p ~/.pip
+    cat << EOF > ~/.pip/pip.conf
+    [global]
+    index-url = https://${local.artifactory_username}:${artifactory_scoped_token.me.access_token}@${var.jfrog_host}/artifactory/api/pypi/${local.artifactory_repository_keys["python"]}/simple
+    EOF
+
   EOT
+  # Set GOPROXY to use the Artifactory "go" repository.
+  env = {
+    GOPROXY : "https://${local.artifactory_username}:${artifactory_scoped_token.me.access_token}@${var.jfrog_host}/artifactory/api/go/${local.artifactory_repository_keys["go"]}"
+  }
 }
 
 resource "coder_app" "code-server" {
   agent_id     = coder_agent.main.id
   slug         = "code-server"
   display_name = "code-server"
-  url          = "http://localhost:13337/?folder=/home/${local.username}"
+  url          = "http://localhost:13337/?folder=/home/${local.workspace_user}"
   icon         = "/icon/code.svg"
   subdomain    = false
   share        = "owner"
@@ -108,7 +127,7 @@ resource "docker_image" "main" {
   build {
     context = "./build"
     build_args = {
-      USER = local.username
+      USER = local.workspace_user
     }
   }
   triggers = {
@@ -130,7 +149,7 @@ resource "docker_container" "workspace" {
     ip   = "host-gateway"
   }
   volumes {
-    container_path = "/home/${local.username}"
+    container_path = "/home/${local.workspace_user}"
     volume_name    = docker_volume.home_volume.name
     read_only      = false
   }

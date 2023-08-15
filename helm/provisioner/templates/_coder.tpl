@@ -11,6 +11,7 @@ Deployment to merge into the libcoder template
 spec:
   template:
     spec:
+      terminationGracePeriodSeconds: {{ .Values.provisionerDaemon.terminationGracePeriodSeconds }}
       containers:
       -
 {{ include "libcoder.containerspec" (list . "coder.containerspec") | indent 8}}
