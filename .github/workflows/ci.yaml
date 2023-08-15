@@ -641,8 +641,6 @@ jobs:
 
       - name: Setup sqlc
         uses: sqlc-dev/setup-sqlc@v3
-        with:
-          sqlc-version: "1.20.0"
 
       - name: Format
         run: |
