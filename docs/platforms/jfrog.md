@@ -5,7 +5,7 @@ Use Coder and JFrog together to secure your development environments without dis
 This guide will demonstrate how to use JFrog Artifactory as a package registry
 within a workspace. We'll use Docker as the underlying compute. But, these concepts apply to any compute platform.
 
-The full example template can be found [here](https://github.com/coder/coder/tree/main/examples/templates/jfrog-docker).
+The full example template can be found [here](https://github.com/coder/coder/tree/main/examples/templates/jfrog/docker).
 
 ## Requirements
 
@@ -74,7 +74,7 @@ coder templates push --var 'jfrog_host=YYY.jfrog.io' --var 'artifactory_access_t
 we'll focus on its ability to configure package managers, as that's the relevant
 functionality for most developers.
 
-The generic method of installing the JFrog CLI is the following command:
+Most users should be able to install `jf` by running the following command:
 
 ```sh
 curl -fL https://install-cli.jfrog.io | sh
@@ -165,7 +165,7 @@ Default:                        true
 
 ## Installing the JFrog VS Code Extension
 
-You can install the JFrog VS Code extension into workspaces automatically
+You can install the JFrog VS Code extension into workspaces
 by inserting the following lines into your `startup_script`:
 
 ```sh
@@ -228,5 +228,6 @@ supported by Artifactory. See the [JFrog documentation](https://jfrog.com/help/r
 
 ## More reading
 
-- See the full example template [here](https://github.com/coder/coder/tree/main/examples/templates/jfrog-docker).
+- See the full example template [here](https://github.com/coder/coder/tree/main/examples/templates/jfrog/docker).
 - To serve extensions from your own VS Code Marketplace, check out [code-marketplace](https://github.com/coder/code-marketplace#artifactory-storage).
+- To store templates in Artifactory, check out our [Artifactory modules](../templates/modules.md#artifactory) docs.
