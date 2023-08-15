@@ -87,3 +87,50 @@ coder:
       subPath: .git-credentials
       readOnly: true
 ```
+
+## Artifactory
+
+JFrog Artifactory can serve as a Terraform module registry, allowing you to simplify
+a Coder-stored template to a `module` block and input variables.
+
+With this approach, you can:
+
+- Easily share templates across multiple Coder instances
+- Store templates far larger than the 1MB limit of Coder's template storage
+- Apply JFrog platform security policies to your templates
+
+### Basic Scaffolding
+
+For example, a template with:
+
+```hcl
+module "frontend" {
+  source = "cdr.jfrog.io/tf__main/frontend/docker"
+}
+```
+
+References the `frontend` module in the `main` namespace of the `tf` repository.
+Remember to replace `cdr.jfrog.io` with your Artifactory instance URL.
+
+You can upload the underlying module to Artifactory with:
+
+```console
+# one-time setup commands
+# run this on the coder server (or external provisioners, if you have them)
+terraform login cdr.jfrog.io; jf tfc --global
+
+# jf tf p assumes the module name is the same as the current directory name.
+jf tf p --namespace=main --provider=docker --tag=v0.0.1
+```
+
+### Example template
+
+We have an example template [here](https://github.com/coder/coder/tree/main/examples/templates/jfrog/remote) that uses our [JFrog Docker](../platforms/jfrog.md) template
+as the underlying module.
+
+### Next up
+
+Learn more about
+
+- JFrog's Terraform Registry support [here](https://jfrog.com/help/r/jfrog-artifactory-documentation/terraform-registry).
+- Configuring the JFrog toolchain inside a workspace [here](../platforms/jfrog.md).
