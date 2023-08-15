@@ -34,9 +34,7 @@ jobs:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
           nix_path: nixpkgs=channel:nixos-unstable
 
-      - run: nix build .#devEnvironmentDocker && ./result | docker load -q
-
-      - run: docker push codercom/oss-dogfood:testing
+      - run: nix build .#devEnvironmentDocker && ./result | skopeo --insecure-policy copy docker-archive:/dev/stdin docker://codercom/oss-dogfood:testing
 
   deploy_template:
     needs: deploy_image
