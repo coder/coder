@@ -258,6 +258,9 @@ const BatchDeleteConfirmation = ({
             required
             autoFocus
             fullWidth
+            inputProps={{
+              "aria-label": "Type DELETE to confirm",
+            }}
             placeholder="Type DELETE to confirm"
             sx={{ mt: 2 }}
             onChange={(e) => {

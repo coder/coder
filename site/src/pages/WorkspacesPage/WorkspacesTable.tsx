@@ -150,6 +150,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                       {isWorkspaceBatchActionsEnabled && (
                         <Checkbox
+                          data-testid={`checkbox-${workspace.id}`}
                           size="small"
                           disabled={cantBeChecked(workspace)}
                           checked={checked}
