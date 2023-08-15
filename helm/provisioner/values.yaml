@@ -202,3 +202,8 @@ provisionerDaemon:
     {}
     # location: usa
     # provider: kubernetes
+
+  # provisionerDaemon.terminationGracePeriodSeconds -- Time in seconds that Kubernetes should wait before forcibly
+  # terminating the provisioner daemon.  You should set this to be longer than your longest expected build time so that
+  # redeployments do not interrupt builds in progress.
+  terminationGracePeriodSeconds: 600
