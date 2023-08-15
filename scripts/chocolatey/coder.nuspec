@@ -24,7 +24,7 @@
     <projectUrl>https://coder.com</projectUrl>
     <iconUrl>https://github.com/coder/presskit/raw/main/logos/coder%20logo%20black%20square.png?raw=true</iconUrl>
     <copyright>Coder Technologies, Inc.</copyright>
-    <licenseUrl>https://github.com/coder/coder/blob/main/LICENSE.enterprise</licenseUrl>
+    <licenseUrl>https://coder.com/legal/terms-of-service</licenseUrl>
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
     <projectSourceUrl>https://github.com/coder/coder.git</projectSourceUrl>
     <docsUrl>https://coder.com/docs/v2/latest</docsUrl>
