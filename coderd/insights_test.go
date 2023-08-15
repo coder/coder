@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 
+	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/coderdtest"
@@ -258,7 +259,7 @@ func TestTemplateInsights(t *testing.T) {
 		thirdParameterOptionValue3 = "ccc"
 	)
 
-	logger := slogtest.Make(t, nil)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	opts := &coderdtest.Options{
 		IncludeProvisionerDaemon:  true,
 		AgentStatsRefreshInterval: time.Millisecond * 100,
