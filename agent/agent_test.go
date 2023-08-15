@@ -1,7 +1,6 @@
 package agent_test
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -1588,10 +1587,6 @@ func TestAgent_Startup(t *testing.T) {
 	})
 }
 
-const ansi = "[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))"
-
-var re = regexp.MustCompile(ansi)
-
 //nolint:paralleltest // This test sets an environment variable.
 func TestAgent_ReconnectingPTY(t *testing.T) {
 	if runtime.GOOS == "windows" {
@@ -1639,13 +1634,10 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			require.NoError(t, err)
 			defer netConn1.Close()
 
-			scanner1 := bufio.NewScanner(netConn1)
-
 			// A second simultaneous connection.
 			netConn2, err := conn.ReconnectingPTY(ctx, id, 100, 100, "bash")
 			require.NoError(t, err)
 			defer netConn2.Close()
-			scanner2 := bufio.NewScanner(netConn2)
 
 			// Brief pause to reduce the likelihood that we send keystrokes while
 			// the shell is simultaneously sending a prompt.
@@ -1657,17 +1649,6 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			require.NoError(t, err)
 			_, err = netConn1.Write(data)
 			require.NoError(t, err)
-
-			hasLine := func(scanner *bufio.Scanner, matcher func(string) bool) bool {
-				for scanner.Scan() {
-					line := scanner.Text()
-					t.Logf("bash tty stdout = %s", re.ReplaceAllString(line, ""))
-					if matcher(line) {
-						return true
-					}
-				}
-				return false
-			}
 
 			matchEchoCommand := func(line string) bool {
 				return strings.Contains(line, "echo test")
@@ -1683,13 +1664,13 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			}
 
 			// Once for typing the command...
-			require.True(t, hasLine(scanner1, matchEchoCommand), "find echo command")
+			require.NoError(t, testutil.ReadUntil(ctx, t, netConn1, matchEchoCommand), "find echo command")
 			// And another time for the actual output.
-			require.True(t, hasLine(scanner1, matchEchoOutput), "find echo output")
+			require.NoError(t, testutil.ReadUntil(ctx, t, netConn1, matchEchoOutput), "find echo output")
 
 			// Same for the other connection.
-			require.True(t, hasLine(scanner2, matchEchoCommand), "find echo command")
-			require.True(t, hasLine(scanner2, matchEchoOutput), "find echo output")
+			require.NoError(t, testutil.ReadUntil(ctx, t, netConn2, matchEchoCommand), "find echo command")
+			require.NoError(t, testutil.ReadUntil(ctx, t, netConn2, matchEchoOutput), "find echo output")
 
 			_ = netConn1.Close()
 			_ = netConn2.Close()
@@ -1697,11 +1678,9 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			require.NoError(t, err)
 			defer netConn3.Close()
 
-			scanner3 := bufio.NewScanner(netConn3)
-
 			// Same output again!
-			require.True(t, hasLine(scanner3, matchEchoCommand), "find echo command")
-			require.True(t, hasLine(scanner3, matchEchoOutput), "find echo output")
+			require.NoError(t, testutil.ReadUntil(ctx, t, netConn3, matchEchoCommand), "find echo command")
+			require.NoError(t, testutil.ReadUntil(ctx, t, netConn3, matchEchoOutput), "find echo output")
 
 			// Exit should cause the connection to close.
 			data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
@@ -1712,26 +1691,19 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			require.NoError(t, err)
 
 			// Once for the input and again for the output.
-			require.True(t, hasLine(scanner3, matchExitCommand), "find exit command")
-			require.True(t, hasLine(scanner3, matchExitOutput), "find exit output")
+			require.NoError(t, testutil.ReadUntil(ctx, t, netConn3, matchExitCommand), "find exit command")
+			require.NoError(t, testutil.ReadUntil(ctx, t, netConn3, matchExitOutput), "find exit output")
 
 			// Wait for the connection to close.
-			for scanner3.Scan() {
-				line := scanner3.Text()
-				t.Logf("bash tty stdout = %s", re.ReplaceAllString(line, ""))
-			}
+			require.ErrorIs(t, testutil.ReadUntil(ctx, t, netConn3, nil), io.EOF)
 
 			// Try a non-shell command.  It should output then immediately exit.
 			netConn4, err := conn.ReconnectingPTY(ctx, uuid.New(), 100, 100, "echo test")
 			require.NoError(t, err)
 			defer netConn4.Close()
 
-			scanner4 := bufio.NewScanner(netConn4)
-			require.True(t, hasLine(scanner4, matchEchoOutput), "find echo output")
-			for scanner4.Scan() {
-				line := scanner4.Text()
-				t.Logf("bash tty stdout = %s", re.ReplaceAllString(line, ""))
-			}
+			require.NoError(t, testutil.ReadUntil(ctx, t, netConn4, matchEchoOutput), "find echo output")
+			require.ErrorIs(t, testutil.ReadUntil(ctx, t, netConn3, nil), io.EOF)
 		})
 	}
 }

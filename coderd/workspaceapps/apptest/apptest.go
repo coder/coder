@@ -12,7 +12,6 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"path"
-	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -30,10 +29,6 @@ import (
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/testutil"
 )
-
-const ansi = "[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))"
-
-var re = regexp.MustCompile(ansi)
 
 // Run runs the entire workspace app test suite against deployments minted
 // by the provided factory.
@@ -1345,16 +1340,6 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 }
 
 func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Client, opts codersdk.WorkspaceAgentReconnectingPTYOpts) {
-	hasLine := func(scanner *bufio.Scanner, matcher func(string) bool) bool {
-		for scanner.Scan() {
-			line := scanner.Text()
-			t.Logf("bash tty stdout = %s", re.ReplaceAllString(line, ""))
-			if matcher(line) {
-				return true
-			}
-		}
-		return false
-	}
 	matchEchoCommand := func(line string) bool {
 		return strings.Contains(line, "echo test")
 	}
@@ -1381,7 +1366,6 @@ func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Cli
 	require.NoError(t, err)
 	_, err = conn.Write(data)
 	require.NoError(t, err)
-	scanner := bufio.NewScanner(conn)
 
 	// Brief pause to reduce the likelihood that we send keystrokes while
 	// the shell is simultaneously sending a prompt.
@@ -1394,8 +1378,8 @@ func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Cli
 	_, err = conn.Write(data)
 	require.NoError(t, err)
 
-	require.True(t, hasLine(scanner, matchEchoCommand), "find echo command")
-	require.True(t, hasLine(scanner, matchEchoOutput), "find echo output")
+	require.NoError(t, testutil.ReadUntil(ctx, t, conn, matchEchoCommand), "find echo command")
+	require.NoError(t, testutil.ReadUntil(ctx, t, conn, matchEchoOutput), "find echo output")
 
 	// Exit should cause the connection to close.
 	data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
@@ -1406,12 +1390,9 @@ func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Cli
 	require.NoError(t, err)
 
 	// Once for the input and again for the output.
-	require.True(t, hasLine(scanner, matchExitCommand), "find exit command")
-	require.True(t, hasLine(scanner, matchExitOutput), "find exit output")
+	require.NoError(t, testutil.ReadUntil(ctx, t, conn, matchExitCommand), "find exit command")
+	require.NoError(t, testutil.ReadUntil(ctx, t, conn, matchExitOutput), "find exit output")
 
 	// Ensure the connection closes.
-	for scanner.Scan() {
-		line := scanner.Text()
-		t.Logf("bash tty stdout = %s", re.ReplaceAllString(line, ""))
-	}
+	require.ErrorIs(t, testutil.ReadUntil(ctx, t, conn, nil), io.EOF)
 }
