@@ -97,8 +97,7 @@ func ExtractWorkspaceAgent(opts ExtractWorkspaceAgentConfig) func(http.Handler) 
 				ID:     row.OwnerID.String(),
 				Roles:  rbac.RoleNames(row.OwnerRoles),
 				Groups: row.OwnerGroups,
-				// Note: this is generated as a NullUUID even though it shouldn't be nullable based on the query.
-				Scope: rbac.WorkspaceAgentScope(row.WorkspaceID, row.OwnerID),
+				Scope:  rbac.WorkspaceAgentScope(row.WorkspaceID, row.OwnerID),
 			}.WithCachedASTValue()
 
 			ctx = context.WithValue(ctx, workspaceAgentContextKey{}, row.WorkspaceAgent)
@@ -107,34 +106,4 @@ func ExtractWorkspaceAgent(opts ExtractWorkspaceAgentConfig) func(http.Handler) 
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
-}
-
-func getAgentSubject(ctx context.Context, db database.Store, agent database.WorkspaceAgent) (rbac.Subject, error) {
-	// TODO: make a different query that gets the workspace owner and roles along with the agent.
-	workspace, err := db.GetWorkspaceByAgentID(ctx, agent.ID)
-	if err != nil {
-		return rbac.Subject{}, err
-	}
-
-	user, err := db.GetUserByID(ctx, workspace.OwnerID)
-	if err != nil {
-		return rbac.Subject{}, err
-	}
-
-	roles, err := db.GetAuthorizationUserRoles(ctx, user.ID)
-	if err != nil {
-		return rbac.Subject{}, err
-	}
-
-	// A user that creates a workspace can use this agent auth token and
-	// impersonate the workspace. So to prevent privilege escalation, the
-	// subject inherits the roles of the user that owns the workspace.
-	// We then add a workspace-agent scope to limit the permissions
-	// to only what the workspace agent needs.
-	return rbac.Subject{
-		ID:     user.ID.String(),
-		Roles:  rbac.RoleNames(roles.Roles),
-		Groups: roles.Groups,
-		Scope:  rbac.WorkspaceAgentScope(workspace.ID, user.ID),
-	}.WithCachedASTValue(), nil
 }

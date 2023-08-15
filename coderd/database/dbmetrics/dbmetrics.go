@@ -788,13 +788,6 @@ func (m metricsStore) GetWorkspaceAgentAndOwnerByAuthToken(ctx context.Context, 
 	return r0, r1
 }
 
-func (m metricsStore) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken uuid.UUID) (database.WorkspaceAgent, error) {
-	start := time.Now()
-	agent, err := m.s.GetWorkspaceAgentByAuthToken(ctx, authToken)
-	m.queryLatencies.WithLabelValues("GetWorkspaceAgentByAuthToken").Observe(time.Since(start).Seconds())
-	return agent, err
-}
-
 func (m metricsStore) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
 	start := time.Now()
 	agent, err := m.s.GetWorkspaceAgentByID(ctx, id)

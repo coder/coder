@@ -6360,58 +6360,6 @@ func (q *sqlQuerier) GetWorkspaceAgentAndOwnerByAuthToken(ctx context.Context, a
 	return i, err
 }
 
-const getWorkspaceAgentByAuthToken = `-- name: GetWorkspaceAgentByAuthToken :one
-SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, logs_length, logs_overflowed, startup_script_behavior, started_at, ready_at, subsystems
-FROM
-	workspace_agents
-WHERE
-	auth_token = $1
-ORDER BY
-	created_at DESC
-`
-
-func (q *sqlQuerier) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken uuid.UUID) (WorkspaceAgent, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceAgentByAuthToken, authToken)
-	var i WorkspaceAgent
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Name,
-		&i.FirstConnectedAt,
-		&i.LastConnectedAt,
-		&i.DisconnectedAt,
-		&i.ResourceID,
-		&i.AuthToken,
-		&i.AuthInstanceID,
-		&i.Architecture,
-		&i.EnvironmentVariables,
-		&i.OperatingSystem,
-		&i.StartupScript,
-		&i.InstanceMetadata,
-		&i.ResourceMetadata,
-		&i.Directory,
-		&i.Version,
-		&i.LastConnectedReplicaID,
-		&i.ConnectionTimeoutSeconds,
-		&i.TroubleshootingURL,
-		&i.MOTDFile,
-		&i.LifecycleState,
-		&i.StartupScriptTimeoutSeconds,
-		&i.ExpandedDirectory,
-		&i.ShutdownScript,
-		&i.ShutdownScriptTimeoutSeconds,
-		&i.LogsLength,
-		&i.LogsOverflowed,
-		&i.StartupScriptBehavior,
-		&i.StartedAt,
-		&i.ReadyAt,
-		pq.Array(&i.Subsystems),
-	)
-	return i, err
-}
-
 const getWorkspaceAgentByID = `-- name: GetWorkspaceAgentByID :one
 SELECT
 	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, logs_length, logs_overflowed, startup_script_behavior, started_at, ready_at, subsystems

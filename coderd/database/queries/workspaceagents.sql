@@ -1,13 +1,3 @@
--- name: GetWorkspaceAgentByAuthToken :one
-SELECT
-	*
-FROM
-	workspace_agents
-WHERE
-	auth_token = $1
-ORDER BY
-	created_at DESC;
-
 -- name: GetWorkspaceAgentByID :one
 SELECT
 	*

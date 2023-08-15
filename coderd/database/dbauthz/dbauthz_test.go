@@ -1319,10 +1319,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{})
 		check.Args().Asserts(rbac.ResourceSystem, rbac.ActionRead)
 	}))
-	s.Run("GetWorkspaceAgentByAuthToken", s.Subtest(func(db database.Store, check *expects) {
-		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{})
-		check.Args(agt.AuthToken).Asserts(rbac.ResourceSystem, rbac.ActionRead).Returns(agt)
-	}))
 	s.Run("GetActiveUserCount", s.Subtest(func(db database.Store, check *expects) {
 		check.Args().Asserts(rbac.ResourceSystem, rbac.ActionRead).Returns(int64(0))
 	}))

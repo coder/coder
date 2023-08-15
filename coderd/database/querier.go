@@ -152,7 +152,6 @@ type sqlcQuerier interface {
 	// for another user, then be deleted... we still want them to appear!
 	GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User, error)
 	GetWorkspaceAgentAndOwnerByAuthToken(ctx context.Context, authToken uuid.UUID) (GetWorkspaceAgentAndOwnerByAuthTokenRow, error)
-	GetWorkspaceAgentByAuthToken(ctx context.Context, authToken uuid.UUID) (WorkspaceAgent, error)
 	GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (WorkspaceAgent, error)
 	GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanceID string) (WorkspaceAgent, error)
 	GetWorkspaceAgentLifecycleStateByID(ctx context.Context, id uuid.UUID) (GetWorkspaceAgentLifecycleStateByIDRow, error)

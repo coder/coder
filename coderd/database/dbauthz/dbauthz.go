@@ -1482,15 +1482,6 @@ func (q *querier) GetWorkspaceAgentAndOwnerByAuthToken(ctx context.Context, agen
 	return q.db.GetWorkspaceAgentAndOwnerByAuthToken(ctx, agentID)
 }
 
-// GetWorkspaceAgentByAuthToken is used in http middleware to get the workspace agent.
-// This should only be used by a system user in that middleware.
-func (q *querier) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken uuid.UUID) (database.WorkspaceAgent, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
-		return database.WorkspaceAgent{}, err
-	}
-	return q.db.GetWorkspaceAgentByAuthToken(ctx, authToken)
-}
-
 func (q *querier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
 	if _, err := q.GetWorkspaceByAgentID(ctx, id); err != nil {
 		return database.WorkspaceAgent{}, err
