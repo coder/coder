@@ -758,6 +758,7 @@ func (a *agent) trackConnGoroutine(fn func()) error {
 
 func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *tailcfg.DERPMap, disableDirectConnections bool) (_ *tailnet.Conn, err error) {
 	network, err := tailnet.NewConn(&tailnet.Options{
+		ID:             agentID,
 		Addresses:      a.wireguardAddresses(agentID),
 		DERPMap:        derpMap,
 		Logger:         a.logger.Named("net.tailnet"),
