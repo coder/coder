@@ -133,6 +133,21 @@ data "coder_parameter" "dotfiles_url" {
 }
 ```
 
+Terraform [conditional expressions](https://developer.hashicorp.com/terraform/language/expressions/conditionals) can be used to determine whether the user specified a value for an optional parameter:
+
+```hcl
+resource "coder_agent" "main" {
+  # ...
+  startup_script_timeout = 180
+  startup_script         = <<-EOT
+    set -e
+
+    echo "The optional parameter value is: ${data.coder_parameter.optional.value == "" ? "[empty]" : data.coder_parameter.optional.value}"
+
+  EOT
+}
+```
+
 ## Mutability
 
 Immutable parameters can be only set before workspace creation, or during update on the first usage to set the initial value for required parameters. The idea is to prevent users from modifying fragile or persistent workspace resources like volumes, regions, etc.:
