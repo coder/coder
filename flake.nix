@@ -91,10 +91,10 @@
             chmod 4755 /usr/bin/sudo
           '';
         };
-        dockerImage = pkgs.dockerTools.streamLayeredImage {
+        devEnvImage = pkgs.dockerTools.streamLayeredImage {
           name = "codercom/oss-dogfood";
           tag = "testing";
-          fromImage = builtImage;
+          fromImage = intermediateDevEnvImage;
 
           config = {
             Env = [
@@ -115,7 +115,7 @@
       in
       {
         packages = {
-          devEnvironmentDocker = dockerImage;
+          devEnvironmentDocker = devEnvImage;
           # other packages you want to define for this system
         };
         defaultPackage = formatter; # or replace it with your desired default package.
