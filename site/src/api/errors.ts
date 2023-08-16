@@ -88,6 +88,3 @@ export const getErrorDetail = (error: unknown): string | undefined | null =>
     : error instanceof Error
     ? `Please check the developer console for more details.`
     : null
-
-export const isAuthenticationError = (error: unknown): boolean =>
-  isApiError(error) && error.response.status === 401

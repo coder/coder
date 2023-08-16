@@ -13,6 +13,15 @@ axios.defaults.validateStatus = (status) => {
   return (status >= 200 && status < 300) || status === 304
 }
 
+axios.interceptors.response.use((response) => {
+  // If we encountered an authentication error, reset the app back to the /login route
+  if (response.status === 401) {
+    location.pathname = "/login"
+  }
+
+  return response
+})
+
 export const hardCodedCSRFCookie = (): string => {
   // This is a hard coded CSRF token/cookie pair for local development. In prod,
   // the GoLang webserver generates a random cookie with a new token for each

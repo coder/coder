@@ -1,19 +1,11 @@
 import { AlertProps, Alert, AlertDetail } from "./Alert"
 import AlertTitle from "@mui/material/AlertTitle"
-import {
-  getErrorMessage,
-  getErrorDetail,
-  isAuthenticationError,
-} from "api/errors"
+import { getErrorMessage, getErrorDetail } from "api/errors"
 import { FC } from "react"
 
 export const ErrorAlert: FC<
   Omit<AlertProps, "severity" | "children"> & { error: unknown }
 > = ({ error, ...alertProps }) => {
-  if (isAuthenticationError(error)) {
-    location.href = "/login"
-  }
-
   const message = getErrorMessage(error, "Something went wrong.")
   const detail = getErrorDetail(error)
 
