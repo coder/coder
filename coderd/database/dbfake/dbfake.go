@@ -1384,6 +1384,7 @@ func (q *FakeQuerier) GetGroupMembers(_ context.Context, id uuid.UUID) ([]databa
 	for _, org := range q.organizations {
 		if org.ID == id {
 			isEveryoneGroup = true
+			break
 		}
 	}
 
