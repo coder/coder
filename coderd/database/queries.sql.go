@@ -6256,31 +6256,10 @@ SELECT
 	users.username AS owner_name,
 	users.status AS owner_status,
 	array_cat(
-		-- All users are members
 		array_append(users.rbac_roles, 'member'),
-		(
-			SELECT
-				array_agg(org_roles)
-			FROM
-				organization_members,
-				-- All org_members get the org-member role for their orgs
-				unnest(
-					array_append(roles, 'organization-member:' || organization_members.organization_id::text)
-					) AS org_roles
-			WHERE
-					user_id = users.id
-		)
-		) :: text[] AS owner_roles,
-	(
-		SELECT
-			array_agg(
-				group_members.group_id :: text
-				)
-		FROM
-			group_members
-		WHERE
-				user_id = users.id
-	) :: text[] AS owner_groups
+		array_append(ARRAY[]::text[], 'organization-member:' || organization_members.organization_id::text)
+		)::text[] as owner_roles,
+	array_agg(COALESCE(group_members.group_id::text, ''))::text[] AS owner_groups
 FROM users
 		 INNER JOIN
 	 workspaces
@@ -6298,8 +6277,20 @@ FROM users
 	 workspace_agents
 	 ON
 			 workspace_agents.resource_id = workspace_resources.id
+		 INNER JOIN -- every user is a member of some org
+	organization_members
+					ON
+							organization_members.user_id = users.id
+		 LEFT JOIN -- as they may not be a member of any groups
+	group_members
+				   ON
+						   group_members.user_id = users.id
 WHERE
 		workspace_agents.auth_token = $1
+  AND
+		users.status = 'active' -- workspaces that belong to inactive users should not be
+GROUP BY
+	workspace_agents.id, workspaces.id, users.id, organization_members.organization_id
 LIMIT 1
 `
 
