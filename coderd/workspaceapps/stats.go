@@ -363,8 +363,6 @@ func (sc *StatsCollector) start() {
 		case reportFlushDone = <-sc.opts.Flush:
 		}
 
-		// Ensure we don't hold up this request for too long. Add a few
-		// seconds to prevent very short intervals from causing a timeout.
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		//nolint:gocritic // Inserting app stats is a system function.
 		_ = sc.flush(dbauthz.AsSystemRestricted(ctx))
