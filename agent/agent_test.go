@@ -1630,12 +1630,12 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			//nolint:dogsled
 			conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 			id := uuid.New()
-			netConn1, err := conn.ReconnectingPTY(ctx, id, 100, 100, "bash")
+			netConn1, err := conn.ReconnectingPTY(ctx, id, 80, 80, "bash")
 			require.NoError(t, err)
 			defer netConn1.Close()
 
 			// A second simultaneous connection.
-			netConn2, err := conn.ReconnectingPTY(ctx, id, 100, 100, "bash")
+			netConn2, err := conn.ReconnectingPTY(ctx, id, 80, 80, "bash")
 			require.NoError(t, err)
 			defer netConn2.Close()
 
@@ -1674,7 +1674,7 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 
 			_ = netConn1.Close()
 			_ = netConn2.Close()
-			netConn3, err := conn.ReconnectingPTY(ctx, id, 100, 100, "bash")
+			netConn3, err := conn.ReconnectingPTY(ctx, id, 80, 80, "bash")
 			require.NoError(t, err)
 			defer netConn3.Close()
 
@@ -1698,7 +1698,7 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			require.ErrorIs(t, testutil.ReadUntil(ctx, t, netConn3, nil), io.EOF)
 
 			// Try a non-shell command.  It should output then immediately exit.
-			netConn4, err := conn.ReconnectingPTY(ctx, uuid.New(), 100, 100, "echo test")
+			netConn4, err := conn.ReconnectingPTY(ctx, uuid.New(), 80, 80, "echo test")
 			require.NoError(t, err)
 			defer netConn4.Close()
 

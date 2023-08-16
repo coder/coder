@@ -10,7 +10,8 @@ import (
 )
 
 // ReadUntilString emulates a terminal and reads one byte at a time until we
-// either see the string we want, or the context expires.
+// either see the string we want, or the context expires.  The PTY must be sized
+// to 80x80 or there could be unexpected results.
 func ReadUntilString(ctx context.Context, t *testing.T, want string, r io.Reader) error {
 	return ReadUntil(ctx, t, r, func(line string) bool {
 		return strings.TrimSpace(line) == want
@@ -19,6 +20,7 @@ func ReadUntilString(ctx context.Context, t *testing.T, want string, r io.Reader
 
 // ReadUntil emulates a terminal and reads one byte at a time until the matcher
 // returns true or the context expires.  If the matcher is nil, read until EOF.
+// The PTY must be sized to 80x80 or there could be unexpected results.
 func ReadUntil(ctx context.Context, t *testing.T, r io.Reader, matcher func(line string) bool) error {
 	// output can contain virtual terminal sequences, so we need to parse these
 	// to correctly interpret getting what we want.

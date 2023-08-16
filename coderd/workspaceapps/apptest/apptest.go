@@ -64,8 +64,8 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			testReconnectingPTY(ctx, t, client, codersdk.WorkspaceAgentReconnectingPTYOpts{
 				AgentID:   appDetails.Agent.ID,
 				Reconnect: uuid.New(),
-				Height:    80,
-				Width:     80,
+				Height:    100,
+				Width:     100,
 				Command:   "bash",
 			})
 		})
@@ -98,8 +98,8 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			testReconnectingPTY(ctx, t, unauthedAppClient, codersdk.WorkspaceAgentReconnectingPTYOpts{
 				AgentID:     appDetails.Agent.ID,
 				Reconnect:   uuid.New(),
-				Height:      80,
-				Width:       80,
+				Height:      100,
+				Width:       100,
 				Command:     "bash",
 				SignedToken: issueRes.SignedToken,
 			})
@@ -1360,8 +1360,8 @@ func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Cli
 	// First attempt to resize the TTY.
 	// The websocket will close if it fails!
 	data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
-		Height: 250,
-		Width:  250,
+		Height: 80,
+		Width:  80,
 	})
 	require.NoError(t, err)
 	_, err = conn.Write(data)
