@@ -58,6 +58,15 @@ export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
       legend: {
         display: false,
       },
+      tooltip: {
+        displayColors: false,
+        callbacks: {
+          title: (context) => {
+            const date = new Date(context[0].parsed.x)
+            return date.toLocaleDateString()
+          },
+        },
+      },
     },
     scales: {
       y: {
