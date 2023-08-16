@@ -2833,7 +2833,7 @@ func (q *FakeQuerier) GetUsersByIDs(_ context.Context, ids []uuid.UUID) ([]datab
 	return users, nil
 }
 
-func (q *FakeQuerier) GetWorkspaceAgentAndOwnerByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndOwnerByAuthTokenRow, error) {
+func (q *FakeQuerier) GetWorkspaceAgentAndOwnerByAuthToken(_ context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndOwnerByAuthTokenRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 	var resp database.GetWorkspaceAgentAndOwnerByAuthTokenRow
