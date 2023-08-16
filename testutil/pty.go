@@ -55,10 +55,14 @@ func ReadUntil(ctx context.Context, t *testing.T, r io.Reader, matcher func(line
 		case <-ctx.Done():
 			return ctx.Err()
 		}
+		if matcher == nil {
+			// A nil matcher means to read until EOF.
+			continue
+		}
 		got := term.String()
 		lines := strings.Split(got, "\n")
 		for _, line := range lines {
-			if matcher != nil && matcher(line) {
+			if matcher(line) {
 				return nil
 			}
 		}
