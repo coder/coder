@@ -56,7 +56,7 @@ const UpdateGroupForm: FC<{
             autoFocus
             fullWidth
             label="Name"
-            disabled={group.id == group.organization_id}
+            disabled={group.id === group.organization_id}
           />
           <TextField
             {...getFieldHelpers(
@@ -68,7 +68,7 @@ const UpdateGroupForm: FC<{
             autoFocus
             fullWidth
             label="Display Name"
-            disabled={group.id == group.organization_id}
+            disabled={group.id === group.organization_id}
           />
           <LazyIconField
             {...getFieldHelpers("avatar_url")}
