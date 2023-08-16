@@ -1931,6 +1931,9 @@ const (
 	// Template parameters insights
 	ExperimentTemplateParametersInsights Experiment = "template_parameters_insights"
 
+	// Workspaces batch actions
+	ExperimentWorkspacesBatchActions Experiment = "workspaces_batch_actions"
+
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"
 )
@@ -1942,6 +1945,7 @@ const (
 var ExperimentsAll = Experiments{
 	ExperimentDeploymentHealthPage,
 	ExperimentTemplateParametersInsights,
+	ExperimentWorkspacesBatchActions,
 }
 
 // Experiments is a list of experiments that are enabled for the deployment.

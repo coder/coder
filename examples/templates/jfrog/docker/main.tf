@@ -16,11 +16,9 @@ terraform {
 }
 
 locals {
-  # if the jfrog username is same as the coder username, you can use the following
-  # artifactory_username = data.coder_workspace.me.owner
-  # if the username is same as email, you can use the following
-  # artifactory_username = urlencode(data.coder_workspace.me.owner_email)
-  artifactory_username = data.coder_workspace.me.owner
+  # take care to use owner_email instead of owner because users can change
+  # their username.
+  artifactory_username = data.coder_workspace.me.owner_email
   artifactory_repository_keys = {
     "npm"    = "npm"
     "python" = "python"
@@ -55,7 +53,9 @@ provider "artifactory" {
 }
 
 resource "artifactory_scoped_token" "me" {
-  username = local.artifactory_username
+  # This is hacky, but on terraform plan the data source gives empty strings,
+  # which fails validation.
+  username = length(local.artifactory_username) > 0 ? local.artifactory_username : "plan"
 }
 
 resource "coder_agent" "main" {
@@ -125,13 +125,13 @@ resource "docker_volume" "home_volume" {
 resource "docker_image" "main" {
   name = "coder-${data.coder_workspace.me.id}"
   build {
-    context = "./build"
+    context = "${path.module}/build"
     build_args = {
       USER = local.workspace_user
     }
   }
   triggers = {
-    dir_sha1 = sha1(join("", [for f in fileset(path.module, "build/*") : filesha1(f)]))
+    dir_sha1 = sha1(join("", [for f in fileset(path.module, "build/*") : filesha1("${path.module}/${f}")]))
   }
 }
 

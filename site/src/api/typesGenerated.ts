@@ -1601,6 +1601,7 @@ export type Experiment =
   | "template_parameters_insights"
   | "template_restart_requirement"
   | "workspace_actions"
+  | "workspaces_batch_actions"
 export const Experiments: Experiment[] = [
   "deployment_health_page",
   "moons",
@@ -1609,6 +1610,7 @@ export const Experiments: Experiment[] = [
   "template_parameters_insights",
   "template_restart_requirement",
   "workspace_actions",
+  "workspaces_batch_actions",
 ]
 
 // From codersdk/deployment.go

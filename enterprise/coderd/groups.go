@@ -81,9 +81,11 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 // @Summary Update group by name
 // @ID update-group-by-name
 // @Security CoderSessionToken
+// @Accept json
 // @Produce json
 // @Tags Enterprise
 // @Param group path string true "Group name"
+// @Param request body codersdk.PatchGroupRequest true "Patch group request"
 // @Success 200 {object} codersdk.Group
 // @Router /groups/{group} [patch]
 func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
@@ -320,12 +322,12 @@ func (api *API) groupByOrganization(rw http.ResponseWriter, r *http.Request) {
 	api.group(rw, r)
 }
 
-// @Summary Get group by name
-// @ID get-group-by-name
+// @Summary Get group by ID
+// @ID get-group-by-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param group path string true "Group name"
+// @Param group path string true "Group id"
 // @Success 200 {object} codersdk.Group
 // @Router /groups/{group} [get]
 func (api *API) group(rw http.ResponseWriter, r *http.Request) {

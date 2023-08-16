@@ -20,6 +20,7 @@ import (
 	"golang.org/x/xerrors"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
+	"tailscale.com/envknob"
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/connstats"
 	"tailscale.com/net/dns"
@@ -64,6 +65,22 @@ func init() {
 	// Globally disable network namespacing. All networking happens in
 	// userspace.
 	netns.SetEnabled(false)
+	// Tailscale, by default, "trims" the set of peers down to ones that we are
+	// "actively" communicating with in an effort to save memory. Since
+	// Tailscale removed keep-alives, it seems like open but idle connections
+	// (SSH, port-forward, etc) can get trimmed fairly easily, causing hangs for
+	// a few seconds while the connection is setup again.
+	//
+	// Note that Tailscale.com's use case is very different from ours: in their
+	// use case, users create one persistent tailnet per device, and it allows
+	// connections to every other thing in Tailscale that belongs to them.  The
+	// tailnet stays up as long as your laptop or phone is turned on.
+	//
+	// Our use case is different: for clients, it's a point-to-point connection
+	// to a single workspace, and lasts only as long as the connection.  For
+	// agents, it's connections to a small number of clients (CLI or Coderd)
+	// that are being actively used by the end user.
+	envknob.Setenv("TS_DEBUG_TRIM_WIREGUARD", "false")
 }
 
 type Options struct {
