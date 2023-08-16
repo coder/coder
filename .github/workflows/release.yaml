@@ -462,6 +462,4 @@ jobs:
           choco push --source https://push.chocolatey.org/
 
         env:
-          # For gh CLI. We need a real token since we're commenting on a PR in a
-          # different repo.
           CHOCO_API_KEY: ${{ secrets.CHOCO_API_KEY }}
