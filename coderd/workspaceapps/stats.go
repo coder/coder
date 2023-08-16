@@ -72,7 +72,21 @@ func NewStatsDBReporter(db database.Store, batchSize int) *StatsDBReporter {
 // Report writes the given StatsReports to the database.
 func (r *StatsDBReporter) Report(ctx context.Context, stats []StatsReport) error {
 	err := r.db.InTx(func(tx database.Store) error {
-		var batch database.InsertWorkspaceAppStatsParams
+		maxBatchSize := r.batchSize
+		if len(stats) < maxBatchSize {
+			maxBatchSize = len(stats)
+		}
+		batch := database.InsertWorkspaceAppStatsParams{
+			UserID:           make([]uuid.UUID, 0, maxBatchSize),
+			WorkspaceID:      make([]uuid.UUID, 0, maxBatchSize),
+			AgentID:          make([]uuid.UUID, 0, maxBatchSize),
+			AccessMethod:     make([]string, 0, maxBatchSize),
+			SlugOrPort:       make([]string, 0, maxBatchSize),
+			SessionID:        make([]uuid.UUID, 0, maxBatchSize),
+			SessionStartedAt: make([]time.Time, 0, maxBatchSize),
+			SessionEndedAt:   make([]time.Time, 0, maxBatchSize),
+			Requests:         make([]int32, 0, maxBatchSize),
+		}
 		for _, stat := range stats {
 			batch.UserID = append(batch.UserID, stat.UserID)
 			batch.WorkspaceID = append(batch.WorkspaceID, stat.WorkspaceID)
@@ -91,7 +105,15 @@ func (r *StatsDBReporter) Report(ctx context.Context, stats []StatsReport) error
 				}
 
 				// Reset batch.
-				batch = database.InsertWorkspaceAppStatsParams{}
+				batch.UserID = batch.UserID[:0]
+				batch.WorkspaceID = batch.WorkspaceID[:0]
+				batch.AgentID = batch.AgentID[:0]
+				batch.AccessMethod = batch.AccessMethod[:0]
+				batch.SlugOrPort = batch.SlugOrPort[:0]
+				batch.SessionID = batch.SessionID[:0]
+				batch.SessionStartedAt = batch.SessionStartedAt[:0]
+				batch.SessionEndedAt = batch.SessionEndedAt[:0]
+				batch.Requests = batch.Requests[:0]
 			}
 		}
 		if len(batch.UserID) > 0 {
