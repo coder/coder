@@ -287,6 +287,9 @@ resource "docker_container" "workspace" {
   env = [
     "CODER_AGENT_TOKEN=${coder_agent.dev.token}",
   ]
+  capabilities = {
+    add = ["SYS_NICE"]
+  }
   host {
     host = "host.docker.internal"
     ip   = "host-gateway"
