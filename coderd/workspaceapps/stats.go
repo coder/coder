@@ -348,26 +348,30 @@ func (sc *StatsCollector) start() {
 	}()
 	sc.opts.Logger.Info(sc.ctx, "workspace app stats collector started")
 
-	ticker := time.NewTicker(sc.opts.ReportInterval)
-	defer ticker.Stop()
+	t := time.NewTimer(sc.opts.ReportInterval)
+	defer t.Stop()
 
 	var reportFlushDone chan<- struct{}
 	done := false
 	for !done {
 		select {
 		case <-sc.ctx.Done():
-			ticker.Stop()
+			t.Stop()
 			done = true
-		case <-ticker.C:
+		case <-t.C:
 		case reportFlushDone = <-sc.opts.Flush:
 		}
 
 		// Ensure we don't hold up this request for too long. Add a few
 		// seconds to prevent very short intervals from causing a timeout.
-		ctx, cancel := context.WithTimeout(context.Background(), sc.opts.ReportInterval+5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		//nolint:gocritic // Inserting app stats is a system function.
 		_ = sc.flush(dbauthz.AsSystemRestricted(ctx))
 		cancel()
+
+		if !done {
+			t.Reset(sc.opts.ReportInterval)
+		}
 
 		// For tests.
 		if reportFlushDone != nil {
