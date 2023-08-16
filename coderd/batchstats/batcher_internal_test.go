@@ -2,8 +2,11 @@ package batchstats
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/stretchr/testify/require"
 
@@ -76,14 +79,15 @@ func TestBatchStats(t *testing.T) {
 	require.Len(t, stats, 1, "should have stats for workspace")
 
 	// Given: a lot of data points are added for both workspaces
-	// (equal to batch size)
+	// (greater than the size of our buffer)
 	t3 := t2.Add(time.Second)
 	done := make(chan struct{})
 
+	numInserts := int(defaultBufferSize * 1.5)
 	go func() {
 		defer close(done)
-		t.Logf("inserting %d stats", defaultBufferSize)
-		for i := 0; i < defaultBufferSize; i++ {
+		t.Logf("inserting %d stats", numInserts)
+		for i := 0; i < numInserts; i++ {
 			if i%2 == 0 {
 				require.NoError(t, b.Add(t3.Add(time.Millisecond), deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randAgentSDKStats(t)))
 			} else {
@@ -109,7 +113,7 @@ func TestBatchStats(t *testing.T) {
 	tick <- t4
 	f2 := <-flushed
 	t.Logf("flush 4 completed")
-	expectedCount := defaultBufferSize - f
+	expectedCount := numInserts - f
 	require.Equal(t, expectedCount, f2, "did not flush expected remaining rows")
 
 	// Ensure that a subsequent flush does not push stale data.
@@ -122,9 +126,6 @@ func TestBatchStats(t *testing.T) {
 	stats, err = store.GetWorkspaceAgentStats(ctx, t5)
 	require.NoError(t, err, "should not error getting stats")
 	require.Len(t, stats, 0, "should have no stats for workspace")
-
-	// Ensure that buf never grew beyond what we expect
-	require.Equal(t, defaultBufferSize, cap(b.buf.ID), "buffer grew beyond expected capacity")
 }
 
 // randAgentSDKStats returns a random agentsdk.Stats
@@ -223,4 +224,39 @@ func mustRandInt64n(t *testing.T, n int64) int64 {
 	i, err := cryptorand.Intn(int(n))
 	require.NoError(t, err)
 	return int64(i)
+}
+
+func Test_jsonArray(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		input    []string
+		expected string
+	}{
+		{
+			name:     "empty",
+			input:    []string{},
+			expected: `[]`,
+		},
+		{
+			name:     "one element",
+			input:    []string{`"foo"`},
+			expected: `["foo"]`,
+		},
+		{
+			name:     "many elements",
+			input:    []string{`"foo"`, `1`, `false`, `{}`, `null`},
+			expected: `["foo",1,false,{},null]`,
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			var inputs []json.RawMessage
+			for _, input := range tt.input {
+				inputs = append(inputs, []byte(input))
+			}
+			actual := jsonArray(inputs)
+			assert.Equal(t, tt.expected, string(actual))
+		})
+
+	}
 }
