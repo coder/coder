@@ -114,34 +114,35 @@ type data struct {
 	userLinks           []database.UserLink
 
 	// New tables
-	workspaceAgentStats       []database.WorkspaceAgentStat
-	auditLogs                 []database.AuditLog
-	files                     []database.File
-	gitAuthLinks              []database.GitAuthLink
-	gitSSHKey                 []database.GitSSHKey
-	groupMembers              []database.GroupMember
-	groups                    []database.Group
-	licenses                  []database.License
-	parameterSchemas          []database.ParameterSchema
-	provisionerDaemons        []database.ProvisionerDaemon
-	provisionerJobLogs        []database.ProvisionerJobLog
-	provisionerJobs           []database.ProvisionerJob
-	replicas                  []database.Replica
-	templateVersions          []database.TemplateVersionTable
-	templateVersionParameters []database.TemplateVersionParameter
-	templateVersionVariables  []database.TemplateVersionVariable
-	templates                 []database.TemplateTable
-	workspaceAgents           []database.WorkspaceAgent
-	workspaceAgentMetadata    []database.WorkspaceAgentMetadatum
-	workspaceAgentLogs        []database.WorkspaceAgentLog
-	workspaceApps             []database.WorkspaceApp
-	workspaceAppStats         []database.WorkspaceAppStat
-	workspaceBuilds           []database.WorkspaceBuildTable
-	workspaceBuildParameters  []database.WorkspaceBuildParameter
-	workspaceResourceMetadata []database.WorkspaceResourceMetadatum
-	workspaceResources        []database.WorkspaceResource
-	workspaces                []database.Workspace
-	workspaceProxies          []database.WorkspaceProxy
+	workspaceAgentStats           []database.WorkspaceAgentStat
+	auditLogs                     []database.AuditLog
+	files                         []database.File
+	gitAuthLinks                  []database.GitAuthLink
+	gitSSHKey                     []database.GitSSHKey
+	groupMembers                  []database.GroupMember
+	groups                        []database.Group
+	licenses                      []database.License
+	parameterSchemas              []database.ParameterSchema
+	provisionerDaemons            []database.ProvisionerDaemon
+	provisionerJobLogs            []database.ProvisionerJobLog
+	provisionerJobs               []database.ProvisionerJob
+	replicas                      []database.Replica
+	templateVersions              []database.TemplateVersionTable
+	templateVersionParameters     []database.TemplateVersionParameter
+	templateVersionVariables      []database.TemplateVersionVariable
+	templates                     []database.TemplateTable
+	workspaceAgents               []database.WorkspaceAgent
+	workspaceAgentMetadata        []database.WorkspaceAgentMetadatum
+	workspaceAgentLogs            []database.WorkspaceAgentLog
+	workspaceApps                 []database.WorkspaceApp
+	workspaceAppStatsLastInsertID int64
+	workspaceAppStats             []database.WorkspaceAppStat
+	workspaceBuilds               []database.WorkspaceBuildTable
+	workspaceBuildParameters      []database.WorkspaceBuildParameter
+	workspaceResourceMetadata     []database.WorkspaceResourceMetadatum
+	workspaceResources            []database.WorkspaceResource
+	workspaces                    []database.Workspace
+	workspaceProxies              []database.WorkspaceProxy
 	// Locks is a map of lock names. Any keys within the map are currently
 	// locked.
 	locks                   map[int64]struct{}
@@ -4346,14 +4347,10 @@ func (q *FakeQuerier) InsertWorkspaceAppStats(_ context.Context, arg database.In
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	nextID := int64(1)
-	if len(q.workspaceAppStats) > 0 {
-		nextID = q.workspaceAppStats[len(q.workspaceAppStats)-1].ID + 1
-	}
 InsertWorkspaceAppStatsLoop:
 	for i := 0; i < len(arg.UserID); i++ {
 		stat := database.WorkspaceAppStat{
-			ID:               nextID,
+			ID:               q.workspaceAppStatsLastInsertID + 1,
 			UserID:           arg.UserID[i],
 			WorkspaceID:      arg.WorkspaceID[i],
 			AgentID:          arg.AgentID[i],
@@ -4373,7 +4370,7 @@ InsertWorkspaceAppStatsLoop:
 			}
 		}
 		q.workspaceAppStats = append(q.workspaceAppStats, stat)
-		nextID++
+		q.workspaceAppStatsLastInsertID++
 	}
 
 	return nil
