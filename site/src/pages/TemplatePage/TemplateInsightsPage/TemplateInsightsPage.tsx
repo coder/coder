@@ -35,7 +35,6 @@ import Link from "@mui/material/Link"
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined"
 import CancelOutlined from "@mui/icons-material/CancelOutlined"
 import { getDateRangeFilter } from "./utils"
-import { HelpOutlineOutlined } from "@mui/icons-material"
 import Tooltip from "@mui/material/Tooltip"
 
 export default function TemplateInsightsPage() {
