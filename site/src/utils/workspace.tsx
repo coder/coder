@@ -37,7 +37,7 @@ export const getDisplayWorkspaceBuildStatus = (
     case "succeeded":
       return {
         type: "success",
-        color: theme.palette.success.main,
+        color: theme.palette.success.light,
         status: DisplayWorkspaceBuildStatusLanguage.succeeded,
       } as const
     case "pending":
