@@ -456,7 +456,7 @@ jobs:
           # No need to specify nuspec if there's only one in the directory.
           choco pack --version=$version binary_path=assets/coder.exe
 
-          choco apikey --api-key $env:CHOCO_API_KEY -source https://push.chocolatey.org/
+          choco apikey --api-key $env:CHOCO_API_KEY --source https://push.chocolatey.org/
 
           # No need to specify nupkg if there's only one in the directory.
           choco push --source https://push.chocolatey.org/
