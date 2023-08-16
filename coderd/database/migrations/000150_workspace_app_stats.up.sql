@@ -1,13 +1,13 @@
 CREATE TABLE workspace_app_stats (
-    id BIGSERIAL PRIMARY KEY,
-    user_id uuid NOT NULL REFERENCES users (id),
+	id BIGSERIAL PRIMARY KEY,
+	user_id uuid NOT NULL REFERENCES users (id),
 	workspace_id uuid NOT NULL REFERENCES workspaces (id),
-    agent_id uuid NOT NULL REFERENCES workspace_agents (id),
+	agent_id uuid NOT NULL REFERENCES workspace_agents (id),
 	access_method text NOT NULL,
 	slug_or_port text NOT NULL,
 	session_id uuid NOT NULL,
-    session_started_at timestamptz NOT NULL,
-    session_ended_at timestamptz NOT NULL,
+	session_started_at timestamptz NOT NULL,
+	session_ended_at timestamptz NOT NULL,
 	requests integer NOT NULL,
 
 	-- Set a unique constraint to allow upserting the session_ended_at
