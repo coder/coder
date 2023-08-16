@@ -288,7 +288,7 @@ func (s *MethodTestSuite) TestGroup() {
 	s.Run("GetGroupMembers", s.Subtest(func(db database.Store, check *expects) {
 		g := dbgen.Group(s.T(), db, database.Group{})
 		_ = dbgen.GroupMember(s.T(), db, database.GroupMember{})
-		check.Args(database.GetGroupMembersParams{ID: g.ID, OrganizationID: g.OrganizationID}).Asserts(g, rbac.ActionRead)
+		check.Args(g.ID).Asserts(g, rbac.ActionRead)
 	}))
 	s.Run("InsertAllUsersGroup", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})

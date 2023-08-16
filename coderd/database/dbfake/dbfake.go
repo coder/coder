@@ -1376,18 +1376,25 @@ func (q *FakeQuerier) GetGroupByOrgAndName(_ context.Context, arg database.GetGr
 	return database.Group{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) GetGroupMembers(_ context.Context, arg database.GetGroupMembersParams) ([]database.User, error) {
+func (q *FakeQuerier) GetGroupMembers(_ context.Context, id uuid.UUID) ([]database.User, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	if arg.ID == arg.OrganizationID {
+	var isEveryoneGroup bool
+	for _, org := range q.organizations {
+		if org.ID == id {
+			isEveryoneGroup = true
+		}
+	}
+
+	if isEveryoneGroup {
 		var cp []database.User
 		return append(cp, q.users...), nil
 	}
 
 	var members []database.GroupMember
 	for _, member := range q.groupMembers {
-		if member.GroupID == arg.ID {
+		if member.GroupID == id {
 			members = append(members, member)
 		}
 	}

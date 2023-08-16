@@ -145,10 +145,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	currentMembers, currentMembersErr := api.Database.GetGroupMembers(ctx, database.GetGroupMembersParams{
-		ID:             group.ID,
-		OrganizationID: group.OrganizationID,
-	})
+	currentMembers, currentMembersErr := api.Database.GetGroupMembers(ctx, group.ID)
 	if currentMembersErr != nil {
 		httpapi.InternalServerError(rw, currentMembersErr)
 		return
@@ -276,10 +273,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	patchedMembers, err := api.Database.GetGroupMembers(ctx, database.GetGroupMembersParams{
-		ID:             group.ID,
-		OrganizationID: group.OrganizationID,
-	})
+	patchedMembers, err := api.Database.GetGroupMembers(ctx, group.ID)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -319,10 +313,7 @@ func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	groupMembers, getMembersErr := api.Database.GetGroupMembers(ctx, database.GetGroupMembersParams{
-		ID:             group.ID,
-		OrganizationID: group.OrganizationID,
-	})
+	groupMembers, getMembersErr := api.Database.GetGroupMembers(ctx, group.ID)
 	if getMembersErr != nil {
 		httpapi.InternalServerError(rw, getMembersErr)
 		return
@@ -368,10 +359,7 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 		group = httpmw.GroupParam(r)
 	)
 
-	users, err := api.Database.GetGroupMembers(ctx, database.GetGroupMembersParams{
-		ID:             group.ID,
-		OrganizationID: group.OrganizationID,
-	})
+	users, err := api.Database.GetGroupMembers(ctx, group.ID)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -416,10 +404,7 @@ func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 
 	resp := make([]codersdk.Group, 0, len(groups))
 	for _, group := range groups {
-		members, err := api.Database.GetGroupMembers(ctx, database.GetGroupMembersParams{
-			ID:             group.ID,
-			OrganizationID: group.OrganizationID,
-		})
+		members, err := api.Database.GetGroupMembers(ctx, group.ID)
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return

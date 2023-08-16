@@ -702,7 +702,7 @@ func (mr *MockStoreMockRecorder) GetGroupByOrgAndName(arg0, arg1 interface{}) *g
 }
 
 // GetGroupMembers mocks base method.
-func (m *MockStore) GetGroupMembers(arg0 context.Context, arg1 database.GetGroupMembersParams) ([]database.User, error) {
+func (m *MockStore) GetGroupMembers(arg0 context.Context, arg1 uuid.UUID) ([]database.User, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetGroupMembers", arg0, arg1)
 	ret0, _ := ret[0].([]database.User)
