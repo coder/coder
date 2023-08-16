@@ -599,6 +599,13 @@ func (m metricsStore) GetTailnetClientsForAgent(ctx context.Context, agentID uui
 	return m.s.GetTailnetClientsForAgent(ctx, agentID)
 }
 
+func (m metricsStore) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateAppInsights(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetTemplateAppInsights").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
 	start := time.Now()
 	buildTime, err := m.s.GetTemplateAverageBuildTime(ctx, arg)

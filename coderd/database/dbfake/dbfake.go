@@ -1966,6 +1966,15 @@ func (*FakeQuerier) GetTailnetClientsForAgent(context.Context, uuid.UUID) ([]dat
 	return nil, ErrUnimplemented
 }
 
+func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.GetTemplateAverageBuildTimeRow{}, err
@@ -2201,9 +2210,14 @@ func (q *FakeQuerier) GetTemplateInsights(_ context.Context, arg database.GetTem
 	slices.SortFunc(templateIDs, func(a, b uuid.UUID) int {
 		return slice.Ascending(a.String(), b.String())
 	})
+	activeUserIDs := make([]uuid.UUID, 0, len(appUsageIntervalsByUser))
+	for userID := range appUsageIntervalsByUser {
+		activeUserIDs = append(activeUserIDs, userID)
+	}
+
 	result := database.GetTemplateInsightsRow{
-		TemplateIDs: templateIDs,
-		ActiveUsers: int64(len(appUsageIntervalsByUser)),
+		TemplateIDs:   templateIDs,
+		ActiveUserIDs: activeUserIDs,
 	}
 	for _, intervals := range appUsageIntervalsByUser {
 		for _, interval := range intervals {

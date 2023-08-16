@@ -118,8 +118,7 @@ type TemplateAppsType string
 // TemplateAppsType enums.
 const (
 	TemplateAppsTypeBuiltin TemplateAppsType = "builtin"
-	// TODO(mafredri): To be introduced in a future pull request.
-	// TemplateAppsTypeApp     TemplateAppsType = "app"
+	TemplateAppsTypeApp     TemplateAppsType = "app"
 )
 
 // TemplateAppUsage shows the usage of an app for one or more templates.
