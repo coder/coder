@@ -30,7 +30,6 @@ import { subDays, isToday } from "date-fns"
 import "react-date-range/dist/styles.css"
 import "react-date-range/dist/theme/default.css"
 import { DateRange, DateRangeValue } from "./DateRange"
-import { useDashboard } from "components/Dashboard/DashboardProvider"
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined"
 import Link from "@mui/material/Link"
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined"
@@ -61,10 +60,6 @@ export default function TemplateInsightsPage() {
     queryKey: ["templates", template.id, "user-latency", insightsFilter],
     queryFn: () => getInsightsUserLatency(insightsFilter),
   })
-  const dashboard = useDashboard()
-  const shouldDisplayParameters =
-    dashboard.experiments.includes("template_parameters_insights") ||
-    process.env.NODE_ENV === "development"
 
   return (
     <>
@@ -77,7 +72,6 @@ export default function TemplateInsightsPage() {
         }
         templateInsights={templateInsights}
         userLatency={userLatency}
-        shouldDisplayParameters={shouldDisplayParameters}
       />
     </>
   )
@@ -86,12 +80,10 @@ export default function TemplateInsightsPage() {
 export const TemplateInsightsPageView = ({
   templateInsights,
   userLatency,
-  shouldDisplayParameters,
   dateRange,
 }: {
   templateInsights: TemplateInsightsResponse | undefined
   userLatency: UserLatencyInsightsResponse | undefined
-  shouldDisplayParameters: boolean
   dateRange: ReactNode
 }) => {
   return (
@@ -114,12 +106,10 @@ export const TemplateInsightsPageView = ({
           sx={{ gridColumn: "span 3" }}
           data={templateInsights?.report.apps_usage}
         />
-        {shouldDisplayParameters && (
-          <TemplateParametersUsagePanel
-            sx={{ gridColumn: "span 3" }}
-            data={templateInsights?.report.parameters_usage}
-          />
-        )}
+        <TemplateParametersUsagePanel
+          sx={{ gridColumn: "span 3" }}
+          data={templateInsights?.report.parameters_usage}
+        />
       </Box>
     </>
   )

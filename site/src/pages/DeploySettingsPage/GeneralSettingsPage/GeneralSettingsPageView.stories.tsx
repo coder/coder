@@ -36,7 +36,6 @@ const meta: Meta<typeof GeneralSettingsPageView> = {
           "workspace_actions",
           "single_tailnet",
           "deployment_health_page",
-          "template_parameters_insights",
         ],
         flag_shorthand: "",
         hidden: false,
