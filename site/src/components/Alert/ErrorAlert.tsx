@@ -11,7 +11,7 @@ import { FC, useEffect } from "react"
 export const ErrorAlert: FC<
   Omit<AlertProps, "severity" | "children"> & { error: unknown }
 > = ({ error, ...alertProps }) => {
-  const [auth, authSend] = useAuth()
+  const [_auth, authSend] = useAuth()
   const shouldSignOut = isAuthenticationError(error)
   useEffect(() => {
     if (shouldSignOut) {
