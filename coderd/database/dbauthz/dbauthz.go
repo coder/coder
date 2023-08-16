@@ -2046,6 +2046,13 @@ func (q *querier) InsertWorkspaceApp(ctx context.Context, arg database.InsertWor
 	return q.db.InsertWorkspaceApp(ctx, arg)
 }
 
+func (q *querier) InsertWorkspaceAppStats(ctx context.Context, arg database.InsertWorkspaceAppStatsParams) error {
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.InsertWorkspaceAppStats(ctx, arg)
+}
+
 func (q *querier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertWorkspaceBuildParams) error {
 	w, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
 	if err != nil {

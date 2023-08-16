@@ -5491,6 +5491,42 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceproxies/me/app-stats": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Report workspace app stats",
+                "operationId": "report-workspace-app-stats",
+                "parameters": [
+                    {
+                        "description": "Report app stats request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/wsproxysdk.ReportAppStatsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/workspaceproxies/me/coordinate": {
             "get": {
                 "security": [
@@ -11798,6 +11834,39 @@ const docTemplate = `{
                 }
             }
         },
+        "workspaceapps.StatsReport": {
+            "type": "object",
+            "properties": {
+                "access_method": {
+                    "$ref": "#/definitions/workspaceapps.AccessMethod"
+                },
+                "agent_id": {
+                    "type": "string"
+                },
+                "requests": {
+                    "type": "integer"
+                },
+                "session_ended_at": {
+                    "description": "Updated periodically while app is in use active and when the last connection is closed.",
+                    "type": "string"
+                },
+                "session_id": {
+                    "type": "string"
+                },
+                "session_started_at": {
+                    "type": "string"
+                },
+                "slug_or_port": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                },
+                "workspace_id": {
+                    "type": "string"
+                }
+            }
+        },
         "wsproxysdk.AgentIsLegacyResponse": {
             "type": "object",
             "properties": {
@@ -11885,6 +11954,17 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.Replica"
+                    }
+                }
+            }
+        },
+        "wsproxysdk.ReportAppStatsRequest": {
+            "type": "object",
+            "properties": {
+                "stats": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workspaceapps.StatsReport"
                     }
                 }
             }

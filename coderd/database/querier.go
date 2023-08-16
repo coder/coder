@@ -233,6 +233,7 @@ type sqlcQuerier interface {
 	InsertWorkspaceAgentStat(ctx context.Context, arg InsertWorkspaceAgentStatParams) (WorkspaceAgentStat, error)
 	InsertWorkspaceAgentStats(ctx context.Context, arg InsertWorkspaceAgentStatsParams) error
 	InsertWorkspaceApp(ctx context.Context, arg InsertWorkspaceAppParams) (WorkspaceApp, error)
+	InsertWorkspaceAppStats(ctx context.Context, arg InsertWorkspaceAppStatsParams) error
 	InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspaceBuildParams) error
 	InsertWorkspaceBuildParameters(ctx context.Context, arg InsertWorkspaceBuildParametersParams) error
 	InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspaceProxyParams) (WorkspaceProxy, error)

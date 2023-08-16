@@ -2016,6 +2016,30 @@ type WorkspaceApp struct {
 	External             bool               `db:"external" json:"external"`
 }
 
+// A record of workspace app usage statistics
+type WorkspaceAppStat struct {
+	// The ID of the record
+	ID int64 `db:"id" json:"id"`
+	// The user who used the workspace app
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	// The workspace that the workspace app was used in
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	// The workspace agent that was used
+	AgentID uuid.UUID `db:"agent_id" json:"agent_id"`
+	// The method used to access the workspace app
+	AccessMethod string `db:"access_method" json:"access_method"`
+	// The slug or port used to to identify the app
+	SlugOrPort string `db:"slug_or_port" json:"slug_or_port"`
+	// The unique identifier for the session
+	SessionID uuid.UUID `db:"session_id" json:"session_id"`
+	// The time the session started
+	SessionStartedAt time.Time `db:"session_started_at" json:"session_started_at"`
+	// The time the session ended
+	SessionEndedAt time.Time `db:"session_ended_at" json:"session_ended_at"`
+	// The number of requests made during the session, a number larger than 1 indicates that multiple sessions were rolled up into one
+	Requests int32 `db:"requests" json:"requests"`
+}
+
 // Joins in the username + avatar url of the initiated by user.
 type WorkspaceBuild struct {
 	ID                   uuid.UUID           `db:"id" json:"id"`

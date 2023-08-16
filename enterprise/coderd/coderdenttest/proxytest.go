@@ -110,6 +110,10 @@ func NewWorkspaceProxy(t *testing.T, coderdAPI *coderd.API, owner *codersdk.Clie
 	})
 	require.NoError(t, err, "failed to create workspace proxy")
 
+	// Inherit collector options from coderd, but keep the wsproxy reporter.
+	statsCollectorOptions := coderdAPI.Options.WorkspaceAppsStatsCollectorOptions
+	statsCollectorOptions.Reporter = nil
+
 	wssrv, err := wsproxy.New(ctx, &wsproxy.Options{
 		Logger:            slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		Experiments:       options.Experiments,
@@ -129,6 +133,7 @@ func NewWorkspaceProxy(t *testing.T, coderdAPI *coderd.API, owner *codersdk.Clie
 		DERPEnabled:            !options.DerpDisabled,
 		DERPOnly:               options.DerpOnly,
 		DERPServerRelayAddress: accessURL.String(),
+		StatsCollectorOptions:  statsCollectorOptions,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {

@@ -7610,6 +7610,36 @@ _None_
 | `username_or_id`       | string                                                   | false    |              | For the following fields, if the AccessMethod is AccessMethodTerminal, then only AgentNameOrID may be set and it must be a UUID. The other fields must be left blank.                 |
 | `workspace_name_or_id` | string                                                   | false    |              |                                                                                                                                                                                       |
 
+## workspaceapps.StatsReport
+
+```json
+{
+  "access_method": "path",
+  "agent_id": "string",
+  "requests": 0,
+  "session_ended_at": "string",
+  "session_id": "string",
+  "session_started_at": "string",
+  "slug_or_port": "string",
+  "user_id": "string",
+  "workspace_id": "string"
+}
+```
+
+### Properties
+
+| Name                 | Type                                                     | Required | Restrictions | Description                                                                             |
+| -------------------- | -------------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------- |
+| `access_method`      | [workspaceapps.AccessMethod](#workspaceappsaccessmethod) | false    |              |                                                                                         |
+| `agent_id`           | string                                                   | false    |              |                                                                                         |
+| `requests`           | integer                                                  | false    |              |                                                                                         |
+| `session_ended_at`   | string                                                   | false    |              | Updated periodically while app is in use active and when the last connection is closed. |
+| `session_id`         | string                                                   | false    |              |                                                                                         |
+| `session_started_at` | string                                                   | false    |              |                                                                                         |
+| `slug_or_port`       | string                                                   | false    |              |                                                                                         |
+| `user_id`            | string                                                   | false    |              |                                                                                         |
+| `workspace_id`       | string                                                   | false    |              |                                                                                         |
+
 ## wsproxysdk.AgentIsLegacyResponse
 
 ```json
@@ -7714,3 +7744,29 @@ _None_
 | `derp_mesh_key`    | string                                        | false    |              |                                                                                        |
 | `derp_region_id`   | integer                                       | false    |              |                                                                                        |
 | `sibling_replicas` | array of [codersdk.Replica](#codersdkreplica) | false    |              | Sibling replicas is a list of all other replicas of the proxy that have not timed out. |
+
+## wsproxysdk.ReportAppStatsRequest
+
+```json
+{
+  "stats": [
+    {
+      "access_method": "path",
+      "agent_id": "string",
+      "requests": 0,
+      "session_ended_at": "string",
+      "session_id": "string",
+      "session_started_at": "string",
+      "slug_or_port": "string",
+      "user_id": "string",
+      "workspace_id": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                                            | Required | Restrictions | Description |
+| ------- | --------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `stats` | array of [workspaceapps.StatsReport](#workspaceappsstatsreport) | false    |              |             |

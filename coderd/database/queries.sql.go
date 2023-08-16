@@ -7831,6 +7831,72 @@ func (q *sqlQuerier) UpdateWorkspaceAppHealthByID(ctx context.Context, arg Updat
 	return err
 }
 
+const insertWorkspaceAppStats = `-- name: InsertWorkspaceAppStats :exec
+INSERT INTO
+	workspace_app_stats (
+		user_id,
+		workspace_id,
+		agent_id,
+		access_method,
+		slug_or_port,
+		session_id,
+		session_started_at,
+		session_ended_at,
+		requests
+	)
+SELECT
+	unnest($1::uuid[]) AS user_id,
+	unnest($2::uuid[]) AS workspace_id,
+	unnest($3::uuid[]) AS agent_id,
+	unnest($4::text[]) AS access_method,
+	unnest($5::text[]) AS slug_or_port,
+	unnest($6::uuid[]) AS session_id,
+	unnest($7::timestamptz[]) AS session_started_at,
+	unnest($8::timestamptz[]) AS session_ended_at,
+	unnest($9::int[]) AS requests
+ON CONFLICT
+	(user_id, agent_id, session_id)
+DO
+	UPDATE SET
+		session_ended_at = EXCLUDED.session_ended_at,
+		requests = EXCLUDED.requests
+	WHERE
+		workspace_app_stats.user_id = EXCLUDED.user_id
+		AND workspace_app_stats.agent_id = EXCLUDED.agent_id
+		AND workspace_app_stats.session_id = EXCLUDED.session_id
+		-- Since stats are updated in place as time progresses, we only
+		-- want to update this row if it's fresh.
+		AND workspace_app_stats.session_ended_at <= EXCLUDED.session_ended_at
+		AND workspace_app_stats.requests <= EXCLUDED.requests
+`
+
+type InsertWorkspaceAppStatsParams struct {
+	UserID           []uuid.UUID `db:"user_id" json:"user_id"`
+	WorkspaceID      []uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	AgentID          []uuid.UUID `db:"agent_id" json:"agent_id"`
+	AccessMethod     []string    `db:"access_method" json:"access_method"`
+	SlugOrPort       []string    `db:"slug_or_port" json:"slug_or_port"`
+	SessionID        []uuid.UUID `db:"session_id" json:"session_id"`
+	SessionStartedAt []time.Time `db:"session_started_at" json:"session_started_at"`
+	SessionEndedAt   []time.Time `db:"session_ended_at" json:"session_ended_at"`
+	Requests         []int32     `db:"requests" json:"requests"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceAppStats(ctx context.Context, arg InsertWorkspaceAppStatsParams) error {
+	_, err := q.db.ExecContext(ctx, insertWorkspaceAppStats,
+		pq.Array(arg.UserID),
+		pq.Array(arg.WorkspaceID),
+		pq.Array(arg.AgentID),
+		pq.Array(arg.AccessMethod),
+		pq.Array(arg.SlugOrPort),
+		pq.Array(arg.SessionID),
+		pq.Array(arg.SessionStartedAt),
+		pq.Array(arg.SessionEndedAt),
+		pq.Array(arg.Requests),
+	)
+	return err
+}
+
 const getWorkspaceBuildParameters = `-- name: GetWorkspaceBuildParameters :many
 SELECT
     workspace_build_id, name, value

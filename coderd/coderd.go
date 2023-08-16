@@ -162,6 +162,8 @@ type Options struct {
 
 	UpdateAgentMetrics func(ctx context.Context, username, workspaceName, agentName string, metrics []agentsdk.AgentMetric)
 	StatsBatcher       *batchstats.Batcher
+
+	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 }
 
 // @title Coder API
@@ -418,8 +420,17 @@ func New(options *Options) *API {
 		}
 	}
 
+	workspaceAppsLogger := options.Logger.Named("workspaceapps")
+	if options.WorkspaceAppsStatsCollectorOptions.Logger == nil {
+		named := workspaceAppsLogger.Named("stats_collector")
+		options.WorkspaceAppsStatsCollectorOptions.Logger = &named
+	}
+	if options.WorkspaceAppsStatsCollectorOptions.Reporter == nil {
+		options.WorkspaceAppsStatsCollectorOptions.Reporter = workspaceapps.NewStatsDBReporter(options.Database, workspaceapps.DefaultStatsDBReporterBatchSize)
+	}
+
 	api.workspaceAppServer = &workspaceapps.Server{
-		Logger: options.Logger.Named("workspaceapps"),
+		Logger: workspaceAppsLogger,
 
 		DashboardURL:  api.AccessURL,
 		AccessURL:     api.AccessURL,
@@ -430,6 +441,7 @@ func New(options *Options) *API {
 		SignedTokenProvider: api.WorkspaceAppsProvider,
 		AgentProvider:       api.agentProvider,
 		AppSecurityKey:      options.AppSecurityKey,
+		StatsCollector:      workspaceapps.NewStatsCollector(options.WorkspaceAppsStatsCollectorOptions),
 
 		DisablePathApps:  options.DeploymentValues.DisablePathApps.Value(),
 		SecureAuthCookie: options.DeploymentValues.SecureAuthCookie.Value(),
@@ -1020,6 +1032,7 @@ func (api *API) Close() error {
 	if api.updateChecker != nil {
 		api.updateChecker.Close()
 	}
+	_ = api.workspaceAppServer.Close()
 	coordinator := api.TailnetCoordinator.Load()
 	if coordinator != nil {
 		_ = (*coordinator).Close()

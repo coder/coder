@@ -16,6 +16,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -1342,6 +1343,67 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 		require.Equal(t, []string{"Origin", "X-Foobar"}, deduped)
 		require.Equal(t, []string{"baz"}, resp.Header.Values("X-Foobar"))
 	})
+
+	t.Run("ReportStats", func(t *testing.T) {
+		t.Parallel()
+
+		flush := make(chan chan<- struct{}, 1)
+
+		reporter := &fakeStatsReporter{}
+		appDetails := setupProxyTest(t, &DeploymentOptions{
+			StatsCollectorOptions: workspaceapps.StatsCollectorOptions{
+				Reporter:       reporter,
+				ReportInterval: time.Hour,
+				RollupWindow:   time.Minute,
+
+				Flush: flush,
+			},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		u := appDetails.PathAppURL(appDetails.Apps.Owner)
+		resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		_, err = io.Copy(io.Discard, resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		var stats []workspaceapps.StatsReport
+		require.Eventually(t, func() bool {
+			// Keep flushing until we get a non-empty stats report.
+			flushDone := make(chan struct{}, 1)
+			flush <- flushDone
+			<-flushDone
+
+			stats = reporter.stats()
+			return len(stats) > 0
+		}, testutil.WaitLong, testutil.IntervalFast, "stats not reported")
+
+		assert.Equal(t, workspaceapps.AccessMethodPath, stats[0].AccessMethod)
+		assert.Equal(t, "test-app-owner", stats[0].SlugOrPort)
+		assert.Equal(t, 1, stats[0].Requests)
+	})
+}
+
+type fakeStatsReporter struct {
+	mu sync.Mutex
+	s  []workspaceapps.StatsReport
+}
+
+func (r *fakeStatsReporter) stats() []workspaceapps.StatsReport {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.s
+}
+
+func (r *fakeStatsReporter) Report(_ context.Context, stats []workspaceapps.StatsReport) error {
+	r.mu.Lock()
+	r.s = append(r.s, stats...)
+	r.mu.Unlock()
+	return nil
 }
 
 func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Client, opts codersdk.WorkspaceAgentReconnectingPTYOpts) {
