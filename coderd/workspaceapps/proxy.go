@@ -594,11 +594,13 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 
 	report := newStatsReportFromSignedToken(appToken)
 	s.collectStats(report)
+	defer func() {
+		// We must use defer here because ServeHTTP may panic.
+		report.SessionEndedAt = database.Now()
+		s.collectStats(report)
+	}()
 
 	proxy.ServeHTTP(rw, r)
-
-	report.SessionEndedAt = database.Now()
-	s.collectStats(report)
 }
 
 // workspaceAgentPTY spawns a PTY and pipes it over a WebSocket.
@@ -693,12 +695,13 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 
 	report := newStatsReportFromSignedToken(*appToken)
 	s.collectStats(report)
+	defer func() {
+		report.SessionEndedAt = database.Now()
+		s.collectStats(report)
+	}()
 
 	agentssh.Bicopy(ctx, wsNetConn, ptNetConn)
 	log.Debug(ctx, "pty Bicopy finished")
-
-	report.SessionEndedAt = database.Now()
-	s.collectStats(report)
 }
 
 func (s *Server) collectStats(stats StatsReport) {
