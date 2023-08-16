@@ -331,7 +331,7 @@ export const authMachine =
             onError: [
               {
                 actions: "assignError",
-                target: "signedIn",
+                target: "signedOut",
               },
             ],
           },

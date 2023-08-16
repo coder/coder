@@ -5,6 +5,7 @@ import { DeploymentConfig } from "./types"
 import * as TypesGen from "./typesGenerated"
 import { delay } from "utils/delay"
 import userAgentParser from "ua-parser-js"
+// import { embedRedirect } from "../utils/redirect"
 
 // Adds 304 for the default axios validateStatus function
 // https://github.com/axios/axios#handling-errors Check status here
@@ -13,14 +14,19 @@ axios.defaults.validateStatus = (status) => {
   return (status >= 200 && status < 300) || status === 304
 }
 
-axios.interceptors.response.use((response) => {
-  // If we encountered an authentication error, reset the app back to the /login route
-  if (response.status === 401) {
-    location.pathname = "/login"
-  }
+// axios.interceptors.response.use(
+//   (okResponse) => okResponse,
+//   (error) => {
+//     // 401 Unauthorized
+//     // If we encountered an authentication error, reset the app back to the /login route
+//     if (error.response.status === 401 && location.pathname != "/login") {
+//       location.href = embedRedirect(`${location.pathname}${location.search}`)
+//     }
 
-  return response
-})
+//     // Otherwise, pass the response through so that it can be displayed in the UI
+//     return Promise.reject(error)
+//   },
+// )
 
 export const hardCodedCSRFCookie = (): string => {
   // This is a hard coded CSRF token/cookie pair for local development. In prod,
