@@ -1928,9 +1928,6 @@ const (
 	// Deployment health page
 	ExperimentDeploymentHealthPage Experiment = "deployment_health_page"
 
-	// Template parameters insights
-	ExperimentTemplateParametersInsights Experiment = "template_parameters_insights"
-
 	// Workspaces batch actions
 	ExperimentWorkspacesBatchActions Experiment = "workspaces_batch_actions"
 
@@ -1944,7 +1941,6 @@ const (
 // not be included here and will be essentially hidden.
 var ExperimentsAll = Experiments{
 	ExperimentDeploymentHealthPage,
-	ExperimentTemplateParametersInsights,
 	ExperimentWorkspacesBatchActions,
 }
 
