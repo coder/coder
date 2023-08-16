@@ -367,9 +367,9 @@ func (sc *StatsCollector) Close() error {
 func (sc *StatsCollector) start() {
 	defer func() {
 		close(sc.done)
-		sc.opts.Logger.Info(sc.ctx, "workspace app stats collector stopped")
+		sc.opts.Logger.Debug(sc.ctx, "workspace app stats collector stopped")
 	}()
-	sc.opts.Logger.Info(sc.ctx, "workspace app stats collector started")
+	sc.opts.Logger.Debug(sc.ctx, "workspace app stats collector started")
 
 	t := time.NewTimer(sc.opts.ReportInterval)
 	defer t.Stop()
