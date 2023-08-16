@@ -190,7 +190,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	err := api.Database.InTx(func(tx database.Store) error {
+	err := database.ReadModifyUpdate(api.Database, func(tx database.Store) error {
 		var err error
 		group, err = tx.GetGroupByID(ctx, group.ID)
 		if err != nil {
@@ -251,9 +251,8 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 		return nil
-	}, &sql.TxOptions{
-		Isolation: sql.LevelRepeatableRead,
 	})
+
 	if database.IsUniqueViolation(err) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Cannot add the same user to a group twice!",
