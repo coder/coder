@@ -120,8 +120,8 @@ type sqlcQuerier interface {
 	// that interval will be less than 24 hours. If there is no data for a selected
 	// interval/template, it will be included in the results with 0 active users.
 	GetTemplateDailyInsights(ctx context.Context, arg GetTemplateDailyInsightsParams) ([]GetTemplateDailyInsightsRow, error)
-	// GetTemplateInsights has a granularity of 5 minutes where if a session/app was
-	// in use during a minute, we will add 5 minutes to the total usage for that
+	// GetTemplateInsights has a granularity of 1 minute where if a session/app was
+	// in use during a minute, we will add 1 minute to the total usage for that
 	// session/app (per user).
 	GetTemplateInsights(ctx context.Context, arg GetTemplateInsightsParams) (GetTemplateInsightsRow, error)
 	// GetTemplateParameterInsights does for each template in a given timeframe,
