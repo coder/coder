@@ -227,6 +227,7 @@ func mustRandInt64n(t *testing.T, n int64) int64 {
 }
 
 func Test_jsonArray(t *testing.T) {
+	t.Parallel()
 	for _, tt := range []struct {
 		name     string
 		input    []string
@@ -250,6 +251,7 @@ func Test_jsonArray(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var inputs []json.RawMessage
 			for _, input := range tt.input {
 				inputs = append(inputs, []byte(input))
@@ -257,6 +259,5 @@ func Test_jsonArray(t *testing.T) {
 			actual := jsonArray(inputs)
 			assert.Equal(t, tt.expected, string(actual))
 		})
-
 	}
 }

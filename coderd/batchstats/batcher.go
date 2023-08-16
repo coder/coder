@@ -164,7 +164,11 @@ func (b *Batcher) Add(
 		SessionCountVSCode:          st.SessionCountVSCode,
 	}
 
-	b.buf <- params
+	select {
+	case b.buf <- params:
+	default:
+		return xerrors.Errorf("stats buffer full, please try again later")
+	}
 
 	// attempt to signal a flush if we're reaching capacity
 	filled := float64(len(b.buf)) / float64(cap(b.buf))
@@ -287,13 +291,13 @@ func (b *Batcher) flush(ctx context.Context, forced bool, reason string) {
 
 func jsonArray(elems []json.RawMessage) json.RawMessage {
 	var b bytes.Buffer
-	b.WriteRune('[')
+	_, _ = b.WriteRune('[')
 	for idx, val := range elems {
-		b.Write(val)
+		_, _ = b.Write(val)
 		if idx < len(elems)-1 {
-			b.WriteRune(',')
+			_, _ = b.WriteRune(',')
 		}
 	}
-	b.WriteRune(']')
+	_, _ = b.WriteRune(']')
 	return b.Bytes()
 }
