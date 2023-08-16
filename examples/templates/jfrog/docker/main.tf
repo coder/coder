@@ -102,7 +102,7 @@ resource "coder_agent" "main" {
   # Set GOPROXY to use the Artifactory "go" repository.
   env = {
     GOPROXY : "https://${local.artifactory_username}:${artifactory_scoped_token.me.access_token}@${var.jfrog_host}/artifactory/api/go/${local.artifactory_repository_keys["go"]}"
-    # Autheticate with JFrog extension.
+    # Authenticate with JFrog extension.
     JFROG_IDE_URL : "https://${var.jfrog_host}"
     JFROG_IDE_USERNAME : "${local.artifactory_username}"
     JFROG_IDE_PASSWORD : "${artifactory_scoped_token.me.access_token}"
