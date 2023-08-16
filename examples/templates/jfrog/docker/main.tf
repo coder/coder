@@ -69,6 +69,13 @@ resource "coder_agent" "main" {
     curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.11.0
     /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
 
+    # Install the JFrog VS Code extension.
+    # Find the latest version number at
+    # https://open-vsx.org/extension/JFrog/jfrog-vscode-extension.
+    JFROG_EXT_VERSION=2.4.1
+    curl -o /tmp/jfrog.vsix -L "https://open-vsx.org/api/JFrog/jfrog-vscode-extension/$JFROG_EXT_VERSION/file/JFrog.jfrog-vscode-extension-$JFROG_EXT_VERSION.vsix"
+    /tmp/code-server/bin/code-server --install-extension /tmp/jfrog.vsix
+
     # The jf CLI checks $CI when determining whether to use interactive
     # flows.
     export CI=true
@@ -95,6 +102,12 @@ resource "coder_agent" "main" {
   # Set GOPROXY to use the Artifactory "go" repository.
   env = {
     GOPROXY : "https://${local.artifactory_username}:${artifactory_scoped_token.me.access_token}@${var.jfrog_host}/artifactory/api/go/${local.artifactory_repository_keys["go"]}"
+    # Authenticate with JFrog extension.
+    JFROG_IDE_URL : "https://${var.jfrog_host}"
+    JFROG_IDE_USERNAME : "${local.artifactory_username}"
+    JFROG_IDE_PASSWORD : "${artifactory_scoped_token.me.access_token}"
+    JFROG_IDE_ACCESS_TOKEN : "${artifactory_scoped_token.me.access_token}"
+    JFROG_IDE_STORE_CONNECTION : "true"
   }
 }
 
