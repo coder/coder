@@ -216,7 +216,7 @@ func (sc *StatsCollector) Collect(report StatsReport) {
 // rollup performs stats rollup for sessions that fall within the
 // configured rollup window. For sessions longer than the window,
 // we report them individually.
-func (sc *StatsCollector) rollup() []StatsReport {
+func (sc *StatsCollector) rollup(now time.Time) []StatsReport {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 
@@ -259,7 +259,7 @@ func (sc *StatsCollector) rollup() []StatsReport {
 				rollupChanged = true
 				continue
 			}
-			if stat.SessionEndedAt.IsZero() && sc.opts.Now().Sub(stat.SessionStartedAt) <= sc.opts.RollupWindow {
+			if stat.SessionEndedAt.IsZero() && now.Sub(stat.SessionStartedAt) <= sc.opts.RollupWindow {
 				// This is an incomplete session, wait and see if it'll be rolled up or not.
 				newGroup = append(newGroup, stat)
 				continue
@@ -272,7 +272,7 @@ func (sc *StatsCollector) rollup() []StatsReport {
 				// Report an end time for incomplete sessions, it will
 				// be updated later. This ensures that data in the DB
 				// will have an end time even if the service is stopped.
-				r.SessionEndedAt = sc.opts.Now().UTC() // Use UTC like database.Now().
+				r.SessionEndedAt = now.UTC() // Use UTC like database.Now().
 			}
 			report = append(report, r) // Report it (ended or incomplete).
 			if stat.SessionEndedAt.IsZero() {
@@ -288,7 +288,7 @@ func (sc *StatsCollector) rollup() []StatsReport {
 
 		// Keep the group around until the next rollup window has passed
 		// in case data was collected late.
-		if len(newGroup) == 1 && rolledUp.SessionEndedAt.Add(sc.opts.RollupWindow).Before(sc.opts.Now()) {
+		if len(newGroup) == 1 && rolledUp.SessionEndedAt.Add(sc.opts.RollupWindow).Before(now) {
 			delete(sc.groupedStats, g)
 		}
 	}
@@ -321,7 +321,8 @@ func (sc *StatsCollector) flush(ctx context.Context) (err error) {
 		sc.backlog = nil
 	}
 
-	stats := sc.rollup()
+	now := sc.opts.Now()
+	stats := sc.rollup(now)
 	if len(stats) == 0 {
 		return nil
 	}
