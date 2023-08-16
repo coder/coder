@@ -127,7 +127,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Name != "" && req.Name == database.AllUsersGroup {
+	if req.Name == database.AllUsersGroup {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("%q is a reserved group name!", database.AllUsersGroup),
 		})
