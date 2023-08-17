@@ -1629,7 +1629,7 @@ WITH ts AS (
 SELECT
 	from_ AS start_time,
 	to_ AS end_time,
-	COALESCE(array_agg(DISTINCT template_id) FILTER (WHERE template_id IS NOT NULL), '{}')::uuid[] AS template_ids,
+	array_remove(array_agg(DISTINCT template_id), NULL)::uuid[] AS template_ids,
 	COUNT(DISTINCT user_id) AS active_users
 FROM unflattened_usage_by_day
 GROUP BY from_, to_
@@ -1721,7 +1721,7 @@ WITH ts AS (
 SELECT
 	COALESCE((SELECT ids FROM template_ids), '{}')::uuid[] AS template_ids,
 	-- Return IDs so we can combine this with GetTemplateAppInsights.
-	array_agg(DISTINCT user_id)::uuid[] AS active_user_ids,
+	COALESCE(array_agg(DISTINCT user_id), '{}')::uuid[] AS active_user_ids,
 	COALESCE(SUM(usage_vscode_seconds), 0)::bigint AS usage_vscode_seconds,
 	COALESCE(SUM(usage_jetbrains_seconds), 0)::bigint AS usage_jetbrains_seconds,
 	COALESCE(SUM(usage_reconnecting_pty_seconds), 0)::bigint AS usage_reconnecting_pty_seconds,
