@@ -808,6 +808,10 @@ func (api *API) runEntitlementsLoop(ctx context.Context) {
 		// coderd is shutting down. In this case, post a pubsub message to
 		// tell other coderd's to resync their entitlements. This is required to
 		// make sure things like replica counts are updated in the UI.
+		// Ignore the error, as this is just a best effort. If it fails,
+		// the system will eventually recover as replicas timeout
+		// if their heartbeats stop. The best effort just trys to update the
+		// UI faster if it succeeds.
 		_ = api.Pubsub.Publish(PubsubEventLicenses, []byte("going away"))
 	}()
 	for {
