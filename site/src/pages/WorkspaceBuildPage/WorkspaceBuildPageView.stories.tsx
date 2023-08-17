@@ -6,20 +6,21 @@ import {
 } from "../../testHelpers/entities"
 import { WorkspaceBuildPageView } from "./WorkspaceBuildPageView"
 
-const defaultBuilds = [...Array(15).keys()].map((i) => ({
+const defaultBuilds = Array.from({ length: 15 }, (_, i) => ({
   ...MockWorkspaceBuild,
   id: `${i}`,
   build_number: i,
 }))
 
 const meta: Meta<typeof WorkspaceBuildPageView> = {
-  title: "components/WorkspaceBuildPageView",
+  title: "pages/WorkspaceBuildPageView",
   component: WorkspaceBuildPageView,
   args: {
     build: MockWorkspaceBuild,
     logs: MockWorkspaceBuildLogs,
     builds: defaultBuilds,
     activeBuildNumber: defaultBuilds[0].build_number,
+    hasDeploymentBanner: false,
   },
 }
 

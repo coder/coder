@@ -39,6 +39,7 @@ export interface WorkspaceBuildPageViewProps {
   build: WorkspaceBuild | undefined
   builds: WorkspaceBuild[] | undefined
   activeBuildNumber: number
+  hasDeploymentBanner: boolean
 }
 
 export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
@@ -46,8 +47,14 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
   build,
   builds,
   activeBuildNumber,
+  hasDeploymentBanner,
 }) => {
   const styles = useStyles()
+  const navbarHeight = 62
+  const deploymentBannerHeight = 48
+  const heightOffset = hasDeploymentBanner
+    ? navbarHeight + deploymentBannerHeight
+    : navbarHeight
 
   if (!build) {
     return <Loader />
@@ -56,7 +63,8 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
   return (
     <Box
       sx={{
-        height: "calc(100vh - 62px - 36px)",
+        // 62px is the navbar height
+        height: `calc(100vh - ${heightOffset}px)`,
         overflow: "hidden",
         // Remove padding added from dashboard layout (.siteContent)
         marginBottom: "-48px",
@@ -123,9 +131,10 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
         <Sidebar>
           <SidebarCaption>Builds</SidebarCaption>
           {!builds &&
-            [...Array(15).keys()].map((i) => (
+            Array.from({ length: 15 }, (_, i) => (
               <BuildSidebarItemSkeleton key={i} />
             ))}
+
           {builds?.map((build) => (
             <BuildSidebarItem
               key={build.id}
@@ -165,12 +174,13 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
               </Box>
             </Alert>
           )}
-          {!logs && <Loader />}
-          {logs && (
+          {logs ? (
             <WorkspaceBuildLogs
               sx={{ border: 0 }}
               logs={sortLogsByCreatedAt(logs)}
             />
+          ) : (
+            <Loader />
           )}
         </Box>
       </Box>
