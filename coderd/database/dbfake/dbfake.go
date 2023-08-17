@@ -2855,7 +2855,7 @@ func (q *FakeQuerier) GetWorkspaceAgentAndOwnerByAuthToken(_ context.Context, au
 			continue
 		}
 		for _, build := range q.workspaceBuilds {
-			if build.JobID != res.JobID {
+			if build.JobID != res.JobID { // <-- jobID does not match up
 				continue
 			}
 			for _, ws := range q.workspaces {
