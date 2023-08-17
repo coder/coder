@@ -152,7 +152,7 @@ export const GroupPage: React.FC = () => {
                 condition={
                   canUpdateGroup &&
                   group !== undefined &&
-                  isEveryoneGroup(group)
+                  !isEveryoneGroup(group)
                 }
               >
                 <AddGroupMember
