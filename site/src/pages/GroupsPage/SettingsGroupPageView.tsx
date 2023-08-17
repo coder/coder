@@ -57,27 +57,33 @@ const UpdateGroupForm: FC<{
             autoFocus
             fullWidth
             label="Name"
-            disabled={group.id === group.organization_id}
-          />
-          <TextField
-            {...getFieldHelpers(
-              "display_name",
-              "Optional: keep empty to default to the name.",
-            )}
-            onChange={onChangeTrimmed(form)}
-            autoComplete="display_name"
-            autoFocus
-            fullWidth
-            label="Display Name"
             disabled={isEveryoneGroup(group)}
           />
-          <LazyIconField
-            {...getFieldHelpers("avatar_url")}
-            onChange={onChangeTrimmed(form)}
-            fullWidth
-            label={t("form.fields.icon")}
-            onPickEmoji={(value) => form.setFieldValue("avatar_url", value)}
-          />
+          {isEveryoneGroup(group) ? (
+            <></>
+          ) : (
+            <>
+              <TextField
+                {...getFieldHelpers(
+                  "display_name",
+                  "Optional: keep empty to default to the name.",
+                )}
+                onChange={onChangeTrimmed(form)}
+                autoComplete="display_name"
+                autoFocus
+                fullWidth
+                label="Display Name"
+                disabled={isEveryoneGroup(group)}
+              />
+              <LazyIconField
+                {...getFieldHelpers("avatar_url")}
+                onChange={onChangeTrimmed(form)}
+                fullWidth
+                label={t("form.fields.icon")}
+                onPickEmoji={(value) => form.setFieldValue("avatar_url", value)}
+              />
+            </>
+          )}
           <TextField
             {...getFieldHelpers(
               "quota_allowance",
