@@ -611,6 +611,44 @@ func uniqueSortedUUIDs(uuids []uuid.UUID) []uuid.UUID {
 	return unique
 }
 
+func (q *FakeQuerier) getOrganizationMember(orgID uuid.UUID) []database.OrganizationMember {
+	var members []database.OrganizationMember
+	for _, member := range q.organizationMembers {
+		if member.OrganizationID == orgID {
+			members = append(members, member)
+		}
+	}
+
+	return members
+}
+
+// getEveryoneGroupMembers fetches all the users in an organization.
+func (q *FakeQuerier) getEveryoneGroupMembers(orgID uuid.UUID) []database.User {
+	var (
+		everyone   []database.User
+		orgMembers = q.getOrganizationMember(orgID)
+	)
+	for _, member := range orgMembers {
+		user, err := q.GetUserByID(context.TODO(), member.UserID)
+		if err != nil {
+			return nil
+		}
+		everyone = append(everyone, user)
+	}
+	return everyone
+}
+
+// isEveryoneGroup returns true if the provided ID matches
+// an organization ID.
+func (q *FakeQuerier) isEveryoneGroup(id uuid.UUID) bool {
+	for _, org := range q.organizations {
+		if org.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -1374,44 +1412,6 @@ func (q *FakeQuerier) GetGroupByOrgAndName(_ context.Context, arg database.GetGr
 	}
 
 	return database.Group{}, sql.ErrNoRows
-}
-
-func (q *FakeQuerier) getOrganizationMember(orgID uuid.UUID) []database.OrganizationMember {
-	var members []database.OrganizationMember
-	for _, member := range q.organizationMembers {
-		if member.OrganizationID == orgID {
-			members = append(members, member)
-		}
-	}
-
-	return members
-}
-
-// getEveryoneGroupMembers fetches all the users in an organization.
-func (q *FakeQuerier) getEveryoneGroupMembers(orgID uuid.UUID) []database.User {
-	var (
-		everyone   []database.User
-		orgMembers = q.getOrganizationMember(orgID)
-	)
-	for _, member := range orgMembers {
-		user, err := q.GetUserByID(context.TODO(), member.UserID)
-		if err != nil {
-			return nil
-		}
-		everyone = append(everyone, user)
-	}
-	return everyone
-}
-
-// isEveryoneGroup returns true if the provided ID matches
-// an organization ID.
-func (q *FakeQuerier) isEveryoneGroup(id uuid.UUID) bool {
-	for _, org := range q.organizations {
-		if org.ID == id {
-			return true
-		}
-	}
-	return false
 }
 
 func (q *FakeQuerier) GetGroupMembers(_ context.Context, id uuid.UUID) ([]database.User, error) {
