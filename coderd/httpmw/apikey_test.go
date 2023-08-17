@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -197,6 +198,9 @@ func TestAPIKey(t *testing.T) {
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+		out, _ := io.ReadAll(res.Body)
+		require.Contains(t, string(out))
+		require.True(t, strings.HasPrefix(string(out), "API key expired"))
 	})
 
 	t.Run("Valid", func(t *testing.T) {
