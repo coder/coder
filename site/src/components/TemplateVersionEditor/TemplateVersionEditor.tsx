@@ -217,13 +217,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
             <Button
               variant="contained"
-              title={
-                dirty
-                  ? "You have edited files! Run another build before updating."
-                  : templateVersion.job.status !== "succeeded"
-                  ? "Something"
-                  : ""
-              }
               disabled={dirty || disableUpdate}
               onClick={onPublish}
             >
