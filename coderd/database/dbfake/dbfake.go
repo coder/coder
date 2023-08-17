@@ -1401,7 +1401,6 @@ func (q *FakeQuerier) getEveryoneGroupMembers(orgID uuid.UUID) []database.User {
 		everyone = append(everyone, user)
 	}
 	return everyone
-
 }
 
 // isEveryoneGroup returns true if the provided ID matches
