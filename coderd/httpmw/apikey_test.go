@@ -3,6 +3,7 @@ package httpmw_test
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -198,8 +199,11 @@ func TestAPIKey(t *testing.T) {
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
-		out, _ := io.ReadAll(res.Body)
-		require.True(t, strings.HasPrefix(string(out), "API key expired"))
+
+		var apiRes codersdk.Response
+		dec := json.NewDecoder(res.Body)
+		_ = dec.Decode(&apiRes)
+		require.True(t, strings.HasPrefix(apiRes.Detail, "API key expired"))
 	})
 
 	t.Run("Valid", func(t *testing.T) {
