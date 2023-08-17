@@ -1,6 +1,6 @@
-# Template concepts
+# Templates & Terraform
 
-Coder templates are written in [Terraform](https://terraform.io). All Terraform modules, resources, and properties can be provisioned by Coder. The Coder server essentially runs a `terraform apply` every time a workspace is created/started/stopped.
+Coder templates are written in [Terraform](https://terraform.io)-. All Terraform modules, resources, and properties can be provisioned by Coder. The Coder server essentially runs a `terraform apply` every time a workspace is created/started/stopped.
 
 Haven't written Terraform before? Check out Hashicorp's [Getting Started Guides](https://developer.hashicorp.com/terraform/tutorials).
 

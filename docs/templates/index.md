@@ -1,11 +1,15 @@
 # Templates
 
-Templates define the underlying infrastructure that workspaces run on. All Coder workspaces are created from a
-template.
+Templates define the underlying infrastructure that workspaces run on.
+All Coder [workspaces](./workspaces.md) are created from a template.
+
+You create and edit Coder templates as [Terraform](./concepts.md) configuration files (`.tf`).
 
 ## Who creates templates?
 
-The [Template Admin](../admin/users.md) role (and above) can create templates. End users (developers) create workspaces from them. However, templates can also be [managed via git](./change-management.md), allowing any developer to propose changes to a template.
+The [Template Admin](../admin/users.md) role (and above) can create templates. End users (developers) create workspaces from them.
+
+Templates can also be [managed witg git](./change-management.md), allowing any developer to propose changes to a template.
 
 > [Template RBAC](../admin/rbac.md) allows you to give different users & groups access to templates.
 
@@ -21,16 +25,15 @@ If you'd prefer to use the CLI, use `coder templates init`.
 
 ## Editing templates
 
-Our starter templates are meant to me modified work for your use cases! You can edit the Terraform code for a template directly in the UI.
+Our starter templates are meant to be modified work for your use cases! You can edit the Terraform code for a template directly in the UI.
 
 ![Editing a template](https://user-images.githubusercontent.com/22407953/256706060-71fb48f4-9a1b-42ad-9380-0ecc02db3218.gif)
-
 
 If you'd prefer to use the CLI, use `coder templates pull` and `coder templates push`.
 
 > Even if you are a Terraform expert, we suggest reading our full guide on [writing Coder templates](./managing.md).
 
-## Template updates
+## Updating templates
 
 Templates are versioned, keeping all developer workspaces up-to-date. When a new version is published, developers are notified to get the latest infrastructure, software, or security patches.
 
@@ -38,9 +41,9 @@ Templates are versioned, keeping all developer workspaces up-to-date. When a new
 
 ## Template parameters
 
-You'll likely want to hardcode certain properties for workspaces (e.g. "security group, VPC"). Others can be exposed via parameters to give developers flexibility (e.g. instance size, GitHub repo URL).
+Paramaters let users customize their individual workspaces.
 
-Paramaters let users customize their individual workspaces:
+You'll likely want to hardcode certain template properties for workspaces (e.g. "security group, VPC"). You can expose other properties via parameters to give developers flexibility (e.g. instance size, GitHub repo URL).
 
 ![Parameters in templates](https://user-images.githubusercontent.com/22407953/256707889-18baf2be-2dae-4eb2-ae89-71e5b00248f8.png)
 
