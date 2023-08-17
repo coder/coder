@@ -29,8 +29,7 @@ export enum WorkspaceTransition {
 }
 
 /** Empty indicates a successful request/response. */
-export interface Empty {
-}
+export interface Empty {}
 
 /** TemplateVariable represents a Terraform variable. */
 export interface TemplateVariable {
@@ -179,8 +178,7 @@ export interface Resource_Metadata {
 }
 
 /** Parse consumes source-code from a directory to produce inputs. */
-export interface Parse {
-}
+export interface Parse {}
 
 export interface Parse_Request {
   directory: string
@@ -199,8 +197,7 @@ export interface Parse_Response {
  * Provision consumes source-code from a directory to produce resources.
  * Exactly one of Plan or Apply must be provided in a single session.
  */
-export interface Provision {
-}
+export interface Provision {}
 
 export interface Provision_Metadata {
   coderUrl: string
@@ -239,8 +236,7 @@ export interface Provision_Apply {
   plan: Uint8Array
 }
 
-export interface Provision_Cancel {
-}
+export interface Provision_Cancel {}
 
 export interface Provision_Request {
   plan?: Provision_Plan | undefined
@@ -269,7 +265,10 @@ export const Empty = {
 }
 
 export const TemplateVariable = {
-  encode(message: TemplateVariable, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    message: TemplateVariable,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     if (message.name !== "") {
       writer.uint32(10).string(message.name)
     }
@@ -293,7 +292,10 @@ export const TemplateVariable = {
 }
 
 export const RichParameterOption = {
-  encode(message: RichParameterOption, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    message: RichParameterOption,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     if (message.name !== "") {
       writer.uint32(10).string(message.name)
     }
@@ -311,7 +313,10 @@ export const RichParameterOption = {
 }
 
 export const RichParameter = {
-  encode(message: RichParameter, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    message: RichParameter,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     if (message.name !== "") {
       writer.uint32(10).string(message.name)
     }
@@ -365,7 +370,10 @@ export const RichParameter = {
 }
 
 export const RichParameterValue = {
-  encode(message: RichParameterValue, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    message: RichParameterValue,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     if (message.name !== "") {
       writer.uint32(10).string(message.name)
     }
@@ -377,7 +385,10 @@ export const RichParameterValue = {
 }
 
 export const VariableValue = {
-  encode(message: VariableValue, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    message: VariableValue,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     if (message.name !== "") {
       writer.uint32(10).string(message.name)
     }
@@ -404,7 +415,10 @@ export const Log = {
 }
 
 export const InstanceIdentityAuth = {
-  encode(message: InstanceIdentityAuth, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    message: InstanceIdentityAuth,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     if (message.instanceId !== "") {
       writer.uint32(10).string(message.instanceId)
     }
@@ -413,7 +427,10 @@ export const InstanceIdentityAuth = {
 }
 
 export const GitAuthProvider = {
-  encode(message: GitAuthProvider, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    message: GitAuthProvider,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     if (message.id !== "") {
       writer.uint32(10).string(message.id)
     }
@@ -433,7 +450,10 @@ export const Agent = {
       writer.uint32(18).string(message.name)
     }
     Object.entries(message.env).forEach(([key, value]) => {
-      Agent_EnvEntry.encode({ key: key as any, value }, writer.uint32(26).fork()).ldelim()
+      Agent_EnvEntry.encode(
+        { key: key as any, value },
+        writer.uint32(26).fork(),
+      ).ldelim()
     })
     if (message.startupScript !== "") {
       writer.uint32(34).string(message.startupScript)
@@ -485,7 +505,10 @@ export const Agent = {
 }
 
 export const Agent_Metadata = {
-  encode(message: Agent_Metadata, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    message: Agent_Metadata,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     if (message.key !== "") {
       writer.uint32(10).string(message.key)
     }
@@ -506,7 +529,10 @@ export const Agent_Metadata = {
 }
 
 export const Agent_EnvEntry = {
-  encode(message: Agent_EnvEntry, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    message: Agent_EnvEntry,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     if (message.key !== "") {
       writer.uint32(10).string(message.key)
     }
@@ -551,7 +577,10 @@ export const App = {
 }
 
 export const Healthcheck = {
-  encode(message: Healthcheck, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    message: Healthcheck,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     if (message.url !== "") {
       writer.uint32(10).string(message.url)
     }
@@ -566,7 +595,10 @@ export const Healthcheck = {
 }
 
 export const Resource = {
-  encode(message: Resource, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    message: Resource,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     if (message.name !== "") {
       writer.uint32(10).string(message.name)
     }
@@ -596,7 +628,10 @@ export const Resource = {
 }
 
 export const Resource_Metadata = {
-  encode(message: Resource_Metadata, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    message: Resource_Metadata,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     if (message.key !== "") {
       writer.uint32(10).string(message.key)
     }
@@ -620,7 +655,10 @@ export const Parse = {
 }
 
 export const Parse_Request = {
-  encode(message: Parse_Request, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    message: Parse_Request,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     if (message.directory !== "") {
       writer.uint32(10).string(message.directory)
     }
@@ -629,7 +667,10 @@ export const Parse_Request = {
 }
 
 export const Parse_Complete = {
-  encode(message: Parse_Complete, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    message: Parse_Complete,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     for (const v of message.templateVariables) {
       TemplateVariable.encode(v!, writer.uint32(10).fork()).ldelim()
     }
@@ -638,7 +679,10 @@ export const Parse_Complete = {
 }
 
 export const Parse_Response = {
-  encode(message: Parse_Response, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    message: Parse_Response,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     if (message.log !== undefined) {
       Log.encode(message.log, writer.uint32(10).fork()).ldelim()
     }
@@ -656,7 +700,10 @@ export const Provision = {
 }
 
 export const Provision_Metadata = {
-  encode(message: Provision_Metadata, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    message: Provision_Metadata,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     if (message.coderUrl !== "") {
       writer.uint32(10).string(message.coderUrl)
     }
@@ -695,7 +742,10 @@ export const Provision_Metadata = {
 }
 
 export const Provision_Config = {
-  encode(message: Provision_Config, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    message: Provision_Config,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     if (message.directory !== "") {
       writer.uint32(10).string(message.directory)
     }
@@ -703,7 +753,10 @@ export const Provision_Config = {
       writer.uint32(18).bytes(message.state)
     }
     if (message.metadata !== undefined) {
-      Provision_Metadata.encode(message.metadata, writer.uint32(26).fork()).ldelim()
+      Provision_Metadata.encode(
+        message.metadata,
+        writer.uint32(26).fork(),
+      ).ldelim()
     }
     if (message.provisionerLogLevel !== "") {
       writer.uint32(34).string(message.provisionerLogLevel)
@@ -713,7 +766,10 @@ export const Provision_Config = {
 }
 
 export const Provision_Plan = {
-  encode(message: Provision_Plan, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    message: Provision_Plan,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     if (message.config !== undefined) {
       Provision_Config.encode(message.config, writer.uint32(10).fork()).ldelim()
     }
@@ -731,7 +787,10 @@ export const Provision_Plan = {
 }
 
 export const Provision_Apply = {
-  encode(message: Provision_Apply, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    message: Provision_Apply,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     if (message.config !== undefined) {
       Provision_Config.encode(message.config, writer.uint32(10).fork()).ldelim()
     }
@@ -743,13 +802,19 @@ export const Provision_Apply = {
 }
 
 export const Provision_Cancel = {
-  encode(_: Provision_Cancel, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    _: Provision_Cancel,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     return writer
   },
 }
 
 export const Provision_Request = {
-  encode(message: Provision_Request, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    message: Provision_Request,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     if (message.plan !== undefined) {
       Provision_Plan.encode(message.plan, writer.uint32(10).fork()).ldelim()
     }
@@ -764,7 +829,10 @@ export const Provision_Request = {
 }
 
 export const Provision_Complete = {
-  encode(message: Provision_Complete, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    message: Provision_Complete,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     if (message.state.length !== 0) {
       writer.uint32(10).bytes(message.state)
     }
@@ -788,12 +856,18 @@ export const Provision_Complete = {
 }
 
 export const Provision_Response = {
-  encode(message: Provision_Response, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+  encode(
+    message: Provision_Response,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
     if (message.log !== undefined) {
       Log.encode(message.log, writer.uint32(10).fork()).ldelim()
     }
     if (message.complete !== undefined) {
-      Provision_Complete.encode(message.complete, writer.uint32(18).fork()).ldelim()
+      Provision_Complete.encode(
+        message.complete,
+        writer.uint32(18).fork(),
+      ).ldelim()
     }
     return writer
   },
@@ -801,5 +875,7 @@ export const Provision_Response = {
 
 export interface Provisioner {
   Parse(request: Parse_Request): Observable<Parse_Response>
-  Provision(request: Observable<Provision_Request>): Observable<Provision_Response>
+  Provision(
+    request: Observable<Provision_Request>,
+  ): Observable<Provision_Response>
 }
