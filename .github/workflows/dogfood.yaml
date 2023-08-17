@@ -37,9 +37,11 @@ jobs:
           tag=${tag//\//--}
           echo "tag=${tag}" >> $GITHUB_OUTPUT
 
-      - uses: cachix/install-nix-action@v22
-        with:
-          nix_path: nixpkgs=channel:nixos-unstable
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v4
+
+      - name: Run the Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v2
 
       - run: nix build .#devEnvImage && ./result | docker load
 
