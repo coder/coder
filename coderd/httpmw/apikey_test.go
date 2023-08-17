@@ -199,7 +199,6 @@ func TestAPIKey(t *testing.T) {
 		defer res.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
 		out, _ := io.ReadAll(res.Body)
-		require.Contains(t, string(out))
 		require.True(t, strings.HasPrefix(string(out), "API key expired"))
 	})
 
