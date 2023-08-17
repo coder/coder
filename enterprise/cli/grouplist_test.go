@@ -74,7 +74,7 @@ func TestGroupList(t *testing.T) {
 		}
 	})
 
-	t.Run("EveryoneGroup", func(t *testing.T) {
+	t.Run("Everyone", func(t *testing.T) {
 		t.Parallel()
 
 		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{

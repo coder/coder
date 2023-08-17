@@ -46,9 +46,9 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if req.Name == database.AllUsersGroup {
+	if req.Name == database.EveryoneGroup {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("%q is a reserved keyword and cannot be used for a group name.", database.AllUsersGroup),
+			Message: fmt.Sprintf("%q is a reserved keyword and cannot be used for a group name.", database.EveryoneGroup),
 		})
 		return
 	}
@@ -113,23 +113,23 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		req.Name = ""
 	}
 
-	if group.ID == group.OrganizationID && req.Name != "" {
+	if group.IsEveryone() && req.Name != "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Cannot rename the %q group!", database.AllUsersGroup),
+			Message: fmt.Sprintf("Cannot rename the %q group!", database.EveryoneGroup),
 		})
 		return
 	}
 
-	if group.ID == group.OrganizationID && (req.DisplayName != nil && *req.DisplayName != "") {
+	if group.IsEveryone() && (req.DisplayName != nil && *req.DisplayName != "") {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Cannot update the Display Name for the %q group!", database.AllUsersGroup),
+			Message: fmt.Sprintf("Cannot update the Display Name for the %q group!", database.EveryoneGroup),
 		})
 		return
 	}
 
-	if req.Name == database.AllUsersGroup {
+	if req.Name == database.EveryoneGroup {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("%q is a reserved group name!", database.AllUsersGroup),
+			Message: fmt.Sprintf("%q is a reserved group name!", database.EveryoneGroup),
 		})
 		return
 	}
@@ -138,16 +138,16 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 	users = append(users, req.AddUsers...)
 	users = append(users, req.RemoveUsers...)
 
-	if len(users) > 0 && group.Name == database.AllUsersGroup {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Cannot add or remove users from the %q group!", database.AllUsersGroup),
+	if len(users) > 0 && group.Name == database.EveryoneGroup {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: fmt.Sprintf("Cannot add or remove users from the %q group!", database.EveryoneGroup),
 		})
 		return
 	}
 
-	currentMembers, currentMembersErr := api.Database.GetGroupMembers(ctx, group.ID)
-	if currentMembersErr != nil {
-		httpapi.InternalServerError(rw, currentMembersErr)
+	currentMembers, err := api.Database.GetGroupMembers(ctx, group.ID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
 		return
 	}
 	aReq.Old = group.Auditable(currentMembers)
@@ -190,8 +190,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	err := database.ReadModifyUpdate(api.Database, func(tx database.Store) error {
-		var err error
+	err = database.ReadModifyUpdate(api.Database, func(tx database.Store) error {
 		group, err = tx.GetGroupByID(ctx, group.ID)
 		if err != nil {
 			return xerrors.Errorf("get group by ID: %w", err)
@@ -305,9 +304,9 @@ func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 
-	if group.Name == database.AllUsersGroup {
+	if group.Name == database.EveryoneGroup {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("%q is a reserved group and cannot be deleted!", database.AllUsersGroup),
+			Message: fmt.Sprintf("%q is a reserved group and cannot be deleted!", database.EveryoneGroup),
 		})
 		return
 	}

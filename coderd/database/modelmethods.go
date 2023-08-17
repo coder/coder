@@ -84,7 +84,7 @@ func (g Group) Auditable(users []User) AuditableGroup {
 	}
 }
 
-const AllUsersGroup = "Everyone"
+const EveryoneGroup = "Everyone"
 
 func (s APIKeyScope) ToRBAC() rbac.ScopeName {
 	switch s {
@@ -363,6 +363,6 @@ func ConvertWorkspaceRows(rows []GetWorkspacesRow) []Workspace {
 	return workspaces
 }
 
-func (g Group) IsEveryoneGroup() bool {
+func (g Group) IsEveryone() bool {
 	return g.ID == g.OrganizationID
 }

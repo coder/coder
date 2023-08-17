@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next"
 import { getFormHelpers, nameValidator, onChangeTrimmed } from "utils/formUtils"
 import * as Yup from "yup"
 import { Stack } from "components/Stack/Stack"
+import { isEveryoneGroup } from "utils/groups"
 
 type FormData = {
   name: string
@@ -68,7 +69,7 @@ const UpdateGroupForm: FC<{
             autoFocus
             fullWidth
             label="Display Name"
-            disabled={group.id === group.organization_id}
+            disabled={isEveryoneGroup(group)}
           />
           <LazyIconField
             {...getFieldHelpers("avatar_url")}

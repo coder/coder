@@ -105,7 +105,7 @@ func TestCreateGroup(t *testing.T) {
 		}})
 		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
-			Name: database.AllUsersGroup,
+			Name: database.EveryoneGroup,
 		})
 		require.Error(t, err)
 		cerr, ok := codersdk.AsError(err)
@@ -414,7 +414,7 @@ func TestPatchGroup(t *testing.T) {
 		require.NoError(t, err)
 
 		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
-			Name: database.AllUsersGroup,
+			Name: database.EveryoneGroup,
 		})
 		require.Error(t, err)
 		cerr, ok := codersdk.AsError(err)

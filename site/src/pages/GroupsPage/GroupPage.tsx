@@ -38,6 +38,7 @@ import {
   TableToolbar,
 } from "components/TableToolbar/TableToolbar"
 import { UserAvatar } from "components/UserAvatar/UserAvatar"
+import { isEveryoneGroup } from "utils/groups"
 
 const AddGroupMember: React.FC<{
   isLoading: boolean
@@ -151,7 +152,7 @@ export const GroupPage: React.FC = () => {
                 condition={
                   canUpdateGroup &&
                   group !== undefined &&
-                  group?.id !== group?.organization_id
+                  isEveryoneGroup(group)
                 }
               >
                 <AddGroupMember
