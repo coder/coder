@@ -1465,11 +1465,11 @@ const getTemplateAppInsights = `-- name: GetTemplateAppInsights :many
 WITH ts AS (
 	SELECT
 		d::timestamptz AS from_,
-		(d::timestamptz + '1 minute'::interval) AS to_,
-		EXTRACT(epoch FROM '1 minute'::interval) AS seconds
+		(d::timestamptz + '5 minute'::interval) AS to_,
+		EXTRACT(epoch FROM '5 minute'::interval) AS seconds
 	FROM
 		-- Subtract 1 second from end_time to avoid including the next interval in the results.
-		generate_series($1::timestamptz, ($2::timestamptz) - '1 second'::interval, '1 minute'::interval) d
+		generate_series($1::timestamptz, ($2::timestamptz) - '1 second'::interval, '5 minute'::interval) d
 ), app_stats_by_user_and_agent AS (
 	SELECT
 		ts.from_,
@@ -1684,11 +1684,11 @@ const getTemplateInsights = `-- name: GetTemplateInsights :one
 WITH ts AS (
 	SELECT
 		d::timestamptz AS from_,
-		(d::timestamptz + '1 minute'::interval) AS to_,
-		EXTRACT(epoch FROM '1 minute'::interval) AS seconds
+		(d::timestamptz + '5 minute'::interval) AS to_,
+		EXTRACT(epoch FROM '5 minute'::interval) AS seconds
 	FROM
 		-- Subtract 1 second from end_time to avoid including the next interval in the results.
-		generate_series($1::timestamptz, ($2::timestamptz) - '1 second'::interval, '1 minute'::interval) d
+		generate_series($1::timestamptz, ($2::timestamptz) - '1 second'::interval, '5 minute'::interval) d
 ), agent_stats_by_interval_and_user AS (
 	SELECT
 		ts.from_,
@@ -1744,8 +1744,8 @@ type GetTemplateInsightsRow struct {
 	UsageSshSeconds             int64       `db:"usage_ssh_seconds" json:"usage_ssh_seconds"`
 }
 
-// GetTemplateInsights has a granularity of 1 minute where if a session/app was
-// in use during a minute, we will add 1 minute to the total usage for that
+// GetTemplateInsights has a granularity of 5 minutes where if a session/app was
+// in use during a minute, we will add 5 minutes to the total usage for that
 // session/app (per user).
 func (q *sqlQuerier) GetTemplateInsights(ctx context.Context, arg GetTemplateInsightsParams) (GetTemplateInsightsRow, error) {
 	row := q.db.QueryRowContext(ctx, getTemplateInsights, arg.StartTime, arg.EndTime, pq.Array(arg.TemplateIDs))
