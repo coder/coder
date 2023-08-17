@@ -5,6 +5,8 @@ on:
     branches:
       - main
     paths:
+      - "flake.nix"
+      - "flake.lock"
       - "dogfood/**"
       - ".github/workflows/dogfood.yaml"
   # Uncomment these lines when testing with CI.
@@ -23,6 +25,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
+      - name: "Branch name to Docker tag name"
+        id: docker-tag-name
+        run: |
+          tag=${{ steps.branch-name.outputs.current_branch }}
+          # Replace / with --, e.g. user/feature => user--feature.
+          tag=${tag//\//--}
+          echo "tag=${tag}" >> $GITHUB_OUTPUT
+
       - uses: cachix/install-nix-action@v22
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
@@ -36,7 +46,9 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
-      - run: docker push codercom/oss-dogfood:testing
+      - run: |
+          docker tag codercom/oss-dogfood:latest codercom/oss-dogfood:${{ steps.docker-tag-name.outputs.tag }}
+          docker push codercom/oss-dogfood -a
 
   deploy_template:
     needs: deploy_image

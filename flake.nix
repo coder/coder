@@ -115,7 +115,7 @@
         # This will import the image into your local Docker daemon.
         devEnvImage = pkgs.dockerTools.streamLayeredImage {
           name = "codercom/oss-dogfood";
-          tag = "testing";
+          tag = "latest";
           fromImage = intermediateDevEnvImage;
           maxLayers = 64;
           contents = [
