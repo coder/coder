@@ -37,6 +37,7 @@
           nix
           nodejs
           nodePackages.pnpm
+          nodePackages.prettier
           nodePackages.typescript
           nodePackages.typescript-language-server
           openssh
