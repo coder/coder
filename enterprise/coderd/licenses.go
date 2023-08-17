@@ -184,13 +184,22 @@ func (api *API) postRefreshEntitlements(rw http.ResponseWriter, r *http.Request)
 		wait := time.Minute - diff
 		rw.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds())))
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Entitlements already recently refreshed, please wait %d seconds to force a new refresh", wait),
+			Message: fmt.Sprintf("Entitlements already recently refreshed, please wait %d seconds to force a new refresh", int(wait.Seconds())),
 			Detail:  fmt.Sprintf("Last refresh at %s", now.UTC().String()),
 		})
 		return
 	}
 
-	err := api.updateEntitlements(ctx)
+	err := api.replicaManager.UpdateNow(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to sync replicas",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	err = api.updateEntitlements(ctx)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to update entitlements",

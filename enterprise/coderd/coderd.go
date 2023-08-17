@@ -800,6 +800,13 @@ func (api *API) runEntitlementsLoop(ctx context.Context) {
 	updates := make(chan struct{}, 1)
 	subscribed := false
 
+	defer func() {
+		// If this function ends, it means the context was cancelled and this
+		// coderd is shutting down. In this case, post a pubsub message to
+		// tell other coderd's to resync their entitlements. This is required to
+		// make sure things like replica counts are updated in the UI.
+		_ = api.Pubsub.Publish(PubsubEventLicenses, []byte("going away"))
+	}()
 	for {
 		select {
 		case <-ctx.Done():
