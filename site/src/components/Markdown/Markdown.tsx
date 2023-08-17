@@ -117,6 +117,11 @@ const useStyles = makeStyles((theme) => ({
 
     "& p": {
       marginTop: 0,
+      marginBottom: 0,
+    },
+
+    "& p + *": {
+      marginTop: 0,
       marginBottom: theme.spacing(2),
     },
 
