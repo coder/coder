@@ -28,7 +28,7 @@ jobs:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
           nix_path: nixpkgs=channel:nixos-unstable
 
-      - run: nix build .#devEnvironmentDocker && ./result | docker load
+      - run: nix build .#devEnvImage && ./result | docker load
 
       - name: Login to DockerHub
         uses: docker/login-action@v2

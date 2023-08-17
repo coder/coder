@@ -101,8 +101,12 @@
           "GOPRIVATE=coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder"
           # Increase memory allocation to NodeJS
           "NODE_OPTIONS=--max_old_space_size=8192"
+          "TERM=xterm-256color"
         ];
-        # Builds a layered image with all the tools included!
+        # Builds our development environment image with all the tools included.
+        # Using Nix instead of Docker is **significantly** faster. This _build_
+        # doesn't really build anything, it just copies pre-built binaries into
+        # a container and adds them to the $PATH.
         devEnvImage = pkgs.dockerTools.streamLayeredImage {
           name = "codercom/oss-dogfood";
           tag = "testing";
@@ -126,6 +130,12 @@
                 auth sufficient pam_rootok.so
                 password requisite pam_unix.so nullok yescrypt
                 session required pam_unix.so
+              ''
+            )
+            # The default Nix config!
+            (
+              pkgs.writeTextDir "etc/nix/nix.conf" ''
+                experimental-features = nix-command flakes
               ''
             )
             # This is the debian script for managing Docker with `sudo service docker ...`.
