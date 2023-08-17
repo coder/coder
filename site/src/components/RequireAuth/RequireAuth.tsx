@@ -34,7 +34,7 @@ export const RequireAuth: FC = () => {
     return () => {
       axios.interceptors.response.eject(interceptorHandle)
     }
-  }, [])
+  }, [authSend])
 
   if (authState.matches("signedOut")) {
     return <Navigate to={navigateTo} state={{ isRedirect: !isHomePage }} />
