@@ -47,8 +47,10 @@ jobs:
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
       - run: |
-          docker tag codercom/oss-dogfood:latest codercom/oss-dogfood:${{ steps.docker-tag-name.outputs.tag }}
+          docker tag codercom/oss-dogfood:latest codercom/oss-dogfood:$DOCKER_TAG
           docker push codercom/oss-dogfood -a
+        env:
+          DOCKER_TAG: ${{ steps.docker-tag-name.outputs.tag }}
 
   deploy_template:
     needs: deploy_image
