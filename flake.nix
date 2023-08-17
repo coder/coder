@@ -85,36 +85,35 @@
             chmod 4755 /usr/bin/sudo
           '';
         };
-        customFiles = pkgs.stdenv.mkDerivation {
-          name = "custom-env";
-          phases = [ "installPhase" ];
-          installPhase = ''
-            mkdir -p $out/etc
-            echo ${devEnvPath} > $out/etc/environment
-      
-            mkdir -p $out/etc/systemd/system
-            cp ${pkgs.docker}/etc/systemd/system/docker.service $out/etc/systemd/system/
-            echo "coder ALL=(ALL) NOPASSWD:ALL" > $out/etc/sudoers
-            mkdir -p $out/etc/pam.d
-            cat > $out/etc/pam.d/other <<EOF
+
+        devEnvPath = "PATH=${pkgs.lib.makeBinPath devShellPackages}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/coder/go/bin";
+        dockerDebianInit = pkgs.fetchFromGitHub {
+          owner = "moby";
+          repo = "moby";
+          rev = "ae737656f9817fbd5afab96aa083754cfb81aab0";
+          sha256 = "sha256-oS3WplsxhKHCuHwL4/ytsCNJ1N/SZhlUZmzZTf81AoE=";
+        };
+        devEnvImage = pkgs.dockerTools.streamLayeredImage {
+          name = "codercom/oss-dogfood";
+          tag = "testing";
+          fromImage = intermediateDevEnvImage;
+          extraCommands = ''
+            mkdir -p etc
+            echo ${devEnvPath} > etc/environment
+    
+            mkdir -p etc/init.d
+            cp ${dockerDebianInit}/contrib/init/sysvinit-debian/docker etc/init.d/docker
+            echo "coder ALL=(ALL) NOPASSWD:ALL" >etc/sudoers
+            mkdir -p etc/pam.d
+            cat > etc/pam.d/other <<EOF
                 account sufficient pam_unix.so
                 auth sufficient pam_rootok.so
                 password requisite pam_unix.so nullok yescrypt
                 session required pam_unix.so
             EOF
-            mkdir -p $out/etc/ssl/certs
-            cp -r ${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt $out/etc/ssl/certs/ca-certificates.crt
+            mkdir -p etc/ssl/certs
+            cp -r ${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt etc/ssl/certs/ca-certificates.crt
           '';
-        };
-
-        devEnvPath = "PATH=${pkgs.lib.makeBinPath devShellPackages}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/coder/go/bin";
-        devEnvImage = pkgs.dockerTools.streamLayeredImage {
-          name = "codercom/oss-dogfood";
-          tag = "testing";
-          fromImage = intermediateDevEnvImage;
-          contents = [
-            customFiles
-          ];
 
           config = {
             Env = [
