@@ -25,6 +25,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
+      - name: Get branch name
+        id: branch-name
+        uses: tj-actions/branch-names@v6.5
+
       - name: "Branch name to Docker tag name"
         id: docker-tag-name
         run: |
@@ -47,10 +51,8 @@ jobs:
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
       - run: |
-          docker tag codercom/oss-dogfood:latest codercom/oss-dogfood:$DOCKER_TAG
+          docker tag codercom/oss-dogfood:latest codercom/oss-dogfood:${{ steps.docker-tag-name.outputs.tag }}
           docker push codercom/oss-dogfood -a
-        env:
-          DOCKER_TAG: ${{ steps.docker-tag-name.outputs.tag }}
 
   deploy_template:
     needs: deploy_image
