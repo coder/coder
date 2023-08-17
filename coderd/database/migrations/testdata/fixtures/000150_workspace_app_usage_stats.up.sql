@@ -131,3 +131,23 @@ VALUES
 		'2023-08-14 13:01:00+00',
 		36
 	);
+
+-- Additional fixture data for migration 000151.
+-- As the migration is meant to fix workspace_agents with duplicate auth_tokens,
+-- setting auth_tokens of two agents to the same value.
+UPDATE
+	workspace_agents
+SET
+	auth_token = 'deaddead-dead-dead-dead-deaddeaddead'
+WHERE
+	id
+IN (
+	SELECT
+		id
+	FROM
+		workspace_agents
+	ORDER BY
+		created_at
+	ASC
+	LIMIT 2
+);
