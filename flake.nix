@@ -45,6 +45,7 @@
           pixman
           pkg-config
           postgresql
+          protobuf
           protoc-gen-go
           ripgrep
           screen
