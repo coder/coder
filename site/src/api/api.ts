@@ -825,7 +825,7 @@ export const getEntitlements = async (): Promise<TypesGen.Entitlements> => {
         require_telemetry: false,
         trial: false,
         warnings: [],
-        refreshed_at:"",
+        refreshed_at: "",
       }
     }
     throw ex

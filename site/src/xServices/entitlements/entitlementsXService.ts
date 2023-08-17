@@ -54,16 +54,16 @@ export const entitlementsMachine = createMachine(
       },
       idle: {
         on: {
-          REFRESH: "refresh"
-        }
+          REFRESH: "refresh",
+        },
       },
       success: {
         type: "final",
       },
       error: {
         on: {
-          REFRESH: "refresh"
-        }
+          REFRESH: "refresh",
+        },
       },
     },
   },

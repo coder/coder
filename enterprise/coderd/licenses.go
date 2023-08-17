@@ -166,9 +166,7 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 // @Success 201 {object} codersdk.Response
 // @Router /licenses/refresh-entitlements [post]
 func (api *API) postRefreshEntitlements(rw http.ResponseWriter, r *http.Request) {
-	var (
-		ctx = r.Context()
-	)
+	ctx := r.Context()
 
 	// If the user cannot create a new license, then they cannot refresh entitlements.
 	// Refreshing entitlements is a way to force a refresh of the license, so it is
