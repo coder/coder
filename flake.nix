@@ -81,32 +81,39 @@
               --shell=/bin/bash \
               --uid=1000 \
               --user-group
-            cat > /etc/pam.d/other <<EOF
+            cp ${pkgs.sudo}/bin/sudo /usr/bin/sudo
+            chmod 4755 /usr/bin/sudo
+          '';
+        };
+        customFiles = pkgs.stdenv.mkDerivation {
+          name = "custom-env";
+          phases = [ "installPhase" ];
+          installPhase = ''
+            mkdir -p $out/etc
+            echo ${devEnvPath} > $out/etc/environment
+      
+            mkdir -p $out/etc/systemd/system
+            cp ${pkgs.docker}/etc/systemd/system/docker.service $out/etc/systemd/system/
+            echo "coder ALL=(ALL) NOPASSWD:ALL" > $out/etc/sudoers
+            mkdir -p $out/etc/pam.d
+            cat > $out/etc/pam.d/other <<EOF
                 account sufficient pam_unix.so
                 auth sufficient pam_rootok.so
                 password requisite pam_unix.so nullok yescrypt
                 session required pam_unix.so
             EOF
-            echo "coder ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers
-            mkdir -p /etc/ssl/certs
-            cp -r ${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt /etc/ssl/certs/ca-certificates.crt
-            cp ${pkgs.sudo}/bin/sudo /usr/bin/sudo
-            chmod 4755 /usr/bin/sudo
+            mkdir -p $out/etc/ssl/certs
+            cp -r ${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt $out/etc/ssl/certs/ca-certificates.crt
           '';
         };
+
         devEnvPath = "PATH=${pkgs.lib.makeBinPath devShellPackages}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/coder/go/bin";
         devEnvImage = pkgs.dockerTools.streamLayeredImage {
           name = "codercom/oss-dogfood";
           tag = "testing";
           fromImage = intermediateDevEnvImage;
           contents = [
-            (
-              pkgs.writeTextDir
-                "etc/environment"
-                ''
-                  ${devEnvPath}
-                ''
-            )
+            customFiles
           ];
 
           config = {
