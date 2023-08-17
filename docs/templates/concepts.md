@@ -6,9 +6,11 @@ Haven't written Terraform before? Check out Hashicorp's [Getting Started Guides]
 
 ## Architecture
 
-This is a simplified diagram of our [Kubernetes example template](https://github.com/coder/coder/blob/main/examples/templates/kubernetes/main.tf). Keep reading for a breakdown of each concept.
+This is a simplified diagram of our [Kubernetes starter template](https://github.com/coder/coder/blob/main/examples/templates/kubernetes/main.tf):
 
 ![Template architecture](https://user-images.githubusercontent.com/22407953/257021139-8c95a731-c131-4c4d-85cc-eed6a52e015c.png)
+
+Keep reading for a breakdown of each concept.
 
 ## Coder Terraform Provider
 
@@ -26,7 +28,7 @@ terraform {
 
 ### coder_agent
 
-All templates need to create & run a Coder agent in order for developers to connect to their workspaces. The Coder agent is a service that runs inside the compute aspect of your workspace (typically a VM or container). You do not need to have any open ports, but the compute will need `curl` access to the Coder server.
+All templates need to create and run a Coder agent to let developers to connect to their workspaces. The `coder_agent` resource runs inside the compute aspect of your workspace (typically a VM or container). You do not need to have any open ports, but the compute will need `curl` access to the Coder server.
 
 This snippet creates the agent, runs it inside the container via the `entrypoint`, and authenticates to Coder via the agent's token.
 
@@ -49,7 +51,7 @@ Agents can also run startup scripts, set environment variables, and provide [met
 
 This data source provides details about the state of a workspace, such as its name, owner, and whether the workspace is being started or stopped.
 
-The following snippet will create a container when the workspace is being started, and delete the container when it is stopped using Terraform's [count](https://developer.hashicorp.com/terraform/language/meta-arguments/count) meta-argument.
+The following snippet creates a container when the workspace is being started, and deletes the container when it is stopped. It does this with Terraform's [count](https://developer.hashicorp.com/terraform/language/meta-arguments/count) meta-argument.
 
 ```hcl
 data "coder_workspace" "me" {}
