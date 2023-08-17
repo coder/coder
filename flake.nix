@@ -76,11 +76,13 @@
             #!${pkgs.runtimeShell}
             ${pkgs.dockerTools.shadowSetup}
             userdel ubuntu
+            groupadd docker
             useradd coder \
               --create-home \
               --shell=/bin/bash \
               --uid=1000 \
-              --user-group
+              --user-group \
+              --groups docker
             cp ${pkgs.sudo}/bin/sudo /usr/bin/sudo
             chmod 4755 /usr/bin/sudo
           '';
@@ -97,10 +99,13 @@
           name = "codercom/oss-dogfood";
           tag = "testing";
           fromImage = intermediateDevEnvImage;
+          maxLayers = 64;
           extraCommands = ''
             mkdir -p etc
             echo ${devEnvPath} > etc/environment
     
+            mkdir -p etc/default
+            echo 'DOCKERD=${pkgs.docker}/bin/dockerd' > etc/default/docker
             mkdir -p etc/init.d
             cp ${dockerDebianInit}/contrib/init/sysvinit-debian/docker etc/init.d/docker
             echo "coder ALL=(ALL) NOPASSWD:ALL" >etc/sudoers
