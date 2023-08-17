@@ -12,6 +12,8 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
         formatter = pkgs.nixpkgs-fmt;
+        # Check in https://search.nixos.org/packages to find new packages.
+        # Use `nix flake update` to update the lock file if packages are out-of-date.
         devShellPackages = with pkgs; [
           bat
           bash
@@ -107,6 +109,10 @@
         # Using Nix instead of Docker is **significantly** faster. This _build_
         # doesn't really build anything, it just copies pre-built binaries into
         # a container and adds them to the $PATH.
+        # 
+        # To test changes and iterate on this, you can run:
+        # > nix build .#devEnvImage && ./result | docker load
+        # This will import the image into your local Docker daemon.
         devEnvImage = pkgs.dockerTools.streamLayeredImage {
           name = "codercom/oss-dogfood";
           tag = "testing";
