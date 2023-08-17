@@ -62,7 +62,7 @@
         baseDevEnvImage = pkgs.dockerTools.pullImage {
           imageName = "ubuntu";
           imageDigest = "sha256:7a520eeb6c18bc6d32a21bb7edcf673a7830813c169645d51c949cecb62387d0";
-          sha256 = "qEgC+0W4zJjrYAMrAuE6MtQjt9qQv9PgXTPY81nMHyQ=";
+          sha256 = "ajZzFSG/q7F5wAXfBOPpYBT+aVy8lqAXtBzkmAe2SeE=";
           finalImageName = "ubuntu";
           finalImageTag = "lunar";
         };
