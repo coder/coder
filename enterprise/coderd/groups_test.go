@@ -422,7 +422,7 @@ func TestPatchGroup(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
 	})
 
-	t.Run("EveryoneGroup", func(t *testing.T) {
+	t.Run("Everyone", func(t *testing.T) {
 		t.Parallel()
 		t.Run("NoUpdateName", func(t *testing.T) {
 			t.Parallel()
@@ -477,7 +477,7 @@ func TestPatchGroup(t *testing.T) {
 			require.Error(t, err)
 			cerr, ok := codersdk.AsError(err)
 			require.True(t, ok)
-			require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
+			require.Equal(t, http.StatusForbidden, cerr.StatusCode())
 		})
 
 		t.Run("NoRmUsers", func(t *testing.T) {
