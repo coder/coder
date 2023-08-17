@@ -51,7 +51,8 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
-      - run: |
+      - name: Tag and Push
+        run: |
           docker tag codercom/oss-dogfood:latest codercom/oss-dogfood:${{ steps.docker-tag-name.outputs.tag }}
           docker push codercom/oss-dogfood -a
 

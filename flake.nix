@@ -57,7 +57,7 @@
           terraform
           typos
           vim
-          yq
+          yq-go
           zip
           zstd
         ];
