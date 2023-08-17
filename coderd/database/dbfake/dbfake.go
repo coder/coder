@@ -1387,7 +1387,7 @@ func (q *FakeQuerier) getOrganizationMember(orgID uuid.UUID) []database.Organiza
 	return members
 }
 
-// getEveryoneGroupMembers fetchs all the users in an organization.
+// getEveryoneGroupMembers fetches all the users in an organization.
 func (q *FakeQuerier) getEveryoneGroupMembers(orgID uuid.UUID) []database.User {
 	var (
 		everyone   []database.User
