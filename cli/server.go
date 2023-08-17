@@ -1359,7 +1359,7 @@ func newProvisionerDaemon(
 		// in provisionerdserver.go to learn more!
 		return coderAPI.CreateInMemoryProvisionerDaemon(ctx, debounce)
 	}, &provisionerd.Options{
-		Logger:              logger,
+		Logger:              logger.Named("provisionerd"),
 		JobPollInterval:     cfg.Provisioner.DaemonPollInterval.Value(),
 		JobPollJitter:       cfg.Provisioner.DaemonPollJitter.Value(),
 		JobPollDebounce:     debounce,
