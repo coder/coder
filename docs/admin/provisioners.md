@@ -124,8 +124,8 @@ for deploying the Coder server.
        --values provisioner-values.yaml
    ```
 
-   You can verify that your provisioner daemons have successfully connected to Coderd by looking for a log with message
-   `provisionerd successfully connected to coderd` from each Pod.
+   You can verify that your provisioner daemons have successfully connected to Coderd by looking for a debug log message that says
+   `provisionerd: successfully connected to coderd` from each Pod.
 
 ## Example: Running an external provisioner on a VM
 
