@@ -404,10 +404,13 @@ type API struct {
 }
 
 func (api *API) Close() error {
-	api.cancel()
+	// Replica manager should be closed first. This is because the replica
+	// manager updates the replica's table in the database when it closes.
+	// This tells other Coderds that it is now offline.
 	if api.replicaManager != nil {
 		_ = api.replicaManager.Close()
 	}
+	api.cancel()
 	if api.derpMesh != nil {
 		_ = api.derpMesh.Close()
 	}
