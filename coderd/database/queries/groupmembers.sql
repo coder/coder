@@ -3,12 +3,23 @@ SELECT
 	users.*
 FROM
 	users
-JOIN
+-- If the group is a user made group, then we need to check the group_members table.
+LEFT JOIN
 	group_members
 ON
-	users.id = group_members.user_id
+	group_members.user_id = users.id AND
+	group_members.group_id = @group_id
+-- If it is the "Everyone" group, then we need to check the organization_members table.
+LEFT JOIN
+	organization_members
+ON
+	organization_members.user_id = users.id AND
+	organization_members.organization_id = @group_id
 WHERE
-	group_members.group_id = $1
+	-- In either case, the group_id will only match an org or a group.
+    (group_members.group_id = @group_id
+         OR
+     organization_members.organization_id = @group_id)
 AND
 	users.status = 'active'
 AND

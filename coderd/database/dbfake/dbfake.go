@@ -613,6 +613,44 @@ func uniqueSortedUUIDs(uuids []uuid.UUID) []uuid.UUID {
 	return unique
 }
 
+func (q *FakeQuerier) getOrganizationMember(orgID uuid.UUID) []database.OrganizationMember {
+	var members []database.OrganizationMember
+	for _, member := range q.organizationMembers {
+		if member.OrganizationID == orgID {
+			members = append(members, member)
+		}
+	}
+
+	return members
+}
+
+// getEveryoneGroupMembers fetches all the users in an organization.
+func (q *FakeQuerier) getEveryoneGroupMembers(orgID uuid.UUID) []database.User {
+	var (
+		everyone   []database.User
+		orgMembers = q.getOrganizationMember(orgID)
+	)
+	for _, member := range orgMembers {
+		user, err := q.GetUserByID(context.TODO(), member.UserID)
+		if err != nil {
+			return nil
+		}
+		everyone = append(everyone, user)
+	}
+	return everyone
+}
+
+// isEveryoneGroup returns true if the provided ID matches
+// an organization ID.
+func (q *FakeQuerier) isEveryoneGroup(id uuid.UUID) bool {
+	for _, org := range q.organizations {
+		if org.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -1378,13 +1416,17 @@ func (q *FakeQuerier) GetGroupByOrgAndName(_ context.Context, arg database.GetGr
 	return database.Group{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) GetGroupMembers(_ context.Context, groupID uuid.UUID) ([]database.User, error) {
+func (q *FakeQuerier) GetGroupMembers(_ context.Context, id uuid.UUID) ([]database.User, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
+	if q.isEveryoneGroup(id) {
+		return q.getEveryoneGroupMembers(id), nil
+	}
+
 	var members []database.GroupMember
 	for _, member := range q.groupMembers {
-		if member.GroupID == groupID {
+		if member.GroupID == id {
 			members = append(members, member)
 		}
 	}
@@ -1403,14 +1445,13 @@ func (q *FakeQuerier) GetGroupMembers(_ context.Context, groupID uuid.UUID) ([]d
 	return users, nil
 }
 
-func (q *FakeQuerier) GetGroupsByOrganizationID(_ context.Context, organizationID uuid.UUID) ([]database.Group, error) {
+func (q *FakeQuerier) GetGroupsByOrganizationID(_ context.Context, id uuid.UUID) ([]database.Group, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	var groups []database.Group
+	groups := make([]database.Group, 0, len(q.groups))
 	for _, group := range q.groups {
-		// Omit the allUsers group.
-		if group.OrganizationID == organizationID && group.ID != organizationID {
+		if group.OrganizationID == id {
 			groups = append(groups, group)
 		}
 	}
@@ -1840,7 +1881,15 @@ func (q *FakeQuerier) GetQuotaAllowanceForUser(_ context.Context, userID uuid.UU
 		for _, group := range q.groups {
 			if group.ID == member.GroupID {
 				sum += int64(group.QuotaAllowance)
+				continue
 			}
+		}
+	}
+	// Grab the quota for the Everyone group.
+	for _, group := range q.groups {
+		if group.ID == group.OrganizationID {
+			sum += int64(group.QuotaAllowance)
+			break
 		}
 	}
 	return sum, nil
@@ -3548,7 +3597,7 @@ func (q *FakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyP
 func (q *FakeQuerier) InsertAllUsersGroup(ctx context.Context, orgID uuid.UUID) (database.Group, error) {
 	return q.InsertGroup(ctx, database.InsertGroupParams{
 		ID:             orgID,
-		Name:           database.AllUsersGroup,
+		Name:           database.EveryoneGroup,
 		DisplayName:    "",
 		OrganizationID: orgID,
 	})

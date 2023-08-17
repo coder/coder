@@ -1069,18 +1069,29 @@ SELECT
 	users.id, users.email, users.username, users.hashed_password, users.created_at, users.updated_at, users.status, users.rbac_roles, users.login_type, users.avatar_url, users.deleted, users.last_seen_at, users.quiet_hours_schedule
 FROM
 	users
-JOIN
+LEFT JOIN
 	group_members
 ON
-	users.id = group_members.user_id
-WHERE
+	group_members.user_id = users.id AND
 	group_members.group_id = $1
+LEFT JOIN
+	organization_members
+ON
+	organization_members.user_id = users.id AND
+	organization_members.organization_id = $1
+WHERE
+	-- In either case, the group_id will only match an org or a group.
+    (group_members.group_id = $1
+         OR
+     organization_members.organization_id = $1)
 AND
 	users.status = 'active'
 AND
 	users.deleted = 'false'
 `
 
+// If the group is a user made group, then we need to check the group_members table.
+// If it is the "Everyone" group, then we need to check the organization_members table.
 func (q *sqlQuerier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]User, error) {
 	rows, err := q.db.QueryContext(ctx, getGroupMembers, groupID)
 	if err != nil {
@@ -1244,8 +1255,6 @@ FROM
 	groups
 WHERE
 	organization_id = $1
-AND
-	id != $1
 `
 
 func (q *sqlQuerier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]Group, error) {
@@ -3398,11 +3407,13 @@ const getQuotaAllowanceForUser = `-- name: GetQuotaAllowanceForUser :one
 SELECT
 	coalesce(SUM(quota_allowance), 0)::BIGINT
 FROM
-	group_members gm
-JOIN groups g ON
+	groups g
+LEFT JOIN group_members gm ON
 	g.id = gm.group_id
 WHERE
 	user_id = $1
+OR
+    g.id = g.organization_id
 `
 
 func (q *sqlQuerier) GetQuotaAllowanceForUser(ctx context.Context, userID uuid.UUID) (int64, error) {
