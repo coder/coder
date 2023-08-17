@@ -4,8 +4,7 @@ import { ProvisionerJobLog, WorkspaceBuild } from "../../api/typesGenerated"
 import { Loader } from "../../components/Loader/Loader"
 import { Stack } from "../../components/Stack/Stack"
 import { WorkspaceBuildLogs } from "../../components/WorkspaceBuildLogs/WorkspaceBuildLogs"
-import { WorkspaceBuildStateError } from "./WorkspaceBuildStateError"
-import { makeStyles, useTheme } from "@mui/styles"
+import { makeStyles } from "@mui/styles"
 import {
   FullWidthPageHeader,
   PageHeaderTitle,
@@ -26,6 +25,7 @@ import {
 } from "components/Sidebar/Sidebar"
 import { BuildIcon } from "components/BuildIcon/BuildIcon"
 import Skeleton from "@mui/material/Skeleton"
+import { Alert } from "components/Alert/Alert"
 
 const sortLogsByCreatedAt = (logs: ProvisionerJobLog[]) => {
   return [...logs].sort(
@@ -137,7 +137,33 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 
         <Box sx={{ height: "100%", overflowY: "auto", width: "100%" }}>
           {build.transition === "delete" && build.job.status === "failed" && (
-            <WorkspaceBuildStateError build={build} />
+            <Alert
+              severity="error"
+              sx={{
+                borderRadius: 0,
+                border: 0,
+                background: (theme) => theme.palette.error.dark,
+                borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
+              }}
+            >
+              <Box>
+                The workspace may have failed to delete due to a Terraform state
+                mismatch. A template admin may run{" "}
+                <Box
+                  component="code"
+                  display="inline-block"
+                  width="fit-content"
+                  fontWeight={600}
+                >
+                  `
+                  {`coder rm ${
+                    build.workspace_owner_name + "/" + build.workspace_name
+                  } --orphan`}
+                  `
+                </Box>{" "}
+                to delete the workspace skipping resource destruction.
+              </Box>
+            </Alert>
           )}
           {!logs && <Loader />}
           {logs && (
@@ -159,8 +185,6 @@ const BuildSidebarItem = ({
   build: WorkspaceBuild
   active: boolean
 }) => {
-  const theme = useTheme()
-
   return (
     <Link
       key={build.id}
@@ -173,7 +197,9 @@ const BuildSidebarItem = ({
             sx={{
               width: 16,
               height: 16,
-              color: getDisplayWorkspaceBuildStatus(theme, build).color,
+              color: (theme) =>
+                theme.palette[getDisplayWorkspaceBuildStatus(theme, build).type]
+                  .light,
             }}
           />
           <Box sx={{ overflow: "hidden" }}>
