@@ -88,7 +88,8 @@
                 session required pam_unix.so
             EOF
             echo "coder ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers
-            cp -r ${pkgs.cacert}/etc/ssl /etc/ssl
+            mkdir -p /etc/ssl/certs
+            cp -r ${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt /etc/ssl/certs/ca-certificates.crt
             cp ${pkgs.sudo}/bin/sudo /usr/bin/sudo
             chmod 4755 /usr/bin/sudo
           '';
