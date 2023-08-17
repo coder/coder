@@ -815,7 +815,7 @@ export const MockFailedWorkspaceBuild = (
   deadline: "2022-05-17T23:39:00.00Z",
   reason: "initiator",
   resources: [],
-  status: "running",
+  status: "failed",
   daily_cost: 20,
 })
 
@@ -1507,6 +1507,7 @@ export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
 export const MockExperiments: TypesGen.Experiment[] = [
   "workspace_actions",
   "moons",
+  "workspaces_batch_actions",
 ]
 
 export const MockAuditLog: TypesGen.AuditLog = {

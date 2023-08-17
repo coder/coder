@@ -351,7 +351,7 @@ const WarningDialog: FC<
 }
 
 const useBuildLogs = (workspace: TypesGen.Workspace) => {
-  const buildNumber = workspace.latest_build.build_number.toString()
+  const buildNumber = workspace.latest_build.build_number
   const [buildState, buildSend] = useMachine(workspaceBuildMachine, {
     context: {
       buildNumber,

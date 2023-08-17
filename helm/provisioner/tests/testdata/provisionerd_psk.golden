@@ -133,5 +133,5 @@ spec:
         volumeMounts: []
       restartPolicy: Always
       serviceAccountName: coder-provisioner
-      terminationGracePeriodSeconds: 60
+      terminationGracePeriodSeconds: 600
       volumes: []

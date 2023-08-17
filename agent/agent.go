@@ -758,6 +758,7 @@ func (a *agent) trackConnGoroutine(fn func()) error {
 
 func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *tailcfg.DERPMap, disableDirectConnections bool) (_ *tailnet.Conn, err error) {
 	network, err := tailnet.NewConn(&tailnet.Options{
+		ID:             agentID,
 		Addresses:      a.wireguardAddresses(agentID),
 		DERPMap:        derpMap,
 		Logger:         a.logger.Named("net.tailnet"),
@@ -1134,7 +1135,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 			rpty.Wait()
 			a.reconnectingPTYs.Delete(msg.ID)
 		}); err != nil {
-			rpty.Close(err.Error())
+			rpty.Close(err)
 			return xerrors.Errorf("start routine: %w", err)
 		}
 

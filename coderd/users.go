@@ -1095,7 +1095,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 
 			_, err = tx.InsertAllUsersGroup(ctx, organization.ID)
 			if err != nil {
-				return xerrors.Errorf("create %q group: %w", database.AllUsersGroup, err)
+				return xerrors.Errorf("create %q group: %w", database.EveryoneGroup, err)
 			}
 		}
 

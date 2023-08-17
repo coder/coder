@@ -124,7 +124,7 @@ func newScreen(ctx context.Context, cmd *pty.Cmd, options *Options, logger slog.
 // the reconnecting pty will be closed.
 func (rpty *screenReconnectingPTY) lifecycle(ctx context.Context, logger slog.Logger) {
 	rpty.timer = time.AfterFunc(attachTimeout, func() {
-		rpty.Close("reconnecting pty timeout")
+		rpty.Close(xerrors.New("reconnecting pty timeout"))
 	})
 
 	logger.Debug(ctx, "reconnecting pty ready")
@@ -134,7 +134,7 @@ func (rpty *screenReconnectingPTY) lifecycle(ctx context.Context, logger slog.Lo
 	if state < StateClosing {
 		// If we have not closed yet then the context is what unblocked us (which
 		// means the agent is shutting down) so move into the closing phase.
-		rpty.Close(reasonErr.Error())
+		rpty.Close(reasonErr)
 	}
 	rpty.timer.Stop()
 
@@ -145,7 +145,7 @@ func (rpty *screenReconnectingPTY) lifecycle(ctx context.Context, logger slog.Lo
 	}
 
 	logger.Info(ctx, "closed reconnecting pty")
-	rpty.state.setState(StateDone, xerrors.Errorf("reconnecting pty closed: %w", reasonErr))
+	rpty.state.setState(StateDone, reasonErr)
 }
 
 func (rpty *screenReconnectingPTY) Attach(ctx context.Context, _ string, conn net.Conn, height, width uint16, logger slog.Logger) error {
@@ -157,7 +157,7 @@ func (rpty *screenReconnectingPTY) Attach(ctx context.Context, _ string, conn ne
 
 	state, err := rpty.state.waitForStateOrContext(ctx, StateReady)
 	if state != StateReady {
-		return xerrors.Errorf("reconnecting pty ready wait: %w", err)
+		return err
 	}
 
 	go heartbeat(ctx, rpty.timer, rpty.timeout)
@@ -382,7 +382,7 @@ func (rpty *screenReconnectingPTY) Wait() {
 	_, _ = rpty.state.waitForState(StateClosing)
 }
 
-func (rpty *screenReconnectingPTY) Close(reason string) {
+func (rpty *screenReconnectingPTY) Close(err error) {
 	// The closing state change will be handled by the lifecycle.
-	rpty.state.setState(StateClosing, xerrors.Errorf("reconnecting pty closing: %s", reason))
+	rpty.state.setState(StateClosing, err)
 }

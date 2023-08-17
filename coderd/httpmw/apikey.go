@@ -308,6 +308,9 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 	}
 
 	// Checking if the key is expired.
+	// NOTE: The `RequireAuth` React component depends on this `Detail` to detect when
+	// the users token has expired. If you change the text here, make sure to update it
+	// in site/src/components/RequireAuth/RequireAuth.tsx as well.
 	if key.ExpiresAt.Before(now) {
 		return optionalWrite(http.StatusUnauthorized, codersdk.Response{
 			Message: SignedOutErrorMessage,

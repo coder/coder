@@ -21,6 +21,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/agent"
 	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/coderd/workspaceapps"
 	"github.com/coder/coder/codersdk"
 	"github.com/coder/coder/codersdk/agentsdk"
 	"github.com/coder/coder/provisioner/echo"
@@ -50,6 +51,8 @@ type DeploymentOptions struct {
 	DangerousAllowPathAppSharing         bool
 	DangerousAllowPathAppSiteOwnerAccess bool
 	ServeHTTPS                           bool
+
+	StatsCollectorOptions workspaceapps.StatsCollectorOptions
 
 	// The following fields are only used by setupProxyTestWithFactory.
 	noWorkspace bool

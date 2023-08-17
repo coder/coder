@@ -497,6 +497,36 @@ func (api *API) workspaceProxyIssueSignedAppToken(rw http.ResponseWriter, r *htt
 	})
 }
 
+// @Summary Report workspace app stats
+// @ID report-workspace-app-stats
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Enterprise
+// @Param request body wsproxysdk.ReportAppStatsRequest true "Report app stats request"
+// @Success 204
+// @Router /workspaceproxies/me/app-stats [post]
+// @x-apidocgen {"skip": true}
+func (api *API) workspaceProxyReportAppStats(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	_ = httpmw.WorkspaceProxy(r) // Ensure the proxy is authenticated.
+
+	var req wsproxysdk.ReportAppStatsRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	api.Logger.Debug(ctx, "report app stats", slog.F("stats", req.Stats))
+
+	reporter := api.WorkspaceAppsStatsCollectorOptions.Reporter
+	if err := reporter.Report(ctx, req.Stats); err != nil {
+		api.Logger.Error(ctx, "report app stats failed", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+}
+
 // workspaceProxyRegister is used to register a new workspace proxy. When a proxy
 // comes online, it will announce itself to this endpoint. This updates its values
 // in the database and returns a signed token that can be used to authenticate

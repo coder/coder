@@ -51,7 +51,7 @@ func newBuffered(ctx context.Context, cmd *pty.Cmd, options *Options, logger slo
 	// Default to buffer 64KiB.
 	circularBuffer, err := circbuf.NewBuffer(64 << 10)
 	if err != nil {
-		rpty.state.setState(StateDone, xerrors.Errorf("generate screen id: %w", err))
+		rpty.state.setState(StateDone, xerrors.Errorf("create circular buffer: %w", err))
 		return rpty
 	}
 	rpty.circularBuffer = circularBuffer
@@ -63,7 +63,7 @@ func newBuffered(ctx context.Context, cmd *pty.Cmd, options *Options, logger slo
 	cmdWithEnv.Dir = rpty.command.Dir
 	ptty, process, err := pty.Start(cmdWithEnv)
 	if err != nil {
-		rpty.state.setState(StateDone, xerrors.Errorf("generate screen id: %w", err))
+		rpty.state.setState(StateDone, xerrors.Errorf("start pty: %w", err))
 		return rpty
 	}
 	rpty.ptty = ptty
@@ -92,7 +92,7 @@ func newBuffered(ctx context.Context, cmd *pty.Cmd, options *Options, logger slo
 				// not found for example).
 				// TODO: Should we check the process's exit code in case the command was
 				//       invalid?
-				rpty.Close("unable to read pty output, command might have exited")
+				rpty.Close(nil)
 				break
 			}
 			part := buffer[:read]
@@ -126,7 +126,7 @@ func newBuffered(ctx context.Context, cmd *pty.Cmd, options *Options, logger slo
 // or the reconnecting pty closes the pty will be shut down.
 func (rpty *bufferedReconnectingPTY) lifecycle(ctx context.Context, logger slog.Logger) {
 	rpty.timer = time.AfterFunc(attachTimeout, func() {
-		rpty.Close("reconnecting pty timeout")
+		rpty.Close(xerrors.New("reconnecting pty timeout"))
 	})
 
 	logger.Debug(ctx, "reconnecting pty ready")
@@ -136,7 +136,7 @@ func (rpty *bufferedReconnectingPTY) lifecycle(ctx context.Context, logger slog.
 	if state < StateClosing {
 		// If we have not closed yet then the context is what unblocked us (which
 		// means the agent is shutting down) so move into the closing phase.
-		rpty.Close(reasonErr.Error())
+		rpty.Close(reasonErr)
 	}
 	rpty.timer.Stop()
 
@@ -168,7 +168,7 @@ func (rpty *bufferedReconnectingPTY) lifecycle(ctx context.Context, logger slog.
 	}
 
 	logger.Info(ctx, "closed reconnecting pty")
-	rpty.state.setState(StateDone, xerrors.Errorf("reconnecting pty closed: %w", reasonErr))
+	rpty.state.setState(StateDone, reasonErr)
 }
 
 func (rpty *bufferedReconnectingPTY) Attach(ctx context.Context, connID string, conn net.Conn, height, width uint16, logger slog.Logger) error {
@@ -178,7 +178,7 @@ func (rpty *bufferedReconnectingPTY) Attach(ctx context.Context, connID string, 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	err := rpty.doAttach(ctx, connID, conn, height, width, logger)
+	err := rpty.doAttach(connID, conn)
 	if err != nil {
 		return err
 	}
@@ -189,15 +189,30 @@ func (rpty *bufferedReconnectingPTY) Attach(ctx context.Context, connID string, 
 		delete(rpty.activeConns, connID)
 	}()
 
+	state, err := rpty.state.waitForStateOrContext(ctx, StateReady)
+	if state != StateReady {
+		return err
+	}
+
+	go heartbeat(ctx, rpty.timer, rpty.timeout)
+
+	// Resize the PTY to initial height + width.
+	err = rpty.ptty.Resize(height, width)
+	if err != nil {
+		// We can continue after this, it's not fatal!
+		logger.Warn(ctx, "reconnecting PTY initial resize failed, but will continue", slog.Error(err))
+		rpty.metrics.WithLabelValues("resize").Add(1)
+	}
+
 	// Pipe conn -> pty and block.  pty -> conn is handled in newBuffered().
 	readConnLoop(ctx, conn, rpty.ptty, rpty.metrics, logger)
 	return nil
 }
 
-// doAttach adds the connection to the map, replays the buffer, and starts the
-// heartbeat.  It exists separately only so we can defer the mutex unlock which
-// is not possible in Attach since it blocks.
-func (rpty *bufferedReconnectingPTY) doAttach(ctx context.Context, connID string, conn net.Conn, height, width uint16, logger slog.Logger) error {
+// doAttach adds the connection to the map and replays the buffer.  It exists
+// separately only for convenience to defer the mutex unlock which is not
+// possible in Attach since it blocks.
+func (rpty *bufferedReconnectingPTY) doAttach(connID string, conn net.Conn) error {
 	rpty.state.cond.L.Lock()
 	defer rpty.state.cond.L.Unlock()
 
@@ -211,21 +226,6 @@ func (rpty *bufferedReconnectingPTY) doAttach(ctx context.Context, connID string
 		return xerrors.Errorf("write buffer to conn: %w", err)
 	}
 
-	state, err := rpty.state.waitForStateOrContextLocked(ctx, StateReady)
-	if state != StateReady {
-		return xerrors.Errorf("reconnecting pty ready wait: %w", err)
-	}
-
-	go heartbeat(ctx, rpty.timer, rpty.timeout)
-
-	// Resize the PTY to initial height + width.
-	err = rpty.ptty.Resize(height, width)
-	if err != nil {
-		// We can continue after this, it's not fatal!
-		logger.Warn(ctx, "reconnecting PTY initial resize failed, but will continue", slog.Error(err))
-		rpty.metrics.WithLabelValues("resize").Add(1)
-	}
-
 	rpty.activeConns[connID] = conn
 
 	return nil
@@ -235,7 +235,7 @@ func (rpty *bufferedReconnectingPTY) Wait() {
 	_, _ = rpty.state.waitForState(StateClosing)
 }
 
-func (rpty *bufferedReconnectingPTY) Close(reason string) {
+func (rpty *bufferedReconnectingPTY) Close(error error) {
 	// The closing state change will be handled by the lifecycle.
-	rpty.state.setState(StateClosing, xerrors.Errorf("reconnecting pty closing: %s", reason))
+	rpty.state.setState(StateClosing, error)
 }

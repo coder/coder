@@ -5,7 +5,7 @@ tags: [local, docker, jfrog]
 icon: /icon/docker.png
 ---
 
-# jfrog-docker
+# docker
 
 To get started, run `coder templates init`. When prompted, select this template.
 Follow the on-screen instructions to proceed.

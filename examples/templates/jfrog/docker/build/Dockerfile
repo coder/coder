@@ -4,12 +4,19 @@ RUN apt-get update \
 	&& apt-get install -y \
 	curl \
 	git \
-	golang \
+	python3-pip \
 	sudo \
 	vim \
 	wget \
 	npm \
 	&& rm -rf /var/lib/apt/lists/*
+
+ARG GO_VERSION=1.20.7
+RUN mkdir --parents /usr/local/go && curl --silent --show-error --location \
+	"https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" -o /usr/local/go.tar.gz && \
+	tar --extract --gzip --directory=/usr/local/go --file=/usr/local/go.tar.gz --strip-components=1
+
+ENV PATH=$PATH:/usr/local/go/bin
 
 ARG USER=coder
 RUN useradd --groups sudo --no-create-home --shell /bin/bash ${USER} \

@@ -6,7 +6,7 @@ This is a guide to help the Coder community and also Coder members contribute to
 
 You can run the UI and access the dashboard in two ways:
 
-- Build the UI pointing to an external Coder server: `CODER_HOST=https://mycoder.com yarn dev` inside of the `site` folder. This is helpful when you are building something in the UI and already have the data on your deployed server.
+- Build the UI pointing to an external Coder server: `CODER_HOST=https://mycoder.com pnpm dev` inside of the `site` folder. This is helpful when you are building something in the UI and already have the data on your deployed server.
 - Build the entire Coder server + UI locally: `./scripts/develop.sh` in the root folder. It is useful when you have to contribute with features that are not deployed yet or when you have to work on both, frontend and backend.
 
 In both cases, you can access the dashboard on `http://localhost:8080`. If you are running the `./scripts/develop.sh` you can log in using the default credentials: `admin@coder.com` and `SomeSecurePassword!`.
@@ -18,7 +18,7 @@ All our dependencies are described in `site/package.json` but here are the most 
 - [React](https://reactjs.org/) as framework
 - [Typescript](https://www.typescriptlang.org/) to keep our sanity
 - [Vite](https://vitejs.dev/) to build the project
-- [Material V4](https://v4.mui.com/) for UI components
+- [Material V5](https://mui.com/material-ui/getting-started/) for UI components
 - [react-router](https://reactrouter.com/en/main) for routing
 - [TanStack Query v4](https://tanstack.com/query/v4/docs/react/overview) for fetching data
 - [XState](https://xstate.js.org/docs/) for handling complex state flows
@@ -26,6 +26,7 @@ All our dependencies are described in `site/package.json` but here are the most 
 - [Playwright](https://playwright.dev/) for E2E testing
 - [Jest](https://jestjs.io/) for integration testing
 - [Storybook](https://storybook.js.org/) and [Chromatic](https://www.chromatic.com/) for visual testing
+- [PNPM](https://pnpm.io/) as package manager
 
 ## Structure
 
