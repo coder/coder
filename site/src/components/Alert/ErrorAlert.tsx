@@ -1,28 +1,11 @@
 import { AlertProps, Alert, AlertDetail } from "./Alert"
 import AlertTitle from "@mui/material/AlertTitle"
-import {
-  getErrorMessage,
-  getErrorDetail,
-  isAuthenticationError,
-} from "api/errors"
-import { useAuth } from "components/AuthProvider/AuthProvider"
-import { FC, useEffect } from "react"
+import { getErrorMessage, getErrorDetail } from "api/errors"
+import { FC } from "react"
 
 export const ErrorAlert: FC<
   Omit<AlertProps, "severity" | "children"> & { error: unknown }
 > = ({ error, ...alertProps }) => {
-  const [_auth, authSend] = useAuth()
-  const shouldSignOut = isAuthenticationError(error)
-  useEffect(() => {
-    if (shouldSignOut) {
-      authSend("SIGN_OUT")
-    }
-  }, [shouldSignOut])
-
-  if (shouldSignOut) {
-    return null
-  }
-
   const message = getErrorMessage(error, "Something went wrong.")
   const detail = getErrorDetail(error)
 

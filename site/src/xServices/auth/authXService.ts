@@ -192,7 +192,7 @@ export type AuthEvent =
   | { type: "UPDATE_PROFILE"; data: TypesGen.UpdateUserProfileRequest }
 
 export const authMachine =
-  /** @xstate-layout N4IgpgJg5mDOIC5QEMCuAXAFgZXc9YAdADYD2yEAlgHZQCS1l6lyxAghpgCL7IDEEUtSI0AbqQDWRNFlz4iZCjXqNmrDlh54EY0gGN8lIQG0ADAF0z5xKAAOpWEyPUbIAB6IAzABYAbIQBWUwB2AA4ARgAmAIAaEABPRHCQgE5AgF90uJkcPAIScipaBid1Ti1+QWFCXSlCHLl8xSKVUvZy3h1qcQNmEwtjcOskEHtHPpcRjwQffyCwqNiEpMiownCA32jM7M5GhULlErV2zV4BIRFuyWk9vIOlYtUWU+5O3V7nK2NI4bsHJxCVzTWaBEIRaJxRIIcI+byECEBHYgBr3AqPVonDRvPB8MAAJ3xpHxhFsxHwADNiQBbep3eTolrHF7YipdHqGfqWCyuMaAyagEF+MELSHLGHeYLBQh+ULBJFZFH0-KOKDCCAAeQwfGwdAA4gA5AD6dANVl5AImwKSnki8I2WyW0OSwTSCt2sjRqsYTwu1VqRG9DHNIz5VqmiClpkIplCARSnnlUKSqQyitRDO9R2oeMJxNJ5PQVPxtKD1BD-3GzmtCCjMbjCaT4vC4TjMdF7qVnszlDVkAYOv1xo1AFUACoV0aW6sjaEAWnCTemkUicplwV8m226eVgd76oYpKJFMoxBEEDPfBHAAUuGwxwBRI3XgBKGoAYnQADIPydhmegNCwSLoEcTLuEKThOum6OsiGYqvu-bUEepAnmehCoLYECGLQ17HqeYB+lc4h1PBe59hAh62Ph6GYdhzC4TRYDsvonLlgMPKhtOQKzpG8ZgUkATRIQq6LHBu6EN6SEoWhRB0ThUB4ahBG5kSJJkpSNJ0t2CEUVRTEYVhClKbJLGfFyf7cQK7iCcJolikBLbiTp5E+lAWroERNTXHU3oeZZVY8YKXjhL4ngypEwSeCkCaeAEnhRMEyYIKsraBJB0TePFAThN4zm5D2arKB5XkBpJ+7+UMFqBdZQqbIQvhZaEtpZRskreMlqWhA1pi+KEm4JgmWX5fs5VFbQJUEmpBaaSWY3UP5nGVvyNa2j4hBxb4KTymFEQpPFyWtlsIkbikpiRL4jUBBEngjWiehCCeUCoPiyhjpgYDvpQ+KwOgI6wASg6GiaZpLVONWuNCkSeAlCIw-DCMwwJKUw+sW4Koq1CkBAcCuGR1UrRGCALt4HXinOF2RGCpg06EpOmCkkSmHlO4uYy2ZtKyvAE+GwUIKYnUbNGiMi7drMFbp6oeTzAE2TCDMBAiTbOvt0admR83ZjLQVy1lVOrHKTpJFt3WXWb5tm+rElSZR1n-jr0zJPGStGwg2WEDFnspM1LbAcEd2FQeyHUcpZ7a7VSQui7yVbOFQSmC2trxllMUB5L0kh7JNQXmA4c1qFa6SjBDmRiB8eJ9EKQpykaeuRnBmUDnhBYw+eb4nnROLnF0Ho8loSmFbbM2-pofnuhU3Eh3fNd4rRe9+Kcpix6Et17bMkEYZ9HKCZBFT3LLYBIrhvJfKNfi6NWYTRge-LpB0bgosnUD-CouI7XhAPdQT0vW9H1fT9f0Abty4hDImc4Ui+E6jDKCzVX4w0yJkIAA */
+  /** @xstate-layout N4IgpgJg5mDOIC5QEMCuAXAFgZXc9YAdADYD2yEAlgHZQCS1l6lyxAghpgCL7IDEEUtSI0AbqQDWRNFlz4iZCjXqNmrDlh54EY0gGN8lIQG0ADAF0z5xKAAOpWEyPUbIAB6IAjAFZThACwATAAcAGwAzOGewZ7hoYH+ADQgAJ6Igaam3oSeGf7BcbnBAJyBAL5lyTI4eAQk5FS0DE7qnFr8gsKEulKE1XJ1io0qLextvDrU4gbMJhbGntZIIPaOsy7LHgg+fkFhkdGx8Ump6bEA7ITn56HnkaFFpRVVnAMKDcrNamOavAJCIimkmkr1q7yUTVULB+3AmuhmzisxkCSzsDicQlcWx2ARCESiMTiCWSaQQgUC5124UCxQKDxCT0qIH6YPqEJG3w0sLwfDAACc+aQ+YRbMR8AAzIUAWz6oPkbOGX2hXPak2mhjmlgsrlWGI2oGxvlx+wJR2JpzJ-lM4UIphKgXuj3KTJZ8scUGEEAA8hg+Ng6ABxAByAH06EGrDr0essV5TOdslloqZPKZ-Od-NESV4Hjb-OESqFvAyEudgs9mXK6u7GJD-l0ekQawxI8tdTHNl5ybtPKnPKFin3ivns2TU3mi1FrmFSuEK67q5QPZ9qLyBUKRWL0JK+TLm9RW2i1s5Y9tu4Q8ZksiFgmnR93PLbad5h6FMgm5y6q02l56GH7A1DL0AFUABVDxWaMT07BAogHQhgmCfwBxvbwiwKe87WyYIM1ibxPHzG5PxeWRWRrSAGBFQVxUoYgRAgOi+GAgAFLg2FAgBRENmIAJS9AAxOgABkOIg9toINdIi0fcJzn7dMshfXtR2ibx-EIUJkOKbwiVw4p52-QhyIgSjbGo2iiFQWwIEMWhmPMxjOkBcRegXH8PQo6gqNIGi6MIKybOYOyHLANV9A1A95m1NsoMxGDPGfHIiPCfxvDSwcCJUwsci0nT4j0gzSLdX9PO83zLOs2yoHsnyLLXQVhVFCVpVlIrFw8kyvLM2q-ICqqavKsKEU1MTYv1dwvESzxktS9LexOUlonyHKBzyilM30r82vc2soB9dB62c4EjN-fbRuPOLJNghK-HJckX2KFLimHFTSkCQhZIKUwByQotnRImpiuXWh9sO7ogV6GszsWKMLvGrY4n8dSbn8bTfFyXx01e8JsLU580unG5CsB9rdtB-kGs3ZrdxOj0zuio89VPWTTHenHTEegpwm+nDwkwzSPuKIjEPOckkOJt5CD0IQaKgVA+WUUDMDAfjKD5WB0GA2B+QA4MwwjBnILh09b1CHIOdTN8Uoe+9pve0WhZKHHNJRiomWoUgIDgVw3NhpmYIAWm8YIAhxule1zfNilCFTi2yTno8pfICwpCXWSGFdRhVXg-Y7K6A9TUPg8KftYijmOLUOdTQhiDJShuVMEjToHPX23OJIm2CExDuT7QiLJEKy76L3wpDrmteJEOb0mV3by7O+jvwUodEI7hw-MK9JQIjgvGlSkQyI01Caeds8uf4a8fDiiuSk7VmpTMsr24bQIlDAluc5HruE-ab-LqQvPqeHwtwb6ZCQmlB+C0vA3D8C7FMCYdJxG8D-YypkQrdAYmAQBMFt7pg+nJOBc1PBZTUhpBS000r3GQVtEmp9OplQshgvyHsOLrj5Ngq629tL4PkpSIhr0ggrW0rpTMOEUElXod1cqTCiAUyFBwzuXDsiyV4YpDKmFC6v2EflUR5xxEdTQT1CqgVlADQsgo7EDxsjjzvhAjKUDtjZS0WtAqNDJY1mUG3GKxsYLLxtHcGkxwCIpnyPzNmelpoDnyHotxrJpbUFlvLRWytVbq01trdh3j-ZXTSn4BKyE7Q3hrsEbwttRZXBpGWR6aF0yaTdmUIAA */
   createMachine(
     {
       id: "authState",
@@ -243,6 +243,7 @@ export const authMachine =
             },
           },
         },
+
         signedOut: {
           on: {
             SIGN_IN: {
@@ -250,6 +251,7 @@ export const authMachine =
             },
           },
         },
+
         signingIn: {
           entry: "clearError",
           invoke: {
@@ -269,6 +271,7 @@ export const authMachine =
             ],
           },
         },
+
         signedIn: {
           type: "parallel",
           on: {
@@ -314,6 +317,7 @@ export const authMachine =
             },
           },
         },
+
         signingOut: {
           invoke: {
             src: "signOut",
@@ -330,12 +334,15 @@ export const authMachine =
             ],
             onError: [
               {
+                // The main way this is likely to fail is from the backend refusing
+                // to talk to you because your token is already invalid
                 actions: "assignError",
                 target: "signedOut",
               },
             ],
           },
         },
+
         configuringTheFirstUser: {
           on: {
             SIGN_IN: {
