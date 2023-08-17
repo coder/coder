@@ -58,7 +58,8 @@
           zstd
         ];
 
-        # Start with an Ubuntu image!
+        # This is the base image for our Docker container used for development.
+        # Use `nix-prefetch-docker ubuntu --arch amd64 --image-tag lunar` to get this.
         baseDevEnvImage = pkgs.dockerTools.pullImage {
           imageName = "ubuntu";
           imageDigest = "sha256:7a520eeb6c18bc6d32a21bb7edcf673a7830813c169645d51c949cecb62387d0";
@@ -66,12 +67,12 @@
           finalImageName = "ubuntu";
           finalImageTag = "lunar";
         };
-        # Build the image and modify it to have the "coder" user.
+        # This is an intermediate stage that adds sudo with the setuid bit set.
+        # Nix doesn't allow setuid binaries in the store, so we have to do this
+        # in a separate stage. 
         intermediateDevEnvImage = pkgs.dockerTools.buildImage {
           name = "intermediate";
           fromImage = baseDevEnvImage;
-          # This replaces the "ubuntu" user with "coder" and
-          # gives it sudo privileges!
           runAsRoot = ''
             #!${pkgs.runtimeShell}
             ${pkgs.dockerTools.shadowSetup}
@@ -83,55 +84,83 @@
               --uid=1000 \
               --user-group \
               --groups docker
-            cp ${pkgs.sudo}/bin/sudo /usr/bin/sudo
-            chmod 4755 /usr/bin/sudo
+            cp ${pkgs.sudo}/bin/sudo usr/bin/sudo
+            chmod 4755 usr/bin/sudo
+            mkdir -p /etc/init.d
           '';
         };
-
-        devEnvPath = "PATH=${pkgs.lib.makeBinPath devShellPackages}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/coder/go/bin";
-        dockerDebianInit = pkgs.fetchFromGitHub {
-          owner = "moby";
-          repo = "moby";
-          rev = "ae737656f9817fbd5afab96aa083754cfb81aab0";
-          sha256 = "sha256-oS3WplsxhKHCuHwL4/ytsCNJ1N/SZhlUZmzZTf81AoE=";
-        };
+        # Environment variables that live in `/etc/environment` in the container.
+        # These will also be applied to the container config.
+        devEnvVars = [
+          "PATH=${pkgs.lib.makeBinPath devShellPackages}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/coder/go/bin"
+          #This setting prevents Go from using the public checksum database for
+          # our module path prefixes. It is required because these are in private
+          # repositories that require authentication.
+          #
+          # For details, see: https://golang.org/ref/mod#private-modules
+          "GOPRIVATE=coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder"
+          # Increase memory allocation to NodeJS
+          "NODE_OPTIONS=--max_old_space_size=8192"
+        ];
+        # Builds a layered image with all the tools included!
         devEnvImage = pkgs.dockerTools.streamLayeredImage {
           name = "codercom/oss-dogfood";
           tag = "testing";
           fromImage = intermediateDevEnvImage;
           maxLayers = 64;
-          extraCommands = ''
-            mkdir -p etc
-            echo ${devEnvPath} > etc/environment
-    
-            mkdir -p etc/default
-            echo 'DOCKERD=${pkgs.docker}/bin/dockerd' > etc/default/docker
-            mkdir -p etc/init.d
-            cp ${dockerDebianInit}/contrib/init/sysvinit-debian/docker etc/init.d/docker
-            echo "coder ALL=(ALL) NOPASSWD:ALL" >etc/sudoers
-            mkdir -p etc/pam.d
-            cat > etc/pam.d/other <<EOF
+          contents = [
+            # Required for `sudo` to persist the proper `PATH`.
+            (
+              pkgs.writeTextDir "etc/environment" (pkgs.lib.strings.concatLines devEnvVars)
+            )
+            # Allows `coder` to use `sudo` without a password.
+            (
+              pkgs.writeTextDir "etc/sudoers" ''
+                coder ALL=(ALL) NOPASSWD:ALL
+              ''
+            )
+            # Also allows `coder` to use `sudo` without a password.
+            (
+              pkgs.writeTextDir "etc/pam.d/other" ''
                 account sufficient pam_unix.so
                 auth sufficient pam_rootok.so
                 password requisite pam_unix.so nullok yescrypt
                 session required pam_unix.so
-            EOF
-            mkdir -p etc/ssl/certs
-            cp -r ${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt etc/ssl/certs/ca-certificates.crt
-          '';
+              ''
+            )
+            # This is the debian script for managing Docker with `sudo service docker ...`.
+            (
+              pkgs.writeTextFile {
+                name = "docker";
+                destination = "/etc/init.d/docker";
+                executable = true;
+                text = (builtins.readFile (
+                  pkgs.fetchFromGitHub
+                    {
+                      owner = "moby";
+                      repo = "moby";
+                      rev = "ae737656f9817fbd5afab96aa083754cfb81aab0";
+                      sha256 = "sha256-oS3WplsxhKHCuHwL4/ytsCNJ1N/SZhlUZmzZTf81AoE=";
+                    } + "/contrib/init/sysvinit-debian/docker"
+                ));
+              }
+            )
+            # The Docker script above looks here for the daemon binary location.
+            # Because we're injecting it with Nix, it's not in the default spot.
+            (
+              pkgs.writeTextDir "etc/default/docker" ''
+                DOCKERD=${pkgs.docker}/bin/dockerd
+              ''
+            )
+            # The same as `sudo apt install ca-certificates -y'.
+            (
+              pkgs.writeTextDir "etc/ssl/certs/ca-certificates.crt"
+                (builtins.readFile "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt")
+            )
+          ];
 
           config = {
-            Env = [
-              devEnvPath
-              #This setting prevents Go from using the public checksum database for
-              # our module path prefixes. It is required because these are in private
-              # repositories that require authentication.
-              #
-              # For details, see: https://golang.org/ref/mod#private-modules
-              "GOPRIVATE=coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder"
-              # Increase memory allocation to NodeJS
-              "NODE_OPTIONS=--max_old_space_size=8192"
-            ];
+            Env = devEnvVars;
             Entrypoint = [ "/bin/bash" ];
             User = "coder";
           };
@@ -139,8 +168,7 @@
       in
       {
         packages = {
-          devEnvironmentDocker = devEnvImage;
-          # other packages you want to define for this system
+          devEnvImage = devEnvImage;
         };
         defaultPackage = formatter; # or replace it with your desired default package.
         devShell = pkgs.mkShell { buildInputs = devShellPackages; };
