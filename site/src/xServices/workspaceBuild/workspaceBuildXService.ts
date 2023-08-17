@@ -6,7 +6,7 @@ type LogsContext = {
   // Build
   username: string
   workspaceName: string
-  buildNumber: string
+  buildNumber: number
   buildId: string
   // Used to reference logs before + after.
   timeCursor: Date
@@ -26,7 +26,7 @@ type LogsEvent =
     }
   | {
       type: "RESET"
-      buildNumber: string
+      buildNumber: number
       timeCursor: Date
     }
 
