@@ -134,6 +134,7 @@ curl -X GET http://coder-server:8080/api/v2/entitlements \
     }
   },
   "has_license": true,
+  "refreshed_at": "string",
   "require_telemetry": true,
   "trial": true,
   "warnings": ["string"]

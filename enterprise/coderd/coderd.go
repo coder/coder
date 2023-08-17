@@ -810,7 +810,7 @@ func (api *API) runEntitlementsLoop(ctx context.Context) {
 		// make sure things like replica counts are updated in the UI.
 		// Ignore the error, as this is just a best effort. If it fails,
 		// the system will eventually recover as replicas timeout
-		// if their heartbeats stop. The best effort just trys to update the
+		// if their heartbeats stop. The best effort just tries to update the
 		// UI faster if it succeeds.
 		_ = api.Pubsub.Publish(PubsubEventLicenses, []byte("going away"))
 	}()

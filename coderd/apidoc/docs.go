@@ -1024,6 +1024,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/licenses/refresh-entitlements": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "Update license entitlements",
+                "operationId": "update-license-entitlements",
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/licenses/{id}": {
             "delete": {
                 "security": [
@@ -8067,6 +8095,9 @@ const docTemplate = `{
                 },
                 "has_license": {
                     "type": "boolean"
+                },
+                "refreshed_at": {
+                    "type": "string"
                 },
                 "require_telemetry": {
                     "type": "boolean"
