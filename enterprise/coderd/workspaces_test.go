@@ -688,6 +688,61 @@ func TestWorkspacesFiltering(t *testing.T) {
 	})
 }
 
+// TestWorkspacesWithoutTemplatePerms creates a workspace for a user, then drops
+// the user's perms to the underlying template.
+func TestWorkspacesWithoutTemplatePerms(t *testing.T) {
+	t.Parallel()
+
+	client, first := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
+		},
+	})
+
+	version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+
+	user, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+	workspace := coderdtest.CreateWorkspace(t, user, first.OrganizationID, template.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	// Remove everyone access
+	err := client.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
+		GroupPerms: map[string]codersdk.TemplateRole{
+			first.OrganizationID.String(): codersdk.TemplateRoleDeleted,
+		},
+	})
+	require.NoError(t, err, "remove everyone access")
+
+	// This should fail as the user cannot read the template
+	_, err = user.Workspace(ctx, workspace.ID)
+	require.Error(t, err, "fetch workspace")
+	var sdkError *codersdk.Error
+	require.ErrorAs(t, err, &sdkError)
+	require.Equal(t, http.StatusForbidden, sdkError.StatusCode())
+
+	_, err = user.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err, "fetch workspaces should not fail")
+
+	// Now create another workspace the user can read.
+	version2 := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJob(t, client, version2.ID)
+	template2 := coderdtest.CreateTemplate(t, client, first.OrganizationID, version2.ID)
+	_ = coderdtest.CreateWorkspace(t, user, first.OrganizationID, template2.ID)
+
+	workspaces, err := user.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err, "fetch workspaces should not fail")
+	require.Len(t, workspaces.Workspaces, 1)
+}
+
 func TestWorkspaceLock(t *testing.T) {
 	t.Parallel()
 
