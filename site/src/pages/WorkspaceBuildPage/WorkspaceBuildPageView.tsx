@@ -25,6 +25,7 @@ import {
   SidebarItem,
 } from "components/Sidebar/Sidebar"
 import { BuildIcon } from "components/BuildIcon/BuildIcon"
+import Skeleton from "@mui/material/Skeleton"
 
 const sortLogsByCreatedAt = (logs: ProvisionerJobLog[]) => {
   return [...logs].sort(
@@ -47,7 +48,6 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
   activeBuildNumber,
 }) => {
   const styles = useStyles()
-  const theme = useTheme()
 
   if (!build) {
     return <Loader />
@@ -87,6 +87,11 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
           />
           <StatsItem
             className={styles.statsItem}
+            label="Template version"
+            value={build.template_version_name}
+          />
+          <StatsItem
+            className={styles.statsItem}
             label="Duration"
             value={displayWorkspaceBuildDuration(build)}
           />
@@ -98,7 +103,11 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
           <StatsItem
             className={styles.statsItem}
             label="Action"
-            value={build.transition}
+            value={
+              <Box component="span" sx={{ textTransform: "capitalize" }}>
+                {build.transition}
+              </Box>
+            }
           />
         </Stats>
       </FullWidthPageHeader>
@@ -113,50 +122,16 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
       >
         <Sidebar>
           <SidebarCaption>Builds</SidebarCaption>
-          {builds?.map((b) => (
-            <Link
-              key={b.id}
-              to={`/@${b.workspace_owner_name}/${b.workspace_name}/builds/${b.build_number}`}
-            >
-              <SidebarItem
-                active={b.build_number === activeBuildNumber}
-                sx={{ color: "red" }}
-              >
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <BuildIcon
-                    transition={b.transition}
-                    sx={{
-                      width: 16,
-                      height: 16,
-                      color: getDisplayWorkspaceBuildStatus(theme, b).color,
-                    }}
-                  />
-                  <Box sx={{ overflow: "hidden" }}>
-                    <Box
-                      sx={{
-                        textTransform: "capitalize",
-                        color: (theme) => theme.palette.text.primary,
-                        textOverflow: "ellipsis",
-                        overflow: "hidden",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {b.transition} by{" "}
-                      <strong>{getDisplayWorkspaceBuildInitiatedBy(b)}</strong>
-                    </Box>
-                    <Box
-                      sx={{
-                        fontSize: 12,
-                        color: (theme) => theme.palette.text.secondary,
-                        mt: 0.25,
-                      }}
-                    >
-                      {displayWorkspaceBuildDuration(b)}
-                    </Box>
-                  </Box>
-                </Box>
-              </SidebarItem>
-            </Link>
+          {!builds &&
+            [...Array(15).keys()].map((i) => (
+              <BuildSidebarItemSkeleton key={i} />
+            ))}
+          {builds?.map((build) => (
+            <BuildSidebarItem
+              key={build.id}
+              build={build}
+              active={build.build_number === activeBuildNumber}
+            />
           ))}
         </Sidebar>
 
@@ -174,6 +149,73 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
         </Box>
       </Box>
     </Box>
+  )
+}
+
+const BuildSidebarItem = ({
+  build,
+  active,
+}: {
+  build: WorkspaceBuild
+  active: boolean
+}) => {
+  const theme = useTheme()
+
+  return (
+    <Link
+      key={build.id}
+      to={`/@${build.workspace_owner_name}/${build.workspace_name}/builds/${build.build_number}`}
+    >
+      <SidebarItem active={active}>
+        <Box sx={{ display: "flex", alignItems: "start", gap: 1 }}>
+          <BuildIcon
+            transition={build.transition}
+            sx={{
+              width: 16,
+              height: 16,
+              color: getDisplayWorkspaceBuildStatus(theme, build).color,
+            }}
+          />
+          <Box sx={{ overflow: "hidden" }}>
+            <Box
+              sx={{
+                textTransform: "capitalize",
+                color: (theme) => theme.palette.text.primary,
+                textOverflow: "ellipsis",
+                overflow: "hidden",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {build.transition} by{" "}
+              <strong>{getDisplayWorkspaceBuildInitiatedBy(build)}</strong>
+            </Box>
+            <Box
+              sx={{
+                fontSize: 12,
+                color: (theme) => theme.palette.text.secondary,
+                mt: 0.25,
+              }}
+            >
+              {displayWorkspaceBuildDuration(build)}
+            </Box>
+          </Box>
+        </Box>
+      </SidebarItem>
+    </Link>
+  )
+}
+
+const BuildSidebarItemSkeleton = () => {
+  return (
+    <SidebarItem>
+      <Box sx={{ display: "flex", alignItems: "start", gap: 1 }}>
+        <Skeleton variant="circular" width={16} height={16} />
+        <Box>
+          <Skeleton variant="text" width={94} height={16} />
+          <Skeleton variant="text" width={60} height={14} sx={{ mt: 0.25 }} />
+        </Box>
+      </Box>
+    </SidebarItem>
   )
 }
 

@@ -12,9 +12,11 @@ export const Sidebar = styled((props: BoxProps) => (
   overflowY: "auto",
 }))
 
-export const SidebarItem = styled((props: BoxProps & { active?: boolean }) => (
-  <Box component="button" {...props} />
-))(({ theme, active }) => ({
+export const SidebarItem = styled(
+  ({ active, ...props }: BoxProps & { active?: boolean }) => (
+    <Box component="button" {...props} />
+  ),
+)(({ theme, active }) => ({
   background: active ? colors.gray[13] : "none",
   border: "none",
   fontSize: 14,
