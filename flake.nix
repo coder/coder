@@ -52,6 +52,7 @@
           strace
           terraform
           typos
+          vim
           yq
           zip
           zstd
@@ -61,7 +62,7 @@
         baseDevEnvImage = pkgs.dockerTools.pullImage {
           imageName = "ubuntu";
           imageDigest = "sha256:7a520eeb6c18bc6d32a21bb7edcf673a7830813c169645d51c949cecb62387d0";
-          sha256 = "1qa9nq3rir0wnhbs15mwbilzw530x7ih9pq5q1wv3axz44ap6dka";
+          sha256 = "qEgC+0W4zJjrYAMrAuE6MtQjt9qQv9PgXTPY81nMHyQ=";
           finalImageName = "ubuntu";
           finalImageTag = "lunar";
         };
@@ -91,14 +92,24 @@
             chmod 4755 /usr/bin/sudo
           '';
         };
+        devEnvPath = "PATH=${pkgs.lib.makeBinPath devShellPackages}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/coder/go/bin";
         devEnvImage = pkgs.dockerTools.streamLayeredImage {
           name = "codercom/oss-dogfood";
           tag = "testing";
           fromImage = intermediateDevEnvImage;
+          contents = [
+            (
+              pkgs.writeTextDir
+                "etc/environment"
+                ''
+                  ${devEnvPath}
+                ''
+            )
+          ];
 
           config = {
             Env = [
-              "PATH=${pkgs.lib.makeBinPath devShellPackages}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/coder/go/bin"
+              devEnvPath
               #This setting prevents Go from using the public checksum database for
               # our module path prefixes. It is required because these are in private
               # repositories that require authentication.
