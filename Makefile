@@ -542,6 +542,7 @@ site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find ./coders
 
 site/e2e/provisionerGenerated.ts:
 	cd site
+	../scripts/pnpm_install.sh
 	pnpm run gen:provisioner
 
 coderd/rbac/object_gen.go: scripts/rbacgen/main.go coderd/rbac/object.go
