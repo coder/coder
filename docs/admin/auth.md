@@ -147,6 +147,7 @@ helm upgrade <release-name> coder-v2/coder -n <namespace> -f values.yaml
 </blockquote>
 
 An alternative authentication method is to use signed JWT tokens rather than a shared `client_secret`. This requires 2 files.
+
 - An RSA private key file
   - ```text
     -----BEGIN RSA PRIVATE KEY-----
@@ -166,7 +167,6 @@ Reference the documentation provided by your provider on how to do this. Dependi
 - <!-- Azure --> Authentication certificate credentials
 - <!-- Okta --> JWT for Client Authentication
 - <!-- Auth0 --> Authenticate with Private Key JWT
-
 
 Once the key and certificate are uploaded, you can run Coder with the files. Navigate to your Coder host and run the following command to start up the Coder server:
 
@@ -201,6 +201,7 @@ coder:
 ```
 
 To upgrade Coder, run:
+
 ```console
 helm upgrade <release-name> coder-v2/coder -n <namespace> -f values.yaml
 ```
