@@ -549,6 +549,19 @@ func (q *FakeQuerier) getWorkspaceAgentsByResourceIDsNoLock(_ context.Context, r
 	return workspaceAgents, nil
 }
 
+func (q *FakeQuerier) getWorkspaceAppByAgentIDAndSlugNoLock(_ context.Context, arg database.GetWorkspaceAppByAgentIDAndSlugParams) (database.WorkspaceApp, error) {
+	for _, app := range q.workspaceApps {
+		if app.AgentID != arg.AgentID {
+			continue
+		}
+		if app.Slug != arg.Slug {
+			continue
+		}
+		return app, nil
+	}
+	return database.WorkspaceApp{}, sql.ErrNoRows
+}
+
 func (q *FakeQuerier) getProvisionerJobByIDNoLock(_ context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
 	for _, provisionerJob := range q.provisionerJobs {
 		if provisionerJob.ID != id {
@@ -3242,19 +3255,6 @@ func (q *FakeQuerier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg d
 	defer q.mutex.RUnlock()
 
 	return q.getWorkspaceAppByAgentIDAndSlugNoLock(ctx, arg)
-}
-
-func (q *FakeQuerier) getWorkspaceAppByAgentIDAndSlugNoLock(_ context.Context, arg database.GetWorkspaceAppByAgentIDAndSlugParams) (database.WorkspaceApp, error) {
-	for _, app := range q.workspaceApps {
-		if app.AgentID != arg.AgentID {
-			continue
-		}
-		if app.Slug != arg.Slug {
-			continue
-		}
-		return app, nil
-	}
-	return database.WorkspaceApp{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetWorkspaceAppsByAgentID(_ context.Context, id uuid.UUID) ([]database.WorkspaceApp, error) {
