@@ -24,18 +24,18 @@ import (
 	"tailscale.com/types/key"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/coderd"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/coderd/workspaceapps"
-	"github.com/coder/coder/coderd/wsconncache"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/derpmesh"
-	"github.com/coder/coder/enterprise/wsproxy/wsproxysdk"
-	"github.com/coder/coder/site"
-	"github.com/coder/coder/tailnet"
+	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/wsconncache"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/derpmesh"
+	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
+	"github.com/coder/coder/v2/site"
+	"github.com/coder/coder/v2/tailnet"
 )
 
 type Options struct {
@@ -79,6 +79,8 @@ type Options struct {
 	// By default, CORs is set to accept external requests
 	// from the dashboardURL. This should only be used in development.
 	AllowAllCors bool
+
+	StatsCollectorOptions workspaceapps.StatsCollectorOptions
 }
 
 func (o *Options) Validate() error {
@@ -250,6 +252,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 			connInfo.DERPMap,
 			s.DialCoordinator,
 			wsconncache.New(s.DialWorkspaceAgent, 0),
+			s.TracerProvider,
 		)
 		if err != nil {
 			return nil, xerrors.Errorf("create server tailnet: %w", err)
@@ -261,8 +264,17 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		}
 	}
 
+	workspaceAppsLogger := opts.Logger.Named("workspaceapps")
+	if opts.StatsCollectorOptions.Logger == nil {
+		named := workspaceAppsLogger.Named("stats_collector")
+		opts.StatsCollectorOptions.Logger = &named
+	}
+	if opts.StatsCollectorOptions.Reporter == nil {
+		opts.StatsCollectorOptions.Reporter = &appStatsReporter{Client: client}
+	}
+
 	s.AppServer = &workspaceapps.Server{
-		Logger:        opts.Logger.Named("workspaceapps"),
+		Logger:        workspaceAppsLogger,
 		DashboardURL:  opts.DashboardURL,
 		AccessURL:     opts.AccessURL,
 		Hostname:      opts.AppHostname,
@@ -278,9 +290,11 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		},
 		AppSecurityKey: secKey,
 
-		AgentProvider:    agentProvider,
 		DisablePathApps:  opts.DisablePathApps,
 		SecureAuthCookie: opts.SecureAuthCookie,
+
+		AgentProvider:  agentProvider,
+		StatsCollector: workspaceapps.NewStatsCollector(opts.StatsCollectorOptions),
 	}
 
 	derpHandler := derphttp.Handler(derpServer)

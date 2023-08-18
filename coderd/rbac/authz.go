@@ -18,10 +18,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/rbac/regosql"
-	"github.com/coder/coder/coderd/rbac/regosql/sqltypes"
-	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/rbac/regosql"
+	"github.com/coder/coder/v2/coderd/rbac/regosql/sqltypes"
+	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
 // Action represents the allowed actions to be done on an object.

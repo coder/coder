@@ -7,7 +7,7 @@ import (
 
 	"golang.org/x/exp/maps"
 
-	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac"
 )
 
 type WorkspaceStatus string
@@ -84,7 +84,7 @@ func (g Group) Auditable(users []User) AuditableGroup {
 	}
 }
 
-const AllUsersGroup = "Everyone"
+const EveryoneGroup = "Everyone"
 
 func (s APIKeyScope) ToRBAC() rbac.ScopeName {
 	switch s {
@@ -361,4 +361,8 @@ func ConvertWorkspaceRows(rows []GetWorkspacesRow) []Workspace {
 	}
 
 	return workspaces
+}
+
+func (g Group) IsEveryone() bool {
+	return g.ID == g.OrganizationID
 }

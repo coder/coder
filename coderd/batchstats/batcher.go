@@ -13,9 +13,9 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/codersdk/agentsdk"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
 const (
@@ -183,7 +183,7 @@ func (b *Batcher) run(ctx context.Context) {
 			// If the flush lever is depressed, flush the buffer immediately.
 			b.flush(authCtx, true, "reaching capacity")
 		case <-ctx.Done():
-			b.log.Warn(ctx, "context done, flushing before exit")
+			b.log.Debug(ctx, "context done, flushing before exit")
 			b.flush(authCtx, true, "exit")
 			return
 		}

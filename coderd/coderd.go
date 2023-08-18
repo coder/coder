@@ -37,37 +37,37 @@ import (
 	"tailscale.com/util/singleflight"
 
 	// Used for swagger docs.
-	_ "github.com/coder/coder/coderd/apidoc"
+	_ "github.com/coder/coder/v2/coderd/apidoc"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/awsidentity"
-	"github.com/coder/coder/coderd/batchstats"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/database/pubsub"
-	"github.com/coder/coder/coderd/gitauth"
-	"github.com/coder/coder/coderd/gitsshkey"
-	"github.com/coder/coder/coderd/healthcheck"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/metricscache"
-	"github.com/coder/coder/coderd/provisionerdserver"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/schedule"
-	"github.com/coder/coder/coderd/telemetry"
-	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/coderd/updatecheck"
-	"github.com/coder/coder/coderd/util/slice"
-	"github.com/coder/coder/coderd/workspaceapps"
-	"github.com/coder/coder/coderd/wsconncache"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/codersdk/agentsdk"
-	"github.com/coder/coder/provisionerd/proto"
-	"github.com/coder/coder/provisionersdk"
-	"github.com/coder/coder/site"
-	"github.com/coder/coder/tailnet"
+	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/awsidentity"
+	"github.com/coder/coder/v2/coderd/batchstats"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/coderd/gitsshkey"
+	"github.com/coder/coder/v2/coderd/healthcheck"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/metricscache"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/updatecheck"
+	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/wsconncache"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/provisionerd/proto"
+	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/coder/v2/site"
+	"github.com/coder/coder/v2/tailnet"
 )
 
 // We must only ever instantiate one httpSwagger.Handler because of a data race
@@ -162,6 +162,8 @@ type Options struct {
 
 	UpdateAgentMetrics func(ctx context.Context, username, workspaceName, agentName string, metrics []agentsdk.AgentMetric)
 	StatsBatcher       *batchstats.Batcher
+
+	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 }
 
 // @title Coder API
@@ -407,6 +409,7 @@ func New(options *Options) *API {
 				return (*api.TailnetCoordinator.Load()).ServeMultiAgent(uuid.New()), nil
 			},
 			wsconncache.New(api._dialWorkspaceAgentTailnet, 0),
+			api.TracerProvider,
 		)
 		if err != nil {
 			panic("failed to setup server tailnet: " + err.Error())
@@ -417,8 +420,17 @@ func New(options *Options) *API {
 		}
 	}
 
+	workspaceAppsLogger := options.Logger.Named("workspaceapps")
+	if options.WorkspaceAppsStatsCollectorOptions.Logger == nil {
+		named := workspaceAppsLogger.Named("stats_collector")
+		options.WorkspaceAppsStatsCollectorOptions.Logger = &named
+	}
+	if options.WorkspaceAppsStatsCollectorOptions.Reporter == nil {
+		options.WorkspaceAppsStatsCollectorOptions.Reporter = workspaceapps.NewStatsDBReporter(options.Database, workspaceapps.DefaultStatsDBReporterBatchSize)
+	}
+
 	api.workspaceAppServer = &workspaceapps.Server{
-		Logger: options.Logger.Named("workspaceapps"),
+		Logger: workspaceAppsLogger,
 
 		DashboardURL:  api.AccessURL,
 		AccessURL:     api.AccessURL,
@@ -429,6 +441,7 @@ func New(options *Options) *API {
 		SignedTokenProvider: api.WorkspaceAppsProvider,
 		AgentProvider:       api.agentProvider,
 		AppSecurityKey:      options.AppSecurityKey,
+		StatsCollector:      workspaceapps.NewStatsCollector(options.WorkspaceAppsStatsCollectorOptions),
 
 		DisablePathApps:  options.DeploymentValues.DisablePathApps.Value(),
 		SecureAuthCookie: options.DeploymentValues.SecureAuthCookie.Value(),
@@ -1020,6 +1033,7 @@ func (api *API) Close() error {
 	if api.updateChecker != nil {
 		api.updateChecker.Close()
 	}
+	_ = api.workspaceAppServer.Close()
 	coordinator := api.TailnetCoordinator.Load()
 	if coordinator != nil {
 		_ = (*coordinator).Close()

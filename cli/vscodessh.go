@@ -20,8 +20,8 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // vscodeSSH is used by the Coder VS Code extension to establish
@@ -86,7 +86,7 @@ func (r *RootCmd) vscodeSSH() *clibase.Cmd {
 			client.SetSessionToken(string(sessionToken))
 
 			// This adds custom headers to the request!
-			err = r.setClient(client, serverURL)
+			err = r.setClient(ctx, client, serverURL)
 			if err != nil {
 				return xerrors.Errorf("set client: %w", err)
 			}

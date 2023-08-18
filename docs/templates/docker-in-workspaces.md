@@ -13,6 +13,8 @@ There are a few ways to run Docker within container-based Coder workspaces.
 
 The [Sysbox](https://github.com/nestybox/sysbox) container runtime allows unprivileged users to run system-level applications, such as Docker, securely from the workspace containers. Sysbox requires a [compatible Linux distribution](https://github.com/nestybox/sysbox/blob/master/docs/distro-compat.md) to implement these security features. Sysbox can also be used to run systemd inside Coder workspaces. See [Systemd in Docker](#systemd-in-docker).
 
+The Sysbox container runtime is not compatible with our [workspace process logging](./process-logging.md) feature. Envbox is compatible with process logging, however.
+
 ### Use Sysbox in Docker-based templates
 
 After [installing Sysbox](https://github.com/nestybox/sysbox#installation) on the Coder host, modify your template to use the sysbox-runc runtime:

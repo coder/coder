@@ -22,22 +22,22 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd"
-	agplaudit "github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/rbac"
-	agplschedule "github.com/coder/coder/coderd/schedule"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/coderd/license"
-	"github.com/coder/coder/enterprise/coderd/proxyhealth"
-	"github.com/coder/coder/enterprise/coderd/schedule"
-	"github.com/coder/coder/enterprise/derpmesh"
-	"github.com/coder/coder/enterprise/replicasync"
-	"github.com/coder/coder/enterprise/tailnet"
-	"github.com/coder/coder/provisionerd/proto"
-	agpltailnet "github.com/coder/coder/tailnet"
+	"github.com/coder/coder/v2/coderd"
+	agplaudit "github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	agplschedule "github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/enterprise/coderd/proxyhealth"
+	"github.com/coder/coder/v2/enterprise/coderd/schedule"
+	"github.com/coder/coder/v2/enterprise/derpmesh"
+	"github.com/coder/coder/v2/enterprise/replicasync"
+	"github.com/coder/coder/v2/enterprise/tailnet"
+	"github.com/coder/coder/v2/provisionerd/proto"
+	agpltailnet "github.com/coder/coder/v2/tailnet"
 )
 
 // New constructs an Enterprise coderd API instance.
@@ -167,6 +167,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				)
 				r.Get("/coordinate", api.workspaceProxyCoordinate)
 				r.Post("/issue-signed-app-token", api.workspaceProxyIssueSignedAppToken)
+				r.Post("/app-stats", api.workspaceProxyReportAppStats)
 				r.Post("/register", api.workspaceProxyRegister)
 				r.Post("/deregister", api.workspaceProxyDeregister)
 			})
@@ -507,7 +508,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 	if initial, changed, enabled := featureChanged(codersdk.FeatureAdvancedTemplateScheduling); shouldUpdate(initial, changed, enabled) {
 		if enabled {
-			templateStore := schedule.NewEnterpriseTemplateScheduleStore()
+			templateStore := schedule.NewEnterpriseTemplateScheduleStore(api.AGPL.UserQuietHoursScheduleStore)
 			templateStoreInterface := agplschedule.TemplateScheduleStore(templateStore)
 			api.AGPL.TemplateScheduleStore.Store(&templateStoreInterface)
 		} else {

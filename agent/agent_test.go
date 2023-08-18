@@ -1,7 +1,6 @@
 package agent_test
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -12,6 +11,7 @@ import (
 	"net/http/httptest"
 	"net/netip"
 	"os"
+	"os/exec"
 	"os/user"
 	"path"
 	"path/filepath"
@@ -42,17 +42,17 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/agent"
-	"github.com/coder/coder/agent/agentssh"
-	"github.com/coder/coder/agent/agenttest"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/codersdk/agentsdk"
-	"github.com/coder/coder/pty"
-	"github.com/coder/coder/pty/ptytest"
-	"github.com/coder/coder/tailnet"
-	"github.com/coder/coder/tailnet/tailnettest"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/pty"
+	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/tailnet/tailnettest"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestMain(m *testing.M) {
@@ -102,7 +102,7 @@ func TestAgent_Stats_ReconnectingPTY(t *testing.T) {
 	//nolint:dogsled
 	conn, _, stats, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 
-	ptyConn, err := conn.ReconnectingPTY(ctx, uuid.New(), 128, 128, "/bin/bash")
+	ptyConn, err := conn.ReconnectingPTY(ctx, uuid.New(), 128, 128, "bash")
 	require.NoError(t, err)
 	defer ptyConn.Close()
 
@@ -1587,8 +1587,8 @@ func TestAgent_Startup(t *testing.T) {
 	})
 }
 
+//nolint:paralleltest // This test sets an environment variable.
 func TestAgent_ReconnectingPTY(t *testing.T) {
-	t.Parallel()
 	if runtime.GOOS == "windows" {
 		// This might be our implementation, or ConPTY itself.
 		// It's difficult to find extensive tests for it, so
@@ -1596,61 +1596,116 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 		t.Skip("ConPTY appears to be inconsistent on Windows.")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	backends := []string{"Buffered", "Screen"}
 
-	//nolint:dogsled
-	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
-	id := uuid.New()
-	netConn, err := conn.ReconnectingPTY(ctx, id, 100, 100, "/bin/bash")
-	require.NoError(t, err)
-	defer netConn.Close()
+	_, err := exec.LookPath("screen")
+	hasScreen := err == nil
 
-	bufRead := bufio.NewReader(netConn)
-
-	// Brief pause to reduce the likelihood that we send keystrokes while
-	// the shell is simultaneously sending a prompt.
-	time.Sleep(100 * time.Millisecond)
-
-	data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
-		Data: "echo test\r\n",
-	})
-	require.NoError(t, err)
-	_, err = netConn.Write(data)
-	require.NoError(t, err)
-
-	expectLine := func(matcher func(string) bool) {
-		for {
-			line, err := bufRead.ReadString('\n')
-			require.NoError(t, err)
-			if matcher(line) {
-				break
+	for _, backendType := range backends {
+		backendType := backendType
+		t.Run(backendType, func(t *testing.T) {
+			if backendType == "Screen" {
+				t.Parallel()
+				if runtime.GOOS != "linux" {
+					t.Skipf("`screen` is not supported on %s", runtime.GOOS)
+				} else if !hasScreen {
+					t.Skip("`screen` not found")
+				}
+			} else if hasScreen && runtime.GOOS == "linux" {
+				// Set up a PATH that does not have screen in it.
+				bashPath, err := exec.LookPath("bash")
+				require.NoError(t, err)
+				dir, err := os.MkdirTemp("/tmp", "coder-test-reconnecting-pty-PATH")
+				require.NoError(t, err, "create temp dir for reconnecting pty PATH")
+				err = os.Symlink(bashPath, filepath.Join(dir, "bash"))
+				require.NoError(t, err, "symlink bash into reconnecting pty PATH")
+				t.Setenv("PATH", dir)
+			} else {
+				t.Parallel()
 			}
-		}
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			//nolint:dogsled
+			conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+			id := uuid.New()
+			netConn1, err := conn.ReconnectingPTY(ctx, id, 80, 80, "bash")
+			require.NoError(t, err)
+			defer netConn1.Close()
+
+			// A second simultaneous connection.
+			netConn2, err := conn.ReconnectingPTY(ctx, id, 80, 80, "bash")
+			require.NoError(t, err)
+			defer netConn2.Close()
+
+			// Brief pause to reduce the likelihood that we send keystrokes while
+			// the shell is simultaneously sending a prompt.
+			time.Sleep(100 * time.Millisecond)
+
+			data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
+				Data: "echo test\r\n",
+			})
+			require.NoError(t, err)
+			_, err = netConn1.Write(data)
+			require.NoError(t, err)
+
+			matchEchoCommand := func(line string) bool {
+				return strings.Contains(line, "echo test")
+			}
+			matchEchoOutput := func(line string) bool {
+				return strings.Contains(line, "test") && !strings.Contains(line, "echo")
+			}
+			matchExitCommand := func(line string) bool {
+				return strings.Contains(line, "exit")
+			}
+			matchExitOutput := func(line string) bool {
+				return strings.Contains(line, "exit") || strings.Contains(line, "logout")
+			}
+
+			// Once for typing the command...
+			require.NoError(t, testutil.ReadUntil(ctx, t, netConn1, matchEchoCommand), "find echo command")
+			// And another time for the actual output.
+			require.NoError(t, testutil.ReadUntil(ctx, t, netConn1, matchEchoOutput), "find echo output")
+
+			// Same for the other connection.
+			require.NoError(t, testutil.ReadUntil(ctx, t, netConn2, matchEchoCommand), "find echo command")
+			require.NoError(t, testutil.ReadUntil(ctx, t, netConn2, matchEchoOutput), "find echo output")
+
+			_ = netConn1.Close()
+			_ = netConn2.Close()
+			netConn3, err := conn.ReconnectingPTY(ctx, id, 80, 80, "bash")
+			require.NoError(t, err)
+			defer netConn3.Close()
+
+			// Same output again!
+			require.NoError(t, testutil.ReadUntil(ctx, t, netConn3, matchEchoCommand), "find echo command")
+			require.NoError(t, testutil.ReadUntil(ctx, t, netConn3, matchEchoOutput), "find echo output")
+
+			// Exit should cause the connection to close.
+			data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
+				Data: "exit\r\n",
+			})
+			require.NoError(t, err)
+			_, err = netConn3.Write(data)
+			require.NoError(t, err)
+
+			// Once for the input and again for the output.
+			require.NoError(t, testutil.ReadUntil(ctx, t, netConn3, matchExitCommand), "find exit command")
+			require.NoError(t, testutil.ReadUntil(ctx, t, netConn3, matchExitOutput), "find exit output")
+
+			// Wait for the connection to close.
+			require.ErrorIs(t, testutil.ReadUntil(ctx, t, netConn3, nil), io.EOF)
+
+			// Try a non-shell command.  It should output then immediately exit.
+			netConn4, err := conn.ReconnectingPTY(ctx, uuid.New(), 80, 80, "echo test")
+			require.NoError(t, err)
+			defer netConn4.Close()
+
+			require.NoError(t, testutil.ReadUntil(ctx, t, netConn4, matchEchoOutput), "find echo output")
+			require.ErrorIs(t, testutil.ReadUntil(ctx, t, netConn3, nil), io.EOF)
+		})
 	}
-
-	matchEchoCommand := func(line string) bool {
-		return strings.Contains(line, "echo test")
-	}
-	matchEchoOutput := func(line string) bool {
-		return strings.Contains(line, "test") && !strings.Contains(line, "echo")
-	}
-
-	// Once for typing the command...
-	expectLine(matchEchoCommand)
-	// And another time for the actual output.
-	expectLine(matchEchoOutput)
-
-	_ = netConn.Close()
-	netConn, err = conn.ReconnectingPTY(ctx, id, 100, 100, "/bin/bash")
-	require.NoError(t, err)
-	defer netConn.Close()
-
-	bufRead = bufio.NewReader(netConn)
-
-	// Same output again!
-	expectLine(matchEchoCommand)
-	expectLine(matchEchoOutput)
 }
 
 func TestAgent_Dial(t *testing.T) {

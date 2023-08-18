@@ -5,9 +5,9 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type WorkspaceCLIAction int
@@ -177,14 +177,16 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 		if p != nil {
 			continue
 		}
+		// Parameter has not been resolved yet, so CLI needs to determine if user should input it.
 
 		firstTimeUse := pr.isFirstTimeUse(tvp.Name)
 
 		if (tvp.Ephemeral && pr.promptBuildOptions) ||
-			tvp.Required ||
+			(action == WorkspaceCreate && tvp.Required) ||
+			(action == WorkspaceCreate && !tvp.Ephemeral) ||
+			(action == WorkspaceUpdate && tvp.Required) ||
 			(action == WorkspaceUpdate && !tvp.Mutable && firstTimeUse) ||
-			(action == WorkspaceUpdate && tvp.Mutable && !tvp.Ephemeral && pr.promptRichParameters) ||
-			(action == WorkspaceCreate && !tvp.Ephemeral) {
+			(action == WorkspaceUpdate && tvp.Mutable && !tvp.Ephemeral && pr.promptRichParameters) {
 			parameterValue, err := cliui.RichParameter(inv, tvp)
 			if err != nil {
 				return nil, err

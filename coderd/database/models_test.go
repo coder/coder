@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/v2/coderd/database"
 )
 
 // TestViewSubsetTemplate ensures TemplateTable is a subset of Template

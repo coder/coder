@@ -5,8 +5,8 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/enterprise/audit"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/enterprise/audit"
 )
 
 type postgresBackend struct {

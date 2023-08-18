@@ -9,8 +9,7 @@ import {
   defaults,
   Legend,
   LinearScale,
-  LineElement,
-  PointElement,
+  BarElement,
   TimeScale,
   Title,
   Tooltip,
@@ -23,14 +22,13 @@ import {
 } from "components/Tooltips/HelpTooltip"
 import dayjs from "dayjs"
 import { FC } from "react"
-import { Line } from "react-chartjs-2"
+import { Bar } from "react-chartjs-2"
 
 ChartJS.register(
   CategoryScale,
   LinearScale,
   TimeScale,
-  PointElement,
-  LineElement,
+  BarElement,
   Title,
   Tooltip,
   Legend,
@@ -54,11 +52,20 @@ export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
   defaults.font.family = theme.typography.fontFamily as string
   defaults.color = theme.palette.text.secondary
 
-  const options: ChartOptions<"line"> = {
+  const options: ChartOptions<"bar"> = {
     responsive: true,
     plugins: {
       legend: {
         display: false,
+      },
+      tooltip: {
+        displayColors: false,
+        callbacks: {
+          title: (context) => {
+            const date = new Date(context[0].parsed.x)
+            return date.toLocaleDateString()
+          },
+        },
       },
     },
     scales: {
@@ -70,7 +77,7 @@ export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
       },
       x: {
         ticks: {
-          stepSize: 2,
+          stepSize: daus.entries.length > 10 ? 2 : undefined,
         },
         type: "time",
         time: {
@@ -82,7 +89,7 @@ export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
   }
 
   return (
-    <Line
+    <Bar
       data-chromatic="ignore"
       data={{
         labels: labels,
@@ -90,9 +97,12 @@ export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
           {
             label: "Daily Active Users",
             data: data,
-            tension: 1 / 4,
             backgroundColor: theme.palette.secondary.dark,
             borderColor: theme.palette.secondary.dark,
+            barThickness: 8,
+            borderWidth: 2,
+            borderRadius: Number.MAX_VALUE,
+            borderSkipped: false,
           },
         ],
       }}

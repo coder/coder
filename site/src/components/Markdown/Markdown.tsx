@@ -120,6 +120,11 @@ const useStyles = makeStyles((theme) => ({
       marginBottom: theme.spacing(2),
     },
 
+    "& p:only-child": {
+      marginTop: 0,
+      marginBottom: 0,
+    },
+
     "& ul, & ol": {
       display: "flex",
       flexDirection: "column",

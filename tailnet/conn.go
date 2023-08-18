@@ -2,6 +2,7 @@ package tailnet
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"net"
@@ -19,7 +20,7 @@ import (
 	"golang.org/x/xerrors"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
-	"tailscale.com/hostinfo"
+	"tailscale.com/envknob"
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/connstats"
 	"tailscale.com/net/dns"
@@ -42,8 +43,8 @@ import (
 	"tailscale.com/wgengine/wgcfg/nmcfg"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/cryptorand"
 )
 
 const (
@@ -64,9 +65,26 @@ func init() {
 	// Globally disable network namespacing. All networking happens in
 	// userspace.
 	netns.SetEnabled(false)
+	// Tailscale, by default, "trims" the set of peers down to ones that we are
+	// "actively" communicating with in an effort to save memory. Since
+	// Tailscale removed keep-alives, it seems like open but idle connections
+	// (SSH, port-forward, etc) can get trimmed fairly easily, causing hangs for
+	// a few seconds while the connection is setup again.
+	//
+	// Note that Tailscale.com's use case is very different from ours: in their
+	// use case, users create one persistent tailnet per device, and it allows
+	// connections to every other thing in Tailscale that belongs to them.  The
+	// tailnet stays up as long as your laptop or phone is turned on.
+	//
+	// Our use case is different: for clients, it's a point-to-point connection
+	// to a single workspace, and lasts only as long as the connection.  For
+	// agents, it's connections to a small number of clients (CLI or Coderd)
+	// that are being actively used by the end user.
+	envknob.Setenv("TS_DEBUG_TRIM_WIREGUARD", "false")
 }
 
 type Options struct {
+	ID         uuid.UUID
 	Addresses  []netip.Prefix
 	DERPMap    *tailcfg.DERPMap
 	DERPHeader *http.Header
@@ -76,6 +94,18 @@ type Options struct {
 	BlockEndpoints bool
 	Logger         slog.Logger
 	ListenPort     uint16
+}
+
+// NodeID creates a Tailscale NodeID from the last 8 bytes of a UUID. It ensures
+// the returned NodeID is always positive.
+func NodeID(uid uuid.UUID) tailcfg.NodeID {
+	id := int64(binary.BigEndian.Uint64(uid[8:]))
+
+	// ensure id is positive
+	y := id >> 63
+	id = (id ^ y) - y
+
+	return tailcfg.NodeID(id)
 }
 
 // NewConn constructs a new Wireguard server that will accept connections from the addresses provided.
@@ -126,13 +156,23 @@ func NewConn(options *Options) (conn *Conn, err error) {
 			Caps: []filter.CapMatch{},
 		}},
 	}
-	nodeID, err := cryptorand.Int63()
-	if err != nil {
-		return nil, xerrors.Errorf("generate node id: %w", err)
+
+	var nodeID tailcfg.NodeID
+
+	// If we're provided with a UUID, use it to populate our node ID.
+	if options.ID != uuid.Nil {
+		nodeID = NodeID(options.ID)
+	} else {
+		uid, err := cryptorand.Int63()
+		if err != nil {
+			return nil, xerrors.Errorf("generate node id: %w", err)
+		}
+		nodeID = tailcfg.NodeID(uid)
 	}
+
 	// This is used by functions below to identify the node via key
 	netMap.SelfNode = &tailcfg.Node{
-		ID:         tailcfg.NodeID(nodeID),
+		ID:         nodeID,
 		Key:        nodePublicKey,
 		Addresses:  options.Addresses,
 		AllowedIPs: options.Addresses,
@@ -488,7 +528,7 @@ func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 			AllowedIPs: node.AllowedIPs,
 			Endpoints:  node.Endpoints,
 			DERP:       fmt.Sprintf("%s:%d", tailcfg.DerpMagicIP, node.PreferredDERP),
-			Hostinfo:   hostinfo.New().View(),
+			Hostinfo:   (&tailcfg.Hostinfo{}).View(),
 		}
 		if c.blockEndpoints {
 			peerNode.Endpoints = nil
@@ -510,6 +550,56 @@ func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 	}
 
 	return nil
+}
+
+// PeerSelector is used to select a peer from within a Tailnet.
+type PeerSelector struct {
+	ID tailcfg.NodeID
+	IP netip.Prefix
+}
+
+func (c *Conn) RemovePeer(selector PeerSelector) (deleted bool, err error) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	if c.isClosed() {
+		return false, xerrors.New("connection closed")
+	}
+
+	deleted = false
+	for _, peer := range c.peerMap {
+		if peer.ID == selector.ID {
+			delete(c.peerMap, peer.ID)
+			deleted = true
+			break
+		}
+
+		for _, peerIP := range peer.Addresses {
+			if peerIP.Bits() == selector.IP.Bits() && peerIP.Addr().Compare(selector.IP.Addr()) == 0 {
+				delete(c.peerMap, peer.ID)
+				deleted = true
+				break
+			}
+		}
+	}
+	if !deleted {
+		return false, nil
+	}
+
+	c.netMap.Peers = make([]*tailcfg.Node, 0, len(c.peerMap))
+	for _, peer := range c.peerMap {
+		c.netMap.Peers = append(c.netMap.Peers, peer.Clone())
+	}
+
+	netMapCopy := *c.netMap
+	c.logger.Debug(context.Background(), "updating network map")
+	c.wireguardEngine.SetNetworkMap(&netMapCopy)
+	err = c.reconfig()
+	if err != nil {
+		return false, xerrors.Errorf("reconfig: %w", err)
+	}
+
+	return true, nil
 }
 
 func (c *Conn) reconfig() error {

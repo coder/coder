@@ -9,13 +9,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/coderd/coderdenttest"
-	"github.com/coder/coder/enterprise/coderd/license"
-	"github.com/coder/coder/provisioner/echo"
-	"github.com/coder/coder/provisionersdk/proto"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func verifyQuota(ctx context.Context, t *testing.T, client *codersdk.Client, consumed, total int) {
@@ -53,7 +54,14 @@ func TestWorkspaceQuota(t *testing.T) {
 
 		verifyQuota(ctx, t, client, 0, 0)
 
-		// Add user to two groups, granting them a total budget of 3.
+		// Patch the 'Everyone' group to verify its quota allowance is being accounted for.
+		_, err := client.PatchGroup(ctx, user.OrganizationID, codersdk.PatchGroupRequest{
+			QuotaAllowance: ptr.Ref(1),
+		})
+		require.NoError(t, err)
+		verifyQuota(ctx, t, client, 0, 1)
+
+		// Add user to two groups, granting them a total budget of 4.
 		group1, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
 			Name:           "test-1",
 			QuotaAllowance: 1,
@@ -76,7 +84,7 @@ func TestWorkspaceQuota(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		verifyQuota(ctx, t, client, 0, 3)
+		verifyQuota(ctx, t, client, 0, 4)
 
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
@@ -105,7 +113,7 @@ func TestWorkspaceQuota(t *testing.T) {
 
 		// Spin up three workspaces fine
 		var wg sync.WaitGroup
-		for i := 0; i < 3; i++ {
+		for i := 0; i < 4; i++ {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -115,14 +123,14 @@ func TestWorkspaceQuota(t *testing.T) {
 			}()
 		}
 		wg.Wait()
-		verifyQuota(ctx, t, client, 3, 3)
+		verifyQuota(ctx, t, client, 4, 4)
 
 		// Next one must fail
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		build := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 		// Consumed shouldn't bump
-		verifyQuota(ctx, t, client, 3, 3)
+		verifyQuota(ctx, t, client, 4, 4)
 		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
 		require.Contains(t, build.Job.Error, "quota")
 
@@ -138,7 +146,7 @@ func TestWorkspaceQuota(t *testing.T) {
 			})
 			require.NoError(t, err)
 			coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
-			verifyQuota(ctx, t, client, 2, 3)
+			verifyQuota(ctx, t, client, 3, 4)
 			break
 		}
 
@@ -146,7 +154,7 @@ func TestWorkspaceQuota(t *testing.T) {
 		workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		build = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		verifyQuota(ctx, t, client, 3, 3)
+		verifyQuota(ctx, t, client, 4, 4)
 		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
 	})
 }

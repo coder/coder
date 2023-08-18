@@ -21,7 +21,7 @@ import (
 	"tailscale.com/types/key"
 	tslogger "tailscale.com/types/logger"
 
-	"github.com/coder/coder/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
 // @typescript-generate DERPReport

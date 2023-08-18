@@ -12,8 +12,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/exp/slices"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/rbac"
 )
 
 var (
@@ -242,6 +242,13 @@ func (m metricsStore) GetActiveUserCount(ctx context.Context) (int64, error) {
 	count, err := m.s.GetActiveUserCount(ctx)
 	m.queryLatencies.WithLabelValues("GetActiveUserCount").Observe(time.Since(start).Seconds())
 	return count, err
+}
+
+func (m metricsStore) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]database.WorkspaceBuild, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetActiveWorkspaceBuildsByTemplateID(ctx, templateID)
+	m.queryLatencies.WithLabelValues("GetActiveWorkspaceBuildsByTemplateID").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) GetAllTailnetAgents(ctx context.Context) ([]database.TailnetAgent, error) {
@@ -1262,6 +1269,13 @@ func (m metricsStore) InsertWorkspaceApp(ctx context.Context, arg database.Inser
 	app, err := m.s.InsertWorkspaceApp(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertWorkspaceApp").Observe(time.Since(start).Seconds())
 	return app, err
+}
+
+func (m metricsStore) InsertWorkspaceAppStats(ctx context.Context, arg database.InsertWorkspaceAppStatsParams) error {
+	start := time.Now()
+	r0 := m.s.InsertWorkspaceAppStats(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertWorkspaceAppStats").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m metricsStore) InsertWorkspaceBuild(ctx context.Context, arg database.InsertWorkspaceBuildParams) error {

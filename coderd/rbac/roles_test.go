@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac"
 )
 
 type authSubject struct {

@@ -192,7 +192,7 @@ export type AuthEvent =
   | { type: "UPDATE_PROFILE"; data: TypesGen.UpdateUserProfileRequest }
 
 export const authMachine =
-  /** @xstate-layout N4IgpgJg5mDOIC5QEMCuAXAFgZXc9YAdLAJZQB2kA8hgMTYCSA4gHID6DLioADgPal0JPuW4gAHogBsATimEAzDIAcAFgUB2VTJ26ANCACeiAIwaADKsLKFtu-dsBfRwbRZc+IqQolyUBuS0ECJEvgBufADWXmTkAWL8gsKiSBKICubKhKpSyhoArAbGCGaqGoRSlVXVlfnOrhg4eATEsb7+gWAATl18XYQ8ADb4AGZ9ALatFPGpiSRCImKSCLLySmqa2ro6RaYFAEzWDscK9SBuTZ6EMOhCfgCqsN1BIYThUUQ3ALJgCQLzySW6Uy2VyBV2JXyUhMFRqcLqLnOjQ8LRudygj2e3V6-SGowm1zA6B+fySi1Sy32MnyhHyyksYK2ug0EJM1IURxO9jOFxRnyJ6IACt1xiRYKQRLAXpQ3uQItFCABjTBgRWRYVdUXi5LwWb-BYpUDLZRScygvKFIyIGQaQ4FHnI5r827tDVaiXkKXYvoDYboMaapUqtVusUe3W8fWAimIE1mnIW1l0rImOE1BENdxOwkuvw-LB8CBS4Iy94K75EzCFiMgOYGoEIZRUwgyVT5BQmfaW4omGxZGxcuwOrNXNHtfNVou0b24v0ByYVgtF0kA8lG2PN1vtzvd0zszmD06I3nZ7yUCABAa9EYkQahCB32j3QUAEQAggAVACibEFACUqAAMQYAAZL8V3rGMSjbGQKihLsISkOlaWHS4WjPSBLx4a9byIVAeAgfBXRwx8S1COUPkIE8rgwi9yCvPgbzvQh8MIoUSLABB3kVIiRAAbXMABdCDo3XaD8lgpCpAQq0EA0eTUL5KZzywjiWIIoi-EFDjpx6H08X9AlqPQ2JMPo7DGNw9S2OIyy7y4iieINAThL1MlDTScTJPg3dGxkfZFNPUy6OIWBMDeB8wFoJgvw-NhsGwAAJNgAGkvwATREtdPM7VQrE0XyTF7coB0PQKaOCy9xXCsc-ASxKUrAQxpXI+UiGMmIKDM0KaoFdp6sawwHIiJzkhcrKPOWIqkOscFZNTfYOXtY9HQqrqQuqnN0QGprdJxX18UDDrlO6zbaqgHahu43jyHGtzV0m0x9jyxQ5p7ExzBhUrB3Kkz1qqsLCEGPhkAgSAIsfP8vxilgvz-T8f3q1KMomht9g+8ocnMGQCtZDRZAPLkMyREc-pU+jNuB0HwcVEQb01S6-zAGBKC6TxaAAYTfFgOa-EC2ChmG4YR+KkuRzL7sgsT0bMQhzCUcxpMK20vsPBRieO2iAfCqmwYgJU6ZIBmksGpmWe6dmOaoFhgL-L4Behr9Yfh79ReStKJcjdy0Yx0Fsdx+b23MX7OvJnqgZBvXCC6ZmwFZzSLpN3ayNlNqqNWsnTsB3XwZj822e2pOrscm67q9h6GzMBQrDy7cZJ7DR1ZQlbSdDrOdcj3PY-jwuGt2mcDsMo6M7bjbs87-W87ji3e8G4a+FG-ihNRqCq5rtsO3r0wpG0ZvMzQ0eqtVVAunmQwIai5931d7Avw5+4-wYD9PdrKNsqmsoOQyBM3sQZ6pBDidDax9T7oHPqxBO2AQFnxaqnSimtKoU2gWA6ykDkHFxGqXZektRI5U-ooBkiZZIKFyHvEmB8gFH0VCfM+qDtroL2vpOcRkR6UKQdQ0B4CNL0I4Wfeei9brYPLlLPBjcCE-18m2KwGtWFa0CIwVgbAqD3A-CvaWWgYSEN-iUDIZpUxpiqBoQBZ52g0HQLAssoczFqM8k2WCW5N6+X2OYeShMTgyNbspUxdAB4GXnMpaxOD35-w0XLCRrJ0ZWH0QYqQRiW4UOVKqSI7RAJG1gOgTEXQLEUQVMdRJaoUlpIyU8Lo-CsGuWEbg5YmhCD7B3nU-YA5lA6HVhCZxYjoRshyDvJQ+NVCAIAO7IABH4QCfQPwqlSV0dJmT6DMHYJwGx1Sm7Yx0I3SwziTBOLqWaLQdIpC2HyKoLZ5gESInIIWOAYgEHrUCZU4JJRsY0iIT2akZoPEUJMX4GY9zHoIDbIcdGLzt4qFhDEpCgDzqZKWYgVQ+xWSyCyOC2okK+paRFGGHUML-mmnNNorZbIwUxI+Upc6E5qzYq2LUuQwKSitnymrI8+8lJyIYkxe8zELlfj0l0bFVcaRlCklvRspzjGILZVZEgkVCAzj5Y3AV+MfIQjyEy8hLLxUWXZRfOVRVsiKqVhCRuhxtgaBVY3A5MgxX-XMmpCB7E7K-CCX8oq+RnnaIKJa+J6rrUSrvHykwHZZq+X2bScwYbzUSTUBCr1QUfWbSlX6p1lctlusKp2Q4JLY1hzOmixOfdii-MrlIiotKPpyCtdm8e1N9YJsdYWqCmyshyH9vigoVhkWxIre3CO1aDbkHpuMRm3cZ51tft7BtqhzAZoVga+aGhexuOOJmtalaO69qnj3fqRc+UKHpIQIq87S25GXZnMea69Y7qhPuswxVCptnKNsOQ7Z2xUhPYfCmYV-WBtLVOjkJqzUkP6TGldp10EX0IFynlcroRywsI4iEu6ArAdPVQmhKDa0yqg0m1e+NNFwZ3BCNswdkPvuIGB2tcqakuPlgR4h2MWzMgAxartwDeEoLtf1dB-rXVBoQyQljqHOFfq+q2v9jHG7mqUKqm55N-UuN4-NT6DGdD5C0Gp-Ypq31eL8HcsdFcG0yA+rB5QtHijOKOYoNWgD8nJNGUU6F2GxK9LlvSTIcLGn5C2ZUNpLj5CxIUFSD6XmuyDOGeiMZXQJlgCmTMkp2LGm1OUFCHQORGkyEVqoZQbTNly2-poaERy6kh0pYl5LrZpLNIy1l2Sm5dAkPRs4wz+NlDOGcEAA */
+  /** @xstate-layout N4IgpgJg5mDOIC5QEMCuAXAFgZXc9YAdADYD2yEAlgHZQCS1l6lyxAghpgCL7IDEEUtSI0AbqQDWRNFlz4iZCjXqNmrDlh54EY0gGN8lIQG0ADAF0z5xKAAOpWEyPUbIAB6IAjAFZThACwATAAcAGwAzOGewZ7hoYH+ADQgAJ6Igaam3oSeGf7BcbnBAJyBAL5lyTI4eAQk5FS0DE7qnFr8gsKEulKE1XJ1io0qLextvDrU4gbMJhbGntZIIPaOsy7LHgg+fkFhkdGx8Ump6bEA7ITn56HnkaFFpRVVnAMKDcrNamOavAJCIimkmkr1q7yUTVULB+3AmuhmzisxkCSzsDicQlcWx2ARCESiMTiCWSaQQgUC5124UCxQKDxCT0qIH6YPqEJG3w0sLwfDAACc+aQ+YRbMR8AAzIUAWz6oPkbOGX2hXPak2mhjmlgsrlWGI2oGxvlx+wJR2JpzJ-lM4UIphKgXuj3KTJZ8scUGEEAA8hg+Ng6ABxAByAH06EGrDr0essV5TOdslloqZPKZ-Od-NESV4Hjb-OESqFvAyEudgs9mXK6u7GJD-l0ekQawxI8tdTHNl5ybtPKnPKFin3ivns2TU3mi1FrmFSuEK67q5QPZ9qLyBUKRWL0JK+TLm9RW2i1s5Y9tu4Q8ZksiFgmnR93PLbad5h6FMgm5y6q02l56GH7A1DL0AFUABVDxWaMT07BAogHQhgmCfwBxvbwiwKe87WyYIM1ibxPHzG5PxeWRWRrSAGBFQVxUoYgRAgOi+GAgAFLg2FAgBRENmIAJS9AAxOgABkOIg9toINdIi0fcJzn7dMshfXtR2ibx-EIUJkOKbwiVw4p52-QhyIgSjbGo2iiFQWwIEMWhmPMxjOkBcRegXH8PQo6gqNIGi6MIKybOYOyHLANV9A1A95m1NsoMxGDPGfHIiPCfxvDSwcCJUwsci0nT4j0gzSLdX9PO83zLOs2yoHsnyLLXQVhVFCVpVlIrFw8kyvLM2q-ICqqavKsKEU1MTYv1dwvESzxktS9LexOUlonyHKBzyilM30r82vc2soB9dB62c4EjN-fbRuPOLJNghK-HJckX2KFLimHFTSkCQhZIKUwByQotnRImpiuXWh9sO7ogV6GszsWKMLvGrY4n8dSbn8bTfFyXx01e8JsLU580unG5CsB9rdtB-kGs3ZrdxOj0zuio89VPWTTHenHTEegpwm+nDwkwzSPuKIjEPOckkOJt5CD0IQaKgVA+WUUDMDAfjKD5WB0GA2B+QA4MwwjBnILh09b1CHIOdTN8Uoe+9pve0WhZKHHNJRiomWoUgIDgVw3NhpmYIAWm8YIAhxule1zfNilCFTi2yTno8pfICwpCXWSGFdRhVXg-Y7K6A9TUPg8KftYijmOLUOdTQhiDJShuVMEjToHPX23OJIm2CExDuT7QiLJEKy76L3wpDrmteJEOb0mV3by7O+jvwUodEI7hw-MK9JQIjgvGlSkQyI01Caeds8uf4a8fDiiuSk7VmpTMsr24bQIlDAluc5HruE-ab-LqQvPqeHwtwb6ZCQmlB+C0vA3D8C7FMCYdJxG8D-YypkQrdAYmAQBMFt7pg+nJOBc1PBZTUhpBS000r3GQVtEmp9OplQshgvyHsOLrj5Ngq629tL4PkpSIhr0ggrW0rpTMOEUElXod1cqTCiAUyFBwzuXDsiyV4YpDKmFC6v2EflUR5xxEdTQT1CqgVlADQsgo7EDxsjjzvhAjKUDtjZS0WtAqNDJY1mUG3GKxsYLLxtHcGkxwCIpnyPzNmelpoDnyHotxrJpbUFlvLRWytVbq01trdh3j-ZXTSn4BKyE7Q3hrsEbwttRZXBpGWR6aF0yaTdmUIAA */
   createMachine(
     {
       id: "authState",
@@ -243,6 +243,7 @@ export const authMachine =
             },
           },
         },
+
         signedOut: {
           on: {
             SIGN_IN: {
@@ -250,6 +251,7 @@ export const authMachine =
             },
           },
         },
+
         signingIn: {
           entry: "clearError",
           invoke: {
@@ -269,6 +271,7 @@ export const authMachine =
             ],
           },
         },
+
         signedIn: {
           type: "parallel",
           on: {
@@ -314,6 +317,7 @@ export const authMachine =
             },
           },
         },
+
         signingOut: {
           invoke: {
             src: "signOut",
@@ -330,12 +334,15 @@ export const authMachine =
             ],
             onError: [
               {
+                // The main way this is likely to fail is from the backend refusing
+                // to talk to you because your token is already invalid
                 actions: "assignError",
-                target: "signedIn",
+                target: "signedOut",
               },
             ],
           },
         },
+
         configuringTheFirstUser: {
           on: {
             SIGN_IN: {

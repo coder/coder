@@ -64,6 +64,9 @@ site/stats/
 ./scaletest/terraform/.terraform.lock.hcl
 scaletest/terraform/secrets.tfvars
 .terraform.tfstate.*
+
+# Nix
+result
 # .prettierignore.include:
 # Helm templates contain variables that are invalid YAML and can't be formatted
 # by Prettier.

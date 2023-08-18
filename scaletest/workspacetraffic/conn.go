@@ -5,7 +5,7 @@ import (
 	"io"
 	"sync"
 
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/codersdk"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
@@ -19,7 +19,7 @@ func connectPTY(ctx context.Context, client *codersdk.Client, agentID, reconnect
 		Reconnect: reconnect,
 		Height:    25,
 		Width:     80,
-		Command:   "/bin/sh",
+		Command:   "sh",
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("connect pty: %w", err)

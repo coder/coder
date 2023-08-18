@@ -19,13 +19,13 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/db2sdk"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/rbac/regosql"
-	"github.com/coder/coder/coderd/util/slice"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/regosql"
+	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 var validProxyByHostnameRegex = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
@@ -114,33 +114,35 @@ type data struct {
 	userLinks           []database.UserLink
 
 	// New tables
-	workspaceAgentStats       []database.WorkspaceAgentStat
-	auditLogs                 []database.AuditLog
-	files                     []database.File
-	gitAuthLinks              []database.GitAuthLink
-	gitSSHKey                 []database.GitSSHKey
-	groupMembers              []database.GroupMember
-	groups                    []database.Group
-	licenses                  []database.License
-	parameterSchemas          []database.ParameterSchema
-	provisionerDaemons        []database.ProvisionerDaemon
-	provisionerJobLogs        []database.ProvisionerJobLog
-	provisionerJobs           []database.ProvisionerJob
-	replicas                  []database.Replica
-	templateVersions          []database.TemplateVersionTable
-	templateVersionParameters []database.TemplateVersionParameter
-	templateVersionVariables  []database.TemplateVersionVariable
-	templates                 []database.TemplateTable
-	workspaceAgents           []database.WorkspaceAgent
-	workspaceAgentMetadata    []database.WorkspaceAgentMetadatum
-	workspaceAgentLogs        []database.WorkspaceAgentLog
-	workspaceApps             []database.WorkspaceApp
-	workspaceBuilds           []database.WorkspaceBuildTable
-	workspaceBuildParameters  []database.WorkspaceBuildParameter
-	workspaceResourceMetadata []database.WorkspaceResourceMetadatum
-	workspaceResources        []database.WorkspaceResource
-	workspaces                []database.Workspace
-	workspaceProxies          []database.WorkspaceProxy
+	workspaceAgentStats           []database.WorkspaceAgentStat
+	auditLogs                     []database.AuditLog
+	files                         []database.File
+	gitAuthLinks                  []database.GitAuthLink
+	gitSSHKey                     []database.GitSSHKey
+	groupMembers                  []database.GroupMember
+	groups                        []database.Group
+	licenses                      []database.License
+	parameterSchemas              []database.ParameterSchema
+	provisionerDaemons            []database.ProvisionerDaemon
+	provisionerJobLogs            []database.ProvisionerJobLog
+	provisionerJobs               []database.ProvisionerJob
+	replicas                      []database.Replica
+	templateVersions              []database.TemplateVersionTable
+	templateVersionParameters     []database.TemplateVersionParameter
+	templateVersionVariables      []database.TemplateVersionVariable
+	templates                     []database.TemplateTable
+	workspaceAgents               []database.WorkspaceAgent
+	workspaceAgentMetadata        []database.WorkspaceAgentMetadatum
+	workspaceAgentLogs            []database.WorkspaceAgentLog
+	workspaceApps                 []database.WorkspaceApp
+	workspaceAppStatsLastInsertID int64
+	workspaceAppStats             []database.WorkspaceAppStat
+	workspaceBuilds               []database.WorkspaceBuildTable
+	workspaceBuildParameters      []database.WorkspaceBuildParameter
+	workspaceResourceMetadata     []database.WorkspaceResourceMetadatum
+	workspaceResources            []database.WorkspaceResource
+	workspaces                    []database.Workspace
+	workspaceProxies              []database.WorkspaceProxy
 	// Locks is a map of lock names. Any keys within the map are currently
 	// locked.
 	locks                   map[int64]struct{}
@@ -611,6 +613,44 @@ func uniqueSortedUUIDs(uuids []uuid.UUID) []uuid.UUID {
 	return unique
 }
 
+func (q *FakeQuerier) getOrganizationMember(orgID uuid.UUID) []database.OrganizationMember {
+	var members []database.OrganizationMember
+	for _, member := range q.organizationMembers {
+		if member.OrganizationID == orgID {
+			members = append(members, member)
+		}
+	}
+
+	return members
+}
+
+// getEveryoneGroupMembers fetches all the users in an organization.
+func (q *FakeQuerier) getEveryoneGroupMembers(orgID uuid.UUID) []database.User {
+	var (
+		everyone   []database.User
+		orgMembers = q.getOrganizationMember(orgID)
+	)
+	for _, member := range orgMembers {
+		user, err := q.GetUserByID(context.TODO(), member.UserID)
+		if err != nil {
+			return nil
+		}
+		everyone = append(everyone, user)
+	}
+	return everyone
+}
+
+// isEveryoneGroup returns true if the provided ID matches
+// an organization ID.
+func (q *FakeQuerier) isEveryoneGroup(id uuid.UUID) bool {
+	for _, org := range q.organizations {
+		if org.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -925,6 +965,34 @@ func (q *FakeQuerier) GetActiveUserCount(_ context.Context) (int64, error) {
 		}
 	}
 	return active, nil
+}
+
+func (q *FakeQuerier) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]database.WorkspaceBuild, error) {
+	workspaceIDs := func() []uuid.UUID {
+		q.mutex.RLock()
+		defer q.mutex.RUnlock()
+
+		ids := []uuid.UUID{}
+		for _, workspace := range q.workspaces {
+			if workspace.TemplateID == templateID {
+				ids = append(ids, workspace.ID)
+			}
+		}
+		return ids
+	}()
+
+	builds, err := q.GetLatestWorkspaceBuildsByWorkspaceIDs(ctx, workspaceIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	filteredBuilds := []database.WorkspaceBuild{}
+	for _, build := range builds {
+		if build.Transition == database.WorkspaceTransitionStart {
+			filteredBuilds = append(filteredBuilds, build)
+		}
+	}
+	return filteredBuilds, nil
 }
 
 func (*FakeQuerier) GetAllTailnetAgents(_ context.Context) ([]database.TailnetAgent, error) {
@@ -1357,13 +1425,17 @@ func (q *FakeQuerier) GetGroupByOrgAndName(_ context.Context, arg database.GetGr
 	return database.Group{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) GetGroupMembers(_ context.Context, groupID uuid.UUID) ([]database.User, error) {
+func (q *FakeQuerier) GetGroupMembers(_ context.Context, id uuid.UUID) ([]database.User, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
+	if q.isEveryoneGroup(id) {
+		return q.getEveryoneGroupMembers(id), nil
+	}
+
 	var members []database.GroupMember
 	for _, member := range q.groupMembers {
-		if member.GroupID == groupID {
+		if member.GroupID == id {
 			members = append(members, member)
 		}
 	}
@@ -1382,14 +1454,13 @@ func (q *FakeQuerier) GetGroupMembers(_ context.Context, groupID uuid.UUID) ([]d
 	return users, nil
 }
 
-func (q *FakeQuerier) GetGroupsByOrganizationID(_ context.Context, organizationID uuid.UUID) ([]database.Group, error) {
+func (q *FakeQuerier) GetGroupsByOrganizationID(_ context.Context, id uuid.UUID) ([]database.Group, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	var groups []database.Group
+	groups := make([]database.Group, 0, len(q.groups))
 	for _, group := range q.groups {
-		// Omit the allUsers group.
-		if group.OrganizationID == organizationID && group.ID != organizationID {
+		if group.OrganizationID == id {
 			groups = append(groups, group)
 		}
 	}
@@ -1819,7 +1890,15 @@ func (q *FakeQuerier) GetQuotaAllowanceForUser(_ context.Context, userID uuid.UU
 		for _, group := range q.groups {
 			if group.ID == member.GroupID {
 				sum += int64(group.QuotaAllowance)
+				continue
 			}
+		}
+	}
+	// Grab the quota for the Everyone group.
+	for _, group := range q.groups {
+		if group.ID == group.OrganizationID {
+			sum += int64(group.QuotaAllowance)
+			break
 		}
 	}
 	return sum, nil
@@ -3527,7 +3606,7 @@ func (q *FakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyP
 func (q *FakeQuerier) InsertAllUsersGroup(ctx context.Context, orgID uuid.UUID) (database.Group, error) {
 	return q.InsertGroup(ctx, database.InsertGroupParams{
 		ID:             orgID,
-		Name:           database.AllUsersGroup,
+		Name:           database.EveryoneGroup,
 		DisplayName:    "",
 		OrganizationID: orgID,
 	})
@@ -4315,6 +4394,44 @@ func (q *FakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 	}
 	q.workspaceApps = append(q.workspaceApps, workspaceApp)
 	return workspaceApp, nil
+}
+
+func (q *FakeQuerier) InsertWorkspaceAppStats(_ context.Context, arg database.InsertWorkspaceAppStatsParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+InsertWorkspaceAppStatsLoop:
+	for i := 0; i < len(arg.UserID); i++ {
+		stat := database.WorkspaceAppStat{
+			ID:               q.workspaceAppStatsLastInsertID + 1,
+			UserID:           arg.UserID[i],
+			WorkspaceID:      arg.WorkspaceID[i],
+			AgentID:          arg.AgentID[i],
+			AccessMethod:     arg.AccessMethod[i],
+			SlugOrPort:       arg.SlugOrPort[i],
+			SessionID:        arg.SessionID[i],
+			SessionStartedAt: arg.SessionStartedAt[i],
+			SessionEndedAt:   arg.SessionEndedAt[i],
+			Requests:         arg.Requests[i],
+		}
+		for j, s := range q.workspaceAppStats {
+			// Check unique constraint for upsert.
+			if s.UserID == stat.UserID && s.AgentID == stat.AgentID && s.SessionID == stat.SessionID {
+				q.workspaceAppStats[j].SessionEndedAt = stat.SessionEndedAt
+				q.workspaceAppStats[j].Requests = stat.Requests
+				continue InsertWorkspaceAppStatsLoop
+			}
+		}
+		q.workspaceAppStats = append(q.workspaceAppStats, stat)
+		q.workspaceAppStatsLastInsertID++
+	}
+
+	return nil
 }
 
 func (q *FakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.InsertWorkspaceBuildParams) error {

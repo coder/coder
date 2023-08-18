@@ -35,6 +35,10 @@ type Group struct {
 	Source         GroupSource `json:"source"`
 }
 
+func (g Group) IsEveryone() bool {
+	return g.ID == g.OrganizationID
+}
+
 func (c *Client) CreateGroup(ctx context.Context, orgID uuid.UUID, req CreateGroupRequest) (Group, error) {
 	res, err := c.Request(ctx, http.MethodPost,
 		fmt.Sprintf("/api/v2/organizations/%s/groups", orgID.String()),

@@ -8,7 +8,7 @@ import (
 
 	"github.com/briandowns/spinner"
 
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type GitAuthOptions struct {

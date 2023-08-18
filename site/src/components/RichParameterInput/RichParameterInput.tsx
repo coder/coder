@@ -43,8 +43,8 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ id, parameter }) => {
 
         {hasDescription ? (
           <Stack spacing={0}>
-            <span className={styles.labelCaption}>{displayName}</span>
-            <MemoizedMarkdown className={styles.labelPrimary}>
+            <span className={styles.labelPrimary}>{displayName}</span>
+            <MemoizedMarkdown className={styles.labelCaption}>
               {parameter.description}
             </MemoizedMarkdown>
           </Stack>

@@ -11,7 +11,7 @@ import { colors } from "theme/colors"
 import * as TypesGen from "../../api/typesGenerated"
 import { navHeight } from "../../theme/constants"
 import { combineClasses } from "../../utils/combineClasses"
-import { UserDropdown } from "../UserDropdown/UsersDropdown"
+import { UserDropdown } from "../UserDropdown/UserDropdown"
 import Box from "@mui/material/Box"
 import Menu from "@mui/material/Menu"
 import Button from "@mui/material/Button"
@@ -93,7 +93,7 @@ const NavItems: React.FC<
       )}
       {canViewDeployment && (
         <ListItem button className={styles.item}>
-          <NavLink className={styles.link} to="/settings/deployment/general">
+          <NavLink className={styles.link} to="/deployment/general">
             {Language.deployment}
           </NavLink>
         </ListItem>
@@ -361,7 +361,7 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
           <MenuItem
             sx={{ fontSize: 14 }}
             onClick={() => {
-              navigate("settings/deployment/workspace-proxies")
+              navigate("deployment/workspace-proxies")
             }}
           >
             Proxy settings

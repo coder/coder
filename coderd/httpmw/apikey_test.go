@@ -3,11 +3,13 @@ package httpmw_test
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -16,14 +18,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbfake"
-	"github.com/coder/coder/coderd/database/dbgen"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/cryptorand"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func randomAPIKeyParts() (id string, secret string) {
@@ -197,6 +199,11 @@ func TestAPIKey(t *testing.T) {
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+
+		var apiRes codersdk.Response
+		dec := json.NewDecoder(res.Body)
+		_ = dec.Decode(&apiRes)
+		require.True(t, strings.HasPrefix(apiRes.Detail, "API key expired"))
 	})
 
 	t.Run("Valid", func(t *testing.T) {

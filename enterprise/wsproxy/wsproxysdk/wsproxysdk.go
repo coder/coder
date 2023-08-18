@@ -17,11 +17,11 @@ import (
 	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/workspaceapps"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/tailnet"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/tailnet"
 )
 
 // Client is a HTTP client for a subset of Coder API routes that external
@@ -150,6 +150,25 @@ func (c *Client) IssueSignedAppTokenHTML(ctx context.Context, rw http.ResponseWr
 		return IssueSignedAppTokenResponse{}, false
 	}
 	return res, true
+}
+
+type ReportAppStatsRequest struct {
+	Stats []workspaceapps.StatsReport `json:"stats"`
+}
+
+// ReportAppStats reports the given app stats to the primary coder server.
+func (c *Client) ReportAppStats(ctx context.Context, req ReportAppStatsRequest) error {
+	resp, err := c.Request(ctx, http.MethodPost, "/api/v2/workspaceproxies/me/app-stats", req)
+	if err != nil {
+		return xerrors.Errorf("make request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent {
+		return codersdk.ReadBodyAsError(resp)
+	}
+
+	return nil
 }
 
 type RegisterWorkspaceProxyRequest struct {

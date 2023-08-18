@@ -53,37 +53,37 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/coderd"
-	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/autobuild"
-	"github.com/coder/coder/coderd/awsidentity"
-	"github.com/coder/coder/coderd/batchstats"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/database/dbtestutil"
-	"github.com/coder/coder/coderd/database/pubsub"
-	"github.com/coder/coder/coderd/gitauth"
-	"github.com/coder/coder/coderd/gitsshkey"
-	"github.com/coder/coder/coderd/healthcheck"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/schedule"
-	"github.com/coder/coder/coderd/telemetry"
-	"github.com/coder/coder/coderd/unhanger"
-	"github.com/coder/coder/coderd/updatecheck"
-	"github.com/coder/coder/coderd/util/ptr"
-	"github.com/coder/coder/coderd/workspaceapps"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/codersdk/agentsdk"
-	"github.com/coder/coder/cryptorand"
-	"github.com/coder/coder/provisioner/echo"
-	"github.com/coder/coder/provisionerd"
-	provisionerdproto "github.com/coder/coder/provisionerd/proto"
-	"github.com/coder/coder/provisionersdk"
-	sdkproto "github.com/coder/coder/provisionersdk/proto"
-	"github.com/coder/coder/tailnet"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/autobuild"
+	"github.com/coder/coder/v2/coderd/awsidentity"
+	"github.com/coder/coder/v2/coderd/batchstats"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/coderd/gitsshkey"
+	"github.com/coder/coder/v2/coderd/healthcheck"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/coderd/unhanger"
+	"github.com/coder/coder/v2/coderd/updatecheck"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisionerd"
+	provisionerdproto "github.com/coder/coder/v2/provisionerd/proto"
+	"github.com/coder/coder/v2/provisionersdk"
+	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // AppSecurityKey is a 96-byte key used to sign JWTs and encrypt JWEs for
@@ -144,6 +144,8 @@ type Options struct {
 	// as part of your test.
 	Logger       *slog.Logger
 	StatsBatcher *batchstats.Batcher
+
+	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -394,37 +396,38 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			Pubsub:                         options.Pubsub,
 			GitAuthConfigs:                 options.GitAuthConfigs,
 
-			Auditor:                     options.Auditor,
-			AWSCertificates:             options.AWSCertificates,
-			AzureCertificates:           options.AzureCertificates,
-			GithubOAuth2Config:          options.GithubOAuth2Config,
-			RealIPConfig:                options.RealIPConfig,
-			OIDCConfig:                  options.OIDCConfig,
-			GoogleTokenValidator:        options.GoogleTokenValidator,
-			SSHKeygenAlgorithm:          options.SSHKeygenAlgorithm,
-			DERPServer:                  derpServer,
-			APIRateLimit:                options.APIRateLimit,
-			LoginRateLimit:              options.LoginRateLimit,
-			FilesRateLimit:              options.FilesRateLimit,
-			Authorizer:                  options.Authorizer,
-			Telemetry:                   telemetry.NewNoop(),
-			TemplateScheduleStore:       &templateScheduleStore,
-			TLSCertificates:             options.TLSCertificates,
-			TrialGenerator:              options.TrialGenerator,
-			TailnetCoordinator:          options.Coordinator,
-			BaseDERPMap:                 derpMap,
-			DERPMapUpdateFrequency:      150 * time.Millisecond,
-			MetricsCacheRefreshInterval: options.MetricsCacheRefreshInterval,
-			AgentStatsRefreshInterval:   options.AgentStatsRefreshInterval,
-			DeploymentValues:            options.DeploymentValues,
-			UpdateCheckOptions:          options.UpdateCheckOptions,
-			SwaggerEndpoint:             options.SwaggerEndpoint,
-			AppSecurityKey:              AppSecurityKey,
-			SSHConfig:                   options.ConfigSSH,
-			HealthcheckFunc:             options.HealthcheckFunc,
-			HealthcheckTimeout:          options.HealthcheckTimeout,
-			HealthcheckRefresh:          options.HealthcheckRefresh,
-			StatsBatcher:                options.StatsBatcher,
+			Auditor:                            options.Auditor,
+			AWSCertificates:                    options.AWSCertificates,
+			AzureCertificates:                  options.AzureCertificates,
+			GithubOAuth2Config:                 options.GithubOAuth2Config,
+			RealIPConfig:                       options.RealIPConfig,
+			OIDCConfig:                         options.OIDCConfig,
+			GoogleTokenValidator:               options.GoogleTokenValidator,
+			SSHKeygenAlgorithm:                 options.SSHKeygenAlgorithm,
+			DERPServer:                         derpServer,
+			APIRateLimit:                       options.APIRateLimit,
+			LoginRateLimit:                     options.LoginRateLimit,
+			FilesRateLimit:                     options.FilesRateLimit,
+			Authorizer:                         options.Authorizer,
+			Telemetry:                          telemetry.NewNoop(),
+			TemplateScheduleStore:              &templateScheduleStore,
+			TLSCertificates:                    options.TLSCertificates,
+			TrialGenerator:                     options.TrialGenerator,
+			TailnetCoordinator:                 options.Coordinator,
+			BaseDERPMap:                        derpMap,
+			DERPMapUpdateFrequency:             150 * time.Millisecond,
+			MetricsCacheRefreshInterval:        options.MetricsCacheRefreshInterval,
+			AgentStatsRefreshInterval:          options.AgentStatsRefreshInterval,
+			DeploymentValues:                   options.DeploymentValues,
+			UpdateCheckOptions:                 options.UpdateCheckOptions,
+			SwaggerEndpoint:                    options.SwaggerEndpoint,
+			AppSecurityKey:                     AppSecurityKey,
+			SSHConfig:                          options.ConfigSSH,
+			HealthcheckFunc:                    options.HealthcheckFunc,
+			HealthcheckTimeout:                 options.HealthcheckTimeout,
+			HealthcheckRefresh:                 options.HealthcheckRefresh,
+			StatsBatcher:                       options.StatsBatcher,
+			WorkspaceAppsStatsCollectorOptions: options.WorkspaceAppsStatsCollectorOptions,
 		}
 }
 

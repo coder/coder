@@ -13,16 +13,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd"
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/util/slice"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/coderd/coderdenttest"
-	"github.com/coder/coder/enterprise/coderd/license"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // nolint:bodyclose
@@ -525,7 +525,7 @@ func TestGroupSync(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, group := range orgGroups {
-				if slice.Contains(tc.initialOrgGroups, group.Name) {
+				if slice.Contains(tc.initialOrgGroups, group.Name) || group.IsEveryone() {
 					require.Equal(t, group.Source, codersdk.GroupSourceUser)
 				} else {
 					require.Equal(t, group.Source, codersdk.GroupSourceOIDC)
@@ -543,6 +543,7 @@ func TestGroupSync(t *testing.T) {
 				}
 				delete(orgGroupsMap, expected)
 			}
+			delete(orgGroupsMap, database.EveryoneGroup)
 			require.Empty(t, orgGroupsMap, "unexpected groups found")
 
 			expectedUserGroups := make(map[string]struct{})
@@ -554,7 +555,9 @@ func TestGroupSync(t *testing.T) {
 				userInGroup := slice.ContainsCompare(group.Members, codersdk.User{Email: user.Email}, func(a, b codersdk.User) bool {
 					return a.Email == b.Email
 				})
-				if _, ok := expectedUserGroups[group.Name]; ok {
+				if group.IsEveryone() {
+					require.True(t, userInGroup, "user cannot be removed from 'Everyone' group")
+				} else if _, ok := expectedUserGroups[group.Name]; ok {
 					require.Truef(t, userInGroup, "user should be in group %s", group.Name)
 				} else {
 					require.Falsef(t, userInGroup, "user should not be in group %s", group.Name)

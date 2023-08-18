@@ -2073,7 +2073,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "oidc": {
       "allow_signups": true,
       "auth_url_params": {},
+      "client_cert_file": "string",
       "client_id": "string",
+      "client_key_file": "string",
       "client_secret": "string",
       "email_domain": ["string"],
       "email_field": "string",
@@ -2433,7 +2435,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "oidc": {
     "allow_signups": true,
     "auth_url_params": {},
+    "client_cert_file": "string",
     "client_id": "string",
+    "client_key_file": "string",
     "client_secret": "string",
     "email_domain": ["string"],
     "email_field": "string",
@@ -2706,7 +2710,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `single_tailnet`               |
 | `template_restart_requirement` |
 | `deployment_health_page`       |
-| `template_parameters_insights` |
+| `workspaces_batch_actions`     |
 
 ## codersdk.Feature
 
@@ -3346,7 +3350,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "allow_signups": true,
   "auth_url_params": {},
+  "client_cert_file": "string",
   "client_id": "string",
+  "client_key_file": "string",
   "client_secret": "string",
   "email_domain": ["string"],
   "email_field": "string",
@@ -3381,28 +3387,30 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                    | Type                             | Required | Restrictions | Description |
-| ----------------------- | -------------------------------- | -------- | ------------ | ----------- |
-| `allow_signups`         | boolean                          | false    |              |             |
-| `auth_url_params`       | object                           | false    |              |             |
-| `client_id`             | string                           | false    |              |             |
-| `client_secret`         | string                           | false    |              |             |
-| `email_domain`          | array of string                  | false    |              |             |
-| `email_field`           | string                           | false    |              |             |
-| `group_auto_create`     | boolean                          | false    |              |             |
-| `group_mapping`         | object                           | false    |              |             |
-| `group_regex_filter`    | [clibase.Regexp](#clibaseregexp) | false    |              |             |
-| `groups_field`          | string                           | false    |              |             |
-| `icon_url`              | [clibase.URL](#clibaseurl)       | false    |              |             |
-| `ignore_email_verified` | boolean                          | false    |              |             |
-| `ignore_user_info`      | boolean                          | false    |              |             |
-| `issuer_url`            | string                           | false    |              |             |
-| `scopes`                | array of string                  | false    |              |             |
-| `sign_in_text`          | string                           | false    |              |             |
-| `user_role_field`       | string                           | false    |              |             |
-| `user_role_mapping`     | object                           | false    |              |             |
-| `user_roles_default`    | array of string                  | false    |              |             |
-| `username_field`        | string                           | false    |              |             |
+| Name                    | Type                             | Required | Restrictions | Description                                                                      |
+| ----------------------- | -------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------- |
+| `allow_signups`         | boolean                          | false    |              |                                                                                  |
+| `auth_url_params`       | object                           | false    |              |                                                                                  |
+| `client_cert_file`      | string                           | false    |              |                                                                                  |
+| `client_id`             | string                           | false    |              |                                                                                  |
+| `client_key_file`       | string                           | false    |              | Client key file & ClientCertFile are used in place of ClientSecret for PKI auth. |
+| `client_secret`         | string                           | false    |              |                                                                                  |
+| `email_domain`          | array of string                  | false    |              |                                                                                  |
+| `email_field`           | string                           | false    |              |                                                                                  |
+| `group_auto_create`     | boolean                          | false    |              |                                                                                  |
+| `group_mapping`         | object                           | false    |              |                                                                                  |
+| `group_regex_filter`    | [clibase.Regexp](#clibaseregexp) | false    |              |                                                                                  |
+| `groups_field`          | string                           | false    |              |                                                                                  |
+| `icon_url`              | [clibase.URL](#clibaseurl)       | false    |              |                                                                                  |
+| `ignore_email_verified` | boolean                          | false    |              |                                                                                  |
+| `ignore_user_info`      | boolean                          | false    |              |                                                                                  |
+| `issuer_url`            | string                           | false    |              |                                                                                  |
+| `scopes`                | array of string                  | false    |              |                                                                                  |
+| `sign_in_text`          | string                           | false    |              |                                                                                  |
+| `user_role_field`       | string                           | false    |              |                                                                                  |
+| `user_role_mapping`     | object                           | false    |              |                                                                                  |
+| `user_roles_default`    | array of string                  | false    |              |                                                                                  |
+| `username_field`        | string                           | false    |              |                                                                                  |
 
 ## codersdk.Organization
 
@@ -3450,6 +3458,30 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `roles`           | array of [codersdk.Role](#codersdkrole) | false    |              |             |
 | `updated_at`      | string                                  | false    |              |             |
 | `user_id`         | string                                  | false    |              |             |
+
+## codersdk.PatchGroupRequest
+
+```json
+{
+  "add_users": ["string"],
+  "avatar_url": "string",
+  "display_name": "string",
+  "name": "string",
+  "quota_allowance": 0,
+  "remove_users": ["string"]
+}
+```
+
+### Properties
+
+| Name              | Type            | Required | Restrictions | Description |
+| ----------------- | --------------- | -------- | ------------ | ----------- |
+| `add_users`       | array of string | false    |              |             |
+| `avatar_url`      | string          | false    |              |             |
+| `display_name`    | string          | false    |              |             |
+| `name`            | string          | false    |              |             |
+| `quota_allowance` | integer         | false    |              |             |
+| `remove_users`    | array of string | false    |              |             |
 
 ## codersdk.PatchTemplateVersionRequest
 
@@ -7579,6 +7611,36 @@ _None_
 | `username_or_id`       | string                                                   | false    |              | For the following fields, if the AccessMethod is AccessMethodTerminal, then only AgentNameOrID may be set and it must be a UUID. The other fields must be left blank.                 |
 | `workspace_name_or_id` | string                                                   | false    |              |                                                                                                                                                                                       |
 
+## workspaceapps.StatsReport
+
+```json
+{
+  "access_method": "path",
+  "agent_id": "string",
+  "requests": 0,
+  "session_ended_at": "string",
+  "session_id": "string",
+  "session_started_at": "string",
+  "slug_or_port": "string",
+  "user_id": "string",
+  "workspace_id": "string"
+}
+```
+
+### Properties
+
+| Name                 | Type                                                     | Required | Restrictions | Description                                                                             |
+| -------------------- | -------------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------- |
+| `access_method`      | [workspaceapps.AccessMethod](#workspaceappsaccessmethod) | false    |              |                                                                                         |
+| `agent_id`           | string                                                   | false    |              |                                                                                         |
+| `requests`           | integer                                                  | false    |              |                                                                                         |
+| `session_ended_at`   | string                                                   | false    |              | Updated periodically while app is in use active and when the last connection is closed. |
+| `session_id`         | string                                                   | false    |              |                                                                                         |
+| `session_started_at` | string                                                   | false    |              |                                                                                         |
+| `slug_or_port`       | string                                                   | false    |              |                                                                                         |
+| `user_id`            | string                                                   | false    |              |                                                                                         |
+| `workspace_id`       | string                                                   | false    |              |                                                                                         |
+
 ## wsproxysdk.AgentIsLegacyResponse
 
 ```json
@@ -7683,3 +7745,29 @@ _None_
 | `derp_mesh_key`    | string                                        | false    |              |                                                                                        |
 | `derp_region_id`   | integer                                       | false    |              |                                                                                        |
 | `sibling_replicas` | array of [codersdk.Replica](#codersdkreplica) | false    |              | Sibling replicas is a list of all other replicas of the proxy that have not timed out. |
+
+## wsproxysdk.ReportAppStatsRequest
+
+```json
+{
+  "stats": [
+    {
+      "access_method": "path",
+      "agent_id": "string",
+      "requests": 0,
+      "session_ended_at": "string",
+      "session_id": "string",
+      "session_started_at": "string",
+      "slug_or_port": "string",
+      "user_id": "string",
+      "workspace_id": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                                            | Required | Restrictions | Description |
+| ------- | --------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `stats` | array of [workspaceapps.StatsReport](#workspaceappsstatsreport) | false    |              |             |

@@ -384,6 +384,15 @@ dark = createTheme(dark, {
         disableRipple: true,
       },
     },
+    MuiCheckbox: {
+      styleOverrides: {
+        root: {
+          "&.Mui-disabled": {
+            color: colors.gray[11],
+          },
+        },
+      },
+    },
     MuiSwitch: {
       defaultProps: {
         color: "primary",

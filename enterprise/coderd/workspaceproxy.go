@@ -15,21 +15,21 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/buildinfo"
-	agpl "github.com/coder/coder/coderd"
-	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/telemetry"
-	"github.com/coder/coder/coderd/workspaceapps"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/cryptorand"
-	"github.com/coder/coder/enterprise/coderd/proxyhealth"
-	"github.com/coder/coder/enterprise/replicasync"
-	"github.com/coder/coder/enterprise/wsproxy/wsproxysdk"
+	"github.com/coder/coder/v2/buildinfo"
+	agpl "github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/enterprise/coderd/proxyhealth"
+	"github.com/coder/coder/v2/enterprise/replicasync"
+	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
 )
 
 // forceWorkspaceProxyHealthUpdate forces an update of the proxy health.
@@ -495,6 +495,36 @@ func (api *API) workspaceProxyIssueSignedAppToken(rw http.ResponseWriter, r *htt
 	httpapi.Write(ctx, rw, http.StatusCreated, wsproxysdk.IssueSignedAppTokenResponse{
 		SignedTokenStr: tokenStr,
 	})
+}
+
+// @Summary Report workspace app stats
+// @ID report-workspace-app-stats
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Enterprise
+// @Param request body wsproxysdk.ReportAppStatsRequest true "Report app stats request"
+// @Success 204
+// @Router /workspaceproxies/me/app-stats [post]
+// @x-apidocgen {"skip": true}
+func (api *API) workspaceProxyReportAppStats(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	_ = httpmw.WorkspaceProxy(r) // Ensure the proxy is authenticated.
+
+	var req wsproxysdk.ReportAppStatsRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	api.Logger.Debug(ctx, "report app stats", slog.F("stats", req.Stats))
+
+	reporter := api.WorkspaceAppsStatsCollectorOptions.Reporter
+	if err := reporter.Report(ctx, req.Stats); err != nil {
+		api.Logger.Error(ctx, "report app stats failed", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
 }
 
 // workspaceProxyRegister is used to register a new workspace proxy. When a proxy

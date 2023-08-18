@@ -19,10 +19,10 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/coderd"
-	"github.com/coder/coder/enterprise/wsproxy"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/coderd"
+	"github.com/coder/coder/v2/enterprise/wsproxy"
 )
 
 type ProxyOptions struct {
@@ -110,6 +110,10 @@ func NewWorkspaceProxy(t *testing.T, coderdAPI *coderd.API, owner *codersdk.Clie
 	})
 	require.NoError(t, err, "failed to create workspace proxy")
 
+	// Inherit collector options from coderd, but keep the wsproxy reporter.
+	statsCollectorOptions := coderdAPI.Options.WorkspaceAppsStatsCollectorOptions
+	statsCollectorOptions.Reporter = nil
+
 	wssrv, err := wsproxy.New(ctx, &wsproxy.Options{
 		Logger:            slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 		Experiments:       options.Experiments,
@@ -129,6 +133,7 @@ func NewWorkspaceProxy(t *testing.T, coderdAPI *coderd.API, owner *codersdk.Clie
 		DERPEnabled:            !options.DerpDisabled,
 		DERPOnly:               options.DerpOnly,
 		DERPServerRelayAddress: accessURL.String(),
+		StatsCollectorOptions:  statsCollectorOptions,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {

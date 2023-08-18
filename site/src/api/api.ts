@@ -488,7 +488,7 @@ export function waitForBuild(build: TypesGen.WorkspaceBuild) {
         const { job } = await getWorkspaceBuildByNumber(
           build.workspace_owner_name,
           build.workspace_name,
-          String(build.build_number),
+          build.build_number,
         )
         latestJobInfo = job
 
@@ -772,7 +772,7 @@ export const getWorkspaceBuilds = async (
 export const getWorkspaceBuildByNumber = async (
   username = "me",
   workspaceName: string,
-  buildNumber: string,
+  buildNumber: number,
 ): Promise<TypesGen.WorkspaceBuild> => {
   const response = await axios.get<TypesGen.WorkspaceBuild>(
     `/api/v2/users/${username}/workspace/${workspaceName}/builds/${buildNumber}`,

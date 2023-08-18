@@ -787,12 +787,12 @@ const docTemplate = `{
                 "tags": [
                     "Enterprise"
                 ],
-                "summary": "Get group by name",
-                "operationId": "get-group-by-name",
+                "summary": "Get group by ID",
+                "operationId": "get-group-by-id",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Group name",
+                        "description": "Group id",
                         "name": "group",
                         "in": "path",
                         "required": true
@@ -845,6 +845,9 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -860,6 +863,15 @@ const docTemplate = `{
                         "name": "group",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "description": "Patch group request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PatchGroupRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -5522,6 +5534,42 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceproxies/me/app-stats": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Report workspace app stats",
+                "operationId": "report-workspace-app-stats",
+                "parameters": [
+                    {
+                        "description": "Report app stats request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/wsproxysdk.ReportAppStatsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/workspaceproxies/me/coordinate": {
             "get": {
                 "security": [
@@ -8086,7 +8134,7 @@ const docTemplate = `{
                 "single_tailnet",
                 "template_restart_requirement",
                 "deployment_health_page",
-                "template_parameters_insights"
+                "workspaces_batch_actions"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
@@ -8095,7 +8143,7 @@ const docTemplate = `{
                 "ExperimentSingleTailnet",
                 "ExperimentTemplateRestartRequirement",
                 "ExperimentDeploymentHealthPage",
-                "ExperimentTemplateParametersInsights"
+                "ExperimentWorkspacesBatchActions"
             ]
         },
         "codersdk.Feature": {
@@ -8645,7 +8693,14 @@ const docTemplate = `{
                 "auth_url_params": {
                     "type": "object"
                 },
+                "client_cert_file": {
+                    "type": "string"
+                },
                 "client_id": {
+                    "type": "string"
+                },
+                "client_key_file": {
+                    "description": "ClientKeyFile \u0026 ClientCertFile are used in place of ClientSecret for PKI auth.",
                     "type": "string"
                 },
                 "client_secret": {
@@ -8760,6 +8815,35 @@ const docTemplate = `{
                 "user_id": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.PatchGroupRequest": {
+            "type": "object",
+            "properties": {
+                "add_users": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "avatar_url": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "quota_allowance": {
+                    "type": "integer"
+                },
+                "remove_users": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -11794,6 +11878,39 @@ const docTemplate = `{
                 }
             }
         },
+        "workspaceapps.StatsReport": {
+            "type": "object",
+            "properties": {
+                "access_method": {
+                    "$ref": "#/definitions/workspaceapps.AccessMethod"
+                },
+                "agent_id": {
+                    "type": "string"
+                },
+                "requests": {
+                    "type": "integer"
+                },
+                "session_ended_at": {
+                    "description": "Updated periodically while app is in use active and when the last connection is closed.",
+                    "type": "string"
+                },
+                "session_id": {
+                    "type": "string"
+                },
+                "session_started_at": {
+                    "type": "string"
+                },
+                "slug_or_port": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                },
+                "workspace_id": {
+                    "type": "string"
+                }
+            }
+        },
         "wsproxysdk.AgentIsLegacyResponse": {
             "type": "object",
             "properties": {
@@ -11881,6 +11998,17 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.Replica"
+                    }
+                }
+            }
+        },
+        "wsproxysdk.ReportAppStatsRequest": {
+            "type": "object",
+            "properties": {
+                "stats": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workspaceapps.StatsReport"
                     }
                 }
             }

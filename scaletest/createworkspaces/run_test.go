@@ -13,18 +13,19 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/agent"
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/codersdk/agentsdk"
-	"github.com/coder/coder/provisioner/echo"
-	"github.com/coder/coder/provisionersdk/proto"
-	"github.com/coder/coder/scaletest/agentconn"
-	"github.com/coder/coder/scaletest/createworkspaces"
-	"github.com/coder/coder/scaletest/reconnectingpty"
-	"github.com/coder/coder/scaletest/workspacebuild"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/scaletest/agentconn"
+	"github.com/coder/coder/v2/scaletest/createworkspaces"
+	"github.com/coder/coder/v2/scaletest/reconnectingpty"
+	"github.com/coder/coder/v2/scaletest/workspacebuild"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func Test_Runner(t *testing.T) {
@@ -154,6 +155,117 @@ func Test_Runner(t *testing.T) {
 		workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 		require.NoError(t, err)
 		require.Len(t, workspaces.Workspaces, 0)
+	})
+
+	t.Run("CleanupPendingBuild", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:         echo.ParseComplete,
+			ProvisionPlan: echo.ProvisionComplete,
+			ProvisionApply: []*proto.Provision_Response{
+				{
+					Type: &proto.Provision_Response_Log{Log: &proto.Log{}},
+				},
+			},
+		})
+
+		version = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.AllowUserCancelWorkspaceJobs = ptr.Ref(true)
+		})
+
+		const (
+			username = "scaletest-user"
+			email    = "scaletest@test.coder.com"
+		)
+		runner := createworkspaces.NewRunner(client, createworkspaces.Config{
+			User: createworkspaces.UserConfig{
+				OrganizationID: user.OrganizationID,
+				Username:       username,
+				Email:          email,
+			},
+			Workspace: workspacebuild.Config{
+				OrganizationID: user.OrganizationID,
+				Request: codersdk.CreateWorkspaceRequest{
+					TemplateID: template.ID,
+				},
+			},
+		})
+
+		cancelCtx, cancelFunc := context.WithCancel(ctx)
+		done := make(chan struct{})
+		logs := bytes.NewBuffer(nil)
+		go func() {
+			err := runner.Run(cancelCtx, "1", logs)
+			logsStr := logs.String()
+			t.Log("Runner logs:\n\n" + logsStr)
+			require.ErrorIs(t, err, context.Canceled)
+			close(done)
+		}()
+
+		require.Eventually(t, func() bool {
+			workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+			if err != nil {
+				return false
+			}
+
+			return len(workspaces.Workspaces) > 0
+		}, testutil.WaitShort, testutil.IntervalFast)
+
+		cancelFunc()
+		<-done
+
+		// When we run the cleanup, it should be canceled
+		cancelCtx, cancelFunc = context.WithCancel(ctx)
+		done = make(chan struct{})
+		go func() {
+			// This will return an error as the "delete" operation will never complete.
+			_ = runner.Cleanup(cancelCtx, "1")
+			close(done)
+		}()
+
+		// Ensure the job has been marked as deleted
+		require.Eventually(t, func() bool {
+			workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+			if err != nil {
+				return false
+			}
+
+			if len(workspaces.Workspaces) == 0 {
+				return false
+			}
+
+			// There should be two builds
+			builds, err := client.WorkspaceBuilds(ctx, codersdk.WorkspaceBuildsRequest{
+				WorkspaceID: workspaces.Workspaces[0].ID,
+			})
+			if err != nil {
+				return false
+			}
+			for _, build := range builds {
+				// One of the builds should be for creating the workspace,
+				if build.Transition != codersdk.WorkspaceTransitionStart {
+					continue
+				}
+
+				// And it should be either canceled or canceling
+				if build.Job.Status == codersdk.ProvisionerJobCanceled || build.Job.Status == codersdk.ProvisionerJobCanceling {
+					return true
+				}
+			}
+			return false
+		}, testutil.WaitShort, testutil.IntervalFast)
+		cancelFunc()
+		<-done
 	})
 
 	t.Run("NoCleanup", func(t *testing.T) {
