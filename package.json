@@ -1,8 +1,0 @@
-{
-  "scripts": {
-    "format:write:only": "pnpm exec prettier --write"
-  },
-  "devDependencies": {
-    "prettier": "3.0.0"
-  }
-}

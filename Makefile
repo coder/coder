@@ -550,19 +550,19 @@ coderd/rbac/object_gen.go: scripts/rbacgen/main.go coderd/rbac/object.go
 
 docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics
 	go run scripts/metricsdocgen/main.go
-	pnpm run format:write:only ./docs/admin/prometheus.md
+	cd site && pnpm run format:write:only ../docs/admin/prometheus.md
 
 docs/cli.md: scripts/clidocgen/main.go $(GO_SRC_FILES)
 	BASE_PATH="." go run ./scripts/clidocgen
-	pnpm run format:write:only ./docs/cli.md ./docs/cli/*.md ./docs/manifest.json
+	cd site && pnpm run format:write:only ../docs/cli.md ../docs/cli/*.md ../docs/manifest.json
 
 docs/admin/audit-logs.md: scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go
 	go run scripts/auditdocgen/main.go
-	pnpm run format:write:only ./docs/admin/audit-logs.md
+	cd site && pnpm run format:write:only ../docs/admin/audit-logs.md
 
 coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen $(FIND_EXCLUSIONS) -type f) $(wildcard coderd/*.go) $(wildcard enterprise/coderd/*.go) $(wildcard codersdk/*.go) $(wildcard enterprise/wsproxy/wsproxysdk/*.go) $(DB_GEN_FILES) .swaggo docs/manifest.json coderd/rbac/object_gen.go
 	./scripts/apidocgen/generate.sh
-	pnpm run format:write:only ./docs/api ./docs/manifest.json ./coderd/apidoc/swagger.json
+	cd site && pnpm run format:write:only ../docs/api ../docs/manifest.json ../coderd/apidoc/swagger.json
 
 update-golden-files: cli/testdata/.gen-golden helm/coder/tests/testdata/.gen-golden helm/provisioner/tests/testdata/.gen-golden scripts/ci-report/testdata/.gen-golden enterprise/cli/testdata/.gen-golden
 .PHONY: update-golden-files
