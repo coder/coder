@@ -39,7 +39,8 @@
           jq
           kubectl
           kubernetes-helm
-          (if system == "default-darwin" then null else libuuid)
+          # libuuid is not available on OSX
+          (if pkgs.stdenv.hostPlatform.isDarwin then null else libuuid)
           less
           mockgen
           nfpm
@@ -61,7 +62,7 @@
           shfmt
           sqlc
           # strace is not available on OSX
-          (if system == "default-darwin" then null else strace)
+          (if pkgs.stdenv.hostPlatform.isDarwin then null else strace)
           terraform
           typos
           vim
