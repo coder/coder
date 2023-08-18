@@ -13,6 +13,7 @@ import { Link } from "react-router-dom"
 import useWindowSize from "react-use/lib/useWindowSize"
 import MuiLink from "@mui/material/Link"
 import { displaySuccess } from "components/GlobalSnackbar/utils"
+import Tooltip from "@mui/material/Tooltip"
 
 type Props = {
   showConfetti: boolean
@@ -67,18 +68,20 @@ const LicensesSettingsPageView: FC<Props> = ({
           >
             Add a license
           </Button>
-          <Button
-            onClick={() => {
-              if (refreshEntitlements) {
-                if (refreshEntitlements()) {
-                  displaySuccess("Successfully refreshed licenses")
+          <Tooltip title="Refresh license entitlements. This is done automatically every 10 minutes.">
+            <Button
+              onClick={() => {
+                if (refreshEntitlements) {
+                  if (refreshEntitlements()) {
+                    displaySuccess("Successfully refreshed licenses")
+                  }
                 }
-              }
-            }}
-            startIcon={<RefreshIcon />}
-          >
-            Refresh
-          </Button>
+              }}
+              startIcon={<RefreshIcon />}
+            >
+              Refresh
+            </Button>
+          </Tooltip>
         </Stack>
       </Stack>
 
