@@ -2794,7 +2794,7 @@ func (q *FakeQuerier) GetUsersByIDs(_ context.Context, ids []uuid.UUID) ([]datab
 func (q *FakeQuerier) GetWorkspaceAgentAndOwnerByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndOwnerByAuthTokenRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
-	var resp database.GetWorkspaceAgentAndOwnerByAuthTokenRow
+	var rows []database.GetWorkspaceAgentAndOwnerByAuthTokenRow
 AgentLoop:
 	for _, agt := range q.workspaceAgents {
 		if agt.AuthToken != authToken {
@@ -2816,36 +2816,47 @@ AgentLoop:
 					if build.WorkspaceID != ws.ID {
 						continue WorkspaceLoop
 					}
-					if latestBuild, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, ws.ID); err == nil && latestBuild.ID != build.ID {
-						continue BuildLoop
-					}
-					resp.WorkspaceID = ws.ID
+					var row database.GetWorkspaceAgentAndOwnerByAuthTokenRow
+					//if latestBuild, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, ws.ID); err == nil && latestBuild.ID != build.ID {
+					//	continue BuildLoop
+					//}
+					row.WorkspaceID = ws.ID
 					usr, err := q.getUserByIDNoLock(ws.OwnerID)
 					if err != nil {
 						return database.GetWorkspaceAgentAndOwnerByAuthTokenRow{}, sql.ErrNoRows
 					}
-					resp.OwnerID = usr.ID
-					resp.OwnerRoles = append(usr.RBACRoles, "member")
+					row.OwnerID = usr.ID
+					row.OwnerRoles = append(usr.RBACRoles, "member")
 					// We also need to get org roles for the user
-					resp.OwnerName = usr.Username
-					resp.WorkspaceAgent = agt
+					row.OwnerName = usr.Username
+					row.WorkspaceAgent = agt
 					for _, mem := range q.organizationMembers {
 						if mem.UserID == usr.ID {
-							resp.OwnerRoles = append(resp.OwnerRoles, fmt.Sprintf("organization-member:%s", mem.OrganizationID.String()))
+							row.OwnerRoles = append(row.OwnerRoles, fmt.Sprintf("organization-member:%s", mem.OrganizationID.String()))
 						}
 					}
 					// And group memberships
 					for _, groupMem := range q.groupMembers {
 						if groupMem.UserID == usr.ID {
-							resp.OwnerGroups = append(resp.OwnerGroups, groupMem.GroupID.String())
+							row.OwnerGroups = append(row.OwnerGroups, groupMem.GroupID.String())
 						}
 					}
-					return resp, nil
+					rows = append(rows, row)
 				}
 			}
 		}
 	}
-	return database.GetWorkspaceAgentAndOwnerByAuthTokenRow{}, sql.ErrNoRows
+
+	// Sort rows by build ID descending
+	sort.Slice(rows, func(i, j int) bool {
+		return rows[i].WorkspaceAgent.CreatedAt.After(rows[j].WorkspaceAgent.CreatedAt)
+	})
+
+	var err error
+	if len(rows) == 0 {
+		return database.GetWorkspaceAgentAndOwnerByAuthTokenRow{}, sql.ErrNoRows
+	}
+	return rows[0], err
 }
 
 func (q *FakeQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
