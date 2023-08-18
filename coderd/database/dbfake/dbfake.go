@@ -2791,7 +2791,7 @@ func (q *FakeQuerier) GetUsersByIDs(_ context.Context, ids []uuid.UUID) ([]datab
 	return users, nil
 }
 
-func (q *FakeQuerier) GetWorkspaceAgentAndOwnerByAuthToken(_ context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndOwnerByAuthTokenRow, error) {
+func (q *FakeQuerier) GetWorkspaceAgentAndOwnerByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndOwnerByAuthTokenRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 	var resp database.GetWorkspaceAgentAndOwnerByAuthTokenRow
@@ -2815,6 +2815,9 @@ AgentLoop:
 				for _, ws := range q.workspaces {
 					if build.WorkspaceID != ws.ID {
 						continue WorkspaceLoop
+					}
+					if latestBuild, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, ws.ID); err == nil && latestBuild.ID != build.ID {
+						continue BuildLoop
 					}
 					resp.WorkspaceID = ws.ID
 					usr, err := q.getUserByIDNoLock(ws.OwnerID)
