@@ -54,7 +54,8 @@
           shellcheck
           shfmt
           sqlc
-          strace
+          # strace is not available on OSX
+          (if system == "aarch64-darwin" then null else strace)
           terraform
           typos
           vim
