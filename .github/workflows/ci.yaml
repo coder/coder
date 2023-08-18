@@ -468,8 +468,7 @@ jobs:
         uses: DeterminateSystems/magic-nix-cache-action@v2
 
       - name: Build
-        run: |
-          nix-shell --command 'make -B site/out/index.html'
+        run: nix-shell --command 'cd site && pnpm install && cd .. && make -B site/out/index.html'
 
       - run: nix-shell --command 'cd site && pnpm playwright:install'
 
