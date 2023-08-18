@@ -238,7 +238,11 @@ jobs:
         run: |
           # Artifacts are not available after rerunning a job,
           # so we need to print the test stats to the log.
-          nix-shell --command 'go run ./scripts/ci-report/main.go gotests.json | tee gotests_stats.json'
+          if [ "${{ matrix.os }}" == "ubuntu-latest" ] || [ "${{ matrix.os }}" == "macos-latest" ]; then
+            nix-shell --command 'go run ./scripts/ci-report/main.go gotests.json | tee gotests_stats.json'
+          else
+            go run ./scripts/ci-report/main.go gotests.json | tee gotests_stats.json
+          fi
 
       - name: Upload test stats to Datadog
         uses: ./.github/actions/upload-datadog
