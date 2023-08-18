@@ -2674,7 +2674,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     }
   },
   "has_license": true,
-  "refreshed_at": "string",
+  "refreshed_at": "2019-08-24T14:15:22Z",
   "require_telemetry": true,
   "trial": true,
   "warnings": ["string"]

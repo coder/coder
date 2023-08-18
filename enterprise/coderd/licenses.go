@@ -160,7 +160,6 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 // @Summary Update license entitlements
 // @ID update-license-entitlements
 // @Security CoderSessionToken
-// @Accept json
 // @Produce json
 // @Tags Organizations
 // @Success 201 {object} codersdk.Response

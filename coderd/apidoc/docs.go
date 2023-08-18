@@ -1031,9 +1031,6 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
-                "consumes": [
-                    "application/json"
-                ],
                 "produces": [
                     "application/json"
                 ],
@@ -8097,7 +8094,8 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "refreshed_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "require_telemetry": {
                     "type": "boolean"

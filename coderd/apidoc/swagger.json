@@ -887,7 +887,6 @@
             "CoderSessionToken": []
           }
         ],
-        "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["Organizations"],
         "summary": "Update license entitlements",
@@ -7246,7 +7245,8 @@
           "type": "boolean"
         },
         "refreshed_at": {
-          "type": "string"
+          "type": "string",
+          "format": "date-time"
         },
         "require_telemetry": {
           "type": "boolean"
