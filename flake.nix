@@ -22,6 +22,7 @@
           docker
           drpc.defaultPackage.${system}
           exa
+          gcc
           getopt
           git
           gnumake
