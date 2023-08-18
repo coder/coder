@@ -371,6 +371,21 @@ func (mr *MockStoreMockRecorder) GetActiveUserCount(arg0 interface{}) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveUserCount", reflect.TypeOf((*MockStore)(nil).GetActiveUserCount), arg0)
 }
 
+// GetActiveWorkspaceBuildsByTemplateID mocks base method.
+func (m *MockStore) GetActiveWorkspaceBuildsByTemplateID(arg0 context.Context, arg1 uuid.UUID) ([]database.WorkspaceBuild, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetActiveWorkspaceBuildsByTemplateID", arg0, arg1)
+	ret0, _ := ret[0].([]database.WorkspaceBuild)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetActiveWorkspaceBuildsByTemplateID indicates an expected call of GetActiveWorkspaceBuildsByTemplateID.
+func (mr *MockStoreMockRecorder) GetActiveWorkspaceBuildsByTemplateID(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveWorkspaceBuildsByTemplateID", reflect.TypeOf((*MockStore)(nil).GetActiveWorkspaceBuildsByTemplateID), arg0, arg1)
+}
+
 // GetAllTailnetAgents mocks base method.
 func (m *MockStore) GetAllTailnetAgents(arg0 context.Context) ([]database.TailnetAgent, error) {
 	m.ctrl.T.Helper()
@@ -2640,6 +2655,20 @@ func (m *MockStore) InsertWorkspaceApp(arg0 context.Context, arg1 database.Inser
 func (mr *MockStoreMockRecorder) InsertWorkspaceApp(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceApp", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceApp), arg0, arg1)
+}
+
+// InsertWorkspaceAppStats mocks base method.
+func (m *MockStore) InsertWorkspaceAppStats(arg0 context.Context, arg1 database.InsertWorkspaceAppStatsParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertWorkspaceAppStats", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertWorkspaceAppStats indicates an expected call of InsertWorkspaceAppStats.
+func (mr *MockStoreMockRecorder) InsertWorkspaceAppStats(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceAppStats", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceAppStats), arg0, arg1)
 }
 
 // InsertWorkspaceBuild mocks base method.

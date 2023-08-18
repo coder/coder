@@ -1,6 +1,9 @@
 import { usePagination } from "hooks/usePagination"
 import { Workspace } from "api/typesGenerated"
-import { useIsWorkspaceActionsEnabled } from "components/Dashboard/DashboardProvider"
+import {
+  useDashboard,
+  useIsWorkspaceActionsEnabled,
+} from "components/Dashboard/DashboardProvider"
 import { FC, useEffect, useState } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "utils/page"
@@ -11,7 +14,13 @@ import { useTemplateFilterMenu, useStatusFilterMenu } from "./filter/menus"
 import { useSearchParams } from "react-router-dom"
 import { useFilter } from "components/Filter/filter"
 import { useUserFilterMenu } from "components/Filter/UserFilter"
-import { getWorkspaces } from "api/api"
+import { deleteWorkspace, getWorkspaces } from "api/api"
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
+import Box from "@mui/material/Box"
+import { MONOSPACE_FONT_FAMILY } from "theme/constants"
+import TextField from "@mui/material/TextField"
+import { displayError } from "components/GlobalSnackbar/utils"
+import { getErrorMessage } from "api/errors"
 
 const WorkspacesPage: FC = () => {
   const [lockedWorkspaces, setLockedWorkspaces] = useState<Workspace[]>([])
@@ -21,7 +30,7 @@ const WorkspacesPage: FC = () => {
   const searchParamsResult = useSearchParams()
   const pagination = usePagination({ searchParamsResult })
   const filterProps = useWorkspacesFilter({ searchParamsResult, pagination })
-  const { data, error, queryKey } = useWorkspacesData({
+  const { data, error, queryKey, refetch } = useWorkspacesData({
     ...pagination,
     query: filterProps.filter.query,
   })
@@ -55,8 +64,20 @@ const WorkspacesPage: FC = () => {
       setLockedWorkspaces([])
     }
   }, [experimentEnabled, data, filterProps.filter.query])
-
   const updateWorkspace = useWorkspaceUpdate(queryKey)
+  const [checkedWorkspaces, setCheckedWorkspaces] = useState<Workspace[]>([])
+  const [isDeletingAll, setIsDeletingAll] = useState(false)
+  const [urlSearchParams] = searchParamsResult
+  const dashboard = useDashboard()
+  const isWorkspaceBatchActionsEnabled =
+    dashboard.experiments.includes("workspaces_batch_actions") ||
+    process.env.NODE_ENV === "development"
+
+  // We want to uncheck the selected workspaces always when the url changes
+  // because of filtering or pagination
+  useEffect(() => {
+    setCheckedWorkspaces([])
+  }, [urlSearchParams])
 
   return (
     <>
@@ -65,6 +86,9 @@ const WorkspacesPage: FC = () => {
       </Helmet>
 
       <WorkspacesPageView
+        isWorkspaceBatchActionsEnabled={isWorkspaceBatchActionsEnabled}
+        checkedWorkspaces={checkedWorkspaces}
+        onCheckChange={setCheckedWorkspaces}
         workspaces={data?.workspaces}
         lockedWorkspaces={lockedWorkspaces}
         error={error}
@@ -75,6 +99,21 @@ const WorkspacesPage: FC = () => {
         filterProps={filterProps}
         onUpdateWorkspace={(workspace) => {
           updateWorkspace.mutate(workspace)
+        }}
+        onDeleteAll={() => {
+          setIsDeletingAll(true)
+        }}
+      />
+
+      <BatchDeleteConfirmation
+        checkedWorkspaces={checkedWorkspaces}
+        open={isDeletingAll}
+        onClose={() => {
+          setIsDeletingAll(false)
+        }}
+        onDelete={async () => {
+          await refetch()
+          setCheckedWorkspaces([])
         }}
       />
     </>
@@ -128,4 +167,110 @@ const useWorkspacesFilter = ({
       status: statusMenu,
     },
   }
+}
+
+const BatchDeleteConfirmation = ({
+  checkedWorkspaces,
+  open,
+  onClose,
+  onDelete,
+}: {
+  checkedWorkspaces: Workspace[]
+  open: boolean
+  onClose: () => void
+  onDelete: () => void
+}) => {
+  const [confirmValue, setConfirmValue] = useState("")
+  const [confirmError, setConfirmError] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  const close = () => {
+    if (isDeleting) {
+      return
+    }
+
+    onClose()
+    setConfirmValue("")
+    setConfirmError(false)
+    setIsDeleting(false)
+  }
+
+  const confirmDeletion = async () => {
+    setConfirmError(false)
+
+    if (confirmValue.toLowerCase() !== "delete") {
+      setConfirmError(true)
+      return
+    }
+
+    try {
+      setIsDeleting(true)
+      await Promise.all(checkedWorkspaces.map((w) => deleteWorkspace(w.id)))
+    } catch (e) {
+      displayError(
+        "Error on deleting workspaces",
+        getErrorMessage(e, "An error occurred while deleting the workspaces"),
+      )
+    } finally {
+      close()
+      onDelete()
+    }
+  }
+
+  return (
+    <ConfirmDialog
+      type="delete"
+      open={open}
+      confirmLoading={isDeleting}
+      onConfirm={confirmDeletion}
+      onClose={() => {
+        onClose()
+        setConfirmValue("")
+        setConfirmError(false)
+      }}
+      title={`Delete ${checkedWorkspaces?.length} ${
+        checkedWorkspaces.length === 1 ? "workspace" : "workspaces"
+      }`}
+      description={
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault()
+            await confirmDeletion()
+          }}
+        >
+          <Box>
+            Deleting these workspaces is irreversible! Are you sure you want to
+            proceed? Type{" "}
+            <Box
+              component="code"
+              sx={{
+                fontFamily: MONOSPACE_FONT_FAMILY,
+                color: (theme) => theme.palette.text.primary,
+                fontWeight: 600,
+              }}
+            >
+              `DELETE`
+            </Box>{" "}
+            to confirm.
+          </Box>
+          <TextField
+            value={confirmValue}
+            required
+            autoFocus
+            fullWidth
+            inputProps={{
+              "aria-label": "Type DELETE to confirm",
+            }}
+            placeholder="Type DELETE to confirm"
+            sx={{ mt: 2 }}
+            onChange={(e) => {
+              setConfirmValue(e.currentTarget.value)
+            }}
+            error={confirmError}
+            helperText={confirmError && "Please type DELETE to confirm"}
+          />
+        </form>
+      }
+    />
+  )
 }

@@ -148,7 +148,7 @@ curl -X GET http://coder-server:8080/api/v2/entitlements \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get group by name
+## Get group by ID
 
 ### Code samples
 
@@ -165,7 +165,7 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group} \
 
 | Name    | In   | Type   | Required | Description |
 | ------- | ---- | ------ | -------- | ----------- |
-| `group` | path | string | true     | Group name  |
+| `group` | path | string | true     | Group id    |
 
 ### Example responses
 
@@ -279,17 +279,32 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```shell
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
+  -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
 `PATCH /groups/{group}`
 
+> Body parameter
+
+```json
+{
+  "add_users": ["string"],
+  "avatar_url": "string",
+  "display_name": "string",
+  "name": "string",
+  "quota_allowance": 0,
+  "remove_users": ["string"]
+}
+```
+
 ### Parameters
 
-| Name    | In   | Type   | Required | Description |
-| ------- | ---- | ------ | -------- | ----------- |
-| `group` | path | string | true     | Group name  |
+| Name    | In   | Type                                                               | Required | Description         |
+| ------- | ---- | ------------------------------------------------------------------ | -------- | ------------------- |
+| `group` | path | string                                                             | true     | Group name          |
+| `body`  | body | [codersdk.PatchGroupRequest](schemas.md#codersdkpatchgrouprequest) | true     | Patch group request |
 
 ### Example responses
 

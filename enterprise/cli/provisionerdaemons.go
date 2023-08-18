@@ -137,9 +137,7 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				cliui.Errorf(inv.Stderr, "Unexpected error, shutting down server: %s\n", exitErr)
 			}
 
-			shutdown, shutdownCancel := context.WithTimeout(ctx, time.Minute)
-			defer shutdownCancel()
-			err = srv.Shutdown(shutdown)
+			err = srv.Shutdown(ctx)
 			if err != nil {
 				return xerrors.Errorf("shutdown: %w", err)
 			}

@@ -812,6 +812,50 @@ COMMENT ON COLUMN workspace_agents.started_at IS 'The time the agent entered the
 
 COMMENT ON COLUMN workspace_agents.ready_at IS 'The time the agent entered the ready or start_error lifecycle state';
 
+CREATE TABLE workspace_app_stats (
+    id bigint NOT NULL,
+    user_id uuid NOT NULL,
+    workspace_id uuid NOT NULL,
+    agent_id uuid NOT NULL,
+    access_method text NOT NULL,
+    slug_or_port text NOT NULL,
+    session_id uuid NOT NULL,
+    session_started_at timestamp with time zone NOT NULL,
+    session_ended_at timestamp with time zone NOT NULL,
+    requests integer NOT NULL
+);
+
+COMMENT ON TABLE workspace_app_stats IS 'A record of workspace app usage statistics';
+
+COMMENT ON COLUMN workspace_app_stats.id IS 'The ID of the record';
+
+COMMENT ON COLUMN workspace_app_stats.user_id IS 'The user who used the workspace app';
+
+COMMENT ON COLUMN workspace_app_stats.workspace_id IS 'The workspace that the workspace app was used in';
+
+COMMENT ON COLUMN workspace_app_stats.agent_id IS 'The workspace agent that was used';
+
+COMMENT ON COLUMN workspace_app_stats.access_method IS 'The method used to access the workspace app';
+
+COMMENT ON COLUMN workspace_app_stats.slug_or_port IS 'The slug or port used to to identify the app';
+
+COMMENT ON COLUMN workspace_app_stats.session_id IS 'The unique identifier for the session';
+
+COMMENT ON COLUMN workspace_app_stats.session_started_at IS 'The time the session started';
+
+COMMENT ON COLUMN workspace_app_stats.session_ended_at IS 'The time the session ended';
+
+COMMENT ON COLUMN workspace_app_stats.requests IS 'The number of requests made during the session, a number larger than 1 indicates that multiple sessions were rolled up into one';
+
+CREATE SEQUENCE workspace_app_stats_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+ALTER SEQUENCE workspace_app_stats_id_seq OWNED BY workspace_app_stats.id;
+
 CREATE TABLE workspace_apps (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -969,6 +1013,8 @@ ALTER TABLE ONLY provisioner_job_logs ALTER COLUMN id SET DEFAULT nextval('provi
 
 ALTER TABLE ONLY workspace_agent_logs ALTER COLUMN id SET DEFAULT nextval('workspace_agent_startup_logs_id_seq'::regclass);
 
+ALTER TABLE ONLY workspace_app_stats ALTER COLUMN id SET DEFAULT nextval('workspace_app_stats_id_seq'::regclass);
+
 ALTER TABLE ONLY workspace_proxies ALTER COLUMN region_id SET DEFAULT nextval('workspace_proxies_region_id_seq'::regclass);
 
 ALTER TABLE ONLY workspace_resource_metadata ALTER COLUMN id SET DEFAULT nextval('workspace_resource_metadata_id_seq'::regclass);
@@ -1081,6 +1127,12 @@ ALTER TABLE ONLY workspace_agent_logs
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY workspace_app_stats
+    ADD CONSTRAINT workspace_app_stats_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY workspace_app_stats
+    ADD CONSTRAINT workspace_app_stats_user_id_agent_id_session_id_key UNIQUE (user_id, agent_id, session_id);
+
 ALTER TABLE ONLY workspace_apps
     ADD CONSTRAINT workspace_apps_agent_id_slug_idx UNIQUE (agent_id, slug);
 
@@ -1167,6 +1219,8 @@ CREATE INDEX workspace_agents_auth_token_idx ON workspace_agents USING btree (au
 
 CREATE INDEX workspace_agents_resource_id_idx ON workspace_agents USING btree (resource_id);
 
+CREATE INDEX workspace_app_stats_workspace_id_idx ON workspace_app_stats USING btree (workspace_id);
+
 CREATE UNIQUE INDEX workspace_proxies_lower_name_idx ON workspace_proxies USING btree (lower(name)) WHERE (deleted = false);
 
 CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (job_id);
@@ -1251,6 +1305,15 @@ ALTER TABLE ONLY workspace_agent_logs
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_resource_id_fkey FOREIGN KEY (resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_app_stats
+    ADD CONSTRAINT workspace_app_stats_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id);
+
+ALTER TABLE ONLY workspace_app_stats
+    ADD CONSTRAINT workspace_app_stats_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
+
+ALTER TABLE ONLY workspace_app_stats
+    ADD CONSTRAINT workspace_app_stats_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id);
 
 ALTER TABLE ONLY workspace_apps
     ADD CONSTRAINT workspace_apps_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

@@ -373,8 +373,7 @@ func TestTemplateACL(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Len(t, acl.Groups, 1)
-		// We don't return members for the 'Everyone' group.
-		require.Len(t, acl.Groups[0].Members, 0)
+		require.Len(t, acl.Groups[0].Members, 2)
 		require.Len(t, acl.Users, 0)
 	})
 

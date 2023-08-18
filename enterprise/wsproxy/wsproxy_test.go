@@ -478,6 +478,7 @@ func TestWorkspaceProxyWorkspaceApps_Wsconncache(t *testing.T) {
 						"CF-Connecting-IP",
 					},
 				},
+				WorkspaceAppsStatsCollectorOptions: opts.StatsCollectorOptions,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -536,6 +537,7 @@ func TestWorkspaceProxyWorkspaceApps_SingleTailnet(t *testing.T) {
 						"CF-Connecting-IP",
 					},
 				},
+				WorkspaceAppsStatsCollectorOptions: opts.StatsCollectorOptions,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{

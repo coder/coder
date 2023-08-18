@@ -30,12 +30,12 @@ import { subDays, isToday } from "date-fns"
 import "react-date-range/dist/styles.css"
 import "react-date-range/dist/theme/default.css"
 import { DateRange, DateRangeValue } from "./DateRange"
-import { useDashboard } from "components/Dashboard/DashboardProvider"
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined"
 import Link from "@mui/material/Link"
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined"
 import CancelOutlined from "@mui/icons-material/CancelOutlined"
 import { getDateRangeFilter } from "./utils"
+import Tooltip from "@mui/material/Tooltip"
 
 export default function TemplateInsightsPage() {
   const now = new Date()
@@ -61,10 +61,6 @@ export default function TemplateInsightsPage() {
     queryKey: ["templates", template.id, "user-latency", insightsFilter],
     queryFn: () => getInsightsUserLatency(insightsFilter),
   })
-  const dashboard = useDashboard()
-  const shouldDisplayParameters =
-    dashboard.experiments.includes("template_parameters_insights") ||
-    process.env.NODE_ENV === "development"
 
   return (
     <>
@@ -77,7 +73,6 @@ export default function TemplateInsightsPage() {
         }
         templateInsights={templateInsights}
         userLatency={userLatency}
-        shouldDisplayParameters={shouldDisplayParameters}
       />
     </>
   )
@@ -86,12 +81,10 @@ export default function TemplateInsightsPage() {
 export const TemplateInsightsPageView = ({
   templateInsights,
   userLatency,
-  shouldDisplayParameters,
   dateRange,
 }: {
   templateInsights: TemplateInsightsResponse | undefined
   userLatency: UserLatencyInsightsResponse | undefined
-  shouldDisplayParameters: boolean
   dateRange: ReactNode
 }) => {
   return (
@@ -114,12 +107,10 @@ export const TemplateInsightsPageView = ({
           sx={{ gridColumn: "span 3" }}
           data={templateInsights?.report.apps_usage}
         />
-        {shouldDisplayParameters && (
-          <TemplateParametersUsagePanel
-            sx={{ gridColumn: "span 3" }}
-            data={templateInsights?.report.parameters_usage}
-          />
-        )}
+        <TemplateParametersUsagePanel
+          sx={{ gridColumn: "span 3" }}
+          data={templateInsights?.report.parameters_usage}
+        />
       </Box>
     </>
   )
@@ -349,25 +340,34 @@ const TemplateParametersUsagePanel = ({
                   </Box>
                 </Box>
                 <Box sx={{ flex: 1, fontSize: 14 }}>
+                  <ParameterUsageRow
+                    sx={{
+                      color: (theme) => theme.palette.text.secondary,
+                      fontWeight: 500,
+                      fontSize: 13,
+                      cursor: "default",
+                    }}
+                  >
+                    <Box>Value</Box>
+                    <Tooltip
+                      title="The number of workspaces using this value"
+                      placement="top"
+                    >
+                      <Box>Count</Box>
+                    </Tooltip>
+                  </ParameterUsageRow>
                   {parameter.values
                     .sort((a, b) => b.count - a.count)
                     .map((usage, usageIndex) => (
-                      <Box
+                      <ParameterUsageRow
                         key={`${parameterIndex}-${usageIndex}`}
-                        sx={{
-                          display: "flex",
-                          alignItems: "baseline",
-                          justifyContent: "space-between",
-                          py: 0.5,
-                          gap: 5,
-                        }}
                       >
                         <ParameterUsageLabel
                           usage={usage}
                           parameter={parameter}
                         />
                         <Box sx={{ textAlign: "right" }}>{usage.count}</Box>
-                      </Box>
+                      </ParameterUsageRow>
                     ))}
                 </Box>
               </Box>
@@ -378,6 +378,14 @@ const TemplateParametersUsagePanel = ({
   )
 }
 
+const ParameterUsageRow = styled(Box)(({ theme }) => ({
+  display: "flex",
+  alignItems: "baseline",
+  justifyContent: "space-between",
+  padding: theme.spacing(0.5, 0),
+  gap: theme.spacing(5),
+}))
+
 const ParameterUsageLabel = ({
   usage,
   parameter,
@@ -386,16 +394,7 @@ const ParameterUsageLabel = ({
   parameter: TemplateParameterUsage
 }) => {
   if (usage.value.trim() === "") {
-    return (
-      <Box
-        component="span"
-        sx={{
-          color: (theme) => theme.palette.text.secondary,
-        }}
-      >
-        Not set
-      </Box>
-    )
+    return <Box component="span">Not set</Box>
   }
 
   if (parameter.options) {

@@ -237,6 +237,13 @@ func (m metricsStore) GetActiveUserCount(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+func (m metricsStore) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]database.WorkspaceBuild, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetActiveWorkspaceBuildsByTemplateID(ctx, templateID)
+	m.queryLatencies.WithLabelValues("GetActiveWorkspaceBuildsByTemplateID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetAllTailnetAgents(ctx context.Context) ([]database.TailnetAgent, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAllTailnetAgents(ctx)
@@ -1255,6 +1262,13 @@ func (m metricsStore) InsertWorkspaceApp(ctx context.Context, arg database.Inser
 	app, err := m.s.InsertWorkspaceApp(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertWorkspaceApp").Observe(time.Since(start).Seconds())
 	return app, err
+}
+
+func (m metricsStore) InsertWorkspaceAppStats(ctx context.Context, arg database.InsertWorkspaceAppStatsParams) error {
+	start := time.Now()
+	r0 := m.s.InsertWorkspaceAppStats(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertWorkspaceAppStats").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m metricsStore) InsertWorkspaceBuild(ctx context.Context, arg database.InsertWorkspaceBuildParams) error {

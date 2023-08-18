@@ -79,6 +79,8 @@ type Options struct {
 	// By default, CORs is set to accept external requests
 	// from the dashboardURL. This should only be used in development.
 	AllowAllCors bool
+
+	StatsCollectorOptions workspaceapps.StatsCollectorOptions
 }
 
 func (o *Options) Validate() error {
@@ -250,6 +252,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 			connInfo.DERPMap,
 			s.DialCoordinator,
 			wsconncache.New(s.DialWorkspaceAgent, 0),
+			s.TracerProvider,
 		)
 		if err != nil {
 			return nil, xerrors.Errorf("create server tailnet: %w", err)
@@ -261,8 +264,17 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		}
 	}
 
+	workspaceAppsLogger := opts.Logger.Named("workspaceapps")
+	if opts.StatsCollectorOptions.Logger == nil {
+		named := workspaceAppsLogger.Named("stats_collector")
+		opts.StatsCollectorOptions.Logger = &named
+	}
+	if opts.StatsCollectorOptions.Reporter == nil {
+		opts.StatsCollectorOptions.Reporter = &appStatsReporter{Client: client}
+	}
+
 	s.AppServer = &workspaceapps.Server{
-		Logger:        opts.Logger.Named("workspaceapps"),
+		Logger:        workspaceAppsLogger,
 		DashboardURL:  opts.DashboardURL,
 		AccessURL:     opts.AccessURL,
 		Hostname:      opts.AppHostname,
@@ -278,9 +290,11 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		},
 		AppSecurityKey: secKey,
 
-		AgentProvider:    agentProvider,
 		DisablePathApps:  opts.DisablePathApps,
 		SecureAuthCookie: opts.SecureAuthCookie,
+
+		AgentProvider:  agentProvider,
+		StatsCollector: workspaceapps.NewStatsCollector(opts.StatsCollectorOptions),
 	}
 
 	derpHandler := derphttp.Handler(derpServer)

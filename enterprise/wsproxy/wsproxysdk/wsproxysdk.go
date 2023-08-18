@@ -152,6 +152,25 @@ func (c *Client) IssueSignedAppTokenHTML(ctx context.Context, rw http.ResponseWr
 	return res, true
 }
 
+type ReportAppStatsRequest struct {
+	Stats []workspaceapps.StatsReport `json:"stats"`
+}
+
+// ReportAppStats reports the given app stats to the primary coder server.
+func (c *Client) ReportAppStats(ctx context.Context, req ReportAppStatsRequest) error {
+	resp, err := c.Request(ctx, http.MethodPost, "/api/v2/workspaceproxies/me/app-stats", req)
+	if err != nil {
+		return xerrors.Errorf("make request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent {
+		return codersdk.ReadBodyAsError(resp)
+	}
+
+	return nil
+}
+
 type RegisterWorkspaceProxyRequest struct {
 	// AccessURL that hits the workspace proxy api.
 	AccessURL string `json:"access_url"`

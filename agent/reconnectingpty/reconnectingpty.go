@@ -15,8 +15,8 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/pty"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/pty"
 )
 
 // attachTimeout is the initial timeout for attaching and will probably be far
@@ -48,7 +48,7 @@ type ReconnectingPTY interface {
 	// still be exiting.
 	Wait()
 	// Close kills the reconnecting pty process.
-	Close(reason string)
+	Close(err error)
 }
 
 // New sets up a new reconnecting pty that wraps the provided command.  Any
@@ -171,12 +171,7 @@ func (s *ptyState) waitForState(state State) (State, error) {
 func (s *ptyState) waitForStateOrContext(ctx context.Context, state State) (State, error) {
 	s.cond.L.Lock()
 	defer s.cond.L.Unlock()
-	return s.waitForStateOrContextLocked(ctx, state)
-}
 
-// waitForStateOrContextLocked is the same as waitForStateOrContext except it
-// assumes the caller has already locked cond.
-func (s *ptyState) waitForStateOrContextLocked(ctx context.Context, state State) (State, error) {
 	nevermind := make(chan struct{})
 	defer close(nevermind)
 	go func() {

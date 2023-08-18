@@ -784,6 +784,14 @@ func (q *querier) GetActiveUserCount(ctx context.Context) (int64, error) {
 	return q.db.GetActiveUserCount(ctx)
 }
 
+func (q *querier) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]database.WorkspaceBuild, error) {
+	// This is a system-only function.
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return []database.WorkspaceBuild{}, err
+	}
+	return q.db.GetActiveWorkspaceBuildsByTemplateID(ctx, templateID)
+}
+
 func (q *querier) GetAllTailnetAgents(ctx context.Context) ([]database.TailnetAgent, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
 		return []database.TailnetAgent{}, err
@@ -908,11 +916,11 @@ func (q *querier) GetGroupByOrgAndName(ctx context.Context, arg database.GetGrou
 	return fetch(q.log, q.auth, q.db.GetGroupByOrgAndName)(ctx, arg)
 }
 
-func (q *querier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]database.User, error) {
-	if _, err := q.GetGroupByID(ctx, groupID); err != nil { // AuthZ check
+func (q *querier) GetGroupMembers(ctx context.Context, id uuid.UUID) ([]database.User, error) {
+	if _, err := q.GetGroupByID(ctx, id); err != nil { // AuthZ check
 		return nil, err
 	}
-	return q.db.GetGroupMembers(ctx, groupID)
+	return q.db.GetGroupMembers(ctx, id)
 }
 
 func (q *querier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.Group, error) {
@@ -2036,6 +2044,13 @@ func (q *querier) InsertWorkspaceApp(ctx context.Context, arg database.InsertWor
 		return database.WorkspaceApp{}, err
 	}
 	return q.db.InsertWorkspaceApp(ctx, arg)
+}
+
+func (q *querier) InsertWorkspaceAppStats(ctx context.Context, arg database.InsertWorkspaceAppStatsParams) error {
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.InsertWorkspaceAppStats(ctx, arg)
 }
 
 func (q *querier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertWorkspaceBuildParams) error {

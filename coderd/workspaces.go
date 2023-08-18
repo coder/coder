@@ -86,6 +86,11 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(data.templates) == 0 {
+		httpapi.Forbidden(rw)
+		return
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, convertWorkspace(
 		workspace,
 		data.builds[0],
@@ -815,6 +820,11 @@ func (api *API) putWorkspaceLock(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(data.templates) == 0 {
+		httpapi.Forbidden(rw)
+		return
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, convertWorkspace(
 		workspace,
 		data.builds[0],
@@ -964,6 +974,16 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		if len(data.templates) == 0 {
+			_ = sendEvent(ctx, codersdk.ServerSentEvent{
+				Type: codersdk.ServerSentEventTypeError,
+				Data: codersdk.Response{
+					Message: "Forbidden reading template of selected workspace.",
+					Detail:  err.Error(),
+				},
+			})
+			return
+		}
 
 		_ = sendEvent(ctx, codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeData,
@@ -1025,6 +1045,10 @@ type workspaceData struct {
 	users     []database.User
 }
 
+// workspacesData only returns the data the caller can access. If the caller
+// does not have the correct perms to read a given template, the template will
+// not be returned.
+// So the caller must check the templates & users exist before using them.
 func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspace) (workspaceData, error) {
 	workspaceIDs := make([]uuid.UUID, 0, len(workspaces))
 	templateIDs := make([]uuid.UUID, 0, len(workspaces))
@@ -1090,17 +1114,22 @@ func convertWorkspaces(workspaces []database.Workspace, data workspaceData) ([]c
 
 	apiWorkspaces := make([]codersdk.Workspace, 0, len(workspaces))
 	for _, workspace := range workspaces {
+		// If any data is missing from the workspace, just skip returning
+		// this workspace. This is not ideal, but the user cannot read
+		// all the workspace's data, so do not show them.
+		// Ideally we could just return some sort of "unknown" for the missing
+		// fields?
 		build, exists := buildByWorkspaceID[workspace.ID]
 		if !exists {
-			return nil, xerrors.Errorf("build not found for workspace %q", workspace.Name)
+			continue
 		}
 		template, exists := templateByID[workspace.TemplateID]
 		if !exists {
-			return nil, xerrors.Errorf("template not found for workspace %q", workspace.Name)
+			continue
 		}
 		owner, exists := userByID[workspace.OwnerID]
 		if !exists {
-			return nil, xerrors.Errorf("owner not found for workspace: %q", workspace.Name)
+			continue
 		}
 
 		apiWorkspaces = append(apiWorkspaces, convertWorkspace(
