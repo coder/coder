@@ -274,6 +274,7 @@ func TestTemplateInsights(t *testing.T) {
 	client, _, coderdAPI := coderdtest.NewWithAPI(t, opts)
 
 	user := coderdtest.CreateFirstUser(t, client)
+	_, otherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
@@ -391,6 +392,20 @@ func TestTemplateInsights(t *testing.T) {
 			Requests:         1,
 		},
 		{
+			// Other use is using users workspace, this will result in an
+			// additional active user and more time spent in app.
+			UserID:       otherUser.ID,
+			WorkspaceID:  workspace.ID,
+			AgentID:      resources[0].Agents[0].ID,
+			AccessMethod: workspaceapps.AccessMethodPath,
+			SlugOrPort:   testAppSlug,
+			SessionID:    uuid.New(),
+			// One minute of usage (rounded up to 5 due to query intervals).
+			SessionStartedAt: requestStartTime,
+			SessionEndedAt:   requestStartTime.Add(1 * time.Minute),
+			Requests:         1,
+		},
+		{
 			UserID:       user.UserID,
 			WorkspaceID:  workspace.ID,
 			AgentID:      resources[0].Agents[0].ID,
@@ -482,7 +497,7 @@ func TestTemplateInsights(t *testing.T) {
 
 	assert.WithinDuration(t, req.StartTime, resp.Report.StartTime, 0)
 	assert.WithinDuration(t, req.EndTime, resp.Report.EndTime, 0)
-	assert.Equal(t, resp.Report.ActiveUsers, int64(1), "want one active user")
+	assert.Equal(t, int64(2), resp.Report.ActiveUsers, "want two active users")
 	var gotApps []codersdk.TemplateAppUsage
 	// Check builtin apps usage.
 	for _, app := range resp.Report.AppsUsage {
@@ -504,7 +519,7 @@ func TestTemplateInsights(t *testing.T) {
 			Slug:        testAppSlug,
 			DisplayName: testAppName,
 			Icon:        testAppIcon,
-			Seconds:     300 + 300, // Two times 5 minutes of usage (actually 1 + 5, but see TODO above).
+			Seconds:     300 + 300 + 300, // Three times 5 minutes of usage (actually 1 + 1 + 5, but see TODO above).
 		},
 	}, "want app usage to match")
 
@@ -512,7 +527,7 @@ func TestTemplateInsights(t *testing.T) {
 	require.Len(t, resp.IntervalReports, 1, "want one interval report")
 	assert.WithinDuration(t, req.StartTime, resp.IntervalReports[0].StartTime, 0)
 	assert.WithinDuration(t, req.EndTime, resp.IntervalReports[0].EndTime, 0)
-	assert.Equal(t, resp.IntervalReports[0].ActiveUsers, int64(1), "want one active user in the interval report")
+	assert.Equal(t, int64(2), resp.IntervalReports[0].ActiveUsers, "want two active users in the interval report")
 
 	// The workspace uses 3 parameters
 	require.Len(t, resp.Report.ParametersUsage, 3)
