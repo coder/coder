@@ -94,9 +94,9 @@ Your OIDC provider will ask you for the following parameter:
 
 - **Redirect URI**: Set to `https://coder.domain.com/api/v2/users/oidc/callback`
 
-### Step 2: Configure Coder with the OpenID Connect credentials
+### Step 2 (Client Secret Auth): Configure Coder with the OpenID Connect credentials
 
-Navigate to your Coder host and run the following command to start up the Coder
+The most common way to authenticate with OIDC providers is with a `client_secret`. Navigate to your Coder host and run the following command to start up the Coder
 server:
 
 ```console
@@ -134,6 +134,73 @@ coder:
 
 To upgrade Coder, run:
 
+```console
+helm upgrade <release-name> coder-v2/coder -n <namespace> -f values.yaml
+```
+
+### Step 2 (JWT/PKI/Certificate Auth): Configure Coder with the OpenID Connect credentials
+
+<blockquote class="warning">
+  <p>
+  Only <b>Azure AD</b> has been tested with this method. Other OIDC providers may not work, as most providers add additional requirements ontop of the standard that must be implemented. If you are using another provider and run into issues, please leave an issue on our <a href="https://github.com/coder/coder/issues">Github</a>.
+  </p>
+</blockquote>
+
+An alternative authentication method is to use signed JWT tokens rather than a shared `client_secret`. This requires 2 files.
+- An RSA private key file
+  - ```text
+    -----BEGIN RSA PRIVATE KEY-----
+    ... Base64 encoded key ...
+    -----END RSA PRIVATE KEY-----
+    ```
+- The corresponding x509 certificate file
+  - ```text
+    -----BEGIN CERTIFICATE-----
+    ... Base64 encoded x509 cert ...
+    -----END CERTIFICATE-----
+    ```
+
+You must upload the public key (the certificate) to your OIDC provider.
+Reference the documentation provided by your provider on how to do this. Depending on the provider, the name for this feature varies.
+
+- <!-- Azure --> Authentication certificate credentials
+- <!-- Okta --> JWT for Client Authentication
+- <!-- Auth0 --> Authenticate with Private Key JWT
+
+
+Once the key and certificate are uploaded, you can run Coder with the files. Navigate to your Coder host and run the following command to start up the Coder server:
+
+```console
+coder server --oidc-issuer-url="https://issuer.corp.com" --oidc-email-domain="your-domain-1,your-domain-2" --oidc-client-key-file="/path/to/key.pem" --oidc-client-cert-file="/path/to/cert.pem"
+```
+
+If you are running Coder as a system service, you can achieve the same result as the command above by adding the following environment variables to the /etc/coder.d/coder.env file:
+
+```console
+CODER_OIDC_ISSUER_URL="https://issuer.corp.com"
+CODER_OIDC_EMAIL_DOMAIN="your-domain-1,your-domain-2"
+CODER_OIDC_CLIENT_KEY_FILE="/path/to/key.pem"
+CODER_OIDC_CLIENT_CERT_FILE="/path/to/cert.pem"
+```
+
+Once complete, run sudo service coder restart to reboot Coder.
+
+If deploying Coder via Helm, you can set the above environment variables in the values.yaml file as such:
+
+```yaml
+coder:
+  env:
+    - name: CODER_OIDC_ISSUER_URL
+      value: "https://issuer.corp.com"
+    - name: CODER_OIDC_EMAIL_DOMAIN
+      value: "your-domain-1,your-domain-2"
+    - name: CODER_OIDC_CLIENT_KEY_FILE
+      value: "/path/to/key.pem"
+    - name: CODER_OIDC_CLIENT_CERT_FILE
+      value: "/path/to/cert.pem"
+```
+
+To upgrade Coder, run:
 ```console
 helm upgrade <release-name> coder-v2/coder -n <namespace> -f values.yaml
 ```
