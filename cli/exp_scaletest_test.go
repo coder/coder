@@ -82,6 +82,9 @@ func TestScaleTestWorkspaceTraffic(t *testing.T) {
 // This test just validates that the CLI command accepts its known arguments.
 func TestScaleTestDashboard(t *testing.T) {
 	t.Parallel()
+	if testutil.RaceEnabled() {
+		t.Skip("Flakes under race detector, see https://github.com/coder/coder/issues/9168")
+	}
 
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancelFunc()
