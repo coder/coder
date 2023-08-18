@@ -224,8 +224,14 @@ jobs:
 
           export TS_DEBUG_DISCO=true
 
-          nix-shell --command 'gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" \
-          --packages="./..." -- $PARALLEL_FLAG -short -failfast $COVERAGE_FLAGS'
+          # nix-sehll Is not available on Windows
+          if [ "${{ matrix.os }}" == "ubuntu-latest" ] || [ "${{ matrix.os }}" == "macos-latest" ]; then
+            nix-shell --command 'gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" \
+            --packages="./..." -- $PARALLEL_FLAG -short -failfast $COVERAGE_FLAGS'
+          else
+            gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" \
+            --packages="./..." -- $PARALLEL_FLAG -short -failfast $COVERAGE_FLAGS
+          fi
 
       - name: Print test stats
         if: success() || failure()
