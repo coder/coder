@@ -33,6 +33,7 @@
           gotestsum
           jq
           kubernetes-helm
+          less
           mockgen
           nfpm
           nodejs
@@ -156,6 +157,13 @@
             (
               pkgs.writeTextDir "etc/nix/nix.conf" ''
                 experimental-features = nix-command flakes
+              ''
+            )
+            # Allow people to change shells!
+            (
+              pkgs.writeTextDir "etc/shells" ''
+                ${pkgs.bash}/bin/bash
+                ${pkgs.zsh}/bin/zsh
               ''
             )
             # This is the debian script for managing Docker with `sudo service docker ...`.
