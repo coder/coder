@@ -1,7 +1,10 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { rest } from "msw"
-import { renderWithAuth } from "testHelpers/renderHelpers"
+import {
+  renderWithAuth,
+  waitForLoaderToBeRemoved,
+} from "testHelpers/renderHelpers"
 import { server } from "testHelpers/server"
 import { SetupPage } from "./SetupPage"
 import { Language as PageViewLanguage } from "./SetupPageView"
@@ -49,7 +52,8 @@ describe("Setup Page", () => {
   })
 
   it("shows validation error message", async () => {
-    renderWithAuth(<SetupPage />)
+    renderWithAuth(<SetupPage />, { route: "/setup", path: "/setup" })
+    await waitForLoaderToBeRemoved()
     await fillForm({ email: "test" })
     const errorMessage = await screen.findByText(PageViewLanguage.emailInvalid)
     expect(errorMessage).toBeDefined()
@@ -73,15 +77,15 @@ describe("Setup Page", () => {
         )
       }),
     )
-    renderWithAuth(<SetupPage />)
+
+    renderWithAuth(<SetupPage />, { route: "/setup", path: "/setup" })
+    await waitForLoaderToBeRemoved()
     await fillForm()
     const errorMessage = await screen.findByText(fieldErrorMessage)
     expect(errorMessage).toBeDefined()
   })
 
   it("redirects to login if setup has already completed", async () => {
-    renderWithAuth(<SetupPage />)
-
     // simulates setup having already been completed
     server.use(
       rest.get("/api/v2/users/first", (req, res, ctx) => {
@@ -89,12 +93,12 @@ describe("Setup Page", () => {
       }),
     )
 
+    renderWithAuth(<SetupPage />, { route: "/setup", path: "/setup" })
+    await waitForLoaderToBeRemoved()
     await waitFor(() => expect(window.location).toBeAt("/login"))
   })
 
   it("redirects to workspaces page when success", async () => {
-    renderWithAuth(<SetupPage />)
-
     // simulates the user will be authenticated
     server.use(
       rest.get("/api/v2/users/me", (req, res, ctx) => {
@@ -104,6 +108,9 @@ describe("Setup Page", () => {
         return res(ctx.status(404), ctx.json({ message: "hooray, you exist!" }))
       }),
     )
+
+    renderWithAuth(<SetupPage />, { route: "/setup", path: "/setup" })
+    await waitForLoaderToBeRemoved()
 
     await fillForm()
     await waitFor(() => expect(window.location).toBeAt("/workspaces"))
