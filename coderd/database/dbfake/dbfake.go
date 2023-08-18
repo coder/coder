@@ -1972,7 +1972,117 @@ func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.G
 		return nil, err
 	}
 
-	panic("not implemented")
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	type appKey struct {
+		AccessMethod string
+		SlugOrPort   string
+		Slug         string
+		DisplayName  string
+		Icon         string
+	}
+	type uniqueKey struct {
+		TemplateID uuid.UUID
+		UserID     uuid.UUID
+		AgentID    uuid.UUID
+		AppKey     appKey
+	}
+
+	appUsageIntervalsByUserAgentApp := make(map[uniqueKey]map[time.Time]int64)
+	for _, s := range q.workspaceAppStats {
+		// (was.session_started_at >= ts.from_ AND was.session_started_at < ts.to_)
+		// OR (was.session_ended_at > ts.from_ AND was.session_ended_at < ts.to_)
+		// OR (was.session_started_at < ts.from_ AND was.session_ended_at >= ts.to_)
+		if !(((s.SessionStartedAt.After(arg.StartTime) || s.SessionStartedAt.Equal(arg.StartTime)) && s.SessionStartedAt.Before(arg.EndTime)) ||
+			(s.SessionEndedAt.After(arg.StartTime) && s.SessionEndedAt.Before(arg.EndTime)) ||
+			(s.SessionStartedAt.Before(arg.StartTime) && (s.SessionEndedAt.After(arg.EndTime) || s.SessionEndedAt.Equal(arg.EndTime)))) {
+			continue
+		}
+
+		w, err := q.getWorkspaceByIDNoLock(ctx, s.WorkspaceID)
+		if err != nil {
+			return nil, err
+		}
+
+		app, _ := q.getWorkspaceAppByAgentIDAndSlugNoLock(ctx, database.GetWorkspaceAppByAgentIDAndSlugParams{
+			AgentID: s.AgentID,
+			Slug:    s.SlugOrPort,
+		})
+
+		key := uniqueKey{
+			TemplateID: w.TemplateID,
+			UserID:     s.UserID,
+			AgentID:    s.AgentID,
+			AppKey: appKey{
+				AccessMethod: s.AccessMethod,
+				SlugOrPort:   s.SlugOrPort,
+				Slug:         app.Slug,
+				DisplayName:  app.DisplayName,
+				Icon:         app.Icon,
+			},
+		}
+		if appUsageIntervalsByUserAgentApp[key] == nil {
+			appUsageIntervalsByUserAgentApp[key] = make(map[time.Time]int64)
+		}
+
+		t := s.SessionStartedAt.Truncate(5 * time.Minute)
+		if t.Before(arg.StartTime) {
+			t = arg.StartTime
+		}
+		for t.Before(s.SessionEndedAt) && t.Before(arg.EndTime) {
+			appUsageIntervalsByUserAgentApp[key][t] = 300 // 5 minutes.
+			t = t.Add(5 * time.Minute)
+		}
+	}
+
+	appUsageTemplateIDs := make(map[appKey]map[uuid.UUID]struct{})
+	appUsageUserIDs := make(map[appKey]map[uuid.UUID]struct{})
+	appUsage := make(map[appKey]int64)
+	for uniqueKey, usage := range appUsageIntervalsByUserAgentApp {
+		for _, seconds := range usage {
+			if appUsageTemplateIDs[uniqueKey.AppKey] == nil {
+				appUsageTemplateIDs[uniqueKey.AppKey] = make(map[uuid.UUID]struct{})
+			}
+			appUsageTemplateIDs[uniqueKey.AppKey][uniqueKey.TemplateID] = struct{}{}
+			if appUsageUserIDs[uniqueKey.AppKey] == nil {
+				appUsageUserIDs[uniqueKey.AppKey] = make(map[uuid.UUID]struct{})
+			}
+			appUsageUserIDs[uniqueKey.AppKey][uniqueKey.UserID] = struct{}{}
+			appUsage[uniqueKey.AppKey] += seconds
+		}
+	}
+
+	var rows []database.GetTemplateAppInsightsRow
+	for appKey, usage := range appUsage {
+		templateIDs := make([]uuid.UUID, 0, len(appUsageTemplateIDs[appKey]))
+		for templateID := range appUsageTemplateIDs[appKey] {
+			templateIDs = append(templateIDs, templateID)
+		}
+		slices.SortFunc(templateIDs, func(a, b uuid.UUID) int {
+			return slice.Ascending(a.String(), b.String())
+		})
+		activeUserIDs := make([]uuid.UUID, 0, len(appUsageUserIDs[appKey]))
+		for userID := range appUsageUserIDs[appKey] {
+			activeUserIDs = append(activeUserIDs, userID)
+		}
+		slices.SortFunc(activeUserIDs, func(a, b uuid.UUID) int {
+			return slice.Ascending(a.String(), b.String())
+		})
+
+		rows = append(rows, database.GetTemplateAppInsightsRow{
+			TemplateIDs:   templateIDs,
+			ActiveUserIDs: activeUserIDs,
+			AccessMethod:  appKey.AccessMethod,
+			SlugOrPort:    appKey.SlugOrPort,
+			DisplayName:   sql.NullString{String: appKey.DisplayName, Valid: appKey.DisplayName != ""},
+			Icon:          sql.NullString{String: appKey.Icon, Valid: appKey.Icon != ""},
+			IsApp:         appKey.Slug != "",
+			UsageSeconds:  usage,
+		})
+	}
+
+	return rows, nil
 }
 
 func (q *FakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
@@ -2102,11 +2212,14 @@ func (q *FakeQuerier) GetTemplateDAUs(_ context.Context, arg database.GetTemplat
 	return rs, nil
 }
 
-func (q *FakeQuerier) GetTemplateDailyInsights(_ context.Context, arg database.GetTemplateDailyInsightsParams) ([]database.GetTemplateDailyInsightsRow, error) {
+func (q *FakeQuerier) GetTemplateDailyInsights(ctx context.Context, arg database.GetTemplateDailyInsightsParams) ([]database.GetTemplateDailyInsightsRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
 	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
 
 	type dailyStat struct {
 		startTime, endTime time.Time
@@ -2138,6 +2251,37 @@ func (q *FakeQuerier) GetTemplateDailyInsights(_ context.Context, arg database.G
 			}
 			ds.userSet[s.UserID] = struct{}{}
 			ds.templateIDSet[s.TemplateID] = struct{}{}
+			break
+		}
+	}
+
+	for _, s := range q.workspaceAppStats {
+		// (was.session_started_at >= ts.from_ AND was.session_started_at < ts.to_)
+		// OR (was.session_ended_at > ts.from_ AND was.session_ended_at < ts.to_)
+		// OR (was.session_started_at < ts.from_ AND was.session_ended_at >= ts.to_)
+		if !(((s.SessionStartedAt.After(arg.StartTime) || s.SessionStartedAt.Equal(arg.StartTime)) && s.SessionStartedAt.Before(arg.EndTime)) ||
+			(s.SessionEndedAt.After(arg.StartTime) && s.SessionEndedAt.Before(arg.EndTime)) ||
+			(s.SessionStartedAt.Before(arg.StartTime) && (s.SessionEndedAt.After(arg.EndTime) || s.SessionEndedAt.Equal(arg.EndTime)))) {
+			continue
+		}
+
+		for _, ds := range dailyStats {
+			// (was.session_started_at >= ts.from_ AND was.session_started_at < ts.to_)
+			// OR (was.session_ended_at > ts.from_ AND was.session_ended_at < ts.to_)
+			// OR (was.session_started_at < ts.from_ AND was.session_ended_at >= ts.to_)
+			if !(((s.SessionStartedAt.After(arg.StartTime) || s.SessionStartedAt.Equal(arg.StartTime)) && s.SessionStartedAt.Before(arg.EndTime)) ||
+				(s.SessionEndedAt.After(arg.StartTime) && s.SessionEndedAt.Before(arg.EndTime)) ||
+				(s.SessionStartedAt.Before(arg.StartTime) && (s.SessionEndedAt.After(arg.EndTime) || s.SessionEndedAt.Equal(arg.EndTime)))) {
+				continue
+			}
+
+			w, err := q.getWorkspaceByIDNoLock(ctx, s.WorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			ds.userSet[s.UserID] = struct{}{}
+			ds.templateIDSet[w.TemplateID] = struct{}{}
 			break
 		}
 	}
@@ -3089,7 +3233,7 @@ func (q *FakeQuerier) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.C
 	return agents, nil
 }
 
-func (q *FakeQuerier) GetWorkspaceAppByAgentIDAndSlug(_ context.Context, arg database.GetWorkspaceAppByAgentIDAndSlugParams) (database.WorkspaceApp, error) {
+func (q *FakeQuerier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg database.GetWorkspaceAppByAgentIDAndSlugParams) (database.WorkspaceApp, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.WorkspaceApp{}, err
 	}
@@ -3097,6 +3241,10 @@ func (q *FakeQuerier) GetWorkspaceAppByAgentIDAndSlug(_ context.Context, arg dat
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
+	return q.getWorkspaceAppByAgentIDAndSlugNoLock(ctx, arg)
+}
+
+func (q *FakeQuerier) getWorkspaceAppByAgentIDAndSlugNoLock(_ context.Context, arg database.GetWorkspaceAppByAgentIDAndSlugParams) (database.WorkspaceApp, error) {
 	for _, app := range q.workspaceApps {
 		if app.AgentID != arg.AgentID {
 			continue

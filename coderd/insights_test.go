@@ -512,7 +512,7 @@ func TestTemplateInsights(t *testing.T) {
 		}
 	}
 	// Check app usage.
-	assert.Equal(t, gotApps, []codersdk.TemplateAppUsage{
+	assert.Equal(t, []codersdk.TemplateAppUsage{
 		{
 			TemplateIDs: []uuid.UUID{template.ID},
 			Type:        codersdk.TemplateAppsTypeApp,
@@ -521,7 +521,7 @@ func TestTemplateInsights(t *testing.T) {
 			Icon:        testAppIcon,
 			Seconds:     300 + 300 + 300, // Three times 5 minutes of usage (actually 1 + 1 + 5, but see TODO above).
 		},
-	}, "want app usage to match")
+	}, gotApps, "want app usage to match")
 
 	// The full timeframe is <= 24h, so the interval matches exactly.
 	require.Len(t, resp.IntervalReports, 1, "want one interval report")
