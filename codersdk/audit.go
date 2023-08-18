@@ -25,6 +25,7 @@ const (
 	ResourceTypeLicense         ResourceType = "license"
 	ResourceTypeConvertLogin    ResourceType = "convert_login"
 	ResourceTypeWorkspaceProxy  ResourceType = "workspace_proxy"
+	ResourceTypeOrganization    ResourceType = "organization"
 )
 
 func (r ResourceType) FriendlyString() string {
@@ -53,6 +54,8 @@ func (r ResourceType) FriendlyString() string {
 		return "login type conversion"
 	case ResourceTypeWorkspaceProxy:
 		return "workspace proxy"
+	case ResourceTypeOrganization:
+		return "organization"
 	default:
 		return "unknown"
 	}
