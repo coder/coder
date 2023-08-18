@@ -13,13 +13,16 @@
         pkgs = nixpkgs.legacyPackages.${system};
         formatter = pkgs.nixpkgs-fmt;
         # Check in https://search.nixos.org/packages to find new packages.
-        # Use `nix flake update` to update the lock file if packages are out-of-date.
+        # Use `nix --extra-experimental-features nix-command --extra-experimental-features flakes flake update`
+        # to update the lock file if packages are out-of-date.
+
         devShellPackages = with pkgs; [
           bat
           cairo
           curl
           drpc.defaultPackage.${system}
           gcc
+          google-cloud-sdk
           getopt
           git
           gh
@@ -31,6 +34,7 @@
           gopls
           gotestsum
           jq
+          kubectl
           kubernetes-helm
           less
           mockgen
