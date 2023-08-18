@@ -362,6 +362,7 @@ func TestTemplateInsights(t *testing.T) {
 	// data by accessing it.
 	// Insert entries within and outside timeframe.
 	reporter := workspaceapps.NewStatsDBReporter(coderdAPI.Database, workspaceapps.DefaultStatsDBReporterBatchSize)
+	//nolint:gocritic // This is a test.
 	err := reporter.Report(dbauthz.AsSystemRestricted(ctx), []workspaceapps.StatsReport{
 		{
 			UserID:       user.UserID,
