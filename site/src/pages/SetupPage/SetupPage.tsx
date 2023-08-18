@@ -5,6 +5,7 @@ import { Helmet } from "react-helmet-async"
 import { pageTitle } from "utils/page"
 import { setupMachine } from "xServices/setup/setupXService"
 import { SetupPageView } from "./SetupPageView"
+import { useNavigate } from "react-router-dom"
 
 export const SetupPage: FC = () => {
   const [authState, authSend] = useAuth()
@@ -23,10 +24,20 @@ export const SetupPage: FC = () => {
     },
   })
   const { error } = setupState.context
+  const navigate = useNavigate()
 
   useEffect(() => {
+    // If the user is logged in, navigate to the app
     if (authState.matches("signedIn")) {
-      window.location.assign("/workspaces")
+      navigate("/", { state: { isRedirect: true } })
+    }
+
+    // If we've already completed setup, navigate to the login page
+    if (
+      !authState.matches("loadingInitialAuthData") &&
+      !authState.matches("configuringTheFirstUser")
+    ) {
+      navigate("/login", { state: { isRedirect: true } })
     }
   }, [authState])
 
