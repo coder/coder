@@ -16,9 +16,13 @@ const fillForm = async ({
   email?: string
   password?: string
 } = {}) => {
-  const usernameField = screen.getByLabelText(PageViewLanguage.usernameLabel)
-  const emailField = screen.getByLabelText(PageViewLanguage.emailLabel)
-  const passwordField = screen.getByLabelText(PageViewLanguage.passwordLabel)
+  const usernameField = await screen.findByLabelText(
+    PageViewLanguage.usernameLabel,
+  )
+  const emailField = await screen.findByLabelText(PageViewLanguage.emailLabel)
+  const passwordField = await screen.findByLabelText(
+    PageViewLanguage.passwordLabel,
+  )
   await userEvent.type(usernameField, username)
   await userEvent.type(emailField, email)
   await userEvent.type(passwordField, password)
@@ -75,6 +79,19 @@ describe("Setup Page", () => {
     expect(errorMessage).toBeDefined()
   })
 
+  it("redirects to login if setup has already completed", async () => {
+    renderWithAuth(<SetupPage />)
+
+    // simulates setup having already been completed
+    server.use(
+      rest.get("/api/v2/users/first", (req, res, ctx) => {
+        return res(ctx.status(404), ctx.json({ message: "hooray, you exist!" }))
+      }),
+    )
+
+    await waitFor(() => expect(window.location).toBeAt("/login"))
+  })
+
   it("redirects to workspaces page when success", async () => {
     renderWithAuth(<SetupPage />)
 
@@ -82,6 +99,9 @@ describe("Setup Page", () => {
     server.use(
       rest.get("/api/v2/users/me", (req, res, ctx) => {
         return res(ctx.status(200), ctx.json(MockUser))
+      }),
+      rest.get("/api/v2/users/first", (req, res, ctx) => {
+        return res(ctx.status(404), ctx.json({ message: "hooray, you exist!" }))
       }),
     )
 
