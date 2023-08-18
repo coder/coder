@@ -435,8 +435,7 @@ jobs:
         uses: DeterminateSystems/magic-nix-cache-action@v2
 
       - name: Run Tests
-        run: nix-shell --command 'pnpm test:ci --max-workers $(nproc)'
-        working-directory: site
+        run: nix-shell --command 'cd site && pnpm test:ci --max-workers $(nproc)'
 
       - name: Check code coverage
         uses: codecov/codecov-action@v3
@@ -472,10 +471,9 @@ jobs:
         run: |
           nix-shell --command 'make -B site/out/index.html'
 
-      - run: nix-shell --command 'pnpm playwright:install'
-        working-directory: site
+      - run: nix-shell --command 'cd site && pnpm playwright:install'
 
-      - run: nix-shell --command 'pnpm playwright:test'
+      - run: nix-shell --command 'cd site && pnpm playwright:test'
         env:
           DEBUG: pw:api
         working-directory: site
