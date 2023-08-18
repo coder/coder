@@ -21,6 +21,7 @@
           curl
           docker
           drpc.defaultPackage.${system}
+          emacsPackages.jest
           exa
           getopt
           git
