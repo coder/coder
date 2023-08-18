@@ -510,7 +510,7 @@ jobs:
 
       - name: Build
         run: |
-          make -B site/out/index.html
+          nix-shell --command 'make -B site/out/index.html'
 
       - run: pnpm playwright:install
         working-directory: site
