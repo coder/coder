@@ -403,11 +403,15 @@ func (b *binder) writeOne(bnd binding) error {
 			CoordinatorID: b.coordinatorID,
 			Node:          nodeRaw,
 		})
+		b.logger.Debug(b.ctx, "upserted agent binding",
+			slog.F("agent_id", bnd.agent), slog.F("node", nodeRaw), slog.Error(err))
 	case bnd.isAgent() && len(nodeRaw) == 0:
 		_, err = b.store.DeleteTailnetAgent(b.ctx, database.DeleteTailnetAgentParams{
 			ID:            bnd.agent,
 			CoordinatorID: b.coordinatorID,
 		})
+		b.logger.Debug(b.ctx, "deleted agent binding",
+			slog.F("agent_id", bnd.agent), slog.Error(err))
 		if xerrors.Is(err, sql.ErrNoRows) {
 			// treat deletes as idempotent
 			err = nil
@@ -419,11 +423,16 @@ func (b *binder) writeOne(bnd binding) error {
 			AgentID:       bnd.agent,
 			Node:          nodeRaw,
 		})
+		b.logger.Debug(b.ctx, "upserted client binding",
+			slog.F("agent_id", bnd.agent), slog.F("client_id", bnd.client),
+			slog.F("node", nodeRaw), slog.Error(err))
 	case bnd.isClient() && len(nodeRaw) == 0:
 		_, err = b.store.DeleteTailnetClient(b.ctx, database.DeleteTailnetClientParams{
 			ID:            bnd.client,
 			CoordinatorID: b.coordinatorID,
 		})
+		b.logger.Debug(b.ctx, "deleted client binding",
+			slog.F("agent_id", bnd.agent), slog.F("client_id", bnd.client), slog.Error(err))
 		if xerrors.Is(err, sql.ErrNoRows) {
 			// treat deletes as idempotent
 			err = nil
@@ -620,7 +629,7 @@ func newQuerier(
 		updates:        updates,
 		healthy:        true, // assume we start healthy
 	}
-	go q.subscribe()
+	q.subscribe()
 	go q.handleConnIO()
 	for i := 0; i < numWorkers; i++ {
 		go q.worker()
@@ -748,6 +757,8 @@ func (q *querier) query(mk mKey) error {
 
 func (q *querier) queryClientsOfAgent(agent uuid.UUID) ([]mapping, error) {
 	clients, err := q.store.GetTailnetClientsForAgent(q.ctx, agent)
+	q.logger.Debug(q.ctx, "queried clients of agent",
+		slog.F("agent_id", agent), slog.F("num_clients", len(clients)), slog.Error(err))
 	if err != nil {
 		return nil, err
 	}
@@ -772,6 +783,8 @@ func (q *querier) queryClientsOfAgent(agent uuid.UUID) ([]mapping, error) {
 
 func (q *querier) queryAgent(agentID uuid.UUID) ([]mapping, error) {
 	agents, err := q.store.GetTailnetAgents(q.ctx, agentID)
+	q.logger.Debug(q.ctx, "queried agents",
+		slog.F("agent_id", agentID), slog.F("num_agents", len(agents)), slog.Error(err))
 	if err != nil {
 		return nil, err
 	}
@@ -793,50 +806,62 @@ func (q *querier) queryAgent(agentID uuid.UUID) ([]mapping, error) {
 	return mappings, nil
 }
 
+// subscribe starts our subscriptions to client and agent updates in a new goroutine, and returns once we are subscribed
+// or the querier context is canceled.
 func (q *querier) subscribe() {
-	eb := backoff.NewExponentialBackOff()
-	eb.MaxElapsedTime = 0 // retry indefinitely
-	eb.MaxInterval = dbMaxBackoff
-	bkoff := backoff.WithContext(eb, q.ctx)
-	var cancelClient context.CancelFunc
-	err := backoff.Retry(func() error {
-		cancelFn, err := q.pubsub.SubscribeWithErr(eventClientUpdate, q.listenClient)
+	subscribed := make(chan struct{})
+	go func() {
+		defer close(subscribed)
+		eb := backoff.NewExponentialBackOff()
+		eb.MaxElapsedTime = 0 // retry indefinitely
+		eb.MaxInterval = dbMaxBackoff
+		bkoff := backoff.WithContext(eb, q.ctx)
+		var cancelClient context.CancelFunc
+		err := backoff.Retry(func() error {
+			cancelFn, err := q.pubsub.SubscribeWithErr(eventClientUpdate, q.listenClient)
+			if err != nil {
+				q.logger.Warn(q.ctx, "failed to subscribe to client updates", slog.Error(err))
+				return err
+			}
+			cancelClient = cancelFn
+			return nil
+		}, bkoff)
 		if err != nil {
-			q.logger.Warn(q.ctx, "failed to subscribe to client updates", slog.Error(err))
-			return err
+			if q.ctx.Err() == nil {
+				q.logger.Error(q.ctx, "code bug: retry failed before context canceled", slog.Error(err))
+			}
+			return
 		}
-		cancelClient = cancelFn
-		return nil
-	}, bkoff)
-	if err != nil {
-		if q.ctx.Err() == nil {
-			q.logger.Error(q.ctx, "code bug: retry failed before context canceled", slog.Error(err))
-		}
-		return
-	}
-	defer cancelClient()
-	bkoff.Reset()
+		defer cancelClient()
+		bkoff.Reset()
+		q.logger.Debug(q.ctx, "subscribed to client updates")
 
-	var cancelAgent context.CancelFunc
-	err = backoff.Retry(func() error {
-		cancelFn, err := q.pubsub.SubscribeWithErr(eventAgentUpdate, q.listenAgent)
+		var cancelAgent context.CancelFunc
+		err = backoff.Retry(func() error {
+			cancelFn, err := q.pubsub.SubscribeWithErr(eventAgentUpdate, q.listenAgent)
+			if err != nil {
+				q.logger.Warn(q.ctx, "failed to subscribe to agent updates", slog.Error(err))
+				return err
+			}
+			cancelAgent = cancelFn
+			return nil
+		}, bkoff)
 		if err != nil {
-			q.logger.Warn(q.ctx, "failed to subscribe to agent updates", slog.Error(err))
-			return err
+			if q.ctx.Err() == nil {
+				q.logger.Error(q.ctx, "code bug: retry failed before context canceled", slog.Error(err))
+			}
+			return
 		}
-		cancelAgent = cancelFn
-		return nil
-	}, bkoff)
-	if err != nil {
-		if q.ctx.Err() == nil {
-			q.logger.Error(q.ctx, "code bug: retry failed before context canceled", slog.Error(err))
-		}
-		return
-	}
-	defer cancelAgent()
+		defer cancelAgent()
+		q.logger.Debug(q.ctx, "subscribed to agent updates")
 
-	// hold subscriptions open until context is canceled
-	<-q.ctx.Done()
+		// unblock the outer function from returning
+		subscribed <- struct{}{}
+
+		// hold subscriptions open until context is canceled
+		<-q.ctx.Done()
+	}()
+	<-subscribed
 }
 
 func (q *querier) listenClient(_ context.Context, msg []byte, err error) {
