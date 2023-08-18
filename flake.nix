@@ -16,7 +16,6 @@
         # Use `nix flake update` to update the lock file if packages are out-of-date.
         devShellPackages = with pkgs; [
           bat
-          bash
           cairo
           curl
           drpc.defaultPackage.${system}
@@ -169,7 +168,7 @@
             # Allow people to change shells!
             (
               pkgs.writeTextDir "etc/shells" ''
-                ${pkgs.bash}/bin/bash
+                /bin/bash
                 ${pkgs.zsh}/bin/zsh
               ''
             )
