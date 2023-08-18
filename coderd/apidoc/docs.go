@@ -9281,7 +9281,9 @@ const docTemplate = `{
                 "api_key",
                 "group",
                 "license",
-                "convert_login"
+                "convert_login",
+                "workspace_proxy",
+                "organization"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -9293,7 +9295,9 @@ const docTemplate = `{
                 "ResourceTypeAPIKey",
                 "ResourceTypeGroup",
                 "ResourceTypeLicense",
-                "ResourceTypeConvertLogin"
+                "ResourceTypeConvertLogin",
+                "ResourceTypeWorkspaceProxy",
+                "ResourceTypeOrganization"
             ]
         },
         "codersdk.Response": {

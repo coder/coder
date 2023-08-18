@@ -8354,7 +8354,9 @@
         "api_key",
         "group",
         "license",
-        "convert_login"
+        "convert_login",
+        "workspace_proxy",
+        "organization"
       ],
       "x-enum-varnames": [
         "ResourceTypeTemplate",
@@ -8366,7 +8368,9 @@
         "ResourceTypeAPIKey",
         "ResourceTypeGroup",
         "ResourceTypeLicense",
-        "ResourceTypeConvertLogin"
+        "ResourceTypeConvertLogin",
+        "ResourceTypeWorkspaceProxy",
+        "ResourceTypeOrganization"
       ]
     },
     "codersdk.Response": {

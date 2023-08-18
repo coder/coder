@@ -1785,6 +1785,7 @@ export type ResourceType =
   | "git_ssh_key"
   | "group"
   | "license"
+  | "organization"
   | "template"
   | "template_version"
   | "user"
@@ -1797,6 +1798,7 @@ export const ResourceTypes: ResourceType[] = [
   "git_ssh_key",
   "group",
   "license",
+  "organization",
   "template",
   "template_version",
   "user",
