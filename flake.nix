@@ -61,6 +61,7 @@
           vim
           yq-go
           zip
+          zsh
           zstd
         ];
 
@@ -75,7 +76,7 @@
         };
         # This is an intermediate stage that adds sudo with the setuid bit set.
         # Nix doesn't allow setuid binaries in the store, so we have to do this
-        # in a separate stage. 
+        # in a separate stage.
         intermediateDevEnvImage = pkgs.dockerTools.buildImage {
           name = "intermediate";
           fromImage = baseDevEnvImage;
@@ -113,7 +114,7 @@
         # Using Nix instead of Docker is **significantly** faster. This _build_
         # doesn't really build anything, it just copies pre-built binaries into
         # a container and adds them to the $PATH.
-        # 
+        #
         # To test changes and iterate on this, you can run:
         # > nix build .#devEnvImage && ./result | docker load
         # This will import the image into your local Docker daemon.
