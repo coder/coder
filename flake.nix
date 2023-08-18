@@ -61,6 +61,7 @@
           terraform
           typos
           vim
+          wget
           yq-go
           zip
           zsh
