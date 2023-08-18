@@ -37,6 +37,7 @@
           jq
           kubectl
           kubernetes-helm
+          (if system == "default-darwin" then null else libuuid)
           mockgen
           nfpm
           nix

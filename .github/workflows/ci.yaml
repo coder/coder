@@ -481,7 +481,6 @@ jobs:
       - run: nix-shell --command 'cd site && pnpm playwright:test'
         env:
           DEBUG: pw:api
-        working-directory: site
 
       - name: Upload Playwright Failed Tests
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
