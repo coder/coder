@@ -1485,9 +1485,9 @@ WITH ts AS (
 		(wa.slug IS NOT NULL)::boolean AS is_app
 	FROM ts
 	JOIN workspace_app_stats was ON (
-		(was.session_started_at BETWEEN ts.from_ AND ts.to_)
-		OR (was.session_ended_at BETWEEN ts.from_ AND ts.to_)
-		OR (was.session_started_at < ts.from_ AND was.session_ended_at > ts.to_)
+		(was.session_started_at >= ts.from_ AND was.session_started_at < ts.to_)
+		OR (was.session_ended_at > ts.from_ AND was.session_ended_at < ts.to_)
+		OR (was.session_started_at < ts.from_ AND was.session_ended_at >= ts.to_)
 	)
 	JOIN workspaces w ON (
 		w.id = was.workspace_id
@@ -1502,9 +1502,9 @@ WITH ts AS (
 	WHERE
 		-- We already handle timeframe in the join, but we use an additional
 		-- check against a static timeframe to help speed up the query.
-		(was.session_started_at BETWEEN $1 AND $2)
-		OR (was.session_ended_at BETWEEN $1 AND $2)
-		OR (was.session_started_at < $1 AND was.session_ended_at > $2)
+		(was.session_started_at >= $1 AND was.session_started_at < $2)
+		OR (was.session_ended_at > $1 AND was.session_ended_at < $2)
+		OR (was.session_started_at < $1 AND was.session_ended_at >= $2)
 	GROUP BY ts.from_, ts.to_, ts.seconds, w.template_id, was.user_id, was.agent_id, was.access_method, was.slug_or_port, wa.display_name, wa.icon, wa.slug
 )
 
@@ -1615,9 +1615,9 @@ WITH ts AS (
 		was.user_id
 	FROM ts
 	JOIN workspace_app_stats was ON (
-		(was.session_started_at BETWEEN ts.from_ AND ts.to_)
-		OR (was.session_ended_at BETWEEN ts.from_ AND ts.to_)
-		OR (was.session_started_at < ts.from_ AND was.session_ended_at > ts.to_)
+		(was.session_started_at >= ts.from_ AND was.session_started_at < ts.to_)
+		OR (was.session_ended_at > ts.from_ AND was.session_ended_at < ts.to_)
+		OR (was.session_started_at < ts.from_ AND was.session_ended_at >= ts.to_)
 	)
 	JOIN workspaces w ON (
 		w.id = was.workspace_id
