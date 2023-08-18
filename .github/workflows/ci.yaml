@@ -577,7 +577,7 @@ jobs:
 
       - name: Build
         run: |
-          nix-shell --command 'make -j build/coder_docs_"$(./scripts/version.sh)".tgz'
+          nix-shell --command 'cd offlinedocs && pnpm install && cd .. && make -j build/coder_docs_"$(./scripts/version.sh)".tgz'
 
   required:
     runs-on: ubuntu-latest
