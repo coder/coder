@@ -25,6 +25,7 @@
           gcc
           getopt
           git
+          gh
           gnumake
           gnused
           go_1_20
@@ -60,6 +61,7 @@
           terraform
           typos
           vim
+          wget
           yq-go
           zip
           zsh
