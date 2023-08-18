@@ -217,14 +217,16 @@ func TestAuditLogging(t *testing.T) {
 			},
 			DontAddLicense: true,
 		})
-		workspace, agent := setupWorkspaceAgent(t, client, user, 0)
+		_, agent := setupWorkspaceAgent(t, client, user, 0)
 		conn, err := client.DialWorkspaceAgent(ctx, agent.ID, nil)
 		require.NoError(t, err)
 		defer conn.Close()
 		connected := conn.AwaitReachable(ctx)
 		require.True(t, connected)
-		build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+		// TODO: un-comment this when the echo provisioner is fixed.
+		// See: https://github.com/coder/coder/issues/9169
+		// build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+		// coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
 	})
 }
 
