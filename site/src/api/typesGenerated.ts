@@ -1790,6 +1790,7 @@ export type ResourceType =
   | "user"
   | "workspace"
   | "workspace_build"
+  | "workspace_proxy"
 export const ResourceTypes: ResourceType[] = [
   "api_key",
   "convert_login",
@@ -1801,6 +1802,7 @@ export const ResourceTypes: ResourceType[] = [
   "user",
   "workspace",
   "workspace_build",
+  "workspace_proxy",
 ]
 
 // From codersdk/serversentevents.go
