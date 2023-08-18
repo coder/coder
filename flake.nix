@@ -25,6 +25,7 @@
           gcc
           getopt
           git
+          gh
           gnumake
           gnused
           go_1_20
