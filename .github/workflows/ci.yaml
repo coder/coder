@@ -619,7 +619,7 @@ jobs:
     # This build and publihes ghcr.io/coder/coder-preview:main for each merge commit to main branch.
     # We are only building this for amd64 plateform. (>95% pulls are for amd64)
     needs: changes
-    if: github.ref == 'refs/heads/main' && needs.changes.outputs.docs-only == 'false'
+    # if: github.ref == 'refs/heads/main' && needs.changes.outputs.docs-only == 'false'
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
@@ -657,13 +657,13 @@ jobs:
           make -j build/coder_linux_amd64 && \
           ./scripts/build_docker.sh \
             --arch amd64 \
-            --target ghcr.io/coder/coder-preview:main \
+            --target ghcr.io/coder/coder-preview:test \
             --version $version \
             --push \
             build/coder_linux_amd64 && \
           tag=$(echo "$version" | sed 's/+/-/g') && \
-          docker tag ghcr.io/coder/coder-preview:main ghcr.io/coder/coder-preview:main-$tag && \
-          docker push ghcr.io/coder/coder-preview:main-$tag'
+          docker tag ghcr.io/coder/coder-preview:test ghcr.io/coder/coder-preview:main-$tag && \
+          docker push ghcr.io/coder/coder-preview:test-$tag'
 
       - name: Prune old images
         uses: vlaurin/action-ghcr-prune@v0.5.0
