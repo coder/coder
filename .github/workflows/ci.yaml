@@ -435,7 +435,7 @@ jobs:
         uses: DeterminateSystems/magic-nix-cache-action@v2
 
       - name: Run Tests
-        run: nix-shell --command 'cd site && pnpm test:ci --max-workers $(nproc)'
+        run: nix-shell --command 'cd site && pnpm install && pnpm test:ci --max-workers $(nproc)'
 
       - name: Check code coverage
         uses: codecov/codecov-action@v3
