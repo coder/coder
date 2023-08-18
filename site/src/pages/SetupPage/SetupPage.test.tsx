@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { rest } from "msw"
-import { renderWithRouter } from "testHelpers/renderHelpers"
+import { renderWithAuth } from "testHelpers/renderHelpers"
 import { server } from "testHelpers/server"
 import { SetupPage } from "./SetupPage"
 import { Language as PageViewLanguage } from "./SetupPageView"
@@ -45,7 +45,7 @@ describe("Setup Page", () => {
   })
 
   it("shows validation error message", async () => {
-    renderWithRouter(<SetupPage />)
+    renderWithAuth(<SetupPage />)
     await fillForm({ email: "test" })
     const errorMessage = await screen.findByText(PageViewLanguage.emailInvalid)
     expect(errorMessage).toBeDefined()
@@ -69,14 +69,14 @@ describe("Setup Page", () => {
         )
       }),
     )
-    renderWithRouter(<SetupPage />)
+    renderWithAuth(<SetupPage />)
     await fillForm()
     const errorMessage = await screen.findByText(fieldErrorMessage)
     expect(errorMessage).toBeDefined()
   })
 
   it("redirects to workspaces page when success", async () => {
-    renderWithRouter(<SetupPage />)
+    renderWithAuth(<SetupPage />)
 
     // simulates the user will be authenticated
     server.use(
