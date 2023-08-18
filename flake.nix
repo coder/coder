@@ -153,6 +153,12 @@
                 session required pam_unix.so
               ''
             )
+            # This allows users to chsh.
+            (
+              pkgs.writeTextDir "etc/pam.d/chsh" ''
+                auth        sufficient  pam_rootok.so
+              ''
+            )
             # The default Nix config!
             (
               pkgs.writeTextDir "etc/nix/nix.conf" ''
