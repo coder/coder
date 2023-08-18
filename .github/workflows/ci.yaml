@@ -120,9 +120,6 @@ jobs:
       - name: Run the Magic Nix Cache
         uses: DeterminateSystems/magic-nix-cache-action@v2
 
-      - name: make gen
-        run: "nix-shell --command 'make --output-sync -j -B gen'"
-
       # Check for any typos
       - name: Check for typos
         run: "nix-shell --command 'typos -c .github/workflows/typos.toml'"
