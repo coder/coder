@@ -11,8 +11,8 @@ import (
 	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 // Parse extracts Terraform variables from source-code.

@@ -8,10 +8,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbfake"
-	"github.com/coder/coder/coderd/database/postgres"
-	"github.com/coder/coder/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/postgres"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 )
 
 // WillUsePostgres returns true if a call to NewDB() will return a real, postgres-backed Store and Pubsub.

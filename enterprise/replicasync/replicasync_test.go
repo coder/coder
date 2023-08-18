@@ -15,12 +15,12 @@ import (
 	"go.uber.org/goleak"
 
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbfake"
-	"github.com/coder/coder/coderd/database/dbtestutil"
-	"github.com/coder/coder/coderd/database/pubsub"
-	"github.com/coder/coder/enterprise/replicasync"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/enterprise/replicasync"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestMain(m *testing.M) {

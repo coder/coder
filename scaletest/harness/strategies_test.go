@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/scaletest/harness"
+	"github.com/coder/coder/v2/scaletest/harness"
 )
 
 //nolint:paralleltest // this tests uses timings to determine if it's working

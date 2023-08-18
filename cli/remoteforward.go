@@ -11,7 +11,7 @@ import (
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/agent/agentssh"
+	"github.com/coder/coder/v2/agent/agentssh"
 )
 
 // cookieAddr is a special net.Addr accepted by sshRemoteForward() which includes a

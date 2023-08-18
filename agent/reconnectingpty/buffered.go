@@ -14,7 +14,7 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/coder/pty"
+	"github.com/coder/coder/v2/pty"
 )
 
 // bufferedReconnectingPTY provides a reconnectable PTY by using a ring buffer to store

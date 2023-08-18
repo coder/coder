@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/httpmw/patternmatcher"
+	"github.com/coder/coder/v2/coderd/httpmw/patternmatcher"
 )
 
 func Test_RoutePatterns(t *testing.T) {
