@@ -3,8 +3,8 @@ package wsproxy
 import (
 	"context"
 
-	"github.com/coder/coder/coderd/workspaceapps"
-	"github.com/coder/coder/enterprise/wsproxy/wsproxysdk"
+	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
 )
 
 var _ workspaceapps.StatsReporter = (*appStatsReporter)(nil)

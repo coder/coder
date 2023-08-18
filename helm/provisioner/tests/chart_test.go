@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // These tests run `helm template` with the values file specified in each test

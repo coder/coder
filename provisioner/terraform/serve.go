@@ -12,8 +12,8 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/unhanger"
-	"github.com/coder/coder/provisionersdk"
+	"github.com/coder/coder/v2/coderd/unhanger"
+	"github.com/coder/coder/v2/provisionersdk"
 )
 
 type ServeOptions struct {

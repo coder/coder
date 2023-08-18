@@ -10,19 +10,19 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/coderd"
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/pty/ptytest"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/cli"
-	"github.com/coder/coder/cli/clitest"
+	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/cli"
+	"github.com/coder/coder/v2/cli/clitest"
 )
 
 //nolint:tparallel,paralleltest

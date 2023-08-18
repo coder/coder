@@ -13,16 +13,18 @@
         pkgs = nixpkgs.legacyPackages.${system};
         formatter = pkgs.nixpkgs-fmt;
         # Check in https://search.nixos.org/packages to find new packages.
-        # Use `nix flake update` to update the lock file if packages are out-of-date.
+        # Use `nix --extra-experimental-features nix-command --extra-experimental-features flakes flake update`
+        # to update the lock file if packages are out-of-date.
+
         devShellPackages = with pkgs; [
           bat
-          bash
           cairo
           curl
           drpc.defaultPackage.${system}
           emacsPackages.jest
           exa
           gcc
+          google-cloud-sdk
           getopt
           git
           gh
@@ -64,6 +66,7 @@
           typos
           vim
           wget
+          yarn
           yq-go
           zip
           zsh
@@ -173,7 +176,7 @@
             # Allow people to change shells!
             (
               pkgs.writeTextDir "etc/shells" ''
-                ${pkgs.bash}/bin/bash
+                /bin/bash
                 ${pkgs.zsh}/bin/zsh
               ''
             )

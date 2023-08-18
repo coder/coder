@@ -9,9 +9,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/cli/clistat"
-	"github.com/coder/coder/cli/clitest"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/cli/clistat"
+	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // This just tests that the stat command is recognized and does not output

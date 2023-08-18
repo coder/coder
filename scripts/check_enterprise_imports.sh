@@ -13,7 +13,7 @@ find . -regex ".*\.go" |
 	grep -v "./enterprise" |
 	grep -v ./scripts/auditdocgen/ --include="*.go" |
 	grep -v ./scripts/clidocgen/ --include="*.go" |
-	xargs grep -n "github.com/coder/coder/enterprise"
+	xargs grep -n "github.com/coder/coder/v2/enterprise"
 # reverse the exit code because we want this script to fail if grep finds anything.
 status=$?
 set -e

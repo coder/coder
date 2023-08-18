@@ -9,8 +9,8 @@ import (
 	"go.uber.org/goleak"
 	"storj.io/drpc/drpcerr"
 
-	"github.com/coder/coder/provisionersdk"
-	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 func TestMain(m *testing.M) {

@@ -1,8 +1,8 @@
 package cli
 
 import (
-	"github.com/coder/coder/cli"
-	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/v2/cli"
+	"github.com/coder/coder/v2/cli/clibase"
 )
 
 type RootCmd struct {

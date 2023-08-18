@@ -18,8 +18,8 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/oauthpki"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd/oauthpki"
+	"github.com/coder/coder/v2/testutil"
 )
 
 const (
