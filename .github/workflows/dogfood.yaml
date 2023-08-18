@@ -10,12 +10,12 @@ on:
       - "dogfood/**"
       - ".github/workflows/dogfood.yaml"
   # Uncomment these lines when testing with CI.
-  pull_request:
-    paths:
-      - "flake.nix"
-      - "flake.lock"
-      - "dogfood/**"
-      - ".github/workflows/dogfood.yaml"
+  # pull_request:
+  #   paths:
+  #     - "flake.nix"
+  #     - "flake.lock"
+  #     - "dogfood/**"
+  #     - ".github/workflows/dogfood.yaml"
   workflow_dispatch:
 
 jobs:

@@ -98,7 +98,7 @@
         # These will also be applied to the container config.
         devEnvVars = [
           "PATH=${pkgs.lib.makeBinPath devShellPackages}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/coder/go/bin"
-          #This setting prevents Go from using the public checksum database for
+          # This setting prevents Go from using the public checksum database for
           # our module path prefixes. It is required because these are in private
           # repositories that require authentication.
           #
