@@ -569,11 +569,11 @@ jobs:
 
       - name: Format
         run: |
-          nix-shell --command 'cd offlinedocs && pnpm format:check'
+          nix-shell --command 'cd offlinedocs && pnpm install && pnpm format:check'
 
       - name: Lint
         run: |
-          nix-shell --command 'cd offlinedocs && pnpm lint'
+          nix-shell --command 'cd offlinedocs && pnpm install && pnpm lint'
 
       - name: Build
         run: |
