@@ -361,7 +361,7 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
           <MenuItem
             sx={{ fontSize: 14 }}
             onClick={() => {
-              navigate("settings/deployment/workspace-proxies")
+              navigate("deployment/workspace-proxies")
             }}
           >
             Proxy settings
