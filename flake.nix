@@ -31,6 +31,7 @@
           golangci-lint
           gopls
           gotestsum
+          gotools
           jq
           kubectl
           kubernetes-helm

@@ -201,11 +201,11 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v4
 
-      - name: Setup Terraform
-        uses: ./.github/actions/setup-tf
+      - name: Run the Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v2
 
       - name: Test with Mock Database
         id: test
@@ -223,18 +223,19 @@ jobs:
 
           # By default Go will use the number of logical CPUs, which
           # is a fine default.
-          PARALLEL_FLAG=""
+          export PARALLEL_FLAG=""
 
           export TS_DEBUG_DISCO=true
-          gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" \
-            --packages="./..." -- $PARALLEL_FLAG -short -failfast $COVERAGE_FLAGS
+
+          nix-shell --command 'gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" \
+          --packages="./..." -- $PARALLEL_FLAG -short -failfast $COVERAGE_FLAGS'
 
       - name: Print test stats
         if: success() || failure()
         run: |
           # Artifacts are not available after rerunning a job,
           # so we need to print the test stats to the log.
-          go run ./scripts/ci-report/main.go gotests.json | tee gotests_stats.json
+          nix-shell --command 'go run ./scripts/ci-report/main.go gotests.json | tee gotests_stats.json'
 
       - name: Upload test stats to Datadog
         uses: ./.github/actions/upload-datadog
@@ -270,23 +271,23 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v4
 
-      - name: Setup Terraform
-        uses: ./.github/actions/setup-tf
+      - name: Run the Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v2
 
       - name: Test with PostgreSQL Database
         run: |
           export TS_DEBUG_DISCO=true
-          make test-postgres
+          nix-shell --command 'make test-postgres'
 
       - name: Print test stats
         if: success() || failure()
         run: |
           # Artifacts are not available after rerunning a job,
           # so we need to print the test stats to the log.
-          go run ./scripts/ci-report/main.go gotests.json | tee gotests_stats.json
+          nix-shell --command 'go run ./scripts/ci-report/main.go gotests.json | tee gotests_stats.json'
 
       - name: Upload test stats to Datadog
         uses: ./.github/actions/upload-datadog
@@ -318,15 +319,15 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v4
 
-      - name: Setup Terraform
-        uses: ./.github/actions/setup-tf
+      - name: Run the Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v2
 
       - name: Run Tests
         run: |
-          gotestsum --junitfile="gotests.xml" -- -race ./...
+          nix-shell --command 'gotestsum --junitfile="gotests.xml" -- -race ./...'
 
       - name: Upload test stats to Datadog
         uses: ./.github/actions/upload-datadog
@@ -360,30 +361,21 @@ jobs:
       - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v4
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-
-      - name: Install goimports
-        run: go install golang.org/x/tools/cmd/goimports@latest
-      - name: Install nfpm
-        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.16.0
-
-      - name: Install zstd
-        run: sudo apt-get install -y zstd
+      - name: Run the Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v2
 
       - name: Build Release
         run: |
-          set -euo pipefail
-          go mod download
-
-          version="$(./scripts/version.sh)"
-          make gen/mark-fresh
-          make -j \
-            build/coder_"$version"_windows_amd64.zip \
-            build/coder_"$version"_linux_amd64.{tar.gz,deb}
+          - name: Build Release
+            run: |
+              nix-shell --command 'set -euo pipefail && \
+              go mod download
+              version=\"\$(./scripts/version.sh)\"
+              make gen/mark-fresh && \
+              make -j build/coder_\"\$version\"_windows_amd64.zip build/coder_\"\$version\"_linux_amd64.{tar.gz,deb}'
 
       - name: Install Release
         run: |
@@ -439,10 +431,14 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v4
 
-      - run: pnpm test:ci --max-workers $(nproc)
+      - name: Run the Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v2
+
+      - name: Run Tests
+        run: nix-shell --command 'pnpm test:ci --max-workers $(nproc)'
         working-directory: site
 
       - name: Check code coverage
@@ -469,15 +465,6 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
-
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-
-      - name: Setup Terraform
-        uses: ./.github/actions/setup-tf
-
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@v4
 
@@ -488,10 +475,10 @@ jobs:
         run: |
           nix-shell --command 'make -B site/out/index.html'
 
-      - run: pnpm playwright:install
+      - run: nix-shell --command 'pnpm playwright:install'
         working-directory: site
 
-      - run: pnpm playwright:test
+      - run: nix-shell --command 'pnpm playwright:test'
         env:
           DEBUG: pw:api
         working-directory: site
@@ -579,34 +566,25 @@ jobs:
           # 0 is required here for version.sh to work.
           fetch-depth: 0
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
-        with:
-          directory: offlinedocs
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v4
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-
-      - name: Install go tools
-        run: |
-          go install github.com/golang/mock/mockgen@v1.6.0
-
-      - name: Setup sqlc
-        uses: ./.github/actions/setup-sqlc
+      - name: Run the Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v2
 
       - name: Format
         run: |
-          cd offlinedocs
-          pnpm format:check
+          nix-shell --command 'pnpm format:check'
+        working-directory: offlinedocs
 
       - name: Lint
         run: |
-          cd offlinedocs
-          pnpm lint
+          nix-shell --command 'pnpm lint'
+        working-directory: offlinedocs
 
       - name: Build
         run: |
-          make -j build/coder_docs_"$(./scripts/version.sh)".tgz
+          nix-shell --command 'make -j build/coder_docs_"$(./scripts/version.sh)".tgz'
 
   required:
     runs-on: ubuntu-latest
@@ -658,14 +636,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v4
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-
-      - name: Setup sqlc
-        uses: ./.github/actions/setup-sqlc
+      - name: Run the Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v2
 
       - name: GHCR Login
         uses: docker/login-action@v2
@@ -677,24 +652,25 @@ jobs:
       - name: Build and push Linux amd64 Docker image
         id: build_and_push
         run: |
-          set -euxo pipefail
-          go mod download
-          make gen/mark-fresh
-          export DOCKER_IMAGE_NO_PREREQUISITES=true
-          version="$(./scripts/version.sh)"
-          export CODER_IMAGE_BUILD_BASE_TAG="$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")"
-          make -j build/coder_linux_amd64
+          nix-shell --command 'set -euxo pipefail && \
+          go mod download && \
+          make gen/mark-fresh && \
+          set -euxo pipefail && \
+          go mod download && \
+          make gen/mark-fresh && \
+          export DOCKER_IMAGE_NO_PREREQUISITES=true && \
+          version="$(./scripts/version.sh)" && \
+          export CODER_IMAGE_BUILD_BASE_TAG="$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")" && \
+          make -j build/coder_linux_amd64 && \
           ./scripts/build_docker.sh \
             --arch amd64 \
             --target ghcr.io/coder/coder-preview:main \
             --version $version \
             --push \
-            build/coder_linux_amd64
-
-          # Tag image with new package tag and push
-          tag=$(echo "$version" | sed 's/+/-/g')
-          docker tag ghcr.io/coder/coder-preview:main ghcr.io/coder/coder-preview:main-$tag
-          docker push ghcr.io/coder/coder-preview:main-$tag
+            build/coder_linux_amd64 && \
+          tag=$(echo "$version" | sed 's/+/-/g') && \
+          docker tag ghcr.io/coder/coder-preview:main ghcr.io/coder/coder-preview:main-$tag && \
+          docker push ghcr.io/coder/coder-preview:main-$tag'
 
       - name: Prune old images
         uses: vlaurin/action-ghcr-prune@v0.5.0
