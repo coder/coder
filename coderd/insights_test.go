@@ -512,6 +512,7 @@ func TestTemplateInsights(t *testing.T) {
 		}
 	}
 	// Check app usage.
+	assert.Len(t, gotApps, 1, "want one app")
 	assert.Equal(t, []codersdk.TemplateAppUsage{
 		{
 			TemplateIDs: []uuid.UUID{template.ID},
