@@ -404,7 +404,7 @@ func New(options *Options) *API {
 		api.agentProvider, err = NewServerTailnet(api.ctx,
 			options.Logger,
 			options.DERPServer,
-			options.BaseDERPMap,
+			api.DERPMap,
 			func(context.Context) (tailnet.MultiAgentConn, error) {
 				return (*api.TailnetCoordinator.Load()).ServeMultiAgent(uuid.New()), nil
 			},

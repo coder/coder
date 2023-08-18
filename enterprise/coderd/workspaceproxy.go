@@ -720,6 +720,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		AppSecurityKey:  api.AppSecurityKey.String(),
 		DERPMeshKey:     api.DERPServer.MeshKey(),
 		DERPRegionID:    regionID,
+		DERPMap:         api.AGPL.DERPMap(),
 		SiblingReplicas: siblingsRes,
 	})
 

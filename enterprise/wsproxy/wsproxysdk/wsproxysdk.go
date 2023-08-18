@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
+	"tailscale.com/tailcfg"
 	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog"
@@ -206,9 +207,10 @@ type RegisterWorkspaceProxyRequest struct {
 }
 
 type RegisterWorkspaceProxyResponse struct {
-	AppSecurityKey string `json:"app_security_key"`
-	DERPMeshKey    string `json:"derp_mesh_key"`
-	DERPRegionID   int32  `json:"derp_region_id"`
+	AppSecurityKey string           `json:"app_security_key"`
+	DERPMeshKey    string           `json:"derp_mesh_key"`
+	DERPRegionID   int32            `json:"derp_region_id"`
+	DERPMap        *tailcfg.DERPMap `json:"derp_map"`
 	// SiblingReplicas is a list of all other replicas of the proxy that have
 	// not timed out.
 	SiblingReplicas []codersdk.Replica `json:"sibling_replicas"`

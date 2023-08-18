@@ -243,7 +243,7 @@ func (src *jwtTokenSource) Token() (*oauth2.Token, error) {
 	}
 
 	if unmarshalError != nil {
-		return nil, fmt.Errorf("oauth2: cannot unmarshal token: %w", err)
+		return nil, xerrors.Errorf("oauth2: cannot unmarshal token: %w", err)
 	}
 
 	newToken := &oauth2.Token{
@@ -264,7 +264,7 @@ func (src *jwtTokenSource) Token() (*oauth2.Token, error) {
 		// decode returned id token to get expiry
 		claimSet, err := jws.Decode(v)
 		if err != nil {
-			return nil, fmt.Errorf("oauth2: error decoding JWT token: %w", err)
+			return nil, xerrors.Errorf("oauth2: error decoding JWT token: %w", err)
 		}
 		newToken.Expiry = time.Unix(claimSet.Exp, 0)
 	}
