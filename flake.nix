@@ -19,13 +19,13 @@
           bash
           cairo
           curl
-          docker
           drpc.defaultPackage.${system}
           emacsPackages.jest
           exa
           gcc
           getopt
           git
+          gh
           gnumake
           gnused
           go_1_20
@@ -38,9 +38,9 @@
           kubectl
           kubernetes-helm
           (if system == "default-darwin" then null else libuuid)
+          less
           mockgen
           nfpm
-          nix
           nodejs
           nodePackages.pnpm
           nodePackages.prettier
@@ -55,7 +55,6 @@
           protobuf
           protoc-gen-go
           ripgrep
-          screen
           shellcheck
           shfmt
           sqlc
@@ -64,10 +63,20 @@
           terraform
           typos
           vim
+          wget
           yq-go
           zip
           zsh
           zstd
+        ];
+        # We separate these to reduce the size of the dev shell for packages that we only
+        # want in the image.
+        devImagePackages = with pkgs; [
+          docker
+          exa
+          nix
+          nixpkgs-fmt
+          screen
         ];
 
         # This is the base image for our Docker container used for development.
@@ -104,7 +113,7 @@
         # Environment variables that live in `/etc/environment` in the container.
         # These will also be applied to the container config.
         devEnvVars = [
-          "PATH=${pkgs.lib.makeBinPath devShellPackages}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/coder/go/bin"
+          "PATH=${pkgs.lib.makeBinPath (devShellPackages ++ devImagePackages)}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/coder/go/bin"
           # This setting prevents Go from using the public checksum database for
           # our module path prefixes. It is required because these are in private
           # repositories that require authentication.
@@ -155,6 +164,13 @@
                 experimental-features = nix-command flakes
               ''
             )
+            # Allow people to change shells!
+            (
+              pkgs.writeTextDir "etc/shells" ''
+                ${pkgs.bash}/bin/bash
+                ${pkgs.zsh}/bin/zsh
+              ''
+            )
             # This is the debian script for managing Docker with `sudo service docker ...`.
             (
               pkgs.writeTextFile {
@@ -191,19 +207,19 @@
             cp -a ${pkgs.glibcLocales}/lib/locale/locale-archive usr/lib/locale/locale-archive
           '';
 
-            config = {
-          Env = devEnvVars;
-          Entrypoint = [ "/bin/bash" ];
-          User = "coder";
+          config = {
+            Env = devEnvVars;
+            Entrypoint = [ "/bin/bash" ];
+            User = "coder";
+          };
         };
-        };
-        in
-        {
+      in
+      {
         packages = {
           devEnvImage = devEnvImage;
         };
         defaultPackage = formatter; # or replace it with your desired default package.
         devShell = pkgs.mkShell { buildInputs = devShellPackages; };
-        }
-        );
-        }
+      }
+    );
+}
