@@ -651,48 +651,6 @@ func (q *FakeQuerier) isEveryoneGroup(id uuid.UUID) bool {
 	return false
 }
 
-func (q *FakeQuerier) GetWorkspaceAgentAndOwnerByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndOwnerByAuthTokenRow, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-	var resp database.GetWorkspaceAgentAndOwnerByAuthTokenRow
-	var found bool
-	for _, agt := range q.workspaceAgents {
-		if agt.AuthToken == authToken {
-			resp.WorkspaceAgent = agt
-			found = true
-			break
-		}
-	}
-	if !found {
-		return resp, sql.ErrNoRows
-	}
-
-	// get the related workspace and user
-	for _, res := range q.workspaceResources {
-		if resp.WorkspaceAgent.ResourceID != res.ID {
-			continue
-		}
-		for _, build := range q.workspaceBuilds {
-			if build.JobID != res.JobID {
-				continue
-			}
-			for _, ws := range q.workspaces {
-				if build.WorkspaceID != ws.ID {
-					continue
-				}
-				resp.WorkspaceID = ws.ID
-				if usr, err := q.getUserByIDNoLock(ws.OwnerID); err == nil {
-					resp.OwnerID = usr.ID
-					resp.OwnerRoles = usr.RBACRoles
-					resp.OwnerName = usr.Username
-					return resp, nil
-				}
-			}
-		}
-	}
-	return database.GetWorkspaceAgentAndOwnerByAuthTokenRow{}, sql.ErrNoRows
-}
-
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -2837,36 +2795,48 @@ func (q *FakeQuerier) GetWorkspaceAgentAndOwnerByAuthToken(_ context.Context, au
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 	var resp database.GetWorkspaceAgentAndOwnerByAuthTokenRow
-	var found bool
+AgentLoop:
 	for _, agt := range q.workspaceAgents {
-		if agt.AuthToken == authToken {
-			resp.WorkspaceAgent = agt
-			found = true
-			break
+		if agt.AuthToken != authToken {
+			continue AgentLoop
 		}
-	}
-	if !found {
-		return resp, sql.ErrNoRows
-	}
-
-	// get the related workspace and user
-	for _, res := range q.workspaceResources {
-		if resp.WorkspaceAgent.ResourceID != res.ID {
-			continue
-		}
-		for _, build := range q.workspaceBuilds {
-			if build.JobID != res.JobID { // <-- jobID does not match up
-				continue
+		// get the related workspace and user
+	ResourceLoop:
+		for _, res := range q.workspaceResources {
+			if agt.ResourceID != res.ID {
+				continue ResourceLoop
 			}
-			for _, ws := range q.workspaces {
-				if build.WorkspaceID != ws.ID {
-					continue
+		BuildLoop:
+			for _, build := range q.workspaceBuilds {
+				if build.JobID != res.JobID {
+					continue BuildLoop
 				}
-				resp.WorkspaceID = ws.ID
-				if usr, err := q.getUserByIDNoLock(ws.OwnerID); err == nil {
+			WorkspaceLoop:
+				for _, ws := range q.workspaces {
+					if build.WorkspaceID != ws.ID {
+						continue WorkspaceLoop
+					}
+					resp.WorkspaceID = ws.ID
+					usr, err := q.getUserByIDNoLock(ws.OwnerID)
+					if err != nil {
+						return database.GetWorkspaceAgentAndOwnerByAuthTokenRow{}, sql.ErrNoRows
+					}
 					resp.OwnerID = usr.ID
-					resp.OwnerRoles = usr.RBACRoles
+					resp.OwnerRoles = append(usr.RBACRoles, "member")
+					// We also need to get org roles for the user
 					resp.OwnerName = usr.Username
+					resp.WorkspaceAgent = agt
+					for _, mem := range q.organizationMembers {
+						if mem.UserID == usr.ID {
+							resp.OwnerRoles = append(resp.OwnerRoles, fmt.Sprintf("organization-member:%s", mem.OrganizationID.String()))
+						}
+					}
+					// And group memberships
+					for _, groupMem := range q.groupMembers {
+						if groupMem.UserID == usr.ID {
+							resp.OwnerGroups = append(resp.OwnerGroups, groupMem.GroupID.String())
+						}
+					}
 					return resp, nil
 				}
 			}

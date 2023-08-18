@@ -229,9 +229,11 @@ FROM users
 				   ON
 						   group_members.user_id = users.id
 WHERE
+	-- TODO: we can add more conditions here, such as:
+	-- 1) The user must be active
+	-- 2) The user must not be deleted
+	-- 3) The workspace must be running
 		workspace_agents.auth_token = @auth_token
-  AND
-		users.status = 'active' -- workspaces that belong to inactive users should not be
 GROUP BY
 	workspace_agents.id, workspaces.id, users.id, organization_members.organization_id
 LIMIT 1;
