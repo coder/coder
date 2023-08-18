@@ -72,7 +72,8 @@ func TestBlockNonBrowser(t *testing.T) {
 func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.CreateFirstUserResponse, appPort uint16) (codersdk.Workspace, codersdk.WorkspaceAgent) {
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-		Parse: echo.ParseComplete,
+		Parse:         echo.ParseComplete,
+		ProvisionPlan: echo.ProvisionComplete,
 		ProvisionApply: []*proto.Provision_Response{{
 			Type: &proto.Provision_Response_Complete{
 				Complete: &proto.Provision_Complete{
