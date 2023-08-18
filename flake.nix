@@ -23,6 +23,7 @@
           drpc.defaultPackage.${system}
           emacsPackages.jest
           exa
+          gcc
           getopt
           git
           gnumake
@@ -64,6 +65,7 @@
           vim
           yq-go
           zip
+          zsh
           zstd
         ];
 
@@ -111,6 +113,7 @@
           # Increase memory allocation to NodeJS
           "NODE_OPTIONS=--max_old_space_size=8192"
           "TERM=xterm-256color"
+          "LANG=en_US.UTF-8"
         ];
         # Builds our development environment image with all the tools included.
         # Using Nix instead of Docker is **significantly** faster. This _build_
@@ -181,20 +184,25 @@
                 (builtins.readFile "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt")
             )
           ];
+          # Required for the UTF-8 locale to exist!
+          extraCommands = ''
+            mkdir -p usr/lib/locale
+            cp -a ${pkgs.glibcLocales}/lib/locale/locale-archive usr/lib/locale/locale-archive
+          '';
 
-          config = {
-            Env = devEnvVars;
-            Entrypoint = [ "/bin/bash" ];
-            User = "coder";
-          };
+            config = {
+          Env = devEnvVars;
+          Entrypoint = [ "/bin/bash" ];
+          User = "coder";
         };
-      in
-      {
+        };
+        in
+        {
         packages = {
           devEnvImage = devEnvImage;
         };
         defaultPackage = formatter; # or replace it with your desired default package.
         devShell = pkgs.mkShell { buildInputs = devShellPackages; };
-      }
-    );
-}
+        }
+        );
+        }
