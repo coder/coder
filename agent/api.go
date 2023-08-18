@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/v5"
 
 	"github.com/coder/coder/coderd/httpapi"
 	"github.com/coder/coder/codersdk"

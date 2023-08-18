@@ -86,7 +86,7 @@ func TestPGCoordinatorSingle_AgentWithoutClients(t *testing.T) {
 	require.NoError(t, err)
 	defer coordinator.Close()
 
-	agent := newTestAgent(t, coordinator)
+	agent := newTestAgent(t, coordinator, "agent")
 	defer agent.close()
 	agent.sendNode(&agpl.Node{PreferredDERP: 10})
 	require.Eventually(t, func() bool {
@@ -123,7 +123,7 @@ func TestPGCoordinatorSingle_AgentWithClient(t *testing.T) {
 	require.NoError(t, err)
 	defer coordinator.Close()
 
-	agent := newTestAgent(t, coordinator)
+	agent := newTestAgent(t, coordinator, "original")
 	defer agent.close()
 	agent.sendNode(&agpl.Node{PreferredDERP: 10})
 
@@ -151,7 +151,7 @@ func TestPGCoordinatorSingle_AgentWithClient(t *testing.T) {
 	agent.waitForClose(ctx, t)
 
 	// Create a new agent connection. This is to simulate a reconnect!
-	agent = newTestAgent(t, coordinator, agent.id)
+	agent = newTestAgent(t, coordinator, "reconnection", agent.id)
 	// Ensure the existing listening connIO sends its node immediately!
 	clientNodes = agent.recvNodes(ctx, t)
 	require.Len(t, clientNodes, 1)
@@ -200,7 +200,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 	require.NoError(t, err)
 	defer coordinator.Close()
 
-	agent := newTestAgent(t, coordinator)
+	agent := newTestAgent(t, coordinator, "agent")
 	defer agent.close()
 	agent.sendNode(&agpl.Node{PreferredDERP: 10})
 
@@ -333,16 +333,16 @@ func TestPGCoordinatorDual_Mainline(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	coord1, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	coord1, err := tailnet.NewPGCoord(ctx, logger.Named("coord1"), ps, store)
 	require.NoError(t, err)
 	defer coord1.Close()
-	coord2, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	coord2, err := tailnet.NewPGCoord(ctx, logger.Named("coord2"), ps, store)
 	require.NoError(t, err)
 	defer coord2.Close()
 
-	agent1 := newTestAgent(t, coord1)
+	agent1 := newTestAgent(t, coord1, "agent1")
 	defer agent1.close()
-	agent2 := newTestAgent(t, coord2)
+	agent2 := newTestAgent(t, coord2, "agent2")
 	defer agent2.close()
 
 	client11 := newTestClient(t, coord1, agent1.id)
@@ -460,19 +460,19 @@ func TestPGCoordinator_MultiAgent(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	coord1, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	coord1, err := tailnet.NewPGCoord(ctx, logger.Named("coord1"), ps, store)
 	require.NoError(t, err)
 	defer coord1.Close()
-	coord2, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	coord2, err := tailnet.NewPGCoord(ctx, logger.Named("coord2"), ps, store)
 	require.NoError(t, err)
 	defer coord2.Close()
-	coord3, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	coord3, err := tailnet.NewPGCoord(ctx, logger.Named("coord3"), ps, store)
 	require.NoError(t, err)
 	defer coord3.Close()
 
-	agent1 := newTestAgent(t, coord1)
+	agent1 := newTestAgent(t, coord1, "agent1")
 	defer agent1.close()
-	agent2 := newTestAgent(t, coord2, agent1.id)
+	agent2 := newTestAgent(t, coord2, "agent2", agent1.id)
 	defer agent2.close()
 
 	client := newTestClient(t, coord3, agent1.id)
@@ -552,7 +552,7 @@ func TestPGCoordinator_Unhealthy(t *testing.T) {
 		err := uut.Close()
 		require.NoError(t, err)
 	}()
-	agent1 := newTestAgent(t, uut)
+	agent1 := newTestAgent(t, uut, "agent1")
 	defer agent1.close()
 	for i := 0; i < 3; i++ {
 		select {
@@ -566,7 +566,7 @@ func TestPGCoordinator_Unhealthy(t *testing.T) {
 	agent1.waitForClose(ctx, t)
 
 	// new agent should immediately disconnect
-	agent2 := newTestAgent(t, uut)
+	agent2 := newTestAgent(t, uut, "agent2")
 	defer agent2.close()
 	agent2.waitForClose(ctx, t)
 
@@ -579,7 +579,7 @@ func TestPGCoordinator_Unhealthy(t *testing.T) {
 			// OK
 		}
 	}
-	agent3 := newTestAgent(t, uut)
+	agent3 := newTestAgent(t, uut, "agent3")
 	defer agent3.close()
 	select {
 	case <-agent3.closeChan:
@@ -618,10 +618,10 @@ func newTestConn(ids []uuid.UUID) *testConn {
 	return a
 }
 
-func newTestAgent(t *testing.T, coord agpl.Coordinator, id ...uuid.UUID) *testConn {
+func newTestAgent(t *testing.T, coord agpl.Coordinator, name string, id ...uuid.UUID) *testConn {
 	a := newTestConn(id)
 	go func() {
-		err := coord.ServeAgent(a.serverWS, a.id, "")
+		err := coord.ServeAgent(a.serverWS, a.id, name)
 		assert.NoError(t, err)
 		close(a.closeChan)
 	}()
@@ -636,7 +636,7 @@ func (c *testConn) recvNodes(ctx context.Context, t *testing.T) []*agpl.Node {
 	t.Helper()
 	select {
 	case <-ctx.Done():
-		t.Fatal("timeout receiving nodes")
+		t.Fatalf("testConn id %s: timeout receiving nodes ", c.id)
 		return nil
 	case nodes := <-c.nodeChan:
 		return nodes

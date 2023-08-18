@@ -1,5 +1,6 @@
 import Button from "@mui/material/Button"
 import IconButton from "@mui/material/IconButton"
+import Link from "@mui/material/Link"
 import { makeStyles } from "@mui/styles"
 import Tooltip from "@mui/material/Tooltip"
 import CreateIcon from "@mui/icons-material/AddOutlined"
@@ -13,6 +14,7 @@ import {
   VariableValue,
   WorkspaceResource,
 } from "api/typesGenerated"
+import { Link as RouterLink } from "react-router-dom"
 import { Alert, AlertDetail } from "components/Alert/Alert"
 import { Avatar } from "components/Avatar/Avatar"
 import { AvatarData } from "components/AvatarData/AvatarData"
@@ -186,15 +188,21 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
       <div className={styles.root}>
         <div className={styles.topbar} data-testid="topbar">
           <div className={styles.topbarSides}>
-            <AvatarData
-              title={template.display_name || template.name}
-              subtitle={template.description}
-              avatar={
-                hasIcon && (
-                  <Avatar src={template.icon} variant="square" fitImage />
-                )
-              }
-            />
+            <Link
+              component={RouterLink}
+              underline="none"
+              to={`/templates/${template.name}`}
+            >
+              <AvatarData
+                title={template.display_name || template.name}
+                subtitle={template.description}
+                avatar={
+                  hasIcon && (
+                    <Avatar src={template.icon} variant="square" fitImage />
+                  )
+                }
+              />
+            </Link>
           </div>
 
           <div className={styles.topbarSides}>
@@ -217,13 +225,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
             <Button
               variant="contained"
-              title={
-                dirty
-                  ? "You have edited files! Run another build before updating."
-                  : templateVersion.job.status !== "succeeded"
-                  ? "Something"
-                  : ""
-              }
               disabled={dirty || disableUpdate}
               onClick={onPublish}
             >

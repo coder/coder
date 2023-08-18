@@ -815,7 +815,7 @@ export const MockFailedWorkspaceBuild = (
   deadline: "2022-05-17T23:39:00.00Z",
   reason: "initiator",
   resources: [],
-  status: "running",
+  status: "failed",
   daily_cost: 20,
 })
 
