@@ -183,7 +183,7 @@
           # Required for the UTF-8 locale to exist!
           extraCommands = ''
             mkdir -p usr/lib/locale
-            cp ${pkgs.glibcLocales}/lib/locale/locale-archive usr/lib/locale/locale-archive
+            cp -a ${pkgs.glibcLocales}/lib/locale/locale-archive usr/lib/locale/locale-archive
           '';
 
             config = {
