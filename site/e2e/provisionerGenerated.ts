@@ -64,7 +64,10 @@ export interface RichParameter {
   validationMax?: number | undefined
   validationMonotonic: string
   required: boolean
+  /** legacy_variable_name was removed (= 14) */
   displayName: string
+  order: number
+  ephemeral: boolean
 }
 
 /** RichParameterValue holds the key/value mapping of a parameter. */
@@ -355,6 +358,12 @@ export const RichParameter = {
     }
     if (message.displayName !== "") {
       writer.uint32(122).string(message.displayName)
+    }
+    if (message.order !== 0) {
+      writer.uint32(128).int32(message.order)
+    }
+    if (message.ephemeral === true) {
+      writer.uint32(136).bool(message.ephemeral)
     }
     return writer
   },
