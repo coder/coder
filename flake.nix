@@ -59,6 +59,7 @@
           typos
           vim
           wget
+          yarn
           yq-go
           zip
           zsh
