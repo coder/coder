@@ -18,6 +18,8 @@ IN (
 	ON
 		wa1.id != wa2.id
 	AND
+		wa1.created_at >= wa2.created_at
+	AND
 		wa1.auth_token = wa2.auth_token
 );
 
