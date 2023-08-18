@@ -39,7 +39,7 @@ export const SetupPage: FC = () => {
     ) {
       navigate("/login", { state: { isRedirect: true } })
     }
-  }, [authState])
+  }, [authState, navigate])
 
   return (
     <>

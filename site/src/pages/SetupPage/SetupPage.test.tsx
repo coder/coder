@@ -35,6 +35,12 @@ describe("Setup Page", () => {
       rest.get("/api/v2/users/me", (req, res, ctx) => {
         return res(ctx.status(401), ctx.json({ message: "no user here" }))
       }),
+      rest.get("/api/v2/users/first", (req, res, ctx) => {
+        return res(
+          ctx.status(404),
+          ctx.json({ message: "no first user has been created" }),
+        )
+      }),
     )
   })
 
