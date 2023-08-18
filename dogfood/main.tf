@@ -266,9 +266,7 @@ data "docker_registry_image" "dogfood" {
 resource "docker_image" "dogfood" {
   name = "${local.registry_name}@${data.docker_registry_image.dogfood.sha256_digest}"
   pull_triggers = [
-    data.docker_registry_image.dogfood.sha256_digest,
-    sha1(join("", [for f in fileset(path.module, "files/*") : filesha1(f)])),
-    filesha1("Dockerfile"),
+    data.docker_registry_image.dogfood.sha256_digest
   ]
   keep_locally = true
 }

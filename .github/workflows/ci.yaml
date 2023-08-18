@@ -169,38 +169,14 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v4
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-
-      - name: Setup sqlc
-        uses: ./.github/actions/setup-sqlc
-
-      - name: go install tools
-        run: |
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30
-          go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33
-          go install golang.org/x/tools/cmd/goimports@latest
-          go install github.com/mikefarah/yq/v4@v4.30.6
-          go install github.com/golang/mock/mockgen@v1.6.0
-
-      - name: Install Protoc
-        run: |
-          # protoc must be in lockstep with our dogfood Dockerfile or the
-          # version in the comments will differ. This is also defined in
-          # security.yaml
-          set -x
-          cd dogfood
-          DOCKER_BUILDKIT=1 docker build . --target proto -t protoc
-          protoc_path=/usr/local/bin/protoc
-          docker run --rm --entrypoint cat protoc /tmp/bin/protoc > $protoc_path
-          chmod +x $protoc_path
-          protoc --version
+      - name: Run the Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v2
 
       - name: make gen
-        run: "make --output-sync -j -B gen"
+        run: "nix-shell --command 'make --output-sync -j -B gen'"
 
       - name: Check for unstaged files
         run: ./scripts/check_unstaged.sh
