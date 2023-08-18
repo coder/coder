@@ -3,6 +3,8 @@ DROP INDEX IF EXISTS workspace_agents_auth_token_idx;
 
 -- Secondly, we need to fix any duplicate auth_tokens.
 -- We do this by setting the auth_token of the duplicate agent to a new UUID.
+-- The chance of actually getting a UUID collision is extremely low, but
+-- thanks to the birthday paradox, it's not impossible.
 UPDATE
 	workspace_agents
 SET

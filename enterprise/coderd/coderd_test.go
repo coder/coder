@@ -223,7 +223,7 @@ func TestAuditLogging(t *testing.T) {
 		defer conn.Close()
 		connected := conn.AwaitReachable(ctx)
 		require.True(t, connected)
-		// TODO: un-comment this when the echo provisioner is fixed.
+		// FIXME(Cian): un-comment this when the echo provisioner is fixed.
 		// See: https://github.com/coder/coder/issues/9169
 		// build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
 		// coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
