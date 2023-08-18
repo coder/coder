@@ -122,7 +122,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        run: "nix-shell --command 'typos -c .github/workflows/typos.toml'"
+        run: nix-shell --command 'typos -c .github/workflows/typos.toml'
 
       - name: Fix the typos
         if: ${{ failure() }}
@@ -132,7 +132,7 @@ jobs:
           typos -c .github/workflows/typos.toml -w"
 
       - name: make lint
-        run: "nix-shell --command 'make --output-sync=line -j lint'"
+        run: nix-shell --command 'make --output-sync=line -j lint'
 
   gen:
     timeout-minutes: 8
@@ -152,7 +152,7 @@ jobs:
         uses: DeterminateSystems/magic-nix-cache-action@v2
 
       - name: make gen
-        run: "nix-shell --command 'make --output-sync -j -B gen'"
+        run: nix-shell --command 'make --output-sync -j -B gen'
 
       - name: Check for unstaged files
         run: ./scripts/check_unstaged.sh
@@ -175,7 +175,7 @@ jobs:
         uses: DeterminateSystems/magic-nix-cache-action@v2
 
       - name: make fmt
-        run: "nix-shell --command 'make --output-sync -j -B fmt'"
+        run: nix-shell --command 'make --output-sync -j -B fmt'
 
       - name: Check for unstaged files
         run: ./scripts/check_unstaged.sh
