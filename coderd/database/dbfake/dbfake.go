@@ -4212,6 +4212,13 @@ func (q *FakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 		ShutdownScript:           arg.ShutdownScript,
 	}
 
+	// Pretend to be a real database and enforce a unique constraint
+	for _, agt := range q.workspaceAgents {
+		if agt.AuthToken == arg.AuthToken {
+			return database.WorkspaceAgent{}, errDuplicateKey
+		}
+	}
+
 	q.workspaceAgents = append(q.workspaceAgents, agent)
 	return agent, nil
 }
