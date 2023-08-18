@@ -117,12 +117,12 @@ const useStyles = makeStyles((theme) => ({
 
     "& p": {
       marginTop: 0,
-      marginBottom: 0,
+      marginBottom: theme.spacing(2),
     },
 
-    "& p + *": {
+    "& p:only-child": {
       marginTop: 0,
-      marginBottom: theme.spacing(2),
+      marginBottom: 0,
     },
 
     "& ul, & ol": {
