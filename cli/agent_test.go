@@ -22,7 +22,6 @@ import (
 	"github.com/coder/coder/pty/ptytest"
 )
 
-// TODO(Cian): These ones are failing but only with dbfake
 func TestWorkspaceAgent(t *testing.T) {
 	t.Parallel()
 
