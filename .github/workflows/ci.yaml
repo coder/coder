@@ -198,11 +198,11 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v4
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
 
-      - name: Run the Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@v2
+      - name: Setup Terraform
+        uses: ./.github/actions/setup-tf
 
       - name: Test with Mock Database
         id: test
@@ -220,16 +220,10 @@ jobs:
 
           # By default Go will use the number of logical CPUs, which
           # is a fine default.
-          export PARALLEL_FLAG=""
+          PARALLEL_FLAG=""
 
           export TS_DEBUG_DISCO=true
-
-          # nix-sehll Is not available on Windows
-          if [ "${{ matrix.os }}" == "ubuntu-latest" ] || [ "${{ matrix.os }}" == "macos-latest" ]; then
-            nix-shell --command 'gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" \
-            --packages="./..." -- $PARALLEL_FLAG -short -failfast $COVERAGE_FLAGS'
-          else
-            gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" \
+          gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" \
             --packages="./..." -- $PARALLEL_FLAG -short -failfast $COVERAGE_FLAGS
           fi
 
@@ -238,11 +232,7 @@ jobs:
         run: |
           # Artifacts are not available after rerunning a job,
           # so we need to print the test stats to the log.
-          if [ "${{ matrix.os }}" == "ubuntu-latest" ] || [ "${{ matrix.os }}" == "macos-latest" ]; then
-            nix-shell --command 'go run ./scripts/ci-report/main.go gotests.json | tee gotests_stats.json'
-          else
-            go run ./scripts/ci-report/main.go gotests.json | tee gotests_stats.json
-          fi
+          go run ./scripts/ci-report/main.go gotests.json | tee gotests_stats.json
 
       - name: Upload test stats to Datadog
         uses: ./.github/actions/upload-datadog
@@ -438,14 +428,11 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v4
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
 
-      - name: Run the Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@v2
-
-      - name: Run Tests
-        run: nix-shell --command 'cd site && pnpm install && pnpm test:ci --max-workers $(nproc)'
+      - run: pnpm test:ci --max-workers $(nproc)
+        working-directory: site
 
       - name: Check code coverage
         uses: codecov/codecov-action@v3
@@ -471,6 +458,15 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Setup Terraform
+        uses: ./.github/actions/setup-tf
+
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@v4
 
@@ -478,13 +474,16 @@ jobs:
         uses: DeterminateSystems/magic-nix-cache-action@v2
 
       - name: Build
-        run: nix-shell --command 'cd site && pnpm install && cd .. && make -B site/out/index.html'
+        run: |
+          nix-shell --command 'make -B site/out/index.html'
 
-      - run: nix-shell --command 'cd site && pnpm playwright:install'
+      - run: pnpm playwright:install
+        working-directory: site
 
-      - run: nix-shell --command 'cd site && pnpm playwright:test'
+      - run: pnpm playwright:test
         env:
           DEBUG: pw:api
+        working-directory: site
 
       - name: Upload Playwright Failed Tests
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
@@ -575,17 +574,24 @@ jobs:
       - name: Run the Magic Nix Cache
         uses: DeterminateSystems/magic-nix-cache-action@v2
 
+      - name: Setup
+        run: |
+          nix-shell --command 'pnpm install'
+        working-directory: offlinedocs
+
       - name: Format
         run: |
-          nix-shell --command 'cd offlinedocs && pnpm install && pnpm format:check'
+          nix-shell --command 'pnpm format:check'
+        working-directory: offlinedocs
 
       - name: Lint
         run: |
-          nix-shell --command 'cd offlinedocs && pnpm install && pnpm lint'
+          nix-shell --command 'pnpm lint'
+        working-directory: offlinedocs
 
       - name: Build
         run: |
-          nix-shell --command 'cd offlinedocs && pnpm install && cd .. && make -j build/coder_docs_"$(./scripts/version.sh)".tgz'
+          nix-shell --command 'make -j build/coder_docs_"$(./scripts/version.sh)".tgz'
 
   required:
     runs-on: ubuntu-latest
