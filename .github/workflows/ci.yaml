@@ -448,9 +448,15 @@ jobs:
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
 
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v4
+
+      - name: Run the Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v2
+
       - name: Build
         run: |
-          make -B site/out/index.html
+          nix-shell --command 'make -B site/out/index.html'
 
       - run: pnpm playwright:install
         working-directory: site
