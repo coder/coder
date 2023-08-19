@@ -404,7 +404,7 @@ func (p *Server) acquireJob(ctx context.Context) {
 		runner.Options{
 			Updater:             p,
 			QuotaCommitter:      p,
-			Logger:              p.opts.Logger,
+			Logger:              p.opts.Logger.Named("runner"),
 			Filesystem:          p.opts.Filesystem,
 			WorkDirectory:       p.opts.WorkDirectory,
 			Provisioner:         provisioner,
