@@ -409,11 +409,10 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
 
-      - run: pnpm test:ci --max-workers $(nproc)
-        working-directory: site
+      - run: nix-shell --command 'cd site && pnpm test:ci --max-workers $(nproc)'
 
       - name: Check code coverage
         uses: codecov/codecov-action@v3
