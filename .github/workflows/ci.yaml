@@ -114,11 +114,8 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v4
-
-      - name: Run the Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@v2
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
 
       # Check for any typos
       - name: Check for typos
@@ -145,11 +142,8 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v4
-
-      - name: Run the Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@v2
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
 
       - name: make gen
         run: nix-shell --command 'make --output-sync -j -B gen'
@@ -168,11 +162,8 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v4
-
-      - name: Run the Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@v2
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
 
       - name: make fmt
         run: nix-shell --command 'make --output-sync -j -B fmt'
@@ -268,11 +259,8 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v4
-
-      - name: Run the Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@v2
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
 
       - name: Test with PostgreSQL Database
         run: |
@@ -316,11 +304,8 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v4
-
-      - name: Run the Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@v2
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
 
       - name: Run Tests
         run: |
@@ -358,11 +343,8 @@ jobs:
       - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v4
-
-      - name: Run the Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@v2
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
 
       - name: Build Release
         run: |
@@ -562,11 +544,8 @@ jobs:
           # 0 is required here for version.sh to work.
           fetch-depth: 0
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v4
-
-      - name: Run the Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@v2
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
 
       - name: Setup
         run: |
@@ -637,11 +616,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v4
-
-      - name: Run the Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@v2
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
 
       - name: GHCR Login
         uses: docker/login-action@v2
