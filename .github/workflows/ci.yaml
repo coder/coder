@@ -439,32 +439,19 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
-
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-
-      - name: Setup Terraform
-        uses: ./.github/actions/setup-tf
-
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v4
-
-      - name: Run the Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@v2
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
 
       - name: Build
-        run: |
-          nix-shell --command 'make -B site/out/index.html'
+        run: nix-shell --command 'make -B site/out/index.html'
 
-      - run: pnpm playwright:install
-        working-directory: site
+      - name: Install Playwright
+        run: nix-shell --command 'cd site && pnpm playwright:install'
 
-      - run: pnpm playwright:test
+      - name: Run Playwright Tests
+        run: nix-shell --command 'cd site && pnpm playwright:test'
         env:
           DEBUG: pw:api
-        working-directory: site
 
       - name: Upload Playwright Failed Tests
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
