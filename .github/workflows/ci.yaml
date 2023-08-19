@@ -216,7 +216,6 @@ jobs:
           export TS_DEBUG_DISCO=true
           gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" \
             --packages="./..." -- $PARALLEL_FLAG -short -failfast $COVERAGE_FLAGS
-          fi
 
       - name: Print test stats
         if: success() || failure()
