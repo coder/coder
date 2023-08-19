@@ -52,7 +52,6 @@
           pango
           pixman
           pkg-config
-          playwright
           postgresql
           protobuf
           protoc-gen-go
@@ -129,7 +128,6 @@
           "NODE_OPTIONS=--max_old_space_size=8192"
           "TERM=xterm-256color"
           "LANG=en_US.UTF-8"
-          "PLAYWRIGHT_BROWSERS_PATH=${pkgs.playwright-driver.browsers}"
         ];
         # Builds our development environment image with all the tools included.
         # Using Nix instead of Docker is **significantly** faster. This _build_
