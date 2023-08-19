@@ -7,9 +7,9 @@ import (
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/clistat"
-	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/clistat"
+	"github.com/coder/coder/v2/cli/cliui"
 )
 
 func initStatterMW(tgt **clistat.Statter, fs afero.Fs) clibase.MiddlewareFunc {

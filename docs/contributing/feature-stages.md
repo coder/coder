@@ -22,4 +22,4 @@ coder server --experiments=feature1,feature2
 # Alternatively, use the `CODER_EXPERIMENTS` environment variable.
 ```
 
-For a list of all experiments, refer to the [codersdk reference](https://pkg.go.dev/github.com/coder/coder/codersdk#Experiment).
+For a list of all experiments, refer to the [codersdk reference](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#Experiment).

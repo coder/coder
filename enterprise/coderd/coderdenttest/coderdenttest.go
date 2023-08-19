@@ -10,17 +10,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/coderd/database/dbfake"
-	"github.com/coder/coder/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/coderd"
-	"github.com/coder/coder/enterprise/coderd/license"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/coderd"
+	"github.com/coder/coder/v2/enterprise/coderd/license"
 )
 
 const (

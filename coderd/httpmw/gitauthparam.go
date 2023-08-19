@@ -6,8 +6,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/coder/coder/coderd/gitauth"
-	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/coderd/httpapi"
 )
 
 type gitAuthParamContextKey struct{}

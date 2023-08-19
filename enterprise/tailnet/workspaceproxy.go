@@ -9,8 +9,8 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/enterprise/wsproxy/wsproxysdk"
-	agpl "github.com/coder/coder/tailnet"
+	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
+	agpl "github.com/coder/coder/v2/tailnet"
 )
 
 func ServeWorkspaceProxy(ctx context.Context, conn net.Conn, ma agpl.MultiAgentConn) error {

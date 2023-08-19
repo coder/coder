@@ -1,6 +1,6 @@
 package regosql
 
-import "github.com/coder/coder/coderd/rbac/regosql/sqltypes"
+import "github.com/coder/coder/v2/coderd/rbac/regosql/sqltypes"
 
 func resourceIDMatcher() sqltypes.VariableMatcher {
 	return sqltypes.StringVarMatcher("id :: text", []string{"input", "object", "id"})

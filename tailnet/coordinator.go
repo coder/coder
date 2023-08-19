@@ -21,7 +21,7 @@ import (
 	"tailscale.com/types/key"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
 // Coordinator exchanges nodes with agents to establish connections.

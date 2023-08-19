@@ -12,8 +12,8 @@ import (
 	"golang.org/x/oauth2/github"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // endpoint contains default SaaS URLs for each Git provider.

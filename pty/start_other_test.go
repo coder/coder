@@ -12,8 +12,8 @@ import (
 	"go.uber.org/goleak"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/pty"
-	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/v2/pty"
+	"github.com/coder/coder/v2/pty/ptytest"
 )
 
 func TestMain(m *testing.M) {

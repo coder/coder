@@ -8,22 +8,22 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/rbac"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
-	agplaudit "github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/audit"
-	"github.com/coder/coder/enterprise/coderd"
-	"github.com/coder/coder/enterprise/coderd/coderdenttest"
-	"github.com/coder/coder/enterprise/coderd/license"
-	"github.com/coder/coder/testutil"
+	agplaudit "github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/audit"
+	"github.com/coder/coder/v2/enterprise/coderd"
+	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestMain(m *testing.M) {

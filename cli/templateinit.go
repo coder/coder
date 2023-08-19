@@ -12,11 +12,11 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/examples"
-	"github.com/coder/coder/provisionersdk"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/examples"
+	"github.com/coder/coder/v2/provisionersdk"
 )
 
 func (*RootCmd) templateInit() *clibase.Cmd {

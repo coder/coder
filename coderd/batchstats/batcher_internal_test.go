@@ -10,12 +10,12 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbgen"
-	"github.com/coder/coder/coderd/database/dbtestutil"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/codersdk/agentsdk"
-	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/cryptorand"
 )
 
 func TestBatchStats(t *testing.T) {
