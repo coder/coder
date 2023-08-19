@@ -37,6 +37,8 @@
           kubectl
           kubernetes-helm
           less
+          # Needed for many LD system libs!
+          libuuid
           mockgen
           nfpm
           nodejs
@@ -115,6 +117,7 @@
         # These will also be applied to the container config.
         devEnvVars = [
           "PATH=${pkgs.lib.makeBinPath (allPackages)}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/coder/go/bin"
+          "LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath allPackages}"
           # This setting prevents Go from using the public checksum database for
           # our module path prefixes. It is required because these are in private
           # repositories that require authentication.
@@ -125,6 +128,7 @@
           "NODE_OPTIONS=--max_old_space_size=8192"
           "TERM=xterm-256color"
           "LANG=en_US.UTF-8"
+          "LOCALE_ARCHIVE=/usr/lib/locale/locale-archive"
         ];
         # Builds our development environment image with all the tools included.
         # Using Nix instead of Docker is **significantly** faster. This _build_
