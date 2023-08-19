@@ -548,18 +548,15 @@ jobs:
 
       - name: Setup
         run: |
-          nix-shell --command 'pnpm install'
-        working-directory: offlinedocs
+          nix-shell --command 'cd offlinedocs && pnpm install'
 
       - name: Format
         run: |
-          nix-shell --command 'pnpm format:check'
-        working-directory: offlinedocs
+          nix-shell --command 'cd offlinedocs && pnpm format:check'
 
       - name: Lint
         run: |
-          nix-shell --command 'pnpm lint'
-        working-directory: offlinedocs
+          nix-shell --command 'cd offlinedocs && pnpm lint'
 
       - name: Build
         run: |
