@@ -58,6 +58,7 @@
           protobuf
           protoc-gen-go
           ripgrep
+          sapling
           shellcheck
           shfmt
           sqlc
@@ -114,10 +115,11 @@
             mkdir -p /etc/init.d
           '';
         };
+        allPackages = devShellPackages ++ devImagePackages;
         # Environment variables that live in `/etc/environment` in the container.
         # These will also be applied to the container config.
         devEnvVars = [
-          "PATH=${pkgs.lib.makeBinPath (devShellPackages ++ devImagePackages)}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/coder/go/bin"
+          "PATH=${pkgs.lib.makeBinPath (allPackages)}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/coder/go/bin"
           # This setting prevents Go from using the public checksum database for
           # our module path prefixes. It is required because these are in private
           # repositories that require authentication.
