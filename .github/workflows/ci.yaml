@@ -412,7 +412,7 @@ jobs:
       - name: Setup Nix
         uses: ./.github/actions/setup-nix
 
-      - run: nix-shell --command 'cd site && pnpm test:ci --max-workers $(nproc)'
+      - run: nix-shell --command 'cd site && pnpm install && pnpm test:ci --max-workers $(nproc)'
 
       - name: Check code coverage
         uses: codecov/codecov-action@v3
