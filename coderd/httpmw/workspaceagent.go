@@ -87,7 +87,7 @@ func ExtractWorkspaceAgent(opts ExtractWorkspaceAgentConfig) func(http.Handler) 
 				}
 
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal error authorizing workspace agent.",
+					Message: "Internal error checking workspace agent authorization.",
 					Detail:  err.Error(),
 				})
 				return
