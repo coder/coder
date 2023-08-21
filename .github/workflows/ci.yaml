@@ -478,7 +478,9 @@ jobs:
         uses: ./.github/actions/setup-nix
 
       - name: install Storybook
-        run: nix-shell --command 'cd site && pnpm install'
+        run: |
+          # only install storybook from package.json using pnpm
+          cat ./site/package.json | jq -r '.devDependencies | keys[] | select(contains("storybook"))' | xargs -I{} nix-shell --command 'pnpm add -D {}'
 
       # This step is not meant for mainline because any detected changes to
       # storybook snapshots will require manual approval/review in order for
