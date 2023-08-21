@@ -22,7 +22,11 @@ test("create workspace", async ({ page }) => {
 })
 
 test("create workspace with default immutable parameters", async ({ page }) => {
-  const richParameters: RichParameter[] = [secondParameter, fourthParameter, sixthParameter]
+  const richParameters: RichParameter[] = [
+    secondParameter,
+    fourthParameter,
+    sixthParameter,
+  ]
   const template = await createTemplate(page, {
     plan: [
       {

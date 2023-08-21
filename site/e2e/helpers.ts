@@ -72,13 +72,17 @@ export const verifyParameters = async (
 
     if (richParameter.type === "bool") {
       const parameterField = await parameterLabel.waitForSelector(
-        "[data-testid='parameter-field-bool'] .MuiRadio-root.Mui-checked" + muiDisabled + " input",
+        "[data-testid='parameter-field-bool'] .MuiRadio-root.Mui-checked" +
+          muiDisabled +
+          " input",
       )
       const value = await parameterField.inputValue()
       expect(value).toEqual(buildParameter.value)
     } else if (richParameter.options.length > 0) {
       const parameterField = await parameterLabel.waitForSelector(
-        "[data-testid='parameter-field-options'] .MuiRadio-root.Mui-checked" + muiDisabled + " input",
+        "[data-testid='parameter-field-options'] .MuiRadio-root.Mui-checked" +
+          muiDisabled +
+          " input",
       )
       const value = await parameterField.inputValue()
       expect(value).toEqual(buildParameter.value)
