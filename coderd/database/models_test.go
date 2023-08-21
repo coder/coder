@@ -4,10 +4,25 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/coder/coder/codersdk"
+	"github.com/stretchr/testify/require"
+
 	"github.com/stretchr/testify/assert"
 
 	"github.com/coder/coder/coderd/database"
 )
+
+// TestAuditDBEnumsCovered ensures that all enums in the database are covered by the codersdk enums
+// for audit log strings.
+func TestAuditDBEnumsCovered(t *testing.T) {
+	t.Parallel()
+
+	dbTypes := database.AllResourceTypeValues()
+	for _, ty := range dbTypes {
+		str := codersdk.ResourceType(ty).FriendlyString()
+		require.NotEqualf(t, "unknown", str, "ResourceType %q not covered by codersdk.ResourceType", ty)
+	}
+}
 
 // TestViewSubsetTemplate ensures TemplateTable is a subset of Template
 func TestViewSubsetTemplate(t *testing.T) {
