@@ -1339,7 +1339,7 @@ func newProvisionerDaemon(
 					Listener: terraformServer,
 				},
 				CachePath: tfDir,
-				Logger:    logger,
+				Logger:    logger.Named("terraform"),
 				Tracer:    tracer,
 			})
 			if err != nil && !xerrors.Is(err, context.Canceled) {

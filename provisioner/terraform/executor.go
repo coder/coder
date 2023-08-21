@@ -84,6 +84,10 @@ func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []str
 	cmd.Stdout = syncWriter{mut, stdOutWriter}
 	cmd.Stderr = syncWriter{mut, stdErrWriter}
 
+	e.server.logger.Debug(ctx, "executing terraform command",
+		slog.F("binary_path", e.binaryPath),
+		slog.F("args", args),
+	)
 	err = cmd.Start()
 	if err != nil {
 		return err
@@ -260,6 +264,20 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 	}, nil
 }
 
+func onlyDataResources(sm *tfjson.StateModule) *tfjson.StateModule {
+	sm2 := *sm
+	sm2.Resources = make([]*tfjson.StateResource, 0, len(sm.Resources))
+	for _, r := range sm.Resources {
+		if r.Mode == "data" {
+			sm2.Resources = append(sm2.Resources, r)
+		}
+	}
+	for _, c := range sm.ChildModules {
+		sm2.ChildModules = append(sm2.ChildModules, onlyDataResources(c))
+	}
+	return &sm2
+}
+
 // planResources must only be called while the lock is held.
 func (e *executor) planResources(ctx, killCtx context.Context, planfilePath string) (*State, error) {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
@@ -276,7 +294,16 @@ func (e *executor) planResources(ctx, killCtx context.Context, planfilePath stri
 	}
 	modules := []*tfjson.StateModule{}
 	if plan.PriorState != nil {
-		modules = append(modules, plan.PriorState.Values.RootModule)
+		// We need the data resources for rich parameters. For some reason, they
+		// only show up in the PriorState.
+		//
+		// We don't want all prior resources, because Quotas (and
+		// future features) would never know which resources are getting
+		// deleted by a stop.
+		modules = append(
+			modules,
+			onlyDataResources(plan.PriorState.Values.RootModule),
+		)
 	}
 	modules = append(modules, plan.PlannedValues.RootModule)
 
