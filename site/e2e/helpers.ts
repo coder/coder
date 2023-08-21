@@ -13,10 +13,12 @@ import {
   Provision_Complete,
   Provision_Response,
   Resource,
+  RichParameter,
 } from "./provisionerGenerated"
 import { port } from "./playwright.config"
 import * as ssh from "ssh2"
 import { Duplex } from "stream"
+import { WorkspaceBuildParameter } from "api/typesGenerated"
 
 // createWorkspace creates a workspace for a template.
 // It does not wait for it to be running, but it does navigate to the page.
@@ -32,8 +34,55 @@ export const createWorkspace = async (
   await page.getByTestId("form-submit").click()
 
   await expect(page).toHaveURL("/@admin/" + name)
-  await page.getByTestId("build-status").isVisible()
+  await page.waitForSelector("[data-testid='build-status']", {
+    state: "visible",
+  })
   return name
+}
+
+export const verifyParameters = async (
+  page: Page,
+  workspaceName: string,
+  richParameters: RichParameter[],
+  expectedBuildParameters: WorkspaceBuildParameter[],
+) => {
+  await page.goto("/@admin/" + workspaceName + "/settings/parameters", {
+    waitUntil: "networkidle",
+  })
+  await expect(page).toHaveURL(
+    "/@admin/" + workspaceName + "/settings/parameters",
+  )
+
+  for (const buildParameter of expectedBuildParameters) {
+    const richParameter = richParameters.find(
+      (richParam) => richParam.name === buildParameter.name,
+    )
+    if (!richParameter) {
+      throw new Error(
+        "build parameter is expected to be present in rich parameter schema",
+      )
+    }
+
+    const parameterLabel = await page.waitForSelector(
+      "[data-testid='parameter-field-" + richParameter.name + "']",
+      { state: "visible" },
+    )
+
+    if (richParameter.type === "bool") {
+      throw new Error("not implemented yet")
+    } else if (richParameter.options.length > 0) {
+      throw new Error("not implemented yet")
+    } else if (richParameter.type === "list(string)") {
+      throw new Error("not implemented yet")
+    } else {
+      // text or number
+      const parameterField = await parameterLabel.waitForSelector(
+        "[data-testid='parameter-field-text'] .MuiOutlinedInput-input",
+      )
+      const value = await parameterField.inputValue()
+      expect(value).toEqual(buildParameter.value)
+    }
+  }
 }
 
 // createTemplate navigates to the /templates/new page and uploads a template
