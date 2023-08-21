@@ -18,7 +18,7 @@ DEFAULT_PASSWORD="SomeSecurePassword!"
 password="${CODER_DEV_ADMIN_PASSWORD:-${DEFAULT_PASSWORD}}"
 use_proxy=0
 
-args="$(getopt -o "" -l use-proxy,agpl,password: -- "$@")"
+args="$(getopt -o "" -l access-url:,use-proxy,agpl,password: -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
