@@ -4,12 +4,11 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/coder/coder/codersdk"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/codersdk"
 )
 
 // TestAuditDBEnumsCovered ensures that all enums in the database are covered by the codersdk enums
