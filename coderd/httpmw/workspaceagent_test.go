@@ -21,10 +21,7 @@ func TestWorkspaceAgent(t *testing.T) {
 
 	t.Run("None", func(t *testing.T) {
 		t.Parallel()
-		db, pubsub := dbtestutil.NewDB(t)
-		t.Cleanup(func() {
-			_ = pubsub.Close()
-		})
+		db, _ := dbtestutil.NewDB(t)
 
 		req, rtr := setup(t, db, uuid.New(), httpmw.ExtractWorkspaceAgent(
 			httpmw.ExtractWorkspaceAgentConfig{
@@ -43,10 +40,7 @@ func TestWorkspaceAgent(t *testing.T) {
 
 	t.Run("Found", func(t *testing.T) {
 		t.Parallel()
-		db, pubsub := dbtestutil.NewDB(t)
-		t.Cleanup(func() {
-			_ = pubsub.Close()
-		})
+		db, _ := dbtestutil.NewDB(t)
 		authToken := uuid.New()
 		req, rtr := setup(t, db, authToken, httpmw.ExtractWorkspaceAgent(
 			httpmw.ExtractWorkspaceAgentConfig{
