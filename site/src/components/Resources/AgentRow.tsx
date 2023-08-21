@@ -253,8 +253,7 @@ export const AgentRow: FC<AgentRowProps> = ({
                 <PortForwardButton
                   host={proxy.preferredWildcardHostname}
                   workspaceName={workspace.name}
-                  agentId={agent.id}
-                  agentName={agent.name}
+                  agent={agent}
                   username={workspace.owner_name}
                 />
               )}
