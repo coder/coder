@@ -400,6 +400,7 @@ jobs:
 
   test-js:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    container: codercom/oss-dogfood:latest
     needs: changes
     if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 20
@@ -409,11 +410,11 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Setup Nix
-        uses: ./.github/actions/setup-nix
+      - run: pnpm install
+        working-directory: site
 
-      - name: Run tests
-        run: nix-shell --command 'cd site && pnpm i && pnpm test:ci --max-workers $(nproc)'
+      - run: pnpm test:ci --max-workers $(nproc)
+        working-directory: site
 
       - name: Check code coverage
         uses: codecov/codecov-action@v3
@@ -430,6 +431,7 @@ jobs:
 
   test-e2e:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    container: codercom/oss-dogfood:latest
     needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 20
@@ -439,19 +441,16 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Setup Nix
-        uses: ./.github/actions/setup-nix
-
       - name: Build
-        run: nix-shell --command 'make -B site/out/index.html'
+        run: make -B site/out/index.html
 
-      - name: Install Playwright
-        run: nix-shell --command 'cd site && pnpm playwright:install'
+      - run: pnpm playwright:install
+        working-directory: site
 
-      - name: Run tests
-        run: nix-shell --command 'cd site && pnpm playwright:test'
+      - run: pnpm playwright:test
         env:
           DEBUG: pw:api
+        working-directory: site
 
       - name: Upload Playwright Failed Tests
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
@@ -474,8 +473,6 @@ jobs:
           # only get 1 commit on shallow checkout.
           fetch-depth: 0
 
-      # - name: Setup Node
-      #   uses: ./.github/actions/setup-node
       - name: Setup Nix
         uses: ./.github/actions/setup-nix
 
@@ -598,6 +595,7 @@ jobs:
     needs: changes
     if: github.ref == 'refs/heads/main' && needs.changes.outputs.docs-only == 'false'
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    container: codercom/oss-dogfood:latest
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
     steps:
@@ -605,9 +603,6 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-
-      - name: Setup Nix
-        uses: ./.github/actions/setup-nix
 
       - name: GHCR Login
         uses: docker/login-action@v2
@@ -620,22 +615,22 @@ jobs:
         id: build_and_push
         run: |
           set -euxo pipefail
-          version="$(./scripts/version.sh)"
-          tag=$(echo "$version" | sed 's/+/-/g')
-          export CODER_IMAGE_BUILD_BASE_TAG="$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")"
+          go mod download
+          make gen/mark-fresh
           export DOCKER_IMAGE_NO_PREREQUISITES=true
-          nix-shell --command 'go mod download && \
-          make gen/mark-fresh && \
-          make -j build/coder_linux_amd64 && \
+          version="$(./scripts/version.sh)"
+          export CODER_IMAGE_BUILD_BASE_TAG="$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")"
+          make -j build/coder_linux_amd64
           ./scripts/build_docker.sh \
             --arch amd64 \
             --target ghcr.io/coder/coder-preview:main \
             --version $version \
             --push \
-            build/coder_linux_amd64'
+            build/coder_linux_amd64
           # Tag image with new package tag and push
-          nix-shell --command "docker tag ghcr.io/coder/coder-preview:test ghcr.io/coder/coder-preview:main-$tag"
-          nix-shell --command "docker push ghcr.io/coder/coder-preview:main-$tag"
+          tag=$(echo "$version" | sed 's/+/-/g')
+          docker tag ghcr.io/coder/coder-preview:main ghcr.io/coder/coder-preview:main-$tag
+          docker push ghcr.io/coder/coder-preview:main-$tag
 
       - name: Prune old images
         uses: vlaurin/action-ghcr-prune@v0.5.0
