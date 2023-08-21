@@ -38,6 +38,7 @@
           gotestsum
           jq
           kubectl
+          kubectx
           kubernetes-helm
           less
           # Needed for many LD system libs!
