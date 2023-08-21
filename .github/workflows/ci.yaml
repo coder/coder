@@ -108,18 +108,16 @@ jobs:
     needs: changes
     if: needs.changes.outputs.offlinedocs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    container: codercom/oss-dogfood:latest
     steps:
       - name: Checkout
         uses: actions/checkout@v3
         with:
           fetch-depth: 1
 
-      - name: Setup Nix
-        uses: ./.github/actions/setup-nix
-
       # Check for any typos
       - name: Check for typos
-        run: nix-shell --command 'typos -c .github/workflows/typos.toml'
+        run: typos -c .github/workflows/typos.toml
 
       - name: Fix the typos
         if: ${{ failure() }}
@@ -129,11 +127,12 @@ jobs:
           typos -c .github/workflows/typos.toml -w"
 
       - name: make lint
-        run: nix-shell --command 'make --output-sync=line -j lint'
+        run: make --output-sync=line -j lint
 
   gen:
     timeout-minutes: 8
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    container: codercom/oss-dogfood:latest
     needs: changes
     if: needs.changes.outputs.docs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     steps:
@@ -142,11 +141,8 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Setup Nix
-        uses: ./.github/actions/setup-nix
-
       - name: make gen
-        run: nix-shell --command 'make --output-sync -j -B gen'
+        run: make --output-sync -j -B gen
 
       - name: Check for unstaged files
         run: ./scripts/check_unstaged.sh
@@ -155,6 +151,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.offlinedocs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    container: codercom/oss-dogfood:latest
     timeout-minutes: 7
     steps:
       - name: Checkout
@@ -162,11 +159,8 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Setup Nix
-        uses: ./.github/actions/setup-nix
-
       - name: make fmt
-        run: nix-shell --command 'make --output-sync -j -B fmt'
+        run: make --output-sync -j -B fmt
 
       - name: Check for unstaged files
         run: ./scripts/check_unstaged.sh
@@ -319,6 +313,7 @@ jobs:
   deploy:
     name: "deploy"
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    container: codercom/oss-dogfood:latest
     timeout-minutes: 30
     needs: changes
     if: |
@@ -342,18 +337,15 @@ jobs:
       - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
 
-      - name: Setup Nix
-        uses: ./.github/actions/setup-nix
-
       - name: Build Release
         run: |
           - name: Build Release
             run: |
-              nix-shell --command 'set -euo pipefail && \
+              set -euo pipefail
               go mod download
-              version=\"\$(./scripts/version.sh)\"
-              make gen/mark-fresh && \
-              make -j build/coder_\"\$version\"_windows_amd64.zip build/coder_\"\$version\"_linux_amd64.{tar.gz,deb}'
+              version=$(./scripts/version.sh)
+              make gen/mark-fresh
+              make -j build/coder_\"\$version\"_windows_amd64.zip build/coder_\"\$version\"_linux_amd64.{tar.gz,deb}
 
       - name: Install Release
         run: |
@@ -400,6 +392,7 @@ jobs:
 
   test-js:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    container: codercom/oss-dogfood:latest
     needs: changes
     if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 20
@@ -409,8 +402,8 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
+      - run: pnpm install
+        working-directory: site
 
       - run: pnpm test:ci --max-workers $(nproc)
         working-directory: site
@@ -430,6 +423,7 @@ jobs:
 
   test-e2e:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    container: codercom/oss-dogfood:latest
     needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 20
@@ -439,24 +433,8 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
-
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-
-      - name: Setup Terraform
-        uses: ./.github/actions/setup-tf
-
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v4
-
-      - name: Run the Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@v2
-
       - name: Build
-        run: |
-          nix-shell --command 'make -B site/out/index.html'
+        run: make -B site/out/index.html
 
       - run: pnpm playwright:install
         working-directory: site
@@ -541,6 +519,7 @@ jobs:
     name: offlinedocs
     needs: changes
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    container: codercom/oss-dogfood:latest
     if: needs.changes.outputs.offlinedocs == 'true' || needs.changes.outputs.ci == 'true'
     steps:
       - name: Checkout
@@ -549,24 +528,20 @@ jobs:
           # 0 is required here for version.sh to work.
           fetch-depth: 0
 
-      - name: Setup Nix
-        uses: ./.github/actions/setup-nix
-
       - name: Setup
-        run: |
-          nix-shell --command 'cd offlinedocs && pnpm install'
+        run: pnpm install
+        working-directory: offlinedocs
 
       - name: Format
-        run: |
-          nix-shell --command 'cd offlinedocs && pnpm format:check'
+        run: pnpm format:check
+        working-directory: offlinedocs
 
       - name: Lint
-        run: |
-          nix-shell --command 'cd offlinedocs && pnpm lint'
+        run: pnpm lint
+        working-directory: offlinedocs
 
       - name: Build
-        run: |
-          nix-shell --command 'make -j build/coder_docs_"$(./scripts/version.sh)".tgz'
+        run: make -j build/coder_docs_"$(./scripts/version.sh)".tgz
 
   required:
     runs-on: ubuntu-latest
@@ -610,6 +585,7 @@ jobs:
     needs: changes
     if: github.ref == 'refs/heads/main' && needs.changes.outputs.docs-only == 'false'
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    container: codercom/oss-dogfood:latest
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
     steps:
@@ -617,9 +593,6 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-
-      - name: Setup Nix
-        uses: ./.github/actions/setup-nix
 
       - name: GHCR Login
         uses: docker/login-action@v2
@@ -631,22 +604,23 @@ jobs:
       - name: Build and push Linux amd64 Docker image
         id: build_and_push
         run: |
-          nix-shell --command 'set -euxo pipefail && \
-          go mod download && \
-          make gen/mark-fresh && \
-          export DOCKER_IMAGE_NO_PREREQUISITES=true && \
-          version="$(./scripts/version.sh)" && \
+          set -euxo pipefail
+          go mod download
+          make gen/mark-fresh
+          export DOCKER_IMAGE_NO_PREREQUISITES=true
+          version="$(./scripts/version.sh)"
           export CODER_IMAGE_BUILD_BASE_TAG="$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")" && \
-          make -j build/coder_linux_amd64 && \
-          ./scripts/build_docker.sh \
+          make -j build/coder_linux_amd64
+          ./scripts/build_docker.sh
             --arch amd64 \
             --target ghcr.io/coder/coder-preview:main \
             --version $version \
             --push \
-            build/coder_linux_amd64 && \
-          tag=$(echo "$version" | sed 's/+/-/g') && \
-          docker tag ghcr.io/coder/coder-preview:main ghcr.io/coder/coder-preview:main-$tag && \
-          docker push ghcr.io/coder/coder-preview:main-$tag'
+            build/coder_linux_amd64
+          # tag the image with the version name
+          tag=$(echo "$version" | sed 's/+/-/g')
+          docker tag ghcr.io/coder/coder-preview:main ghcr.io/coder/coder-preview:main-$tag
+          docker push ghcr.io/coder/coder-preview:main-$tag
 
       - name: Prune old images
         uses: vlaurin/action-ghcr-prune@v0.5.0
