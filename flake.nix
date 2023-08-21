@@ -80,6 +80,9 @@
         devImagePackages = with pkgs; [
           docker
           exa
+          freetype
+          glib
+          harfbuzz
           nix
           nixpkgs-fmt
           screen
