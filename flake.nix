@@ -24,13 +24,11 @@
           cairo
           curl
           drpc.defaultPackage.${system}
-          freetype
           gcc
           gdk
           getopt
           git
           gh
-          glib
           gnumake
           gnused
           go_1_20
@@ -39,7 +37,6 @@
           gopls
           gotestsum
           gotools
-          harfbuzz
           jq
           kubectl
           kubectx
@@ -84,6 +81,9 @@
         devImagePackages = with pkgs; [
           docker
           exa
+          freetype
+          harfbuzz
+          glib
           nix
           nixpkgs-fmt
           screen
