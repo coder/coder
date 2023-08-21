@@ -55,7 +55,7 @@
           pango
           pixman
           pkg-config
-          postgresql
+          postgresql_13
           protobuf
           protoc-gen-go
           ripgrep
