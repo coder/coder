@@ -201,7 +201,7 @@ SELECT
 	array_cat(
 		array_append(users.rbac_roles, 'member'),
 		array_append(ARRAY[]::text[], 'organization-member:' || organization_members.organization_id::text)
-		)::text[] as owner_roles,
+	)::text[] as owner_roles,
 	array_agg(COALESCE(group_members.group_id::text, ''))::text[] AS owner_groups
 FROM users
 	INNER JOIN
