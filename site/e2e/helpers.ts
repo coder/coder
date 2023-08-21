@@ -77,7 +77,11 @@ export const verifyParameters = async (
       const value = await parameterField.inputValue()
       expect(value).toEqual(buildParameter.value)
     } else if (richParameter.options.length > 0) {
-      throw new Error("not implemented yet")
+      const parameterField = await parameterLabel.waitForSelector(
+        "[data-testid='parameter-field-options'] .MuiRadio-root.Mui-checked" + muiDisabled + " input",
+      )
+      const value = await parameterField.inputValue()
+      expect(value).toEqual(buildParameter.value)
     } else if (richParameter.type === "list(string)") {
       throw new Error("not implemented yet")
     } else {

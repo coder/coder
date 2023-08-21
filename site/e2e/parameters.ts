@@ -76,6 +76,40 @@ export const fourthParameter: RichParameter = {
   order: 3,
 }
 
+export const sixthParameter: RichParameter = {
+  ...emptyParameter,
+
+  name: "sixth_parameter",
+  displayName: "Sixth parameter",
+  type: "string",
+  options: [
+    {
+      name: "ABC",
+      description: "This is ABC",
+      value: "abc",
+      icon: "",
+    },
+    {
+      name: "DEF",
+      description: "This is DEF",
+      value: "def",
+      icon: "",
+    },
+    {
+      name: "GHI",
+      description: "This is GHI",
+      value: "ghi",
+      icon: "",
+    },
+  ],
+  description: "This is sixth parameter.",
+  defaultValue: "def",
+  icon: "",
+  mutable: false,
+  required: false,
+  order: 3,
+}
+
 // Build options
 
 export const firstBuildOption: RichParameter = {
@@ -92,7 +126,5 @@ export const firstBuildOption: RichParameter = {
   required: false,
   order: 1,
 }
-
-// TODO Options
 
 // TODO list(string)
