@@ -6064,6 +6064,18 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 			continue
 		}
 
+		if !arg.LastUsedBefore.IsZero() {
+			if workspace.LastUsedAt.After(arg.LastUsedBefore) {
+				continue
+			}
+		}
+
+		if !arg.LastUsedAfter.IsZero() {
+			if workspace.LastUsedAt.Before(arg.LastUsedAfter) {
+				continue
+			}
+		}
+
 		if arg.Status != "" {
 			build, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, workspace.ID)
 			if err != nil {
