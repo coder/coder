@@ -353,7 +353,8 @@ jobs:
               nix-shell --command 'go mod download && \
               make gen/mark-fresh && \
               version="$(./scripts/version.sh)" && \
-              make -j build/coder_"$version"_linux_amd64.zip build/coder_"$version"_linux_amd64.{tar.gz,deb}'
+              make -j build/coder_"$version"_linux_amd64.zip \
+              build/coder_"$version"_linux_amd64.{tar.gz,deb}'
 
       - name: Install Release
         run: |
