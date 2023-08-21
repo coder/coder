@@ -1,4 +1,4 @@
-import { createDisplayDate } from "./TimelineDateRow"
+import { createDisplayDate } from "./utils"
 
 describe("createDisplayDate", () => {
   it("returns correctly for Saturdays", () => {
