@@ -57,8 +57,9 @@ export const thirdParameter: RichParameter = {
   type: "string",
   options: [],
   description: "This is third parameter.",
-  mutable: false,
-  required: true,
+  defaultValue: "",
+  mutable: true,
+  required: false,
   order: 3,
 }
 
@@ -76,11 +77,11 @@ export const fourthParameter: RichParameter = {
   order: 3,
 }
 
-export const sixthParameter: RichParameter = {
+export const fifthParameter: RichParameter = {
   ...emptyParameter,
 
-  name: "sixth_parameter",
-  displayName: "Sixth parameter",
+  name: "fifth_parameter",
+  displayName: "Fifth parameter",
   type: "string",
   options: [
     {
@@ -102,7 +103,7 @@ export const sixthParameter: RichParameter = {
       icon: "",
     },
   ],
-  description: "This is sixth parameter.",
+  description: "This is fifth parameter.",
   defaultValue: "def",
   icon: "",
   mutable: false,

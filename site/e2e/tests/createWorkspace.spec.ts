@@ -1,7 +1,13 @@
 import { test } from "@playwright/test"
 import { createTemplate, createWorkspace, verifyParameters } from "../helpers"
 
-import { secondParameter, fourthParameter, sixthParameter } from "../parameters"
+import {
+  secondParameter,
+  fourthParameter,
+  fifthParameter,
+  firstParameter,
+  thirdParameter,
+} from "../parameters"
 import { RichParameter } from "../provisionerGenerated"
 
 test("create workspace", async ({ page }) => {
@@ -25,7 +31,7 @@ test("create workspace with default immutable parameters", async ({ page }) => {
   const richParameters: RichParameter[] = [
     secondParameter,
     fourthParameter,
-    sixthParameter,
+    fifthParameter,
   ]
   const template = await createTemplate(page, {
     plan: [
@@ -51,6 +57,35 @@ test("create workspace with default immutable parameters", async ({ page }) => {
   await verifyParameters(page, workspaceName, richParameters, [
     { name: secondParameter.name, value: secondParameter.defaultValue },
     { name: fourthParameter.name, value: fourthParameter.defaultValue },
-    { name: sixthParameter.name, value: sixthParameter.defaultValue },
+    { name: fifthParameter.name, value: fifthParameter.defaultValue },
+  ])
+})
+
+test("create workspace with default mutable parameters", async ({ page }) => {
+  const richParameters: RichParameter[] = [firstParameter, thirdParameter]
+  const template = await createTemplate(page, {
+    plan: [
+      {
+        complete: {
+          parameters: richParameters,
+        },
+      },
+    ],
+    apply: [
+      {
+        complete: {
+          resources: [
+            {
+              name: "example",
+            },
+          ],
+        },
+      },
+    ],
+  })
+  const workspaceName = await createWorkspace(page, template)
+  await verifyParameters(page, workspaceName, richParameters, [
+    { name: firstParameter.name, value: firstParameter.defaultValue },
+    { name: thirdParameter.name, value: thirdParameter.defaultValue },
   ])
 })
