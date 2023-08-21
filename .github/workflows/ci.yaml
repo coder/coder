@@ -479,6 +479,9 @@ jobs:
       - name: Setup Nix
         uses: ./.github/actions/setup-nix
 
+      - name: install Storybook
+        run: nix-shell --command 'cd site && pnpm install'
+
       # This step is not meant for mainline because any detected changes to
       # storybook snapshots will require manual approval/review in order for
       # the check to pass. This is desired in PRs, but not in mainline.
