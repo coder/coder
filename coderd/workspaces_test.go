@@ -1474,14 +1474,15 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		after := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, after.LatestBuild.ID)
 
-		//nolint:gocritic -- testing
+		//nolint:gocritic // Unit testing context
 		err := api.Database.UpdateWorkspaceLastUsedAt(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceLastUsedAtParams{
 			ID:         before.ID,
 			LastUsedAt: now.UTC().Add(time.Hour * -1),
 		})
 		require.NoError(t, err)
 
-		//nolint:gocritic -- testing
+		// Unit testing context
+		//nolint:gocritic // Unit testing context
 		err = api.Database.UpdateWorkspaceLastUsedAt(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceLastUsedAtParams{
 			ID:         after.ID,
 			LastUsedAt: now.UTC().Add(time.Hour * 1),
