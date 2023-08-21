@@ -49,7 +49,14 @@ You'll likely want to hardcode certain template properties for workspaces (e.g. 
 
 > Paramaters are defined via the template's Terraform code. [Learn more](./parameters.md)
 
-## Next steps
+## Integrating Coder into your existing environments
 
-- [Template structure](./structure.md)
-- [Template structure](./structure.md)
+You can use Coder with your existing development environments:
+
+* [Open in Coder](./open-in-coder.md): Provide a link that starts a new workspace from your git repo or internal wiki.
+* [Docker in workspaces](./docker-in-workspaces.md): Run Docker in your container-based Code workspaces.
+* [Devcontainers](./devcontainers.md): Run a devcontainer as a Coder workspace.
+
+## Next step
+
+- [Anatomy of a template](./concepts.md)
