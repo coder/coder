@@ -16,6 +16,9 @@
         # Use `nix --extra-experimental-features nix-command --extra-experimental-features flakes flake update`
         # to update the lock file if packages are out-of-date.
 
+        # From https://nixos.wiki/wiki/Google_Cloud_SDK
+        gdk = pkgs.google-cloud-sdk.withExtraComponents ([pkgs.google-cloud-sdk.components.gke-gcloud-auth-plugin]);
+
         devShellPackages = with pkgs; [
           bat
           cairo
@@ -24,7 +27,7 @@
           emacsPackages.jest
           exa
           gcc
-          google-cloud-sdk
+          gdk
           getopt
           git
           gh
