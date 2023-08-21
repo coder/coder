@@ -10,8 +10,8 @@ import (
 	"github.com/muesli/termenv"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/cli/clitest"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // We need to override the global color profile to test escape codes.

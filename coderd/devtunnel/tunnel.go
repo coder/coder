@@ -15,8 +15,8 @@ import (
 	"golang.zx2c4.com/wireguard/device"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/wgtunnel/tunnelsdk"
 )
 

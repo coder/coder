@@ -7,11 +7,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/coderd/schedule"
-	"github.com/coder/coder/coderd/util/ptr"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // workspaceListRow is the type provided to the OutputFormatter. This is a bit
@@ -30,6 +30,7 @@ type workspaceListRow struct {
 	Outdated      bool   `json:"-" table:"outdated"`
 	StartsAt      string `json:"-" table:"starts at"`
 	StopsAfter    string `json:"-" table:"stops after"`
+	DailyCost     string `json:"-" table:"daily cost"`
 }
 
 func workspaceListRowFromWorkspace(now time.Time, usersByID map[uuid.UUID]codersdk.User, workspace codersdk.Workspace) workspaceListRow {
@@ -68,6 +69,7 @@ func workspaceListRowFromWorkspace(now time.Time, usersByID map[uuid.UUID]coders
 		Outdated:      workspace.Outdated,
 		StartsAt:      autostartDisplay,
 		StopsAfter:    autostopDisplay,
+		DailyCost:     strconv.Itoa(int(workspace.LatestBuild.DailyCost)),
 	}
 }
 
@@ -78,7 +80,19 @@ func (r *RootCmd) list() *clibase.Cmd {
 		searchQuery       string
 		displayWorkspaces []workspaceListRow
 		formatter         = cliui.NewOutputFormatter(
-			cliui.TableFormat([]workspaceListRow{}, nil),
+			cliui.TableFormat(
+				[]workspaceListRow{},
+				[]string{
+					"workspace",
+					"template",
+					"status",
+					"healthy",
+					"last built",
+					"outdated",
+					"starts at",
+					"stops after",
+				},
+			),
 			cliui.JSONFormat(),
 		)
 	)

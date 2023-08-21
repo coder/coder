@@ -15,8 +15,8 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/pty"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/pty"
 )
 
 // attachTimeout is the initial timeout for attaching and will probably be far

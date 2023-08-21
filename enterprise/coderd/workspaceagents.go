@@ -4,8 +4,8 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func (api *API) shouldBlockNonBrowserConnections(rw http.ResponseWriter) bool {

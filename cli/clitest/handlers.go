@@ -3,7 +3,7 @@ package clitest
 import (
 	"testing"
 
-	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/v2/cli/clibase"
 )
 
 // HandlersOK asserts that all commands have a handler.

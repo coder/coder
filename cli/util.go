@@ -8,8 +8,8 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/schedule"
-	"github.com/coder/coder/coderd/util/tz"
+	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/util/tz"
 )
 
 var (

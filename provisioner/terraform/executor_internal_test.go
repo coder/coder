@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 type mockLogger struct {

@@ -12,9 +12,9 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/scaletest/dashboard"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/scaletest/dashboard"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func Test_Run(t *testing.T) {

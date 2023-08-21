@@ -5,7 +5,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/coder/coder/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 )
 
 // AsAuthzSystem is a chained handler that temporarily sets the dbauthz context
