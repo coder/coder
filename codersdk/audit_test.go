@@ -10,6 +10,9 @@ import (
 )
 
 func TestAuditDBEnumsCovered(t *testing.T) {
+	t.Parallel()
+
+	//nolint: gocritic
 	dbTypes := database.AllResourceTypeValues()
 	for _, ty := range dbTypes {
 		str := codersdk.ResourceType(ty).FriendlyString()
