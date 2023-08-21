@@ -68,8 +68,14 @@ export const verifyParameters = async (
       { state: "visible" },
     )
 
+    const muiDisabled = richParameter.mutable ? "" : ".Mui-disabled"
+
     if (richParameter.type === "bool") {
-      throw new Error("not implemented yet")
+      const parameterField = await parameterLabel.waitForSelector(
+        "[data-testid='parameter-field-bool'] .MuiRadio-root.Mui-checked" + muiDisabled + " input",
+      )
+      const value = await parameterField.inputValue()
+      expect(value).toEqual(buildParameter.value)
     } else if (richParameter.options.length > 0) {
       throw new Error("not implemented yet")
     } else if (richParameter.type === "list(string)") {
@@ -77,7 +83,7 @@ export const verifyParameters = async (
     } else {
       // text or number
       const parameterField = await parameterLabel.waitForSelector(
-        "[data-testid='parameter-field-text'] .MuiOutlinedInput-input",
+        "[data-testid='parameter-field-text'] input" + muiDisabled,
       )
       const value = await parameterField.inputValue()
       expect(value).toEqual(buildParameter.value)

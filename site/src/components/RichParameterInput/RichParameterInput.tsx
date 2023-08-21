@@ -115,7 +115,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
   if (isBoolean(parameter)) {
     return (
       <RadioGroup
-        data-testid="parameter-field-boolean"
+        data-testid="parameter-field-bool"
         className={styles.radioGroup}
         defaultValue={parameterValue}
         onChange={(event) => {
