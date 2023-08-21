@@ -28,10 +28,10 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/coder/agent/usershell"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/codersdk/agentsdk"
-	"github.com/coder/coder/pty"
+	"github.com/coder/coder/v2/agent/usershell"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/pty"
 )
 
 const (

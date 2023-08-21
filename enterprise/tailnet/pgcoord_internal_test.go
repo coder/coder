@@ -10,8 +10,8 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
-	"github.com/coder/coder/coderd/database/dbmock"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // TestHeartbeat_Cleanup is internal so that we can overwrite the cleanup period and not wait an hour for the timed

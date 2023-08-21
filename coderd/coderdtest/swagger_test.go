@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
 )
 
 func TestEndpointsDocumented(t *testing.T) {

@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/scaletest/harness"
+	"github.com/coder/coder/v2/scaletest/harness"
 )
 
 // testFns implements Runnable and Cleanable.

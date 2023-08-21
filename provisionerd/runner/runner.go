@@ -26,10 +26,10 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/coderd/util/ptr"
-	"github.com/coder/coder/provisionerd/proto"
-	sdkproto "github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/provisionerd/proto"
+	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 const (
@@ -964,6 +964,9 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 }
 
 func (r *Runner) commitQuota(ctx context.Context, resources []*sdkproto.Resource) *proto.FailedJob {
+	r.logger.Debug(ctx, "committing quota",
+		slog.F("resources", resources),
+	)
 	cost := sumDailyCost(resources)
 	if cost == 0 {
 		return nil

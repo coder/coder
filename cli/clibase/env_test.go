@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/v2/cli/clibase"
 )
 
 func TestFilterNamePrefix(t *testing.T) {
