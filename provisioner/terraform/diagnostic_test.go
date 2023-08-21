@@ -8,7 +8,7 @@ import (
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/provisioner/terraform"
+	"github.com/coder/coder/v2/provisioner/terraform"
 )
 
 type hasDiagnostic struct {

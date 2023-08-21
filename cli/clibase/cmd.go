@@ -15,7 +15,7 @@ import (
 	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v3"
 
-	"github.com/coder/coder/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
 // Cmd describes an executable command.

@@ -26,12 +26,12 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/coderd/autobuild/notify"
-	"github.com/coder/coder/coderd/util/ptr"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/autobuild/notify"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/retry"
 )
 

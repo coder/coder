@@ -23,12 +23,12 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/provisionerd"
-	"github.com/coder/coder/provisionerd/proto"
-	"github.com/coder/coder/provisionerd/runner"
-	"github.com/coder/coder/provisionersdk"
-	sdkproto "github.com/coder/coder/provisionersdk/proto"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/provisionerd"
+	"github.com/coder/coder/v2/provisionerd/proto"
+	"github.com/coder/coder/v2/provisionerd/runner"
+	"github.com/coder/coder/v2/provisionersdk"
+	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestMain(m *testing.M) {

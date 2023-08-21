@@ -12,17 +12,17 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 
-	"github.com/coder/coder/coderd/autobuild"
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database"
-	agplschedule "github.com/coder/coder/coderd/schedule"
-	"github.com/coder/coder/coderd/util/ptr"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/coderd/coderdenttest"
-	"github.com/coder/coder/enterprise/coderd/license"
-	"github.com/coder/coder/enterprise/coderd/schedule"
-	"github.com/coder/coder/provisioner/echo"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd/autobuild"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	agplschedule "github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/enterprise/coderd/schedule"
+	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // agplUserQuietHoursScheduleStore is passed to

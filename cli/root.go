@@ -31,15 +31,15 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/cli/config"
-	"github.com/coder/coder/coderd"
-	"github.com/coder/coder/coderd/gitauth"
-	"github.com/coder/coder/coderd/telemetry"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/codersdk/agentsdk"
+	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/cli/config"
+	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
 var (

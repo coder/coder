@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/v2/cli/clibase"
 )
 
 func TestOptionSet_ParseFlags(t *testing.T) {

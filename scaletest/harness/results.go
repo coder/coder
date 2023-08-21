@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpapi"
 )
 
 // Results is the full compiled results for a set of test runs.

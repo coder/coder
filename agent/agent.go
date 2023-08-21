@@ -34,14 +34,14 @@ import (
 	"tailscale.com/types/netlogtype"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/agent/agentssh"
-	"github.com/coder/coder/agent/reconnectingpty"
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/gitauth"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/codersdk/agentsdk"
-	"github.com/coder/coder/tailnet"
+	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/agent/reconnectingpty"
+	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/retry"
 )
 
@@ -654,7 +654,7 @@ func (a *agent) run(ctx context.Context) error {
 			select {
 			case err = <-scriptDone:
 			case <-timeout:
-				a.logger.Warn(ctx, "script timed out", slog.F("lifecycle", "startup"), slog.F("timeout", manifest.ShutdownScriptTimeout))
+				a.logger.Warn(ctx, "script timed out", slog.F("lifecycle", "startup"), slog.F("timeout", manifest.StartupScriptTimeout))
 				a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleStartTimeout)
 				err = <-scriptDone // The script can still complete after a timeout.
 			}

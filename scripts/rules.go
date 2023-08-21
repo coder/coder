@@ -29,7 +29,7 @@ import (
 // explaining why it's ok and a nolint.
 func dbauthzAuthorizationContext(m dsl.Matcher) {
 	m.Import("context")
-	m.Import("github.com/coder/coder/coderd/database/dbauthz")
+	m.Import("github.com/coder/coder/v2/coderd/database/dbauthz")
 
 	m.Match(
 		`dbauthz.$f($c)`,
@@ -69,10 +69,10 @@ func xerrors(m dsl.Matcher) {
 //
 //nolint:unused,deadcode,varnamelen
 func databaseImport(m dsl.Matcher) {
-	m.Import("github.com/coder/coder/coderd/database")
+	m.Import("github.com/coder/coder/v2/coderd/database")
 	m.Match("database.$_").
 		Report("Do not import any database types into codersdk").
-		Where(m.File().PkgPath.Matches("github.com/coder/coder/codersdk"))
+		Where(m.File().PkgPath.Matches("github.com/coder/coder/v2/codersdk"))
 }
 
 // doNotCallTFailNowInsideGoroutine enforces not calling t.FailNow or
@@ -122,7 +122,7 @@ func doNotCallTFailNowInsideGoroutine(m dsl.Matcher) {
 func useStandardTimeoutsAndDelaysInTests(m dsl.Matcher) {
 	m.Import("github.com/stretchr/testify/require")
 	m.Import("github.com/stretchr/testify/assert")
-	m.Import("github.com/coder/coder/testutil")
+	m.Import("github.com/coder/coder/v2/testutil")
 
 	m.Match(`context.WithTimeout($ctx, $duration)`).
 		Where(m.File().Imports("testing") && !m.File().PkgPath.Matches("testutil$") && !m["duration"].Text.Matches("^testutil\\.")).
@@ -203,7 +203,7 @@ func InTx(m dsl.Matcher) {
 // and ends with punctuation.
 // There are ways around the linter, but this should work in the common cases.
 func HttpAPIErrorMessage(m dsl.Matcher) {
-	m.Import("github.com/coder/coder/coderd/httpapi")
+	m.Import("github.com/coder/coder/v2/coderd/httpapi")
 
 	isNotProperError := func(v dsl.Var) bool {
 		return v.Type.Is("string") &&
@@ -236,7 +236,7 @@ func HttpAPIErrorMessage(m dsl.Matcher) {
 // HttpAPIReturn will report a linter violation if the http function is not
 // returned after writing a response to the client.
 func HttpAPIReturn(m dsl.Matcher) {
-	m.Import("github.com/coder/coder/coderd/httpapi")
+	m.Import("github.com/coder/coder/v2/coderd/httpapi")
 
 	// Manually enumerate the httpapi function rather then a 'Where' condition
 	// as this is a bit more efficient.

@@ -22,9 +22,9 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/coder/coder/coderd/database/migrations"
-	"github.com/coder/coder/coderd/database/postgres"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd/database/migrations"
+	"github.com/coder/coder/v2/coderd/database/postgres"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestMain(m *testing.M) {

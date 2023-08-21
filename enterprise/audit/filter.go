@@ -3,7 +3,7 @@ package audit
 import (
 	"context"
 
-	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/v2/coderd/database"
 )
 
 // FilterDecision is a bitwise flag describing the actions a given filter allows

@@ -13,18 +13,19 @@
         pkgs = nixpkgs.legacyPackages.${system};
         formatter = pkgs.nixpkgs-fmt;
         # Check in https://search.nixos.org/packages to find new packages.
-        # Use `nix flake update` to update the lock file if packages are out-of-date.
+        # Use `nix --extra-experimental-features nix-command --extra-experimental-features flakes flake update`
+        # to update the lock file if packages are out-of-date.
+
         devShellPackages = with pkgs; [
           bat
-          bash
           cairo
           curl
-          docker
           drpc.defaultPackage.${system}
-          exa
           gcc
+          google-cloud-sdk
           getopt
           git
+          gh
           gnumake
           gnused
           go_1_20
@@ -33,10 +34,13 @@
           gopls
           gotestsum
           jq
+          kubectl
           kubernetes-helm
+          less
+          # Needed for many LD system libs!
+          libuuid
           mockgen
           nfpm
-          nix
           nodejs
           nodePackages.pnpm
           nodePackages.prettier
@@ -51,7 +55,7 @@
           protobuf
           protoc-gen-go
           ripgrep
-          screen
+          sapling
           shellcheck
           shfmt
           sqlc
@@ -60,10 +64,21 @@
           terraform
           typos
           vim
+          wget
+          yarn
           yq-go
           zip
           zsh
           zstd
+        ];
+        # We separate these to reduce the size of the dev shell for packages that we only
+        # want in the image.
+        devImagePackages = with pkgs; [
+          docker
+          exa
+          nix
+          nixpkgs-fmt
+          screen
         ];
 
         # This is the base image for our Docker container used for development.
@@ -97,10 +112,12 @@
             mkdir -p /etc/init.d
           '';
         };
+        allPackages = devShellPackages ++ devImagePackages;
         # Environment variables that live in `/etc/environment` in the container.
         # These will also be applied to the container config.
         devEnvVars = [
-          "PATH=${pkgs.lib.makeBinPath devShellPackages}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/coder/go/bin"
+          "PATH=${pkgs.lib.makeBinPath (allPackages)}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/coder/go/bin"
+          "LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath allPackages}"
           # This setting prevents Go from using the public checksum database for
           # our module path prefixes. It is required because these are in private
           # repositories that require authentication.
@@ -111,6 +128,7 @@
           "NODE_OPTIONS=--max_old_space_size=8192"
           "TERM=xterm-256color"
           "LANG=en_US.UTF-8"
+          "LOCALE_ARCHIVE=/usr/lib/locale/locale-archive"
         ];
         # Builds our development environment image with all the tools included.
         # Using Nix instead of Docker is **significantly** faster. This _build_
@@ -145,10 +163,23 @@
                 session required pam_unix.so
               ''
             )
+            # This allows users to chsh.
+            (
+              pkgs.writeTextDir "etc/pam.d/chsh" ''
+                auth        sufficient  pam_rootok.so
+              ''
+            )
             # The default Nix config!
             (
               pkgs.writeTextDir "etc/nix/nix.conf" ''
                 experimental-features = nix-command flakes
+              ''
+            )
+            # Allow people to change shells!
+            (
+              pkgs.writeTextDir "etc/shells" ''
+                /bin/bash
+                ${pkgs.zsh}/bin/zsh
               ''
             )
             # This is the debian script for managing Docker with `sudo service docker ...`.
@@ -187,19 +218,19 @@
             cp -a ${pkgs.glibcLocales}/lib/locale/locale-archive usr/lib/locale/locale-archive
           '';
 
-            config = {
-          Env = devEnvVars;
-          Entrypoint = [ "/bin/bash" ];
-          User = "coder";
+          config = {
+            Env = devEnvVars;
+            Entrypoint = [ "/bin/bash" ];
+            User = "coder";
+          };
         };
-        };
-        in
-        {
+      in
+      {
         packages = {
           devEnvImage = devEnvImage;
         };
         defaultPackage = formatter; # or replace it with your desired default package.
         devShell = pkgs.mkShell { buildInputs = devShellPackages; };
-        }
-        );
-        }
+      }
+    );
+}

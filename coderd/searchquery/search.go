@@ -10,10 +10,10 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/util/ptr"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func AuditLogs(query string) (database.GetAuditLogsOffsetParams, []codersdk.ValidationError) {

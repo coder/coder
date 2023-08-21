@@ -13,11 +13,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/cli/clitest"
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/provisioner/echo"
-	"github.com/coder/coder/provisionersdk/proto"
-	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/pty/ptytest"
 )
 
 // dirSum calculates a checksum of the files in a directory.
