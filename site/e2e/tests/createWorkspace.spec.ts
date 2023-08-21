@@ -89,3 +89,7 @@ test("create workspace with default mutable parameters", async ({ page }) => {
     { name: thirdParameter.name, value: thirdParameter.defaultValue },
   ])
 })
+
+// TODO refactor: EchoProvisionerResponses
+// TODO custom parameter values
+// TODO describe parameters

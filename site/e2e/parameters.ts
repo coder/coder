@@ -110,22 +110,3 @@ export const fifthParameter: RichParameter = {
   required: false,
   order: 3,
 }
-
-// Build options
-
-export const firstBuildOption: RichParameter = {
-  ...emptyParameter,
-
-  name: "first_build_option",
-  displayName: "First build option",
-  type: "bool",
-  options: [],
-  description: "This is first build option.",
-  defaultValue: "false",
-  mutable: true,
-  ephemeral: true,
-  required: false,
-  order: 1,
-}
-
-// TODO list(string)
