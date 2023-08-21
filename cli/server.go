@@ -1845,7 +1845,7 @@ func (f *debugFilterSink) compile(res []string) error {
 func (f *debugFilterSink) LogEntry(ctx context.Context, ent slog.SinkEntry) {
 	if ent.Level == slog.LevelDebug {
 		logName := strings.Join(ent.LoggerNames, ".")
-		if f.re != nil && !f.re.MatchString(logName) {
+		if f.re != nil && !f.re.MatchString(logName) && !f.re.MatchString(ent.Message) {
 			return
 		}
 	}
