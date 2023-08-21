@@ -599,6 +599,13 @@ func (m metricsStore) GetTailnetClientsForAgent(ctx context.Context, agentID uui
 	return m.s.GetTailnetClientsForAgent(ctx, agentID)
 }
 
+func (m metricsStore) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateAppInsights(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetTemplateAppInsights").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
 	start := time.Now()
 	buildTime, err := m.s.GetTemplateAverageBuildTime(ctx, arg)
@@ -781,11 +788,11 @@ func (m metricsStore) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]dat
 	return users, err
 }
 
-func (m metricsStore) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken uuid.UUID) (database.WorkspaceAgent, error) {
+func (m metricsStore) GetWorkspaceAgentAndOwnerByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndOwnerByAuthTokenRow, error) {
 	start := time.Now()
-	agent, err := m.s.GetWorkspaceAgentByAuthToken(ctx, authToken)
-	m.queryLatencies.WithLabelValues("GetWorkspaceAgentByAuthToken").Observe(time.Since(start).Seconds())
-	return agent, err
+	r0, r1 := m.s.GetWorkspaceAgentAndOwnerByAuthToken(ctx, authToken)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentAndOwnerByAuthToken").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {

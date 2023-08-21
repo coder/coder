@@ -1173,6 +1173,25 @@ func (q *querier) GetTailnetClientsForAgent(ctx context.Context, agentID uuid.UU
 	return q.db.GetTailnetClientsForAgent(ctx, agentID)
 }
 
+func (q *querier) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
+	for _, templateID := range arg.TemplateIDs {
+		template, err := q.db.GetTemplateByID(ctx, templateID)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
+			return nil, err
+		}
+	}
+	if len(arg.TemplateIDs) == 0 {
+		if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
+			return nil, err
+		}
+	}
+	return q.db.GetTemplateAppInsights(ctx, arg)
+}
+
 // Only used by metrics cache.
 func (q *querier) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
@@ -1474,13 +1493,12 @@ func (q *querier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]databas
 	return q.db.GetUsersByIDs(ctx, ids)
 }
 
-// GetWorkspaceAgentByAuthToken is used in http middleware to get the workspace agent.
-// This should only be used by a system user in that middleware.
-func (q *querier) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken uuid.UUID) (database.WorkspaceAgent, error) {
+func (q *querier) GetWorkspaceAgentAndOwnerByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndOwnerByAuthTokenRow, error) {
+	// This is a system function
 	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
-		return database.WorkspaceAgent{}, err
+		return database.GetWorkspaceAgentAndOwnerByAuthTokenRow{}, err
 	}
-	return q.db.GetWorkspaceAgentByAuthToken(ctx, authToken)
+	return q.db.GetWorkspaceAgentAndOwnerByAuthToken(ctx, authToken)
 }
 
 func (q *querier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {

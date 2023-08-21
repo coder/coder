@@ -1812,8 +1812,8 @@ export const ServerSentEventTypes: ServerSentEventType[] = [
 ]
 
 // From codersdk/insights.go
-export type TemplateAppsType = "builtin"
-export const TemplateAppsTypes: TemplateAppsType[] = ["builtin"]
+export type TemplateAppsType = "app" | "builtin"
+export const TemplateAppsTypes: TemplateAppsType[] = ["app", "builtin"]
 
 // From codersdk/templates.go
 export type TemplateRole = "" | "admin" | "use"

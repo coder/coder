@@ -188,6 +188,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var usage database.GetTemplateInsightsRow
+	var appUsage []database.GetTemplateAppInsightsRow
 	var dailyUsage []database.GetTemplateDailyInsightsRow
 
 	// Use a transaction to ensure that we get consistent data between
@@ -213,6 +214,15 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			return xerrors.Errorf("get template insights: %w", err)
+		}
+
+		appUsage, err = tx.GetTemplateAppInsights(ctx, database.GetTemplateAppInsightsParams{
+			StartTime:   startTime,
+			EndTime:     endTime,
+			TemplateIDs: templateIDs,
+		})
+		if err != nil {
+			return xerrors.Errorf("get template app insights: %w", err)
 		}
 
 		return nil
@@ -257,9 +267,9 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		Report: codersdk.TemplateInsightsReport{
 			StartTime:       startTime,
 			EndTime:         endTime,
-			TemplateIDs:     usage.TemplateIDs,
-			ActiveUsers:     usage.ActiveUsers,
-			AppsUsage:       convertTemplateInsightsBuiltinApps(usage),
+			TemplateIDs:     convertTemplateInsightsTemplateIDs(usage, appUsage),
+			ActiveUsers:     convertTemplateInsightsActiveUsers(usage, appUsage),
+			AppsUsage:       convertTemplateInsightsApps(usage, appUsage),
 			ParametersUsage: parametersUsage,
 		},
 		IntervalReports: []codersdk.TemplateInsightsIntervalReport{},
@@ -276,10 +286,45 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-// convertTemplateInsightsBuiltinApps builds the list of builtin apps from the
-// database row, these are apps that are implicitly a part of all templates.
-func convertTemplateInsightsBuiltinApps(usage database.GetTemplateInsightsRow) []codersdk.TemplateAppUsage {
-	return []codersdk.TemplateAppUsage{
+func convertTemplateInsightsTemplateIDs(usage database.GetTemplateInsightsRow, appUsage []database.GetTemplateAppInsightsRow) []uuid.UUID {
+	templateIDSet := make(map[uuid.UUID]struct{})
+	for _, id := range usage.TemplateIDs {
+		templateIDSet[id] = struct{}{}
+	}
+	for _, app := range appUsage {
+		for _, id := range app.TemplateIDs {
+			templateIDSet[id] = struct{}{}
+		}
+	}
+	templateIDs := make([]uuid.UUID, 0, len(templateIDSet))
+	for id := range templateIDSet {
+		templateIDs = append(templateIDs, id)
+	}
+	slices.SortFunc(templateIDs, func(a, b uuid.UUID) int {
+		return slice.Ascending(a.String(), b.String())
+	})
+	return templateIDs
+}
+
+func convertTemplateInsightsActiveUsers(usage database.GetTemplateInsightsRow, appUsage []database.GetTemplateAppInsightsRow) int64 {
+	activeUserIDSet := make(map[uuid.UUID]struct{})
+	for _, id := range usage.ActiveUserIDs {
+		activeUserIDSet[id] = struct{}{}
+	}
+	for _, app := range appUsage {
+		for _, id := range app.ActiveUserIDs {
+			activeUserIDSet[id] = struct{}{}
+		}
+	}
+	return int64(len(activeUserIDSet))
+}
+
+// convertTemplateInsightsApps builds the list of builtin apps and template apps
+// from the provided database rows, builtin apps are implicitly a part of all
+// templates.
+func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage []database.GetTemplateAppInsightsRow) []codersdk.TemplateAppUsage {
+	// Builtin apps.
+	apps := []codersdk.TemplateAppUsage{
 		{
 			TemplateIDs: usage.TemplateIDs,
 			Type:        codersdk.TemplateAppsTypeBuiltin,
@@ -296,6 +341,12 @@ func convertTemplateInsightsBuiltinApps(usage database.GetTemplateInsightsRow) [
 			Icon:        "/icon/intellij.svg",
 			Seconds:     usage.UsageJetbrainsSeconds,
 		},
+		// TODO(mafredri): We could take Web Terminal usage from appUsage since
+		// that should be more accurate. The difference is that this reflects
+		// the rpty session as seen by the agent (can live past the connection),
+		// whereas appUsage reflects the lifetime of the client connection. The
+		// condition finding the corresponding app entry in appUsage is:
+		// !app.IsApp && app.AccessMethod == "terminal" && app.SlugOrPort == ""
 		{
 			TemplateIDs: usage.TemplateIDs,
 			Type:        codersdk.TemplateAppsTypeBuiltin,
@@ -313,6 +364,23 @@ func convertTemplateInsightsBuiltinApps(usage database.GetTemplateInsightsRow) [
 			Seconds:     usage.UsageSshSeconds,
 		},
 	}
+
+	// Template apps.
+	for _, app := range appUsage {
+		if !app.IsApp {
+			continue
+		}
+		apps = append(apps, codersdk.TemplateAppUsage{
+			TemplateIDs: app.TemplateIDs,
+			Type:        codersdk.TemplateAppsTypeApp,
+			DisplayName: app.DisplayName.String,
+			Slug:        app.SlugOrPort,
+			Icon:        app.Icon.String,
+			Seconds:     app.UsageSeconds,
+		})
+	}
+
+	return apps
 }
 
 // parseInsightsStartAndEndTime parses the start and end time query parameters
