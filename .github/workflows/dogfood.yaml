@@ -37,11 +37,8 @@ jobs:
           tag=${tag//\//--}
           echo "tag=${tag}" >> $GITHUB_OUTPUT
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v4
-
-      - name: Run the Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@v2
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
 
       - run: nix build .#devEnvImage && ./result | docker load
 
