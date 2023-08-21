@@ -260,7 +260,9 @@ locals {
   registry_name  = "codercom/oss-dogfood"
 }
 data "docker_registry_image" "dogfood" {
-  name = "${local.registry_name}:main"
+  // This is temporarily pinned to a pre-nix version of the image at commit
+  // 6cdf1c73c until the Nix kinks are worked out.
+  name = "${local.registry_name}:pre-nix"
 }
 
 resource "docker_image" "dogfood" {
