@@ -6382,54 +6382,113 @@ func (q *sqlQuerier) DeleteOldWorkspaceAgentLogs(ctx context.Context) error {
 	return err
 }
 
-const getWorkspaceAgentByAuthToken = `-- name: GetWorkspaceAgentByAuthToken :one
+const getWorkspaceAgentAndOwnerByAuthToken = `-- name: GetWorkspaceAgentAndOwnerByAuthToken :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, logs_length, logs_overflowed, startup_script_behavior, started_at, ready_at, subsystems
-FROM
-	workspace_agents
+	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.startup_script, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.startup_script_timeout_seconds, workspace_agents.expanded_directory, workspace_agents.shutdown_script, workspace_agents.shutdown_script_timeout_seconds, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.startup_script_behavior, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems,
+	workspaces.id AS workspace_id,
+	users.id AS owner_id,
+	users.username AS owner_name,
+	users.status AS owner_status,
+	array_cat(
+		array_append(users.rbac_roles, 'member'),
+		array_append(ARRAY[]::text[], 'organization-member:' || organization_members.organization_id::text)
+	)::text[] as owner_roles,
+	array_agg(COALESCE(group_members.group_id::text, ''))::text[] AS owner_groups
+FROM users
+	INNER JOIN
+		workspaces
+	ON
+		workspaces.owner_id = users.id
+	INNER JOIN
+		workspace_builds
+	ON
+		workspace_builds.workspace_id = workspaces.id
+	INNER JOIN
+		workspace_resources
+	ON
+		workspace_resources.job_id = workspace_builds.job_id
+	INNER JOIN
+		workspace_agents
+	ON
+		workspace_agents.resource_id = workspace_resources.id
+	INNER JOIN -- every user is a member of some org
+		organization_members
+	ON
+		organization_members.user_id = users.id
+	LEFT JOIN -- as they may not be a member of any groups
+		group_members
+	ON
+		group_members.user_id = users.id
 WHERE
-	auth_token = $1
+	-- TODO: we can add more conditions here, such as:
+	-- 1) The user must be active
+	-- 2) The user must not be deleted
+	-- 3) The workspace must be running
+	workspace_agents.auth_token = $1
+GROUP BY
+	workspace_agents.id,
+	workspaces.id,
+	users.id,
+	organization_members.organization_id,
+	workspace_builds.build_number
 ORDER BY
-	created_at DESC
+	workspace_builds.build_number DESC
+LIMIT 1
 `
 
-func (q *sqlQuerier) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken uuid.UUID) (WorkspaceAgent, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceAgentByAuthToken, authToken)
-	var i WorkspaceAgent
+type GetWorkspaceAgentAndOwnerByAuthTokenRow struct {
+	WorkspaceAgent WorkspaceAgent `db:"workspace_agent" json:"workspace_agent"`
+	WorkspaceID    uuid.UUID      `db:"workspace_id" json:"workspace_id"`
+	OwnerID        uuid.UUID      `db:"owner_id" json:"owner_id"`
+	OwnerName      string         `db:"owner_name" json:"owner_name"`
+	OwnerStatus    UserStatus     `db:"owner_status" json:"owner_status"`
+	OwnerRoles     []string       `db:"owner_roles" json:"owner_roles"`
+	OwnerGroups    []string       `db:"owner_groups" json:"owner_groups"`
+}
+
+func (q *sqlQuerier) GetWorkspaceAgentAndOwnerByAuthToken(ctx context.Context, authToken uuid.UUID) (GetWorkspaceAgentAndOwnerByAuthTokenRow, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceAgentAndOwnerByAuthToken, authToken)
+	var i GetWorkspaceAgentAndOwnerByAuthTokenRow
 	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Name,
-		&i.FirstConnectedAt,
-		&i.LastConnectedAt,
-		&i.DisconnectedAt,
-		&i.ResourceID,
-		&i.AuthToken,
-		&i.AuthInstanceID,
-		&i.Architecture,
-		&i.EnvironmentVariables,
-		&i.OperatingSystem,
-		&i.StartupScript,
-		&i.InstanceMetadata,
-		&i.ResourceMetadata,
-		&i.Directory,
-		&i.Version,
-		&i.LastConnectedReplicaID,
-		&i.ConnectionTimeoutSeconds,
-		&i.TroubleshootingURL,
-		&i.MOTDFile,
-		&i.LifecycleState,
-		&i.StartupScriptTimeoutSeconds,
-		&i.ExpandedDirectory,
-		&i.ShutdownScript,
-		&i.ShutdownScriptTimeoutSeconds,
-		&i.LogsLength,
-		&i.LogsOverflowed,
-		&i.StartupScriptBehavior,
-		&i.StartedAt,
-		&i.ReadyAt,
-		pq.Array(&i.Subsystems),
+		&i.WorkspaceAgent.ID,
+		&i.WorkspaceAgent.CreatedAt,
+		&i.WorkspaceAgent.UpdatedAt,
+		&i.WorkspaceAgent.Name,
+		&i.WorkspaceAgent.FirstConnectedAt,
+		&i.WorkspaceAgent.LastConnectedAt,
+		&i.WorkspaceAgent.DisconnectedAt,
+		&i.WorkspaceAgent.ResourceID,
+		&i.WorkspaceAgent.AuthToken,
+		&i.WorkspaceAgent.AuthInstanceID,
+		&i.WorkspaceAgent.Architecture,
+		&i.WorkspaceAgent.EnvironmentVariables,
+		&i.WorkspaceAgent.OperatingSystem,
+		&i.WorkspaceAgent.StartupScript,
+		&i.WorkspaceAgent.InstanceMetadata,
+		&i.WorkspaceAgent.ResourceMetadata,
+		&i.WorkspaceAgent.Directory,
+		&i.WorkspaceAgent.Version,
+		&i.WorkspaceAgent.LastConnectedReplicaID,
+		&i.WorkspaceAgent.ConnectionTimeoutSeconds,
+		&i.WorkspaceAgent.TroubleshootingURL,
+		&i.WorkspaceAgent.MOTDFile,
+		&i.WorkspaceAgent.LifecycleState,
+		&i.WorkspaceAgent.StartupScriptTimeoutSeconds,
+		&i.WorkspaceAgent.ExpandedDirectory,
+		&i.WorkspaceAgent.ShutdownScript,
+		&i.WorkspaceAgent.ShutdownScriptTimeoutSeconds,
+		&i.WorkspaceAgent.LogsLength,
+		&i.WorkspaceAgent.LogsOverflowed,
+		&i.WorkspaceAgent.StartupScriptBehavior,
+		&i.WorkspaceAgent.StartedAt,
+		&i.WorkspaceAgent.ReadyAt,
+		pq.Array(&i.WorkspaceAgent.Subsystems),
+		&i.WorkspaceID,
+		&i.OwnerID,
+		&i.OwnerName,
+		&i.OwnerStatus,
+		pq.Array(&i.OwnerRoles),
+		pq.Array(&i.OwnerGroups),
 	)
 	return i, err
 }

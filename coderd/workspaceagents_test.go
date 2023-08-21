@@ -406,7 +406,9 @@ func TestWorkspaceAgentListen(t *testing.T) {
 
 		_, err = agentClient.Listen(ctx)
 		require.Error(t, err)
-		require.ErrorContains(t, err, "build is outdated")
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
 	})
 }
 
