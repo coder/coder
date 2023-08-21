@@ -13,14 +13,19 @@ source "${SCRIPT_DIR}/lib.sh"
 [[ -n ${VERBOSE:-} ]] && set -x
 set -euo pipefail
 
+CODER_DEV_ACCESS_URL="${CODER_DEV_ACCESS_URL:-http://127.0.0.1:3000}"
 DEFAULT_PASSWORD="SomeSecurePassword!"
 password="${CODER_DEV_ADMIN_PASSWORD:-${DEFAULT_PASSWORD}}"
 use_proxy=0
 
-args="$(getopt -o "" -l use-proxy,agpl,password: -- "$@")"
+args="$(getopt -o "" -l access-url:,use-proxy,agpl,password: -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
+	--access-url)
+		CODER_DEV_ACCESS_URL="$2"
+		shift 2
+		;;
 	--agpl)
 		export CODER_BUILD_AGPL=1
 		shift
@@ -131,7 +136,7 @@ fatal() {
 	trap 'fatal "Script encountered an error"' ERR
 
 	cdroot
-	start_cmd API "" "${CODER_DEV_SHIM}" server --http-address 0.0.0.0:3000 --swagger-enable --access-url "http://127.0.0.1:3000" --dangerous-allow-cors-requests=true "$@"
+	start_cmd API "" "${CODER_DEV_SHIM}" server --http-address 0.0.0.0:3000 --swagger-enable --access-url "${CODER_DEV_ACCESS_URL}" --dangerous-allow-cors-requests=true "$@"
 
 	echo '== Waiting for Coder to become ready'
 	# Start the timeout in the background so interrupting this script
