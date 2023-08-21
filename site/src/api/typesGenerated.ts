@@ -1785,22 +1785,26 @@ export type ResourceType =
   | "git_ssh_key"
   | "group"
   | "license"
+  | "organization"
   | "template"
   | "template_version"
   | "user"
   | "workspace"
   | "workspace_build"
+  | "workspace_proxy"
 export const ResourceTypes: ResourceType[] = [
   "api_key",
   "convert_login",
   "git_ssh_key",
   "group",
   "license",
+  "organization",
   "template",
   "template_version",
   "user",
   "workspace",
   "workspace_build",
+  "workspace_proxy",
 ]
 
 // From codersdk/serversentevents.go
