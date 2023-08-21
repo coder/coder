@@ -11,16 +11,16 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-	agpl "github.com/coder/coder/cli"
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/provisioner/terraform"
-	"github.com/coder/coder/provisionerd"
-	provisionerdproto "github.com/coder/coder/provisionerd/proto"
-	"github.com/coder/coder/provisionersdk"
-	"github.com/coder/coder/provisionersdk/proto"
+	agpl "github.com/coder/coder/v2/cli"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisioner/terraform"
+	"github.com/coder/coder/v2/provisionerd"
+	provisionerdproto "github.com/coder/coder/v2/provisionerd/proto"
+	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 func (r *RootCmd) provisionerDaemons() *clibase.Cmd {

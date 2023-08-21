@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/util/tz"
+	"github.com/coder/coder/v2/coderd/util/tz"
 )
 
 //nolint:paralleltest // Environment variables

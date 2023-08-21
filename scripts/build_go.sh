@@ -96,7 +96,7 @@ fi
 ldflags=(
 	-s
 	-w
-	-X "'github.com/coder/coder/buildinfo.tag=$version'"
+	-X "'github.com/coder/coder/v2/buildinfo.tag=$version'"
 )
 
 if [[ "$slim" == 0 ]]; then
@@ -107,7 +107,7 @@ fi
 if [[ "$agpl" == 1 ]]; then
 	# We don't use a tag to control AGPL because we don't want code to depend on
 	# a flag to control AGPL vs. enterprise behavior.
-	ldflags+=(-X "'github.com/coder/coder/buildinfo.agpl=true'")
+	ldflags+=(-X "'github.com/coder/coder/v2/buildinfo.agpl=true'")
 fi
 build_args+=(-ldflags "${ldflags[*]}")
 

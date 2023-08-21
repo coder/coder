@@ -11,9 +11,9 @@ import (
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/migrations"
-	"github.com/coder/coder/coderd/database/postgres"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/migrations"
+	"github.com/coder/coder/v2/coderd/database/postgres"
 )
 
 func TestSerializedRetry(t *testing.T) {

@@ -8,7 +8,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	tailnet "github.com/coder/coder/tailnet"
+	tailnet "github.com/coder/coder/v2/tailnet"
 	gomock "github.com/golang/mock/gomock"
 	uuid "github.com/google/uuid"
 )

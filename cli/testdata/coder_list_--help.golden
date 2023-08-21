@@ -11,7 +11,7 @@ Aliases: ls
   -c, --column string-array (default: workspace,template,status,healthy,last built,outdated,starts at,stops after)
           Columns to display in table output. Available columns: workspace,
           template, status, healthy, last built, outdated, starts at, stops
-          after.
+          after, daily cost.
 
   -o, --output string (default: table)
           Output format. Available formats: table, json.
