@@ -2794,27 +2794,29 @@ func (q *FakeQuerier) GetUsersByIDs(_ context.Context, ids []uuid.UUID) ([]datab
 func (q *FakeQuerier) GetWorkspaceAgentAndOwnerByAuthToken(_ context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndOwnerByAuthTokenRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
-	var rows []database.GetWorkspaceAgentAndOwnerByAuthTokenRow
-AgentLoop:
+
+	// map of build number -> row
+	rows := make(map[int32]database.GetWorkspaceAgentAndOwnerByAuthTokenRow)
+
+	// We want to return the latest build number
+	var latestBuildNumber int32
+
 	for _, agt := range q.workspaceAgents {
 		if agt.AuthToken != authToken {
-			continue AgentLoop
+			continue
 		}
 		// get the related workspace and user
-	ResourceLoop:
 		for _, res := range q.workspaceResources {
 			if agt.ResourceID != res.ID {
-				continue ResourceLoop
+				continue
 			}
-		BuildLoop:
 			for _, build := range q.workspaceBuilds {
 				if build.JobID != res.JobID {
-					continue BuildLoop
+					continue
 				}
-			WorkspaceLoop:
 				for _, ws := range q.workspaces {
 					if build.WorkspaceID != ws.ID {
-						continue WorkspaceLoop
+						continue
 					}
 					var row database.GetWorkspaceAgentAndOwnerByAuthTokenRow
 					row.WorkspaceID = ws.ID
@@ -2838,22 +2840,23 @@ AgentLoop:
 							row.OwnerGroups = append(row.OwnerGroups, groupMem.GroupID.String())
 						}
 					}
-					rows = append(rows, row)
+
+					// Keep track of the latest build number
+					rows[build.BuildNumber] = row
+					if build.BuildNumber > latestBuildNumber {
+						latestBuildNumber = build.BuildNumber
+					}
 				}
 			}
 		}
 	}
 
-	// Sort rows by build ID descending
-	sort.Slice(rows, func(i, j int) bool {
-		return rows[i].WorkspaceAgent.CreatedAt.After(rows[j].WorkspaceAgent.CreatedAt)
-	})
-
-	var err error
 	if len(rows) == 0 {
 		return database.GetWorkspaceAgentAndOwnerByAuthTokenRow{}, sql.ErrNoRows
 	}
-	return rows[0], err
+
+	// Return the row related to the latest build
+	return rows[latestBuildNumber], nil
 }
 
 func (q *FakeQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
