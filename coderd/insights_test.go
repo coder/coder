@@ -17,7 +17,9 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -257,6 +259,11 @@ func TestTemplateInsights(t *testing.T) {
 		thirdParameterOptionValue2 = "bbb"
 		thirdParameterOptionName3  = "This is CCC"
 		thirdParameterOptionValue3 = "ccc"
+
+		testAppSlug = "test-app"
+		testAppName = "Test App"
+		testAppIcon = "/icon.png"
+		testAppURL  = "http://127.1.0.1:65536" // Not used.
 	)
 
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
@@ -264,9 +271,10 @@ func TestTemplateInsights(t *testing.T) {
 		IncludeProvisionerDaemon:  true,
 		AgentStatsRefreshInterval: time.Millisecond * 100,
 	}
-	client := coderdtest.New(t, opts)
+	client, _, coderdAPI := coderdtest.NewWithAPI(t, opts)
 
 	user := coderdtest.CreateFirstUser(t, client)
+	_, otherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
@@ -287,7 +295,32 @@ func TestTemplateInsights(t *testing.T) {
 				},
 			},
 		},
-		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+		ProvisionApply: []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "example",
+						Type: "aws_instance",
+						Agents: []*proto.Agent{{
+							Id:   uuid.NewString(),
+							Name: "dev",
+							Auth: &proto.Agent_Token{
+								Token: authToken,
+							},
+							Apps: []*proto.App{
+								{
+									Slug:         testAppSlug,
+									DisplayName:  testAppName,
+									Icon:         testAppIcon,
+									SharingLevel: proto.AppSharingLevel_OWNER,
+									Url:          testAppURL,
+								},
+							},
+						}},
+					}},
+				},
+			},
+		}},
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	require.Empty(t, template.BuildTimeStats[codersdk.WorkspaceTransitionStart])
@@ -320,9 +353,84 @@ func TestTemplateInsights(t *testing.T) {
 	// the day changes so that we get the relevant stats faster.
 	y, m, d := time.Now().UTC().Date()
 	today := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+	requestStartTime := today
+	requestEndTime := time.Now().UTC().Truncate(time.Hour).Add(time.Hour)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
+
+	// TODO(mafredri): We should prefer to set up an app and generate
+	// data by accessing it.
+	// Insert entries within and outside timeframe.
+	reporter := workspaceapps.NewStatsDBReporter(coderdAPI.Database, workspaceapps.DefaultStatsDBReporterBatchSize)
+	//nolint:gocritic // This is a test.
+	err := reporter.Report(dbauthz.AsSystemRestricted(ctx), []workspaceapps.StatsReport{
+		{
+			UserID:       user.UserID,
+			WorkspaceID:  workspace.ID,
+			AgentID:      resources[0].Agents[0].ID,
+			AccessMethod: workspaceapps.AccessMethodPath,
+			SlugOrPort:   testAppSlug,
+			SessionID:    uuid.New(),
+			// Outside report range.
+			SessionStartedAt: requestStartTime.Add(-1 * time.Minute),
+			SessionEndedAt:   requestStartTime,
+			Requests:         1,
+		},
+		{
+			UserID:       user.UserID,
+			WorkspaceID:  workspace.ID,
+			AgentID:      resources[0].Agents[0].ID,
+			AccessMethod: workspaceapps.AccessMethodPath,
+			SlugOrPort:   testAppSlug,
+			SessionID:    uuid.New(),
+			// One minute of usage (rounded up to 5 due to query intervals).
+			// TODO(mafredri): We'll fix this in a future refactor so that it's
+			// 1 minute increments instead of 5.
+			SessionStartedAt: requestStartTime,
+			SessionEndedAt:   requestStartTime.Add(1 * time.Minute),
+			Requests:         1,
+		},
+		{
+			// Other use is using users workspace, this will result in an
+			// additional active user and more time spent in app.
+			UserID:       otherUser.ID,
+			WorkspaceID:  workspace.ID,
+			AgentID:      resources[0].Agents[0].ID,
+			AccessMethod: workspaceapps.AccessMethodPath,
+			SlugOrPort:   testAppSlug,
+			SessionID:    uuid.New(),
+			// One minute of usage (rounded up to 5 due to query intervals).
+			SessionStartedAt: requestStartTime,
+			SessionEndedAt:   requestStartTime.Add(1 * time.Minute),
+			Requests:         1,
+		},
+		{
+			UserID:       user.UserID,
+			WorkspaceID:  workspace.ID,
+			AgentID:      resources[0].Agents[0].ID,
+			AccessMethod: workspaceapps.AccessMethodPath,
+			SlugOrPort:   testAppSlug,
+			SessionID:    uuid.New(),
+			// Five additional minutes of usage.
+			SessionStartedAt: requestStartTime.Add(10 * time.Minute),
+			SessionEndedAt:   requestStartTime.Add(15 * time.Minute),
+			Requests:         1,
+		},
+		{
+			UserID:       user.UserID,
+			WorkspaceID:  workspace.ID,
+			AgentID:      resources[0].Agents[0].ID,
+			AccessMethod: workspaceapps.AccessMethodPath,
+			SlugOrPort:   testAppSlug,
+			SessionID:    uuid.New(),
+			// Outside report range.
+			SessionStartedAt: requestEndTime,
+			SessionEndedAt:   requestEndTime.Add(1 * time.Minute),
+			Requests:         1,
+		},
+	})
+	require.NoError(t, err, "want no error inserting stats")
 
 	// Connect to the agent to generate usage/latency stats.
 	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
@@ -362,8 +470,8 @@ func TestTemplateInsights(t *testing.T) {
 	waitForAppSeconds := func(slug string) func() bool {
 		return func() bool {
 			req = codersdk.TemplateInsightsRequest{
-				StartTime: today,
-				EndTime:   time.Now().UTC().Truncate(time.Hour).Add(time.Hour),
+				StartTime: requestStartTime,
+				EndTime:   requestEndTime,
 				Interval:  codersdk.InsightsReportIntervalDay,
 			}
 			resp, err = client.TemplateInsights(ctx, req)
@@ -389,19 +497,38 @@ func TestTemplateInsights(t *testing.T) {
 
 	assert.WithinDuration(t, req.StartTime, resp.Report.StartTime, 0)
 	assert.WithinDuration(t, req.EndTime, resp.Report.EndTime, 0)
-	assert.Equal(t, resp.Report.ActiveUsers, int64(1), "want one active user")
+	assert.Equal(t, int64(2), resp.Report.ActiveUsers, "want two active users")
+	var gotApps []codersdk.TemplateAppUsage
+	// Check builtin apps usage.
 	for _, app := range resp.Report.AppsUsage {
+		if app.Type != codersdk.TemplateAppsTypeBuiltin {
+			gotApps = append(gotApps, app)
+			continue
+		}
 		if slices.Contains([]string{"reconnecting-pty", "ssh"}, app.Slug) {
 			assert.Equal(t, app.Seconds, int64(300), "want app %q to have 5 minutes of usage", app.Slug)
 		} else {
 			assert.Equal(t, app.Seconds, int64(0), "want app %q to have 0 minutes of usage", app.Slug)
 		}
 	}
+	// Check app usage.
+	assert.Len(t, gotApps, 1, "want one app")
+	assert.Equal(t, []codersdk.TemplateAppUsage{
+		{
+			TemplateIDs: []uuid.UUID{template.ID},
+			Type:        codersdk.TemplateAppsTypeApp,
+			Slug:        testAppSlug,
+			DisplayName: testAppName,
+			Icon:        testAppIcon,
+			Seconds:     300 + 300 + 300, // Three times 5 minutes of usage (actually 1 + 1 + 5, but see TODO above).
+		},
+	}, gotApps, "want app usage to match")
+
 	// The full timeframe is <= 24h, so the interval matches exactly.
 	require.Len(t, resp.IntervalReports, 1, "want one interval report")
 	assert.WithinDuration(t, req.StartTime, resp.IntervalReports[0].StartTime, 0)
 	assert.WithinDuration(t, req.EndTime, resp.IntervalReports[0].EndTime, 0)
-	assert.Equal(t, resp.IntervalReports[0].ActiveUsers, int64(1), "want one active user in the interval report")
+	assert.Equal(t, int64(2), resp.IntervalReports[0].ActiveUsers, "want two active users in the interval report")
 
 	// The workspace uses 3 parameters
 	require.Len(t, resp.Report.ParametersUsage, 3)

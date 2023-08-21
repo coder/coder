@@ -9589,10 +9589,12 @@ const docTemplate = `{
         "codersdk.TemplateAppsType": {
             "type": "string",
             "enum": [
-                "builtin"
+                "builtin",
+                "app"
             ],
             "x-enum-varnames": [
-                "TemplateAppsTypeBuiltin"
+                "TemplateAppsTypeBuiltin",
+                "TemplateAppsTypeApp"
             ]
         },
         "codersdk.TemplateBuildTimeStats": {

@@ -107,6 +107,10 @@ type sqlcQuerier interface {
 	GetServiceBanner(ctx context.Context) (string, error)
 	GetTailnetAgents(ctx context.Context, id uuid.UUID) ([]TailnetAgent, error)
 	GetTailnetClientsForAgent(ctx context.Context, agentID uuid.UUID) ([]TailnetClient, error)
+	// GetTemplateAppInsights returns the aggregate usage of each app in a given
+	// timeframe. The result can be filtered on template_ids, meaning only user data
+	// from workspaces based on those templates will be included.
+	GetTemplateAppInsights(ctx context.Context, arg GetTemplateAppInsightsParams) ([]GetTemplateAppInsightsRow, error)
 	GetTemplateAverageBuildTime(ctx context.Context, arg GetTemplateAverageBuildTimeParams) (GetTemplateAverageBuildTimeRow, error)
 	GetTemplateByID(ctx context.Context, id uuid.UUID) (Template, error)
 	GetTemplateByOrganizationAndName(ctx context.Context, arg GetTemplateByOrganizationAndNameParams) (Template, error)
@@ -117,7 +121,8 @@ type sqlcQuerier interface {
 	// interval/template, it will be included in the results with 0 active users.
 	GetTemplateDailyInsights(ctx context.Context, arg GetTemplateDailyInsightsParams) ([]GetTemplateDailyInsightsRow, error)
 	// GetTemplateInsights has a granularity of 5 minutes where if a session/app was
-	// in use, we will add 5 minutes to the total usage for that session (per user).
+	// in use during a minute, we will add 5 minutes to the total usage for that
+	// session/app (per user).
 	GetTemplateInsights(ctx context.Context, arg GetTemplateInsightsParams) (GetTemplateInsightsRow, error)
 	// GetTemplateParameterInsights does for each template in a given timeframe,
 	// look for the latest workspace build (for every workspace) that has been
