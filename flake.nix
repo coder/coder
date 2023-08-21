@@ -17,15 +17,13 @@
         # to update the lock file if packages are out-of-date.
 
         # From https://nixos.wiki/wiki/Google_Cloud_SDK
-        gdk = pkgs.google-cloud-sdk.withExtraComponents ([pkgs.google-cloud-sdk.components.gke-gcloud-auth-plugin]);
+        gdk = pkgs.google-cloud-sdk.withExtraComponents ([ pkgs.google-cloud-sdk.components.gke-gcloud-auth-plugin ]);
 
         devShellPackages = with pkgs; [
           bat
           cairo
           curl
           drpc.defaultPackage.${system}
-          emacsPackages.jest
-          exa
           gcc
           gdk
           getopt
@@ -41,6 +39,7 @@
           gotools
           jq
           kubectl
+          kubectx
           kubernetes-helm
           less
           # Needed for many LD system libs!
