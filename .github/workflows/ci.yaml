@@ -97,6 +97,8 @@ jobs:
             ci:
               - ".github/actions/**"
               - ".github/workflows/ci.yaml"
+              - "flake.nix"
+              - "flake.lock"
             offlinedocs:
               - "offlinedocs/**"
 
