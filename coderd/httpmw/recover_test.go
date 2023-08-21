@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/tracing"
 )
 
 func TestRecover(t *testing.T) {

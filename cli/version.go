@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
 )
 
 // versionInfo wraps the stuff we get from buildinfo so that it's

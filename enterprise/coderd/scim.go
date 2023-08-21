@@ -14,11 +14,11 @@ import (
 	"github.com/imulab/go-scim/pkg/v2/spec"
 	"golang.org/x/xerrors"
 
-	agpl "github.com/coder/coder/coderd"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/codersdk"
+	agpl "github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func (api *API) scimEnabledMW(next http.Handler) http.Handler {

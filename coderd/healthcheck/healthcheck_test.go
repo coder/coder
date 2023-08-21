@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/coder/coder/coderd/healthcheck"
+	"github.com/coder/coder/v2/coderd/healthcheck"
 )
 
 type testChecker struct {

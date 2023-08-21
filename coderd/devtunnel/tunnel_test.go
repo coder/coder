@@ -22,8 +22,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/coderd/devtunnel"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd/devtunnel"
+	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/wgtunnel/tunneld"
 	"github.com/coder/wgtunnel/tunnelsdk"
 )

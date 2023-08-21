@@ -8663,8 +8663,8 @@
     },
     "codersdk.TemplateAppsType": {
       "type": "string",
-      "enum": ["builtin"],
-      "x-enum-varnames": ["TemplateAppsTypeBuiltin"]
+      "enum": ["builtin", "app"],
+      "x-enum-varnames": ["TemplateAppsTypeBuiltin", "TemplateAppsTypeApp"]
     },
     "codersdk.TemplateBuildTimeStats": {
       "type": "object",

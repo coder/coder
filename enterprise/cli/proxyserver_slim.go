@@ -7,8 +7,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
 )
 
 func (r *RootCmd) proxyServer() *clibase.Cmd {

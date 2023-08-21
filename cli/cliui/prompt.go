@@ -13,7 +13,7 @@ import (
 	"github.com/mattn/go-isatty"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/v2/cli/clibase"
 )
 
 // PromptOptions supply a set of options to the prompt.

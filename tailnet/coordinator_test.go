@@ -18,8 +18,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/tailnet"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestCoordinator(t *testing.T) {

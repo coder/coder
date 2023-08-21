@@ -12,7 +12,7 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/buildinfo"
+	"github.com/coder/coder/v2/buildinfo"
 )
 
 var (

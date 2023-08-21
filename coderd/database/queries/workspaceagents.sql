@@ -1,13 +1,3 @@
--- name: GetWorkspaceAgentByAuthToken :one
-SELECT
-	*
-FROM
-	workspace_agents
-WHERE
-	auth_token = $1
-ORDER BY
-	created_at DESC;
-
 -- name: GetWorkspaceAgentByID :one
 SELECT
 	*
@@ -200,3 +190,56 @@ WHERE
     	WHERE
 			wb.workspace_id = @workspace_id :: uuid
 	);
+
+-- name: GetWorkspaceAgentAndOwnerByAuthToken :one
+SELECT
+	sqlc.embed(workspace_agents),
+	workspaces.id AS workspace_id,
+	users.id AS owner_id,
+	users.username AS owner_name,
+	users.status AS owner_status,
+	array_cat(
+		array_append(users.rbac_roles, 'member'),
+		array_append(ARRAY[]::text[], 'organization-member:' || organization_members.organization_id::text)
+	)::text[] as owner_roles,
+	array_agg(COALESCE(group_members.group_id::text, ''))::text[] AS owner_groups
+FROM users
+	INNER JOIN
+		workspaces
+	ON
+		workspaces.owner_id = users.id
+	INNER JOIN
+		workspace_builds
+	ON
+		workspace_builds.workspace_id = workspaces.id
+	INNER JOIN
+		workspace_resources
+	ON
+		workspace_resources.job_id = workspace_builds.job_id
+	INNER JOIN
+		workspace_agents
+	ON
+		workspace_agents.resource_id = workspace_resources.id
+	INNER JOIN -- every user is a member of some org
+		organization_members
+	ON
+		organization_members.user_id = users.id
+	LEFT JOIN -- as they may not be a member of any groups
+		group_members
+	ON
+		group_members.user_id = users.id
+WHERE
+	-- TODO: we can add more conditions here, such as:
+	-- 1) The user must be active
+	-- 2) The user must not be deleted
+	-- 3) The workspace must be running
+	workspace_agents.auth_token = @auth_token
+GROUP BY
+	workspace_agents.id,
+	workspaces.id,
+	users.id,
+	organization_members.organization_id,
+	workspace_builds.build_number
+ORDER BY
+	workspace_builds.build_number DESC
+LIMIT 1;

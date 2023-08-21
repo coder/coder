@@ -18,7 +18,7 @@ import (
 	"tailscale.com/types/nettype"
 
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/tailnet"
+	"github.com/coder/coder/v2/tailnet"
 )
 
 //go:generate mockgen -destination ./multiagentmock.go -package tailnettest github.com/coder/coder/tailnet MultiAgentConn

@@ -16,10 +16,10 @@ import (
 	"github.com/go-playground/validator/v10"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 var Validate *validator.Validate

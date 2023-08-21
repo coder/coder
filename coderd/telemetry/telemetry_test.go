@@ -16,12 +16,12 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbfake"
-	"github.com/coder/coder/coderd/database/dbgen"
-	"github.com/coder/coder/coderd/telemetry"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestMain(m *testing.M) {

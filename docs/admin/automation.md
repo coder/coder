@@ -4,7 +4,7 @@ All actions possible through the Coder dashboard can also be automated as it uti
 
 - [CLI](../cli.md)
 - [REST API](../api/)
-- [Coder SDK](https://pkg.go.dev/github.com/coder/coder/codersdk)
+- [Coder SDK](https://pkg.go.dev/github.com/coder/coder/v2/codersdk)
 
 ## Quickstart
 

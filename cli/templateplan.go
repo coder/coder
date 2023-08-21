@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/v2/cli/clibase"
 )
 
 func (*RootCmd) templatePlan() *clibase.Cmd {
