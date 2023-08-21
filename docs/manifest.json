@@ -267,8 +267,25 @@
         {
           "title": "Authentication",
           "description": "Learn how to set up authentication using GitHub or OpenID Connect",
-          "path": "./admin/auth.md",
-          "icon_path": "./images/icons/key.svg"
+          "path": "./admin/auth/index.md",
+          "icon_path": "./images/icons/key.svg",
+          "children": [
+            {
+              "title": "GitHub",
+              "description": "Configure GitHub authentication with Coder",
+              "path": "./admin/auth/github.md"
+            },
+            {
+              "title": "OIDC",
+              "description": "Configure OIDC authentication with Coder",
+              "path": "./admin/auth/oidc.md"
+            },
+            {
+              "title": "Passwordless",
+              "description": "Create passwordless accounts in Coder for automation",
+              "path": "./admin/auth/passwordless.md"
+            }
+          ]
         },
         {
           "title": "Users",

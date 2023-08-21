@@ -1,6 +1,16 @@
 Coder server's primary configuration is done via environment variables. For a full list of the options, run `coder server --help` or see our [CLI documentation](../cli/server.md).
 
-## Access URL
+## Where to configure Coder
+
+- If you deployed Coder via a system service, configure Coder via environment variables in `/etc/coder.d/coder.env`. After modifying the configuration, restart Coder with `sudo systemctl restart coder`.
+- If you deployed Coder via Kubernetes, configure Coder via environment variables in your [Helm values file](https://github.com/coder/coder/tree/main/helm/coder) and apply your changes with [Helm upgrade](../install/kubernetes.md#upgrading-coder-via-helm).
+- If you deployed Coder with the `coder server` command, you can use configuration flags or environment variables with the server. (e.g. `coder server --access-url=https://coder.com/`)
+
+## Common configuration options
+
+For a full list of the options, run `coder server --help` or see our [CLI documentation](../cli/server.md).
+
+### Access URL
 
 `CODER_ACCESS_URL` is required if you are not using the tunnel. Set this to the external URL
 that users and workspaces use to connect to Coder (e.g. <https://coder.example.com>). This
@@ -8,12 +18,12 @@ should not be localhost.
 
 > Access URL should be a external IP address or domain with DNS records pointing to Coder.
 
-### Tunnel
+#### Tunnel
 
 If an access URL is not specified, Coder will create
 a publicly accessible URL to reverse proxy your deployment for simple setup.
 
-## Address
+### Address
 
 You can change which port(s) Coder listens on.
 
@@ -32,7 +42,7 @@ export CODER_TLS_REDIRECT_HTTP=true
 coder server
 ```
 
-## Wildcard access URL
+### Wildcard access URL
 
 `CODER_WILDCARD_ACCESS_URL` is necessary for [port forwarding](../networking/port-forwarding.md#dashboard)
 via the dashboard or running [coder_apps](../templates/index.md#coder-apps) on an absolute path. Set this to a wildcard
@@ -47,7 +57,7 @@ If you are providing TLS certificates directly to the Coder server, either
    line options (these both take a comma separated list of files; list certificates and their respective keys in the
    same order).
 
-## TLS & Reverse Proxy
+### TLS & Reverse Proxy
 
 The Coder server can directly use TLS certificates with `CODER_TLS_ENABLE` and accompanying configuration flags. However, Coder can also run behind a reverse-proxy to terminate TLS certificates from LetsEncrypt, for example.
 
@@ -55,7 +65,7 @@ The Coder server can directly use TLS certificates with `CODER_TLS_ENABLE` and a
 - [Caddy](https://github.com/coder/coder/tree/main/examples/web-server/caddy)
 - [NGINX](https://github.com/coder/coder/tree/main/examples/web-server/nginx)
 
-### Kubernetes TLS configuration
+#### Kubernetes TLS configuration
 
 Below are the steps to configure Coder to terminate TLS when running on Kubernetes.
 You must have the certificate `.key` and `.crt` files in your working directory prior to step 1.
@@ -111,53 +121,6 @@ To migrate from the built-in database to an external database, follow these step
 4. Run `pg_dump <built-in-connection-string> > coder.sql` to dump the internal database to a file.
 5. Restore that content to an external database with `psql <external-connection-string> < coder.sql`.
 6. Start your Coder deployment with `CODER_PG_CONNECTION_URL=<external-connection-string>`.
-
-## System packages
-
-If you've installed Coder via a [system package](../install/packages.md) Coder, you can
-configure the server by setting the following variables in `/etc/coder.d/coder.env`:
-
-```console
-# String. Specifies the external URL (HTTP/S) to access Coder.
-CODER_ACCESS_URL=https://coder.example.com
-
-# String. Address to serve the API and dashboard.
-CODER_HTTP_ADDRESS=127.0.0.1:3000
-
-# String. The URL of a PostgreSQL database to connect to. If empty, PostgreSQL binaries
-# will be downloaded from Maven (https://repo1.maven.org/maven2) and store all
-# data in the config root. Access the built-in database with "coder server postgres-builtin-url".
-CODER_PG_CONNECTION_URL=
-
-# Boolean. Specifies if TLS will be enabled.
-CODER_TLS_ENABLE=
-
-# String. Specifies the path to the certificate for TLS. It requires a PEM-encoded file.
-# To configure the listener to use a CA certificate, concatenate the primary
-# certificate and the CA certificate together. The primary certificate should
-# appear first in the combined file.
-CODER_TLS_CERT_FILE=
-
-# String. Specifies the path to the private key for the certificate. It requires a
-# PEM-encoded file.
-CODER_TLS_KEY_FILE=
-```
-
-To run Coder as a system service on the host:
-
-```console
-# Use systemd to start Coder now and on reboot
-sudo systemctl enable --now coder
-
-# View the logs to ensure a successful start
-journalctl -u coder.service -b
-```
-
-To restart Coder after applying system changes:
-
-```console
-sudo systemctl restart coder
-```
 
 ## Configuring Coder behind a proxy
 
