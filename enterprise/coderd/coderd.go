@@ -130,6 +130,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		})
 		r.Route("/licenses", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
+			r.Post("/refresh-entitlements", api.postRefreshEntitlements)
 			r.Post("/", api.postLicense)
 			r.Get("/", api.licenses)
 			r.Delete("/{id}", api.deleteLicense)
@@ -403,10 +404,13 @@ type API struct {
 }
 
 func (api *API) Close() error {
-	api.cancel()
+	// Replica manager should be closed first. This is because the replica
+	// manager updates the replica's table in the database when it closes.
+	// This tells other Coderds that it is now offline.
 	if api.replicaManager != nil {
 		_ = api.replicaManager.Close()
 	}
+	api.cancel()
 	if api.derpMesh != nil {
 		_ = api.derpMesh.Close()
 	}
@@ -802,6 +806,17 @@ func (api *API) runEntitlementsLoop(ctx context.Context) {
 	updates := make(chan struct{}, 1)
 	subscribed := false
 
+	defer func() {
+		// If this function ends, it means the context was cancelled and this
+		// coderd is shutting down. In this case, post a pubsub message to
+		// tell other coderd's to resync their entitlements. This is required to
+		// make sure things like replica counts are updated in the UI.
+		// Ignore the error, as this is just a best effort. If it fails,
+		// the system will eventually recover as replicas timeout
+		// if their heartbeats stop. The best effort just tries to update the
+		// UI faster if it succeeds.
+		_ = api.Pubsub.Publish(PubsubEventLicenses, []byte("going away"))
+	}()
 	for {
 		select {
 		case <-ctx.Done():

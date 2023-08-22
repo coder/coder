@@ -225,6 +225,7 @@ func Entitlements(
 			entitlements.Features[featureName] = feature
 		}
 	}
+	entitlements.RefreshedAt = now
 
 	return entitlements, nil
 }

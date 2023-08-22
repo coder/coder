@@ -1450,6 +1450,7 @@ export const MockEntitlements: TypesGen.Entitlements = {
   features: withDefaultFeatures({}),
   require_telemetry: false,
   trial: false,
+  refreshed_at: "2022-05-20T16:45:57.122Z",
 }
 
 export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
@@ -1458,6 +1459,7 @@ export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
   has_license: true,
   trial: false,
   require_telemetry: false,
+  refreshed_at: "2022-05-20T16:45:57.122Z",
   features: withDefaultFeatures({
     user_limit: {
       enabled: true,
@@ -1482,6 +1484,7 @@ export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
   has_license: true,
   require_telemetry: false,
   trial: false,
+  refreshed_at: "2022-05-20T16:45:57.122Z",
   features: withDefaultFeatures({
     audit_log: {
       enabled: true,
@@ -1496,6 +1499,7 @@ export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
   has_license: true,
   require_telemetry: false,
   trial: false,
+  refreshed_at: "2022-05-20T16:45:57.122Z",
   features: withDefaultFeatures({
     advanced_template_scheduling: {
       enabled: true,
