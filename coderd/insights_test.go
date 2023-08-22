@@ -1037,6 +1037,11 @@ func TestTemplateInsights_Golden(t *testing.T) {
 	lastNight := time.Now().UTC().Truncate(24 * time.Hour)
 	weekAgo := lastNight.AddDate(0, 0, -7)
 
+	saoPaulo, err := time.LoadLocation("America/Sao_Paulo")
+	require.NoError(t, err)
+	weekAgoSaoPaulo, err := time.ParseInLocation(time.DateTime, weekAgo.Format(time.DateTime), saoPaulo)
+	require.NoError(t, err)
+
 	makeBaseTestData := func(templates []*testTemplate, users []*testUser) map[*testWorkspace]testDataGen {
 		return map[*testWorkspace]testDataGen{
 			users[0].workspaces[0]: {
@@ -1184,6 +1189,18 @@ func TestTemplateInsights_Golden(t *testing.T) {
 							StartTime:   weekAgo,
 							EndTime:     lastNight,
 							Interval:    codersdk.InsightsReportIntervalDay,
+						}
+					},
+				},
+				{
+					// São Paulo is three hours behind UTC, so we should not see
+					// any data between weekAgo and weekAgo.Add(3 * time.Hour).
+					name: "week other timezone (São Paulo)",
+					makeRequest: func(templates []*testTemplate) codersdk.TemplateInsightsRequest {
+						return codersdk.TemplateInsightsRequest{
+							StartTime: weekAgoSaoPaulo,
+							EndTime:   weekAgoSaoPaulo.AddDate(0, 0, 7),
+							Interval:  codersdk.InsightsReportIntervalDay,
 						}
 					},
 				},
