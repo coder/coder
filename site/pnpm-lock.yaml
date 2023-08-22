@@ -431,6 +431,9 @@ devDependencies:
   vite-plugin-checker:
     specifier: 0.6.0
     version: 0.6.0(eslint@8.46.0)(typescript@5.1.6)(vite@4.4.2)
+  vite-plugin-turbosnap:
+    specifier: 1.0.2
+    version: 1.0.2
 
 packages:
 
@@ -13275,6 +13278,10 @@ packages:
       vscode-languageserver: 7.0.0
       vscode-languageserver-textdocument: 1.0.8
       vscode-uri: 3.0.7
+    dev: true
+
+  /vite-plugin-turbosnap@1.0.2:
+    resolution: {integrity: sha512-irjKcKXRn7v5bPAg4mAbsS6DgibpP1VUFL9tlgxU6lloK6V9yw9qCZkS+s2PtbkZpWNzr3TN3zVJAc6J7gJZmA==}
     dev: true
 
   /vite@4.4.2(@types/node@18.17.0):
