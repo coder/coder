@@ -10,7 +10,6 @@ import { ConfirmDialogType } from "../types"
 import Checkbox from "@mui/material/Checkbox"
 import FormControlLabel from "@mui/material/FormControlLabel"
 import { Stack } from "@mui/system"
-import { getInsightsUserLatency } from "api/api"
 
 interface ConfirmDialogTypeConfig {
   confirmText: ReactNode

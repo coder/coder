@@ -93,23 +93,23 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
     validationSchema,
     onSubmit: () => {
       const dormancyChanged =
-        form.initialValues.inactivity_ttl_ms != form.values.inactivity_ttl_ms
+        form.initialValues.inactivity_ttl_ms !== form.values.inactivity_ttl_ms
       const deletionChanged =
-        form.initialValues.locked_ttl_ms != form.values.locked_ttl_ms
+        form.initialValues.locked_ttl_ms !== form.values.locked_ttl_ms
 
-      const dormancy =
+      const dormancyScheduleChanged =
         form.values.inactivity_cleanup_enabled &&
         dormancyChanged &&
         workspacesToDormancyInWeek &&
         workspacesToDormancyInWeek.length > 0
 
-      const deletion =
+      const deletionScheduleChanged =
         form.values.inactivity_cleanup_enabled &&
         deletionChanged &&
         workspacesToBeDeletedInWeek &&
         workspacesToBeDeletedInWeek.length > 0
 
-      if (dormancy || deletion) {
+      if (dormancyScheduleChanged || deletionScheduleChanged) {
         setIsScheduleDialogOpen(true)
       } else {
         submitValues()
@@ -159,7 +159,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
     workspacesToBeDeletedInWeek &&
     (workspacesToDormancyInWeek.length > 0 ||
       workspacesToBeDeletedInWeek.length > 0)
-  console.log("show dialog: ", showScheduleDialog)
 
   const [isScheduleDialogOpen, setIsScheduleDialogOpen] =
     useState<boolean>(false)
@@ -486,11 +485,11 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
             form.setFieldValue("update_workspace_last_used_at", update)
           }
           dormantValueChanged={
-            form.initialValues.inactivity_ttl_ms !=
+            form.initialValues.inactivity_ttl_ms !==
             form.values.inactivity_ttl_ms
           }
           deletionValueChanged={
-            form.initialValues.locked_ttl_ms != form.values.locked_ttl_ms
+            form.initialValues.locked_ttl_ms !== form.values.locked_ttl_ms
           }
         />
       )}

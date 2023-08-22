@@ -1,6 +1,5 @@
 import Button from "@mui/material/Button"
 import { makeStyles } from "@mui/styles"
-import BedtimeIcon from "@mui/icons-material/Bedtime"
 import { Avatar } from "components/Avatar/Avatar"
 import { AgentRow } from "components/Resources/AgentRow"
 import {

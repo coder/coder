@@ -4,10 +4,7 @@ import { FC, PropsWithChildren } from "react"
 import { makeStyles } from "@mui/styles"
 import { combineClasses } from "utils/combineClasses"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
-import {
-  LockedBadge,
-  ImpendingDeletionText,
-} from "components/WorkspaceDeletion"
+import { ImpendingDeletionText } from "components/WorkspaceDeletion"
 import { getDisplayWorkspaceStatus } from "utils/workspace"
 import Tooltip, { TooltipProps, tooltipClasses } from "@mui/material/Tooltip"
 import { styled } from "@mui/material/styles"
