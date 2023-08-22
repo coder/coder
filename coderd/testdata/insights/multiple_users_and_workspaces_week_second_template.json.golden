@@ -2,19 +2,25 @@
   "report": {
     "start_time": "2023-08-15T00:00:00Z",
     "end_time": "2023-08-22T00:00:00Z",
-    "template_ids": [],
-    "active_users": 0,
+    "template_ids": [
+      "00000000-0000-0000-0000-000000000001"
+    ],
+    "active_users": 1,
     "apps_usage": [
       {
-        "template_ids": [],
+        "template_ids": [
+          "00000000-0000-0000-0000-000000000001"
+        ],
         "type": "builtin",
         "display_name": "Visual Studio Code",
         "slug": "vscode",
         "icon": "/icon/code.svg",
-        "seconds": 0
+        "seconds": 3600
       },
       {
-        "template_ids": [],
+        "template_ids": [
+          "00000000-0000-0000-0000-000000000001"
+        ],
         "type": "builtin",
         "display_name": "JetBrains",
         "slug": "jetbrains",
@@ -22,7 +28,9 @@
         "seconds": 0
       },
       {
-        "template_ids": [],
+        "template_ids": [
+          "00000000-0000-0000-0000-000000000001"
+        ],
         "type": "builtin",
         "display_name": "Web Terminal",
         "slug": "reconnecting-pty",
@@ -30,12 +38,14 @@
         "seconds": 0
       },
       {
-        "template_ids": [],
+        "template_ids": [
+          "00000000-0000-0000-0000-000000000001"
+        ],
         "type": "builtin",
         "display_name": "SSH",
         "slug": "ssh",
         "icon": "/icon/terminal.svg",
-        "seconds": 0
+        "seconds": 3600
       }
     ],
     "parameters_usage": []
@@ -44,9 +54,11 @@
     {
       "start_time": "2023-08-15T00:00:00Z",
       "end_time": "2023-08-16T00:00:00Z",
-      "template_ids": [],
+      "template_ids": [
+        "00000000-0000-0000-0000-000000000001"
+      ],
       "interval": "day",
-      "active_users": 0
+      "active_users": 1
     },
     {
       "start_time": "2023-08-16T00:00:00Z",

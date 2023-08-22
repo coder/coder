@@ -1070,6 +1070,18 @@ func TestTemplateInsights_Golden(t *testing.T) {
 				},
 			},
 			users[0].workspaces[1]: {
+				agentStats: []agentStat{
+					{
+						// One hour of usage in second template at the same time
+						// as in first template. When selecting both templates
+						// this user and their app usage will only be counted
+						// once but the template ID will show up in the data.
+						startedAt:          weekAgo,
+						endedAt:            weekAgo.Add(time.Hour),
+						sessionCountVSCode: 1,
+						sessionCountSSH:    1,
+					},
+				},
 				appUsage: []appUsage{
 					// TODO(mafredri): This doesn't behave correctly right now
 					// and will add more usage to the app. This could be
