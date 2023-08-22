@@ -16,7 +16,7 @@ import { hasApiFieldErrors, isApiError } from "api/errors"
 import MenuItem from "@mui/material/MenuItem"
 import { makeStyles } from "@mui/styles"
 import { Theme } from "@mui/material/styles"
-import { Link } from "@mui/material/Link"
+import Link from "@mui/material/Link"
 
 export const Language = {
   emailLabel: "Email",
