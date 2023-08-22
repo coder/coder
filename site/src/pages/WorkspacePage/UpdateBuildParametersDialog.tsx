@@ -49,9 +49,6 @@ export const UpdateBuildParametersDialog: FC<
       onUpdate(values.rich_parameter_values)
     },
   })
-  form.values = {
-    rich_parameter_values: initialRichParameterValues,
-  }
   const getFieldHelpers = getFormHelpers(form)
   const { t } = useTranslation("workspacePage")
 
