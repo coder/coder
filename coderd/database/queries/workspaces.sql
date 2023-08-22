@@ -267,6 +267,17 @@ WHERE
 		ELSE
 			locked_at IS NULL
 	END
+	-- Filter by last_used
+	AND CASE
+		  WHEN @last_used_before :: timestamp with time zone > '0001-01-01 00:00:00Z' THEN
+				  workspaces.last_used_at <= @last_used_before
+		  ELSE true
+	END
+	AND CASE
+		  WHEN @last_used_after :: timestamp with time zone > '0001-01-01 00:00:00Z' THEN
+				  workspaces.last_used_at >= @last_used_after
+		  ELSE true
+	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ORDER BY
