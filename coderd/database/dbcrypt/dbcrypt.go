@@ -101,7 +101,7 @@ func (db *dbCrypt) GetGitAuthLink(ctx context.Context, params database.GetGitAut
 		return database.GitAuthLink{}, err
 	}
 	return link, db.decryptFields(func() error {
-		return db.Store.DeleteGitAuthLink(ctx, database.DeleteGitAuthLinkParams{
+		return db.Store.DeleteGitAuthLink(ctx, database.DeleteGitAuthLinkParams{ // nolint:gosimple
 			ProviderID: params.ProviderID,
 			UserID:     params.UserID,
 		})
