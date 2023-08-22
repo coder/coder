@@ -464,3 +464,28 @@ const findSessionToken = async (page: Page): Promise<string> => {
   }
   return sessionCookie.value
 }
+
+export const echoResponsesWithParameters = (
+  richParameters: RichParameter[]
+): EchoProvisionerResponses => {
+  return {
+    plan: [
+      {
+        complete: {
+          parameters: richParameters,
+        },
+      },
+    ],
+    apply: [
+      {
+        complete: {
+          resources: [
+            {
+              name: "example",
+            },
+          ],
+        },
+      },
+    ],
+  }
+}

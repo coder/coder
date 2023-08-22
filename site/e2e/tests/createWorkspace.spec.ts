@@ -1,5 +1,5 @@
 import { test } from "@playwright/test"
-import { createTemplate, createWorkspace, verifyParameters } from "../helpers"
+import { createTemplate, createWorkspace, echoResponsesWithParameters, verifyParameters } from "../helpers"
 
 import {
   secondParameter,
@@ -33,26 +33,7 @@ test("create workspace with default immutable parameters", async ({ page }) => {
     fourthParameter,
     fifthParameter,
   ]
-  const template = await createTemplate(page, {
-    plan: [
-      {
-        complete: {
-          parameters: richParameters,
-        },
-      },
-    ],
-    apply: [
-      {
-        complete: {
-          resources: [
-            {
-              name: "example",
-            },
-          ],
-        },
-      },
-    ],
-  })
+  const template = await createTemplate(page, echoResponsesWithParameters(richParameters))
   const workspaceName = await createWorkspace(page, template)
   await verifyParameters(page, workspaceName, richParameters, [
     { name: secondParameter.name, value: secondParameter.defaultValue },
@@ -63,26 +44,7 @@ test("create workspace with default immutable parameters", async ({ page }) => {
 
 test("create workspace with default mutable parameters", async ({ page }) => {
   const richParameters: RichParameter[] = [firstParameter, thirdParameter]
-  const template = await createTemplate(page, {
-    plan: [
-      {
-        complete: {
-          parameters: richParameters,
-        },
-      },
-    ],
-    apply: [
-      {
-        complete: {
-          resources: [
-            {
-              name: "example",
-            },
-          ],
-        },
-      },
-    ],
-  })
+  const template = await createTemplate(page, echoResponsesWithParameters(richParameters))
   const workspaceName = await createWorkspace(page, template)
   await verifyParameters(page, workspaceName, richParameters, [
     { name: firstParameter.name, value: firstParameter.defaultValue },
@@ -90,6 +52,5 @@ test("create workspace with default mutable parameters", async ({ page }) => {
   ])
 })
 
-// TODO refactor: EchoProvisionerResponses
 // TODO custom parameter values
-// TODO describe parameters
+

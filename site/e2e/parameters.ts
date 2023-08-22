@@ -21,6 +21,7 @@ const emptyParameter: RichParameter = {
   ephemeral: false,
 }
 
+// firstParameter is mutable string with a default value (parameter value not required).
 export const firstParameter: RichParameter = {
   ...emptyParameter,
 
@@ -35,6 +36,7 @@ export const firstParameter: RichParameter = {
   order: 1,
 }
 
+// secondParameter is immutable string with a default value (parameter value not required).
 export const secondParameter: RichParameter = {
   ...emptyParameter,
 
@@ -45,11 +47,10 @@ export const secondParameter: RichParameter = {
   description: "This is second parameter.",
   defaultValue: "abc",
   icon: "",
-  mutable: false,
-  required: false,
   order: 2,
 }
 
+// thirdParameter is mutable string with an empty default value (parameter value not required).
 export const thirdParameter: RichParameter = {
   ...emptyParameter,
 
@@ -59,10 +60,10 @@ export const thirdParameter: RichParameter = {
   description: "This is third parameter.",
   defaultValue: "",
   mutable: true,
-  required: false,
   order: 3,
 }
 
+// fourthParameter is immutable boolean with a default "true" value (parameter value not required).
 export const fourthParameter: RichParameter = {
   ...emptyParameter,
 
@@ -72,11 +73,10 @@ export const fourthParameter: RichParameter = {
   description: "This is fourth parameter.",
   defaultValue: "true",
   icon: "",
-  mutable: false,
-  required: true,
   order: 3,
 }
 
+// fifthParameter is immutable "string with options", with a default option selected (parameter value not required).
 export const fifthParameter: RichParameter = {
   ...emptyParameter,
 
@@ -106,7 +106,5 @@ export const fifthParameter: RichParameter = {
   description: "This is fifth parameter.",
   defaultValue: "def",
   icon: "",
-  mutable: false,
-  required: false,
   order: 3,
 }
