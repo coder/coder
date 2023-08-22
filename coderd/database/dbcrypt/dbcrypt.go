@@ -8,11 +8,11 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"cdr.dev/slog"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/cryptorand"
 )
 
 // MagicPrefix is prepended to all encrypted values in the database.
@@ -24,7 +24,7 @@ type Options struct {
 	// ExternalTokenCipher is an optional cipher that is used
 	// to encrypt/decrypt user link and git auth link tokens. If this is nil,
 	// then no encryption/decryption will be performed.
-	ExternalTokenCipher *atomic.Pointer[cryptorand.Cipher]
+	ExternalTokenCipher *atomic.Pointer[Cipher]
 	Logger              slog.Logger
 }
 
@@ -141,7 +141,7 @@ func (db *dbCrypt) encryptFields(fields ...*string) error {
 // decryptFields decrypts the given fields in place.
 // If the value fails to decrypt, sql.ErrNoRows will be returned.
 func (db *dbCrypt) decryptFields(deleteFn func() error, fields ...*string) error {
-	delete := func(reason string) error {
+	doDelete := func(reason string) error {
 		err := deleteFn()
 		if err != nil {
 			return xerrors.Errorf("delete encrypted row: %w", err)
@@ -164,7 +164,7 @@ func (db *dbCrypt) decryptFields(deleteFn func() error, fields ...*string) error
 			if strings.HasPrefix(*field, MagicPrefix) {
 				// If we have a magic prefix but encryption is disabled,
 				// we should delete the row.
-				return delete("encryption disabled")
+				return doDelete("encryption disabled")
 			}
 		}
 		return nil
@@ -183,12 +183,12 @@ func (db *dbCrypt) decryptFields(deleteFn func() error, fields ...*string) error
 		data, err := base64.StdEncoding.DecodeString((*field)[len(MagicPrefix):])
 		if err != nil {
 			// If it's not base64 with the prefix, we should delete the row.
-			return delete("stored value was not base64 encoded")
+			return doDelete("stored value was not base64 encoded")
 		}
 		decrypted, err := cipher.Decrypt(data)
 		if err != nil {
 			// If the encryption key changed, we should delete the row.
-			return delete("encryption key changed")
+			return doDelete("encryption key changed")
 		}
 		*field = string(decrypted)
 	}

@@ -1,9 +1,10 @@
-package cryptorand
+package dbcrypt
 
 import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"errors"
 	"io"
 
 	"golang.org/x/xerrors"
@@ -12,6 +13,23 @@ import (
 type Cipher interface {
 	Encrypt([]byte) ([]byte, error)
 	Decrypt([]byte) ([]byte, error)
+}
+
+type DecryptFailedError struct {
+	Inner error
+}
+
+func (e *DecryptFailedError) Error() string {
+	return xerrors.Errorf("decrypt failed: %w", e.Inner).Error()
+}
+
+func (e *DecryptFailedError) Unwrap() error {
+	return e.Inner
+}
+
+func IsDecryptFailedError(err error) bool {
+	var e *DecryptFailedError
+	return errors.As(err, &e)
 }
 
 // CipherAES256 returns a new AES-256 cipher.
@@ -44,5 +62,9 @@ func (a *aes256) Decrypt(ciphertext []byte) ([]byte, error) {
 	if len(ciphertext) < a.aead.NonceSize() {
 		return nil, xerrors.Errorf("ciphertext too short")
 	}
-	return a.aead.Open(nil, ciphertext[:a.aead.NonceSize()], ciphertext[a.aead.NonceSize():], nil)
+	decrypted, err := a.aead.Open(nil, ciphertext[:a.aead.NonceSize()], ciphertext[a.aead.NonceSize():], nil)
+	if err != nil {
+		return nil, &DecryptFailedError{Inner: err}
+	}
+	return decrypted, nil
 }

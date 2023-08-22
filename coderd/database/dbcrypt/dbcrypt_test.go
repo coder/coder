@@ -9,15 +9,15 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbcrypt"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/cryptorand"
 )
 
 func TestUserLinks(t *testing.T) {
@@ -172,7 +172,7 @@ func TestGitAuthLinks(t *testing.T) {
 	})
 }
 
-func requireEncryptedEquals(t *testing.T, cipher *atomic.Pointer[cryptorand.Cipher], value, expected string) {
+func requireEncryptedEquals(t *testing.T, cipher *atomic.Pointer[dbcrypt.Cipher], value, expected string) {
 	t.Helper()
 	c := (*cipher.Load())
 	data, err := base64.StdEncoding.DecodeString(value[len(dbcrypt.MagicPrefix):])
@@ -182,20 +182,20 @@ func requireEncryptedEquals(t *testing.T, cipher *atomic.Pointer[cryptorand.Ciph
 	require.Equal(t, expected, string(got))
 }
 
-func initCipher(t *testing.T, cipher *atomic.Pointer[cryptorand.Cipher]) {
+func initCipher(t *testing.T, cipher *atomic.Pointer[dbcrypt.Cipher]) {
 	t.Helper()
 	key := make([]byte, 32) // AES-256 key size is 32 bytes
 	_, err := io.ReadFull(rand.Reader, key)
 	require.NoError(t, err)
-	c, err := cryptorand.CipherAES256(key)
+	c, err := dbcrypt.CipherAES256(key)
 	require.NoError(t, err)
 	cipher.Store(&c)
 }
 
-func setup(t *testing.T) (db, cryptodb database.Store, cipher *atomic.Pointer[cryptorand.Cipher]) {
+func setup(t *testing.T) (db, cryptodb database.Store, cipher *atomic.Pointer[dbcrypt.Cipher]) {
 	t.Helper()
 	rawDB := dbfake.New()
-	cipher = &atomic.Pointer[cryptorand.Cipher]{}
+	cipher = &atomic.Pointer[dbcrypt.Cipher]{}
 	return rawDB, dbcrypt.New(rawDB, &dbcrypt.Options{
 		ExternalTokenCipher: cipher,
 		Logger:              slogtest.Make(t, nil).Leveled(slog.LevelDebug),
