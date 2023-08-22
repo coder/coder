@@ -1,5 +1,10 @@
 import { test } from "@playwright/test"
-import { createTemplate, createWorkspace, echoResponsesWithParameters, verifyParameters } from "../helpers"
+import {
+  createTemplate,
+  createWorkspace,
+  echoResponsesWithParameters,
+  verifyParameters,
+} from "../helpers"
 
 import {
   secondParameter,
@@ -7,6 +12,8 @@ import {
   fifthParameter,
   firstParameter,
   thirdParameter,
+  seventhParameter,
+  sixthParameter,
 } from "../parameters"
 import { RichParameter } from "../provisionerGenerated"
 
@@ -33,7 +40,10 @@ test("create workspace with default immutable parameters", async ({ page }) => {
     fourthParameter,
     fifthParameter,
   ]
-  const template = await createTemplate(page, echoResponsesWithParameters(richParameters))
+  const template = await createTemplate(
+    page,
+    echoResponsesWithParameters(richParameters),
+  )
   const workspaceName = await createWorkspace(page, template)
   await verifyParameters(page, workspaceName, richParameters, [
     { name: secondParameter.name, value: secondParameter.defaultValue },
@@ -44,7 +54,10 @@ test("create workspace with default immutable parameters", async ({ page }) => {
 
 test("create workspace with default mutable parameters", async ({ page }) => {
   const richParameters: RichParameter[] = [firstParameter, thirdParameter]
-  const template = await createTemplate(page, echoResponsesWithParameters(richParameters))
+  const template = await createTemplate(
+    page,
+    echoResponsesWithParameters(richParameters),
+  )
   const workspaceName = await createWorkspace(page, template)
   await verifyParameters(page, workspaceName, richParameters, [
     { name: firstParameter.name, value: firstParameter.defaultValue },
@@ -52,5 +65,31 @@ test("create workspace with default mutable parameters", async ({ page }) => {
   ])
 })
 
-// TODO custom parameter values
+test("create workspace with default and required parameters", async ({
+  page,
+}) => {
+  const richParameters: RichParameter[] = [
+    secondParameter,
+    fourthParameter,
+    sixthParameter,
+    seventhParameter,
+  ]
+  const buildParameters = [
+    { name: sixthParameter.name, value: "12345" },
+    { name: seventhParameter.name, value: "abcdef" },
+  ]
+  const template = await createTemplate(
+    page,
+    echoResponsesWithParameters(richParameters),
+  )
+  const workspaceName = await createWorkspace(page, template, buildParameters)
+  await verifyParameters(page, workspaceName, richParameters, [
+    // user values:
+    ...buildParameters,
+    // default values:
+    { name: secondParameter.name, value: secondParameter.defaultValue },
+    { name: fourthParameter.name, value: fourthParameter.defaultValue },
+  ])
+})
 
+// TODO custom parameter values

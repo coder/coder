@@ -25,12 +25,14 @@ import { WorkspaceBuildParameter } from "api/typesGenerated"
 export const createWorkspace = async (
   page: Page,
   templateName: string,
+  buildParameters: WorkspaceBuildParameter[] = [],
 ): Promise<string> => {
   await page.goto("/templates/" + templateName + "/workspace", {
     waitUntil: "networkidle",
   })
   const name = randomName()
   await page.getByLabel("name").fill(name)
+
   await page.getByTestId("form-submit").click()
 
   await expect(page).toHaveURL("/@admin/" + name)
@@ -466,7 +468,7 @@ const findSessionToken = async (page: Page): Promise<string> => {
 }
 
 export const echoResponsesWithParameters = (
-  richParameters: RichParameter[]
+  richParameters: RichParameter[],
 ): EchoProvisionerResponses => {
   return {
     plan: [

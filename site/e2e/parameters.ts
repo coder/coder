@@ -108,3 +108,31 @@ export const fifthParameter: RichParameter = {
   icon: "",
   order: 3,
 }
+
+// sixthParameter is mutable string without a default value (parameter value is required).
+export const sixthParameter: RichParameter = {
+  ...emptyParameter,
+
+  name: "sixth_parameter",
+  displayName: "Sixth parameter",
+  type: "number",
+  options: [],
+  description: "This is sixth parameter.",
+  icon: "/emojis/1f310.png",
+  required: true,
+  mutable: true,
+  order: 1,
+}
+
+// seventhParameter is immutable string without a default value (parameter value is required).
+export const seventhParameter: RichParameter = {
+  ...emptyParameter,
+
+  name: "seventh_parameter",
+  displayName: "Seventh parameter",
+  type: "string",
+  options: [],
+  description: "This is seventh parameter.",
+  required: true,
+  order: 1,
+}
