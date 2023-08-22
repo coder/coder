@@ -6,6 +6,7 @@ import { useWorkspacesData } from "pages/WorkspacesPage/data"
 export const useWorkspacesToBeLocked = (
   template: Template,
   formValues: TemplateScheduleFormValues,
+  fromDate: Date,
 ) => {
   const { data } = useWorkspacesData({
     page: 0,
@@ -24,18 +25,21 @@ export const useWorkspacesToBeLocked = (
 
     const proposedLocking = new Date(
       new Date(workspace.last_used_at).getTime() +
-        formValues.inactivity_ttl_ms * 86400000,
+        formValues.inactivity_ttl_ms * DayInMS,
     )
 
-    if (compareAsc(proposedLocking, new Date()) < 1) {
+    if (compareAsc(proposedLocking, fromDate) < 1) {
       return workspace
     }
   })
 }
 
+const DayInMS = 86400000
+
 export const useWorkspacesToBeDeleted = (
   template: Template,
   formValues: TemplateScheduleFormValues,
+  fromDate: Date,
 ) => {
   const { data } = useWorkspacesData({
     page: 0,
@@ -49,10 +53,10 @@ export const useWorkspacesToBeDeleted = (
 
     const proposedLocking = new Date(
       new Date(workspace.locked_at).getTime() +
-        formValues.locked_ttl_ms * 86400000,
+        formValues.locked_ttl_ms * DayInMS,
     )
 
-    if (compareAsc(proposedLocking, new Date()) < 1) {
+    if (compareAsc(proposedLocking, fromDate) < 1) {
       return workspace
     }
   })

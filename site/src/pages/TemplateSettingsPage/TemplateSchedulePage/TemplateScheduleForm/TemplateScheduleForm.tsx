@@ -16,7 +16,6 @@ import Link from "@mui/material/Link"
 import Checkbox from "@mui/material/Checkbox"
 import FormControlLabel from "@mui/material/FormControlLabel"
 import Switch from "@mui/material/Switch"
-import { InactivityDialog } from "./InactivityDialog"
 import {
   useWorkspacesToBeLocked,
   useWorkspacesToBeDeleted,
@@ -93,21 +92,24 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
     },
     validationSchema,
     onSubmit: () => {
-      // Determine if this form will automatically
-      // lock workspaces upon submission.
-      const updateWillLockWorkspaces =
+      const dormancyChanged =
+        form.initialValues.inactivity_ttl_ms != form.values.inactivity_ttl_ms
+      const deletionChanged =
+        form.initialValues.locked_ttl_ms != form.values.locked_ttl_ms
+
+      const dormancy =
         form.values.inactivity_cleanup_enabled &&
-        workspacesToBeLockedToday &&
-        workspacesToBeLockedToday.length > 0
+        dormancyChanged &&
+        workspacesToDormancyInWeek &&
+        workspacesToDormancyInWeek.length > 0
 
-      // Determine if this form will automatically
-      // delete locked workspaces upon submission.
-      const updateWillDeleteWorkspaces =
-        form.values.locked_cleanup_enabled &&
-        workspacesToBeDeletedToday &&
-        workspacesToBeDeletedToday.length > 0
+      const deletion =
+        form.values.inactivity_cleanup_enabled &&
+        deletionChanged &&
+        workspacesToBeDeletedInWeek &&
+        workspacesToBeDeletedInWeek.length > 0
 
-      if (updateWillLockWorkspaces || updateWillDeleteWorkspaces) {
+      if (dormancy || deletion) {
         setIsScheduleDialogOpen(true)
       } else {
         submitValues()
@@ -122,20 +124,42 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
   const { t } = useTranslation("templateSettingsPage")
   const styles = useStyles()
 
-  const workspacesToBeLockedToday = useWorkspacesToBeLocked(
+  const now = new Date()
+  const weekFromNow = new Date(now)
+  weekFromNow.setDate(now.getDate() + 7)
+
+  const workspacesToDormancyNow = useWorkspacesToBeLocked(
     template,
     form.values,
+    now,
   )
-  const workspacesToBeDeletedToday = useWorkspacesToBeDeleted(
+
+  const workspacesToDormancyInWeek = useWorkspacesToBeLocked(
     template,
     form.values,
+    weekFromNow,
+  )
+
+  const workspacesToBeDeletedNow = useWorkspacesToBeDeleted(
+    template,
+    form.values,
+    now,
+  )
+
+  const workspacesToBeDeletedInWeek = useWorkspacesToBeDeleted(
+    template,
+    form.values,
+    weekFromNow,
   )
 
   const showScheduleDialog =
-    workspacesToBeLockedToday &&
-    workspacesToBeDeletedToday &&
-    (workspacesToBeLockedToday.length > 0 ||
-      workspacesToBeDeletedToday.length > 0)
+    workspacesToDormancyNow &&
+    workspacesToBeDeletedNow &&
+    workspacesToDormancyInWeek &&
+    workspacesToBeDeletedInWeek &&
+    (workspacesToDormancyInWeek.length > 0 ||
+      workspacesToBeDeletedInWeek.length > 0)
+  console.log("show dialog: ", showScheduleDialog)
 
   const [isScheduleDialogOpen, setIsScheduleDialogOpen] =
     useState<boolean>(false)
@@ -359,25 +383,25 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
             </FormFields>
           </FormSection>
           <FormSection
-            title="Inactivity Threshold"
-            description="When enabled, Coder will mark workspaces as inactive after a period of time with no connections. Inactive workspaces can be auto-deleted (see below) or manually reviewed by the workspace owner or admins."
+            title="Dormancy Threshold"
+            description="When enabled, Coder will mark workspaces as dormant after a period of time with no connections. Dormant workspaces can be auto-deleted (see below) or manually reviewed by the workspace owner or admins."
           >
             <FormFields>
               <FormControlLabel
                 control={
                   <Switch
-                    name="inactivityCleanupEnabled"
+                    name="dormancyThreshold"
                     checked={form.values.inactivity_cleanup_enabled}
                     onChange={handleToggleInactivityCleanup}
                   />
                 }
-                label="Enable Inactivity Threshold"
+                label="Enable Dormancy Threshold"
               />
               <TextField
                 {...getFieldHelpers(
                   "inactivity_ttl_ms",
                   <TTLHelperText
-                    translationName="inactivityTTLHelperText"
+                    translationName="dormancyThresholdHelperText"
                     ttl={form.values.inactivity_ttl_ms}
                   />,
                 )}
@@ -386,51 +410,43 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                 }
                 fullWidth
                 inputProps={{ min: 0, step: "any" }}
-                label="Time until cleanup (days)"
+                label="Time until dormant (days)"
                 type="number"
               />
             </FormFields>
           </FormSection>
           <FormSection
-            title="Inactivity Deletion"
-            description="When enabled, Coder will permanently delete workspaces that have been marked as inactive. Once a workspace is permanently deleted it cannot be recovered."
+            title="Dormancy Auto-Deletion"
+            description="When enabled, Coder will permanently delete dormant workspaces after a period of time. Once a workspace is deleted it cannot be recovered."
           >
             <FormFields>
               <FormControlLabel
                 control={
                   <Switch
-                    name="lockedCleanupEnabled"
+                    name="dormancyAutoDeletion"
                     checked={form.values.locked_cleanup_enabled}
                     onChange={handleToggleLockedCleanup}
                   />
                 }
-                label="Enable Inactivity Deletion"
+                label="Enable Dormancy Auto-Deletion"
               />
               <TextField
                 {...getFieldHelpers(
                   "locked_ttl_ms",
                   <TTLHelperText
-                    translationName="lockedTTLHelperText"
+                    translationName="dormancyAutoDeletionHelperText"
                     ttl={form.values.locked_ttl_ms}
                   />,
                 )}
                 disabled={isSubmitting || !form.values.locked_cleanup_enabled}
                 fullWidth
                 inputProps={{ min: 0, step: "any" }}
-                label="Time until cleanup (days)"
+                label="Time until deletion (days)"
                 type="number"
               />
             </FormFields>
           </FormSection>
         </>
-      )}
-      {workspacesToBeLockedToday && workspacesToBeLockedToday.length > 0 && (
-        <InactivityDialog
-          submitValues={submitValues}
-          isInactivityDialogOpen={isScheduleDialogOpen}
-          setIsInactivityDialogOpen={setIsScheduleDialogOpen}
-          workspacesToBeLockedToday={workspacesToBeLockedToday?.length ?? 0}
-        />
       )}
       {showScheduleDialog && (
         <ScheduleDialog
@@ -450,8 +466,14 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                 throw error
               })
           }}
-          inactiveWorkspaceToBeLocked={workspacesToBeLockedToday.length}
-          lockedWorkspacesToBeDeleted={workspacesToBeDeletedToday.length}
+          inactiveWorkspacesToGoDormant={workspacesToDormancyNow.length}
+          inactiveWorkspacesToGoDormantInWeek={
+            workspacesToDormancyInWeek.length - workspacesToDormancyNow.length
+          }
+          dormantWorkspacesToBeDeleted={workspacesToBeDeletedNow.length}
+          dormantWorkspacesToBeDeletedInWeek={
+            workspacesToBeDeletedInWeek.length - workspacesToBeDeletedNow.length
+          }
           open={isScheduleDialogOpen}
           onClose={() => {
             setIsScheduleDialogOpen(false)
@@ -462,6 +484,13 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
           }
           updateInactiveWorkspaces={(update: boolean) =>
             form.setFieldValue("update_workspace_last_used_at", update)
+          }
+          dormantValueChanged={
+            form.initialValues.inactivity_ttl_ms !=
+            form.values.inactivity_ttl_ms
+          }
+          deletionValueChanged={
+            form.initialValues.locked_ttl_ms != form.values.locked_ttl_ms
           }
         />
       )}

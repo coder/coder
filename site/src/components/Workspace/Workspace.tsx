@@ -1,6 +1,6 @@
 import Button from "@mui/material/Button"
 import { makeStyles } from "@mui/styles"
-import LockIcon from "@mui/icons-material/Lock"
+import BedtimeIcon from "@mui/icons-material/Bedtime"
 import { Avatar } from "components/Avatar/Avatar"
 import { AgentRow } from "components/Resources/AgentRow"
 import {
@@ -27,7 +27,7 @@ import {
 } from "components/PageHeader/FullWidthPageHeader"
 import { TemplateVersionWarnings } from "components/TemplateVersionWarnings/TemplateVersionWarnings"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
-import { LockedWorkspaceBanner } from "components/WorkspaceDeletion"
+import { DormantWorkspaceBanner } from "components/WorkspaceDeletion"
 import { useLocalStorage } from "hooks"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
 import AlertTitle from "@mui/material/AlertTitle"
@@ -54,7 +54,7 @@ export interface WorkspaceProps {
   handleCancel: () => void
   handleSettings: () => void
   handleChangeVersion: () => void
-  handleUnlock: () => void
+  handleDormantActivate: () => void
   isUpdating: boolean
   isRestarting: boolean
   workspace: TypesGen.Workspace
@@ -88,7 +88,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   handleCancel,
   handleSettings,
   handleChangeVersion,
-  handleUnlock,
+  handleDormantActivate: handleDormantActivate,
   workspace,
   isUpdating,
   isRestarting,
@@ -170,19 +170,14 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
     <>
       <FullWidthPageHeader>
         <Stack direction="row" spacing={3} alignItems="center">
-          {workspace.locked_at ? (
-            <LockIcon fontSize="large" color="error" />
-          ) : (
-            <Avatar
-              size="md"
-              src={workspace.template_icon}
-              variant={workspace.template_icon ? "square" : undefined}
-              fitImage={Boolean(workspace.template_icon)}
-            >
-              {workspace.name}
-            </Avatar>
-          )}
-
+          <Avatar
+            size="md"
+            src={workspace.template_icon}
+            variant={workspace.template_icon ? "square" : undefined}
+            fitImage={Boolean(workspace.template_icon)}
+          >
+            {workspace.name}
+          </Avatar>
           <div>
             <PageHeaderTitle>{workspace.name}</PageHeaderTitle>
             <PageHeaderSubtitle>{workspace.owner_name}</PageHeaderSubtitle>
@@ -211,7 +206,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             handleCancel={handleCancel}
             handleSettings={handleSettings}
             handleChangeVersion={handleChangeVersion}
-            handleUnlock={handleUnlock}
+            handleDormantActivate={handleDormantActivate}
             canChangeVersions={canChangeVersions}
             isUpdating={isUpdating}
             isRestarting={isRestarting}
@@ -262,7 +257,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             </Cond>
             <Cond>
               {/* <ImpendingDeletionBanner/> determines its own visibility */}
-              <LockedWorkspaceBanner
+              <DormantWorkspaceBanner
                 workspaces={[workspace]}
                 shouldRedisplayBanner={
                   getLocal("dismissedWorkspace") !== workspace.id

@@ -10,6 +10,7 @@ import { ConfirmDialogType } from "../types"
 import Checkbox from "@mui/material/Checkbox"
 import FormControlLabel from "@mui/material/FormControlLabel"
 import { Stack } from "@mui/system"
+import { getInsightsUserLatency } from "api/api"
 
 interface ConfirmDialogTypeConfig {
   confirmText: ReactNode
@@ -156,10 +157,14 @@ export const ConfirmDialog: FC<PropsWithChildren<ConfirmDialogProps>> = ({
 }
 
 export interface ScheduleDialogProps extends ConfirmDialogProps {
-  readonly inactiveWorkspaceToBeLocked: number
-  readonly lockedWorkspacesToBeDeleted: number
+  readonly inactiveWorkspacesToGoDormant: number
+  readonly inactiveWorkspacesToGoDormantInWeek: number
+  readonly dormantWorkspacesToBeDeleted: number
+  readonly dormantWorkspacesToBeDeletedInWeek: number
   readonly updateLockedWorkspaces: (confirm: boolean) => void
   readonly updateInactiveWorkspaces: (confirm: boolean) => void
+  readonly dormantValueChanged: boolean
+  readonly deletionValueChanged: boolean
 }
 
 export const ScheduleDialog: FC<PropsWithChildren<ScheduleDialogProps>> = ({
@@ -172,10 +177,14 @@ export const ScheduleDialog: FC<PropsWithChildren<ScheduleDialogProps>> = ({
   type,
   open = false,
   title,
-  inactiveWorkspaceToBeLocked,
-  lockedWorkspacesToBeDeleted,
+  inactiveWorkspacesToGoDormant,
+  inactiveWorkspacesToGoDormantInWeek,
+  dormantWorkspacesToBeDeleted,
+  dormantWorkspacesToBeDeletedInWeek,
   updateLockedWorkspaces,
   updateInactiveWorkspaces,
+  dormantValueChanged,
+  deletionValueChanged,
 }) => {
   const styles = useScheduleStyles({ type })
 
@@ -184,6 +193,14 @@ export const ScheduleDialog: FC<PropsWithChildren<ScheduleDialogProps>> = ({
   if (typeof hideCancel === "undefined") {
     hideCancel = defaults.hideCancel
   }
+
+  const showDormancyWarning =
+    dormantValueChanged &&
+    (inactiveWorkspacesToGoDormant > 0 ||
+      inactiveWorkspacesToGoDormantInWeek > 0)
+  const showDeletionWarning =
+    deletionValueChanged &&
+    (dormantWorkspacesToBeDeleted > 0 || dormantWorkspacesToBeDeletedInWeek > 0)
 
   return (
     <Dialog
@@ -195,13 +212,12 @@ export const ScheduleDialog: FC<PropsWithChildren<ScheduleDialogProps>> = ({
       <div className={styles.dialogContent}>
         <h3 className={styles.dialogTitle}>{title}</h3>
         <>
-          {inactiveWorkspaceToBeLocked > 0 && (
+          {showDormancyWarning && (
             <>
-              <h4>{"Inactivity TTL"}</h4>
+              <h4>{"Dormancy Threshold"}</h4>
               <Stack direction="row" spacing={5}>
-                <div
-                  className={styles.dialogDescription}
-                >{`The current value will result in ${inactiveWorkspaceToBeLocked}+ workspaces being automatically soft deleted. To prevent this, do you want to reset the inactivity period for all template workspaces?`}</div>
+                <div className={styles.dialogDescription}>{`
+                This change will result in ${inactiveWorkspacesToGoDormant} workspaces being immediately transitioned to the dormant state and ${inactiveWorkspacesToGoDormantInWeek} over the next seven days. To prevent this, do you want to reset the inactivity period for all template workspaces?`}</div>
                 <FormControlLabel
                   sx={{
                     marginTop: 2,
@@ -220,13 +236,13 @@ export const ScheduleDialog: FC<PropsWithChildren<ScheduleDialogProps>> = ({
             </>
           )}
 
-          {lockedWorkspacesToBeDeleted > 0 && (
+          {showDeletionWarning && (
             <>
-              <h4>{"Deletion Grace Period"}</h4>
+              <h4>{"Dormancy Auto-Deletion"}</h4>
               <Stack direction="row" spacing={5}>
                 <div
                   className={styles.dialogDescription}
-                >{`The current value will result in ${lockedWorkspacesToBeDeleted}+ workspaces being permanently deleted. To prevent this, do you want to reset the soft-deletion period for all template workspaces?`}</div>
+                >{`This change will result in ${dormantWorkspacesToBeDeleted} workspaces being immediately deleted and ${dormantWorkspacesToBeDeletedInWeek} over the next 7 days. To prevent this, do you want to reset the dormancy period for all template workspaces?`}</div>
                 <FormControlLabel
                   sx={{
                     marginTop: 2,

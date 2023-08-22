@@ -3,7 +3,6 @@ import BlockIcon from "@mui/icons-material/Block"
 import CloudQueueIcon from "@mui/icons-material/CloudQueue"
 import CropSquareIcon from "@mui/icons-material/CropSquare"
 import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline"
-import LockOpenIcon from "@mui/icons-material/LockOpen"
 import ReplayIcon from "@mui/icons-material/Replay"
 import { LoadingButton } from "components/LoadingButton/LoadingButton"
 import { FC } from "react"
@@ -11,6 +10,7 @@ import BlockOutlined from "@mui/icons-material/BlockOutlined"
 import ButtonGroup from "@mui/material/ButtonGroup"
 import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated"
 import { BuildParametersPopover } from "./BuildParametersPopover"
+import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew"
 
 interface WorkspaceAction {
   loading?: boolean
@@ -35,19 +35,19 @@ export const UpdateButton: FC<WorkspaceAction> = ({
   )
 }
 
-export const UnlockButton: FC<WorkspaceAction> = ({
+export const ActivateButton: FC<WorkspaceAction> = ({
   handleAction,
   loading,
 }) => {
   return (
     <LoadingButton
       loading={loading}
-      loadingIndicator="Unlocking..."
+      loadingIndicator="Activating..."
       loadingPosition="start"
-      startIcon={<LockOpenIcon />}
+      startIcon={<PowerSettingsNewIcon />}
       onClick={handleAction}
     >
-      Unlock
+      Activate
     </LoadingButton>
   )
 }

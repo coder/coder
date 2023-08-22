@@ -28,10 +28,6 @@ export const WorkspaceStatusBadge: FC<
   )
   return (
     <ChooseOne>
-      {/* <ImpendingDeletionBadge/> determines its own visibility */}
-      <Cond condition={Boolean(LockedBadge({ workspace }))}>
-        <LockedBadge workspace={workspace} />
-      </Cond>
       <Cond condition={workspace.latest_build.status === "failed"}>
         <FailureTooltip
           title={
