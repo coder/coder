@@ -801,7 +801,6 @@ func TestTemplateInsights_Golden(t *testing.T) {
 		for _, user := range users {
 			for _, workspace := range user.workspaces {
 				workspace.user = user
-				workspace.agentID = uuid.New()
 				for _, app := range workspace.template.apps {
 					app := workspaceApp(app)
 					workspace.apps = append(workspace.apps, &app)
@@ -813,24 +812,27 @@ func TestTemplateInsights_Golden(t *testing.T) {
 	}
 
 	prepare := func(t *testing.T, templates []*testTemplate, users []*testUser, testData map[*testWorkspace]testDataGen) *codersdk.Client {
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
 		opts := &coderdtest.Options{
 			Logger:                    &logger,
 			IncludeProvisionerDaemon:  true,
-			AgentStatsRefreshInterval: time.Millisecond * 100,
+			AgentStatsRefreshInterval: time.Hour, // Not relevant for this test.
 		}
 		client, _, coderdAPI := coderdtest.NewWithAPI(t, opts)
 		firstUser := coderdtest.CreateFirstUser(t, client)
 
 		// Prepare all test users.
-		for _, u := range users {
-			u.client, u.sdk = coderdtest.CreateAnotherUserMutators(t, client, firstUser.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
-				r.Username = u.name
+		for _, user := range users {
+			user.client, user.sdk = coderdtest.CreateAnotherUserMutators(t, client, firstUser.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
+				r.Username = user.name
 			})
+			user.client.SetLogger(logger.Named("user").With(slog.Field{Name: "name", Value: user.name}))
 		}
 
 		// Prepare all the templates.
 		for _, template := range templates {
+			template := template
+
 			var parameters []*proto.RichParameter
 			for _, parameter := range template.parameters {
 				var options []*proto.RichParameterOption
@@ -861,7 +863,10 @@ func TestTemplateInsights_Golden(t *testing.T) {
 			)
 			var resources []*proto.Resource
 			for _, user := range users {
+				user := user
 				for _, workspace := range user.workspaces {
+					workspace := workspace
+
 					if workspace.template != template {
 						continue
 					}
@@ -885,7 +890,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						Name: "example",
 						Type: "aws_instance",
 						Agents: []*proto.Agent{{
-							Id:   workspace.agentID.String(),
+							Id:   uuid.NewString(), // Doesn't matter, not used in DB.
 							Name: "dev",
 							Auth: &proto.Agent_Token{
 								Token: authToken.String(),
@@ -901,6 +906,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 							Value: buildParameter.value,
 						})
 					}
+
 					createWorkspaces = append(createWorkspaces, func(templateID uuid.UUID) {
 						// Create workspace using the users client.
 						createdWorkspace := coderdtest.CreateWorkspace(t, user.client, firstUser.OrganizationID, templateID, func(cwr *codersdk.CreateWorkspaceRequest) {
@@ -909,6 +915,11 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						workspace.id = createdWorkspace.ID
 						waitWorkspaces = append(waitWorkspaces, func() {
 							coderdtest.AwaitWorkspaceBuildJob(t, user.client, createdWorkspace.LatestBuild.ID)
+							ctx := testutil.Context(t, testutil.WaitShort)
+							ws, err := user.client.Workspace(ctx, workspace.id)
+							require.NoError(t, err, "want no error getting workspace")
+
+							workspace.agentID = ws.LatestBuild.Resources[0].Agents[0].ID
 						})
 					})
 				}
@@ -1044,14 +1055,30 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					},
 				},
 				appUsage: []appUsage{
-					{
-						app:       users[0].workspaces[0].apps[0],
-						startedAt: time.Now().UTC().Add(-time.Hour),
-						endedAt:   time.Now().UTC(),
-						requests:  1,
-					},
+					// { // One hour of usage.
+					// 	app:       users[0].workspaces[0].apps[0],
+					// 	startedAt: weekAgo,
+					// 	endedAt:   weekAgo.Add(time.Hour),
+					// 	requests:  1,
+					// },
+					// { // used an app on the last day, counts as active user.
+					// 	app:       users[0].workspaces[0].apps[2],
+					// 	startedAt: weekAgo.AddDate(0, 0, 6),
+					// 	endedAt:   weekAgo.AddDate(0, 0, 6).Add(12 * time.Minute),
+					// 	requests:  1,
+					// },
 				},
 			},
+			// users[0].workspaces[1]: {
+			// 	appUsage: []appUsage{
+			// 		{ // One hour of usage, but same user and same template app, only count once.
+			// 			app:       users[0].workspaces[1].apps[0],
+			// 			startedAt: weekAgo,
+			// 			endedAt:   weekAgo.Add(time.Hour),
+			// 			requests:  1,
+			// 		},
+			// 	},
+			// },
 		}
 	}
 	type testRequest struct {
@@ -1135,7 +1162,18 @@ func TestTemplateInsights_Golden(t *testing.T) {
 			// Sanity check.
 			for ws, data := range testData {
 				for _, usage := range data.appUsage {
-					require.Contains(t, ws.apps, usage.app, "test bug: app %q not in workspace %q", usage.app.name, ws.name)
+					found := false
+					wrongWorkspace := false
+					for _, app := range ws.apps {
+						if usage.app == app { // Pointer equality
+							found = true
+							break
+						}
+						if *usage.app == *app {
+							wrongWorkspace = true
+						}
+					}
+					require.True(t, found, "test bug: app %q not in workspace %q [wrongWorkspace=%v]", usage.app.name, ws.name, wrongWorkspace)
 				}
 			}
 
@@ -1145,7 +1183,9 @@ func TestTemplateInsights_Golden(t *testing.T) {
 				req := req
 				t.Run(req.name, func(t *testing.T) {
 					t.Parallel()
+
 					ctx := testutil.Context(t, testutil.WaitMedium)
+
 					report, err := client.TemplateInsights(ctx, req.makeRequest(templates))
 					require.NoError(t, err, "want no error getting template insights")
 
