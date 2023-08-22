@@ -64,7 +64,7 @@ export const createWorkspace = async (
       )
       await parameterField.check()
     } else if (richParameter.type === "list(string)") {
-      throw new Error("not implemented yet")
+      throw new Error("not implemented yet") // FIXME
     } else {
       // text or number
       const parameterField = await parameterLabel.waitForSelector(
@@ -130,7 +130,7 @@ export const verifyParameters = async (
       const value = await parameterField.inputValue()
       expect(value).toEqual(buildParameter.value)
     } else if (richParameter.type === "list(string)") {
-      throw new Error("not implemented yet")
+      throw new Error("not implemented yet") // FIXME
     } else {
       // text or number
       const parameterField = await parameterLabel.waitForSelector(
