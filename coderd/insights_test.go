@@ -1026,11 +1026,21 @@ func TestTemplateInsights_Golden(t *testing.T) {
 		return map[*testWorkspace]testDataGen{
 			users[0].workspaces[0]: {
 				agentStats: []agentStat{
-					{
+					{ // One hour of usage.
 						startedAt:          weekAgo,
 						endedAt:            weekAgo.Add(time.Hour),
 						sessionCountVSCode: 1,
 						sessionCountSSH:    1,
+					},
+					{ // 12 minutes of usage -> 15 minutes.
+						startedAt:       weekAgo.AddDate(0, 0, 1),
+						endedAt:         weekAgo.AddDate(0, 0, 1).Add(12 * time.Minute),
+						sessionCountSSH: 1,
+					},
+					{ // 2 minutes of usage -> 10 minutes because it crosses the 5 minute interval boundary.
+						startedAt:             weekAgo.AddDate(0, 0, 2).Add(4 * time.Minute),
+						endedAt:               weekAgo.AddDate(0, 0, 2).Add(6 * time.Minute),
+						sessionCountJetBrains: 1,
 					},
 				},
 				appUsage: []appUsage{

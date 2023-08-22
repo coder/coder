@@ -25,7 +25,7 @@
         "display_name": "JetBrains",
         "slug": "jetbrains",
         "icon": "/icon/intellij.svg",
-        "seconds": 0
+        "seconds": 600
       },
       {
         "template_ids": [
@@ -45,7 +45,7 @@
         "display_name": "SSH",
         "slug": "ssh",
         "icon": "/icon/terminal.svg",
-        "seconds": 3600
+        "seconds": 4500
       }
     ],
     "parameters_usage": []
@@ -63,16 +63,20 @@
     {
       "start_time": "2023-08-16T00:00:00Z",
       "end_time": "2023-08-17T00:00:00Z",
-      "template_ids": [],
+      "template_ids": [
+        "00000000-0000-0000-0000-000000000001"
+      ],
       "interval": "day",
-      "active_users": 0
+      "active_users": 1
     },
     {
       "start_time": "2023-08-17T00:00:00Z",
       "end_time": "2023-08-18T00:00:00Z",
-      "template_ids": [],
+      "template_ids": [
+        "00000000-0000-0000-0000-000000000001"
+      ],
       "interval": "day",
-      "active_users": 0
+      "active_users": 1
     },
     {
       "start_time": "2023-08-18T00:00:00Z",
