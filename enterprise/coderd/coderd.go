@@ -32,7 +32,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/enterprise/coderd/proxyhealth"
 	"github.com/coder/coder/v2/enterprise/coderd/schedule"
@@ -65,7 +64,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 
-	externalTokenCipher := &atomic.Pointer[cryptorand.Cipher]{}
+	externalTokenCipher := &atomic.Pointer[dbcrypt.Cipher]{}
 	options.Database = dbcrypt.New(options.Database, &dbcrypt.Options{
 		ExternalTokenCipher: externalTokenCipher,
 	})
@@ -372,7 +371,7 @@ type Options struct {
 	// Whether to block non-browser connections.
 	BrowserOnly             bool
 	SCIMAPIKey              []byte
-	ExternalTokenEncryption cryptorand.Cipher
+	ExternalTokenEncryption dbcrypt.Cipher
 
 	// Used for high availability.
 	ReplicaSyncUpdateInterval time.Duration
@@ -400,7 +399,7 @@ type API struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	externalTokenCipher *atomic.Pointer[cryptorand.Cipher]
+	externalTokenCipher *atomic.Pointer[dbcrypt.Cipher]
 
 	// Detects multiple Coder replicas running at the same time.
 	replicaManager *replicasync.Manager
