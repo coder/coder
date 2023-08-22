@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -579,36 +580,16 @@ func TestTemplateInsights(t *testing.T) {
 func TestTemplateInsights_Golden(t *testing.T) {
 	t.Parallel()
 
-	stabilizeReportForGoldenComparison := func(report *codersdk.TemplateInsightsResponse) {
-		var stableTemplateIDs []uuid.UUID
-		stableTemplateIDMap := make(map[uuid.UUID]uuid.UUID)
-		toStableTemplateID := func(id uuid.UUID) uuid.UUID {
-			if stableID, ok := stableTemplateIDMap[id]; ok {
-				return stableID
-			}
-			stableTemplateIDs = append(stableTemplateIDs, uuid.MustParse(fmt.Sprintf("00000000-0000-0000-0000-%012d", len(stableTemplateIDs)+1)))
-			stableID := stableTemplateIDs[len(stableTemplateIDs)-1]
-			stableTemplateIDMap[id] = stableID
-			return stableID
-		}
-
-		for i, id := range report.Report.TemplateIDs {
-			report.Report.TemplateIDs[i] = toStableTemplateID(id)
-		}
+	stabilizeReportForGoldenComparison := func(report *codersdk.TemplateInsightsResponse, toStableTemplateIDs func([]uuid.UUID)) {
+		toStableTemplateIDs(report.Report.TemplateIDs)
 		for _, param := range report.Report.ParametersUsage {
-			for i, id := range param.TemplateIDs {
-				param.TemplateIDs[i] = toStableTemplateID(id)
-			}
+			toStableTemplateIDs(param.TemplateIDs)
 		}
 		for _, app := range report.Report.AppsUsage {
-			for i, id := range app.TemplateIDs {
-				app.TemplateIDs[i] = toStableTemplateID(id)
-			}
+			toStableTemplateIDs(app.TemplateIDs)
 		}
 		for _, intervalReport := range report.IntervalReports {
-			for i, id := range intervalReport.TemplateIDs {
-				intervalReport.TemplateIDs[i] = toStableTemplateID(id)
-			}
+			toStableTemplateIDs(intervalReport.TemplateIDs)
 		}
 	}
 
@@ -811,7 +792,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 		return templates, users
 	}
 
-	prepare := func(t *testing.T, templates []*testTemplate, users []*testUser, testData map[*testWorkspace]testDataGen) *codersdk.Client {
+	prepare := func(t *testing.T, templates []*testTemplate, users []*testUser, testData map[*testWorkspace]testDataGen) (*codersdk.Client, func([]uuid.UUID)) {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
 		opts := &coderdtest.Options{
 			Logger:                    &logger,
@@ -1024,7 +1005,30 @@ func TestTemplateInsights_Golden(t *testing.T) {
 		err = reporter.Report(dbauthz.AsSystemRestricted(ctx), stats)
 		require.NoError(t, err, "want no error inserting app stats")
 
-		return client
+		var stableTemplateIDs []uuid.UUID
+		stableTemplateIDMap := make(map[uuid.UUID]uuid.UUID)
+		toStableTemplateID := func(id uuid.UUID) uuid.UUID {
+			if stableID, ok := stableTemplateIDMap[id]; ok {
+				return stableID
+			}
+			stableTemplateIDs = append(stableTemplateIDs, uuid.MustParse(fmt.Sprintf("00000000-0000-0000-0000-%012d", len(stableTemplateIDs)+1)))
+			stableID := stableTemplateIDs[len(stableTemplateIDs)-1]
+			stableTemplateIDMap[id] = stableID
+			return stableID
+		}
+		// Prime the map.
+		for _, template := range templates {
+			_ = toStableTemplateID(template.id)
+		}
+
+		return client, func(ids []uuid.UUID) {
+			for i, id := range ids {
+				ids[i] = toStableTemplateID(id)
+			}
+			slices.SortFunc(ids, func(a, b uuid.UUID) int {
+				return slice.Ascending(a.String(), b.String())
+			})
+		}
 	}
 
 	// Time range for report, test data will be generated within and
@@ -1126,11 +1130,11 @@ func TestTemplateInsights_Golden(t *testing.T) {
 		requests     []testRequest
 	}{
 		{
-			name:         "multiple users and workspaces week",
+			name:         "multiple users and workspaces",
 			makeTestData: makeBaseTestData,
 			requests: []testRequest{
 				{
-					name: "deployment wide",
+					name: "week deployment wide",
 					makeRequest: func(templates []*testTemplate) codersdk.TemplateInsightsRequest {
 						return codersdk.TemplateInsightsRequest{
 							StartTime: weekAgo,
@@ -1140,7 +1144,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					},
 				},
 				{
-					name: "all templates",
+					name: "week all templates",
 					makeRequest: func(templates []*testTemplate) codersdk.TemplateInsightsRequest {
 						return codersdk.TemplateInsightsRequest{
 							TemplateIDs: []uuid.UUID{templates[0].id, templates[1].id, templates[2].id},
@@ -1151,7 +1155,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					},
 				},
 				{
-					name: "first template",
+					name: "week first template",
 					makeRequest: func(templates []*testTemplate) codersdk.TemplateInsightsRequest {
 						return codersdk.TemplateInsightsRequest{
 							TemplateIDs: []uuid.UUID{templates[0].id},
@@ -1162,7 +1166,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					},
 				},
 				{
-					name: "second template",
+					name: "week second template",
 					makeRequest: func(templates []*testTemplate) codersdk.TemplateInsightsRequest {
 						return codersdk.TemplateInsightsRequest{
 							TemplateIDs: []uuid.UUID{templates[1].id},
@@ -1173,7 +1177,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					},
 				},
 				{
-					name: "third template",
+					name: "week third template",
 					makeRequest: func(templates []*testTemplate) codersdk.TemplateInsightsRequest {
 						return codersdk.TemplateInsightsRequest{
 							TemplateIDs: []uuid.UUID{templates[2].id},
@@ -1212,7 +1216,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 				}
 			}
 
-			client := prepare(t, templates, users, testData)
+			client, toStableTemplateID := prepare(t, templates, users, testData)
 
 			for _, req := range tt.requests {
 				req := req
@@ -1224,7 +1228,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					report, err := client.TemplateInsights(ctx, req.makeRequest(templates))
 					require.NoError(t, err, "want no error getting template insights")
 
-					stabilizeReportForGoldenComparison(&report)
+					stabilizeReportForGoldenComparison(&report, toStableTemplateID)
 
 					partialName := strings.Join(strings.Split(t.Name(), "/")[1:], "_")
 					goldenFile := filepath.Join("testdata", "insights", partialName+".json.golden")
