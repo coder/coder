@@ -453,7 +453,8 @@ These options are only available in the Enterprise Edition.
 
       --external-token-encryption-key string, $CODER_EXTERNAL_TOKEN_ENCRYPTION_KEY
           Encrypt OIDC and Git authentication tokens with AES-256-GCM in the
-          database. The value must be a base64-encoded key.
+          database. The value must be a base64-encoded key exactly 32 bytes in
+          length.
 
       --scim-auth-header string, $CODER_SCIM_AUTH_HEADER
           Enables SCIM and sets the authentication header for the built-in SCIM

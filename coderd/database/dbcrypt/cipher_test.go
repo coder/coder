@@ -40,6 +40,6 @@ func TestCipherAES256(t *testing.T) {
 		t.Parallel()
 
 		_, err := dbcrypt.CipherAES256(bytes.Repeat([]byte{'a'}, 31))
-		require.ErrorContains(t, err, "invalid key size")
+		require.ErrorContains(t, err, "key must be 32 bytes")
 	})
 }

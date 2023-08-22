@@ -1580,7 +1580,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "External Token Encryption Key",
-			Description: "Encrypt OIDC and Git authentication tokens with AES-256-GCM in the database. The value must be a base64-encoded key.",
+			Description: "Encrypt OIDC and Git authentication tokens with AES-256-GCM in the database. The value must be a base64-encoded key exactly 32 bytes in length.",
 			Flag:        "external-token-encryption-key",
 			Env:         "CODER_EXTERNAL_TOKEN_ENCRYPTION_KEY",
 			Annotations: clibase.Annotations{}.Mark(annotationEnterpriseKey, "true").Mark(annotationSecretKey, "true"),

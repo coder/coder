@@ -34,6 +34,9 @@ func IsDecryptFailedError(err error) bool {
 
 // CipherAES256 returns a new AES-256 cipher.
 func CipherAES256(key []byte) (Cipher, error) {
+	if len(key) != 32 {
+		return nil, xerrors.Errorf("key must be 32 bytes")
+	}
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
