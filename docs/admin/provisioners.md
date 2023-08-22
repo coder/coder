@@ -19,7 +19,7 @@ Provisioners are started with the [coder provisionerd start](../cli/provisionerd
 The provisioner daemon must authenticate with your Coder deployment.
 
 Set a [provisioner daemon pre-shared key (PSK)](../cli/server.md#--provisioner-daemon-psk) on the Coder server and start the provisioner with
-`coder provisionerd start --psk <your-psk>`. If you are [installing with Helm](../install/kubernetes#install-coder-with-helm),
+`coder provisionerd start --psk <your-psk>`. If you are [installing with Helm](../install/kubernetes.md#install-coder-with-helm),
 see the [Helm example](#example-running-an-external-provisioner-with-helm) below.
 
 > Coder still supports authenticating the provisioner daemon with a [token](../cli.md#--token) from a user with the

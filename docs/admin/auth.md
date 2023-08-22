@@ -16,7 +16,7 @@ The following steps explain how to set up GitHub OAuth or OpenID Connect.
 
 First, [register a GitHub OAuth app](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/). GitHub will ask you for the following Coder parameters:
 
-- **Homepage URL**: Set to your Coder deployments [`CODER_ACCESS_URL`](https://coder.com/docs/v2/latest/cli/server#--access-url) (e.g. `https://coder.domain.com`)
+- **Homepage URL**: Set to your Coder deployments [`CODER_ACCESS_URL`](../cli/server.md#--access-url) (e.g. `https://coder.domain.com`)
 - **User Authorization Callback URL**: Set to `https://coder.domain.com`
 
 > Note: If you want to allow multiple coder deployments hosted on subdomains e.g. coder1.domain.com, coder2.domain.com, to be able to authenticate with the same GitHub OAuth app, then you can set **User Authorization Callback URL** to the `https://domain.com`
