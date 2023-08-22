@@ -568,6 +568,7 @@ jobs:
           # https://www.chromatic.com/docs/github-actions#forked-repositories
           projectToken: 695c25b6cb65
           workingDir: "./site"
+          storybookBaseDir: "./site"
           # Prevent excessive build runs on minor version changes
           skip: "@(renovate/**|dependabot/**)"
           # Run TurboSnap to trace file dependencies to related stories
