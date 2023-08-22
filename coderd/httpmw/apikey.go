@@ -246,6 +246,12 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 			UserID:    key.UserID,
 			LoginType: key.LoginType,
 		})
+		if errors.Is(err, sql.ErrNoRows) {
+			return optionalWrite(http.StatusUnauthorized, codersdk.Response{
+				Message: SignedOutErrorMessage,
+				Detail:  "You must re-authenticate with the login provider.",
+			})
+		}
 		if err != nil {
 			return write(http.StatusInternalServerError, codersdk.Response{
 				Message: "A database error occurred",

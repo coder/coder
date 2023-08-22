@@ -685,6 +685,15 @@ func (q *querier) DeleteCoordinator(ctx context.Context, id uuid.UUID) error {
 	return q.db.DeleteCoordinator(ctx, id)
 }
 
+func (q *querier) DeleteGitAuthLink(ctx context.Context, arg database.DeleteGitAuthLinkParams) error {
+	return deleteQ(q.log, q.auth, func(ctx context.Context, arg database.DeleteGitAuthLinkParams) (database.GitAuthLink, error) {
+		return q.db.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
+			UserID:     arg.UserID,
+			ProviderID: arg.ProviderID,
+		})
+	}, q.db.DeleteGitAuthLink)(ctx, arg)
+}
+
 func (q *querier) DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error {
 	return deleteQ(q.log, q.auth, q.db.GetGitSSHKey, q.db.DeleteGitSSHKey)(ctx, userID)
 }
@@ -755,6 +764,10 @@ func (q *querier) DeleteTailnetClient(ctx context.Context, arg database.DeleteTa
 		return database.DeleteTailnetClientRow{}, err
 	}
 	return q.db.DeleteTailnetClient(ctx, arg)
+}
+
+func (q *querier) DeleteUserLinkByLinkedID(ctx context.Context, linkedID string) error {
+	return deleteQ(q.log, q.auth, q.db.GetUserLinkByLinkedID, q.db.DeleteUserLinkByLinkedID)(ctx, linkedID)
 }
 
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {

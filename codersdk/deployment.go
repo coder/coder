@@ -48,6 +48,7 @@ const (
 	FeatureAdvancedTemplateScheduling FeatureName = "advanced_template_scheduling"
 	FeatureTemplateRestartRequirement FeatureName = "template_restart_requirement"
 	FeatureWorkspaceProxy             FeatureName = "workspace_proxy"
+	FeatureExternalTokenEncryption    FeatureName = "external_token_encryption"
 )
 
 // FeatureNames must be kept in-sync with the Feature enum above.
@@ -64,6 +65,7 @@ var FeatureNames = []FeatureName{
 	FeatureAdvancedTemplateScheduling,
 	FeatureWorkspaceProxy,
 	FeatureUserRoleManagement,
+	FeatureExternalTokenEncryption,
 }
 
 // Humanize returns the feature name in a human-readable format.
@@ -151,6 +153,7 @@ type DeploymentValues struct {
 	AgentFallbackTroubleshootingURL clibase.URL                     `json:"agent_fallback_troubleshooting_url,omitempty" typescript:",notnull"`
 	BrowserOnly                     clibase.Bool                    `json:"browser_only,omitempty" typescript:",notnull"`
 	SCIMAPIKey                      clibase.String                  `json:"scim_api_key,omitempty" typescript:",notnull"`
+	ExternalTokenEncryptionKey      clibase.String                  `json:"external_token_encryption_key"`
 	Provisioner                     ProvisionerConfig               `json:"provisioner,omitempty" typescript:",notnull"`
 	RateLimit                       RateLimitConfig                 `json:"rate_limit,omitempty" typescript:",notnull"`
 	Experiments                     clibase.StringArray             `json:"experiments,omitempty" typescript:",notnull"`
@@ -1575,7 +1578,14 @@ when required by your organization's security policy.`,
 			Annotations: clibase.Annotations{}.Mark(annotationEnterpriseKey, "true").Mark(annotationSecretKey, "true"),
 			Value:       &c.SCIMAPIKey,
 		},
-
+		{
+			Name:        "External Token Encryption Key",
+			Description: "Encrypt OIDC and Git authentication tokens with AES-256-GCM in the database. The value must be a base64-encoded key.",
+			Flag:        "external-token-encryption-key",
+			Env:         "CODER_EXTERNAL_TOKEN_ENCRYPTION_KEY",
+			Annotations: clibase.Annotations{}.Mark(annotationEnterpriseKey, "true").Mark(annotationSecretKey, "true"),
+			Value:       &c.ExternalTokenEncryptionKey,
+		},
 		{
 			Name:        "Disable Path Apps",
 			Description: "Disable workspace apps that are not served from subdomains. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. This is recommended for security purposes if a --wildcard-access-url is configured.",

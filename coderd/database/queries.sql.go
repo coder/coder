@@ -799,6 +799,20 @@ func (q *sqlQuerier) InsertFile(ctx context.Context, arg InsertFileParams) (File
 	return i, err
 }
 
+const deleteGitAuthLink = `-- name: DeleteGitAuthLink :exec
+DELETE FROM git_auth_links WHERE provider_id = $1 AND user_id = $2
+`
+
+type DeleteGitAuthLinkParams struct {
+	ProviderID string    `db:"provider_id" json:"provider_id"`
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+func (q *sqlQuerier) DeleteGitAuthLink(ctx context.Context, arg DeleteGitAuthLinkParams) error {
+	_, err := q.db.ExecContext(ctx, deleteGitAuthLink, arg.ProviderID, arg.UserID)
+	return err
+}
+
 const getGitAuthLink = `-- name: GetGitAuthLink :one
 SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry FROM git_auth_links WHERE provider_id = $1 AND user_id = $2
 `
@@ -5468,6 +5482,18 @@ func (q *sqlQuerier) InsertTemplateVersionVariable(ctx context.Context, arg Inse
 		&i.Sensitive,
 	)
 	return i, err
+}
+
+const deleteUserLinkByLinkedID = `-- name: DeleteUserLinkByLinkedID :exec
+DELETE FROM
+	user_links
+WHERE
+	linked_id = $1
+`
+
+func (q *sqlQuerier) DeleteUserLinkByLinkedID(ctx context.Context, linkedID string) error {
+	_, err := q.db.ExecContext(ctx, deleteUserLinkByLinkedID, linkedID)
+	return err
 }
 
 const getUserLinkByLinkedID = `-- name: GetUserLinkByLinkedID :one

@@ -263,6 +263,15 @@ Expose the swagger endpoint via /swagger.
 
 Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '\*' to opt-in to all available experiments.
 
+### --external-token-encryption-key
+
+|             |                                                   |
+| ----------- | ------------------------------------------------- |
+| Type        | <code>string</code>                               |
+| Environment | <code>$CODER_EXTERNAL_TOKEN_ENCRYPTION_KEY</code> |
+
+Encrypt OIDC and Git authentication tokens with AES-256-GCM in the database. The value must be a base64-encoded key.
+
 ### --provisioner-force-cancel-interval
 
 |             |                                                       |

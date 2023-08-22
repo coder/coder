@@ -211,6 +211,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     },
     "enable_terraform_debug_mode": true,
     "experiments": ["string"],
+    "external_token_encryption_key": "string",
     "git_auth": {
       "value": [
         {

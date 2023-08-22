@@ -5,6 +5,7 @@ package cli
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"errors"
 	"io"
 	"net/url"
@@ -67,6 +68,17 @@ func (r *RootCmd) server() *clibase.Cmd {
 			ProxyHealthInterval:       options.DeploymentValues.ProxyHealthStatusInterval.Value(),
 			DefaultQuietHoursSchedule: options.DeploymentValues.UserQuietHoursSchedule.DefaultSchedule.Value(),
 			ProvisionerDaemonPSK:      options.DeploymentValues.Provisioner.DaemonPSK.Value(),
+		}
+
+		if options.DeploymentValues.ExternalTokenEncryptionKey.Value() != "" {
+			key, err := base64.StdEncoding.DecodeString(options.DeploymentValues.ExternalTokenEncryptionKey.String())
+			if err != nil {
+				return nil, nil, xerrors.Errorf("decode external-token-encryption-key: %w", err)
+			}
+			o.ExternalTokenEncryption, err = cryptorand.CipherAES256(key)
+			if err != nil {
+				return nil, nil, xerrors.Errorf("create external-token-encryption-key cipher: %w", err)
+			}
 		}
 
 		api, err := coderd.New(ctx, o)

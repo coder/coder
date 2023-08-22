@@ -92,7 +92,7 @@ func NewWithAPI(t *testing.T, options *Options) (
 		ReplicaSyncUpdateInterval:  options.ReplicaSyncUpdateInterval,
 		Options:                    oop,
 		EntitlementsUpdateInterval: options.EntitlementsUpdateInterval,
-		Keys:                       Keys,
+		LicenseKeys:                Keys,
 		ProxyHealthInterval:        options.ProxyHealthInterval,
 		DefaultQuietHoursSchedule:  oop.DeploymentValues.UserQuietHoursSchedule.DefaultSchedule.Value(),
 		ProvisionerDaemonPSK:       options.ProvisionerDaemonPSK,

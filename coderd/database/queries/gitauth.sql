@@ -27,3 +27,6 @@ UPDATE git_auth_links SET
     oauth_refresh_token = $5,
     oauth_expiry = $6
 WHERE provider_id = $1 AND user_id = $2 RETURNING *;
+
+-- name: DeleteGitAuthLink :exec
+DELETE FROM git_auth_links WHERE provider_id = $1 AND user_id = $2;

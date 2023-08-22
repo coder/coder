@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -25,11 +26,13 @@ import (
 	"github.com/coder/coder/v2/coderd"
 	agplaudit "github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbcrypt"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/enterprise/coderd/proxyhealth"
 	"github.com/coder/coder/v2/enterprise/coderd/schedule"
@@ -47,8 +50,8 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if options.EntitlementsUpdateInterval == 0 {
 		options.EntitlementsUpdateInterval = 10 * time.Minute
 	}
-	if options.Keys == nil {
-		options.Keys = Keys
+	if options.LicenseKeys == nil {
+		options.LicenseKeys = Keys
 	}
 	if options.Options == nil {
 		options.Options = &coderd.Options{}
@@ -61,9 +64,16 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 
 	ctx, cancelFunc := context.WithCancel(ctx)
+
+	externalTokenCipher := &atomic.Pointer[cryptorand.Cipher]{}
+	options.Database = dbcrypt.New(options.Database, &dbcrypt.Options{
+		ExternalTokenCipher: externalTokenCipher,
+	})
+
 	api := &API{
-		ctx:    ctx,
-		cancel: cancelFunc,
+		ctx:                 ctx,
+		cancel:              cancelFunc,
+		externalTokenCipher: externalTokenCipher,
 
 		AGPL:    coderd.New(options.Options),
 		Options: options,
@@ -360,8 +370,9 @@ type Options struct {
 	RBAC         bool
 	AuditLogging bool
 	// Whether to block non-browser connections.
-	BrowserOnly bool
-	SCIMAPIKey  []byte
+	BrowserOnly             bool
+	SCIMAPIKey              []byte
+	ExternalTokenEncryption cryptorand.Cipher
 
 	// Used for high availability.
 	ReplicaSyncUpdateInterval time.Duration
@@ -377,6 +388,7 @@ type Options struct {
 
 	// optional pre-shared key for authentication of external provisioner daemons
 	ProvisionerDaemonPSK string
+	LicenseKeys          map[string]ed25519.PublicKey
 }
 
 type API struct {
@@ -387,6 +399,8 @@ type API struct {
 	// interruptible tasks.
 	ctx    context.Context
 	cancel context.CancelFunc
+
+	externalTokenCipher *atomic.Pointer[cryptorand.Cipher]
 
 	// Detects multiple Coder replicas running at the same time.
 	replicaManager *replicasync.Manager
@@ -426,6 +440,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureHighAvailability:           api.DERPServerRelayAddress != "",
 			codersdk.FeatureMultipleGitAuth:            len(api.GitAuthConfigs) > 1,
 			codersdk.FeatureTemplateRBAC:               api.RBAC,
+			codersdk.FeatureExternalTokenEncryption:    api.ExternalTokenEncryption != nil,
 			codersdk.FeatureExternalProvisionerDaemons: true,
 			codersdk.FeatureAdvancedTemplateScheduling: true,
 			// FeatureTemplateRestartRequirement depends on
