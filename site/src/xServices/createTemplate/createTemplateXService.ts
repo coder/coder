@@ -519,7 +519,6 @@ export const createTemplateMachine =
         hasFailed: (_, { data }) =>
           Boolean(
             data.job.status === "failed" &&
-              !isMissingParameter(data) &&
               !isMissingVariables(data),
           ),
         hasNoParametersOrVariables: (_, { data }) =>
@@ -530,13 +529,6 @@ export const createTemplateMachine =
       },
     },
   )
-
-const isMissingParameter = (version: TemplateVersion) => {
-  return Boolean(
-    version.job.error_code &&
-      version.job.error_code === "MISSING_TEMPLATE_PARAMETER",
-  )
-}
 
 const isMissingVariables = (version: TemplateVersion) => {
   return Boolean(
