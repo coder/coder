@@ -288,8 +288,10 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	}
 	for _, row := range dailyUsage {
 		resp.IntervalReports = append(resp.IntervalReports, codersdk.TemplateInsightsIntervalReport{
-			StartTime:   row.StartTime,
-			EndTime:     row.EndTime,
+			// NOTE(mafredri): This might not be accurate over DST since the
+			// parsed location only contains the offset.
+			StartTime:   row.StartTime.In(startTime.Location()),
+			EndTime:     row.EndTime.In(startTime.Location()),
 			Interval:    interval,
 			TemplateIDs: row.TemplateIDs,
 			ActiveUsers: row.ActiveUsers,
