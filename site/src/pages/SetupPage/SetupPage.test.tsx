@@ -1,7 +1,8 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { rest } from "msw"
-import { render, waitForLoaderToBeRemoved } from "testHelpers/renderHelpers"
+import { createMemoryRouter } from "react-router-dom"
+import { render, renderWithRouter } from "testHelpers/renderHelpers"
 import { server } from "testHelpers/server"
 import { SetupPage } from "./SetupPage"
 import { Language as PageViewLanguage } from "./SetupPageView"
@@ -76,6 +77,26 @@ describe("Setup Page", () => {
     expect(errorMessage).toBeDefined()
   })
 
+  it("redirects to workspaces page when setup is successful", async () => {
+    render(<SetupPage />)
+
+    // Update responses before submitting the form
+    server.use(
+      rest.get("/api/v2/users/me", (req, res, ctx) => {
+        return res(ctx.status(200), ctx.json(MockUser))
+      }),
+      rest.get("/api/v2/users/first", (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({ message: "hooray, someone exists!" }),
+        )
+      }),
+    )
+
+    await fillForm()
+    await waitFor(() => expect(window.location).toBeAt("/workspaces"))
+  })
+
   it("redirects to login if setup has already completed", async () => {
     // simulates setup having already been completed
     server.use(
@@ -87,11 +108,26 @@ describe("Setup Page", () => {
       }),
     )
 
-    render(<SetupPage />)
-    await waitFor(() => expect(window.location).toBeAt("/login"))
+    renderWithRouter(
+      createMemoryRouter(
+        [
+          {
+            path: "/setup",
+            element: <SetupPage />,
+          },
+          {
+            path: "/login",
+            element: <h1>Login</h1>,
+          },
+        ],
+        { initialEntries: ["/setup"] },
+      ),
+    )
+
+    await screen.findByText("Login")
   })
 
-  it("redirects to workspaces page when success", async () => {
+  it("redirects to the app when already logged in", async () => {
     // simulates the user will be authenticated
     server.use(
       rest.get("/api/v2/users/me", (req, res, ctx) => {
@@ -105,7 +141,22 @@ describe("Setup Page", () => {
       }),
     )
 
-    render(<SetupPage />)
-    await waitFor(() => expect(window.location).toBeAt("/workspaces"))
+    renderWithRouter(
+      createMemoryRouter(
+        [
+          {
+            path: "/setup",
+            element: <SetupPage />,
+          },
+          {
+            path: "/",
+            element: <h1>Workspaces</h1>,
+          },
+        ],
+        { initialEntries: ["/setup"] },
+      ),
+    )
+
+    await screen.findByText("Workspaces")
   })
 })
