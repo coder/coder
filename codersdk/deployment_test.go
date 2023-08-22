@@ -57,6 +57,9 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 		"SCIM API Key": {
 			yaml: true,
 		},
+		"External Token Encryption Key": {
+			yaml: true,
+		},
 		// These complex objects should be configured through YAML.
 		"Support Links": {
 			flag: true,
