@@ -175,7 +175,7 @@ func (b *Batcher) Add(
 // Run runs the batcher.
 func (b *Batcher) run(ctx context.Context) {
 	// nolint:gocritic // This is only ever used for one thing - inserting agent stats.
-	authCtx := dbauthz.AsSystemRestricted(context.Background())
+	authCtx := dbauthz.AsSystemRestricted(ctx)
 	for {
 		select {
 		case <-b.tickCh:
@@ -185,7 +185,13 @@ func (b *Batcher) run(ctx context.Context) {
 			b.flush(authCtx, true, "reaching capacity")
 		case <-ctx.Done():
 			b.log.Debug(ctx, "context done, flushing before exit")
-			b.flush(authCtx, true, "exit")
+
+			// We must create a new context here as the parent context is done.
+			ctxTimeout, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel() //nolint:revive // We're returning, defer is fine.
+
+			// nolint:gocritic // This is only ever used for one thing - inserting agent stats.
+			b.flush(dbauthz.AsSystemRestricted(ctxTimeout), true, "exit")
 			return
 		}
 	}
