@@ -97,13 +97,8 @@ test("create workspace with default and required parameters", async ({
   ])
 })
 
-test("create workspace and overwrite default parameters", async ({
-  page,
-}) => {
-  const richParameters: RichParameter[] = [
-    secondParameter,
-    fourthParameter,
-  ]
+test("create workspace and overwrite default parameters", async ({ page }) => {
+  const richParameters: RichParameter[] = [secondParameter, fourthParameter]
   const buildParameters = [
     { name: secondParameter.name, value: "AAAAA" },
     { name: fourthParameter.name, value: "false" },
