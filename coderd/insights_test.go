@@ -1092,6 +1092,14 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					// 	endedAt:   weekAgo.Add(time.Hour),
 					// 	requests:  1,
 					// },
+					{
+						// Different templates but identical apps, apps will be
+						// combined and usage will be summed.
+						app:       users[0].workspaces[1].apps[0],
+						startedAt: weekAgo.AddDate(0, 0, 2),
+						endedAt:   weekAgo.AddDate(0, 0, 2).Add(6 * time.Hour),
+						requests:  1,
+					},
 				},
 			},
 			users[0].workspaces[2]: {
