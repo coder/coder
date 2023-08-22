@@ -39,24 +39,6 @@ Templates are versioned, keeping all developer workspaces up-to-date. When a new
 
 ![Template update screen](https://user-images.githubusercontent.com/22407953/256712740-96121f81-a3c8-4be0-90dc-c1c4cabed634.png)
 
-## Template parameters
-
-Paramaters let users customize their individual workspaces.
-
-You'll likely want to hardcode certain template properties for workspaces (e.g. "security group, VPC"). You can expose other properties via parameters to give developers flexibility (e.g. instance size, GitHub repo URL).
-
-![Parameters in templates](https://user-images.githubusercontent.com/22407953/256707889-18baf2be-2dae-4eb2-ae89-71e5b00248f8.png)
-
-> Paramaters are defined via the template's Terraform code. [Learn more](./parameters.md)
-
-## Integrating Coder into your existing environments
-
-You can use Coder with your existing development environments:
-
-* [Open in Coder](./open-in-coder.md): Provide a link that starts a new workspace from your git repo or internal wiki.
-* [Docker in workspaces](./docker-in-workspaces.md): Run Docker in your container-based Code workspaces.
-* [Devcontainers](./devcontainers.md): Run a devcontainer as a Coder workspace.
-
 ## Next step
 
 - [Anatomy of a template](./concepts.md)

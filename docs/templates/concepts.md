@@ -1,4 +1,4 @@
-# Templates & Terraform
+# Anatomy of a template
 
 Coder templates are written in [Terraform](https://terraform.io)-. All Terraform modules, resources, and properties can be provisioned by Coder. The Coder server essentially runs a `terraform apply` every time a workspace is created/started/stopped.
 
@@ -136,6 +136,8 @@ data "coder_parameter" "repo" {
 ## Terraform variables
 
 Variables for templates are supported and can be managed in template settings.
+
+Use Terraform variables to keep secrets outside of the template. Variables are also useful for adjusting a template without having to commit a new version.
 
 ![Template variables](https://user-images.githubusercontent.com/22407953/257079273-af4720c4-1aee-4451-8fd9-82a8c579f289.png)
 

@@ -134,83 +134,76 @@
     },
     {
       "title": "Templates",
-      "description": "Learn about templates, which define the infrastructure underlying workspaces",
+      "description": "Templates define the infrastructure for workspaces",
       "path": "./templates/index.md",
       "icon_path": "./images/icons/picture.svg",
       "children": [
         {
-          "title": "Templates & Terraform",
-          "description": "Learn what makes up a template",
-          "path": "./templates/concepts.md",
-          "children": [
-            {
-              "title": "Parameters",
-              "description": "Use parameters to customize templates",
-              "path": "./templates/parameters.md",
-              "icon_path": "./images/icons/code.svg"
-            },
-            {
-              "title": "Terraform Modules",
-              "description": "Reuse code across Coder templates",
-              "path": "./templates/modules.md"
-            },
-            {
-              "title": "Agent Metadata",
-              "description": "Learn how to expose live agent information to users",
-              "path": "./templates/agent-metadata.md",
-              "icon_path": "./images/icons/table-rows.svg"
-            },
-            {
-              "title": "Resource Metadata",
-              "description": "Learn how to expose resource data to users",
-              "path": "./templates/resource-metadata.md",
-              "icon_path": "./images/icons/table-rows.svg"
-            }
-          ]
+          "title": "Anatomy of a template",
+          "description": "What makes up a template",
+          "path": "./templates/concepts.md"
         },
         {
-          "title": "Best Practices",
-          "description": "Best practices for writing/managing templates",
+          "title": "Setting up templates",
+          "description": "Best practices for writing and managing templates",
           "path": "./templates/best-practices.md",
           "children": [
             {
-              "title": "Provider Authentication",
-              "description": "Learn how to authenticate the provisioner",
+              "title": "Change management",
+              "description": "Versioning templates with git and CI",
+              "path": "./templates/change-management.md",
+              "icon_path": "./images/icons/git.svg"
+            },
+            {
+              "title": "Provider authentication",
+              "description": "Authenticate the provisioner",
               "path": "./templates/authentication.md",
               "icon_path": "./images/icons/key.svg"
             },
             {
-              "title": "Resource Persistence",
-              "description": "Learn how resource persistence works in Coder",
+              "title": "Resource persistence",
+              "description": "How resource persistence works in Coder",
               "path": "./templates/resource-persistence.md",
               "icon_path": "./images/icons/infinity.svg"
             },
             {
-              "title": "Change Management",
-              "description": "Learn how to source-control templates with git and CI",
-              "path": "./templates/change-management.md",
-              "icon_path": "./images/icons/git.svg"
+              "title": "Terraform modules",
+              "description": "Reuse code across Coder templates",
+              "path": "./templates/modules.md"
             }
           ]
         },
-
         {
-          "title": "Open in Coder",
-          "description": "Learn how to add an \"Open in Coder\" button to your repos",
-          "path": "./templates/open-in-coder.md",
-          "icon_path": "./images/icons/key.svg"
+          "title": "Customizing templates",
+          "description": "Give information and options to workspace users",
+          "path": "./templates/customizing.md",
+          "children": [
+          ]
         },
         {
-          "title": "Docker in Workspaces",
-          "description": "Use docker inside containerized templates",
-          "path": "./templates/docker-in-workspaces.md",
-          "icon_path": "./images/icons/docker.svg"
-        },
-        {
-          "title": "Devcontainers",
-          "description": "Use devcontainers in workspaces",
-          "path": "./templates/devcontainers.md",
-          "state": "alpha"
+          "title": "Integrating Coder",
+          "description": "Add Coder to your existing workflows",
+          "path": "./templates/integrating.md",
+          "children": [
+            {
+              "title": "Open in Coder",
+              "description": "Add an \"Open in Coder\" button to your repos",
+              "path": "./templates/open-in-coder.md",
+              "icon_path": "./images/icons/key.svg"
+            },
+            {
+              "title": "Docker in workspaces",
+              "description": "Use Docker inside containerized templates",
+              "path": "./templates/docker-in-workspaces.md",
+              "icon_path": "./images/icons/docker.svg"
+            },
+            {
+              "title": "Devcontainers",
+              "description": "Use devcontainers in workspaces",
+              "path": "./templates/devcontainers.md",
+              "state": "alpha"
+            }
+          ]
         }
       ]
     },
