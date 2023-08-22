@@ -78,21 +78,37 @@ describe("Setup Page", () => {
   })
 
   it("redirects to the app when setup is successful", async () => {
-    render(<SetupPage />)
+    let userHasBeenCreated = false
 
-    // Update responses before submitting the form
     server.use(
       rest.get("/api/v2/users/me", (req, res, ctx) => {
+        if (!userHasBeenCreated) {
+          return res(ctx.status(401), ctx.json({ message: "no user here" }))
+        }
         return res(ctx.status(200), ctx.json(MockUser))
       }),
       rest.get("/api/v2/users/first", (req, res, ctx) => {
+        if (!userHasBeenCreated) {
+          return res(
+            ctx.status(404),
+            ctx.json({ message: "no first user has been created" }),
+          )
+        }
         return res(
           ctx.status(200),
           ctx.json({ message: "hooray, someone exists!" }),
         )
       }),
+      rest.post("/api/v2/users/first", (req, res, ctx) => {
+        userHasBeenCreated = true
+        return res(
+          ctx.status(200),
+          ctx.json({ data: "user setup was successful!" }),
+        )
+      }),
     )
 
+    render(<SetupPage />)
     await fillForm()
     await waitFor(() => expect(window.location).toBeAt("/"))
   })
