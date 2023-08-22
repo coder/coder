@@ -1143,7 +1143,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					makeRequest: func(templates []*testTemplate) codersdk.TemplateInsightsRequest {
 						return codersdk.TemplateInsightsRequest{
 							StartTime: weekAgo,
-							EndTime:   lastNight,
+							EndTime:   weekAgo.AddDate(0, 0, 7),
 							Interval:  codersdk.InsightsReportIntervalDay,
 						}
 					},
@@ -1154,7 +1154,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						return codersdk.TemplateInsightsRequest{
 							TemplateIDs: []uuid.UUID{templates[0].id, templates[1].id, templates[2].id},
 							StartTime:   weekAgo,
-							EndTime:     lastNight,
+							EndTime:     weekAgo.AddDate(0, 0, 7),
 							Interval:    codersdk.InsightsReportIntervalDay,
 						}
 					},
@@ -1165,7 +1165,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						return codersdk.TemplateInsightsRequest{
 							TemplateIDs: []uuid.UUID{templates[0].id},
 							StartTime:   weekAgo,
-							EndTime:     lastNight,
+							EndTime:     weekAgo.AddDate(0, 0, 7),
 							Interval:    codersdk.InsightsReportIntervalDay,
 						}
 					},
@@ -1176,7 +1176,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						return codersdk.TemplateInsightsRequest{
 							TemplateIDs: []uuid.UUID{templates[1].id},
 							StartTime:   weekAgo,
-							EndTime:     lastNight,
+							EndTime:     weekAgo.AddDate(0, 0, 7),
 							Interval:    codersdk.InsightsReportIntervalDay,
 						}
 					},
@@ -1187,7 +1187,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						return codersdk.TemplateInsightsRequest{
 							TemplateIDs: []uuid.UUID{templates[2].id},
 							StartTime:   weekAgo,
-							EndTime:     lastNight,
+							EndTime:     weekAgo.AddDate(0, 0, 7),
 							Interval:    codersdk.InsightsReportIntervalDay,
 						}
 					},
@@ -1233,7 +1233,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 				}
 			}
 
-			client, toStableTemplateID := prepare(t, templates, users, testData)
+			client, toStableTemplateIDs := prepare(t, templates, users, testData)
 
 			for _, req := range tt.requests {
 				req := req
@@ -1245,7 +1245,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					report, err := client.TemplateInsights(ctx, req.makeRequest(templates))
 					require.NoError(t, err, "want no error getting template insights")
 
-					stabilizeReportForGoldenComparison(&report, toStableTemplateID)
+					stabilizeReportForGoldenComparison(&report, toStableTemplateIDs)
 
 					partialName := strings.Join(strings.Split(t.Name(), "/")[1:], "_")
 					goldenFile := filepath.Join("testdata", "insights", partialName+".json.golden")
