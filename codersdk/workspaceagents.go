@@ -186,6 +186,7 @@ type DERPRegion struct {
 // @typescript-ignore WorkspaceAgentConnectionInfo
 type WorkspaceAgentConnectionInfo struct {
 	DERPMap                  *tailcfg.DERPMap `json:"derp_map"`
+	DERPForceWebSockets      bool             `json:"derp_force_websockets"`
 	DisableDirectConnections bool             `json:"disable_direct_connections"`
 }
 
@@ -247,11 +248,12 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 		header = headerTransport.Header()
 	}
 	conn, err := tailnet.NewConn(&tailnet.Options{
-		Addresses:      []netip.Prefix{netip.PrefixFrom(ip, 128)},
-		DERPMap:        connInfo.DERPMap,
-		DERPHeader:     &header,
-		Logger:         options.Logger,
-		BlockEndpoints: c.DisableDirectConnections || options.BlockEndpoints,
+		Addresses:           []netip.Prefix{netip.PrefixFrom(ip, 128)},
+		DERPMap:             connInfo.DERPMap,
+		DERPHeader:          &header,
+		DERPForceWebSockets: connInfo.DERPForceWebSockets,
+		Logger:              options.Logger,
+		BlockEndpoints:      c.DisableDirectConnections || options.BlockEndpoints,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)

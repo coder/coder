@@ -6391,6 +6391,9 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.WorkspaceApp"
                     }
                 },
+                "derp_force_websockets": {
+                    "type": "boolean"
+                },
                 "derpmap": {
                     "$ref": "#/definitions/tailcfg.DERPMap"
                 },
@@ -7754,6 +7757,9 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "block_direct": {
+                    "type": "boolean"
+                },
+                "force_websockets": {
                     "type": "boolean"
                 },
                 "path": {
@@ -10684,6 +10690,9 @@ const docTemplate = `{
         "codersdk.WorkspaceAgentConnectionInfo": {
             "type": "object",
             "properties": {
+                "derp_force_websockets": {
+                    "type": "boolean"
+                },
                 "derp_map": {
                     "$ref": "#/definitions/tailcfg.DERPMap"
                 },
