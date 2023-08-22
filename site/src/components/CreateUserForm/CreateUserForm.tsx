@@ -106,7 +106,7 @@ export const CreateUserForm: FC<
 
   const styles = useStyles()
   // This, unfortunately, cannot be an actual component because mui requires
-  // that all `MenuItem`s but be direct children of the `Select` they belong to
+  // that all `MenuItem`s must be direct children of the `Select` they belong to
   const authMethodSelect = (value: keyof typeof authMethodLanguage) => {
     const language = authMethodLanguage[value]
     return (
