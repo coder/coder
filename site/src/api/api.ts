@@ -1220,7 +1220,6 @@ const getMissingParameters = (
 
     if (isMutableAndRequired || isImmutable) {
       requiredParameters.push(p)
-      return
     }
   })
 
@@ -1243,6 +1242,31 @@ const getMissingParameters = (
     missingParameters.push(parameter)
   }
 
+  // Check if parameter "options" changed and we can't use old build parameters.
+  templateParameters.forEach((templateParameter) => {
+    if (templateParameter.options.length === 0) {
+      return
+    }
+
+    // Check if there is a new value
+    let buildParameter = newBuildParameters.find(
+      (p) => p.name === templateParameter.name,
+    )
+
+    // If not, get the old one
+    if (!buildParameter) {
+      buildParameter = oldBuildParameters.find((p) => p.name === templateParameter.name)
+    }
+
+    if (!buildParameter) {
+      return
+    }
+
+    const matchingOption = templateParameter.options.find(option => option.value === buildParameter?.value);
+    if (!matchingOption) {
+      missingParameters.push(templateParameter)
+    }
+  })
   return missingParameters
 }
 
