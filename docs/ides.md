@@ -45,7 +45,7 @@ Alternatively, manually install the VSIX from the [latest release](https://githu
 
 To access Coder via SSH, run the following in the terminal:
 
-```console
+```shell
 coder config-ssh
 ```
 

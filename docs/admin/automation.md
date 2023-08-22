@@ -10,13 +10,13 @@ All actions possible through the Coder dashboard can also be automated as it uti
 
 Generate a token on your Coder deployment by visiting:
 
-```sh
+```shell
 https://coder.example.com/settings/tokens
 ```
 
 List your workspaces
 
-```sh
+```shell
 # CLI
 coder ls \
   --url https://coder.example.com \
@@ -46,7 +46,7 @@ Workspace agents have a special token that can send logs, metrics, and workspace
 
 - [Custom workspace logs](../api/agents.md#patch-workspace-agent-logs): Expose messages prior to the Coder init script running (e.g. pulling image, VM starting, restoring snapshot). [coder-logstream-kube](https://github.com/coder/coder-logstream-kube) uses this to show Kubernetes events, such as image pulls or ResourceQuota restrictions.
 
-  ```sh
+  ```shell
   curl -X PATCH https://coder.example.com/api/v2/workspaceagents/me/logs \
   -H "Coder-Session-Token: $CODER_AGENT_TOKEN" \
   -d "{
@@ -62,7 +62,7 @@ Workspace agents have a special token that can send logs, metrics, and workspace
 
 - [Manually send workspace activity](../api/agents.md#submit-workspace-agent-stats): Keep a workspace "active," even if there is not an open connection (e.g. for a long-running machine learning job).
 
-  ```sh
+  ```shell
   #!/bin/bash
   # Send workspace activity as long as the job is still running
 

@@ -29,7 +29,7 @@ values in the next step.
 Navigate to your Coder host and run the following command to start up the Coder
 server:
 
-```console
+```shell
 coder server --oauth2-github-allow-signups=true --oauth2-github-allowed-orgs="your-org" --oauth2-github-client-id="8d1...e05" --oauth2-github-client-secret="57ebc9...02c24c"
 ```
 
@@ -39,7 +39,7 @@ Alternatively, if you are running Coder as a system service, you can achieve the
 same result as the command above by adding the following environment variables
 to the `/etc/coder.d/coder.env` file:
 
-```console
+```env
 CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS=true
 CODER_OAUTH2_GITHUB_ALLOWED_ORGS="your-org"
 CODER_OAUTH2_GITHUB_CLIENT_ID="8d1...e05"
@@ -48,7 +48,7 @@ CODER_OAUTH2_GITHUB_CLIENT_SECRET="57ebc9...02c24c"
 
 **Note:** To allow everyone to signup using GitHub, set:
 
-```console
+```env
 CODER_OAUTH2_GITHUB_ALLOW_EVERYONE=true
 ```
 
@@ -76,7 +76,7 @@ coder:
 
 To upgrade Coder, run:
 
-```console
+```shell
 helm upgrade <release-name> coder-v2/coder -n <namespace> -f values.yaml
 ```
 
@@ -99,7 +99,7 @@ Your OIDC provider will ask you for the following parameter:
 Navigate to your Coder host and run the following command to start up the Coder
 server:
 
-```console
+```shell
 coder server --oidc-issuer-url="https://issuer.corp.com" --oidc-email-domain="your-domain-1,your-domain-2" --oidc-client-id="533...des" --oidc-client-secret="G0CSP...7qSM"
 ```
 
@@ -107,7 +107,7 @@ If you are running Coder as a system service, you can achieve the
 same result as the command above by adding the following environment variables
 to the `/etc/coder.d/coder.env` file:
 
-```console
+```env
 CODER_OIDC_ISSUER_URL="https://issuer.corp.com"
 CODER_OIDC_EMAIL_DOMAIN="your-domain-1,your-domain-2"
 CODER_OIDC_CLIENT_ID="533...des"
@@ -134,7 +134,7 @@ coder:
 
 To upgrade Coder, run:
 
-```console
+```shell
 helm upgrade <release-name> coder-v2/coder -n <namespace> -f values.yaml
 ```
 
@@ -162,7 +162,7 @@ value for the newly created user's email address.
 If your upstream identity provider users a different claim, you can set
 `CODER_OIDC_EMAIL_FIELD` to the desired claim.
 
-> **Note:** If this field is not present, Coder will attempt to use the
+> **Note** If this field is not present, Coder will attempt to use the
 > claim field configured for `username` as an email address. If this field
 > is not a valid email address, OIDC logins will fail.
 
@@ -173,7 +173,7 @@ the `email_verified` claim is present in the token response from the identity
 provider, Coder will validate that its value is `true`. If needed, you can
 disable this behavior with the following setting:
 
-```console
+```env
 CODER_OIDC_IGNORE_EMAIL_VERIFIED=true
 ```
 
@@ -198,7 +198,7 @@ set `CODER_OIDC_USERNAME_FIELD` to the desired claim.
 If you'd like to change the OpenID Connect button text and/or icon, you can
 configure them like so:
 
-```console
+```env
 CODER_OIDC_SIGN_IN_TEXT="Sign in with Gitea"
 CODER_OIDC_ICON_URL=https://gitea.io/images/gitea.png
 ```
@@ -208,7 +208,7 @@ CODER_OIDC_ICON_URL=https://gitea.io/images/gitea.png
 To remove email and password login, set the following environment variable on your
 Coder deployment:
 
-```console
+```env
 CODER_DISABLE_PASSWORD_AUTH=true
 ```
 
@@ -219,7 +219,7 @@ authentication. Upon deactivation, users are [suspended](./users.md#suspend-a-us
 and are not deleted. [Configure](./configure.md) your SCIM application with an
 auth key and supply it the Coder server.
 
-```console
+```env
 CODER_SCIM_API_KEY="your-api-key"
 ```
 
@@ -227,7 +227,7 @@ CODER_SCIM_API_KEY="your-api-key"
 
 If your OpenID Connect provider requires client TLS certificates for authentication, you can configure them like so:
 
-```console
+```env
 CODER_TLS_CLIENT_CERT_FILE=/path/to/cert.pem
 CODER_TLS_CLIENT_KEY_FILE=/path/to/key.pem
 ```
@@ -241,18 +241,22 @@ To enable group sync, ensure that the `groups` claim is set by adding the correc
 enabled, the user's groups will be controlled by the OIDC provider. This means
 manual group additions/removals will be overwritten on the next login.
 
-```console
+```env
 # as an environment variable
 CODER_OIDC_SCOPES=openid,profile,email,groups
+```
+```shell
 # as a flag
 --oidc-scopes openid,profile,email,groups
 ```
 
 With the `groups` scope requested, we also need to map the `groups` claim name. Coder recommends using `groups` for the claim name. This step is necessary if your **scope's name** is something other than `groups`.
 
-```console
+```env
 # as an environment variable
 CODER_OIDC_GROUP_FIELD=groups
+```
+```shell
 # as a flag
 --oidc-group-field groups
 ```
@@ -264,9 +268,11 @@ For cases when an OIDC provider only returns group IDs ([Azure AD][azure-gids])
 or you want to have different group names in Coder than in your OIDC provider,
 you can configure mapping between the two.
 
-```console
+```env
 # as an environment variable
 CODER_OIDC_GROUP_MAPPING='{"myOIDCGroupID": "myCoderGroupName"}'
+```
+```shell
 # as a flag
 --oidc-group-mapping '{"myOIDCGroupID": "myCoderGroupName"}'
 ```
@@ -296,20 +302,22 @@ Some common issues when enabling group sync.
 
 If you want Coder to create groups that do not exist, you can set the following environment variable. If you enable this, your OIDC provider might be sending over many unnecessary groups. Use filtering options on the OIDC provider to limit the groups sent over to prevent creating excess groups.
 
-```console
+```env
 # as an environment variable
 CODER_OIDC_GROUP_AUTO_CREATE=true
-
+```
+```shell
 # as a flag
 --oidc-group-auto-create=true
 ```
 
 A basic regex filtering option on the Coder side is available. This is applied **after** the group mapping (`CODER_OIDC_GROUP_MAPPING`), meaning if the group is remapped, the remapped value is tested in the regex. This is useful if you want to filter out groups that do not match a certain pattern. For example, if you want to only allow groups that start with `my-group-` to be created, you can set the following environment variable.
 
-```console
+```env
 # as an environment variable
 CODER_OIDC_GROUP_REGEX_FILTER="^my-group-.*$"
-
+```
+```shell
 # as a flag
 --oidc-group-regex-filter="^my-group-.*$"
 ```
@@ -343,8 +351,8 @@ to synchronize roles in your auth provider to deployment-wide roles within Coder
 
 Set the following in your Coder server [configuration](./configure.md).
 
-```console
- # Depending on your identity provider configuration, you may need to explicitly request a "roles" scope
+```env
+# Depending on your identity provider configuration, you may need to explicitly request a "roles" scope
 CODER_OIDC_SCOPES=openid,profile,email,roles
 
 # The following fields are required for role sync:

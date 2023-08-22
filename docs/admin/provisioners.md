@@ -30,13 +30,13 @@ see the [Helm example](#example-running-an-external-provisioner-with-helm) below
 
 - **Generic provisioners** can pick up any build job from templates without provisioner tags.
 
-  ```sh
+  ```shell
   coder provisionerd start
   ```
 
 - **Tagged provisioners** can be used to pick up build jobs from templates (and corresponding workspaces) with matching tags.
 
-  ```sh
+  ```shell
   coder provisionerd start \
     --tag environment=on_prem \
     --tag data_center=chicago
@@ -56,7 +56,7 @@ see the [Helm example](#example-running-an-external-provisioner-with-helm) below
 
 - **User provisioners** can only pick up jobs from user-tagged templates. Unlike the other provisioner types, any Coder can run user provisioners, but they have no impact unless there is at least one template with the `scope=user` provisioner tag.
 
-  ```sh
+  ```shell
   coder provisionerd start \
     --tag scope=user
 
@@ -129,7 +129,7 @@ for deploying the Coder server.
 
 ## Example: Running an external provisioner on a VM
 
-```sh
+```shell
 curl -L https://coder.com/install.sh | sh
 export CODER_URL=https://coder.example.com
 export CODER_SESSION_TOKEN=your_token
@@ -138,7 +138,7 @@ coder provisionerd start
 
 ## Example: Running an external provisioner via Docker
 
-```sh
+```shell
 docker run --rm -it \
   -e CODER_URL=https://coder.example.com/ \
   -e CODER_SESSION_TOKEN=your_token \
@@ -151,6 +151,6 @@ docker run --rm -it \
 
 As mentioned above, the Coder server will run built-in provisioners by default. This can be disabled with a server-wide [flag or environment variable](../cli/server.md#provisioner-daemons).
 
-```sh
+```shell
 coder server --provisioner-daemons=0
 ```

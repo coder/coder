@@ -99,7 +99,7 @@ Windows example:
 
 macOS example:
 
-```sh
+```shell
 keytool -import -alias coder -file cacert.pem -keystore /Applications/JetBrains\ Gateway.app/Contents/jbr/Contents/Home/lib/security/cacerts
 ```
 
@@ -168,7 +168,7 @@ are air-gapped, and cannot reach jetbrains.com), run the following script in the
 JetBrains IDE directory to point the default Gateway directory to the IDE
 directory. This step must be done before configuring Gateway.
 
-```sh
+```shell
 cd /opt/idea/bin
 ./remote-dev-server.sh registerBackendLocationForGateway
 ```

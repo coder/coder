@@ -64,7 +64,7 @@ The new user will appear in the **Users** list. Use the toggle to change their
 
 To create a user via the Coder CLI, run:
 
-```console
+```shell
 coder users create
 ```
 
@@ -98,7 +98,7 @@ To suspend a user via the web UI:
 
 To suspend a user via the CLI, run:
 
-```console
+```shell
 coder users suspend <username|user_id>
 ```
 
@@ -117,7 +117,7 @@ To activate a user via the web UI:
 
 To activate a user via the CLI, run:
 
-```console
+```shell
 coder users activate <username|user_id>
 ```
 
@@ -137,7 +137,7 @@ Coder will prompt the user to change their temporary password immediately after 
 
 You can also reset a password via the CLI:
 
-```console
+```shell
 # run `coder reset-password <username> --help` for usage instructions
 coder reset-password <username>
 ```
@@ -146,7 +146,7 @@ coder reset-password <username>
 
 ### Resetting a password on Kubernetes
 
-```sh
+```shell
 kubectl exec -it deployment/coder /bin/bash -n coder
 
 coder reset-password <username>

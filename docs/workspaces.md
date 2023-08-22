@@ -7,7 +7,7 @@ for software development.
 
 Each Coder user has their own workspaces created from [shared templates](./templates/index.md):
 
-```console
+```shell
 # create a workspace from the template; specify any variables
 coder create --template="<templateName>" <workspaceName>
 
@@ -71,7 +71,7 @@ when connections are left open inadvertently.
 Use the following command to update a workspace to the latest template version.
 The workspace will be stopped and started:
 
-```console
+```shell
 coder update <workspace-name>
 ```
 
@@ -81,7 +81,7 @@ Use the following command to re-enter template input
 variables in an existing workspace. This command is useful when a workspace fails
 to build because its state is out of sync with the template.
 
-```console
+```shell
 coder update <your workspace name> --always-prompt
 ```
 

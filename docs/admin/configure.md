@@ -17,7 +17,7 @@ a publicly accessible URL to reverse proxy your deployment for simple setup.
 
 You can change which port(s) Coder listens on.
 
-```sh
+```shell
 # Listen on port 80
 export CODER_HTTP_ADDRESS=0.0.0.0:80
 
@@ -62,7 +62,7 @@ You must have the certificate `.key` and `.crt` files in your working directory 
 
 1. Create the TLS secret in your Kubernetes cluster
 
-```console
+```shell
 kubectl create secret tls coder-tls -n <coder-namespace> --key="tls.key" --cert="tls.crt"
 ```
 
@@ -117,7 +117,7 @@ To migrate from the built-in database to an external database, follow these step
 If you've installed Coder via a [system package](../install/packages.md) Coder, you can
 configure the server by setting the following variables in `/etc/coder.d/coder.env`:
 
-```console
+```env
 # String. Specifies the external URL (HTTP/S) to access Coder.
 CODER_ACCESS_URL=https://coder.example.com
 
@@ -145,7 +145,7 @@ CODER_TLS_KEY_FILE=
 
 To run Coder as a system service on the host:
 
-```console
+```shell
 # Use systemd to start Coder now and on reboot
 sudo systemctl enable --now coder
 
@@ -155,7 +155,7 @@ journalctl -u coder.service -b
 
 To restart Coder after applying system changes:
 
-```console
+```shell
 sudo systemctl restart coder
 ```
 

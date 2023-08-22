@@ -8,7 +8,7 @@ These changelogs are currently not kept in sync with GitHub releases. Use [GitHu
 
 Run this command to generate release notes:
 
-```sh
+```shell
 ./scripts/release/generate_release_notes.sh \
   --old-version=v0.27.0 \
   --new-version=v0.28.0 \

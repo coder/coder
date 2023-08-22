@@ -79,7 +79,7 @@ Since Coder's performance is highly dependent on the templates and workflows you
 
 The following command will run our scale test against your own Coder deployment. You can also specify a template name and any parameter values.
 
-```sh
+```shell
 coder exp scaletest create-workspaces \
     --count 1000 \
     --template "kubernetes" \
@@ -108,7 +108,7 @@ You are responsible for deleting these resources later.
 
 Given an existing set of workspaces created previously with `create-workspaces`, the following command will generate traffic similar to that of Coder's web terminal against those workspaces.
 
-```sh
+```shell
 coder exp scaletest workspace-traffic \
     --byes-per-tick 128 \
     --tick-interval 100ms \
@@ -121,7 +121,7 @@ To generate SSH traffic, add the `--ssh` flag.
 
 The scaletest utility will attempt to clean up all workspaces it creates. If you wish to clean up all workspaces, you can run the following command:
 
-```sh
+```shell
 coder exp scaletest cleanup
 ```
 

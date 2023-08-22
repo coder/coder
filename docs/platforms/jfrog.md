@@ -64,7 +64,7 @@ provider "artifactory" {
 
 When pushing the template, you can pass in the variables using the `--var` flag:
 
-```sh
+```shell
 coder templates push --var 'jfrog_host=YYY.jfrog.io' --var 'artifactory_access_token=XXX'
 ```
 
@@ -76,7 +76,7 @@ functionality for most developers.
 
 Most users should be able to install `jf` by running the following command:
 
-```sh
+```shell
 curl -fL https://install-cli.jfrog.io | sh
 ```
 
@@ -168,13 +168,13 @@ Default:                        true
 You can install the JFrog VS Code extension into workspaces
 by inserting the following lines into your `startup_script`:
 
-```sh
-  # Install the JFrog VS Code extension.
-  # Find the latest version number at
-  # https://open-vsx.org/extension/JFrog/jfrog-vscode-extension.
-  JFROG_EXT_VERSION=2.4.1
-  curl -o /tmp/jfrog.vsix -L "https://open-vsx.org/api/JFrog/jfrog-vscode-extension/$JFROG_EXT_VERSION/file/JFrog.jfrog-vscode-extension-$JFROG_EXT_VERSION.vsix"
-  /tmp/code-server/bin/code-server --install-extension /tmp/jfrog.vsix
+```shell
+# Install the JFrog VS Code extension.
+# Find the latest version number at
+# https://open-vsx.org/extension/JFrog/jfrog-vscode-extension.
+JFROG_EXT_VERSION=2.4.1
+curl -o /tmp/jfrog.vsix -L "https://open-vsx.org/api/JFrog/jfrog-vscode-extension/$JFROG_EXT_VERSION/file/JFrog.jfrog-vscode-extension-$JFROG_EXT_VERSION.vsix"
+/tmp/code-server/bin/code-server --install-extension /tmp/jfrog.vsix
 ```
 
 Note that this method will only work if your developers use code-server.

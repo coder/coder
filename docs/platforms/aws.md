@@ -35,7 +35,7 @@ That's all! Use the UI to create your first user, template, and workspace. We re
 
 Coder is primarily configured by server-side flags and environment variables. Given you created or added key-pairs when launching the instance, you can [configure your Coder deployment](../admin/configure.md) by logging in via SSH or using the console:
 
-```sh
+```shell
 ssh ubuntu@<ec2-public-IPv4>
 sudo vim /etc/coder.d/coder.env # edit config
 sudo service coder restart # restart Coder

@@ -33,13 +33,13 @@ If you are importing a module from a private git repository, the Coder server [o
 
 If you are running Coder on a VM, make sure you have `git` installed and the `coder` user has access to the following files
 
-```sh
+```toml
 # /home/coder/.gitconfig
 [credential]
   helper = store
 ```
 
-```sh
+```toml
 # /home/coder/.git-credentials
 
 # GitHub example:
@@ -54,7 +54,7 @@ First, create a `.gitconfig` and `.git-credentials` file on your local machine. 
 
 Next, create the secret in Kubernetes. Be sure to do this in the same namespace that Coder is installed in.
 
-```sh
+```shell
 export NAMESPACE=coder
 kubectl apply -f - <<EOF
 apiVersion: v1
@@ -114,7 +114,7 @@ Remember to replace `cdr.jfrog.io` with your Artifactory instance URL.
 
 You can upload the underlying module to Artifactory with:
 
-```console
+```shell
 # one-time setup commands
 # run this on the coder server (or external provisioners, if you have them)
 terraform login cdr.jfrog.io; jf tfc --global

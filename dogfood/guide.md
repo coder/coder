@@ -89,7 +89,7 @@ Check the output of `docker ps -a`
 
 Enable verbose container logging for Docker:
 
-```console
+```shell
 sudo cp /etc/docker/daemon.json /etc/docker/daemon.json.orig
 sudo cat > /etc/docker/daemon.json << EOF
 {

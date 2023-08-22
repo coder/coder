@@ -8,8 +8,8 @@ With Coder, you can deploy workspaces in additional Kubernetes clusters using di
 
 First, create a kubeconfig file with [multiple contexts](https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/).
 
-```sh
-$ kubectl config get-contexts
+```shell
+kubectl config get-contexts
 
 CURRENT   NAME                        CLUSTER
           workspaces-europe-west2-c   workspaces-europe-west2-c
@@ -22,7 +22,7 @@ If you deployed Coder on Kubernetes, you can attach a kubeconfig as a secret.
 
 This assumes Coder is deployed on the `coder` namespace and your kubeconfig file is in ~/.kube/config.
 
-```sh
+```shell
 kubectl create secret generic kubeconfig-secret -n coder --from-file=~/.kube/config
 ```
 
@@ -89,7 +89,7 @@ This guide assumes you have a `coder-workspaces` namespace on your remote cluste
 
 Run this command against your remote cluster to create a ServiceAccount, Role, RoleBinding, and token:
 
-```sh
+```shell
 kubectl apply -n coder-workspaces -f - <<EOF
 apiVersion: v1
 kind: ServiceAccount
@@ -176,16 +176,16 @@ Fetch the values from the secret and pass them to Coder. This should work on mac
 
 To get the cluster address:
 
-```sh
-$ kubectl cluster-info
+```shell
+kubectl cluster-info
 Kubernetes control plane is running at https://example.domain:6443
 
-$ export CLUSTER_ADDRESS=https://example.domain:6443
+export CLUSTER_ADDRESS=https://example.domain:6443
 ```
 
 To fetch the CA certificate and token:
 
-```sh
+```shell
 export CLUSTER_CA_CERTIFICATE=$(kubectl get secrets coder-service-account-token -n coder-workspaces -o jsonpath="{.data.ca\.crt}")
 
 export CLUSTER_SERVICEACCOUNT_TOKEN=$(kubectl get secrets coder-service-account-token -n coder-workspaces -o jsonpath="{.data.token}")
@@ -193,7 +193,7 @@ export CLUSTER_SERVICEACCOUNT_TOKEN=$(kubectl get secrets coder-service-account-
 
 Create the template with these values:
 
-```sh
+```shell
 coder templates create \
     --variable host=$CLUSTER_ADDRESS \
     --variable cluster_ca_certificate=$CLUSTER_CA_CERTIFICATE \
@@ -203,7 +203,7 @@ coder templates create \
 
 If you're on a Windows machine (or if one of the commands fail), try grabbing the values manually:
 
-```sh
+```shell
 # Get cluster API address
 kubectl cluster-info
 
