@@ -127,19 +127,35 @@ func (e *echo) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 		return nil
 	}
 
-	for index := 0; ; index++ {
+outer:
+	for i := 0; ; i++ {
 		var extension string
 		if msg.GetPlan() != nil {
 			extension = ".plan.protobuf"
 		} else {
 			extension = ".apply.protobuf"
 		}
-		path := filepath.Join(config.Directory, fmt.Sprintf("%d.provision"+extension, index))
-		_, err := e.filesystem.Stat(path)
-		if err != nil {
-			if index == 0 {
-				// Error if nothing is around to enable failed states.
-				return xerrors.New("no state")
+		var (
+			path      string
+			pathIndex int
+		)
+		// Try more specific path first, then fallback to generic.
+		paths := []string{
+			filepath.Join(config.Directory, fmt.Sprintf("%d.%s.provision"+extension, i, strings.ToLower(config.GetMetadata().GetWorkspaceTransition().String()))),
+			filepath.Join(config.Directory, fmt.Sprintf("%d.provision"+extension, i)),
+		}
+		for pathIndex, path = range paths {
+			_, err := e.filesystem.Stat(path)
+			if err != nil && pathIndex == len(paths)-1 {
+				// If there are zero messages, something is wrong.
+				if i == 0 {
+					// Error if nothing is around to enable failed states.
+					return xerrors.New("no state")
+				}
+				// Otherwise, we're done with the entire provision.
+				break outer
+			} else if err != nil {
+				continue
 			}
 			break
 		}
@@ -170,16 +186,28 @@ func (*echo) Shutdown(_ context.Context, _ *proto.Empty) (*proto.Empty, error) {
 	return &proto.Empty{}, nil
 }
 
+// Responses is a collection of mocked responses to Provision operations.
 type Responses struct {
-	Parse          []*proto.Parse_Response
+	Parse []*proto.Parse_Response
+
+	// ProvisionApply and ProvisionPlan are used to mock ALL responses of
+	// Apply and Plan, regardless of transition.
 	ProvisionApply []*proto.Provision_Response
 	ProvisionPlan  []*proto.Provision_Response
+
+	// ProvisionApplyMap and ProvisionPlanMap are used to mock specific
+	// transition responses. They are prioritized over the generic responses.
+	ProvisionApplyMap map[proto.WorkspaceTransition][]*proto.Provision_Response
+	ProvisionPlanMap  map[proto.WorkspaceTransition][]*proto.Provision_Response
 }
 
 // Tar returns a tar archive of responses to provisioner operations.
 func Tar(responses *Responses) ([]byte, error) {
 	if responses == nil {
-		responses = &Responses{ParseComplete, ProvisionComplete, ProvisionComplete}
+		responses = &Responses{
+			ParseComplete, ProvisionComplete, ProvisionComplete,
+			nil, nil,
+		}
 	}
 	if responses.ProvisionPlan == nil {
 		responses.ProvisionPlan = responses.ProvisionApply
@@ -187,58 +215,61 @@ func Tar(responses *Responses) ([]byte, error) {
 
 	var buffer bytes.Buffer
 	writer := tar.NewWriter(&buffer)
-	for index, response := range responses.Parse {
-		data, err := protobuf.Marshal(response)
+
+	writeProto := func(name string, message protobuf.Message) error {
+		data, err := protobuf.Marshal(message)
 		if err != nil {
-			return nil, err
+			return err
 		}
+
 		err = writer.WriteHeader(&tar.Header{
-			Name: fmt.Sprintf("%d.parse.protobuf", index),
+			Name: name,
 			Size: int64(len(data)),
 			Mode: 0o644,
 		})
 		if err != nil {
-			return nil, err
+			return err
 		}
+
 		_, err = writer.Write(data)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+	for index, response := range responses.Parse {
+		err := writeProto(fmt.Sprintf("%d.parse.protobuf", index), response)
 		if err != nil {
 			return nil, err
 		}
 	}
 	for index, response := range responses.ProvisionApply {
-		data, err := protobuf.Marshal(response)
-		if err != nil {
-			return nil, err
-		}
-		err = writer.WriteHeader(&tar.Header{
-			Name: fmt.Sprintf("%d.provision.apply.protobuf", index),
-			Size: int64(len(data)),
-			Mode: 0o644,
-		})
-		if err != nil {
-			return nil, err
-		}
-		_, err = writer.Write(data)
+		err := writeProto(fmt.Sprintf("%d.provision.apply.protobuf", index), response)
 		if err != nil {
 			return nil, err
 		}
 	}
 	for index, response := range responses.ProvisionPlan {
-		data, err := protobuf.Marshal(response)
+		err := writeProto(fmt.Sprintf("%d.provision.plan.protobuf", index), response)
 		if err != nil {
 			return nil, err
 		}
-		err = writer.WriteHeader(&tar.Header{
-			Name: fmt.Sprintf("%d.provision.plan.protobuf", index),
-			Size: int64(len(data)),
-			Mode: 0o644,
-		})
-		if err != nil {
-			return nil, err
+	}
+	for trans, m := range responses.ProvisionApplyMap {
+		for i, rs := range m {
+			err := writeProto(fmt.Sprintf("%d.%s.provision.apply.protobuf", i, strings.ToLower(trans.String())), rs)
+			if err != nil {
+				return nil, err
+			}
 		}
-		_, err = writer.Write(data)
-		if err != nil {
-			return nil, err
+	}
+	for trans, m := range responses.ProvisionPlanMap {
+		for i, rs := range m {
+			err := writeProto(fmt.Sprintf("%d.%s.provision.plan.protobuf", i, strings.ToLower(trans.String())), rs)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 	err := writer.Flush()

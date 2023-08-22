@@ -1461,21 +1461,143 @@ func (q *sqlQuerier) UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDPar
 	return i, err
 }
 
-const getTemplateDailyInsights = `-- name: GetTemplateDailyInsights :many
-WITH d AS (
-	-- sqlc workaround, use SELECT generate_series instead of SELECT * FROM generate_series.
-	-- Subtract 1 second from end_time to avoid including the next interval in the results.
-	SELECT generate_series($1::timestamptz, ($2::timestamptz) - '1 second'::interval, '1 day'::interval) AS d
-), ts AS (
+const getTemplateAppInsights = `-- name: GetTemplateAppInsights :many
+WITH ts AS (
 	SELECT
 		d::timestamptz AS from_,
-		CASE WHEN (d + '1 day'::interval)::timestamptz <= $2::timestamptz THEN (d + '1 day'::interval)::timestamptz ELSE $2::timestamptz END AS to_
-	FROM d
-), usage_by_day AS (
+		(d::timestamptz + '5 minute'::interval) AS to_,
+		EXTRACT(epoch FROM '5 minute'::interval) AS seconds
+	FROM
+		-- Subtract 1 second from end_time to avoid including the next interval in the results.
+		generate_series($1::timestamptz, ($2::timestamptz) - '1 second'::interval, '5 minute'::interval) d
+), app_stats_by_user_and_agent AS (
+	SELECT
+		ts.from_,
+		ts.to_,
+		ts.seconds,
+		w.template_id,
+		was.user_id,
+		was.agent_id,
+		was.access_method,
+		was.slug_or_port,
+		wa.display_name,
+		wa.icon,
+		(wa.slug IS NOT NULL)::boolean AS is_app
+	FROM ts
+	JOIN workspace_app_stats was ON (
+		(was.session_started_at >= ts.from_ AND was.session_started_at < ts.to_)
+		OR (was.session_ended_at > ts.from_ AND was.session_ended_at < ts.to_)
+		OR (was.session_started_at < ts.from_ AND was.session_ended_at >= ts.to_)
+	)
+	JOIN workspaces w ON (
+		w.id = was.workspace_id
+		AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN w.template_id = ANY($3::uuid[]) ELSE TRUE END
+	)
+	-- We do a left join here because we want to include user IDs that have used
+	-- e.g. ports when counting active users.
+	LEFT JOIN workspace_apps wa ON (
+		wa.agent_id = was.agent_id
+		AND wa.slug = was.slug_or_port
+	)
+	WHERE
+		-- We already handle timeframe in the join, but we use an additional
+		-- check against a static timeframe to help speed up the query.
+		(was.session_started_at >= $1 AND was.session_started_at < $2)
+		OR (was.session_ended_at > $1 AND was.session_ended_at < $2)
+		OR (was.session_started_at < $1 AND was.session_ended_at >= $2)
+	GROUP BY ts.from_, ts.to_, ts.seconds, w.template_id, was.user_id, was.agent_id, was.access_method, was.slug_or_port, wa.display_name, wa.icon, wa.slug
+)
+
+SELECT
+	array_agg(DISTINCT template_id)::uuid[] AS template_ids,
+	-- Return IDs so we can combine this with GetTemplateInsights.
+	array_agg(DISTINCT user_id)::uuid[] AS active_user_ids,
+	access_method,
+	slug_or_port,
+	display_name,
+	icon,
+	is_app,
+	SUM(seconds) AS usage_seconds
+FROM app_stats_by_user_and_agent
+GROUP BY access_method, slug_or_port, display_name, icon, is_app
+`
+
+type GetTemplateAppInsightsParams struct {
+	StartTime   time.Time   `db:"start_time" json:"start_time"`
+	EndTime     time.Time   `db:"end_time" json:"end_time"`
+	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
+}
+
+type GetTemplateAppInsightsRow struct {
+	TemplateIDs   []uuid.UUID    `db:"template_ids" json:"template_ids"`
+	ActiveUserIDs []uuid.UUID    `db:"active_user_ids" json:"active_user_ids"`
+	AccessMethod  string         `db:"access_method" json:"access_method"`
+	SlugOrPort    string         `db:"slug_or_port" json:"slug_or_port"`
+	DisplayName   sql.NullString `db:"display_name" json:"display_name"`
+	Icon          sql.NullString `db:"icon" json:"icon"`
+	IsApp         bool           `db:"is_app" json:"is_app"`
+	UsageSeconds  int64          `db:"usage_seconds" json:"usage_seconds"`
+}
+
+// GetTemplateAppInsights returns the aggregate usage of each app in a given
+// timeframe. The result can be filtered on template_ids, meaning only user data
+// from workspaces based on those templates will be included.
+func (q *sqlQuerier) GetTemplateAppInsights(ctx context.Context, arg GetTemplateAppInsightsParams) ([]GetTemplateAppInsightsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateAppInsights, arg.StartTime, arg.EndTime, pq.Array(arg.TemplateIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTemplateAppInsightsRow
+	for rows.Next() {
+		var i GetTemplateAppInsightsRow
+		if err := rows.Scan(
+			pq.Array(&i.TemplateIDs),
+			pq.Array(&i.ActiveUserIDs),
+			&i.AccessMethod,
+			&i.SlugOrPort,
+			&i.DisplayName,
+			&i.Icon,
+			&i.IsApp,
+			&i.UsageSeconds,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTemplateDailyInsights = `-- name: GetTemplateDailyInsights :many
+WITH ts AS (
+	SELECT
+		d::timestamptz AS from_,
+		CASE
+			WHEN (d::timestamptz + '1 day'::interval) <= $1::timestamptz
+			THEN (d::timestamptz + '1 day'::interval)
+			ELSE $1::timestamptz
+		END AS to_
+	FROM
+		-- Subtract 1 second from end_time to avoid including the next interval in the results.
+		generate_series($2::timestamptz, ($1::timestamptz) - '1 second'::interval, '1 day'::interval) AS d
+), unflattened_usage_by_day AS (
+	-- We select data from both workspace agent stats and workspace app stats to
+	-- get a complete picture of usage. This matches how usage is calculated by
+	-- the combination of GetTemplateInsights and GetTemplateAppInsights. We use
+	-- a union all to avoid a costly distinct operation.
+	--
+	-- Note that one query must perform a left join so that all intervals are
+	-- present at least once.
 	SELECT
 		ts.from_, ts.to_,
-		was.user_id,
-		array_agg(was.template_id) AS template_ids
+		was.template_id,
+		was.user_id
 	FROM ts
 	LEFT JOIN workspace_agent_stats was ON (
 		was.created_at >= ts.from_
@@ -1483,33 +1605,39 @@ WITH d AS (
 		AND was.connection_count > 0
 		AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN was.template_id = ANY($3::uuid[]) ELSE TRUE END
 	)
-	GROUP BY ts.from_, ts.to_, was.user_id
-), template_ids AS (
+	GROUP BY ts.from_, ts.to_, was.template_id, was.user_id
+
+	UNION ALL
+
 	SELECT
-		template_usage_by_day.from_,
-		array_agg(template_id) AS ids
-	FROM (
-		SELECT DISTINCT
-			from_,
-			unnest(template_ids) AS template_id
-		FROM usage_by_day
-	) AS template_usage_by_day
-	WHERE template_id IS NOT NULL
-	GROUP BY template_usage_by_day.from_
+		ts.from_, ts.to_,
+		w.template_id,
+		was.user_id
+	FROM ts
+	JOIN workspace_app_stats was ON (
+		(was.session_started_at >= ts.from_ AND was.session_started_at < ts.to_)
+		OR (was.session_ended_at > ts.from_ AND was.session_ended_at < ts.to_)
+		OR (was.session_started_at < ts.from_ AND was.session_ended_at >= ts.to_)
+	)
+	JOIN workspaces w ON (
+		w.id = was.workspace_id
+		AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN w.template_id = ANY($3::uuid[]) ELSE TRUE END
+	)
+	GROUP BY ts.from_, ts.to_, w.template_id, was.user_id
 )
 
 SELECT
 	from_ AS start_time,
 	to_ AS end_time,
-	COALESCE((SELECT template_ids.ids FROM template_ids WHERE template_ids.from_ = usage_by_day.from_), '{}')::uuid[] AS template_ids,
+	array_remove(array_agg(DISTINCT template_id), NULL)::uuid[] AS template_ids,
 	COUNT(DISTINCT user_id) AS active_users
-FROM usage_by_day
+FROM unflattened_usage_by_day
 GROUP BY from_, to_
 `
 
 type GetTemplateDailyInsightsParams struct {
-	StartTime   time.Time   `db:"start_time" json:"start_time"`
 	EndTime     time.Time   `db:"end_time" json:"end_time"`
+	StartTime   time.Time   `db:"start_time" json:"start_time"`
 	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
 }
 
@@ -1525,7 +1653,7 @@ type GetTemplateDailyInsightsRow struct {
 // that interval will be less than 24 hours. If there is no data for a selected
 // interval/template, it will be included in the results with 0 active users.
 func (q *sqlQuerier) GetTemplateDailyInsights(ctx context.Context, arg GetTemplateDailyInsightsParams) ([]GetTemplateDailyInsightsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTemplateDailyInsights, arg.StartTime, arg.EndTime, pq.Array(arg.TemplateIDs))
+	rows, err := q.db.QueryContext(ctx, getTemplateDailyInsights, arg.EndTime, arg.StartTime, pq.Array(arg.TemplateIDs))
 	if err != nil {
 		return nil, err
 	}
@@ -1553,16 +1681,15 @@ func (q *sqlQuerier) GetTemplateDailyInsights(ctx context.Context, arg GetTempla
 }
 
 const getTemplateInsights = `-- name: GetTemplateInsights :one
-WITH d AS (
-	-- Subtract 1 second from end_time to avoid including the next interval in the results.
-	SELECT generate_series($1::timestamptz, ($2::timestamptz) - '1 second'::interval, '5 minute'::interval) AS d
-), ts AS (
+WITH ts AS (
 	SELECT
 		d::timestamptz AS from_,
-		(d + '5 minute'::interval)::timestamptz AS to_,
+		(d::timestamptz + '5 minute'::interval) AS to_,
 		EXTRACT(epoch FROM '5 minute'::interval) AS seconds
-	FROM d
-), usage_by_user AS (
+	FROM
+		-- Subtract 1 second from end_time to avoid including the next interval in the results.
+		generate_series($1::timestamptz, ($2::timestamptz) - '1 second'::interval, '5 minute'::interval) d
+), agent_stats_by_interval_and_user AS (
 	SELECT
 		ts.from_,
 		ts.to_,
@@ -1579,21 +1706,27 @@ WITH d AS (
 		AND was.connection_count > 0
 		AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN was.template_id = ANY($3::uuid[]) ELSE TRUE END
 	)
+	WHERE
+		-- We already handle created_at in the join, but we use an additional
+		-- check against a static timeframe to help speed up the query.
+		was.created_at >= $1
+		AND was.created_at < $2
 	GROUP BY ts.from_, ts.to_, ts.seconds, was.user_id
 ), template_ids AS (
 	SELECT array_agg(DISTINCT template_id) AS ids
-	FROM usage_by_user, unnest(template_ids) template_id
+	FROM agent_stats_by_interval_and_user, unnest(template_ids) template_id
 	WHERE template_id IS NOT NULL
 )
 
 SELECT
 	COALESCE((SELECT ids FROM template_ids), '{}')::uuid[] AS template_ids,
-	COUNT(DISTINCT user_id) AS active_users,
+	-- Return IDs so we can combine this with GetTemplateAppInsights.
+	COALESCE(array_agg(DISTINCT user_id), '{}')::uuid[] AS active_user_ids,
 	COALESCE(SUM(usage_vscode_seconds), 0)::bigint AS usage_vscode_seconds,
 	COALESCE(SUM(usage_jetbrains_seconds), 0)::bigint AS usage_jetbrains_seconds,
 	COALESCE(SUM(usage_reconnecting_pty_seconds), 0)::bigint AS usage_reconnecting_pty_seconds,
 	COALESCE(SUM(usage_ssh_seconds), 0)::bigint AS usage_ssh_seconds
-FROM usage_by_user
+FROM agent_stats_by_interval_and_user
 `
 
 type GetTemplateInsightsParams struct {
@@ -1604,7 +1737,7 @@ type GetTemplateInsightsParams struct {
 
 type GetTemplateInsightsRow struct {
 	TemplateIDs                 []uuid.UUID `db:"template_ids" json:"template_ids"`
-	ActiveUsers                 int64       `db:"active_users" json:"active_users"`
+	ActiveUserIDs               []uuid.UUID `db:"active_user_ids" json:"active_user_ids"`
 	UsageVscodeSeconds          int64       `db:"usage_vscode_seconds" json:"usage_vscode_seconds"`
 	UsageJetbrainsSeconds       int64       `db:"usage_jetbrains_seconds" json:"usage_jetbrains_seconds"`
 	UsageReconnectingPtySeconds int64       `db:"usage_reconnecting_pty_seconds" json:"usage_reconnecting_pty_seconds"`
@@ -1612,13 +1745,14 @@ type GetTemplateInsightsRow struct {
 }
 
 // GetTemplateInsights has a granularity of 5 minutes where if a session/app was
-// in use, we will add 5 minutes to the total usage for that session (per user).
+// in use during a minute, we will add 5 minutes to the total usage for that
+// session/app (per user).
 func (q *sqlQuerier) GetTemplateInsights(ctx context.Context, arg GetTemplateInsightsParams) (GetTemplateInsightsRow, error) {
 	row := q.db.QueryRowContext(ctx, getTemplateInsights, arg.StartTime, arg.EndTime, pq.Array(arg.TemplateIDs))
 	var i GetTemplateInsightsRow
 	err := row.Scan(
 		pq.Array(&i.TemplateIDs),
-		&i.ActiveUsers,
+		pq.Array(&i.ActiveUserIDs),
 		&i.UsageVscodeSeconds,
 		&i.UsageJetbrainsSeconds,
 		&i.UsageReconnectingPtySeconds,
@@ -1634,15 +1768,15 @@ WITH latest_workspace_builds AS (
 		wbmax.template_id,
 		wb.template_version_id
 	FROM (
-	    SELECT
-	        tv.template_id, wbmax.workspace_id, MAX(wbmax.build_number) as max_build_number
+		SELECT
+			tv.template_id, wbmax.workspace_id, MAX(wbmax.build_number) as max_build_number
 		FROM workspace_builds wbmax
 		JOIN template_versions tv ON (tv.id = wbmax.template_version_id)
 		WHERE
 			wbmax.created_at >= $1::timestamptz
 			AND wbmax.created_at < $2::timestamptz
 			AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN tv.template_id = ANY($3::uuid[]) ELSE TRUE END
-	    GROUP BY tv.template_id, wbmax.workspace_id
+		GROUP BY tv.template_id, wbmax.workspace_id
 	) wbmax
 	JOIN workspace_builds wb ON (
 		wb.workspace_id = wbmax.workspace_id
@@ -6248,54 +6382,113 @@ func (q *sqlQuerier) DeleteOldWorkspaceAgentLogs(ctx context.Context) error {
 	return err
 }
 
-const getWorkspaceAgentByAuthToken = `-- name: GetWorkspaceAgentByAuthToken :one
+const getWorkspaceAgentAndOwnerByAuthToken = `-- name: GetWorkspaceAgentAndOwnerByAuthToken :one
 SELECT
-	id, created_at, updated_at, name, first_connected_at, last_connected_at, disconnected_at, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, startup_script, instance_metadata, resource_metadata, directory, version, last_connected_replica_id, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, startup_script_timeout_seconds, expanded_directory, shutdown_script, shutdown_script_timeout_seconds, logs_length, logs_overflowed, startup_script_behavior, started_at, ready_at, subsystems
-FROM
-	workspace_agents
+	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.startup_script, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.startup_script_timeout_seconds, workspace_agents.expanded_directory, workspace_agents.shutdown_script, workspace_agents.shutdown_script_timeout_seconds, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.startup_script_behavior, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems,
+	workspaces.id AS workspace_id,
+	users.id AS owner_id,
+	users.username AS owner_name,
+	users.status AS owner_status,
+	array_cat(
+		array_append(users.rbac_roles, 'member'),
+		array_append(ARRAY[]::text[], 'organization-member:' || organization_members.organization_id::text)
+	)::text[] as owner_roles,
+	array_agg(COALESCE(group_members.group_id::text, ''))::text[] AS owner_groups
+FROM users
+	INNER JOIN
+		workspaces
+	ON
+		workspaces.owner_id = users.id
+	INNER JOIN
+		workspace_builds
+	ON
+		workspace_builds.workspace_id = workspaces.id
+	INNER JOIN
+		workspace_resources
+	ON
+		workspace_resources.job_id = workspace_builds.job_id
+	INNER JOIN
+		workspace_agents
+	ON
+		workspace_agents.resource_id = workspace_resources.id
+	INNER JOIN -- every user is a member of some org
+		organization_members
+	ON
+		organization_members.user_id = users.id
+	LEFT JOIN -- as they may not be a member of any groups
+		group_members
+	ON
+		group_members.user_id = users.id
 WHERE
-	auth_token = $1
+	-- TODO: we can add more conditions here, such as:
+	-- 1) The user must be active
+	-- 2) The user must not be deleted
+	-- 3) The workspace must be running
+	workspace_agents.auth_token = $1
+GROUP BY
+	workspace_agents.id,
+	workspaces.id,
+	users.id,
+	organization_members.organization_id,
+	workspace_builds.build_number
 ORDER BY
-	created_at DESC
+	workspace_builds.build_number DESC
+LIMIT 1
 `
 
-func (q *sqlQuerier) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken uuid.UUID) (WorkspaceAgent, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceAgentByAuthToken, authToken)
-	var i WorkspaceAgent
+type GetWorkspaceAgentAndOwnerByAuthTokenRow struct {
+	WorkspaceAgent WorkspaceAgent `db:"workspace_agent" json:"workspace_agent"`
+	WorkspaceID    uuid.UUID      `db:"workspace_id" json:"workspace_id"`
+	OwnerID        uuid.UUID      `db:"owner_id" json:"owner_id"`
+	OwnerName      string         `db:"owner_name" json:"owner_name"`
+	OwnerStatus    UserStatus     `db:"owner_status" json:"owner_status"`
+	OwnerRoles     []string       `db:"owner_roles" json:"owner_roles"`
+	OwnerGroups    []string       `db:"owner_groups" json:"owner_groups"`
+}
+
+func (q *sqlQuerier) GetWorkspaceAgentAndOwnerByAuthToken(ctx context.Context, authToken uuid.UUID) (GetWorkspaceAgentAndOwnerByAuthTokenRow, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceAgentAndOwnerByAuthToken, authToken)
+	var i GetWorkspaceAgentAndOwnerByAuthTokenRow
 	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Name,
-		&i.FirstConnectedAt,
-		&i.LastConnectedAt,
-		&i.DisconnectedAt,
-		&i.ResourceID,
-		&i.AuthToken,
-		&i.AuthInstanceID,
-		&i.Architecture,
-		&i.EnvironmentVariables,
-		&i.OperatingSystem,
-		&i.StartupScript,
-		&i.InstanceMetadata,
-		&i.ResourceMetadata,
-		&i.Directory,
-		&i.Version,
-		&i.LastConnectedReplicaID,
-		&i.ConnectionTimeoutSeconds,
-		&i.TroubleshootingURL,
-		&i.MOTDFile,
-		&i.LifecycleState,
-		&i.StartupScriptTimeoutSeconds,
-		&i.ExpandedDirectory,
-		&i.ShutdownScript,
-		&i.ShutdownScriptTimeoutSeconds,
-		&i.LogsLength,
-		&i.LogsOverflowed,
-		&i.StartupScriptBehavior,
-		&i.StartedAt,
-		&i.ReadyAt,
-		pq.Array(&i.Subsystems),
+		&i.WorkspaceAgent.ID,
+		&i.WorkspaceAgent.CreatedAt,
+		&i.WorkspaceAgent.UpdatedAt,
+		&i.WorkspaceAgent.Name,
+		&i.WorkspaceAgent.FirstConnectedAt,
+		&i.WorkspaceAgent.LastConnectedAt,
+		&i.WorkspaceAgent.DisconnectedAt,
+		&i.WorkspaceAgent.ResourceID,
+		&i.WorkspaceAgent.AuthToken,
+		&i.WorkspaceAgent.AuthInstanceID,
+		&i.WorkspaceAgent.Architecture,
+		&i.WorkspaceAgent.EnvironmentVariables,
+		&i.WorkspaceAgent.OperatingSystem,
+		&i.WorkspaceAgent.StartupScript,
+		&i.WorkspaceAgent.InstanceMetadata,
+		&i.WorkspaceAgent.ResourceMetadata,
+		&i.WorkspaceAgent.Directory,
+		&i.WorkspaceAgent.Version,
+		&i.WorkspaceAgent.LastConnectedReplicaID,
+		&i.WorkspaceAgent.ConnectionTimeoutSeconds,
+		&i.WorkspaceAgent.TroubleshootingURL,
+		&i.WorkspaceAgent.MOTDFile,
+		&i.WorkspaceAgent.LifecycleState,
+		&i.WorkspaceAgent.StartupScriptTimeoutSeconds,
+		&i.WorkspaceAgent.ExpandedDirectory,
+		&i.WorkspaceAgent.ShutdownScript,
+		&i.WorkspaceAgent.ShutdownScriptTimeoutSeconds,
+		&i.WorkspaceAgent.LogsLength,
+		&i.WorkspaceAgent.LogsOverflowed,
+		&i.WorkspaceAgent.StartupScriptBehavior,
+		&i.WorkspaceAgent.StartedAt,
+		&i.WorkspaceAgent.ReadyAt,
+		pq.Array(&i.WorkspaceAgent.Subsystems),
+		&i.WorkspaceID,
+		&i.OwnerID,
+		&i.OwnerName,
+		&i.OwnerStatus,
+		pq.Array(&i.OwnerRoles),
+		pq.Array(&i.OwnerGroups),
 	)
 	return i, err
 }

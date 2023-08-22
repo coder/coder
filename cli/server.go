@@ -1339,7 +1339,7 @@ func newProvisionerDaemon(
 					Listener: terraformServer,
 				},
 				CachePath: tfDir,
-				Logger:    logger,
+				Logger:    logger.Named("terraform"),
 				Tracer:    tracer,
 			})
 			if err != nil && !xerrors.Is(err, context.Canceled) {
@@ -1845,7 +1845,7 @@ func (f *debugFilterSink) compile(res []string) error {
 func (f *debugFilterSink) LogEntry(ctx context.Context, ent slog.SinkEntry) {
 	if ent.Level == slog.LevelDebug {
 		logName := strings.Join(ent.LoggerNames, ".")
-		if f.re != nil && !f.re.MatchString(logName) {
+		if f.re != nil && !f.re.MatchString(logName) && !f.re.MatchString(ent.Message) {
 			return
 		}
 	}

@@ -16,13 +16,16 @@
         # Use `nix --extra-experimental-features nix-command --extra-experimental-features flakes flake update`
         # to update the lock file if packages are out-of-date.
 
+        # From https://nixos.wiki/wiki/Google_Cloud_SDK
+        gdk = pkgs.google-cloud-sdk.withExtraComponents ([pkgs.google-cloud-sdk.components.gke-gcloud-auth-plugin]);
+
         devShellPackages = with pkgs; [
           bat
           cairo
           curl
           drpc.defaultPackage.${system}
           gcc
-          google-cloud-sdk
+          gdk
           getopt
           git
           gh
@@ -35,6 +38,7 @@
           gotestsum
           jq
           kubectl
+          kubectx
           kubernetes-helm
           less
           # Needed for many LD system libs!
@@ -51,7 +55,7 @@
           pango
           pixman
           pkg-config
-          postgresql
+          postgresql_13
           protobuf
           protoc-gen-go
           ripgrep
@@ -76,6 +80,9 @@
         devImagePackages = with pkgs; [
           docker
           exa
+          freetype
+          glib
+          harfbuzz
           nix
           nixpkgs-fmt
           screen

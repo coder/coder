@@ -3,7 +3,6 @@ import Link from "@mui/material/Link"
 import { makeStyles } from "@mui/styles"
 import GroupAdd from "@mui/icons-material/GroupAddOutlined"
 import PersonAdd from "@mui/icons-material/PersonAddOutlined"
-import { useMachine } from "@xstate/react"
 import { USERS_LINK } from "components/Navbar/NavbarView"
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
 import { useFeatureVisibility } from "hooks/useFeatureVisibility"
@@ -16,7 +15,6 @@ import {
   useNavigate,
 } from "react-router-dom"
 import { combineClasses } from "utils/combineClasses"
-import { authMethodsXService } from "xServices/auth/authMethodsXService"
 import { Margins } from "../../components/Margins/Margins"
 import { Stack } from "../../components/Stack/Stack"
 
@@ -24,7 +22,6 @@ export const UsersLayout: FC = () => {
   const styles = useStyles()
   const { createUser: canCreateUser, createGroup: canCreateGroup } =
     usePermissions()
-  const [authMethods] = useMachine(authMethodsXService)
   const navigate = useNavigate()
   const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility()
 
@@ -34,17 +31,16 @@ export const UsersLayout: FC = () => {
         <PageHeader
           actions={
             <>
-              {canCreateUser &&
-                authMethods.context.authMethods?.password.enabled && (
-                  <Button
-                    onClick={() => {
-                      navigate("/users/create")
-                    }}
-                    startIcon={<PersonAdd />}
-                  >
-                    Create user
-                  </Button>
-                )}
+              {canCreateUser && (
+                <Button
+                  onClick={() => {
+                    navigate("/users/create")
+                  }}
+                  startIcon={<PersonAdd />}
+                >
+                  Create user
+                </Button>
+              )}
               {canCreateGroup && isTemplateRBACEnabled && (
                 <Link component={RouterLink} to="/groups/create">
                   <Button startIcon={<GroupAdd />}>Create group</Button>

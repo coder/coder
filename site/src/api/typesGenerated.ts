@@ -1785,22 +1785,26 @@ export type ResourceType =
   | "git_ssh_key"
   | "group"
   | "license"
+  | "organization"
   | "template"
   | "template_version"
   | "user"
   | "workspace"
   | "workspace_build"
+  | "workspace_proxy"
 export const ResourceTypes: ResourceType[] = [
   "api_key",
   "convert_login",
   "git_ssh_key",
   "group",
   "license",
+  "organization",
   "template",
   "template_version",
   "user",
   "workspace",
   "workspace_build",
+  "workspace_proxy",
 ]
 
 // From codersdk/serversentevents.go
@@ -1812,8 +1816,8 @@ export const ServerSentEventTypes: ServerSentEventType[] = [
 ]
 
 // From codersdk/insights.go
-export type TemplateAppsType = "builtin"
-export const TemplateAppsTypes: TemplateAppsType[] = ["builtin"]
+export type TemplateAppsType = "app" | "builtin"
+export const TemplateAppsTypes: TemplateAppsType[] = ["app", "builtin"]
 
 // From codersdk/templates.go
 export type TemplateRole = "" | "admin" | "use"

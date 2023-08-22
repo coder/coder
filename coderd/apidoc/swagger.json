@@ -8354,7 +8354,9 @@
         "api_key",
         "group",
         "license",
-        "convert_login"
+        "convert_login",
+        "workspace_proxy",
+        "organization"
       ],
       "x-enum-varnames": [
         "ResourceTypeTemplate",
@@ -8366,7 +8368,9 @@
         "ResourceTypeAPIKey",
         "ResourceTypeGroup",
         "ResourceTypeLicense",
-        "ResourceTypeConvertLogin"
+        "ResourceTypeConvertLogin",
+        "ResourceTypeWorkspaceProxy",
+        "ResourceTypeOrganization"
       ]
     },
     "codersdk.Response": {
@@ -8659,8 +8663,8 @@
     },
     "codersdk.TemplateAppsType": {
       "type": "string",
-      "enum": ["builtin"],
-      "x-enum-varnames": ["TemplateAppsTypeBuiltin"]
+      "enum": ["builtin", "app"],
+      "x-enum-varnames": ["TemplateAppsTypeBuiltin", "TemplateAppsTypeApp"]
     },
     "codersdk.TemplateBuildTimeStats": {
       "type": "object",

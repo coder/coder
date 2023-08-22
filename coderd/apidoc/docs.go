@@ -9281,7 +9281,9 @@ const docTemplate = `{
                 "api_key",
                 "group",
                 "license",
-                "convert_login"
+                "convert_login",
+                "workspace_proxy",
+                "organization"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -9293,7 +9295,9 @@ const docTemplate = `{
                 "ResourceTypeAPIKey",
                 "ResourceTypeGroup",
                 "ResourceTypeLicense",
-                "ResourceTypeConvertLogin"
+                "ResourceTypeConvertLogin",
+                "ResourceTypeWorkspaceProxy",
+                "ResourceTypeOrganization"
             ]
         },
         "codersdk.Response": {
@@ -9589,10 +9593,12 @@ const docTemplate = `{
         "codersdk.TemplateAppsType": {
             "type": "string",
             "enum": [
-                "builtin"
+                "builtin",
+                "app"
             ],
             "x-enum-varnames": [
-                "TemplateAppsTypeBuiltin"
+                "TemplateAppsTypeBuiltin",
+                "TemplateAppsTypeApp"
             ]
         },
         "codersdk.TemplateBuildTimeStats": {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net"
 	"time"
 
@@ -26,6 +27,9 @@ func ServeWorkspaceProxy(ctx context.Context, conn net.Conn, ma agpl.MultiAgentC
 		var msg wsproxysdk.CoordinateMessage
 		err := decoder.Decode(&msg)
 		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				return nil
+			}
 			return xerrors.Errorf("read json: %w", err)
 		}
 
