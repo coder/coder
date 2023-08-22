@@ -1,6 +1,7 @@
 # Template Change Management
 
-We recommend source controlling your templates as you would other code. [Install Coder](../install/) in CI/CD pipelines to push new template versions.
+We recommend source controlling your templates as you would other code.
+[Install Coder](../install/) in CI/CD pipelines to push new template versions.
 
 ```console
 # Install the Coder CLI
@@ -26,7 +27,8 @@ coder templates push --yes $CODER_TEMPLATE_NAME \
     --name=$CODER_TEMPLATE_VERSION # Version name is optional
 ```
 
-> Looking for an example? See how we push our development image
-> and template [via GitHub actions](https://github.com/coder/coder/blob/main/.github/workflows/dogfood.yaml).
+> Looking for an example? See how we push our development image and template
+> [via GitHub actions](https://github.com/coder/coder/blob/main/.github/workflows/dogfood.yaml).
 
-> To cap token lifetime on creation, [configure Coder server to set a shorter max token lifetime](../cli/server.md#--max-token-lifetime)
+> To cap token lifetime on creation,
+> [configure Coder server to set a shorter max token lifetime](../cli/server.md#--max-token-lifetime)

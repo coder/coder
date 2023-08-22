@@ -1,18 +1,23 @@
 # JFrog
 
-Use Coder and JFrog together to secure your development environments without disturbing your developers' existing workflows.
+Use Coder and JFrog together to secure your development environments without
+disturbing your developers' existing workflows.
 
 This guide will demonstrate how to use JFrog Artifactory as a package registry
-within a workspace. We'll use Docker as the underlying compute. But, these concepts apply to any compute platform.
+within a workspace. We'll use Docker as the underlying compute. But, these
+concepts apply to any compute platform.
 
-The full example template can be found [here](https://github.com/coder/coder/tree/main/examples/templates/jfrog/docker).
+The full example template can be found
+[here](https://github.com/coder/coder/tree/main/examples/templates/jfrog/docker).
 
 ## Requirements
 
 - A JFrog Artifactory instance
 - An admin-level access token for Artifactory
-- 1:1 mapping of users in Coder to users in Artifactory by email address and username
-- Repositories configured in Artifactory for each package manager you want to use
+- 1:1 mapping of users in Coder to users in Artifactory by email address and
+  username
+- Repositories configured in Artifactory for each package manager you want to
+  use
 
 <blockquote class="info">
 The admin-level access token is used to provision user tokens and is never exposed to
@@ -82,7 +87,8 @@ curl -fL https://install-cli.jfrog.io | sh
 
 Other methods are listed [here](https://jfrog.com/getcli/).
 
-In our Docker-based example, we install `jf` by adding these lines to our `Dockerfile`:
+In our Docker-based example, we install `jf` by adding these lines to our
+`Dockerfile`:
 
 ```Dockerfile
 RUN curl -fL https://install-cli.jfrog.io | sh && chmod 755 $(which jf)
@@ -90,7 +96,10 @@ RUN curl -fL https://install-cli.jfrog.io | sh && chmod 755 $(which jf)
 
 ## Configuring Coder workspace to use JFrog Artifactory repositories
 
-Create a `locals` block to store the Artifactory repository keys for each package manager you want to use in your workspace. For example, if you want to use artifactory repositories with keys `npm`, `pypi`, and `go`, you can create a `locals` block like this:
+Create a `locals` block to store the Artifactory repository keys for each
+package manager you want to use in your workspace. For example, if you want to
+use artifactory repositories with keys `npm`, `pypi`, and `go`, you can create a
+`locals` block like this:
 
 ```hcl
 locals {
@@ -102,7 +111,8 @@ locals {
 }
 ```
 
-To automatically configure `jf` CLI and Artifactory repositories for each user, add the following lines to your `startup_script` in the `coder_agent` block:
+To automatically configure `jf` CLI and Artifactory repositories for each user,
+add the following lines to your `startup_script` in the `coder_agent` block:
 
 ```hcl
 resource "coder_agent" "main" {
@@ -146,8 +156,8 @@ resource "coder_agent" "main" {
 }
 ```
 
-You can verify that `jf` is configured correctly in your workspace by
-running `jf c show`. It should display output like:
+You can verify that `jf` is configured correctly in your workspace by running
+`jf c show`. It should display output like:
 
 ```text
 coder@jf:~$ jf c show
@@ -165,8 +175,8 @@ Default:                        true
 
 ## Installing the JFrog VS Code Extension
 
-You can install the JFrog VS Code extension into workspaces
-by inserting the following lines into your `startup_script`:
+You can install the JFrog VS Code extension into workspaces by inserting the
+following lines into your `startup_script`:
 
 ```shell
 # Install the JFrog VS Code extension.
@@ -195,8 +205,8 @@ Artifactory:
 
 Now, your developers can run `npm install`, `npm audit`, etc. and transparently
 use Artifactory as the package registry. You can verify that `npm` is configured
-correctly by running `npm install --loglevel=http react` and checking that
-npm is only hitting your Artifactory URL.
+correctly by running `npm install --loglevel=http react` and checking that npm
+is only hitting your Artifactory URL.
 
 ## Configuring pip
 
@@ -211,11 +221,15 @@ Artifactory:
     EOF
 ```
 
-Now, your developers can run `pip install` and transparently use Artifactory as the package registry. You can verify that `pip` is configured correctly by running `pip install --verbose requests` and checking that pip is only hitting your Artifactory URL.
+Now, your developers can run `pip install` and transparently use Artifactory as
+the package registry. You can verify that `pip` is configured correctly by
+running `pip install --verbose requests` and checking that pip is only hitting
+your Artifactory URL.
 
 ## Configuring Go
 
-Add the following environment variable to your `coder_agent` block to configure `go` to use Artifactory:
+Add the following environment variable to your `coder_agent` block to configure
+`go` to use Artifactory:
 
 ```hcl
   env = {
@@ -224,10 +238,15 @@ Add the following environment variable to your `coder_agent` block to configure 
 ```
 
 You can apply the same concepts to Docker, Maven, and other package managers
-supported by Artifactory. See the [JFrog documentation](https://jfrog.com/help/r/jfrog-artifactory-documentation/package-management) for more information.
+supported by Artifactory. See the
+[JFrog documentation](https://jfrog.com/help/r/jfrog-artifactory-documentation/package-management)
+for more information.
 
 ## More reading
 
-- See the full example template [here](https://github.com/coder/coder/tree/main/examples/templates/jfrog/docker).
-- To serve extensions from your own VS Code Marketplace, check out [code-marketplace](https://github.com/coder/code-marketplace#artifactory-storage).
-- To store templates in Artifactory, check out our [Artifactory modules](../templates/modules.md#artifactory) docs.
+- See the full example template
+  [here](https://github.com/coder/coder/tree/main/examples/templates/jfrog/docker).
+- To serve extensions from your own VS Code Marketplace, check out
+  [code-marketplace](https://github.com/coder/code-marketplace#artifactory-storage).
+- To store templates in Artifactory, check out our
+  [Artifactory modules](../templates/modules.md#artifactory) docs.
