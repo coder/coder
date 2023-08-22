@@ -1061,24 +1061,27 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						endedAt:   weekAgo.Add(time.Hour),
 						requests:  1,
 					},
-					// { // used an app on the last day, counts as active user.
-					// 	app:       users[0].workspaces[0].apps[2],
-					// 	startedAt: weekAgo.AddDate(0, 0, 6),
-					// 	endedAt:   weekAgo.AddDate(0, 0, 6).Add(12 * time.Minute),
+					{ // used an app on the last day, counts as active user, 12m -> 15m rounded.
+						app:       users[0].workspaces[0].apps[2],
+						startedAt: weekAgo.AddDate(0, 0, 6),
+						endedAt:   weekAgo.AddDate(0, 0, 6).Add(12 * time.Minute),
+						requests:  1,
+					},
+				},
+			},
+			users[0].workspaces[1]: {
+				appUsage: []appUsage{
+					// TODO(mafredri): This doesn't behave correctly right now
+					// and will add more usage to the app. This could be
+					// considered both correct and incorrect behavior.
+					// { // One hour of usage, but same user and same template app, only count once.
+					// 	app:       users[0].workspaces[1].apps[0],
+					// 	startedAt: weekAgo,
+					// 	endedAt:   weekAgo.Add(time.Hour),
 					// 	requests:  1,
 					// },
 				},
 			},
-			// users[0].workspaces[1]: {
-			// 	appUsage: []appUsage{
-			// 		{ // One hour of usage, but same user and same template app, only count once.
-			// 			app:       users[0].workspaces[1].apps[0],
-			// 			startedAt: weekAgo,
-			// 			endedAt:   weekAgo.Add(time.Hour),
-			// 			requests:  1,
-			// 		},
-			// 	},
-			// },
 		}
 	}
 	type testRequest struct {
