@@ -2,9 +2,13 @@ package coderd_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,6 +20,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -268,6 +273,7 @@ func TestTemplateInsights(t *testing.T) {
 
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	opts := &coderdtest.Options{
+		Logger:                    &logger,
 		IncludeProvisionerDaemon:  true,
 		AgentStatsRefreshInterval: time.Millisecond * 100,
 	}
@@ -568,6 +574,599 @@ func TestTemplateInsights(t *testing.T) {
 		{Name: thirdParameterOptionName2, Value: thirdParameterOptionValue2},
 		{Name: thirdParameterOptionName3, Value: thirdParameterOptionValue3},
 	}, resp.Report.ParametersUsage[2].Options)
+}
+
+func TestTemplateInsights_Golden(t *testing.T) {
+	t.Parallel()
+
+	stabilizeReportForGoldenComparison := func(report *codersdk.TemplateInsightsResponse) {
+		var stableTemplateIDs []uuid.UUID
+		stableTemplateIDMap := make(map[uuid.UUID]uuid.UUID)
+		toStableTemplateID := func(id uuid.UUID) uuid.UUID {
+			if stableID, ok := stableTemplateIDMap[id]; ok {
+				return stableID
+			}
+			stableTemplateIDs = append(stableTemplateIDs, uuid.MustParse(fmt.Sprintf("00000000-0000-0000-0000-%012d", len(stableTemplateIDs)+1)))
+			stableID := stableTemplateIDs[len(stableTemplateIDs)-1]
+			stableTemplateIDMap[id] = stableID
+			return stableID
+		}
+
+		for i, id := range report.Report.TemplateIDs {
+			report.Report.TemplateIDs[i] = toStableTemplateID(id)
+		}
+		for _, param := range report.Report.ParametersUsage {
+			for i, id := range param.TemplateIDs {
+				param.TemplateIDs[i] = toStableTemplateID(id)
+			}
+		}
+		for _, app := range report.Report.AppsUsage {
+			for i, id := range app.TemplateIDs {
+				app.TemplateIDs[i] = toStableTemplateID(id)
+			}
+		}
+		for _, intervalReport := range report.IntervalReports {
+			for i, id := range intervalReport.TemplateIDs {
+				intervalReport.TemplateIDs[i] = toStableTemplateID(id)
+			}
+		}
+	}
+
+	// Prepare test data types.
+	type templateParameterOption struct {
+		name  string
+		value string
+	}
+	type templateParameter struct {
+		name        string
+		description string
+		options     []templateParameterOption
+	}
+	type templateApp struct {
+		name string
+		icon string
+	}
+	type testTemplate struct {
+		name       string
+		parameters []*templateParameter
+		apps       []templateApp
+
+		// Filled later.
+		id uuid.UUID // Set to the created template ID.
+	}
+	type buildParameter struct {
+		templateParameter *templateParameter
+		value             string
+	}
+	type workspaceApp templateApp
+	type testWorkspace struct {
+		name            string
+		template        *testTemplate
+		buildParameters []buildParameter
+
+		// Filled later.
+		id          uuid.UUID
+		user        any // *testUser, but it's not available yet, defined below.
+		agentID     uuid.UUID
+		apps        []*workspaceApp
+		agentClient *agentsdk.Client
+	}
+	type testUser struct {
+		name       string
+		workspaces []*testWorkspace
+
+		client *codersdk.Client
+		sdk    codersdk.User
+	}
+
+	// Represent agent stats, to be inserted via stats batcher.
+	type agentStat struct {
+		// Set a range via start/end, multiple stats will be generated
+		// within the range.
+		startedAt time.Time
+		endedAt   time.Time
+
+		sessionCountVSCode          int64
+		sessionCountJetBrains       int64
+		sessionCountReconnectingPTY int64
+		sessionCountSSH             int64
+		noConnections               bool
+	}
+	// Represent app usage stats, to be inserted via stats reporter.
+	type appUsage struct {
+		app       *workspaceApp
+		startedAt time.Time
+		endedAt   time.Time
+		requests  int
+	}
+
+	// Represent actual data being generated on a per-workspace basis.
+	type testDataGen struct {
+		agentStats []agentStat
+		appUsage   []appUsage
+	}
+
+	createFixture := func() ([]*testTemplate, []*testUser) {
+		// Test templates and configuration to generate.
+		templates := []*testTemplate{
+			// Create two templates with near-identical apps and parameters
+			// to allow testing for grouping similar data.
+			{
+				name: "template1",
+				parameters: []*templateParameter{
+					{name: "param1", description: "This is first parameter"},
+					{name: "param2", description: "This is second parameter"},
+					{name: "param3", description: "This is third parameter"},
+					{
+						name:        "param4",
+						description: "This is fourth parameter",
+						options: []templateParameterOption{
+							{name: "option1", value: "option1"},
+							{name: "option2", value: "option2"},
+						},
+					},
+				},
+				apps: []templateApp{
+					{name: "app1", icon: "/icon1.png"},
+					{name: "app2", icon: "/icon2.png"},
+					{name: "app3", icon: "/icon2.png"},
+				},
+			},
+			{
+				name: "template2",
+				parameters: []*templateParameter{
+					{name: "param1", description: "This is first parameter"},
+					{name: "param2", description: "This is second parameter"},
+					{name: "param3", description: "This is third parameter"},
+				},
+				apps: []templateApp{
+					{name: "app1", icon: "/icon1.png"},
+					{name: "app2", icon: "/icon2.png"},
+					{name: "app3", icon: "/icon2.png"},
+				},
+			},
+			// Create another template with different parameters and apps.
+			{
+				name: "othertemplate",
+				parameters: []*templateParameter{
+					{name: "otherparam1", description: "This is another parameter"},
+				},
+				apps: []templateApp{
+					{name: "otherapp1", icon: "/icon1.png"},
+				},
+			},
+		}
+
+		// Users and workspaces to generate.
+		users := []*testUser{
+			{
+				name: "user1",
+				workspaces: []*testWorkspace{
+					{
+						name:     "workspace1",
+						template: templates[0],
+						buildParameters: []buildParameter{
+							{templateParameter: templates[0].parameters[0], value: "abc"},
+							{templateParameter: templates[0].parameters[1], value: "123"},
+							{templateParameter: templates[0].parameters[2], value: "bbb"},
+							{templateParameter: templates[0].parameters[3], value: "option1"},
+						},
+					},
+					{
+						name:     "workspace2",
+						template: templates[1],
+						buildParameters: []buildParameter{
+							{templateParameter: templates[0].parameters[0], value: "ABC"},
+							{templateParameter: templates[0].parameters[1], value: "123"},
+							{templateParameter: templates[0].parameters[2], value: "BBB"},
+							{templateParameter: templates[0].parameters[3], value: "option2"},
+						},
+					},
+					{
+						name:     "otherworkspace1",
+						template: templates[2],
+					},
+				},
+			},
+			{
+				name: "user2",
+				workspaces: []*testWorkspace{
+					{
+						name:     "workspace1",
+						template: templates[0],
+						buildParameters: []buildParameter{
+							{templateParameter: templates[0].parameters[0], value: "abc"},
+							{templateParameter: templates[0].parameters[1], value: "123"},
+							{templateParameter: templates[0].parameters[2], value: "BBB"},
+							{templateParameter: templates[0].parameters[3], value: "option1"},
+						},
+					},
+				},
+			},
+			{
+				name: "user3",
+				workspaces: []*testWorkspace{
+					{
+						name:     "otherworkspace1",
+						template: templates[2],
+						buildParameters: []buildParameter{
+							{templateParameter: templates[2].parameters[0], value: "xyz"},
+						},
+					},
+				},
+			},
+		}
+
+		// Post-process workspaces.
+		for _, user := range users {
+			for _, workspace := range user.workspaces {
+				workspace.user = user
+				workspace.agentID = uuid.New()
+				for _, app := range workspace.template.apps {
+					app := workspaceApp(app)
+					workspace.apps = append(workspace.apps, &app)
+				}
+			}
+		}
+
+		return templates, users
+	}
+
+	prepare := func(t *testing.T, templates []*testTemplate, users []*testUser, testData map[*testWorkspace]testDataGen) *codersdk.Client {
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		opts := &coderdtest.Options{
+			Logger:                    &logger,
+			IncludeProvisionerDaemon:  true,
+			AgentStatsRefreshInterval: time.Millisecond * 100,
+		}
+		client, _, coderdAPI := coderdtest.NewWithAPI(t, opts)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		// Prepare all test users.
+		for _, u := range users {
+			u.client, u.sdk = coderdtest.CreateAnotherUserMutators(t, client, firstUser.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
+				r.Username = u.name
+			})
+		}
+
+		// Prepare all the templates.
+		for _, template := range templates {
+			var parameters []*proto.RichParameter
+			for _, parameter := range template.parameters {
+				var options []*proto.RichParameterOption
+				var defaultValue string
+				for _, option := range parameter.options {
+					if defaultValue == "" {
+						defaultValue = option.value
+					}
+					options = append(options, &proto.RichParameterOption{
+						Name:  option.name,
+						Value: option.value,
+					})
+				}
+				parameters = append(parameters, &proto.RichParameter{
+					Name:         parameter.name,
+					DisplayName:  parameter.name,
+					Type:         "string",
+					Description:  parameter.description,
+					Options:      options,
+					DefaultValue: defaultValue,
+				})
+			}
+
+			// Prepare all workspace resources (agents and apps).
+			var (
+				createWorkspaces []func(uuid.UUID)
+				waitWorkspaces   []func()
+			)
+			var resources []*proto.Resource
+			for _, user := range users {
+				for _, workspace := range user.workspaces {
+					if workspace.template != template {
+						continue
+					}
+					authToken := uuid.New()
+					agentClient := agentsdk.New(client.URL)
+					agentClient.SetSessionToken(authToken.String())
+					workspace.agentClient = agentClient
+
+					var apps []*proto.App
+					for _, app := range workspace.apps {
+						apps = append(apps, &proto.App{
+							Slug:         app.name,
+							DisplayName:  app.name,
+							Icon:         app.icon,
+							SharingLevel: proto.AppSharingLevel_OWNER,
+							Url:          "http://",
+						})
+					}
+
+					resources = append(resources, &proto.Resource{
+						Name: "example",
+						Type: "aws_instance",
+						Agents: []*proto.Agent{{
+							Id:   workspace.agentID.String(),
+							Name: "dev",
+							Auth: &proto.Agent_Token{
+								Token: authToken.String(),
+							},
+							Apps: apps,
+						}},
+					})
+
+					var buildParameters []codersdk.WorkspaceBuildParameter
+					for _, buildParameter := range workspace.buildParameters {
+						buildParameters = append(buildParameters, codersdk.WorkspaceBuildParameter{
+							Name:  buildParameter.templateParameter.name,
+							Value: buildParameter.value,
+						})
+					}
+					createWorkspaces = append(createWorkspaces, func(templateID uuid.UUID) {
+						// Create workspace using the users client.
+						createdWorkspace := coderdtest.CreateWorkspace(t, user.client, firstUser.OrganizationID, templateID, func(cwr *codersdk.CreateWorkspaceRequest) {
+							cwr.RichParameterValues = buildParameters
+						})
+						workspace.id = createdWorkspace.ID
+						waitWorkspaces = append(waitWorkspaces, func() {
+							coderdtest.AwaitWorkspaceBuildJob(t, user.client, createdWorkspace.LatestBuild.ID)
+						})
+					})
+				}
+			}
+
+			// Create the template version and template.
+			version := coderdtest.CreateTemplateVersion(t, client, firstUser.OrganizationID, &echo.Responses{
+				Parse: echo.ParseComplete,
+				ProvisionPlan: []*proto.Provision_Response{
+					{
+						Type: &proto.Provision_Response_Complete{
+							Complete: &proto.Provision_Complete{
+								Parameters: parameters,
+							},
+						},
+					},
+				},
+				ProvisionApply: []*proto.Provision_Response{{
+					Type: &proto.Provision_Response_Complete{
+						Complete: &proto.Provision_Complete{
+							Resources: resources,
+						},
+					},
+				}},
+			})
+			createdTemplate := coderdtest.CreateTemplate(t, client, firstUser.OrganizationID, version.ID)
+			require.Empty(t, createdTemplate.BuildTimeStats[codersdk.WorkspaceTransitionStart])
+			coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+			template.id = createdTemplate.ID
+
+			// Create all workspaces and wait for them.
+			for _, createWorkspace := range createWorkspaces {
+				createWorkspace(template.id)
+			}
+			for _, waitWorkspace := range waitWorkspaces {
+				waitWorkspace()
+			}
+		}
+
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+		// Use agent stats batcher to insert agent stats, similar to live system.
+		// NOTE(mafredri): Ideally we would pass batcher as a coderd option and
+		// insert using the agentClient, but we have a circular dependency on
+		// the database.
+		batcher, batcherCloser, err := batchstats.New(
+			ctx,
+			batchstats.WithStore(coderdAPI.Database),
+			batchstats.WithLogger(logger.Named("batchstats")),
+			batchstats.WithInterval(time.Hour),
+		)
+		require.NoError(t, err)
+		defer batcherCloser() // Flushes the stats, this is to ensure they're written.
+
+		for workspace, data := range testData {
+			for _, stat := range data.agentStats {
+				createdAt := stat.startedAt
+				connectionCount := int64(1)
+				if stat.noConnections {
+					connectionCount = 0
+				}
+				for createdAt.Before(stat.endedAt) {
+					err = batcher.Add(createdAt, workspace.agentID, workspace.template.id, workspace.user.(*testUser).sdk.ID, workspace.id, agentsdk.Stats{
+						ConnectionCount:             connectionCount,
+						SessionCountVSCode:          stat.sessionCountVSCode,
+						SessionCountJetBrains:       stat.sessionCountJetBrains,
+						SessionCountReconnectingPTY: stat.sessionCountReconnectingPTY,
+						SessionCountSSH:             stat.sessionCountSSH,
+					})
+					require.NoError(t, err, "want no error inserting agent stats")
+					createdAt = createdAt.Add(30 * time.Second)
+				}
+			}
+		}
+
+		// Insert app usage.
+		var stats []workspaceapps.StatsReport
+		for workspace, data := range testData {
+			for _, usage := range data.appUsage {
+				appName := usage.app.name
+				accessMethod := workspaceapps.AccessMethodPath
+				if usage.app.name == "terminal" {
+					appName = ""
+					accessMethod = workspaceapps.AccessMethodTerminal
+				}
+				stats = append(stats, workspaceapps.StatsReport{
+					UserID:           workspace.user.(*testUser).sdk.ID,
+					WorkspaceID:      workspace.id,
+					AgentID:          workspace.agentID,
+					AccessMethod:     accessMethod,
+					SlugOrPort:       appName,
+					SessionID:        uuid.New(),
+					SessionStartedAt: usage.startedAt,
+					SessionEndedAt:   usage.endedAt,
+					Requests:         usage.requests,
+				})
+			}
+		}
+		reporter := workspaceapps.NewStatsDBReporter(coderdAPI.Database, workspaceapps.DefaultStatsDBReporterBatchSize)
+		//nolint:gocritic // This is a test.
+		err = reporter.Report(dbauthz.AsSystemRestricted(ctx), stats)
+		require.NoError(t, err, "want no error inserting app stats")
+
+		return client
+	}
+
+	// Time range for report, test data will be generated within and
+	// outside this range, but only data within the range should be
+	// included in the report.
+	lastNight := time.Now().UTC().Truncate(24 * time.Hour)
+	weekAgo := lastNight.AddDate(0, 0, -7)
+
+	makeBaseTestData := func(templates []*testTemplate, users []*testUser) map[*testWorkspace]testDataGen {
+		return map[*testWorkspace]testDataGen{
+			users[0].workspaces[0]: {
+				agentStats: []agentStat{
+					{
+						startedAt:          weekAgo,
+						endedAt:            weekAgo.Add(time.Hour),
+						sessionCountVSCode: 1,
+						sessionCountSSH:    1,
+					},
+				},
+				appUsage: []appUsage{
+					{
+						app:       users[0].workspaces[0].apps[0],
+						startedAt: time.Now().UTC().Add(-time.Hour),
+						endedAt:   time.Now().UTC(),
+						requests:  1,
+					},
+				},
+			},
+		}
+	}
+	type testRequest struct {
+		name        string
+		makeRequest func([]*testTemplate) codersdk.TemplateInsightsRequest
+	}
+	tests := []struct {
+		name         string
+		makeTestData func([]*testTemplate, []*testUser) map[*testWorkspace]testDataGen
+		requests     []testRequest
+	}{
+		{
+			name:         "multiple users and workspaces week",
+			makeTestData: makeBaseTestData,
+			requests: []testRequest{
+				{
+					name: "deployment wide",
+					makeRequest: func(templates []*testTemplate) codersdk.TemplateInsightsRequest {
+						return codersdk.TemplateInsightsRequest{
+							StartTime: weekAgo,
+							EndTime:   lastNight,
+							Interval:  codersdk.InsightsReportIntervalDay,
+						}
+					},
+				},
+				{
+					name: "all templates",
+					makeRequest: func(templates []*testTemplate) codersdk.TemplateInsightsRequest {
+						return codersdk.TemplateInsightsRequest{
+							TemplateIDs: []uuid.UUID{templates[0].id, templates[1].id, templates[2].id},
+							StartTime:   weekAgo,
+							EndTime:     lastNight,
+							Interval:    codersdk.InsightsReportIntervalDay,
+						}
+					},
+				},
+				{
+					name: "first template",
+					makeRequest: func(templates []*testTemplate) codersdk.TemplateInsightsRequest {
+						return codersdk.TemplateInsightsRequest{
+							TemplateIDs: []uuid.UUID{templates[0].id},
+							StartTime:   weekAgo,
+							EndTime:     lastNight,
+							Interval:    codersdk.InsightsReportIntervalDay,
+						}
+					},
+				},
+				{
+					name: "second template",
+					makeRequest: func(templates []*testTemplate) codersdk.TemplateInsightsRequest {
+						return codersdk.TemplateInsightsRequest{
+							TemplateIDs: []uuid.UUID{templates[1].id},
+							StartTime:   weekAgo,
+							EndTime:     lastNight,
+							Interval:    codersdk.InsightsReportIntervalDay,
+						}
+					},
+				},
+				{
+					name: "third template",
+					makeRequest: func(templates []*testTemplate) codersdk.TemplateInsightsRequest {
+						return codersdk.TemplateInsightsRequest{
+							TemplateIDs: []uuid.UUID{templates[2].id},
+							StartTime:   weekAgo,
+							EndTime:     lastNight,
+							Interval:    codersdk.InsightsReportIntervalDay,
+						}
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			templates, users := createFixture()
+			testData := tt.makeTestData(templates, users)
+			// Sanity check.
+			for ws, data := range testData {
+				for _, usage := range data.appUsage {
+					require.Contains(t, ws.apps, usage.app, "test bug: app %q not in workspace %q", usage.app.name, ws.name)
+				}
+			}
+
+			client := prepare(t, templates, users, testData)
+
+			for _, req := range tt.requests {
+				req := req
+				t.Run(req.name, func(t *testing.T) {
+					t.Parallel()
+					ctx := testutil.Context(t, testutil.WaitMedium)
+					report, err := client.TemplateInsights(ctx, req.makeRequest(templates))
+					require.NoError(t, err, "want no error getting template insights")
+
+					stabilizeReportForGoldenComparison(&report)
+
+					partialName := strings.Join(strings.Split(t.Name(), "/")[1:], "_")
+					goldenFile := filepath.Join("testdata", "insights", partialName+".json.golden")
+					if *updateGoldenFiles {
+						err = os.MkdirAll(filepath.Dir(goldenFile), 0o755)
+						require.NoError(t, err, "want no error creating golden file directory")
+						f, err := os.Create(goldenFile)
+						require.NoError(t, err, "want no error creating golden file")
+						defer f.Close()
+						enc := json.NewEncoder(f)
+						enc.SetIndent("", "  ")
+						enc.Encode(report)
+						return
+					}
+
+					f, err := os.Open(goldenFile)
+					require.NoError(t, err, "open golden file, run \"make update-golden-files\" and commit the changes")
+					defer f.Close()
+					var want codersdk.TemplateInsightsResponse
+					err = json.NewDecoder(f).Decode(&want)
+					require.NoError(t, err, "want no error decoding golden file")
+
+					assert.Equal(t, want, report, "golden file mismatch: %s, run \"make update-golden-files\", verify and commit the changes", goldenFile)
+				})
+			}
+		})
+	}
 }
 
 func TestTemplateInsights_BadRequest(t *testing.T) {
