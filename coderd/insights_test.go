@@ -1082,6 +1082,18 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					// },
 				},
 			},
+			users[0].workspaces[2]: {
+				agentStats: []agentStat{},
+				appUsage:   []appUsage{},
+			},
+			users[1].workspaces[0]: {
+				agentStats: []agentStat{},
+				appUsage:   []appUsage{},
+			},
+			users[2].workspaces[0]: {
+				agentStats: []agentStat{},
+				appUsage:   []appUsage{},
+			},
 		}
 	}
 	type testRequest struct {
