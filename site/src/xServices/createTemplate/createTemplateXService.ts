@@ -517,10 +517,7 @@ export const createTemplateMachine =
         isNotUsingExample: ({ exampleId }) => !exampleId,
         hasFile: ({ file }) => Boolean(file),
         hasFailed: (_, { data }) =>
-          Boolean(
-            data.job.status === "failed" &&
-              !isMissingVariables(data),
-          ),
+          Boolean(data.job.status === "failed" && !isMissingVariables(data)),
         hasNoParametersOrVariables: (_, { data }) =>
           data.variables === undefined,
         hasParametersOrVariables: (_, { data }) => {

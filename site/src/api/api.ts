@@ -1255,14 +1255,18 @@ const getMissingParameters = (
 
     // If not, get the old one
     if (!buildParameter) {
-      buildParameter = oldBuildParameters.find((p) => p.name === templateParameter.name)
+      buildParameter = oldBuildParameters.find(
+        (p) => p.name === templateParameter.name,
+      )
     }
 
     if (!buildParameter) {
       return
     }
 
-    const matchingOption = templateParameter.options.find(option => option.value === buildParameter?.value);
+    const matchingOption = templateParameter.options.find(
+      (option) => option.value === buildParameter?.value,
+    )
     if (!matchingOption) {
       missingParameters.push(templateParameter)
     }
