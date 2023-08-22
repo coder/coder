@@ -15,6 +15,7 @@ import (
 	"tailscale.com/types/key"
 
 	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/coderd/database/dbcrypt"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/audit/backends"
@@ -75,7 +76,7 @@ func (r *RootCmd) server() *clibase.Cmd {
 			if err != nil {
 				return nil, nil, xerrors.Errorf("decode external-token-encryption-key: %w", err)
 			}
-			o.ExternalTokenEncryption, err = cryptorand.CipherAES256(key)
+			o.ExternalTokenEncryption, err = dbcrypt.CipherAES256(key)
 			if err != nil {
 				return nil, nil, xerrors.Errorf("create external-token-encryption-key cipher: %w", err)
 			}
