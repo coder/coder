@@ -184,7 +184,6 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 		if (tvp.Ephemeral && pr.promptBuildOptions) ||
 			(action == WorkspaceCreate && tvp.Required) ||
 			(action == WorkspaceCreate && !tvp.Ephemeral) ||
-			(action == WorkspaceUpdate && tvp.Required) ||
 			(action == WorkspaceUpdate && !tvp.Mutable && firstTimeUse) ||
 			(action == WorkspaceUpdate && tvp.Mutable && !tvp.Ephemeral && pr.promptRichParameters) {
 			parameterValue, err := cliui.RichParameter(inv, tvp)
