@@ -175,7 +175,7 @@ func (b *Batcher) Add(
 // Run runs the batcher.
 func (b *Batcher) run(ctx context.Context) {
 	// nolint:gocritic // This is only ever used for one thing - inserting agent stats.
-	authCtx := dbauthz.AsSystemRestricted(ctx)
+	authCtx := dbauthz.AsSystemRestricted(context.Background())
 	for {
 		select {
 		case <-b.tickCh:
