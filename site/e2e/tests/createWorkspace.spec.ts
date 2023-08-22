@@ -82,7 +82,12 @@ test("create workspace with default and required parameters", async ({
     page,
     echoResponsesWithParameters(richParameters),
   )
-  const workspaceName = await createWorkspace(page, template, buildParameters)
+  const workspaceName = await createWorkspace(
+    page,
+    template,
+    richParameters,
+    buildParameters,
+  )
   await verifyParameters(page, workspaceName, richParameters, [
     // user values:
     ...buildParameters,

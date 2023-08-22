@@ -25,6 +25,7 @@ import { WorkspaceBuildParameter } from "api/typesGenerated"
 export const createWorkspace = async (
   page: Page,
   templateName: string,
+  richParameters: RichParameter[] = [],
   buildParameters: WorkspaceBuildParameter[] = [],
 ): Promise<string> => {
   await page.goto("/templates/" + templateName + "/workspace", {
@@ -32,6 +33,46 @@ export const createWorkspace = async (
   })
   const name = randomName()
   await page.getByLabel("name").fill(name)
+
+  for (const buildParameter of buildParameters) {
+    const richParameter = richParameters.find(
+      (richParam) => richParam.name === buildParameter.name,
+    )
+    if (!richParameter) {
+      throw new Error(
+        "build parameter is expected to be present in rich parameter schema",
+      )
+    }
+
+    const parameterLabel = await page.waitForSelector(
+      "[data-testid='parameter-field-" + richParameter.name + "']",
+      { state: "visible" },
+    )
+
+    if (richParameter.type === "bool") {
+      const parameterField = await parameterLabel.waitForSelector(
+        "[data-testid='parameter-field-bool'] .MuiRadio-root input[value='" +
+          buildParameter.value +
+          "']",
+      )
+      await parameterField.check()
+    } else if (richParameter.options.length > 0) {
+      const parameterField = await parameterLabel.waitForSelector(
+        "[data-testid='parameter-field-options'] .MuiRadio-root input[value='" +
+          buildParameter.value +
+          "']",
+      )
+      await parameterField.check()
+    } else if (richParameter.type === "list(string)") {
+      throw new Error("not implemented yet")
+    } else {
+      // text or number
+      const parameterField = await parameterLabel.waitForSelector(
+        "[data-testid='parameter-field-text'] input",
+      )
+      await parameterField.fill(buildParameter.value)
+    }
+  }
 
   await page.getByTestId("form-submit").click()
 
