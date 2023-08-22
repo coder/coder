@@ -245,6 +245,7 @@ manual group additions/removals will be overwritten on the next login.
 # as an environment variable
 CODER_OIDC_SCOPES=openid,profile,email,groups
 ```
+
 ```shell
 # as a flag
 --oidc-scopes openid,profile,email,groups
@@ -256,6 +257,7 @@ With the `groups` scope requested, we also need to map the `groups` claim name. 
 # as an environment variable
 CODER_OIDC_GROUP_FIELD=groups
 ```
+
 ```shell
 # as a flag
 --oidc-group-field groups
@@ -272,6 +274,7 @@ you can configure mapping between the two.
 # as an environment variable
 CODER_OIDC_GROUP_MAPPING='{"myOIDCGroupID": "myCoderGroupName"}'
 ```
+
 ```shell
 # as a flag
 --oidc-group-mapping '{"myOIDCGroupID": "myCoderGroupName"}'
@@ -306,6 +309,7 @@ If you want Coder to create groups that do not exist, you can set the following 
 # as an environment variable
 CODER_OIDC_GROUP_AUTO_CREATE=true
 ```
+
 ```shell
 # as a flag
 --oidc-group-auto-create=true
@@ -317,6 +321,7 @@ A basic regex filtering option on the Coder side is available. This is applied *
 # as an environment variable
 CODER_OIDC_GROUP_REGEX_FILTER="^my-group-.*$"
 ```
+
 ```shell
 # as a flag
 --oidc-group-regex-filter="^my-group-.*$"
