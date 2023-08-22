@@ -46,6 +46,16 @@
         "slug": "ssh",
         "icon": "/icon/terminal.svg",
         "seconds": 4500
+      },
+      {
+        "template_ids": [
+          "00000000-0000-0000-0000-000000000001"
+        ],
+        "type": "app",
+        "display_name": "app1",
+        "slug": "app1",
+        "icon": "/icon1.png",
+        "seconds": 3600
       }
     ],
     "parameters_usage": []

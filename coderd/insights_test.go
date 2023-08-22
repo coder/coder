@@ -1055,12 +1055,12 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					},
 				},
 				appUsage: []appUsage{
-					// { // One hour of usage.
-					// 	app:       users[0].workspaces[0].apps[0],
-					// 	startedAt: weekAgo,
-					// 	endedAt:   weekAgo.Add(time.Hour),
-					// 	requests:  1,
-					// },
+					{ // One hour of usage.
+						app:       users[0].workspaces[0].apps[0],
+						startedAt: weekAgo,
+						endedAt:   weekAgo.Add(time.Hour),
+						requests:  1,
+					},
 					// { // used an app on the last day, counts as active user.
 					// 	app:       users[0].workspaces[0].apps[2],
 					// 	startedAt: weekAgo.AddDate(0, 0, 6),
