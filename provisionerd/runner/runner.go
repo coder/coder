@@ -964,10 +964,11 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 }
 
 func (r *Runner) commitQuota(ctx context.Context, resources []*sdkproto.Resource) *proto.FailedJob {
+	cost := sumDailyCost(resources)
 	r.logger.Debug(ctx, "committing quota",
 		slog.F("resources", resources),
+		slog.F("cost", cost),
 	)
-	cost := sumDailyCost(resources)
 	if cost == 0 {
 		return nil
 	}
