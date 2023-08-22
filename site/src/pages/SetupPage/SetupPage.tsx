@@ -1,11 +1,11 @@
 import { useMachine } from "@xstate/react"
 import { useAuth } from "components/AuthProvider/AuthProvider"
-import { FC, useEffect } from "react"
+import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "utils/page"
 import { setupMachine } from "xServices/setup/setupXService"
 import { SetupPageView } from "./SetupPageView"
-import { useNavigate } from "react-router-dom"
+import { Navigate } from "react-router-dom"
 
 export const SetupPage: FC = () => {
   const [authState, authSend] = useAuth()
@@ -24,22 +24,21 @@ export const SetupPage: FC = () => {
     },
   })
   const { error } = setupState.context
-  const navigate = useNavigate()
 
-  useEffect(() => {
-    // If the user is logged in, navigate to the app
-    if (authState.matches("signedIn")) {
-      navigate("/", { state: { isRedirect: true } })
-    }
+  const userIsSignedIn = authState.matches("signedIn")
+  const setupIsComplete =
+    !authState.matches("loadingInitialAuthData") &&
+    !authState.matches("configuringTheFirstUser")
 
-    // If we've already completed setup, navigate to the login page
-    if (
-      !authState.matches("loadingInitialAuthData") &&
-      !authState.matches("configuringTheFirstUser")
-    ) {
-      navigate("/login", { state: { isRedirect: true } })
-    }
-  }, [authState, navigate])
+  // If the user is logged in, navigate to the app
+  if (userIsSignedIn) {
+    return <Navigate to="/" state={{ isRedirect: true }} />
+  }
+
+  // If we've already completed setup, navigate to the login page
+  if (setupIsComplete) {
+    return <Navigate to="/login" state={{ isRedirect: true }} />
+  }
 
   return (
     <>

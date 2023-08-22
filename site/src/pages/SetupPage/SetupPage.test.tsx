@@ -1,10 +1,7 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { rest } from "msw"
-import {
-  renderWithAuth,
-  waitForLoaderToBeRemoved,
-} from "testHelpers/renderHelpers"
+import { render, waitForLoaderToBeRemoved } from "testHelpers/renderHelpers"
 import { server } from "testHelpers/server"
 import { SetupPage } from "./SetupPage"
 import { Language as PageViewLanguage } from "./SetupPageView"
@@ -19,13 +16,9 @@ const fillForm = async ({
   email?: string
   password?: string
 } = {}) => {
-  const usernameField = await screen.findByLabelText(
-    PageViewLanguage.usernameLabel,
-  )
-  const emailField = await screen.findByLabelText(PageViewLanguage.emailLabel)
-  const passwordField = await screen.findByLabelText(
-    PageViewLanguage.passwordLabel,
-  )
+  const usernameField = screen.getByLabelText(PageViewLanguage.usernameLabel)
+  const emailField = screen.getByLabelText(PageViewLanguage.emailLabel)
+  const passwordField = screen.getByLabelText(PageViewLanguage.passwordLabel)
   await userEvent.type(usernameField, username)
   await userEvent.type(emailField, email)
   await userEvent.type(passwordField, password)
@@ -52,8 +45,7 @@ describe("Setup Page", () => {
   })
 
   it("shows validation error message", async () => {
-    renderWithAuth(<SetupPage />, { route: "/setup", path: "/setup" })
-    await waitForLoaderToBeRemoved()
+    render(<SetupPage />)
     await fillForm({ email: "test" })
     const errorMessage = await screen.findByText(PageViewLanguage.emailInvalid)
     expect(errorMessage).toBeDefined()
@@ -78,8 +70,7 @@ describe("Setup Page", () => {
       }),
     )
 
-    renderWithAuth(<SetupPage />, { route: "/setup", path: "/setup" })
-    await waitForLoaderToBeRemoved()
+    render(<SetupPage />)
     await fillForm()
     const errorMessage = await screen.findByText(fieldErrorMessage)
     expect(errorMessage).toBeDefined()
@@ -93,7 +84,7 @@ describe("Setup Page", () => {
       }),
     )
 
-    renderWithAuth(<SetupPage />, { route: "/setup", path: "/setup" })
+    render(<SetupPage />)
     await waitForLoaderToBeRemoved()
     await waitFor(() => expect(window.location).toBeAt("/login"))
   })
@@ -109,10 +100,9 @@ describe("Setup Page", () => {
       }),
     )
 
-    renderWithAuth(<SetupPage />, { route: "/setup", path: "/setup" })
-    await waitForLoaderToBeRemoved()
-
+    render(<SetupPage />)
     await fillForm()
+    await waitForLoaderToBeRemoved()
     await waitFor(() => expect(window.location).toBeAt("/workspaces"))
   })
 })
