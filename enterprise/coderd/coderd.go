@@ -383,11 +383,10 @@ type Options struct {
 
 	EntitlementsUpdateInterval time.Duration
 	ProxyHealthInterval        time.Duration
-	Keys                       map[string]ed25519.PublicKey
+	LicenseKeys                map[string]ed25519.PublicKey
 
 	// optional pre-shared key for authentication of external provisioner daemons
 	ProvisionerDaemonPSK string
-	LicenseKeys          map[string]ed25519.PublicKey
 }
 
 type API struct {
@@ -432,7 +431,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 	entitlements, err := license.Entitlements(
 		ctx, api.Database,
-		api.Logger, len(api.replicaManager.AllPrimary()), len(api.GitAuthConfigs), api.Keys, map[codersdk.FeatureName]bool{
+		api.Logger, len(api.replicaManager.AllPrimary()), len(api.GitAuthConfigs), api.LicenseKeys, map[codersdk.FeatureName]bool{
 			codersdk.FeatureAuditLog:                   api.AuditLogging,
 			codersdk.FeatureBrowserOnly:                api.BrowserOnly,
 			codersdk.FeatureSCIM:                       len(api.SCIMAPIKey) != 0,
