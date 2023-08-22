@@ -208,7 +208,11 @@ func (api *API) postRefreshEntitlements(rw http.ResponseWriter, r *http.Request)
 	err = api.Pubsub.Publish(PubsubEventLicenses, []byte("refresh"))
 	if err != nil {
 		api.Logger.Error(context.Background(), "failed to publish forced entitlement update", slog.Error(err))
-		// don't fail the HTTP request, since we did write it successfully to the database
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to publish forced entitlement update. Other replicas might not be updated.",
+			Detail:  err.Error(),
+		})
+		return
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
