@@ -80,12 +80,14 @@ describe("Setup Page", () => {
     // simulates setup having already been completed
     server.use(
       rest.get("/api/v2/users/first", (req, res, ctx) => {
-        return res(ctx.status(404), ctx.json({ message: "hooray, you exist!" }))
+        return res(
+          ctx.status(200),
+          ctx.json({ message: "hooray, someone exists!" }),
+        )
       }),
     )
 
     render(<SetupPage />)
-    await waitForLoaderToBeRemoved()
     await waitFor(() => expect(window.location).toBeAt("/login"))
   })
 
@@ -96,13 +98,14 @@ describe("Setup Page", () => {
         return res(ctx.status(200), ctx.json(MockUser))
       }),
       rest.get("/api/v2/users/first", (req, res, ctx) => {
-        return res(ctx.status(404), ctx.json({ message: "hooray, you exist!" }))
+        return res(
+          ctx.status(200),
+          ctx.json({ message: "hooray, someone exists!" }),
+        )
       }),
     )
 
     render(<SetupPage />)
-    await fillForm()
-    await waitForLoaderToBeRemoved()
     await waitFor(() => expect(window.location).toBeAt("/workspaces"))
   })
 })
