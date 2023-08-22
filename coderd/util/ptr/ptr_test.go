@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/coder/coder/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
 func Test_Ref_Deref(t *testing.T) {

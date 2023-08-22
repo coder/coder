@@ -3,7 +3,7 @@ package coderdenttest_test
 import (
 	"testing"
 
-	"github.com/coder/coder/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 )
 
 func TestNew(t *testing.T) {

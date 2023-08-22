@@ -3,7 +3,7 @@ package parameter_test
 import (
 	"testing"
 
-	"github.com/coder/coder/coderd/parameter"
+	"github.com/coder/coder/v2/coderd/parameter"
 
 	"github.com/stretchr/testify/require"
 )

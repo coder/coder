@@ -9,8 +9,8 @@ import (
 	"github.com/lib/pq"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/rbac/regosql"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/regosql"
 )
 
 const (
@@ -218,11 +218,13 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		arg.HasAgent,
 		arg.AgentInactiveDisconnectTimeoutSeconds,
 		arg.LockedAt,
+		arg.LastUsedBefore,
+		arg.LastUsedAfter,
 		arg.Offset,
 		arg.Limit,
 	)
 	if err != nil {
-		return nil, xerrors.Errorf("get authorized workspaces: %w", err)
+		return nil, err
 	}
 	defer rows.Close()
 	var items []GetWorkspacesRow

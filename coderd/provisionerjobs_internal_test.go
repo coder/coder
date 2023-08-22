@@ -18,12 +18,12 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbmock"
-	"github.com/coder/coder/coderd/database/pubsub"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/provisionersdk"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestConvertProvisionerJob_Unit(t *testing.T) {

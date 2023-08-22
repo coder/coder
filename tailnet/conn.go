@@ -43,8 +43,8 @@ import (
 	"tailscale.com/wgengine/wgcfg/nmcfg"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/cryptorand"
 )
 
 const (

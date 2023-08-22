@@ -20,8 +20,8 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/tailnet"
+	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/retry"
 )
 

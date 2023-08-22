@@ -3,7 +3,7 @@ package main
 import (
 	_ "time/tzdata"
 
-	"github.com/coder/coder/cli"
+	"github.com/coder/coder/v2/cli"
 )
 
 func main() {

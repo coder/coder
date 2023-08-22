@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/provisionersdk"
+	"github.com/coder/coder/v2/provisionersdk"
 )
 
 func TestTar(t *testing.T) {

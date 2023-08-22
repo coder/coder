@@ -1,6 +1,6 @@
 
 syntax = "proto3";
-option go_package = "github.com/coder/coder/provisionerd/proto";
+option go_package = "github.com/coder/coder/v2/provisionerd/proto";
 
 package provisionerd;
 
