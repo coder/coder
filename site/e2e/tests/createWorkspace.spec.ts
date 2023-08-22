@@ -97,4 +97,26 @@ test("create workspace with default and required parameters", async ({
   ])
 })
 
-// TODO custom parameter values
+test("create workspace and overwrite default parameters", async ({
+  page,
+}) => {
+  const richParameters: RichParameter[] = [
+    secondParameter,
+    fourthParameter,
+  ]
+  const buildParameters = [
+    { name: secondParameter.name, value: "AAAAA" },
+    { name: fourthParameter.name, value: "false" },
+  ]
+  const template = await createTemplate(
+    page,
+    echoResponsesWithParameters(richParameters),
+  )
+  const workspaceName = await createWorkspace(
+    page,
+    template,
+    richParameters,
+    buildParameters,
+  )
+  await verifyParameters(page, workspaceName, richParameters, buildParameters)
+})
