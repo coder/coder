@@ -451,6 +451,10 @@ These options are only available in the Enterprise Edition.
           An HTTP URL that is accessible by other replicas to relay DERP
           traffic. Required for high availability.
 
+      --external-token-encryption-key string, $CODER_EXTERNAL_TOKEN_ENCRYPTION_KEY
+          Encrypt OIDC and Git authentication tokens with AES-256-GCM in the
+          database. The value must be a base64-encoded key.
+
       --scim-auth-header string, $CODER_SCIM_AUTH_HEADER
           Enables SCIM and sets the authentication header for the built-in SCIM
           server. New users are automatically created with OIDC authentication.
