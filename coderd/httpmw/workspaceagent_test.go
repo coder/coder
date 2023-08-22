@@ -52,6 +52,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		req.Header.Set(codersdk.SessionTokenHeader, authToken.String())
 		rtr.ServeHTTP(rw, req)
 
+		//nolint:bodyclose // Closed in `t.Cleanup`
 		res := rw.Result()
 		t.Cleanup(func() { _ = res.Body.Close() })
 		require.Equal(t, http.StatusOK, res.StatusCode)
