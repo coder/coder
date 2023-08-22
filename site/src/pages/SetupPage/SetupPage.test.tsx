@@ -77,7 +77,7 @@ describe("Setup Page", () => {
     expect(errorMessage).toBeDefined()
   })
 
-  it("redirects to workspaces page when setup is successful", async () => {
+  it("redirects to the app when setup is successful", async () => {
     render(<SetupPage />)
 
     // Update responses before submitting the form
@@ -94,7 +94,7 @@ describe("Setup Page", () => {
     )
 
     await fillForm()
-    await waitFor(() => expect(window.location).toBeAt("/workspaces"))
+    await waitFor(() => expect(window.location).toBeAt("/"))
   })
 
   it("redirects to login if setup has already completed", async () => {
