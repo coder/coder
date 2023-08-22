@@ -16,8 +16,7 @@ import { hasApiFieldErrors, isApiError } from "api/errors"
 import MenuItem from "@mui/material/MenuItem"
 import { makeStyles } from "@mui/styles"
 import { Theme } from "@mui/material/styles"
-import { Link } from "@mui/material"
-import { Link as RouterLink } from "react-router-dom"
+import { Link } from "@mui/material/Link"
 
 export const Language = {
   emailLabel: "Email",
@@ -49,7 +48,6 @@ export const authMethodLanguage = {
       <>
         Disable authentication for this user (See the{" "}
         <Link
-          component={RouterLink}
           target="_blank"
           rel="noopener"
           to="https://coder.com/docs/v2/latest/admin/auth#disable-built-in-authentication"
