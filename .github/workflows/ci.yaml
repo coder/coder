@@ -594,6 +594,7 @@ jobs:
           buildScriptName: "storybook:build"
           projectToken: 695c25b6cb65
           workingDir: "./site"
+          storybookBaseDir: "./site"
           # Run TurboSnap to trace file dependencies to related stories
           # and tell chromatic to only take snapshots of relevent stories
           onlyChanged: true
