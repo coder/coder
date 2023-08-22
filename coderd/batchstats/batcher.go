@@ -105,6 +105,8 @@ func New(ctx context.Context, opts ...Option) (*Batcher, func(), error) {
 		b.tickCh = b.ticker.C
 	}
 
+	b.initBuf(b.batchSize)
+
 	cancelCtx, cancelFunc := context.WithCancel(ctx)
 	done := make(chan struct{})
 	go func() {
@@ -172,7 +174,6 @@ func (b *Batcher) Add(
 
 // Run runs the batcher.
 func (b *Batcher) run(ctx context.Context) {
-	b.initBuf(b.batchSize)
 	// nolint:gocritic // This is only ever used for one thing - inserting agent stats.
 	authCtx := dbauthz.AsSystemRestricted(ctx)
 	for {
