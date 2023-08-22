@@ -391,7 +391,7 @@ Coder.
 Set the following in your Coder server [configuration](./configure.md).
 
 ```env
-# Depending on your identity provider configuration, you may need to explicitly request a "roles" scope
+ # Depending on your identity provider configuration, you may need to explicitly request a "roles" scope
 CODER_OIDC_SCOPES=openid,profile,email,roles
 
 # The following fields are required for role sync:
