@@ -64,7 +64,7 @@ const useStyles = makeStyles((theme) => ({
       background: theme.palette.background.paper,
       border: `1px solid ${theme.palette.divider}`,
       width: "100%",
-      maxWidth: theme.spacing(50),
+      maxWidth: theme.spacing(55),
     },
     "& .MuiDialogActions-spacing": {
       padding: `0 ${theme.spacing(5)} ${theme.spacing(5)}`,

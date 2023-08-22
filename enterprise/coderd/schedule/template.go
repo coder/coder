@@ -171,7 +171,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 		// Recalculate max_deadline and deadline for all running workspace
 		// builds on this template.
 		if s.UseRestartRequirement.Load() {
-			err = s.updateWorkspaceBuilds(ctx, db, template)
+			err = s.updateWorkspaceBuilds(ctx, tx, template)
 			if err != nil {
 				return xerrors.Errorf("update workspace builds: %w", err)
 			}
