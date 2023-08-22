@@ -29,6 +29,17 @@ Restart your Coder server to apply this configuration. An OIDC authentication bu
 
 ![Log in with OIDC button](https://user-images.githubusercontent.com/22407953/261882891-7aa2e922-5572-490f-992a-07126bad0161.png)
 
+## Provider Specific Notes
+
+Any OIDC provider should work with Coder. With that being said, we have some special notes for specific providers.
+
+- [Keycloak](./keycloak.md)
+- [Active Directory Federation Services (ADFS)](./adfs.md)
+
+## Group and Role Sync (enterprise)
+
+Learn how to do [group and role sync](group-role-sync.md) with COder.
+
 ## How Coder Reads OIDC claims
 
 When a user logs in for the first time via OIDC, Coder will merge both
@@ -146,7 +157,7 @@ Restart your Coder server to apply this configuration.
 If you wish to manually onboard users, or use a [script](../automation.md) to add users to Coder, set:
 
 ```console
-UTH2=false
+CODER_OIDC_ALLOW_SIGNUPS=false
 ```
 
 This will prevent new users from logging in via GitHub. An admin can manually add GitHub users from the "Users" page.

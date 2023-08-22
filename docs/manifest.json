@@ -278,7 +278,25 @@
             {
               "title": "OIDC",
               "description": "Configure OIDC authentication with Coder",
-              "path": "./admin/auth/oidc.md"
+              "path": "./admin/auth/oidc.md",
+              "children": [
+                {
+                  "title": "Keycloak",
+                  "description": "Authenticate to Coder with Keyclock",
+                  "path": "./admin/auth/keycloak.md"
+                },
+                {
+                  "title": "Active Directory Federation Services (ADFS)",
+                  "description": "Authenticate to Coder with ADFS",
+                  "path": "./admin/auth/adfs.md"
+                },
+                {
+                  "title": "Group and Role Sync",
+                  "description": "Sync groups and roles from your identity provider into Coder",
+                  "path": "./admin/auth/group-role-sync.md",
+                  "state": "enterprise"
+                }
+              ]
             },
             {
               "title": "Passwordless",
