@@ -3,10 +3,12 @@ package coderd
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/http"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -17,6 +19,7 @@ import (
 )
 
 type committer struct {
+	Log      slog.Logger
 	Database database.Store
 }
 
@@ -28,12 +31,12 @@ func (c *committer) CommitQuota(
 		return nil, err
 	}
 
-	build, err := c.Database.GetWorkspaceBuildByJobID(ctx, jobID)
+	nextBuild, err := c.Database.GetWorkspaceBuildByJobID(ctx, jobID)
 	if err != nil {
 		return nil, err
 	}
 
-	workspace, err := c.Database.GetWorkspaceByID(ctx, build.WorkspaceID)
+	workspace, err := c.Database.GetWorkspaceByID(ctx, nextBuild.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -58,25 +61,35 @@ func (c *committer) CommitQuota(
 		// If the new build will reduce overall quota consumption, then we
 		// allow it even if the user is over quota.
 		netIncrease := true
-		previousBuild, err := s.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx, database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams{
+		prevBuild, err := s.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx, database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams{
 			WorkspaceID: workspace.ID,
-			BuildNumber: build.BuildNumber - 1,
+			BuildNumber: nextBuild.BuildNumber - 1,
 		})
 		if err == nil {
-			if build.DailyCost < previousBuild.DailyCost {
-				netIncrease = false
-			}
-		} else if !xerrors.Is(err, sql.ErrNoRows) {
+			netIncrease = request.DailyCost >= prevBuild.DailyCost
+			c.Log.Debug(
+				ctx, "previous build cost",
+				slog.F("prev_cost", prevBuild.DailyCost),
+				slog.F("next_cost", request.DailyCost),
+				slog.F("net_increase", netIncrease),
+			)
+		} else if !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
 
 		newConsumed := int64(request.DailyCost) + consumed
 		if newConsumed > budget && netIncrease {
+			c.Log.Debug(
+				ctx, "over quota, rejecting",
+				slog.F("prev_consumed", consumed),
+				slog.F("next_consumed", newConsumed),
+				slog.F("budget", budget),
+			)
 			return nil
 		}
 
 		err = s.UpdateWorkspaceBuildCostByID(ctx, database.UpdateWorkspaceBuildCostByIDParams{
-			ID:        build.ID,
+			ID:        nextBuild.ID,
 			DailyCost: request.DailyCost,
 		})
 		if err != nil {
