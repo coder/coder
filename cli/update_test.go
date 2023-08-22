@@ -715,7 +715,8 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		}()
 
 		matches := []string{
-			"aaaa", "",
+			stringParameterName, "second_option",
+			"Planning workspace...", "",
 		}
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
