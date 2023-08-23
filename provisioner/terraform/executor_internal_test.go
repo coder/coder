@@ -1,6 +1,7 @@
 package terraform
 
 import (
+	"encoding/json"
 	"testing"
 
 	tfjson "github.com/hashicorp/terraform-json"
@@ -46,61 +47,129 @@ From standing in the English rain`))
 func TestOnlyDataResources(t *testing.T) {
 	t.Parallel()
 
-	sm := &tfjson.StateModule{
-		Resources: []*tfjson.StateResource{
-			{
-				Name:    "cat",
-				Type:    "coder_parameter",
-				Mode:    "data",
-				Address: "cat-address",
-			},
-			{
-				Name:    "dog",
-				Type:    "foobar",
-				Mode:    "magic",
-				Address: "dog-address",
-			},
-			{
-				Name:    "cow",
-				Type:    "foobaz",
-				Mode:    "data",
-				Address: "cow-address",
-			},
+	tests := []struct {
+		name     string
+		stateMod *tfjson.StateModule
+		expected *tfjson.StateModule
+	}{
+		{
+			name:     "empty state module",
+			stateMod: &tfjson.StateModule{},
+			expected: &tfjson.StateModule{},
 		},
-		ChildModules: []*tfjson.StateModule{
-			{
+		{
+			name: "only data resources",
+			stateMod: &tfjson.StateModule{
 				Resources: []*tfjson.StateResource{
+					{Name: "cat", Type: "coder_parameter", Mode: "data", Address: "cat-address"},
+					{Name: "cow", Type: "foobaz", Mode: "data", Address: "cow-address"},
+				},
+				ChildModules: []*tfjson.StateModule{
 					{
-						Name:    "child-cat",
-						Type:    "coder_parameter",
-						Mode:    "data",
-						Address: "child-cat-address",
-					},
-					{
-						Name:    "child-dog",
-						Type:    "foobar",
-						Mode:    "data",
-						Address: "child-dog-address",
-					},
-					{
-						Name:    "child-cow",
-						Type:    "foobaz",
-						Mode:    "magic",
-						Address: "child-cow-address",
+						Resources: []*tfjson.StateResource{
+							{Name: "child-cat", Type: "coder_parameter", Mode: "data", Address: "child-cat-address"},
+							{Name: "child-dog", Type: "foobar", Mode: "data", Address: "child-dog-address"},
+						},
+						Address: "child-module-1",
 					},
 				},
-				Address: "child-module-1",
+				Address: "fake-module",
+			},
+			expected: &tfjson.StateModule{
+				Resources: []*tfjson.StateResource{
+					{Name: "cat", Type: "coder_parameter", Mode: "data", Address: "cat-address"},
+					{Name: "cow", Type: "foobaz", Mode: "data", Address: "cow-address"},
+				},
+				ChildModules: []*tfjson.StateModule{
+					{
+						Resources: []*tfjson.StateResource{
+							{Name: "child-cat", Type: "coder_parameter", Mode: "data", Address: "child-cat-address"},
+							{Name: "child-dog", Type: "foobar", Mode: "data", Address: "child-dog-address"},
+						},
+						Address: "child-module-1",
+					},
+				},
+				Address: "fake-module",
 			},
 		},
-		Address: "fake-module",
+		{
+			name: "only non-data resources",
+			stateMod: &tfjson.StateModule{
+				Resources: []*tfjson.StateResource{
+					{Name: "cat", Type: "coder_parameter", Mode: "foobar", Address: "cat-address"},
+					{Name: "cow", Type: "foobaz", Mode: "foo", Address: "cow-address"},
+				},
+				ChildModules: []*tfjson.StateModule{
+					{
+						Resources: []*tfjson.StateResource{
+							{Name: "child-cat", Type: "coder_parameter", Mode: "foobar", Address: "child-cat-address"},
+							{Name: "child-dog", Type: "foobar", Mode: "foobaz", Address: "child-dog-address"},
+						},
+						Address: "child-module-1",
+					},
+				},
+				Address: "fake-module",
+			},
+			expected: &tfjson.StateModule{
+				Address: "fake-module",
+				ChildModules: []*tfjson.StateModule{
+					{Address: "child-module-1"},
+				},
+			},
+		},
+		{
+			name: "mixed resources",
+			stateMod: &tfjson.StateModule{
+				Resources: []*tfjson.StateResource{
+					{Name: "cat", Type: "coder_parameter", Mode: "data", Address: "cat-address"},
+					{Name: "dog", Type: "foobar", Mode: "magic", Address: "dog-address"},
+					{Name: "cow", Type: "foobaz", Mode: "data", Address: "cow-address"},
+				},
+				ChildModules: []*tfjson.StateModule{
+					{
+						Resources: []*tfjson.StateResource{
+							{Name: "child-cat", Type: "coder_parameter", Mode: "data", Address: "child-cat-address"},
+							{Name: "child-dog", Type: "foobar", Mode: "data", Address: "child-dog-address"},
+							{Name: "child-cow", Type: "foobaz", Mode: "magic", Address: "child-cow-address"},
+						},
+						Address: "child-module-1",
+					},
+				},
+				Address: "fake-module",
+			},
+			expected: &tfjson.StateModule{
+				Resources: []*tfjson.StateResource{
+					{Name: "cat", Type: "coder_parameter", Mode: "data", Address: "cat-address"},
+					{Name: "cow", Type: "foobaz", Mode: "data", Address: "cow-address"},
+				},
+				ChildModules: []*tfjson.StateModule{
+					{
+						Resources: []*tfjson.StateResource{
+							{Name: "child-cat", Type: "coder_parameter", Mode: "data", Address: "child-cat-address"},
+							{Name: "child-dog", Type: "foobar", Mode: "data", Address: "child-dog-address"},
+						},
+						Address: "child-module-1",
+					},
+				},
+				Address: "fake-module",
+			},
+		},
 	}
 
-	filtered := onlyDataResources(*sm)
-	require.Len(t, filtered.Resources, 2)
-	require.Equal(t, sm.Resources[0], filtered.Resources[0])
-	require.Equal(t, sm.Resources[2], filtered.Resources[1])
-	require.Len(t, filtered.ChildModules, 1)
-	require.Len(t, filtered.ChildModules[0].Resources, 2)
-	require.Equal(t, sm.ChildModules[0].Resources[0], filtered.ChildModules[0].Resources[0])
-	require.Equal(t, sm.ChildModules[0].Resources[1], filtered.ChildModules[0].Resources[1])
+	for _, tt := range tests {
+		tt := tt
+
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			filtered := onlyDataResources(*tt.stateMod)
+
+			expected, err := json.Marshal(tt.expected)
+			require.NoError(t, err)
+			got, err := json.Marshal(filtered)
+			require.NoError(t, err)
+
+			require.Equal(t, string(expected), string(got))
+		})
+	}
 }
