@@ -22,9 +22,11 @@ import (
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -580,19 +582,6 @@ func TestTemplateInsights(t *testing.T) {
 func TestTemplateInsights_Golden(t *testing.T) {
 	t.Parallel()
 
-	stabilizeReportForGoldenComparison := func(report *codersdk.TemplateInsightsResponse, toStableTemplateIDs func([]uuid.UUID)) {
-		toStableTemplateIDs(report.Report.TemplateIDs)
-		for _, param := range report.Report.ParametersUsage {
-			toStableTemplateIDs(param.TemplateIDs)
-		}
-		for _, app := range report.Report.AppsUsage {
-			toStableTemplateIDs(app.TemplateIDs)
-		}
-		for _, intervalReport := range report.IntervalReports {
-			toStableTemplateIDs(intervalReport.TemplateIDs)
-		}
-	}
-
 	// Prepare test data types.
 	type templateParameterOption struct {
 		name  string
@@ -613,7 +602,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 		apps       []templateApp
 
 		// Filled later.
-		id uuid.UUID // Set to the created template ID.
+		id uuid.UUID
 	}
 	type buildParameter struct {
 		templateParameter *templateParameter
@@ -778,7 +767,17 @@ func TestTemplateInsights_Golden(t *testing.T) {
 			},
 		}
 
-		// Post-process workspaces.
+		// Post-process.
+		var stableIDs []uuid.UUID
+		newStableUUID := func() uuid.UUID {
+			stableIDs = append(stableIDs, uuid.MustParse(fmt.Sprintf("00000000-0000-0000-0000-%012d", len(stableIDs)+1)))
+			stableID := stableIDs[len(stableIDs)-1]
+			return stableID
+		}
+
+		for _, template := range templates {
+			template.id = newStableUUID()
+		}
 		for _, user := range users {
 			for _, workspace := range user.workspaces {
 				workspace.user = user
@@ -792,14 +791,16 @@ func TestTemplateInsights_Golden(t *testing.T) {
 		return templates, users
 	}
 
-	prepare := func(t *testing.T, templates []*testTemplate, users []*testUser, testData map[*testWorkspace]testDataGen) (*codersdk.Client, func([]uuid.UUID)) {
+	prepare := func(t *testing.T, templates []*testTemplate, users []*testUser, testData map[*testWorkspace]testDataGen) *codersdk.Client {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
-		opts := &coderdtest.Options{
+		db, pubsub := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database:                  db,
+			Pubsub:                    pubsub,
 			Logger:                    &logger,
 			IncludeProvisionerDaemon:  true,
 			AgentStatsRefreshInterval: time.Hour, // Not relevant for this test.
-		}
-		client, _, coderdAPI := coderdtest.NewWithAPI(t, opts)
+		})
 		firstUser := coderdtest.CreateFirstUser(t, client)
 
 		// Prepare all test users.
@@ -926,11 +927,28 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					},
 				}},
 			})
-			createdTemplate := coderdtest.CreateTemplate(t, client, firstUser.OrganizationID, version.ID)
-			require.Empty(t, createdTemplate.BuildTimeStats[codersdk.WorkspaceTransitionStart])
 			coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 
-			template.id = createdTemplate.ID
+			// Create template, essentially a modified version of CreateTemplate
+			// where we can control the template ID.
+			// 	createdTemplate := coderdtest.CreateTemplate(t, client, firstUser.OrganizationID, version.ID)
+			createdTemplate := dbgen.Template(t, db, database.Template{
+				ID:              template.id,
+				ActiveVersionID: version.ID,
+				OrganizationID:  firstUser.OrganizationID,
+				CreatedBy:       firstUser.UserID,
+				GroupACL: database.TemplateACL{
+					firstUser.OrganizationID.String(): []rbac.Action{rbac.ActionRead},
+				},
+			})
+			err := db.UpdateTemplateVersionByID(context.Background(), database.UpdateTemplateVersionByIDParams{
+				ID: version.ID,
+				TemplateID: uuid.NullUUID{
+					UUID:  createdTemplate.ID,
+					Valid: true,
+				},
+			})
+			require.NoError(t, err, "want no error updating template version")
 
 			// Create all workspaces and wait for them.
 			for _, createWorkspace := range createWorkspaces {
@@ -949,7 +967,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 		// the database.
 		batcher, batcherCloser, err := batchstats.New(
 			ctx,
-			batchstats.WithStore(coderdAPI.Database),
+			batchstats.WithStore(db),
 			batchstats.WithLogger(logger.Named("batchstats")),
 			batchstats.WithInterval(time.Hour),
 		)
@@ -1000,46 +1018,23 @@ func TestTemplateInsights_Golden(t *testing.T) {
 				})
 			}
 		}
-		reporter := workspaceapps.NewStatsDBReporter(coderdAPI.Database, workspaceapps.DefaultStatsDBReporterBatchSize)
+		reporter := workspaceapps.NewStatsDBReporter(db, workspaceapps.DefaultStatsDBReporterBatchSize)
 		//nolint:gocritic // This is a test.
 		err = reporter.Report(dbauthz.AsSystemRestricted(ctx), stats)
 		require.NoError(t, err, "want no error inserting app stats")
 
-		var stableTemplateIDs []uuid.UUID
-		stableTemplateIDMap := make(map[uuid.UUID]uuid.UUID)
-		toStableTemplateID := func(id uuid.UUID) uuid.UUID {
-			if stableID, ok := stableTemplateIDMap[id]; ok {
-				return stableID
-			}
-			stableTemplateIDs = append(stableTemplateIDs, uuid.MustParse(fmt.Sprintf("00000000-0000-0000-0000-%012d", len(stableTemplateIDs)+1)))
-			stableID := stableTemplateIDs[len(stableTemplateIDs)-1]
-			stableTemplateIDMap[id] = stableID
-			return stableID
-		}
-		// Prime the map.
-		for _, template := range templates {
-			_ = toStableTemplateID(template.id)
-		}
-
-		return client, func(ids []uuid.UUID) {
-			for i, id := range ids {
-				ids[i] = toStableTemplateID(id)
-			}
-			slices.SortFunc(ids, func(a, b uuid.UUID) int {
-				return slice.Ascending(a.String(), b.String())
-			})
-		}
+		return client
 	}
 
 	// Time range for report, test data will be generated within and
 	// outside this range, but only data within the range should be
 	// included in the report.
-	lastNight := time.Now().UTC().Truncate(24 * time.Hour)
-	weekAgo := lastNight.AddDate(0, 0, -7)
+	frozenLastNight := time.Date(2023, 8, 22, 0, 0, 0, 0, time.UTC)
+	frozenWeekAgo := frozenLastNight.AddDate(0, 0, -7)
 
 	saoPaulo, err := time.LoadLocation("America/Sao_Paulo")
 	require.NoError(t, err)
-	weekAgoSaoPaulo, err := time.ParseInLocation(time.DateTime, weekAgo.Format(time.DateTime), saoPaulo)
+	frozenWeekAgoSaoPaulo, err := time.ParseInLocation(time.DateTime, frozenWeekAgo.Format(time.DateTime), saoPaulo)
 	require.NoError(t, err)
 
 	makeBaseTestData := func(templates []*testTemplate, users []*testUser) map[*testWorkspace]testDataGen {
@@ -1047,33 +1042,33 @@ func TestTemplateInsights_Golden(t *testing.T) {
 			users[0].workspaces[0]: {
 				agentStats: []agentStat{
 					{ // One hour of usage.
-						startedAt:          weekAgo,
-						endedAt:            weekAgo.Add(time.Hour),
+						startedAt:          frozenWeekAgo,
+						endedAt:            frozenWeekAgo.Add(time.Hour),
 						sessionCountVSCode: 1,
 						sessionCountSSH:    1,
 					},
 					{ // 12 minutes of usage -> 15 minutes.
-						startedAt:       weekAgo.AddDate(0, 0, 1),
-						endedAt:         weekAgo.AddDate(0, 0, 1).Add(12 * time.Minute),
+						startedAt:       frozenWeekAgo.AddDate(0, 0, 1),
+						endedAt:         frozenWeekAgo.AddDate(0, 0, 1).Add(12 * time.Minute),
 						sessionCountSSH: 1,
 					},
 					{ // 2 minutes of usage -> 10 minutes because it crosses the 5 minute interval boundary.
-						startedAt:             weekAgo.AddDate(0, 0, 2).Add(4 * time.Minute),
-						endedAt:               weekAgo.AddDate(0, 0, 2).Add(6 * time.Minute),
+						startedAt:             frozenWeekAgo.AddDate(0, 0, 2).Add(4 * time.Minute),
+						endedAt:               frozenWeekAgo.AddDate(0, 0, 2).Add(6 * time.Minute),
 						sessionCountJetBrains: 1,
 					},
 				},
 				appUsage: []appUsage{
 					{ // One hour of usage.
 						app:       users[0].workspaces[0].apps[0],
-						startedAt: weekAgo,
-						endedAt:   weekAgo.Add(time.Hour),
+						startedAt: frozenWeekAgo,
+						endedAt:   frozenWeekAgo.Add(time.Hour),
 						requests:  1,
 					},
 					{ // used an app on the last day, counts as active user, 12m -> 15m rounded.
 						app:       users[0].workspaces[0].apps[2],
-						startedAt: weekAgo.AddDate(0, 0, 6),
-						endedAt:   weekAgo.AddDate(0, 0, 6).Add(12 * time.Minute),
+						startedAt: frozenWeekAgo.AddDate(0, 0, 6),
+						endedAt:   frozenWeekAgo.AddDate(0, 0, 6).Add(12 * time.Minute),
 						requests:  1,
 					},
 				},
@@ -1085,8 +1080,8 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						// as in first template. When selecting both templates
 						// this user and their app usage will only be counted
 						// once but the template ID will show up in the data.
-						startedAt:          weekAgo,
-						endedAt:            weekAgo.Add(time.Hour),
+						startedAt:          frozenWeekAgo,
+						endedAt:            frozenWeekAgo.Add(time.Hour),
 						sessionCountVSCode: 1,
 						sessionCountSSH:    1,
 					},
@@ -1105,8 +1100,8 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						// Different templates but identical apps, apps will be
 						// combined and usage will be summed.
 						app:       users[0].workspaces[1].apps[0],
-						startedAt: weekAgo.AddDate(0, 0, 2),
-						endedAt:   weekAgo.AddDate(0, 0, 2).Add(6 * time.Hour),
+						startedAt: frozenWeekAgo.AddDate(0, 0, 2),
+						endedAt:   frozenWeekAgo.AddDate(0, 0, 2).Add(6 * time.Hour),
 						requests:  1,
 					},
 				},
@@ -1128,6 +1123,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 	type testRequest struct {
 		name        string
 		makeRequest func([]*testTemplate) codersdk.TemplateInsightsRequest
+		ignoreTimes bool
 	}
 	tests := []struct {
 		name         string
@@ -1142,8 +1138,8 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					name: "week deployment wide",
 					makeRequest: func(templates []*testTemplate) codersdk.TemplateInsightsRequest {
 						return codersdk.TemplateInsightsRequest{
-							StartTime: weekAgo,
-							EndTime:   weekAgo.AddDate(0, 0, 7),
+							StartTime: frozenWeekAgo,
+							EndTime:   frozenWeekAgo.AddDate(0, 0, 7),
 							Interval:  codersdk.InsightsReportIntervalDay,
 						}
 					},
@@ -1153,8 +1149,8 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					makeRequest: func(templates []*testTemplate) codersdk.TemplateInsightsRequest {
 						return codersdk.TemplateInsightsRequest{
 							TemplateIDs: []uuid.UUID{templates[0].id, templates[1].id, templates[2].id},
-							StartTime:   weekAgo,
-							EndTime:     weekAgo.AddDate(0, 0, 7),
+							StartTime:   frozenWeekAgo,
+							EndTime:     frozenWeekAgo.AddDate(0, 0, 7),
 							Interval:    codersdk.InsightsReportIntervalDay,
 						}
 					},
@@ -1164,8 +1160,8 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					makeRequest: func(templates []*testTemplate) codersdk.TemplateInsightsRequest {
 						return codersdk.TemplateInsightsRequest{
 							TemplateIDs: []uuid.UUID{templates[0].id},
-							StartTime:   weekAgo,
-							EndTime:     weekAgo.AddDate(0, 0, 7),
+							StartTime:   frozenWeekAgo,
+							EndTime:     frozenWeekAgo.AddDate(0, 0, 7),
 							Interval:    codersdk.InsightsReportIntervalDay,
 						}
 					},
@@ -1175,8 +1171,8 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					makeRequest: func(templates []*testTemplate) codersdk.TemplateInsightsRequest {
 						return codersdk.TemplateInsightsRequest{
 							TemplateIDs: []uuid.UUID{templates[1].id},
-							StartTime:   weekAgo,
-							EndTime:     weekAgo.AddDate(0, 0, 7),
+							StartTime:   frozenWeekAgo,
+							EndTime:     frozenWeekAgo.AddDate(0, 0, 7),
 							Interval:    codersdk.InsightsReportIntervalDay,
 						}
 					},
@@ -1186,8 +1182,8 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					makeRequest: func(templates []*testTemplate) codersdk.TemplateInsightsRequest {
 						return codersdk.TemplateInsightsRequest{
 							TemplateIDs: []uuid.UUID{templates[2].id},
-							StartTime:   weekAgo,
-							EndTime:     weekAgo.AddDate(0, 0, 7),
+							StartTime:   frozenWeekAgo,
+							EndTime:     frozenWeekAgo.AddDate(0, 0, 7),
 							Interval:    codersdk.InsightsReportIntervalDay,
 						}
 					},
@@ -1198,8 +1194,8 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					name: "week other timezone (São Paulo)",
 					makeRequest: func(templates []*testTemplate) codersdk.TemplateInsightsRequest {
 						return codersdk.TemplateInsightsRequest{
-							StartTime: weekAgoSaoPaulo,
-							EndTime:   weekAgoSaoPaulo.AddDate(0, 0, 7),
+							StartTime: frozenWeekAgoSaoPaulo,
+							EndTime:   frozenWeekAgoSaoPaulo.AddDate(0, 0, 7),
 							Interval:  codersdk.InsightsReportIntervalDay,
 						}
 					},
@@ -1233,7 +1229,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 				}
 			}
 
-			client, toStableTemplateIDs := prepare(t, templates, users, testData)
+			client := prepare(t, templates, users, testData)
 
 			for _, req := range tt.requests {
 				req := req
@@ -1245,7 +1241,15 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					report, err := client.TemplateInsights(ctx, req.makeRequest(templates))
 					require.NoError(t, err, "want no error getting template insights")
 
-					stabilizeReportForGoldenComparison(&report, toStableTemplateIDs)
+					if req.ignoreTimes {
+						// Ignore times, we're only interested in the data.
+						report.Report.StartTime = time.Time{}
+						report.Report.EndTime = time.Time{}
+						for i := range report.IntervalReports {
+							report.IntervalReports[i].StartTime = time.Time{}
+							report.IntervalReports[i].EndTime = time.Time{}
+						}
+					}
 
 					partialName := strings.Join(strings.Split(t.Name(), "/")[1:], "_")
 					goldenFile := filepath.Join("testdata", "insights", partialName+".json.golden")

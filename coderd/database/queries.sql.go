@@ -1520,6 +1520,7 @@ SELECT
 	SUM(seconds) AS usage_seconds
 FROM app_stats_by_user_and_agent
 GROUP BY access_method, slug_or_port, display_name, icon, is_app
+ORDER BY access_method, slug_or_port, display_name, icon, is_app
 `
 
 type GetTemplateAppInsightsParams struct {
