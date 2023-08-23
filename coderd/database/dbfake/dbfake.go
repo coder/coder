@@ -2018,6 +2018,10 @@ func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.G
 			return nil, err
 		}
 
+		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, w.TemplateID) {
+			continue
+		}
+
 		app, _ := q.getWorkspaceAppByAgentIDAndSlugNoLock(ctx, database.GetWorkspaceAppByAgentIDAndSlugParams{
 			AgentID: s.AgentID,
 			Slug:    s.SlugOrPort,
@@ -2280,6 +2284,15 @@ func (q *FakeQuerier) GetTemplateDailyInsights(ctx context.Context, arg database
 			continue
 		}
 
+		w, err := q.getWorkspaceByIDNoLock(ctx, s.WorkspaceID)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, w.TemplateID) {
+			continue
+		}
+
 		for _, ds := range dailyStats {
 			// (was.session_started_at >= ts.from_ AND was.session_started_at < ts.to_)
 			// OR (was.session_ended_at > ts.from_ AND was.session_ended_at < ts.to_)
@@ -2287,15 +2300,6 @@ func (q *FakeQuerier) GetTemplateDailyInsights(ctx context.Context, arg database
 			if !(((s.SessionStartedAt.After(ds.startTime) || s.SessionStartedAt.Equal(ds.startTime)) && s.SessionStartedAt.Before(ds.endTime)) ||
 				(s.SessionEndedAt.After(ds.startTime) && s.SessionEndedAt.Before(ds.endTime)) ||
 				(s.SessionStartedAt.Before(ds.startTime) && (s.SessionEndedAt.After(ds.endTime) || s.SessionEndedAt.Equal(ds.endTime)))) {
-				continue
-			}
-
-			w, err := q.getWorkspaceByIDNoLock(ctx, s.WorkspaceID)
-			if err != nil {
-				return nil, err
-			}
-
-			if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, w.TemplateID) {
 				continue
 			}
 
