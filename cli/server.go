@@ -1306,6 +1306,7 @@ func newProvisionerDaemon(
 			err := echo.Serve(ctx, &provisionersdk.ServeOptions{
 				Listener:      echoServer,
 				WorkDirectory: workDir,
+				Logger:        logger.Named("echo"),
 			})
 			if err != nil {
 				select {

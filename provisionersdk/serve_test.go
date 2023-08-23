@@ -35,9 +35,7 @@ func TestProvisionerSDK(t *testing.T) {
 		}()
 
 		api := proto.NewDRPCProvisionerClient(client)
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		s, err := api.Session(context.Background())
+		s, err := api.Session(ctx)
 		require.NoError(t, err)
 		err = s.Send(&proto.Request{Type: &proto.Request_Config{Config: &proto.Config{}}})
 		require.NoError(t, err)

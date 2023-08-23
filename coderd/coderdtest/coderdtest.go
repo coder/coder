@@ -472,6 +472,7 @@ func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 		err := echo.Serve(ctx, &provisionersdk.ServeOptions{
 			Listener:      echoServer,
 			WorkDirectory: t.TempDir(),
+			Logger:        coderAPI.Logger.Named("echo").Leveled(slog.LevelDebug),
 		})
 		assert.NoError(t, err)
 	}()

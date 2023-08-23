@@ -272,7 +272,7 @@ service Provisioner {
     // request an apply.  If the daemon closes the Session without an apply, the plan data may be safely discarded.
     //
     // The daemon may send a CancelRequest, asynchronously to ask the provisioner to cancel the previous ParseRequest,
-    // PlanRequest, or ApplyRequest.  The provisioner MUST reply with a complete message cooresponding to the request
+    // PlanRequest, or ApplyRequest.  The provisioner MUST reply with a complete message corresponding to the request
     // that was canceled.  If the provisioner has already completed the request, it may ignore the CancelRequest.
     rpc Session(stream Request) returns (stream Response);
 }

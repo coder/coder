@@ -214,7 +214,9 @@ func (s *Session) ExtractArchive() error {
 			if err != nil {
 				return xerrors.Errorf("mkdir %q: %w", headerPath, err)
 			}
-			s.Logger.Debug(context.Background(), "extracted directory", slog.F("path", headerPath))
+			s.Logger.Debug(context.Background(), "extracted directory",
+				slog.F("path", headerPath),
+				slog.F("mode", fmt.Sprintf("%O", mode)))
 		case tar.TypeReg:
 			file, err := os.OpenFile(headerPath, os.O_CREATE|os.O_RDWR, mode)
 			if err != nil {
