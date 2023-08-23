@@ -2270,7 +2270,6 @@ func (q *FakeQuerier) GetTemplateDailyInsights(ctx context.Context, arg database
 			}
 			ds.userSet[s.UserID] = struct{}{}
 			ds.templateIDSet[s.TemplateID] = struct{}{}
-			break
 		}
 	}
 
@@ -2305,7 +2304,6 @@ func (q *FakeQuerier) GetTemplateDailyInsights(ctx context.Context, arg database
 
 			ds.userSet[s.UserID] = struct{}{}
 			ds.templateIDSet[w.TemplateID] = struct{}{}
-			break
 		}
 	}
 
