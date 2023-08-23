@@ -90,18 +90,7 @@ cp "$(realpath scripts/win-installer/banner.bmp)" "$temp_dir/banner.bmp"
 license_path="$temp_dir/license.txt"
 
 if [[ "$agpl" == 0 ]]; then
-	cat <<-EOF >"$license_path"
-		This distribution of Coder includes some enterprise-licensed code which is not
-		licensed under the AGPL license:
-
-		$(sed 's/^/  /' "$(realpath LICENSE.enterprise)")
-
-
-
-		The non-enterprise code in this distribution is licensed under the AGPL license:
-
-		$(sed 's/^/  /' "$(realpath LICENSE)")
-	EOF
+	cp "$(realpath LICENSE.mixed)" "$license_path"
 else
 	cat <<-EOF >"$license_path"
 		This distribution of Coder is free software and is licensed under the AGPL
