@@ -842,88 +842,34 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/autostart \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Extend workspace deadline by ID
+## Update workspace dormancy status by id.
 
 ### Code samples
 
 ```shell
 # Example request using curl
-curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/extend \
+curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /workspaces/{workspace}/extend`
+`PUT /workspaces/{workspace}/dormant`
 
 > Body parameter
 
 ```json
 {
-  "deadline": "2019-08-24T14:15:22Z"
+  "dormant": true
 }
 ```
 
 ### Parameters
 
-| Name        | In   | Type                                                                               | Required | Description                    |
-| ----------- | ---- | ---------------------------------------------------------------------------------- | -------- | ------------------------------ |
-| `workspace` | path | string(uuid)                                                                       | true     | Workspace ID                   |
-| `body`      | body | [codersdk.PutExtendWorkspaceRequest](schemas.md#codersdkputextendworkspacerequest) | true     | Extend deadline update request |
-
-### Example responses
-
-> 200 Response
-
-```json
-{
-  "detail": "string",
-  "message": "string",
-  "validations": [
-    {
-      "detail": "string",
-      "field": "string"
-    }
-  ]
-}
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                           |
-| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
-## Update workspace lock by id.
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/lock \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`PUT /workspaces/{workspace}/lock`
-
-> Body parameter
-
-```json
-{
-  "lock": true
-}
-```
-
-### Parameters
-
-| Name        | In   | Type                                                                   | Required | Description                |
-| ----------- | ---- | ---------------------------------------------------------------------- | -------- | -------------------------- |
-| `workspace` | path | string(uuid)                                                           | true     | Workspace ID               |
-| `body`      | body | [codersdk.UpdateWorkspaceLock](schemas.md#codersdkupdateworkspacelock) | true     | Lock or unlock a workspace |
+| Name        | In   | Type                                                                           | Required | Description                        |
+| ----------- | ---- | ------------------------------------------------------------------------------ | -------- | ---------------------------------- |
+| `workspace` | path | string(uuid)                                                                   | true     | Workspace ID                       |
+| `body`      | body | [codersdk.UpdateWorkspaceDormancy](schemas.md#codersdkupdateworkspacedormancy) | true     | Make a workspace dormant or active |
 
 ### Example responses
 
@@ -1089,6 +1035,60 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/lock \
 | Status | Meaning                                                 | Description | Schema                                             |
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Workspace](schemas.md#codersdkworkspace) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Extend workspace deadline by ID
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/extend \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /workspaces/{workspace}/extend`
+
+> Body parameter
+
+```json
+{
+  "deadline": "2019-08-24T14:15:22Z"
+}
+```
+
+### Parameters
+
+| Name        | In   | Type                                                                               | Required | Description                    |
+| ----------- | ---- | ---------------------------------------------------------------------------------- | -------- | ------------------------------ |
+| `workspace` | path | string(uuid)                                                                       | true     | Workspace ID                   |
+| `body`      | body | [codersdk.PutExtendWorkspaceRequest](schemas.md#codersdkputextendworkspacerequest) | true     | Extend deadline update request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

@@ -479,14 +479,14 @@ WHERE
 		) OR
 
 		-- If the workspace's template has an inactivity_ttl set
-		-- it may be eligible for locking.
+		-- it may be eligible for dormancy.
 		(
 			templates.time_til_dormant > 0 AND
 			workspaces.dormant_at IS NULL
 		) OR
 
-		-- If the workspace's template has a locked_ttl set
-		-- and the workspace is already locked
+		-- If the workspace's template has a time_til_dormant_autodelete set
+		-- and the workspace is already dormant.
 		(
 			templates.time_til_dormant_autodelete > 0 AND
 			workspaces.dormant_at IS NOT NULL
@@ -498,11 +498,11 @@ UPDATE
 	workspaces
 SET
 	dormant_at = $2,
-	-- When a workspace is unlocked we want to update the last_used_at to avoid the workspace getting re-locked.
-	-- if we're locking the workspace then we leave it alone.
+	-- When a workspace is active we want to update the last_used_at to avoid the workspace going
+    -- immediately dormant. If we're transition the workspace to dormant then we leave it alone.
 	last_used_at = CASE WHEN $2::timestamptz IS NULL THEN now() at time zone 'utc' ELSE last_used_at END,
-	-- If dormant_at is null (meaning unlocked) or the template-defined locked_ttl is 0 we should set
-	-- deleting_at to NULL else set it to the dormant_at + locked_ttl duration.
+	-- If dormant_at is null (meaning active) or the template-defined time_til_dormant_autodelete is 0 we should set
+	-- deleting_at to NULL else set it to the dormant_at + time_til_dormant_autodelete duration.
 	deleting_at = CASE WHEN $2::timestamptz IS NULL OR templates.time_til_dormant_autodelete = 0 THEN NULL ELSE $2::timestamptz + INTERVAL '1 milliseconds' * templates.time_til_dormant_autodelete / 1000000 END
 FROM
 	templates

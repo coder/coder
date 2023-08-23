@@ -101,20 +101,20 @@ type TemplateScheduleOptions struct {
 	FailureTTL time.Duration `json:"failure_ttl"`
 	// TimeTilDormant dictates the duration after which inactive workspaces will
 	// go dormant.
-	TimeTilDormant time.Duration `json:"dormant_ttl"`
+	TimeTilDormant time.Duration `json:"time_til_dormant"`
 	// TimeTilDormantAutoDelete dictates the duration after which dormant workspaces will be
 	// permanently deleted.
-	TimeTilDormantAutoDelete time.Duration `json:"delete_ttl"`
+	TimeTilDormantAutoDelete time.Duration `json:"time_til_dormant_autodelete"`
 	// UpdateWorkspaceLastUsedAt updates the template's workspaces'
 	// last_used_at field. This is useful for preventing updates to the
-	// templates inactivity_ttl immediately triggering a lock action against
+	// templates inactivity_ttl immediately triggering a dormant action against
 	// workspaces whose last_used_at field violates the new template
 	// inactivity_ttl threshold.
 	UpdateWorkspaceLastUsedAt bool `json:"update_workspace_last_used_at"`
 	// UpdateWorkspaceDormantAt updates the template's workspaces'
 	// dormant_at field. This is useful for preventing updates to the
 	// templates locked_ttl immediately triggering a delete action against
-	// workspaces whose dormant_at field violates the new template locked_ttl
+	// workspaces whose dormant_at field violates the new template time_til_dormant_autodelete
 	// threshold.
 	UpdateWorkspaceDormantAt bool `json:"update_workspace_dormant_at"`
 }

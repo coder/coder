@@ -1428,15 +1428,15 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		lockedWorkspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, lockedWorkspace.LatestBuild.ID)
+		dormantWorkspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, dormantWorkspace.LatestBuild.ID)
 
-		// Create another workspace to validate that we do not return unlocked workspaces.
+		// Create another workspace to validate that we do not return active workspaces.
 		_ = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, lockedWorkspace.LatestBuild.ID)
+		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, dormantWorkspace.LatestBuild.ID)
 
-		err := client.UpdateWorkspaceLock(ctx, lockedWorkspace.ID, codersdk.UpdateWorkspaceLock{
-			Lock: true,
+		err := client.UpdateWorkspaceDormancy(ctx, dormantWorkspace.ID, codersdk.UpdateWorkspaceDormancy{
+			Dormant: true,
 		})
 		require.NoError(t, err)
 
@@ -2782,7 +2782,7 @@ func TestWorkspaceWithEphemeralRichParameters(t *testing.T) {
 	require.ElementsMatch(t, expectedBuildParameters, workspaceBuildParameters)
 }
 
-func TestWorkspaceLock(t *testing.T) {
+func TestWorkspaceDormant(t *testing.T) {
 	t.Parallel()
 
 	t.Run("OK", func(t *testing.T) {
@@ -2805,14 +2805,14 @@ func TestWorkspaceLock(t *testing.T) {
 		defer cancel()
 
 		lastUsedAt := workspace.LastUsedAt
-		err := client.UpdateWorkspaceLock(ctx, workspace.ID, codersdk.UpdateWorkspaceLock{
-			Lock: true,
+		err := client.UpdateWorkspaceDormancy(ctx, workspace.ID, codersdk.UpdateWorkspaceDormancy{
+			Dormant: true,
 		})
 		require.NoError(t, err)
 
 		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
 		require.NoError(t, err, "fetch provisioned workspace")
-		// The template doesn't have a locked_ttl set so this should be nil.
+		// The template doesn't have a time_til_dormant_autodelete set so this should be nil.
 		require.Nil(t, workspace.DeletingAt)
 		require.NotNil(t, workspace.DormantAt)
 		require.WithinRange(t, *workspace.DormantAt, time.Now().Add(-time.Second*10), time.Now())
@@ -2820,17 +2820,17 @@ func TestWorkspaceLock(t *testing.T) {
 
 		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
 		lastUsedAt = workspace.LastUsedAt
-		err = client.UpdateWorkspaceLock(ctx, workspace.ID, codersdk.UpdateWorkspaceLock{
-			Lock: false,
+		err = client.UpdateWorkspaceDormancy(ctx, workspace.ID, codersdk.UpdateWorkspaceDormancy{
+			Dormant: false,
 		})
 		require.NoError(t, err)
 
 		workspace, err = client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err, "fetch provisioned workspace")
 		require.Nil(t, workspace.DormantAt)
-		// The template doesn't have a locked_ttl set so this should be nil.
+		// The template doesn't have a time_til_dormant_autodelete  set so this should be nil.
 		require.Nil(t, workspace.DeletingAt)
-		// The last_used_at should get updated when we unlock the workspace.
+		// The last_used_at should get updated when we activate the workspace.
 		require.True(t, workspace.LastUsedAt.After(lastUsedAt))
 	})
 
@@ -2849,23 +2849,23 @@ func TestWorkspaceLock(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		err := client.UpdateWorkspaceLock(ctx, workspace.ID, codersdk.UpdateWorkspaceLock{
-			Lock: true,
+		err := client.UpdateWorkspaceDormancy(ctx, workspace.ID, codersdk.UpdateWorkspaceDormancy{
+			Dormant: true,
 		})
 		require.NoError(t, err)
 
-		// Should be able to stop a workspace while it is locked.
+		// Should be able to stop a workspace while it is dormant.
 		coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
 
-		// Should not be able to start a workspace while it is locked.
+		// Should not be able to start a workspace while it is dormant.
 		_, err = client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 			TemplateVersionID: template.ActiveVersionID,
 			Transition:        codersdk.WorkspaceTransition(database.WorkspaceTransitionStart),
 		})
 		require.Error(t, err)
 
-		err = client.UpdateWorkspaceLock(ctx, workspace.ID, codersdk.UpdateWorkspaceLock{
-			Lock: false,
+		err = client.UpdateWorkspaceDormancy(ctx, workspace.ID, codersdk.UpdateWorkspaceDormancy{
+			Dormant: false,
 		})
 		require.NoError(t, err)
 		coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStop, database.WorkspaceTransitionStart)

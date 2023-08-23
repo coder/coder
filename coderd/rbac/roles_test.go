@@ -319,7 +319,7 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			Name:     "WorkspaceLocked",
+			Name:     "WorkspaceDormant",
 			Actions:  rbac.AllActions(),
 			Resource: rbac.ResourceWorkspaceDormant.WithID(uuid.New()).InOrg(orgID).WithOwner(memberMe.Actor.ID),
 			AuthorizeMap: map[bool][]authSubject{

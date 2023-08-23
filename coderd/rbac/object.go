@@ -40,7 +40,7 @@ var (
 	// ResourceWorkspaceDormant is returned if a workspace is dormant.
 	// It grants restricted permissions on workspace builds.
 	ResourceWorkspaceDormant = Object{
-		Type: "workspace_locked",
+		Type: "workspace_dormant",
 	}
 
 	// ResourceWorkspaceProxy CRUD. Org

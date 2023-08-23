@@ -219,8 +219,8 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		restartRequirementDaysOfWeek []string
 		restartRequirementWeeks      int64
 		failureTTL                   time.Duration
-		inactivityTTL                time.Duration
-		timeTilDormantAutoDelete     time.Duration
+		dormantTTL                   time.Duration
+		dormantAutoDeletionTTL       time.Duration
 	)
 	if createTemplate.DefaultTTLMillis != nil {
 		defaultTTL = time.Duration(*createTemplate.DefaultTTLMillis) * time.Millisecond
@@ -233,10 +233,10 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		failureTTL = time.Duration(*createTemplate.FailureTTLMillis) * time.Millisecond
 	}
 	if createTemplate.TimeTilDormantMillis != nil {
-		inactivityTTL = time.Duration(*createTemplate.TimeTilDormantMillis) * time.Millisecond
+		dormantTTL = time.Duration(*createTemplate.TimeTilDormantMillis) * time.Millisecond
 	}
 	if createTemplate.TimeTilDormantAutoDeleteMillis != nil {
-		timeTilDormantAutoDelete = time.Duration(*createTemplate.TimeTilDormantAutoDeleteMillis) * time.Millisecond
+		dormantAutoDeletionTTL = time.Duration(*createTemplate.TimeTilDormantAutoDeleteMillis) * time.Millisecond
 	}
 
 	var (
@@ -270,11 +270,11 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	if failureTTL < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "failure_ttl_ms", Detail: "Must be a positive integer."})
 	}
-	if inactivityTTL < 0 {
-		validErrs = append(validErrs, codersdk.ValidationError{Field: "inactivity_ttl_ms", Detail: "Must be a positive integer."})
+	if dormantTTL < 0 {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "time_til_dormant_autodeletion_ms", Detail: "Must be a positive integer."})
 	}
-	if timeTilDormantAutoDelete < 0 {
-		validErrs = append(validErrs, codersdk.ValidationError{Field: "locked_ttl_ms", Detail: "Must be a positive integer."})
+	if dormantAutoDeletionTTL < 0 {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "time_til_dormant_autodeletion_ms", Detail: "Must be a positive integer."})
 	}
 
 	if len(validErrs) > 0 {
@@ -341,8 +341,8 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 				Weeks:      restartRequirementWeeks,
 			},
 			FailureTTL:               failureTTL,
-			TimeTilDormant:           inactivityTTL,
-			TimeTilDormantAutoDelete: timeTilDormantAutoDelete,
+			TimeTilDormant:           dormantTTL,
+			TimeTilDormantAutoDelete: dormantAutoDeletionTTL,
 		})
 		if err != nil {
 			return xerrors.Errorf("set template schedule options: %s", err)

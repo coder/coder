@@ -1179,8 +1179,8 @@ export interface UpdateWorkspaceAutostartRequest {
 }
 
 // From codersdk/workspaces.go
-export interface UpdateWorkspaceLock {
-  readonly lock: boolean
+export interface UpdateWorkspaceDormancy {
+  readonly dormant: boolean
 }
 
 // From codersdk/workspaceproxy.go
