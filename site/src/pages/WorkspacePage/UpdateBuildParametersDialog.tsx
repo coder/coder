@@ -48,6 +48,7 @@ export const UpdateBuildParametersDialog: FC<
     onSubmit: (values) => {
       onUpdate(values.rich_parameter_values)
     },
+    enableReinitialize: true,
   })
   const getFieldHelpers = getFormHelpers(form)
   const { t } = useTranslation("workspacePage")

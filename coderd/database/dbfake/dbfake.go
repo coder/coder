@@ -626,7 +626,7 @@ func uniqueSortedUUIDs(uuids []uuid.UUID) []uuid.UUID {
 	return unique
 }
 
-func (q *FakeQuerier) getOrganizationMember(orgID uuid.UUID) []database.OrganizationMember {
+func (q *FakeQuerier) getOrganizationMemberNoLock(orgID uuid.UUID) []database.OrganizationMember {
 	var members []database.OrganizationMember
 	for _, member := range q.organizationMembers {
 		if member.OrganizationID == orgID {
@@ -637,14 +637,14 @@ func (q *FakeQuerier) getOrganizationMember(orgID uuid.UUID) []database.Organiza
 	return members
 }
 
-// getEveryoneGroupMembers fetches all the users in an organization.
-func (q *FakeQuerier) getEveryoneGroupMembers(orgID uuid.UUID) []database.User {
+// getEveryoneGroupMembersNoLock fetches all the users in an organization.
+func (q *FakeQuerier) getEveryoneGroupMembersNoLock(orgID uuid.UUID) []database.User {
 	var (
 		everyone   []database.User
-		orgMembers = q.getOrganizationMember(orgID)
+		orgMembers = q.getOrganizationMemberNoLock(orgID)
 	)
 	for _, member := range orgMembers {
-		user, err := q.GetUserByID(context.TODO(), member.UserID)
+		user, err := q.getUserByIDNoLock(member.UserID)
 		if err != nil {
 			return nil
 		}
@@ -1434,7 +1434,7 @@ func (q *FakeQuerier) GetGroupMembers(_ context.Context, id uuid.UUID) ([]databa
 	defer q.mutex.RUnlock()
 
 	if q.isEveryoneGroup(id) {
-		return q.getEveryoneGroupMembers(id), nil
+		return q.getEveryoneGroupMembersNoLock(id), nil
 	}
 
 	var members []database.GroupMember
