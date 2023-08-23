@@ -139,6 +139,16 @@
       "icon_path": "./images/icons/picture.svg",
       "children": [
         {
+          "title": "Creating, editing, and updating templates",
+          "description": "Working with templates",
+          "path": "./templates/creating.md"
+        },
+        {
+          "title": "Your first template",
+          "description": "A tutorial for creating your first template",
+          "path": "./templates/tutorial.md"
+        },
+        {
           "title": "Anatomy of a template",
           "description": "What makes up a template",
           "path": "./templates/concepts.md"
@@ -181,29 +191,22 @@
           ]
         },
         {
-          "title": "Integrating Coder",
-          "description": "Add Coder to your existing workflows",
-          "path": "./templates/integrating.md",
-          "children": [
-            {
-              "title": "Open in Coder",
-              "description": "Add an \"Open in Coder\" button to your repos",
-              "path": "./templates/open-in-coder.md",
-              "icon_path": "./images/icons/key.svg"
-            },
-            {
-              "title": "Docker in workspaces",
-              "description": "Use Docker inside containerized templates",
-              "path": "./templates/docker-in-workspaces.md",
-              "icon_path": "./images/icons/docker.svg"
-            },
-            {
-              "title": "Devcontainers",
-              "description": "Use devcontainers in workspaces",
-              "path": "./templates/devcontainers.md",
-              "state": "alpha"
-            }
-          ]
+          "title": "Open in Coder",
+          "description": "Add an \"Open in Coder\" button to your repos",
+          "path": "./templates/open-in-coder.md",
+          "icon_path": "./images/icons/key.svg"
+        },
+        {
+          "title": "Docker in workspaces",
+          "description": "Use Docker inside containerized templates",
+          "path": "./templates/docker-in-workspaces.md",
+          "icon_path": "./images/icons/docker.svg"
+        },
+        {
+          "title": "Devcontainers",
+          "description": "Use devcontainers in workspaces",
+          "path": "./templates/devcontainers.md",
+          "state": "alpha"
         }
       ]
     },
