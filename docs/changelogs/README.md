@@ -8,7 +8,7 @@ These changelogs are currently not kept in sync with GitHub releases. Use [GitHu
 
 Run this command to generate release notes:
 
-```sh
+```shell
 export CODER_IGNORE_MISSING_COMMIT_METADATA=1
 export BRANCH=main
 ./scripts/release/generate_release_notes.sh \

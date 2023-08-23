@@ -114,7 +114,11 @@ func TestDERPHeaders(t *testing.T) {
 
 	// Create a coderd API instance the hard way since we need to change the
 	// handler to inject our custom /derp handler.
-	setHandler, cancelFunc, serverURL, newOptions := coderdtest.NewOptions(t, nil)
+	dv := coderdtest.DeploymentValues(t)
+	dv.DERP.Config.BlockDirect = true
+	setHandler, cancelFunc, serverURL, newOptions := coderdtest.NewOptions(t, &coderdtest.Options{
+		DeploymentValues: dv,
+	})
 
 	// We set the handler after server creation for the access URL.
 	coderAPI := coderd.New(newOptions)
