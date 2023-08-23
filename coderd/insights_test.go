@@ -918,17 +918,25 @@ func TestTemplateInsights_Golden(t *testing.T) {
 		for ws, data := range testData {
 			for _, usage := range data.appUsage {
 				found := false
-				wrongWorkspace := false
 				for _, app := range ws.apps {
 					if usage.app == app { // Pointer equality
 						found = true
 						break
 					}
-					if *usage.app == *app {
-						wrongWorkspace = true
-					}
 				}
-				require.True(t, found, "test bug: app %q not in workspace %q [wrongWorkspace=%v]", usage.app.name, ws.name, wrongWorkspace)
+				if !found {
+					for _, user := range users {
+						for _, workspace := range user.workspaces {
+							for _, app := range workspace.apps {
+								if usage.app == app { // Pointer equality
+									require.True(t, found, "test bug: app %q not in workspace %q: want user=%s workspace=%s; got user=%s workspace=%s ", usage.app.name, ws.name, ws.user.(*testUser).name, ws.name, user.name, workspace.name)
+									break
+								}
+							}
+						}
+					}
+					require.True(t, found, "test bug: app %q not in workspace %q", usage.app.name, ws.name)
+				}
 			}
 		}
 
@@ -1164,7 +1172,14 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						sessionCountReconnectingPTY: 1,
 					},
 				},
-				appUsage: []appUsage{},
+				appUsage: []appUsage{
+					{
+						app:       users[2].workspaces[0].apps[0],
+						startedAt: frozenWeekAgo.AddDate(0, 0, 2),
+						endedAt:   frozenWeekAgo.AddDate(0, 0, 2).Add(5 * time.Minute),
+						requests:  1,
+					},
+				},
 			},
 		}
 	}

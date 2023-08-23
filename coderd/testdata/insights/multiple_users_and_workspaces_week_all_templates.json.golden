@@ -77,6 +77,16 @@
         "slug": "app3",
         "icon": "/icon2.png",
         "seconds": 900
+      },
+      {
+        "template_ids": [
+          "00000000-0000-0000-0000-000000000003"
+        ],
+        "type": "app",
+        "display_name": "otherapp1",
+        "slug": "otherapp1",
+        "icon": "/icon1.png",
+        "seconds": 300
       }
     ],
     "parameters_usage": []
@@ -107,10 +117,11 @@
       "end_time": "2023-08-18T00:00:00Z",
       "template_ids": [
         "00000000-0000-0000-0000-000000000001",
-        "00000000-0000-0000-0000-000000000002"
+        "00000000-0000-0000-0000-000000000002",
+        "00000000-0000-0000-0000-000000000003"
       ],
       "interval": "day",
-      "active_users": 1
+      "active_users": 2
     },
     {
       "start_time": "2023-08-18T00:00:00Z",
