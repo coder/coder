@@ -4,6 +4,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"database/sql"
 	"errors"
 	"io"
 
@@ -15,6 +16,8 @@ type Cipher interface {
 	Decrypt([]byte) ([]byte, error)
 }
 
+// DecryptFailedError is returned when decryption fails.
+// It unwraps to sql.ErrNoRows.
 type DecryptFailedError struct {
 	Inner error
 }
@@ -24,7 +27,7 @@ func (e *DecryptFailedError) Error() string {
 }
 
 func (e *DecryptFailedError) Unwrap() error {
-	return e.Inner
+	return sql.ErrNoRows
 }
 
 func IsDecryptFailedError(err error) bool {
