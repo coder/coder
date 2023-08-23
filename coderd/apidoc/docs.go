@@ -7391,6 +7391,10 @@ const docTemplate = `{
                     "description": "DefaultTTLMillis allows optionally specifying the default TTL\nfor all workspaces created from this template.",
                     "type": "integer"
                 },
+                "delete_ttl_ms": {
+                    "description": "TimeTilDormantAutoDeleteMillis allows optionally specifying the max lifetime before Coder\npermanently deletes dormant workspaces created from this template.",
+                    "type": "integer"
+                },
                 "description": {
                     "description": "Description is a description of what the template contains. It must be\nless than 128 bytes.",
                     "type": "string"
@@ -7403,6 +7407,10 @@ const docTemplate = `{
                     "description": "DisplayName is the displayed name of the template.",
                     "type": "string"
                 },
+                "dormant_ttl_ms": {
+                    "description": "TimeTilDormantMillis allows optionally specifying the max lifetime before Coder\nlocks inactive workspaces created from this template.",
+                    "type": "integer"
+                },
                 "failure_ttl_ms": {
                     "description": "FailureTTLMillis allows optionally specifying the max lifetime before Coder\nstops all resources for failed workspaces created from this template.",
                     "type": "integer"
@@ -7410,14 +7418,6 @@ const docTemplate = `{
                 "icon": {
                     "description": "Icon is a relative path or external URL that specifies\nan icon to be displayed in the dashboard.",
                     "type": "string"
-                },
-                "inactivity_ttl_ms": {
-                    "description": "InactivityTTLMillis allows optionally specifying the max lifetime before Coder\nlocks inactive workspaces created from this template.",
-                    "type": "integer"
-                },
-                "locked_ttl_ms": {
-                    "description": "LockedTTLMillis allows optionally specifying the max lifetime before Coder\npermanently deletes locked workspaces created from this template.",
-                    "type": "integer"
                 },
                 "max_ttl_ms": {
                     "description": "TODO(@dean): remove max_ttl once restart_requirement is matured",
@@ -9527,14 +9527,20 @@ const docTemplate = `{
                 "default_ttl_ms": {
                     "type": "integer"
                 },
+                "delete_ttl_ms": {
+                    "type": "integer"
+                },
                 "description": {
                     "type": "string"
                 },
                 "display_name": {
                     "type": "string"
                 },
+                "dormant_ttl_ms": {
+                    "type": "integer"
+                },
                 "failure_ttl_ms": {
-                    "description": "FailureTTLMillis, InactivityTTLMillis, and LockedTTLMillis are enterprise-only. Their\nvalues are used if your license is entitled to use the advanced\ntemplate scheduling feature.",
+                    "description": "FailureTTLMillis, TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their\nvalues are used if your license is entitled to use the advanced\ntemplate scheduling feature.",
                     "type": "integer"
                 },
                 "icon": {
@@ -9543,12 +9549,6 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
-                },
-                "inactivity_ttl_ms": {
-                    "type": "integer"
-                },
-                "locked_ttl_ms": {
-                    "type": "integer"
                 },
                 "max_ttl_ms": {
                     "description": "TODO(@dean): remove max_ttl once restart_requirement is matured",
@@ -10528,7 +10528,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.WorkspaceBuild"
                 },
                 "locked_at": {
-                    "description": "LockedAt being non-nil indicates a workspace that has been locked.\nA locked workspace is no longer accessible by a user and must be\nunlocked by an admin. It is subject to deletion if it breaches\nthe duration of the locked_ttl field on its template.",
+                    "description": "DormantAt being non-nil indicates a workspace that has been locked.\nA locked workspace is no longer accessible by a user and must be\nunlocked by an admin. It is subject to deletion if it breaches\nthe duration of the locked_ttl field on its template.",
                     "type": "string",
                     "format": "date-time"
                 },

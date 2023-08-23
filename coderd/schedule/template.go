@@ -112,9 +112,9 @@ type TemplateScheduleOptions struct {
 	// inactivity_ttl threshold.
 	UpdateWorkspaceLastUsedAt bool `json:"update_workspace_last_used_at"`
 	// UpdateWorkspaceDormantAt updates the template's workspaces'
-	// locked_at field. This is useful for preventing updates to the
+	// dormant_at field. This is useful for preventing updates to the
 	// templates locked_ttl immediately triggering a delete action against
-	// workspaces whose locked_at field violates the new template locked_ttl
+	// workspaces whose dormant_at field violates the new template locked_ttl
 	// threshold.
 	UpdateWorkspaceDormantAt bool `json:"update_workspace_dormant_at"`
 }
@@ -157,9 +157,9 @@ func (*agplTemplateScheduleStore) Get(ctx context.Context, db database.Store, te
 			DaysOfWeek: 0,
 			Weeks:      0,
 		},
-		FailureTTL: 0,
-		TimeTilDormant: 0,
-		TimeTilDormantAutoDelete:  0,
+		FailureTTL:               0,
+		TimeTilDormant:           0,
+		TimeTilDormantAutoDelete: 0,
 	}, nil
 }
 
@@ -186,8 +186,8 @@ func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tp
 			AllowUserAutostart:           tpl.AllowUserAutostart,
 			AllowUserAutostop:            tpl.AllowUserAutostop,
 			FailureTTL:                   tpl.FailureTTL,
-			TimeTilDormant:                   tpl.TimeTilDormant,
-			TimeTilDormantAutoDelete:                    tpl.TimeTilDormantAutoDelete,
+			TimeTilDormant:               tpl.TimeTilDormant,
+			TimeTilDormantAutoDelete:     tpl.TimeTilDormantAutoDelete,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template schedule: %w", err)

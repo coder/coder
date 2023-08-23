@@ -47,9 +47,9 @@ type Template struct {
 	// FailureTTLMillis, TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their
 	// values are used if your license is entitled to use the advanced
 	// template scheduling feature.
-	FailureTTLMillis int64 `json:"failure_ttl_ms"`
-	TimeTilDormantMillis int64 `json:"dormant_ttl_ms"`
-	TimeTilDormantAutoDeleteMillis  int64 `json:"delete_ttl_ms"`
+	FailureTTLMillis               int64 `json:"failure_ttl_ms"`
+	TimeTilDormantMillis           int64 `json:"dormant_ttl_ms"`
+	TimeTilDormantAutoDeleteMillis int64 `json:"delete_ttl_ms"`
 }
 
 // WeekdaysToBitmap converts a list of weekdays to a bitmap in accordance with
@@ -185,13 +185,13 @@ type UpdateTemplateMeta struct {
 	// RestartRequirement can only be set if your license includes the advanced
 	// template scheduling feature. If you attempt to set this value while
 	// unlicensed, it will be ignored.
-	RestartRequirement           *TemplateRestartRequirement `json:"restart_requirement,omitempty"`
-	AllowUserAutostart           bool                        `json:"allow_user_autostart,omitempty"`
-	AllowUserAutostop            bool                        `json:"allow_user_autostop,omitempty"`
-	AllowUserCancelWorkspaceJobs bool                        `json:"allow_user_cancel_workspace_jobs,omitempty"`
-	FailureTTLMillis             int64                       `json:"failure_ttl_ms,omitempty"`
-	TimeTilDormantMillis             int64                       `json:"dormant_ttl_ms,omitempty"`
-	TimeTilDormantAutoDeleteMillis              int64                       `json:"delete_ttl_ms,omitempty"`
+	RestartRequirement             *TemplateRestartRequirement `json:"restart_requirement,omitempty"`
+	AllowUserAutostart             bool                        `json:"allow_user_autostart,omitempty"`
+	AllowUserAutostop              bool                        `json:"allow_user_autostop,omitempty"`
+	AllowUserCancelWorkspaceJobs   bool                        `json:"allow_user_cancel_workspace_jobs,omitempty"`
+	FailureTTLMillis               int64                       `json:"failure_ttl_ms,omitempty"`
+	TimeTilDormantMillis           int64                       `json:"dormant_ttl_ms,omitempty"`
+	TimeTilDormantAutoDeleteMillis int64                       `json:"delete_ttl_ms,omitempty"`
 	// UpdateWorkspaceLastUsedAt updates the last_used_at field of workspaces
 	// spawned from the template. This is useful for preventing workspaces being
 	// immediately locked when updating the inactivity_ttl field to a new, shorter

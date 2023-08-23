@@ -147,7 +147,7 @@ func (w Workspace) RBACObject() rbac.Object {
 func (w Workspace) ExecutionRBAC() rbac.Object {
 	// If a workspace is locked it cannot be accessed.
 	if w.DormantAt.Valid {
-		return w.LockedRBAC()
+		return w.DormantRBAC()
 	}
 
 	return rbac.ResourceWorkspaceExecution.
@@ -159,7 +159,7 @@ func (w Workspace) ExecutionRBAC() rbac.Object {
 func (w Workspace) ApplicationConnectRBAC() rbac.Object {
 	// If a workspace is locked it cannot be accessed.
 	if w.DormantAt.Valid {
-		return w.LockedRBAC()
+		return w.DormantRBAC()
 	}
 
 	return rbac.ResourceWorkspaceApplicationConnect.
@@ -175,7 +175,7 @@ func (w Workspace) WorkspaceBuildRBAC(transition WorkspaceTransition) rbac.Objec
 	// a locked workspace, they shouldn't have to have it unlocked first.
 	if w.DormantAt.Valid && transition != WorkspaceTransitionStop &&
 		transition != WorkspaceTransitionDelete {
-		return w.LockedRBAC()
+		return w.DormantRBAC()
 	}
 
 	return rbac.ResourceWorkspaceBuild.
@@ -184,8 +184,8 @@ func (w Workspace) WorkspaceBuildRBAC(transition WorkspaceTransition) rbac.Objec
 		WithOwner(w.OwnerID.String())
 }
 
-func (w Workspace) LockedRBAC() rbac.Object {
-	return rbac.ResourceWorkspaceLocked.
+func (w Workspace) DormantRBAC() rbac.Object {
+	return rbac.ResourceWorkspaceDormant.
 		WithID(w.ID).
 		InOrg(w.OrganizationID).
 		WithOwner(w.OwnerID.String())

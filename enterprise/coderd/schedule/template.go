@@ -83,9 +83,9 @@ func (s *EnterpriseTemplateScheduleStore) Get(ctx context.Context, db database.S
 			DaysOfWeek: uint8(tpl.RestartRequirementDaysOfWeek),
 			Weeks:      tpl.RestartRequirementWeeks,
 		},
-		FailureTTL:    time.Duration(tpl.FailureTTL),
-		TimeTilDormant: time.Duration(tpl.TimeTilDormant),
-		TimeTilDormantAutoDelete:     time.Duration(tpl.TimeTilDormantAutoDelete),
+		FailureTTL:               time.Duration(tpl.FailureTTL),
+		TimeTilDormant:           time.Duration(tpl.TimeTilDormant),
+		TimeTilDormantAutoDelete: time.Duration(tpl.TimeTilDormantAutoDelete),
 	}, nil
 }
 
@@ -127,8 +127,8 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			RestartRequirementDaysOfWeek: int16(opts.RestartRequirement.DaysOfWeek),
 			RestartRequirementWeeks:      opts.RestartRequirement.Weeks,
 			FailureTTL:                   int64(opts.FailureTTL),
-			TimeTilDormant:                int64(opts.TimeTilDormant),
-			TimeTilDormantAutoDelete:                    int64(opts.TimeTilDormantAutoDelete),
+			TimeTilDormant:               int64(opts.TimeTilDormant),
+			TimeTilDormantAutoDelete:     int64(opts.TimeTilDormantAutoDelete),
 		})
 		if err != nil {
 			return xerrors.Errorf("update template schedule: %w", err)
@@ -143,10 +143,10 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 		// to ensure workspaces are being cleaned up correctly. Similarly if we are
 		// disabling it (by passing 0), then we want to delete nullify the deleting_at
 		// fields of all the template workspaces.
-		err = tx.UpdateWorkspacesLockedDeletingAtByTemplateID(ctx, database.UpdateWorkspacesLockedDeletingAtByTemplateIDParams{
-			TemplateID:  tpl.ID,
-			LockedTtlMs: opts.TimeTilDormantAutoDelete.Milliseconds(),
-			DormantAt:    lockedAt,
+		err = tx.UpdateWorkspacesDormantDeletingAtByTemplateID(ctx, database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams{
+			TemplateID:                 tpl.ID,
+			TimeTilDormantAutodeleteMs: opts.TimeTilDormantAutoDelete.Milliseconds(),
+			DormantAt:                  lockedAt,
 		})
 		if err != nil {
 			return xerrors.Errorf("update deleting_at of all workspaces for new locked_ttl %q: %w", opts.TimeTilDormantAutoDelete, err)

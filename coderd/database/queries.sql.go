@@ -9490,7 +9490,7 @@ WHERE
 			) > 0
 		ELSE true
 	END
-	-- Filter by locked workspaces. By default we do not return locked
+	-- Filter by dormant workspaces. By default we do not return dormant
 	-- workspaces since they are considered soft-deleted.
 	AND CASE
 		WHEN $10 :: timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN
@@ -9879,26 +9879,7 @@ func (q *sqlQuerier) UpdateWorkspaceDeletedByID(ctx context.Context, arg UpdateW
 	return err
 }
 
-const updateWorkspaceLastUsedAt = `-- name: UpdateWorkspaceLastUsedAt :exec
-UPDATE
-	workspaces
-SET
-	last_used_at = $2
-WHERE
-	id = $1
-`
-
-type UpdateWorkspaceLastUsedAtParams struct {
-	ID         uuid.UUID `db:"id" json:"id"`
-	LastUsedAt time.Time `db:"last_used_at" json:"last_used_at"`
-}
-
-func (q *sqlQuerier) UpdateWorkspaceLastUsedAt(ctx context.Context, arg UpdateWorkspaceLastUsedAtParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspaceLastUsedAt, arg.ID, arg.LastUsedAt)
-	return err
-}
-
-const updateWorkspaceLockedDeletingAt = `-- name: UpdateWorkspaceLockedDeletingAt :one
+const updateWorkspaceDormantDeletingAt = `-- name: UpdateWorkspaceDormantDeletingAt :one
 UPDATE
 	workspaces
 SET
@@ -9908,7 +9889,7 @@ SET
 	last_used_at = CASE WHEN $2::timestamptz IS NULL THEN now() at time zone 'utc' ELSE last_used_at END,
 	-- If dormant_at is null (meaning unlocked) or the template-defined locked_ttl is 0 we should set
 	-- deleting_at to NULL else set it to the dormant_at + locked_ttl duration.
-	deleting_at = CASE WHEN $2::timestamptz IS NULL OR templates.locked_ttl = 0 THEN NULL ELSE $2::timestamptz + INTERVAL '1 milliseconds' * templates.locked_ttl / 1000000 END
+	deleting_at = CASE WHEN $2::timestamptz IS NULL OR templates.time_til_dormant_autodelete = 0 THEN NULL ELSE $2::timestamptz + INTERVAL '1 milliseconds' * templates.time_til_dormant_autodelete / 1000000 END
 FROM
 	templates
 WHERE
@@ -9918,13 +9899,13 @@ AND
 RETURNING workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at
 `
 
-type UpdateWorkspaceLockedDeletingAtParams struct {
+type UpdateWorkspaceDormantDeletingAtParams struct {
 	ID        uuid.UUID    `db:"id" json:"id"`
 	DormantAt sql.NullTime `db:"dormant_at" json:"dormant_at"`
 }
 
-func (q *sqlQuerier) UpdateWorkspaceLockedDeletingAt(ctx context.Context, arg UpdateWorkspaceLockedDeletingAtParams) (Workspace, error) {
-	row := q.db.QueryRowContext(ctx, updateWorkspaceLockedDeletingAt, arg.ID, arg.DormantAt)
+func (q *sqlQuerier) UpdateWorkspaceDormantDeletingAt(ctx context.Context, arg UpdateWorkspaceDormantDeletingAtParams) (Workspace, error) {
+	row := q.db.QueryRowContext(ctx, updateWorkspaceDormantDeletingAt, arg.ID, arg.DormantAt)
 	var i Workspace
 	err := row.Scan(
 		&i.ID,
@@ -9942,6 +9923,25 @@ func (q *sqlQuerier) UpdateWorkspaceLockedDeletingAt(ctx context.Context, arg Up
 		&i.DeletingAt,
 	)
 	return i, err
+}
+
+const updateWorkspaceLastUsedAt = `-- name: UpdateWorkspaceLastUsedAt :exec
+UPDATE
+	workspaces
+SET
+	last_used_at = $2
+WHERE
+	id = $1
+`
+
+type UpdateWorkspaceLastUsedAtParams struct {
+	ID         uuid.UUID `db:"id" json:"id"`
+	LastUsedAt time.Time `db:"last_used_at" json:"last_used_at"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceLastUsedAt(ctx context.Context, arg UpdateWorkspaceLastUsedAtParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceLastUsedAt, arg.ID, arg.LastUsedAt)
+	return err
 }
 
 const updateWorkspaceTTL = `-- name: UpdateWorkspaceTTL :exec
@@ -9963,7 +9963,7 @@ func (q *sqlQuerier) UpdateWorkspaceTTL(ctx context.Context, arg UpdateWorkspace
 	return err
 }
 
-const updateWorkspacesLockedDeletingAtByTemplateID = `-- name: UpdateWorkspacesLockedDeletingAtByTemplateID :exec
+const updateWorkspacesDormantDeletingAtByTemplateID = `-- name: UpdateWorkspacesDormantDeletingAtByTemplateID :exec
 UPDATE workspaces
 SET
     deleting_at = CASE
@@ -9978,13 +9978,13 @@ AND
     dormant_at IS NOT NULL
 `
 
-type UpdateWorkspacesLockedDeletingAtByTemplateIDParams struct {
-	LockedTtlMs int64     `db:"locked_ttl_ms" json:"locked_ttl_ms"`
-	DormantAt   time.Time `db:"dormant_at" json:"dormant_at"`
-	TemplateID  uuid.UUID `db:"template_id" json:"template_id"`
+type UpdateWorkspacesDormantDeletingAtByTemplateIDParams struct {
+	TimeTilDormantAutodeleteMs int64     `db:"time_til_dormant_autodelete_ms" json:"time_til_dormant_autodelete_ms"`
+	DormantAt                  time.Time `db:"dormant_at" json:"dormant_at"`
+	TemplateID                 uuid.UUID `db:"template_id" json:"template_id"`
 }
 
-func (q *sqlQuerier) UpdateWorkspacesLockedDeletingAtByTemplateID(ctx context.Context, arg UpdateWorkspacesLockedDeletingAtByTemplateIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspacesLockedDeletingAtByTemplateID, arg.LockedTtlMs, arg.DormantAt, arg.TemplateID)
+func (q *sqlQuerier) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Context, arg UpdateWorkspacesDormantDeletingAtByTemplateIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspacesDormantDeletingAtByTemplateID, arg.TimeTilDormantAutodeleteMs, arg.DormantAt, arg.TemplateID)
 	return err
 }

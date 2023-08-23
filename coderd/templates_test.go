@@ -270,8 +270,8 @@ func TestPostTemplateByOrganization(t *testing.T) {
 							RestartRequirementDaysOfWeek: int16(options.RestartRequirement.DaysOfWeek),
 							RestartRequirementWeeks:      options.RestartRequirement.Weeks,
 							FailureTTL:                   int64(options.FailureTTL),
-							TimeTilDormant:                int64(options.TimeTilDormant),
-							TimeTilDormantAutoDelete:                    int64(options.TimeTilDormantAutoDelete),
+							TimeTilDormant:               int64(options.TimeTilDormant),
+							TimeTilDormantAutoDelete:     int64(options.TimeTilDormantAutoDelete),
 						})
 						if !assert.NoError(t, err) {
 							return database.Template{}, err
@@ -320,8 +320,8 @@ func TestPostTemplateByOrganization(t *testing.T) {
 							RestartRequirementDaysOfWeek: int16(options.RestartRequirement.DaysOfWeek),
 							RestartRequirementWeeks:      options.RestartRequirement.Weeks,
 							FailureTTL:                   int64(options.FailureTTL),
-							TimeTilDormant:                int64(options.TimeTilDormant),
-							TimeTilDormantAutoDelete:                    int64(options.TimeTilDormantAutoDelete),
+							TimeTilDormant:               int64(options.TimeTilDormant),
+							TimeTilDormantAutoDelete:     int64(options.TimeTilDormantAutoDelete),
 						})
 						if !assert.NoError(t, err) {
 							return database.Template{}, err
@@ -598,8 +598,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 							RestartRequirementDaysOfWeek: int16(options.RestartRequirement.DaysOfWeek),
 							RestartRequirementWeeks:      options.RestartRequirement.Weeks,
 							FailureTTL:                   int64(options.FailureTTL),
-							TimeTilDormant:                int64(options.TimeTilDormant),
-							TimeTilDormantAutoDelete:                    int64(options.TimeTilDormantAutoDelete),
+							TimeTilDormant:               int64(options.TimeTilDormant),
+							TimeTilDormantAutoDelete:     int64(options.TimeTilDormantAutoDelete),
 						})
 						if !assert.NoError(t, err) {
 							return database.Template{}, err
@@ -697,9 +697,9 @@ func TestPatchTemplateMeta(t *testing.T) {
 		t.Parallel()
 
 		const (
-			failureTTL    = 7 * 24 * time.Hour
-			inactivityTTL = 180 * 24 * time.Hour
-			lockedTTL     = 360 * 24 * time.Hour
+			failureTTL               = 7 * 24 * time.Hour
+			inactivityTTL            = 180 * 24 * time.Hour
+			timeTilDormantAutoDelete = 360 * 24 * time.Hour
 		)
 
 		t.Run("OK", func(t *testing.T) {
@@ -712,7 +712,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 						if atomic.AddInt64(&setCalled, 1) == 2 {
 							require.Equal(t, failureTTL, options.FailureTTL)
 							require.Equal(t, inactivityTTL, options.TimeTilDormant)
-							require.Equal(t, lockedTTL, options.TimeTilDormantAutoDelete)
+							require.Equal(t, timeTilDormantAutoDelete, options.TimeTilDormantAutoDelete)
 						}
 						template.FailureTTL = int64(options.FailureTTL)
 						template.TimeTilDormant = int64(options.TimeTilDormant)
@@ -733,23 +733,23 @@ func TestPatchTemplateMeta(t *testing.T) {
 			defer cancel()
 
 			got, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-				Name:                         template.Name,
-				DisplayName:                  template.DisplayName,
-				Description:                  template.Description,
-				Icon:                         template.Icon,
-				DefaultTTLMillis:             0,
-				RestartRequirement:           &template.RestartRequirement,
-				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
-				FailureTTLMillis:             failureTTL.Milliseconds(),
-				TimeTilDormantMillis:          inactivityTTL.Milliseconds(),
-				TimeTilDormantAutoDeleteMillis:              lockedTTL.Milliseconds(),
+				Name:                           template.Name,
+				DisplayName:                    template.DisplayName,
+				Description:                    template.Description,
+				Icon:                           template.Icon,
+				DefaultTTLMillis:               0,
+				RestartRequirement:             &template.RestartRequirement,
+				AllowUserCancelWorkspaceJobs:   template.AllowUserCancelWorkspaceJobs,
+				FailureTTLMillis:               failureTTL.Milliseconds(),
+				TimeTilDormantMillis:           inactivityTTL.Milliseconds(),
+				TimeTilDormantAutoDeleteMillis: timeTilDormantAutoDelete.Milliseconds(),
 			})
 			require.NoError(t, err)
 
 			require.EqualValues(t, 2, atomic.LoadInt64(&setCalled))
 			require.Equal(t, failureTTL.Milliseconds(), got.FailureTTLMillis)
 			require.Equal(t, inactivityTTL.Milliseconds(), got.TimeTilDormantMillis)
-			require.Equal(t, lockedTTL.Milliseconds(), got.TimeTilDormantAutoDeleteMillis)
+			require.Equal(t, timeTilDormantAutoDelete.Milliseconds(), got.TimeTilDormantAutoDeleteMillis)
 		})
 
 		t.Run("IgnoredUnlicensed", func(t *testing.T) {
@@ -768,16 +768,16 @@ func TestPatchTemplateMeta(t *testing.T) {
 			defer cancel()
 
 			got, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-				Name:                         template.Name,
-				DisplayName:                  template.DisplayName,
-				Description:                  template.Description,
-				Icon:                         template.Icon,
-				DefaultTTLMillis:             template.DefaultTTLMillis,
-				RestartRequirement:           &template.RestartRequirement,
-				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
-				FailureTTLMillis:             failureTTL.Milliseconds(),
-				TimeTilDormantMillis:          inactivityTTL.Milliseconds(),
-				TimeTilDormantAutoDeleteMillis:              lockedTTL.Milliseconds(),
+				Name:                           template.Name,
+				DisplayName:                    template.DisplayName,
+				Description:                    template.Description,
+				Icon:                           template.Icon,
+				DefaultTTLMillis:               template.DefaultTTLMillis,
+				RestartRequirement:             &template.RestartRequirement,
+				AllowUserCancelWorkspaceJobs:   template.AllowUserCancelWorkspaceJobs,
+				FailureTTLMillis:               failureTTL.Milliseconds(),
+				TimeTilDormantMillis:           inactivityTTL.Milliseconds(),
+				TimeTilDormantAutoDeleteMillis: timeTilDormantAutoDelete.Milliseconds(),
 			})
 			require.NoError(t, err)
 			require.Zero(t, got.FailureTTLMillis)
@@ -989,8 +989,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 							RestartRequirementDaysOfWeek: int16(options.RestartRequirement.DaysOfWeek),
 							RestartRequirementWeeks:      options.RestartRequirement.Weeks,
 							FailureTTL:                   int64(options.FailureTTL),
-							TimeTilDormant:                int64(options.TimeTilDormant),
-							TimeTilDormantAutoDelete:                    int64(options.TimeTilDormantAutoDelete),
+							TimeTilDormant:               int64(options.TimeTilDormant),
+							TimeTilDormantAutoDelete:     int64(options.TimeTilDormantAutoDelete),
 						})
 						if !assert.NoError(t, err) {
 							return database.Template{}, err
@@ -1058,8 +1058,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 							RestartRequirementDaysOfWeek: int16(options.RestartRequirement.DaysOfWeek),
 							RestartRequirementWeeks:      options.RestartRequirement.Weeks,
 							FailureTTL:                   int64(options.FailureTTL),
-							TimeTilDormant:                int64(options.TimeTilDormant),
-							TimeTilDormantAutoDelete:                    int64(options.TimeTilDormantAutoDelete),
+							TimeTilDormant:               int64(options.TimeTilDormant),
+							TimeTilDormantAutoDelete:     int64(options.TimeTilDormantAutoDelete),
 						})
 						if !assert.NoError(t, err) {
 							return database.Template{}, err

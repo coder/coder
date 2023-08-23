@@ -1441,7 +1441,7 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		require.NoError(t, err)
 
 		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			FilterQuery: fmt.Sprintf("locked_at:%s", time.Now().Add(-time.Minute).Format("2006-01-02")),
+			FilterQuery: fmt.Sprintf("dormant_at:%s", time.Now().Add(-time.Minute).Format("2006-01-02")),
 		})
 		require.NoError(t, err)
 		require.Len(t, res.Workspaces, 1)
@@ -2788,15 +2788,15 @@ func TestWorkspaceLock(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 		var (
-			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			user      = coderdtest.CreateFirstUser(t, client)
-			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-			lockedTTL = time.Minute
+			client                   = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user                     = coderdtest.CreateFirstUser(t, client)
+			version                  = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			_                        = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			timeTilDormantAutoDelete = time.Minute
 		)
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.TimeTilDormantAutoDeleteMillis = ptr.Ref[int64](lockedTTL.Milliseconds())
+			ctr.TimeTilDormantAutoDeleteMillis = ptr.Ref[int64](timeTilDormantAutoDelete.Milliseconds())
 		})
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)

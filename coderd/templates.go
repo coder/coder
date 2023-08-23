@@ -220,7 +220,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		restartRequirementWeeks      int64
 		failureTTL                   time.Duration
 		inactivityTTL                time.Duration
-		lockedTTL                    time.Duration
+		timeTilDormantAutoDelete     time.Duration
 	)
 	if createTemplate.DefaultTTLMillis != nil {
 		defaultTTL = time.Duration(*createTemplate.DefaultTTLMillis) * time.Millisecond
@@ -236,7 +236,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		inactivityTTL = time.Duration(*createTemplate.TimeTilDormantMillis) * time.Millisecond
 	}
 	if createTemplate.TimeTilDormantAutoDeleteMillis != nil {
-		lockedTTL = time.Duration(*createTemplate.TimeTilDormantAutoDeleteMillis) * time.Millisecond
+		timeTilDormantAutoDelete = time.Duration(*createTemplate.TimeTilDormantAutoDeleteMillis) * time.Millisecond
 	}
 
 	var (
@@ -273,7 +273,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	if inactivityTTL < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "inactivity_ttl_ms", Detail: "Must be a positive integer."})
 	}
-	if lockedTTL < 0 {
+	if timeTilDormantAutoDelete < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "locked_ttl_ms", Detail: "Must be a positive integer."})
 	}
 
@@ -340,9 +340,9 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 				DaysOfWeek: restartRequirementDaysOfWeekParsed,
 				Weeks:      restartRequirementWeeks,
 			},
-			FailureTTL:    failureTTL,
-			TimeTilDormant: inactivityTTL,
-			TimeTilDormantAutoDelete:     lockedTTL,
+			FailureTTL:               failureTTL,
+			TimeTilDormant:           inactivityTTL,
+			TimeTilDormantAutoDelete: timeTilDormantAutoDelete,
 		})
 		if err != nil {
 			return xerrors.Errorf("set template schedule options: %s", err)
@@ -599,7 +599,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		maxTTL := time.Duration(req.MaxTTLMillis) * time.Millisecond
 		failureTTL := time.Duration(req.FailureTTLMillis) * time.Millisecond
 		inactivityTTL := time.Duration(req.TimeTilDormantMillis) * time.Millisecond
-		lockedTTL := time.Duration(req.TimeTilDormantAutoDeleteMillis) * time.Millisecond
+		timeTilDormantAutoDelete := time.Duration(req.TimeTilDormantAutoDeleteMillis) * time.Millisecond
 
 		if defaultTTL != time.Duration(template.DefaultTTL) ||
 			maxTTL != time.Duration(template.MaxTTL) ||
@@ -607,7 +607,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.RestartRequirement.Weeks != scheduleOpts.RestartRequirement.Weeks ||
 			failureTTL != time.Duration(template.FailureTTL) ||
 			inactivityTTL != time.Duration(template.TimeTilDormant) ||
-			lockedTTL != time.Duration(template.TimeTilDormantAutoDelete) ||
+			timeTilDormantAutoDelete != time.Duration(template.TimeTilDormantAutoDelete) ||
 			req.AllowUserAutostart != template.AllowUserAutostart ||
 			req.AllowUserAutostop != template.AllowUserAutostop {
 			updated, err = (*api.TemplateScheduleStore.Load()).Set(ctx, tx, updated, schedule.TemplateScheduleOptions{
@@ -623,10 +623,10 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 					Weeks:      req.RestartRequirement.Weeks,
 				},
 				FailureTTL:                failureTTL,
-				TimeTilDormant:             inactivityTTL,
-				TimeTilDormantAutoDelete:                 lockedTTL,
+				TimeTilDormant:            inactivityTTL,
+				TimeTilDormantAutoDelete:  timeTilDormantAutoDelete,
 				UpdateWorkspaceLastUsedAt: req.UpdateWorkspaceLastUsedAt,
-				UpdateWorkspaceDormantAt:   req.UpdateWorkspaceDormantAt,
+				UpdateWorkspaceDormantAt:  req.UpdateWorkspaceDormantAt,
 			})
 			if err != nil {
 				return xerrors.Errorf("set template schedule options: %w", err)
@@ -738,28 +738,28 @@ func (api *API) convertTemplate(
 	buildTimeStats := api.metricsCache.TemplateBuildTimeStats(template.ID)
 
 	return codersdk.Template{
-		ID:                           template.ID,
-		CreatedAt:                    template.CreatedAt,
-		UpdatedAt:                    template.UpdatedAt,
-		OrganizationID:               template.OrganizationID,
-		Name:                         template.Name,
-		DisplayName:                  template.DisplayName,
-		Provisioner:                  codersdk.ProvisionerType(template.Provisioner),
-		ActiveVersionID:              template.ActiveVersionID,
-		ActiveUserCount:              activeCount,
-		BuildTimeStats:               buildTimeStats,
-		Description:                  template.Description,
-		Icon:                         template.Icon,
-		DefaultTTLMillis:             time.Duration(template.DefaultTTL).Milliseconds(),
-		MaxTTLMillis:                 time.Duration(template.MaxTTL).Milliseconds(),
-		CreatedByID:                  template.CreatedBy,
-		CreatedByName:                template.CreatedByUsername,
-		AllowUserAutostart:           template.AllowUserAutostart,
-		AllowUserAutostop:            template.AllowUserAutostop,
-		AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
-		FailureTTLMillis:             time.Duration(template.FailureTTL).Milliseconds(),
-		TimeTilDormantMillis:          time.Duration(template.TimeTilDormant).Milliseconds(),
-		TimeTilDormantAutoDeleteMillis:              time.Duration(template.TimeTilDormantAutoDelete).Milliseconds(),
+		ID:                             template.ID,
+		CreatedAt:                      template.CreatedAt,
+		UpdatedAt:                      template.UpdatedAt,
+		OrganizationID:                 template.OrganizationID,
+		Name:                           template.Name,
+		DisplayName:                    template.DisplayName,
+		Provisioner:                    codersdk.ProvisionerType(template.Provisioner),
+		ActiveVersionID:                template.ActiveVersionID,
+		ActiveUserCount:                activeCount,
+		BuildTimeStats:                 buildTimeStats,
+		Description:                    template.Description,
+		Icon:                           template.Icon,
+		DefaultTTLMillis:               time.Duration(template.DefaultTTL).Milliseconds(),
+		MaxTTLMillis:                   time.Duration(template.MaxTTL).Milliseconds(),
+		CreatedByID:                    template.CreatedBy,
+		CreatedByName:                  template.CreatedByUsername,
+		AllowUserAutostart:             template.AllowUserAutostart,
+		AllowUserAutostop:              template.AllowUserAutostop,
+		AllowUserCancelWorkspaceJobs:   template.AllowUserCancelWorkspaceJobs,
+		FailureTTLMillis:               time.Duration(template.FailureTTL).Milliseconds(),
+		TimeTilDormantMillis:           time.Duration(template.TimeTilDormant).Milliseconds(),
+		TimeTilDormantAutoDeleteMillis: time.Duration(template.TimeTilDormantAutoDelete).Milliseconds(),
 		RestartRequirement: codersdk.TemplateRestartRequirement{
 			DaysOfWeek: codersdk.BitmapToWeekdays(uint8(template.RestartRequirementDaysOfWeek)),
 			Weeks:      template.RestartRequirementWeeks,

@@ -259,7 +259,7 @@ WHERE
 			) > 0
 		ELSE true
 	END
-	-- Filter by locked workspaces. By default we do not return locked
+	-- Filter by dormant workspaces. By default we do not return dormant
 	-- workspaces since they are considered soft-deleted.
 	AND CASE
 		WHEN @dormant_at :: timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN
@@ -493,7 +493,7 @@ WHERE
 		)
 	) AND workspaces.deleted = 'false';
 
--- name: UpdateWorkspaceLockedDeletingAt :one
+-- name: UpdateWorkspaceDormantDeletingAt :one
 UPDATE
 	workspaces
 SET
@@ -503,7 +503,7 @@ SET
 	last_used_at = CASE WHEN $2::timestamptz IS NULL THEN now() at time zone 'utc' ELSE last_used_at END,
 	-- If dormant_at is null (meaning unlocked) or the template-defined locked_ttl is 0 we should set
 	-- deleting_at to NULL else set it to the dormant_at + locked_ttl duration.
-	deleting_at = CASE WHEN $2::timestamptz IS NULL OR templates.locked_ttl = 0 THEN NULL ELSE $2::timestamptz + INTERVAL '1 milliseconds' * templates.locked_ttl / 1000000 END
+	deleting_at = CASE WHEN $2::timestamptz IS NULL OR templates.time_til_dormant_autodelete = 0 THEN NULL ELSE $2::timestamptz + INTERVAL '1 milliseconds' * templates.time_til_dormant_autodelete / 1000000 END
 FROM
 	templates
 WHERE
@@ -512,13 +512,13 @@ AND
 	workspaces.id = $1
 RETURNING workspaces.*;
 
--- name: UpdateWorkspacesLockedDeletingAtByTemplateID :exec
+-- name: UpdateWorkspacesDormantDeletingAtByTemplateID :exec
 UPDATE workspaces
 SET
     deleting_at = CASE
-        WHEN @locked_ttl_ms::bigint = 0 THEN NULL
-        WHEN @dormant_at::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN  (@dormant_at::timestamptz) + interval '1 milliseconds' * @locked_ttl_ms::bigint
-        ELSE dormant_at + interval '1 milliseconds' * @locked_ttl_ms::bigint
+        WHEN @time_til_dormant_autodelete_ms::bigint = 0 THEN NULL
+        WHEN @dormant_at::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN  (@dormant_at::timestamptz) + interval '1 milliseconds' * @time_til_dormant_autodelete_ms::bigint
+        ELSE dormant_at + interval '1 milliseconds' * @time_til_dormant_autodelete_ms::bigint
     END,
     dormant_at = CASE WHEN @dormant_at::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN @dormant_at::timestamptz ELSE dormant_at END
 WHERE

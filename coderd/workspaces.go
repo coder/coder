@@ -799,8 +799,8 @@ func (api *API) putWorkspaceLock(rw http.ResponseWriter, r *http.Request) {
 		lockedAt.Time = database.Now()
 	}
 
-	workspace, err := api.Database.UpdateWorkspaceLockedDeletingAt(ctx, database.UpdateWorkspaceLockedDeletingAtParams{
-		ID:       workspace.ID,
+	workspace, err := api.Database.UpdateWorkspaceDormantDeletingAt(ctx, database.UpdateWorkspaceDormantDeletingAtParams{
+		ID:        workspace.ID,
 		DormantAt: lockedAt,
 	})
 	if err != nil {
@@ -1193,7 +1193,7 @@ func convertWorkspace(
 		TTLMillis:                            ttlMillis,
 		LastUsedAt:                           workspace.LastUsedAt,
 		DeletingAt:                           deletedAt,
-		DormantAt:                             lockedAt,
+		DormantAt:                            lockedAt,
 		Health: codersdk.WorkspaceHealth{
 			Healthy:       len(failingAgents) == 0,
 			FailingAgents: failingAgents,

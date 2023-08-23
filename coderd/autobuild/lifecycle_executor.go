@@ -178,7 +178,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 				// Lock the workspace if it has breached the template's
 				// threshold for inactivity.
 				if reason == database.BuildReasonAutolock {
-					ws, err = tx.UpdateWorkspaceLockedDeletingAt(e.ctx, database.UpdateWorkspaceLockedDeletingAtParams{
+					ws, err = tx.UpdateWorkspaceDormantDeletingAt(e.ctx, database.UpdateWorkspaceDormantDeletingAtParams{
 						ID: ws.ID,
 						DormantAt: sql.NullTime{
 							Time:  database.Now(),
@@ -202,7 +202,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 
 				if reason == database.BuildReasonAutodelete {
 					log.Info(e.ctx, "deleted workspace",
-						slog.F("locked_at", ws.DormantAt.Time),
+						slog.F("dormant_at", ws.DormantAt.Time),
 						slog.F("locked_ttl", templateSchedule.TimeTilDormantAutoDelete),
 					)
 				}

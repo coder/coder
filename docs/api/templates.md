@@ -45,13 +45,13 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
     "created_by_name": "string",
     "default_ttl_ms": 0,
+    "delete_ttl_ms": 0,
     "description": "string",
     "display_name": "string",
+    "dormant_ttl_ms": 0,
     "failure_ttl_ms": 0,
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "inactivity_ttl_ms": 0,
-    "locked_ttl_ms": 0,
     "max_ttl_ms": 0,
     "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -91,13 +91,13 @@ Status Code **200**
 | `» created_by_id`                                                                     | string(uuid)                                                                         | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» created_by_name`                                                                   | string                                                                               | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» default_ttl_ms`                                                                    | integer                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» delete_ttl_ms`                                                                     | integer                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» description`                                                                       | string                                                                               | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» display_name`                                                                      | string                                                                               | false    |              |                                                                                                                                                                                                                                                                                                                |
-| `» failure_ttl_ms`                                                                    | integer                                                                              | false    |              | Failure ttl ms InactivityTTLMillis, and LockedTTLMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature.                                                                                                                                |
+| `» dormant_ttl_ms`                                                                    | integer                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» failure_ttl_ms`                                                                    | integer                                                                              | false    |              | Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature.                                                                                                                |
 | `» icon`                                                                              | string                                                                               | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» id`                                                                                | string(uuid)                                                                         | false    |              |                                                                                                                                                                                                                                                                                                                |
-| `» inactivity_ttl_ms`                                                                 | integer                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                |
-| `» locked_ttl_ms`                                                                     | integer                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» max_ttl_ms`                                                                        | integer                                                                              | false    |              | Max ttl ms remove max_ttl once restart_requirement is matured                                                                                                                                                                                                                                                  |
 | `» name`                                                                              | string                                                                               | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» organization_id`                                                                   | string(uuid)                                                                         | false    |              |                                                                                                                                                                                                                                                                                                                |
@@ -138,13 +138,13 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
   "default_ttl_ms": 0,
+  "delete_ttl_ms": 0,
   "description": "string",
   "disable_everyone_group_access": true,
   "display_name": "string",
+  "dormant_ttl_ms": 0,
   "failure_ttl_ms": 0,
   "icon": "string",
-  "inactivity_ttl_ms": 0,
-  "locked_ttl_ms": 0,
   "max_ttl_ms": 0,
   "name": "string",
   "restart_requirement": {
@@ -187,13 +187,13 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
   "default_ttl_ms": 0,
+  "delete_ttl_ms": 0,
   "description": "string",
   "display_name": "string",
+  "dormant_ttl_ms": 0,
   "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "inactivity_ttl_ms": 0,
-  "locked_ttl_ms": 0,
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -319,13 +319,13 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
   "default_ttl_ms": 0,
+  "delete_ttl_ms": 0,
   "description": "string",
   "display_name": "string",
+  "dormant_ttl_ms": 0,
   "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "inactivity_ttl_ms": 0,
-  "locked_ttl_ms": 0,
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -624,13 +624,13 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
   "default_ttl_ms": 0,
+  "delete_ttl_ms": 0,
   "description": "string",
   "display_name": "string",
+  "dormant_ttl_ms": 0,
   "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "inactivity_ttl_ms": 0,
-  "locked_ttl_ms": 0,
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -739,13 +739,13 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
   "default_ttl_ms": 0,
+  "delete_ttl_ms": 0,
   "description": "string",
   "display_name": "string",
+  "dormant_ttl_ms": 0,
   "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "inactivity_ttl_ms": 0,
-  "locked_ttl_ms": 0,
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
