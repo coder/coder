@@ -1249,6 +1249,17 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						}
 					},
 				},
+				{
+					name:        "two days ago, no data",
+					ignoreTimes: true,
+					makeRequest: func(_ []*testTemplate) codersdk.TemplateInsightsRequest {
+						twoDaysAgo := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -2)
+						return codersdk.TemplateInsightsRequest{
+							StartTime: twoDaysAgo,
+							EndTime:   twoDaysAgo.AddDate(0, 0, 1),
+						}
+					},
+				},
 			},
 		},
 	}
