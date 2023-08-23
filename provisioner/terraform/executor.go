@@ -264,18 +264,21 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 	}, nil
 }
 
-func onlyDataResources(sm *tfjson.StateModule) *tfjson.StateModule {
-	sm2 := *sm
-	sm2.Resources = make([]*tfjson.StateResource, 0, len(sm.Resources))
+func onlyDataResources(sm tfjson.StateModule) tfjson.StateModule {
+	filtered := sm
+	filtered.Resources = []*tfjson.StateResource{}
 	for _, r := range sm.Resources {
 		if r.Mode == "data" {
-			sm2.Resources = append(sm2.Resources, r)
+			filtered.Resources = append(filtered.Resources, r)
 		}
 	}
+
+	filtered.ChildModules = []*tfjson.StateModule{}
 	for _, c := range sm.ChildModules {
-		sm2.ChildModules = append(sm2.ChildModules, onlyDataResources(c))
+		filteredChild := onlyDataResources(*c)
+		filtered.ChildModules = append(filtered.ChildModules, &filteredChild)
 	}
-	return &sm2
+	return filtered
 }
 
 // planResources must only be called while the lock is held.
@@ -300,10 +303,9 @@ func (e *executor) planResources(ctx, killCtx context.Context, planfilePath stri
 		// We don't want all prior resources, because Quotas (and
 		// future features) would never know which resources are getting
 		// deleted by a stop.
-		modules = append(
-			modules,
-			onlyDataResources(plan.PriorState.Values.RootModule),
-		)
+
+		filtered := onlyDataResources(*plan.PriorState.Values.RootModule)
+		modules = append(modules, &filtered)
 	}
 	modules = append(modules, plan.PlannedValues.RootModule)
 
