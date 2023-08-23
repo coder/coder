@@ -8,8 +8,8 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/cli/clibase"
-	agplcoderd "github.com/coder/coder/coderd"
+	"github.com/coder/coder/v2/cli/clibase"
+	agplcoderd "github.com/coder/coder/v2/coderd"
 )
 
 func (r *RootCmd) server() *clibase.Cmd {

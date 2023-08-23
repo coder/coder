@@ -6,10 +6,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/pty/ptytest"
 )
 
 func TestWorkspaceResources(t *testing.T) {

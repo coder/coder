@@ -22,7 +22,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-	"github.com/coder/coder/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
 var (
@@ -754,15 +754,15 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 
 		// These are external named types that we handle uniquely.
 		switch n.String() {
-		case "github.com/coder/coder/cli/clibase.String":
+		case "github.com/coder/coder/v2/cli/clibase.String":
 			return TypescriptType{ValueType: "string"}, nil
-		case "github.com/coder/coder/cli/clibase.Strings":
+		case "github.com/coder/coder/v2/cli/clibase.Strings":
 			return TypescriptType{ValueType: "string[]"}, nil
-		case "github.com/coder/coder/cli/clibase.Int64":
+		case "github.com/coder/coder/v2/cli/clibase.Int64":
 			return TypescriptType{ValueType: "number"}, nil
-		case "github.com/coder/coder/cli/clibase.Bool":
+		case "github.com/coder/coder/v2/cli/clibase.Bool":
 			return TypescriptType{ValueType: "boolean"}, nil
-		case "github.com/coder/coder/cli/clibase.Duration":
+		case "github.com/coder/coder/v2/cli/clibase.Duration":
 			return TypescriptType{ValueType: "number"}, nil
 		case "net/url.URL":
 			return TypescriptType{ValueType: "string"}, nil
@@ -773,7 +773,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{ValueType: "number"}, nil
 		case "database/sql.NullTime":
 			return TypescriptType{ValueType: "string", Optional: true}, nil
-		case "github.com/coder/coder/codersdk.NullTime":
+		case "github.com/coder/coder/v2/codersdk.NullTime":
 			return TypescriptType{ValueType: "string", Optional: true}, nil
 		case "github.com/google/uuid.NullUUID":
 			return TypescriptType{ValueType: "string", Optional: true}, nil
@@ -781,7 +781,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{ValueType: "string"}, nil
 		case "encoding/json.RawMessage":
 			return TypescriptType{ValueType: "Record<string, string>"}, nil
-		case "github.com/coder/coder/cli/clibase.URL":
+		case "github.com/coder/coder/v2/cli/clibase.URL":
 			return TypescriptType{ValueType: "string"}, nil
 		}
 

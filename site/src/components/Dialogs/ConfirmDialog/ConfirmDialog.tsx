@@ -7,6 +7,9 @@ import {
   DialogActionButtonsProps,
 } from "../Dialog"
 import { ConfirmDialogType } from "../types"
+import Checkbox from "@mui/material/Checkbox"
+import FormControlLabel from "@mui/material/FormControlLabel"
+import { Stack } from "@mui/system"
 
 interface ConfirmDialogTypeConfig {
   confirmText: ReactNode
@@ -151,3 +154,168 @@ export const ConfirmDialog: FC<PropsWithChildren<ConfirmDialogProps>> = ({
     </Dialog>
   )
 }
+
+export interface ScheduleDialogProps extends ConfirmDialogProps {
+  readonly inactiveWorkspacesToGoDormant: number
+  readonly inactiveWorkspacesToGoDormantInWeek: number
+  readonly dormantWorkspacesToBeDeleted: number
+  readonly dormantWorkspacesToBeDeletedInWeek: number
+  readonly updateLockedWorkspaces: (confirm: boolean) => void
+  readonly updateInactiveWorkspaces: (confirm: boolean) => void
+  readonly dormantValueChanged: boolean
+  readonly deletionValueChanged: boolean
+}
+
+export const ScheduleDialog: FC<PropsWithChildren<ScheduleDialogProps>> = ({
+  cancelText,
+  confirmLoading,
+  disabled = false,
+  hideCancel,
+  onClose,
+  onConfirm,
+  type,
+  open = false,
+  title,
+  inactiveWorkspacesToGoDormant,
+  inactiveWorkspacesToGoDormantInWeek,
+  dormantWorkspacesToBeDeleted,
+  dormantWorkspacesToBeDeletedInWeek,
+  updateLockedWorkspaces,
+  updateInactiveWorkspaces,
+  dormantValueChanged,
+  deletionValueChanged,
+}) => {
+  const styles = useScheduleStyles({ type })
+
+  const defaults = CONFIRM_DIALOG_DEFAULTS["delete"]
+
+  if (typeof hideCancel === "undefined") {
+    hideCancel = defaults.hideCancel
+  }
+
+  const showDormancyWarning =
+    dormantValueChanged &&
+    (inactiveWorkspacesToGoDormant > 0 ||
+      inactiveWorkspacesToGoDormantInWeek > 0)
+  const showDeletionWarning =
+    deletionValueChanged &&
+    (dormantWorkspacesToBeDeleted > 0 || dormantWorkspacesToBeDeletedInWeek > 0)
+
+  return (
+    <Dialog
+      className={styles.dialogWrapper}
+      onClose={onClose}
+      open={open}
+      data-testid="dialog"
+    >
+      <div className={styles.dialogContent}>
+        <h3 className={styles.dialogTitle}>{title}</h3>
+        <>
+          {showDormancyWarning && (
+            <>
+              <h4>{"Dormancy Threshold"}</h4>
+              <Stack direction="row" spacing={5}>
+                <div className={styles.dialogDescription}>{`
+                This change will result in ${inactiveWorkspacesToGoDormant} workspaces being immediately transitioned to the dormant state and ${inactiveWorkspacesToGoDormantInWeek} over the next seven days. To prevent this, do you want to reset the inactivity period for all template workspaces?`}</div>
+                <FormControlLabel
+                  sx={{
+                    marginTop: 2,
+                  }}
+                  control={
+                    <Checkbox
+                      size="small"
+                      onChange={(e) => {
+                        updateInactiveWorkspaces(e.target.checked)
+                      }}
+                    />
+                  }
+                  label="Reset"
+                />
+              </Stack>
+            </>
+          )}
+
+          {showDeletionWarning && (
+            <>
+              <h4>{"Dormancy Auto-Deletion"}</h4>
+              <Stack direction="row" spacing={5}>
+                <div
+                  className={styles.dialogDescription}
+                >{`This change will result in ${dormantWorkspacesToBeDeleted} workspaces being immediately deleted and ${dormantWorkspacesToBeDeletedInWeek} over the next 7 days. To prevent this, do you want to reset the dormancy period for all template workspaces?`}</div>
+                <FormControlLabel
+                  sx={{
+                    marginTop: 2,
+                  }}
+                  control={
+                    <Checkbox
+                      size="small"
+                      onChange={(e) => {
+                        updateLockedWorkspaces(e.target.checked)
+                      }}
+                    />
+                  }
+                  label="Reset"
+                />
+              </Stack>
+            </>
+          )}
+        </>
+      </div>
+
+      <DialogActions>
+        <DialogActionButtons
+          cancelText={cancelText}
+          confirmDialog
+          confirmLoading={confirmLoading}
+          confirmText="Submit"
+          disabled={disabled}
+          onCancel={!hideCancel ? onClose : undefined}
+          onConfirm={onConfirm || onClose}
+          type="delete"
+        />
+      </DialogActions>
+    </Dialog>
+  )
+}
+
+const useScheduleStyles = makeStyles((theme) => ({
+  dialogWrapper: {
+    "& .MuiPaper-root": {
+      background: theme.palette.background.paper,
+      border: `1px solid ${theme.palette.divider}`,
+      width: "100%",
+      maxWidth: theme.spacing(125),
+    },
+    "& .MuiDialogActions-spacing": {
+      padding: `0 ${theme.spacing(5)} ${theme.spacing(5)}`,
+    },
+  },
+  dialogContent: {
+    color: theme.palette.text.secondary,
+    padding: theme.spacing(5),
+  },
+  dialogTitle: {
+    margin: 0,
+    marginBottom: theme.spacing(2),
+    color: theme.palette.text.primary,
+    fontWeight: 400,
+    fontSize: theme.spacing(2.5),
+  },
+  dialogDescription: {
+    color: theme.palette.text.secondary,
+    lineHeight: "160%",
+    fontSize: 16,
+
+    "& strong": {
+      color: theme.palette.text.primary,
+    },
+
+    "& p:not(.MuiFormHelperText-root)": {
+      margin: 0,
+    },
+
+    "& > p": {
+      margin: theme.spacing(1, 0),
+    },
+  },
+}))

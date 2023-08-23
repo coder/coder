@@ -16,10 +16,10 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/cryptorand"
 )
 
 // All methods take in a 'seed' object. Any provided fields in the seed will be
@@ -317,8 +317,9 @@ func ProvisionerJob(t testing.TB, db database.Store, orig database.ProvisionerJo
 		// Make sure when we acquire the job, we only get this one.
 		orig.Tags[id.String()] = "true"
 	}
+	jobID := takeFirst(orig.ID, uuid.New())
 	job, err := db.InsertProvisionerJob(genCtx, database.InsertProvisionerJobParams{
-		ID:             takeFirst(orig.ID, uuid.New()),
+		ID:             jobID,
 		CreatedAt:      takeFirst(orig.CreatedAt, database.Now()),
 		UpdatedAt:      takeFirst(orig.UpdatedAt, database.Now()),
 		OrganizationID: takeFirst(orig.OrganizationID, uuid.New()),
@@ -343,7 +344,7 @@ func ProvisionerJob(t testing.TB, db database.Store, orig database.ProvisionerJo
 
 	if !orig.CompletedAt.Time.IsZero() || orig.Error.String != "" {
 		err := db.UpdateProvisionerJobWithCompleteByID(genCtx, database.UpdateProvisionerJobWithCompleteByIDParams{
-			ID:          job.ID,
+			ID:          jobID,
 			UpdatedAt:   job.UpdatedAt,
 			CompletedAt: orig.CompletedAt,
 			Error:       orig.Error,
@@ -353,14 +354,14 @@ func ProvisionerJob(t testing.TB, db database.Store, orig database.ProvisionerJo
 	}
 	if !orig.CanceledAt.Time.IsZero() {
 		err := db.UpdateProvisionerJobWithCancelByID(genCtx, database.UpdateProvisionerJobWithCancelByIDParams{
-			ID:          job.ID,
+			ID:          jobID,
 			CanceledAt:  orig.CanceledAt,
 			CompletedAt: orig.CompletedAt,
 		})
 		require.NoError(t, err)
 	}
 
-	job, err = db.GetProvisionerJobByID(genCtx, job.ID)
+	job, err = db.GetProvisionerJobByID(genCtx, jobID)
 	require.NoError(t, err)
 
 	return job

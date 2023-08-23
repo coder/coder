@@ -4,11 +4,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func (api *API) restartRequirementEnabledMW(next http.Handler) http.Handler {

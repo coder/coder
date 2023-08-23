@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 const (

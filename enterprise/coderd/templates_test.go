@@ -10,16 +10,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/cryptorand"
-	"github.com/coder/coder/enterprise/coderd/coderdenttest"
-	"github.com/coder/coder/enterprise/coderd/license"
-	"github.com/coder/coder/provisioner/echo"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestTemplates(t *testing.T) {
@@ -283,10 +283,11 @@ func TestTemplates(t *testing.T) {
 		require.Nil(t, unlockedWorkspace.LockedAt)
 		require.Nil(t, unlockedWorkspace.DeletingAt)
 
-		lockedWorkspace = coderdtest.MustWorkspace(t, client, lockedWorkspace.ID)
-		require.NotNil(t, lockedWorkspace.LockedAt)
-		require.NotNil(t, lockedWorkspace.DeletingAt)
-		require.Equal(t, lockedWorkspace.LockedAt.Add(lockedTTL), *lockedWorkspace.DeletingAt)
+		updatedLockedWorkspace := coderdtest.MustWorkspace(t, client, lockedWorkspace.ID)
+		require.NotNil(t, updatedLockedWorkspace.LockedAt)
+		require.NotNil(t, updatedLockedWorkspace.DeletingAt)
+		require.Equal(t, updatedLockedWorkspace.LockedAt.Add(lockedTTL), *updatedLockedWorkspace.DeletingAt)
+		require.Equal(t, updatedLockedWorkspace.LockedAt, lockedWorkspace.LockedAt)
 
 		// Disable the locked_ttl on the template, then we can assert that the workspaces
 		// no longer have a deleting_at field.
@@ -306,6 +307,119 @@ func TestTemplates(t *testing.T) {
 		lockedWorkspace = coderdtest.MustWorkspace(t, client, lockedWorkspace.ID)
 		require.NotNil(t, lockedWorkspace.LockedAt)
 		require.Nil(t, lockedWorkspace.DeletingAt)
+	})
+
+	t.Run("UpdateLockedAt", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAdvancedTemplateScheduling: 1,
+				},
+			},
+		})
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		unlockedWorkspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		lockedWorkspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		require.Nil(t, unlockedWorkspace.DeletingAt)
+		require.Nil(t, lockedWorkspace.DeletingAt)
+
+		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, unlockedWorkspace.LatestBuild.ID)
+		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, lockedWorkspace.LatestBuild.ID)
+
+		err := client.UpdateWorkspaceLock(ctx, lockedWorkspace.ID, codersdk.UpdateWorkspaceLock{
+			Lock: true,
+		})
+		require.NoError(t, err)
+
+		lockedWorkspace = coderdtest.MustWorkspace(t, client, lockedWorkspace.ID)
+		require.NotNil(t, lockedWorkspace.LockedAt)
+		// The deleting_at field should be nil since there is no template locked_ttl set.
+		require.Nil(t, lockedWorkspace.DeletingAt)
+
+		lockedTTL := time.Minute
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			LockedTTLMillis:         lockedTTL.Milliseconds(),
+			UpdateWorkspaceLockedAt: true,
+		})
+		require.NoError(t, err)
+		require.Equal(t, lockedTTL.Milliseconds(), updated.LockedTTLMillis)
+
+		unlockedWorkspace = coderdtest.MustWorkspace(t, client, unlockedWorkspace.ID)
+		require.Nil(t, unlockedWorkspace.LockedAt)
+		require.Nil(t, unlockedWorkspace.DeletingAt)
+
+		updatedLockedWorkspace := coderdtest.MustWorkspace(t, client, lockedWorkspace.ID)
+		require.NotNil(t, updatedLockedWorkspace.LockedAt)
+		require.NotNil(t, updatedLockedWorkspace.DeletingAt)
+		// Validate that the workspace locked_at value is updated.
+		require.True(t, updatedLockedWorkspace.LockedAt.After(*lockedWorkspace.LockedAt))
+		require.Equal(t, updatedLockedWorkspace.LockedAt.Add(lockedTTL), *updatedLockedWorkspace.DeletingAt)
+	})
+
+	t.Run("UpdateLastUsedAt", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAdvancedTemplateScheduling: 1,
+				},
+			},
+		})
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		unlockedWorkspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		lockedWorkspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		require.Nil(t, unlockedWorkspace.DeletingAt)
+		require.Nil(t, lockedWorkspace.DeletingAt)
+
+		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, unlockedWorkspace.LatestBuild.ID)
+		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, lockedWorkspace.LatestBuild.ID)
+
+		err := client.UpdateWorkspaceLock(ctx, lockedWorkspace.ID, codersdk.UpdateWorkspaceLock{
+			Lock: true,
+		})
+		require.NoError(t, err)
+
+		lockedWorkspace = coderdtest.MustWorkspace(t, client, lockedWorkspace.ID)
+		require.NotNil(t, lockedWorkspace.LockedAt)
+		// The deleting_at field should be nil since there is no template locked_ttl set.
+		require.Nil(t, lockedWorkspace.DeletingAt)
+
+		inactivityTTL := time.Minute
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			InactivityTTLMillis:       inactivityTTL.Milliseconds(),
+			UpdateWorkspaceLastUsedAt: true,
+		})
+		require.NoError(t, err)
+		require.Equal(t, inactivityTTL.Milliseconds(), updated.InactivityTTLMillis)
+
+		updatedUnlockedWS := coderdtest.MustWorkspace(t, client, unlockedWorkspace.ID)
+		require.Nil(t, updatedUnlockedWS.LockedAt)
+		require.Nil(t, updatedUnlockedWS.DeletingAt)
+		require.True(t, updatedUnlockedWS.LastUsedAt.After(unlockedWorkspace.LastUsedAt))
+
+		updatedLockedWorkspace := coderdtest.MustWorkspace(t, client, lockedWorkspace.ID)
+		require.NotNil(t, updatedLockedWorkspace.LockedAt)
+		require.Nil(t, updatedLockedWorkspace.DeletingAt)
+		// Validate that the workspace locked_at value is updated.
+		require.Equal(t, updatedLockedWorkspace.LockedAt, lockedWorkspace.LockedAt)
+		require.True(t, updatedLockedWorkspace.LastUsedAt.After(lockedWorkspace.LastUsedAt))
 	})
 }
 

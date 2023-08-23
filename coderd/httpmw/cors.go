@@ -7,7 +7,7 @@ import (
 
 	"github.com/go-chi/cors"
 
-	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpapi"
 )
 
 const (

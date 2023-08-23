@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/workspaceapps"
 )
 
 func Test_RequestValidate(t *testing.T) {

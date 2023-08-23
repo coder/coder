@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/coder/coder/coderd/healthcheck"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/healthcheck"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // @Summary Debug Info Wireguard Coordinator

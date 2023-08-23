@@ -5,9 +5,9 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type WorkspaceCLIAction int
@@ -184,7 +184,7 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 		if (tvp.Ephemeral && pr.promptBuildOptions) ||
 			(action == WorkspaceCreate && tvp.Required) ||
 			(action == WorkspaceCreate && !tvp.Ephemeral) ||
-			(action == WorkspaceUpdate && tvp.Required) ||
+			(action == WorkspaceUpdate && tvp.Mutable && tvp.Required) ||
 			(action == WorkspaceUpdate && !tvp.Mutable && firstTimeUse) ||
 			(action == WorkspaceUpdate && tvp.Mutable && !tvp.Ephemeral && pr.promptRichParameters) {
 			parameterValue, err := cliui.RichParameter(inv, tvp)

@@ -21,8 +21,8 @@ import (
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/speedtest"
 
-	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/tailnet"
+	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/tailnet"
 )
 
 // WorkspaceAgentIP is a static IPv6 address with the Tailscale prefix that is used to route

@@ -7,7 +7,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/v2/coderd/database"
 )
 
 // @typescript-generate DatabaseReport

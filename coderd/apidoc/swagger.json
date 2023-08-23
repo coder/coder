@@ -880,6 +880,27 @@
         }
       }
     },
+    "/licenses/refresh-entitlements": {
+      "post": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Organizations"],
+        "summary": "Update license entitlements",
+        "operationId": "update-license-entitlements",
+        "responses": {
+          "201": {
+            "description": "Created",
+            "schema": {
+              "$ref": "#/definitions/codersdk.Response"
+            }
+          }
+        }
+      }
+    },
     "/licenses/{id}": {
       "delete": {
         "security": [
@@ -7223,6 +7244,10 @@
         "has_license": {
           "type": "boolean"
         },
+        "refreshed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
         "require_telemetry": {
           "type": "boolean"
         },
@@ -8354,7 +8379,9 @@
         "api_key",
         "group",
         "license",
-        "convert_login"
+        "convert_login",
+        "workspace_proxy",
+        "organization"
       ],
       "x-enum-varnames": [
         "ResourceTypeTemplate",
@@ -8366,7 +8393,9 @@
         "ResourceTypeAPIKey",
         "ResourceTypeGroup",
         "ResourceTypeLicense",
-        "ResourceTypeConvertLogin"
+        "ResourceTypeConvertLogin",
+        "ResourceTypeWorkspaceProxy",
+        "ResourceTypeOrganization"
       ]
     },
     "codersdk.Response": {
@@ -8659,8 +8688,8 @@
     },
     "codersdk.TemplateAppsType": {
       "type": "string",
-      "enum": ["builtin"],
-      "x-enum-varnames": ["TemplateAppsTypeBuiltin"]
+      "enum": ["builtin", "app"],
+      "x-enum-varnames": ["TemplateAppsTypeBuiltin", "TemplateAppsTypeApp"]
     },
     "codersdk.TemplateBuildTimeStats": {
       "type": "object",

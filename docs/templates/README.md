@@ -16,13 +16,13 @@ individuals can start their own Coder deployments.
 From your local machine, download the CLI for your operating system from the
 [releases](https://github.com/coder/coder/releases/latest) or run:
 
-```console
+```shell
 curl -fsSL https://coder.com/install.sh | sh
 ```
 
 To see the sub-commands for managing templates, run:
 
-```console
+```shell
 coder templates --help
 ```
 
@@ -31,7 +31,7 @@ coder templates --help
 Before you can create templates, you must first login to your Coder deployment
 with the CLI.
 
-```console
+```shell
 coder login https://coder.example.com # aka the URL to your coder instance
 ```
 
@@ -41,7 +41,7 @@ returning an API Key.
 > Make a note of the API Key. You can re-use the API Key in future CLI logins or
 > sessions.
 
-```console
+```shell
 coder --token <your-api-key> login https://coder.example.com/ # aka the URL to your coder instance
 ```
 
@@ -49,7 +49,7 @@ coder --token <your-api-key> login https://coder.example.com/ # aka the URL to y
 
 Before users can create workspaces, you'll need at least one template in Coder.
 
-```sh
+```shell
 # create a local directory to store templates
 mkdir -p $HOME/coder/templates
 cd $HOME/coder/templates
@@ -74,7 +74,7 @@ coder templates create <template-name>
 To control cost, specify a maximum time to live flag for a template in hours or
 minutes.
 
-```sh
+```shell
 coder templates create my-template --default-ttl 4h
 ```
 
@@ -232,7 +232,7 @@ Alternatively, if you're willing to wait for longer start times from Coder, you
 can set the `imagePullPolicy` to `Always` in your Terraform template; when set,
 Coder will check `image:tag` on every build and update if necessary:
 
-```tf
+```hcl
 resource "kubernetes_pod" "podName" {
     spec {
         container {
@@ -254,7 +254,7 @@ Using the UI, navigate to the template page, click on the menu, and select "Edit
 Using the CLI, login to Coder and run the following command to edit a single
 template:
 
-```console
+```shell
 coder templates edit <template-name> --description "This is my template"
 ```
 
@@ -263,20 +263,20 @@ Review editable template properties by running `coder templates edit -h`.
 Alternatively, you can pull down the template as a tape archive (`.tar`) to your
 current directory:
 
-```console
+```shell
 coder templates pull <template-name> file.tar
 ```
 
 Then, extract it by running:
 
-```sh
+```shell
 tar -xf file.tar
 ```
 
 Make the changes to your template then run this command from the root of the
 template folder:
 
-```console
+```shell
 coder templates push <template-name>
 ```
 
@@ -292,7 +292,7 @@ have any running workspaces associated to it.
 Using the CLI, login to Coder and run the following command to delete a
 template:
 
-```console
+```shell
 coder templates delete <template-name>
 ```
 
@@ -329,7 +329,7 @@ sets a few environment variables based on the username and email address of the
 workspace's owner, so that you can make Git commits immediately without any
 manual configuration:
 
-```tf
+```hcl
 resource "coder_agent" "main" {
   # ...
   env = {
@@ -370,7 +370,7 @@ practices:
   - The Coder agent logs are typically stored in `/tmp/coder-agent.log`
   - The Coder agent startup script logs are typically stored in `/tmp/coder-startup-script.log`
   - The Coder agent shutdown script logs are typically stored in `/tmp/coder-shutdown-script.log`
-- This can also happen if the websockets are not being forwarded correctly when running Coder behind a reverse proxy. [Read our reverse-proxy docs](https://coder.com/docs/v2/latest/admin/configure#tls--reverse-proxy)
+- This can also happen if the websockets are not being forwarded correctly when running Coder behind a reverse proxy. [Read our reverse-proxy docs](../admin/configure.md#tls--reverse-proxy)
 
 ### Agent does not become ready
 

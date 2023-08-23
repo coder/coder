@@ -13,19 +13,19 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/agent"
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/util/ptr"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/codersdk/agentsdk"
-	"github.com/coder/coder/provisioner/echo"
-	"github.com/coder/coder/provisionersdk/proto"
-	"github.com/coder/coder/scaletest/agentconn"
-	"github.com/coder/coder/scaletest/createworkspaces"
-	"github.com/coder/coder/scaletest/reconnectingpty"
-	"github.com/coder/coder/scaletest/workspacebuild"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/scaletest/agentconn"
+	"github.com/coder/coder/v2/scaletest/createworkspaces"
+	"github.com/coder/coder/v2/scaletest/reconnectingpty"
+	"github.com/coder/coder/v2/scaletest/workspacebuild"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func Test_Runner(t *testing.T) {
@@ -257,7 +257,7 @@ func Test_Runner(t *testing.T) {
 					continue
 				}
 
-				// And it should be either canceled or cancelling
+				// And it should be either canceled or canceling
 				if build.Job.Status == codersdk.ProvisionerJobCanceled || build.Job.Status == codersdk.ProvisionerJobCanceling {
 					return true
 				}

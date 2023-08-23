@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/tracing"
 )
 
 // Workspace is a deployment of a template. It references a specific

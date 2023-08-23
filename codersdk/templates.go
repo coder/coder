@@ -192,6 +192,15 @@ type UpdateTemplateMeta struct {
 	FailureTTLMillis             int64                       `json:"failure_ttl_ms,omitempty"`
 	InactivityTTLMillis          int64                       `json:"inactivity_ttl_ms,omitempty"`
 	LockedTTLMillis              int64                       `json:"locked_ttl_ms,omitempty"`
+	// UpdateWorkspaceLastUsedAt updates the last_used_at field of workspaces
+	// spawned from the template. This is useful for preventing workspaces being
+	// immediately locked when updating the inactivity_ttl field to a new, shorter
+	// value.
+	UpdateWorkspaceLastUsedAt bool `json:"update_workspace_last_used_at"`
+	// UpdateWorkspaceLockedAt updates the locked_at field of workspaces spawned
+	// from the template. This is useful for preventing locked workspaces being immediately
+	// deleted when updating the locked_ttl field to a new, shorter value.
+	UpdateWorkspaceLockedAt bool `json:"update_workspace_locked_at"`
 }
 
 type TemplateExample struct {

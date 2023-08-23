@@ -16,8 +16,8 @@ import (
 	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/site"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/site"
 )
 
 type AgentProvider struct {

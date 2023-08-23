@@ -8,7 +8,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -21,7 +20,7 @@ import (
 	"golang.org/x/oauth2/jws"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/httpmw"
 )
 
 // Config uses jwt assertions over client_secret for oauth2 authentication of

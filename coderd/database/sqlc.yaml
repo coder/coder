@@ -71,6 +71,7 @@ overrides:
       eof: EOF
       locked_ttl: LockedTTL
       template_ids: TemplateIDs
+      active_user_ids: ActiveUserIDs
 
 sql:
   - schema: "./dump.sql"

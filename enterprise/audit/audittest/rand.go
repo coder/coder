@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 
-	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/v2/coderd/database"
 )
 
 func RandomLog() database.AuditLog {
