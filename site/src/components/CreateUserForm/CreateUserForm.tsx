@@ -14,6 +14,9 @@ import { Stack } from "../Stack/Stack"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
 import { hasApiFieldErrors, isApiError } from "api/errors"
 import MenuItem from "@mui/material/MenuItem"
+import { makeStyles } from "@mui/styles"
+import { Theme } from "@mui/material/styles"
+import Link from "@mui/material/Link"
 
 export const Language = {
   emailLabel: "Email",
@@ -24,6 +27,37 @@ export const Language = {
   passwordRequired: "Please enter a password.",
   createUser: "Create",
   cancel: "Cancel",
+}
+
+export const authMethodLanguage = {
+  password: {
+    displayName: "Password",
+    description: "Use an email address and password to login",
+  },
+  oidc: {
+    displayName: "OpenID Connect",
+    description: "Use an OpenID Connect provider for authentication",
+  },
+  github: {
+    displayName: "Github",
+    description: "Use Github OAuth for authentication",
+  },
+  none: {
+    displayName: "None",
+    description: (
+      <>
+        Disable authentication for this user (See the{" "}
+        <Link
+          target="_blank"
+          rel="noopener"
+          href="https://coder.com/docs/v2/latest/admin/auth#disable-built-in-authentication"
+        >
+          documentation
+        </Link>{" "}
+        for more details)
+      </>
+    ),
+  },
 }
 
 export interface CreateUserFormProps {
@@ -46,21 +80,8 @@ const validationSchema = Yup.object({
     otherwise: (schema) => schema,
   }),
   username: nameValidator(Language.usernameLabel),
+  login_type: Yup.string().oneOf(Object.keys(authMethodLanguage)),
 })
-
-const authMethodSelect = (
-  title: string,
-  value: string,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- future will use this
-  description: string,
-) => {
-  return (
-    <MenuItem key="value" id={"item-" + value} value={value}>
-      {title}
-      {/* TODO: Add description */}
-    </MenuItem>
-  )
-}
 
 export const CreateUserForm: FC<
   React.PropsWithChildren<CreateUserFormProps>
@@ -73,7 +94,7 @@ export const CreateUserForm: FC<
         username: "",
         organization_id: myOrgId,
         disable_login: false,
-        login_type: "password",
+        login_type: "",
       },
       validationSchema,
       onSubmit,
@@ -83,41 +104,14 @@ export const CreateUserForm: FC<
     error,
   )
 
-  const methods = []
-  if (authMethods?.password.enabled) {
-    methods.push(
-      authMethodSelect(
-        "Password",
-        "password",
-        "User can provide their email and password to login.",
-      ),
-    )
-  }
-  if (authMethods?.oidc.enabled) {
-    methods.push(
-      authMethodSelect(
-        "OpenID Connect",
-        "oidc",
-        "Uses an OpenID connect provider to authenticate the user.",
-      ),
-    )
-  }
-  if (authMethods?.github.enabled) {
-    methods.push(
-      authMethodSelect(
-        "Github",
-        "github",
-        "Uses github oauth to authenticate the user.",
-      ),
-    )
-  }
-  methods.push(
-    authMethodSelect(
-      "None",
-      "none",
-      "User authentication is disabled. This user an only be used if an api token is created for them.",
-    ),
-  )
+  const styles = useStyles()
+
+  const methods = [
+    authMethods?.password.enabled && "password",
+    authMethods?.oidc.enabled && "oidc",
+    authMethods?.github.enabled && "github",
+    "none",
+  ].filter(Boolean) as Array<keyof typeof authMethodLanguage>
 
   return (
     <FullPageForm title="Create user">
@@ -143,21 +137,6 @@ export const CreateUserForm: FC<
           />
           <TextField
             {...getFieldHelpers(
-              "password",
-              form.values.login_type === "password"
-                ? ""
-                : "No password required for this login type",
-            )}
-            autoComplete="current-password"
-            fullWidth
-            id="password"
-            data-testid="password-input"
-            disabled={form.values.login_type !== "password"}
-            label={Language.passwordLabel}
-            type="password"
-          />
-          <TextField
-            {...getFieldHelpers(
               "login_type",
               "Authentication method for this user",
             )}
@@ -172,12 +151,53 @@ export const CreateUserForm: FC<
               }
               await form.setFieldValue("login_type", e.target.value)
             }}
+            SelectProps={{
+              renderValue: (selected: unknown) =>
+                authMethodLanguage[selected as keyof typeof authMethodLanguage]
+                  ?.displayName ?? "",
+            }}
           >
-            {methods}
+            {methods.map((value) => {
+              const language = authMethodLanguage[value]
+              return (
+                <MenuItem key={value} id={"item-" + value} value={value}>
+                  <Stack spacing={0} maxWidth={400}>
+                    {language.displayName}
+                    <span className={styles.labelDescription}>
+                      {language.description}
+                    </span>
+                  </Stack>
+                </MenuItem>
+              )
+            })}
           </TextField>
+          <TextField
+            {...getFieldHelpers(
+              "password",
+              form.values.login_type === "password"
+                ? ""
+                : "No password required for this login type",
+            )}
+            autoComplete="current-password"
+            fullWidth
+            id="password"
+            data-testid="password-input"
+            disabled={form.values.login_type !== "password"}
+            label={Language.passwordLabel}
+            type="password"
+          />
         </Stack>
         <FormFooter onCancel={onCancel} isLoading={isLoading} />
       </form>
     </FullPageForm>
   )
 }
+
+const useStyles = makeStyles<Theme>((theme) => ({
+  labelDescription: {
+    fontSize: 14,
+    color: theme.palette.text.secondary,
+    wordWrap: "normal",
+    whiteSpace: "break-spaces",
+  },
+}))
