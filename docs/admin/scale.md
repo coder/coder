@@ -108,9 +108,11 @@ For example, to support 120 concurrent workspace builds:
 
 | Environment      | Coder CPU | Coder RAM | Database         | Users | Concurrent builds | Concurrent connections (Terminal/SSH) | Coder Version | Last tested  |
 | ---------------- | --------- | --------- | ---------------- | ----- | ----------------- | ------------------------------------- | ------------- | ------------ |
-| Kubernetes (GKE) | 3 cores   | 12 GB     | db-f1-micro      | 200   | 3                 | 200 (40KB/s web terminal each)        | `v0.24.1`     | Jun 26, 2023 |
-| Kubernetes (GKE) | 4 cores   | 8 GB      | db-custom-1-3840 | 1500  | 20                | 1,500                                 | `v0.24.1`     | Jun 27, 2023 |
-| Kubernetes (GKE) | 2 cores   | 4 GB      | db-custom-1-3840 | 500   | 20                | 500 (640KB/s SSH each)                | `v0.27.2`     | Jul 27, 2023 |
+| Kubernetes (GKE) | 3 cores   | 12 GB     | db-f1-micro      | 200   | 3                 | 200 simulated                         | `v0.24.1`     | Jun 26, 2023 |
+| Kubernetes (GKE) | 4 cores   | 8 GB      | db-custom-1-3840 | 1500  | 20                | 1,500 simulated                       | `v0.24.1`     | Jun 27, 2023 |
+| Kubernetes (GKE) | 2 cores   | 4 GB      | db-custom-1-3840 | 500   | 20                | 500 simulated                         | `v0.27.2`     | Jul 27, 2023 |
+
+> Note: a simulated connection read and writes random data at 40KB/s per connection.
 
 ## Scale testing utility
 
