@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/database/dbcrypt"
+	"github.com/coder/coder/v2/enterprise/dbcrypt"
 )
 
 func TestCipherAES256(t *testing.T) {

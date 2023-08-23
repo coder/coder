@@ -15,11 +15,11 @@ import (
 	"tailscale.com/types/key"
 
 	"github.com/coder/coder/v2/cli/clibase"
-	"github.com/coder/coder/v2/coderd/database/dbcrypt"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/audit/backends"
 	"github.com/coder/coder/v2/enterprise/coderd"
+	"github.com/coder/coder/v2/enterprise/dbcrypt"
 	"github.com/coder/coder/v2/enterprise/trialer"
 	"github.com/coder/coder/v2/tailnet"
 
