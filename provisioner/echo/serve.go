@@ -188,7 +188,6 @@ func (e *echo) Apply(sess *provisionersdk.Session, req *proto.ApplyRequest, canc
 
 	// some tests use Echo without a complete response to test cancel
 	<-canceledOrComplete
-	// we have to return a clean Complete or the status will go to "failed"
 	return provisionersdk.ApplyErrorf("canceled")
 }
 

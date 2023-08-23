@@ -177,8 +177,6 @@ func (s *Session) Context() context.Context {
 func (s *Session) ExtractArchive() error {
 	ctx := s.Context()
 
-	//s.ProvisionLog(proto.LogLevel_INFO, "Setting up")
-
 	s.Logger.Info(ctx, "unpacking template source archive",
 		slog.F("size_bytes", len(s.Config.TemplateSourceArchive)),
 	)
@@ -194,7 +192,11 @@ func (s *Session) ExtractArchive() error {
 			}
 			return xerrors.Errorf("read template source archive: %w", err)
 		}
-		// #nosec
+		// Security: don't untar absolute or relative paths, as this can allow a malicious tar to overwrite
+		// files outside the workdir.
+		if !filepath.IsLocal(header.Name) {
+			return xerrors.Errorf("refusing to extract to non-local path")
+		}
 		headerPath := filepath.Join(s.WorkDirectory, header.Name)
 		if !strings.HasPrefix(headerPath, filepath.Clean(s.WorkDirectory)) {
 			return xerrors.New("tar attempts to target relative upper directory")
