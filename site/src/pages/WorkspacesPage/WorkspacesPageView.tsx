@@ -14,7 +14,7 @@ import { Stack } from "components/Stack/Stack"
 import { WorkspaceHelpTooltip } from "components/Tooltips"
 import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable"
 import { useLocalStorage } from "hooks"
-import { LockedWorkspaceBanner, Count } from "components/WorkspaceDeletion"
+import { DormantWorkspaceBanner, Count } from "components/WorkspaceDeletion"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
 import { WorkspacesFilter } from "./filter/filter"
 import { hasError, isApiValidationError } from "api/errors"
@@ -101,7 +101,7 @@ export const WorkspacesPageView: FC<
           <ErrorAlert error={error} />
         </Maybe>
         {/* <ImpendingDeletionBanner/> determines its own visibility */}
-        <LockedWorkspaceBanner
+        <DormantWorkspaceBanner
           workspaces={lockedWorkspaces}
           shouldRedisplayBanner={hasLockedWorkspace}
           onDismiss={() =>
