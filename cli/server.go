@@ -41,7 +41,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/spf13/afero"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/mod/semver"
 	"golang.org/x/oauth2"
@@ -1304,7 +1303,10 @@ func newProvisionerDaemon(
 			defer wg.Done()
 			defer cancel()
 
-			err := echo.Serve(ctx, afero.NewOsFs(), &provisionersdk.ServeOptions{Listener: echoServer})
+			err := echo.Serve(ctx, &provisionersdk.ServeOptions{
+				Listener:      echoServer,
+				WorkDirectory: workDir,
+			})
 			if err != nil {
 				select {
 				case errCh <- err:
@@ -1336,10 +1338,11 @@ func newProvisionerDaemon(
 
 			err := terraform.Serve(ctx, &terraform.ServeOptions{
 				ServeOptions: &provisionersdk.ServeOptions{
-					Listener: terraformServer,
+					Listener:      terraformServer,
+					Logger:        logger.Named("terraform"),
+					WorkDirectory: workDir,
 				},
 				CachePath: tfDir,
-				Logger:    logger.Named("terraform"),
 				Tracer:    tracer,
 			})
 			if err != nil && !xerrors.Is(err, context.Canceled) {
@@ -1366,7 +1369,6 @@ func newProvisionerDaemon(
 		UpdateInterval:      time.Second,
 		ForceCancelInterval: cfg.Provisioner.ForceCancelInterval.Value(),
 		Provisioners:        provisioners,
-		WorkDirectory:       workDir,
 		TracerProvider:      coderAPI.TracerProvider,
 		Metrics:             &metrics,
 	}), nil

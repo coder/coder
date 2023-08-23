@@ -37,7 +37,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
@@ -469,10 +468,10 @@ func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 		_ = echoServer.Close()
 		cancelFunc()
 	})
-	fs := afero.NewMemMapFs()
 	go func() {
-		err := echo.Serve(ctx, fs, &provisionersdk.ServeOptions{
-			Listener: echoServer,
+		err := echo.Serve(ctx, &provisionersdk.ServeOptions{
+			Listener:      echoServer,
+			WorkDirectory: t.TempDir(),
 		})
 		assert.NoError(t, err)
 	}()
@@ -480,7 +479,6 @@ func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 	closer := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
 		return coderAPI.CreateInMemoryProvisionerDaemon(ctx, 0)
 	}, &provisionerd.Options{
-		Filesystem:          fs,
 		Logger:              coderAPI.Logger.Named("provisionerd").Leveled(slog.LevelDebug),
 		JobPollInterval:     50 * time.Millisecond,
 		UpdateInterval:      250 * time.Millisecond,
@@ -488,7 +486,6 @@ func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 		Provisioners: provisionerd.Provisioners{
 			string(database.ProvisionerTypeEcho): sdkproto.NewDRPCProvisionerClient(echoClient),
 		},
-		WorkDirectory: t.TempDir(),
 	})
 	t.Cleanup(func() {
 		_ = closer.Close()
@@ -506,11 +503,11 @@ func NewExternalProvisionerDaemon(t *testing.T, client *codersdk.Client, org uui
 		cancelFunc()
 		<-serveDone
 	})
-	fs := afero.NewMemMapFs()
 	go func() {
 		defer close(serveDone)
-		err := echo.Serve(ctx, fs, &provisionersdk.ServeOptions{
-			Listener: echoServer,
+		err := echo.Serve(ctx, &provisionersdk.ServeOptions{
+			Listener:      echoServer,
+			WorkDirectory: t.TempDir(),
 		})
 		assert.NoError(t, err)
 	}()
@@ -522,7 +519,6 @@ func NewExternalProvisionerDaemon(t *testing.T, client *codersdk.Client, org uui
 			Tags:         tags,
 		})
 	}, &provisionerd.Options{
-		Filesystem:          fs,
 		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
 		JobPollInterval:     50 * time.Millisecond,
 		UpdateInterval:      250 * time.Millisecond,
@@ -530,7 +526,6 @@ func NewExternalProvisionerDaemon(t *testing.T, client *codersdk.Client, org uui
 		Provisioners: provisionerd.Provisioners{
 			string(database.ProvisionerTypeEcho): sdkproto.NewDRPCProvisionerClient(echoClient),
 		},
-		WorkDirectory: t.TempDir(),
 	})
 	t.Cleanup(func() {
 		_ = closer.Close()
