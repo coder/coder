@@ -1135,10 +1135,22 @@ func TestTemplateInsights_Golden(t *testing.T) {
 			},
 			users[1].workspaces[0]: {
 				agentStats: []agentStat{
+					{ // One hour of usage before timeframe (exclude).
+						startedAt:          frozenWeekAgo.Add(-time.Hour),
+						endedAt:            frozenWeekAgo,
+						sessionCountVSCode: 1,
+						sessionCountSSH:    1,
+					},
 					{ // One hour of usage.
 						startedAt:       frozenWeekAgo,
 						endedAt:         frozenWeekAgo.Add(time.Hour),
 						sessionCountSSH: 1,
+					},
+					{ // One hour of usage after timeframe (exclude in UTC, include in São Paulo).
+						startedAt:          frozenWeekAgo.AddDate(0, 0, 7),
+						endedAt:            frozenWeekAgo.AddDate(0, 0, 7).Add(time.Hour),
+						sessionCountVSCode: 1,
+						sessionCountSSH:    1,
 					},
 				},
 				appUsage: []appUsage{},

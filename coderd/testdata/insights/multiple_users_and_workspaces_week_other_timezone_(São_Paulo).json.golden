@@ -6,7 +6,7 @@
       "00000000-0000-0000-0000-000000000001",
       "00000000-0000-0000-0000-000000000002"
     ],
-    "active_users": 1,
+    "active_users": 2,
     "apps_usage": [
       {
         "template_ids": [
@@ -16,7 +16,7 @@
         "display_name": "Visual Studio Code",
         "slug": "vscode",
         "icon": "/icon/code.svg",
-        "seconds": 0
+        "seconds": 3600
       },
       {
         "template_ids": [
@@ -46,7 +46,7 @@
         "display_name": "SSH",
         "slug": "ssh",
         "icon": "/icon/terminal.svg",
-        "seconds": 900
+        "seconds": 4500
       },
       {
         "template_ids": [
@@ -126,9 +126,11 @@
     {
       "start_time": "2023-08-21T00:00:00-03:00",
       "end_time": "2023-08-22T00:00:00-03:00",
-      "template_ids": [],
+      "template_ids": [
+        "00000000-0000-0000-0000-000000000001"
+      ],
       "interval": "day",
-      "active_users": 0
+      "active_users": 1
     }
   ]
 }
