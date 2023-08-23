@@ -52,7 +52,8 @@ func TestEcho(t *testing.T) {
 				Type: &proto.Response_Parse{
 					Parse: &proto.ParseComplete{},
 				},
-			}}
+			},
+		}
 		data, err := echo.Tar(&echo.Responses{
 			Parse: responses,
 		})
@@ -69,6 +70,7 @@ func TestEcho(t *testing.T) {
 		require.NoError(t, err)
 
 		err = client.Send(&proto.Request{Type: &proto.Request_Parse{Parse: &proto.ParseRequest{}}})
+		require.NoError(t, err)
 		log, err := client.Recv()
 		require.NoError(t, err)
 		require.Equal(t, responses[0].GetLog().Output, log.GetLog().Output)

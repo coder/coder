@@ -78,14 +78,14 @@ func TestProvisionerSDK(t *testing.T) {
 
 type unimplementedServer struct{}
 
-func (_ unimplementedServer) Parse(_ *provisionersdk.Session, _ *proto.ParseRequest, _ <-chan struct{}) *proto.ParseComplete {
+func (unimplementedServer) Parse(_ *provisionersdk.Session, _ *proto.ParseRequest, _ <-chan struct{}) *proto.ParseComplete {
 	return &proto.ParseComplete{Error: "unimplemented"}
 }
 
-func (_ unimplementedServer) Plan(_ *provisionersdk.Session, _ *proto.PlanRequest, _ <-chan struct{}) *proto.PlanComplete {
+func (unimplementedServer) Plan(_ *provisionersdk.Session, _ *proto.PlanRequest, _ <-chan struct{}) *proto.PlanComplete {
 	return &proto.PlanComplete{}
 }
 
-func (_ unimplementedServer) Apply(_ *provisionersdk.Session, _ *proto.ApplyRequest, _ <-chan struct{}) *proto.ApplyComplete {
+func (unimplementedServer) Apply(_ *provisionersdk.Session, _ *proto.ApplyRequest, _ <-chan struct{}) *proto.ApplyComplete {
 	return &proto.ApplyComplete{Error: "unimplemented"}
 }

@@ -123,11 +123,10 @@ func readResponses(sess *provisionersdk.Session, trans string, suffix string) ([
 			break
 		}
 	}
-	return responses, nil
 }
 
 // Parse reads requests from the provided directory to stream responses.
-func (e *echo) Parse(sess *provisionersdk.Session, _ *proto.ParseRequest, _ <-chan struct{}) *proto.ParseComplete {
+func (*echo) Parse(sess *provisionersdk.Session, _ *proto.ParseRequest, _ <-chan struct{}) *proto.ParseComplete {
 	responses, err := readResponses(sess, "unspecified", "parse.protobuf")
 	if err != nil {
 		return &proto.ParseComplete{Error: err.Error()}
@@ -146,7 +145,7 @@ func (e *echo) Parse(sess *provisionersdk.Session, _ *proto.ParseRequest, _ <-ch
 }
 
 // Plan reads requests from the provided directory to stream responses.
-func (e *echo) Plan(sess *provisionersdk.Session, req *proto.PlanRequest, canceledOrComplete <-chan struct{}) *proto.PlanComplete {
+func (*echo) Plan(sess *provisionersdk.Session, req *proto.PlanRequest, canceledOrComplete <-chan struct{}) *proto.PlanComplete {
 	responses, err := readResponses(
 		sess,
 		strings.ToLower(req.GetMetadata().GetWorkspaceTransition().String()),
@@ -169,7 +168,7 @@ func (e *echo) Plan(sess *provisionersdk.Session, req *proto.PlanRequest, cancel
 }
 
 // Apply reads requests from the provided directory to stream responses.
-func (e *echo) Apply(sess *provisionersdk.Session, req *proto.ApplyRequest, canceledOrComplete <-chan struct{}) *proto.ApplyComplete {
+func (*echo) Apply(sess *provisionersdk.Session, req *proto.ApplyRequest, canceledOrComplete <-chan struct{}) *proto.ApplyComplete {
 	responses, err := readResponses(
 		sess,
 		strings.ToLower(req.GetMetadata().GetWorkspaceTransition().String()),

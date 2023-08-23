@@ -3,15 +3,17 @@ package provisionersdk
 import (
 	"archive/tar"
 	"bytes"
-	"cdr.dev/slog"
 	"context"
 	"fmt"
-	"golang.org/x/xerrors"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"cdr.dev/slog"
+
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
@@ -197,6 +199,7 @@ func (s *Session) ExtractArchive() error {
 		if !filepath.IsLocal(header.Name) {
 			return xerrors.Errorf("refusing to extract to non-local path")
 		}
+		// nolint: gosec
 		headerPath := filepath.Join(s.WorkDirectory, header.Name)
 		if !strings.HasPrefix(headerPath, filepath.Clean(s.WorkDirectory)) {
 			return xerrors.New("tar attempts to target relative upper directory")
@@ -291,8 +294,10 @@ func (r *request[R, C]) do() (C, error) {
 		if req.GetCancel() != nil {
 			return c, nil
 		}
-		return c, xerrors.Errorf("got new request or nil while old request still processing",
-			slog.F("request", req))
+		if req == nil {
+			return c, xerrors.New("got nil while old request still processing")
+		}
+		return c, xerrors.Errorf("got new request %T while old request still processing", req.Type)
 	case c := <-result:
 		close(canceledOrComplete)
 		return c, nil

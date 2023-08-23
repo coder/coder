@@ -96,9 +96,7 @@ func configure(ctx context.Context, t *testing.T, client proto.DRPCProvisionerCl
 }
 
 func readProvisionLog(t *testing.T, response proto.DRPCProvisioner_SessionClient) string {
-	var (
-		logBuf strings.Builder
-	)
+	var logBuf strings.Builder
 	for {
 		msg, err := response.Recv()
 		require.NoError(t, err)
@@ -647,7 +645,6 @@ func TestProvision(t *testing.T) {
 					require.NoError(t, err)
 					require.Equal(t, string(resourcesWant), string(resourcesGot))
 				}
-
 			}
 
 			if !gotExpectedLog {
@@ -740,7 +737,7 @@ func TestProvision_SafeEnv(t *testing.T) {
 
 	_ = readProvisionLog(t, sess)
 
-	err = sess.Send(&proto.Request{Type: &proto.Request_Apply{Apply: &proto.ApplyRequest{}}})
+	err = sendApply(sess, proto.WorkspaceTransition_START)
 	require.NoError(t, err)
 
 	log := readProvisionLog(t, sess)

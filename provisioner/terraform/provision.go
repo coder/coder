@@ -1,12 +1,13 @@
 package terraform
 
 import (
-	"cdr.dev/slog"
 	"context"
 	"fmt"
 	"os"
 	"strings"
 	"time"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/provisionersdk"

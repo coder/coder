@@ -440,8 +440,7 @@ func (r *Runner) do(ctx context.Context) (*proto.CompletedJob, *proto.FailedJob)
 }
 
 func (r *Runner) configure(config *sdkproto.Config) *proto.FailedJob {
-	var err error
-	err = r.session.Send(&sdkproto.Request{Type: &sdkproto.Request_Config{Config: config}})
+	err := r.session.Send(&sdkproto.Request{Type: &sdkproto.Request_Config{Config: config}})
 	if err != nil {
 		return r.failedJobf("send config: %s", err)
 	}
@@ -941,7 +940,7 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 		return nil, r.failedWorkspaceBuildf("invalid message type %T received from provisioner", resp.Type)
 	}
 	if planComplete.Error != "" {
-		r.logger.Warn(context.Background(), "plan failed",
+		r.logger.Warn(context.Background(), "plan request failed",
 			slog.F("error", planComplete.Error),
 		)
 
@@ -954,7 +953,7 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 		}
 	}
 
-	r.logger.Info(context.Background(), "plan successful",
+	r.logger.Info(context.Background(), "plan request successful",
 		slog.F("resource_count", len(planComplete.Resources)),
 		slog.F("resources", planComplete.Resources),
 	)
