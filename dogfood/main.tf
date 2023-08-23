@@ -189,15 +189,17 @@ resource "coder_agent" "dev" {
     fi
 
     sudo service docker start
-    DOTFILES_URI="${data.coder_parameter.dotfiles_url.value}"
+
     rm -f ~/.personalize.log
-    if [ -n "$${DOTFILES_URI// }" ]; then
-      coder dotfiles "$DOTFILES_URI" -y 2>&1 | tee -a ~/.personalize.log
-    fi
     if [ -x ~/personalize ]; then
       ~/personalize 2>&1 | tee -a ~/.personalize.log
     elif [ -f ~/personalize ]; then
       echo "~/personalize is not executable, skipping..." | tee -a ~/.personalize.log
+    fi
+
+    DOTFILES_URI="${data.coder_parameter.dotfiles_url.value}"
+    if [ -n "$${DOTFILES_URI// }" ]; then
+      coder dotfiles "$DOTFILES_URI" -y 2>&1 | tee -a ~/.personalize.log
     fi
   EOT
 }
