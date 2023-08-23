@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1366,7 +1367,17 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					err = json.NewDecoder(f).Decode(&want)
 					require.NoError(t, err, "want no error decoding golden file")
 
-					assert.Equal(t, want, report, "golden file mismatch: %s, run \"make update-golden-files\", verify and commit the changes", goldenFile)
+					cmpOpts := []cmp.Option{
+						// Ensure readable UUIDs in diff.
+						cmp.Transformer("UUIDs", func(in []uuid.UUID) (s []string) {
+							for _, id := range in {
+								s = append(s, id.String())
+							}
+							return s
+						}),
+					}
+					// Use cmp.Diff here because it produces more readable diffs.
+					assert.Empty(t, cmp.Diff(want, report, cmpOpts...), "golden file mismatch (-want +got): %s, run \"make update-golden-files\", verify and commit the changes", goldenFile)
 				})
 			}
 		})
