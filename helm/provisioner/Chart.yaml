@@ -1,6 +1,8 @@
 apiVersion: v2
 name: coder-provisioner
-description: "External provisioner daemon for Coder. This is an Enterprise feature; contact sales@coder.com."
+description:
+  "External provisioner daemon for Coder. This is an Enterprise feature; contact
+  sales@coder.com."
 home: https://github.com/coder/coder
 
 # version and appVersion are injected at release and will always be shown as

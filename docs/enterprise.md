@@ -1,8 +1,8 @@
 # Enterprise Features
 
-Coder is free to use and includes some features that are only accessible with a paid license.
-[Contact Sales](https://coder.com/contact) for pricing or [get a free
-trial](https://coder.com/trial).
+Coder is free to use and includes some features that are only accessible with a
+paid license. [Contact Sales](https://coder.com/contact) for pricing or
+[get a free trial](https://coder.com/trial).
 
 | Category        | Feature                                                                              | Open Source | Enterprise |
 | --------------- | ------------------------------------------------------------------------------------ | :---------: | :--------: |
