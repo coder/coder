@@ -84,6 +84,7 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
       direction="column"
       spacing={size === "small" ? 1.25 : 2}
       className={size}
+      data-testid={`parameter-field-${parameter.name}`}
     >
       <ParameterLabel id={fieldProps.id} parameter={parameter} />
       <Box sx={{ display: "flex", flexDirection: "column" }}>
@@ -114,6 +115,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
   if (isBoolean(parameter)) {
     return (
       <RadioGroup
+        data-testid="parameter-field-bool"
         className={styles.radioGroup}
         defaultValue={parameterValue}
         onChange={(event) => {
@@ -139,6 +141,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
   if (parameter.options.length > 0) {
     return (
       <RadioGroup
+        data-testid="parameter-field-options"
         className={styles.radioGroup}
         defaultValue={parameterValue}
         onChange={(event) => {
@@ -185,6 +188,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
 
     return (
       <MultiTextField
+        data-testid="parameter-field-list-of-string"
         label={props.label as string}
         values={values}
         onChange={(values) => {
@@ -206,6 +210,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
   return (
     <TextField
       {...props}
+      data-testid="parameter-field-text"
       className={styles.textField}
       type={parameter.type}
       disabled={disabled}

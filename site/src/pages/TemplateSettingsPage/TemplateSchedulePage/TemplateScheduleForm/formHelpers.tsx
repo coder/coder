@@ -51,10 +51,10 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
         },
       ),
     inactivity_ttl_ms: Yup.number()
-      .min(0, "Inactivity cleanup days must not be less than 0.")
+      .min(0, "Dormancy threshold days must not be less than 0.")
       .test(
         "positive-if-enabled",
-        "Inactivity cleanup days must be greater than zero when enabled.",
+        "Dormancy threshold days must be greater than zero when enabled.",
         function (value) {
           const parent = this.parent as TemplateScheduleFormValues
           if (parent.inactivity_cleanup_enabled) {
@@ -65,10 +65,10 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
         },
       ),
     locked_ttl_ms: Yup.number()
-      .min(0, "Locked cleanup days must not be less than 0.")
+      .min(0, "Dormancy auto-deletion days must not be less than 0.")
       .test(
         "positive-if-enabled",
-        "Locked cleanup days must be greater than zero when enabled.",
+        "Dormancy auto-deletion days must be greater than zero when enabled.",
         function (value) {
           const parent = this.parent as TemplateScheduleFormValues
           if (parent.locked_cleanup_enabled) {

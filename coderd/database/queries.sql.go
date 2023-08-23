@@ -9498,6 +9498,17 @@ WHERE
 		ELSE
 			locked_at IS NULL
 	END
+	-- Filter by last_used
+	AND CASE
+		  WHEN $11 :: timestamp with time zone > '0001-01-01 00:00:00Z' THEN
+				  workspaces.last_used_at <= $11
+		  ELSE true
+	END
+	AND CASE
+		  WHEN $12 :: timestamp with time zone > '0001-01-01 00:00:00Z' THEN
+				  workspaces.last_used_at >= $12
+		  ELSE true
+	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ORDER BY
@@ -9509,11 +9520,11 @@ ORDER BY
 	LOWER(workspaces.name) ASC
 LIMIT
 	CASE
-		WHEN $12 :: integer > 0 THEN
-			$12
+		WHEN $14 :: integer > 0 THEN
+			$14
 	END
 OFFSET
-	$11
+	$13
 `
 
 type GetWorkspacesParams struct {
@@ -9527,6 +9538,8 @@ type GetWorkspacesParams struct {
 	HasAgent                              string      `db:"has_agent" json:"has_agent"`
 	AgentInactiveDisconnectTimeoutSeconds int64       `db:"agent_inactive_disconnect_timeout_seconds" json:"agent_inactive_disconnect_timeout_seconds"`
 	LockedAt                              time.Time   `db:"locked_at" json:"locked_at"`
+	LastUsedBefore                        time.Time   `db:"last_used_before" json:"last_used_before"`
+	LastUsedAfter                         time.Time   `db:"last_used_after" json:"last_used_after"`
 	Offset                                int32       `db:"offset_" json:"offset_"`
 	Limit                                 int32       `db:"limit_" json:"limit_"`
 }
@@ -9563,6 +9576,8 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		arg.HasAgent,
 		arg.AgentInactiveDisconnectTimeoutSeconds,
 		arg.LockedAt,
+		arg.LastUsedBefore,
+		arg.LastUsedAfter,
 		arg.Offset,
 		arg.Limit,
 	)
@@ -9771,6 +9786,24 @@ func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspacePar
 	return i, err
 }
 
+const updateTemplateWorkspacesLastUsedAt = `-- name: UpdateTemplateWorkspacesLastUsedAt :exec
+UPDATE workspaces
+SET
+	last_used_at = $1::timestamptz
+WHERE
+	template_id = $2
+`
+
+type UpdateTemplateWorkspacesLastUsedAtParams struct {
+	LastUsedAt time.Time `db:"last_used_at" json:"last_used_at"`
+	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+}
+
+func (q *sqlQuerier) UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, arg UpdateTemplateWorkspacesLastUsedAtParams) error {
+	_, err := q.db.ExecContext(ctx, updateTemplateWorkspacesLastUsedAt, arg.LastUsedAt, arg.TemplateID)
+	return err
+}
+
 const updateWorkspace = `-- name: UpdateWorkspace :one
 UPDATE
 	workspaces
@@ -9930,23 +9963,28 @@ func (q *sqlQuerier) UpdateWorkspaceTTL(ctx context.Context, arg UpdateWorkspace
 	return err
 }
 
-const updateWorkspacesDeletingAtByTemplateID = `-- name: UpdateWorkspacesDeletingAtByTemplateID :exec
-UPDATE
-	workspaces
+const updateWorkspacesLockedDeletingAtByTemplateID = `-- name: UpdateWorkspacesLockedDeletingAtByTemplateID :exec
+UPDATE workspaces
 SET
-	deleting_at = CASE WHEN $1::bigint = 0 THEN NULL ELSE locked_at + interval '1 milliseconds' * $1::bigint END
+    deleting_at = CASE
+        WHEN $1::bigint = 0 THEN NULL
+        WHEN $2::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN  ($2::timestamptz) + interval '1 milliseconds' * $1::bigint
+        ELSE locked_at + interval '1 milliseconds' * $1::bigint
+    END,
+    locked_at = CASE WHEN $2::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN $2::timestamptz ELSE locked_at END
 WHERE
-	template_id = $2
+    template_id = $3
 AND
-	locked_at IS NOT NULL
+    locked_at IS NOT NULL
 `
 
-type UpdateWorkspacesDeletingAtByTemplateIDParams struct {
+type UpdateWorkspacesLockedDeletingAtByTemplateIDParams struct {
 	LockedTtlMs int64     `db:"locked_ttl_ms" json:"locked_ttl_ms"`
+	LockedAt    time.Time `db:"locked_at" json:"locked_at"`
 	TemplateID  uuid.UUID `db:"template_id" json:"template_id"`
 }
 
-func (q *sqlQuerier) UpdateWorkspacesDeletingAtByTemplateID(ctx context.Context, arg UpdateWorkspacesDeletingAtByTemplateIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspacesDeletingAtByTemplateID, arg.LockedTtlMs, arg.TemplateID)
+func (q *sqlQuerier) UpdateWorkspacesLockedDeletingAtByTemplateID(ctx context.Context, arg UpdateWorkspacesLockedDeletingAtByTemplateIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspacesLockedDeletingAtByTemplateID, arg.LockedTtlMs, arg.LockedAt, arg.TemplateID)
 	return err
 }

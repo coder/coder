@@ -1,10 +1,11 @@
 import { useMachine } from "@xstate/react"
 import { useAuth } from "components/AuthProvider/AuthProvider"
-import { FC, useEffect } from "react"
+import { FC } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "utils/page"
 import { setupMachine } from "xServices/setup/setupXService"
 import { SetupPageView } from "./SetupPageView"
+import { Navigate } from "react-router-dom"
 
 export const SetupPage: FC = () => {
   const [authState, authSend] = useAuth()
@@ -24,11 +25,20 @@ export const SetupPage: FC = () => {
   })
   const { error } = setupState.context
 
-  useEffect(() => {
-    if (authState.matches("signedIn")) {
-      window.location.assign("/workspaces")
-    }
-  }, [authState])
+  const userIsSignedIn = authState.matches("signedIn")
+  const setupIsComplete =
+    !authState.matches("loadingInitialAuthData") &&
+    !authState.matches("configuringTheFirstUser")
+
+  // If the user is logged in, navigate to the app
+  if (userIsSignedIn) {
+    return <Navigate to="/" state={{ isRedirect: true }} />
+  }
+
+  // If we've already completed setup, navigate to the login page
+  if (setupIsComplete) {
+    return <Navigate to="/login" state={{ isRedirect: true }} />
+  }
 
   return (
     <>

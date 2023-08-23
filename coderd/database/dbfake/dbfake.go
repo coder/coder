@@ -5199,6 +5199,26 @@ func (q *FakeQuerier) UpdateTemplateVersionGitAuthProvidersByJobID(_ context.Con
 	return sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdateTemplateWorkspacesLastUsedAt(_ context.Context, arg database.UpdateTemplateWorkspacesLastUsedAtParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, ws := range q.workspaces {
+		if ws.TemplateID != arg.TemplateID {
+			continue
+		}
+		ws.LastUsedAt = arg.LastUsedAt
+		q.workspaces[i] = ws
+	}
+
+	return nil
+}
+
 func (q *FakeQuerier) UpdateUserDeletedByID(_ context.Context, params database.UpdateUserDeletedByIDParams) error {
 	if err := validateDatabaseType(params); err != nil {
 		return err
@@ -5796,7 +5816,7 @@ func (q *FakeQuerier) UpdateWorkspaceTTL(_ context.Context, arg database.UpdateW
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateWorkspacesDeletingAtByTemplateID(_ context.Context, arg database.UpdateWorkspacesDeletingAtByTemplateIDParams) error {
+func (q *FakeQuerier) UpdateWorkspacesLockedDeletingAtByTemplateID(_ context.Context, arg database.UpdateWorkspacesLockedDeletingAtByTemplateIDParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -5806,9 +5826,21 @@ func (q *FakeQuerier) UpdateWorkspacesDeletingAtByTemplateID(_ context.Context, 
 	}
 
 	for i, ws := range q.workspaces {
+		if ws.TemplateID != arg.TemplateID {
+			continue
+		}
+
 		if ws.LockedAt.Time.IsZero() {
 			continue
 		}
+
+		if !arg.LockedAt.IsZero() {
+			ws.LockedAt = sql.NullTime{
+				Valid: true,
+				Time:  arg.LockedAt,
+			}
+		}
+
 		deletingAt := sql.NullTime{
 			Valid: arg.LockedTtlMs > 0,
 		}
@@ -6062,6 +6094,18 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 
 		if arg.Name != "" && !strings.Contains(strings.ToLower(workspace.Name), strings.ToLower(arg.Name)) {
 			continue
+		}
+
+		if !arg.LastUsedBefore.IsZero() {
+			if workspace.LastUsedAt.After(arg.LastUsedBefore) {
+				continue
+			}
+		}
+
+		if !arg.LastUsedAfter.IsZero() {
+			if workspace.LastUsedAt.Before(arg.LastUsedAfter) {
+				continue
+			}
 		}
 
 		if arg.Status != "" {
