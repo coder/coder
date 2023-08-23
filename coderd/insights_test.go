@@ -990,6 +990,11 @@ func TestTemplateInsights_Golden(t *testing.T) {
 				},
 				apps: []templateApp{
 					{name: "otherapp1", icon: "/icon1.png"},
+
+					// This "special test app" will be converted into web
+					// terminal usage, this is not included in stats since we
+					// currently rely on agent stats for this data.
+					{name: "terminal", icon: "/terminal.png"},
 				},
 			},
 		}
@@ -1177,6 +1182,12 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						app:       users[2].workspaces[0].apps[0],
 						startedAt: frozenWeekAgo.AddDate(0, 0, 2),
 						endedAt:   frozenWeekAgo.AddDate(0, 0, 2).Add(5 * time.Minute),
+						requests:  1,
+					},
+					{ // Excluded from apps, but counted as active during the day.
+						app:       users[2].workspaces[0].apps[1],
+						startedAt: frozenWeekAgo.AddDate(0, 0, 3),
+						endedAt:   frozenWeekAgo.AddDate(0, 0, 3).Add(5 * time.Minute),
 						requests:  1,
 					},
 				},

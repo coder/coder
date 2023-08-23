@@ -89,9 +89,11 @@
     {
       "start_time": "2023-08-18T00:00:00Z",
       "end_time": "2023-08-19T00:00:00Z",
-      "template_ids": [],
+      "template_ids": [
+        "00000000-0000-0000-0000-000000000003"
+      ],
       "interval": "day",
-      "active_users": 0
+      "active_users": 1
     },
     {
       "start_time": "2023-08-19T00:00:00Z",
