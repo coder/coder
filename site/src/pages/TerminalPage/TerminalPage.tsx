@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from "uuid"
 import * as XTerm from "xterm"
 import { CanvasAddon } from "xterm-addon-canvas"
 import { FitAddon } from "xterm-addon-fit"
+import { Unicode11Addon } from "xterm-addon-unicode11"
 import { WebLinksAddon } from "xterm-addon-web-links"
 import "xterm/css/xterm.css"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
@@ -176,6 +177,7 @@ const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
       return
     }
     const terminal = new XTerm.Terminal({
+      allowProposedApi: true,
       allowTransparency: true,
       disableStdin: false,
       fontFamily: MONOSPACE_FONT_FAMILY,
@@ -191,6 +193,10 @@ const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
     const fitAddon = new FitAddon()
     setFitAddon(fitAddon)
     terminal.loadAddon(fitAddon)
+    // This addon fixes multi-width codepoint rendering such as
+    // 🔵.
+    terminal.loadAddon(new Unicode11Addon())
+    terminal.unicode.activeVersion = "11"
     terminal.loadAddon(
       new WebLinksAddon((_, uri) => {
         handleWebLink(uri)

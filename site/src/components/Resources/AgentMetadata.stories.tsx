@@ -105,3 +105,21 @@ Example.args = {
     },
   ],
 }
+
+export const Terminal = Template.bind({})
+Terminal.args = {
+  metadata: [
+    {
+      result: {
+        ...resultDefaults,
+        value: "\x1b[32mHello, World!\x1b[0m",
+      },
+      description: {
+        ...descriptionDefaults,
+        display_name: "terminal:hello world",
+        key: "term",
+        script: "echo hello world",
+      },
+    },
+  ],
+}

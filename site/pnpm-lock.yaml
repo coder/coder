@@ -225,9 +225,15 @@ dependencies:
   xterm-addon-fit:
     specifier: 0.7.0
     version: 0.7.0(xterm@5.2.1)
+  xterm-addon-unicode11:
+    specifier: 0.5.0
+    version: 0.5.0(xterm@5.2.1)
   xterm-addon-web-links:
     specifier: 0.8.0
     version: 0.8.0(xterm@5.2.1)
+  xterm-addon-webgl:
+    specifier: 0.15.0
+    version: 0.15.0(xterm@5.2.1)
   yup:
     specifier: 1.2.0
     version: 1.2.0
@@ -13581,8 +13587,24 @@ packages:
       xterm: 5.2.1
     dev: false
 
+  /xterm-addon-unicode11@0.5.0(xterm@5.2.1):
+    resolution: {integrity: sha512-Jm4/g4QiTxiKiTbYICQgC791ubhIZyoIwxAIgOW8z8HWFNY+lwk+dwaKEaEeGBfM48Vk8fklsUW9u/PlenYEBg==}
+    peerDependencies:
+      xterm: ^5.0.0
+    dependencies:
+      xterm: 5.2.1
+    dev: false
+
   /xterm-addon-web-links@0.8.0(xterm@5.2.1):
     resolution: {integrity: sha512-J4tKngmIu20ytX9SEJjAP3UGksah7iALqBtfTwT9ZnmFHVplCumYQsUJfKuS+JwMhjsjH61YXfndenLNvjRrEw==}
+    peerDependencies:
+      xterm: ^5.0.0
+    dependencies:
+      xterm: 5.2.1
+    dev: false
+
+  /xterm-addon-webgl@0.15.0(xterm@5.2.1):
+    resolution: {integrity: sha512-ZLcqogMFHr4g/YRhcCh3xE8tTklnyut/M+O/XhVsFBRB/YCvYhPdLQ5/AQk54V0wjWAQpa8CF3W8DVR9OqyMCg==}
     peerDependencies:
       xterm: ^5.0.0
     dependencies:
