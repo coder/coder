@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
-	"runtime"
 	"strings"
 	"sync/atomic"
 
@@ -56,9 +55,7 @@ func (db *dbCrypt) GetUserLinkByLinkedID(ctx context.Context, linkedID string) (
 	if err != nil {
 		return database.UserLink{}, err
 	}
-	return link, db.decryptFields(func() error {
-		return db.Store.DeleteUserLinkByLinkedID(ctx, linkedID)
-	}, &link.OAuthAccessToken, &link.OAuthRefreshToken)
+	return link, db.decryptFields(&link.OAuthAccessToken, &link.OAuthRefreshToken)
 }
 
 func (db *dbCrypt) GetUserLinkByUserIDLoginType(ctx context.Context, params database.GetUserLinkByUserIDLoginTypeParams) (database.UserLink, error) {
@@ -66,9 +63,7 @@ func (db *dbCrypt) GetUserLinkByUserIDLoginType(ctx context.Context, params data
 	if err != nil {
 		return database.UserLink{}, err
 	}
-	return link, db.decryptFields(func() error {
-		return db.Store.DeleteUserLinkByLinkedID(ctx, link.LinkedID)
-	}, &link.OAuthAccessToken, &link.OAuthRefreshToken)
+	return link, db.decryptFields(&link.OAuthAccessToken, &link.OAuthRefreshToken)
 }
 
 func (db *dbCrypt) InsertUserLink(ctx context.Context, params database.InsertUserLinkParams) (database.UserLink, error) {
@@ -100,12 +95,7 @@ func (db *dbCrypt) GetGitAuthLink(ctx context.Context, params database.GetGitAut
 	if err != nil {
 		return database.GitAuthLink{}, err
 	}
-	return link, db.decryptFields(func() error {
-		return db.Store.DeleteGitAuthLink(ctx, database.DeleteGitAuthLinkParams{ // nolint:gosimple
-			ProviderID: params.ProviderID,
-			UserID:     params.UserID,
-		})
-	}, &link.OAuthAccessToken, &link.OAuthRefreshToken)
+	return link, db.decryptFields(&link.OAuthAccessToken, &link.OAuthRefreshToken)
 }
 
 func (db *dbCrypt) UpdateGitAuthLink(ctx context.Context, params database.UpdateGitAuthLinkParams) (database.GitAuthLink, error) {
@@ -140,20 +130,7 @@ func (db *dbCrypt) encryptFields(fields ...*string) error {
 
 // decryptFields decrypts the given fields in place.
 // If the value fails to decrypt, sql.ErrNoRows will be returned.
-func (db *dbCrypt) decryptFields(deleteFn func() error, fields ...*string) error {
-	doDelete := func(reason string) error {
-		err := deleteFn()
-		if err != nil {
-			return xerrors.Errorf("delete encrypted row: %w", err)
-		}
-		pc, _, _, ok := runtime.Caller(2)
-		details := runtime.FuncForPC(pc)
-		if ok && details != nil {
-			db.Logger.Debug(context.Background(), "deleted row", slog.F("reason", reason), slog.F("caller", details.Name()))
-		}
-		return sql.ErrNoRows
-	}
-
+func (db *dbCrypt) decryptFields(fields ...*string) error {
 	cipherPtr := db.ExternalTokenCipher.Load()
 	// If no cipher is loaded, then we don't need to encrypt or decrypt anything!
 	if cipherPtr == nil {
@@ -163,8 +140,8 @@ func (db *dbCrypt) decryptFields(deleteFn func() error, fields ...*string) error
 			}
 			if strings.HasPrefix(*field, MagicPrefix) {
 				// If we have a magic prefix but encryption is disabled,
-				// we should delete the row.
-				return doDelete("encryption disabled")
+				// complain loudly.
+				return xerrors.Errorf("failed to decrypt field %q: encryption is disabled", *field)
 			}
 		}
 		return nil
@@ -182,13 +159,13 @@ func (db *dbCrypt) decryptFields(deleteFn func() error, fields ...*string) error
 		}
 		data, err := base64.StdEncoding.DecodeString((*field)[len(MagicPrefix):])
 		if err != nil {
-			// If it's not base64 with the prefix, we should delete the row.
-			return doDelete("stored value was not base64 encoded")
+			// If it's not base64 with the prefix, we should complain loudly.
+			return xerrors.Errorf("malformed encrypted field %q: %w", *field, err)
 		}
 		decrypted, err := cipher.Decrypt(data)
 		if err != nil {
-			// If the encryption key changed, we should delete the row.
-			return doDelete("encryption key changed")
+			// If the encryption key changed, return our special error that unwraps to sql.ErrNoRows.
+			return &DecryptFailedError{Inner: err}
 		}
 		*field = string(decrypted)
 	}
