@@ -11976,6 +11976,9 @@ const docTemplate = `{
                 "app_security_key": {
                     "type": "string"
                 },
+                "derp_map": {
+                    "$ref": "#/definitions/tailcfg.DERPMap"
+                },
                 "derp_mesh_key": {
                     "type": "string"
                 },
