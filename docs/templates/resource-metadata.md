@@ -1,6 +1,8 @@
 # Resource Metadata
 
-Expose key workspace information to your users via [`coder_metadata`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/metadata) resources in your template code.
+Expose key workspace information to your users via
+[`coder_metadata`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/metadata)
+resources in your template code.
 
 ![ui](../images/metadata-ui.png)
 
@@ -19,8 +21,8 @@ and any other Terraform resource attribute.
 
 ## Example
 
-Expose the disk size, deployment name, and persistent
-directory in a Kubernetes template with:
+Expose the disk size, deployment name, and persistent directory in a Kubernetes
+template with:
 
 ```hcl
 resource "kubernetes_persistent_volume_claim" "root" {
@@ -57,7 +59,8 @@ resource "coder_metadata" "deployment" {
 
 ## Hiding resources in the UI
 
-Some resources don't need to be exposed in the UI; this helps keep the workspace view clean for developers. To hide a resource, use the `hide` attribute:
+Some resources don't need to be exposed in the UI; this helps keep the workspace
+view clean for developers. To hide a resource, use the `hide` attribute:
 
 ```hcl
 resource "coder_metadata" "hide_serviceaccount" {
@@ -73,7 +76,8 @@ resource "coder_metadata" "hide_serviceaccount" {
 
 ## Using custom resource icon
 
-To use custom icons on your resources, use the `icon` attribute (must be a valid path or URL):
+To use custom icons on your resources, use the `icon` attribute (must be a valid
+path or URL):
 
 ```hcl
 resource "coder_metadata" "resource_with_icon" {
@@ -95,7 +99,8 @@ To make easier for you to customize your resource we added some built-in icons:
 - Widgets `/icon/widgets.svg`
 - Database `/icon/database.svg`
 
-We also have other icons related to the IDEs. You can see all the icons [here](https://github.com/coder/coder/tree/main/site/static/icon).
+We also have other icons related to the IDEs. You can see all the icons
+[here](https://github.com/coder/coder/tree/main/site/static/icon).
 
 ## Agent Metadata
 

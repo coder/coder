@@ -10,12 +10,12 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/db2sdk"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	agpl "github.com/coder/coder/coderd/schedule"
-	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	agpl "github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // EnterpriseTemplateScheduleStore provides an agpl.TemplateScheduleStore that
@@ -113,11 +113,11 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 	}
 
 	var template database.Template
-	err = db.InTx(func(db database.Store) error {
+	err = db.InTx(func(tx database.Store) error {
 		ctx, span := tracing.StartSpanWithName(ctx, "(*schedule.EnterpriseTemplateScheduleStore).Set()-InTx()")
 		defer span.End()
 
-		err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+		err := tx.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 			ID:                           tpl.ID,
 			UpdatedAt:                    s.now(),
 			AllowUserAutostart:           opts.UserAutostartEnabled,
@@ -134,19 +134,36 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			return xerrors.Errorf("update template schedule: %w", err)
 		}
 
+		var lockedAt time.Time
+		if opts.UpdateWorkspaceLockedAt {
+			lockedAt = database.Now()
+		}
+
 		// If we updated the locked_ttl we need to update all the workspaces deleting_at
 		// to ensure workspaces are being cleaned up correctly. Similarly if we are
 		// disabling it (by passing 0), then we want to delete nullify the deleting_at
 		// fields of all the template workspaces.
-		err = db.UpdateWorkspacesDeletingAtByTemplateID(ctx, database.UpdateWorkspacesDeletingAtByTemplateIDParams{
+		err = tx.UpdateWorkspacesLockedDeletingAtByTemplateID(ctx, database.UpdateWorkspacesLockedDeletingAtByTemplateIDParams{
 			TemplateID:  tpl.ID,
 			LockedTtlMs: opts.LockedTTL.Milliseconds(),
+			LockedAt:    lockedAt,
 		})
 		if err != nil {
 			return xerrors.Errorf("update deleting_at of all workspaces for new locked_ttl %q: %w", opts.LockedTTL, err)
 		}
 
-		template, err = db.GetTemplateByID(ctx, tpl.ID)
+		if opts.UpdateWorkspaceLastUsedAt {
+			err = tx.UpdateTemplateWorkspacesLastUsedAt(ctx, database.UpdateTemplateWorkspacesLastUsedAtParams{
+				TemplateID: tpl.ID,
+				LastUsedAt: database.Now(),
+			})
+			if err != nil {
+				return xerrors.Errorf("update template workspaces last_used_at: %w", err)
+			}
+		}
+
+		// TODO: update all workspace max_deadlines to be within new bounds
+		template, err = tx.GetTemplateByID(ctx, tpl.ID)
 		if err != nil {
 			return xerrors.Errorf("get updated template schedule: %w", err)
 		}
@@ -154,7 +171,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 		// Recalculate max_deadline and deadline for all running workspace
 		// builds on this template.
 		if s.UseRestartRequirement.Load() {
-			err = s.updateWorkspaceBuilds(ctx, db, template)
+			err = s.updateWorkspaceBuilds(ctx, tx, template)
 			if err != nil {
 				return xerrors.Errorf("update workspace builds: %w", err)
 			}

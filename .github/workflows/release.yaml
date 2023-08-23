@@ -466,3 +466,5 @@ jobs:
 
         env:
           CHOCO_API_KEY: ${{ secrets.CHOCO_API_KEY }}
+          # We need a GitHub token for the gh CLI to function under GitHub Actions
+          GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}

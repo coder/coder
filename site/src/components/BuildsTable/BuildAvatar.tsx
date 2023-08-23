@@ -1,14 +1,12 @@
 import Badge from "@mui/material/Badge"
 import { useTheme, withStyles } from "@mui/styles"
 import { FC } from "react"
-import PlayArrowOutlined from "@mui/icons-material/PlayArrowOutlined"
-import PauseOutlined from "@mui/icons-material/PauseOutlined"
-import DeleteOutlined from "@mui/icons-material/DeleteOutlined"
-import { WorkspaceBuild, WorkspaceTransition } from "api/typesGenerated"
+import { WorkspaceBuild } from "api/typesGenerated"
 import { getDisplayWorkspaceBuildStatus } from "utils/workspace"
 import { Avatar, AvatarProps } from "components/Avatar/Avatar"
 import { PaletteIndex } from "theme/theme"
 import { Theme } from "@mui/material/styles"
+import { BuildIcon } from "components/BuildIcon/BuildIcon"
 
 interface StylesBadgeProps {
   type: PaletteIndex
@@ -31,12 +29,6 @@ export interface BuildAvatarProps {
   size?: AvatarProps["size"]
 }
 
-const iconByTransition: Record<WorkspaceTransition, JSX.Element> = {
-  start: <PlayArrowOutlined />,
-  stop: <PauseOutlined />,
-  delete: <DeleteOutlined />,
-}
-
 export const BuildAvatar: FC<BuildAvatarProps> = ({ build, size }) => {
   const theme = useTheme<Theme>()
   const displayBuildStatus = getDisplayWorkspaceBuildStatus(theme, build)
@@ -55,7 +47,7 @@ export const BuildAvatar: FC<BuildAvatarProps> = ({ build, size }) => {
       badgeContent={<div></div>}
     >
       <Avatar size={size} colorScheme="darken">
-        {iconByTransition[build.transition]}
+        <BuildIcon transition={build.transition} />
       </Avatar>
     </StyledBadge>
   )

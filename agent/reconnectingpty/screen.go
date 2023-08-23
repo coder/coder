@@ -20,7 +20,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/pty"
+	"github.com/coder/coder/v2/pty"
 )
 
 // screenReconnectingPTY provides a reconnectable PTY via `screen`.

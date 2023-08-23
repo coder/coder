@@ -488,7 +488,7 @@ export function waitForBuild(build: TypesGen.WorkspaceBuild) {
         const { job } = await getWorkspaceBuildByNumber(
           build.workspace_owner_name,
           build.workspace_name,
-          String(build.build_number),
+          build.build_number,
         )
         latestJobInfo = job
 
@@ -772,7 +772,7 @@ export const getWorkspaceBuilds = async (
 export const getWorkspaceBuildByNumber = async (
   username = "me",
   workspaceName: string,
-  buildNumber: string,
+  buildNumber: number,
 ): Promise<TypesGen.WorkspaceBuild> => {
   const response = await axios.get<TypesGen.WorkspaceBuild>(
     `/api/v2/users/${username}/workspace/${workspaceName}/builds/${buildNumber}`,
@@ -808,6 +808,10 @@ export const putWorkspaceExtension = async (
   })
 }
 
+export const refreshEntitlements = async (): Promise<void> => {
+  await axios.post("/api/v2/licenses/refresh-entitlements")
+}
+
 export const getEntitlements = async (): Promise<TypesGen.Entitlements> => {
   try {
     const response = await axios.get("/api/v2/entitlements")
@@ -821,6 +825,7 @@ export const getEntitlements = async (): Promise<TypesGen.Entitlements> => {
         require_telemetry: false,
         trial: false,
         warnings: [],
+        refreshed_at: "",
       }
     }
     throw ex

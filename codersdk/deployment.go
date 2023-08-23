@@ -16,8 +16,8 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/cli/clibase"
 )
 
 // Entitlement represents whether a feature is licensed.
@@ -103,6 +103,7 @@ type Entitlements struct {
 	HasLicense       bool                    `json:"has_license"`
 	Trial            bool                    `json:"trial"`
 	RequireTelemetry bool                    `json:"require_telemetry"`
+	RefreshedAt      time.Time               `json:"refreshed_at" format:"date-time"`
 }
 
 func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {

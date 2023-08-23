@@ -4,10 +4,7 @@ import { FC, PropsWithChildren } from "react"
 import { makeStyles } from "@mui/styles"
 import { combineClasses } from "utils/combineClasses"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
-import {
-  LockedBadge,
-  ImpendingDeletionText,
-} from "components/WorkspaceDeletion"
+import { ImpendingDeletionText } from "components/WorkspaceDeletion"
 import { getDisplayWorkspaceStatus } from "utils/workspace"
 import Tooltip, { TooltipProps, tooltipClasses } from "@mui/material/Tooltip"
 import { styled } from "@mui/material/styles"
@@ -28,10 +25,6 @@ export const WorkspaceStatusBadge: FC<
   )
   return (
     <ChooseOne>
-      {/* <ImpendingDeletionBadge/> determines its own visibility */}
-      <Cond condition={Boolean(LockedBadge({ workspace }))}>
-        <LockedBadge workspace={workspace} />
-      </Cond>
       <Cond condition={workspace.latest_build.status === "failed"}>
         <FailureTooltip
           title={

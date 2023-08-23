@@ -19,13 +19,13 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/db2sdk"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/rbac/regosql"
-	"github.com/coder/coder/coderd/util/slice"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/regosql"
+	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 var validProxyByHostnameRegex = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
@@ -549,6 +549,19 @@ func (q *FakeQuerier) getWorkspaceAgentsByResourceIDsNoLock(_ context.Context, r
 	return workspaceAgents, nil
 }
 
+func (q *FakeQuerier) getWorkspaceAppByAgentIDAndSlugNoLock(_ context.Context, arg database.GetWorkspaceAppByAgentIDAndSlugParams) (database.WorkspaceApp, error) {
+	for _, app := range q.workspaceApps {
+		if app.AgentID != arg.AgentID {
+			continue
+		}
+		if app.Slug != arg.Slug {
+			continue
+		}
+		return app, nil
+	}
+	return database.WorkspaceApp{}, sql.ErrNoRows
+}
+
 func (q *FakeQuerier) getProvisionerJobByIDNoLock(_ context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
 	for _, provisionerJob := range q.provisionerJobs {
 		if provisionerJob.ID != id {
@@ -611,6 +624,44 @@ func uniqueSortedUUIDs(uuids []uuid.UUID) []uuid.UUID {
 		return slice.Ascending(a.String(), b.String())
 	})
 	return unique
+}
+
+func (q *FakeQuerier) getOrganizationMember(orgID uuid.UUID) []database.OrganizationMember {
+	var members []database.OrganizationMember
+	for _, member := range q.organizationMembers {
+		if member.OrganizationID == orgID {
+			members = append(members, member)
+		}
+	}
+
+	return members
+}
+
+// getEveryoneGroupMembers fetches all the users in an organization.
+func (q *FakeQuerier) getEveryoneGroupMembers(orgID uuid.UUID) []database.User {
+	var (
+		everyone   []database.User
+		orgMembers = q.getOrganizationMember(orgID)
+	)
+	for _, member := range orgMembers {
+		user, err := q.GetUserByID(context.TODO(), member.UserID)
+		if err != nil {
+			return nil
+		}
+		everyone = append(everyone, user)
+	}
+	return everyone
+}
+
+// isEveryoneGroup returns true if the provided ID matches
+// an organization ID.
+func (q *FakeQuerier) isEveryoneGroup(id uuid.UUID) bool {
+	for _, org := range q.organizations {
+		if org.ID == id {
+			return true
+		}
+	}
+	return false
 }
 
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
@@ -1378,13 +1429,17 @@ func (q *FakeQuerier) GetGroupByOrgAndName(_ context.Context, arg database.GetGr
 	return database.Group{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) GetGroupMembers(_ context.Context, groupID uuid.UUID) ([]database.User, error) {
+func (q *FakeQuerier) GetGroupMembers(_ context.Context, id uuid.UUID) ([]database.User, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
+	if q.isEveryoneGroup(id) {
+		return q.getEveryoneGroupMembers(id), nil
+	}
+
 	var members []database.GroupMember
 	for _, member := range q.groupMembers {
-		if member.GroupID == groupID {
+		if member.GroupID == id {
 			members = append(members, member)
 		}
 	}
@@ -1403,14 +1458,13 @@ func (q *FakeQuerier) GetGroupMembers(_ context.Context, groupID uuid.UUID) ([]d
 	return users, nil
 }
 
-func (q *FakeQuerier) GetGroupsByOrganizationID(_ context.Context, organizationID uuid.UUID) ([]database.Group, error) {
+func (q *FakeQuerier) GetGroupsByOrganizationID(_ context.Context, id uuid.UUID) ([]database.Group, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	var groups []database.Group
+	groups := make([]database.Group, 0, len(q.groups))
 	for _, group := range q.groups {
-		// Omit the allUsers group.
-		if group.OrganizationID == organizationID && group.ID != organizationID {
+		if group.OrganizationID == id {
 			groups = append(groups, group)
 		}
 	}
@@ -1840,7 +1894,15 @@ func (q *FakeQuerier) GetQuotaAllowanceForUser(_ context.Context, userID uuid.UU
 		for _, group := range q.groups {
 			if group.ID == member.GroupID {
 				sum += int64(group.QuotaAllowance)
+				continue
 			}
+		}
+	}
+	// Grab the quota for the Everyone group.
+	for _, group := range q.groups {
+		if group.ID == group.OrganizationID {
+			sum += int64(group.QuotaAllowance)
+			break
 		}
 	}
 	return sum, nil
@@ -1915,6 +1977,125 @@ func (*FakeQuerier) GetTailnetAgents(context.Context, uuid.UUID) ([]database.Tai
 
 func (*FakeQuerier) GetTailnetClientsForAgent(context.Context, uuid.UUID) ([]database.TailnetClient, error) {
 	return nil, ErrUnimplemented
+}
+
+func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	type appKey struct {
+		AccessMethod string
+		SlugOrPort   string
+		Slug         string
+		DisplayName  string
+		Icon         string
+	}
+	type uniqueKey struct {
+		TemplateID uuid.UUID
+		UserID     uuid.UUID
+		AgentID    uuid.UUID
+		AppKey     appKey
+	}
+
+	appUsageIntervalsByUserAgentApp := make(map[uniqueKey]map[time.Time]int64)
+	for _, s := range q.workspaceAppStats {
+		// (was.session_started_at >= ts.from_ AND was.session_started_at < ts.to_)
+		// OR (was.session_ended_at > ts.from_ AND was.session_ended_at < ts.to_)
+		// OR (was.session_started_at < ts.from_ AND was.session_ended_at >= ts.to_)
+		if !(((s.SessionStartedAt.After(arg.StartTime) || s.SessionStartedAt.Equal(arg.StartTime)) && s.SessionStartedAt.Before(arg.EndTime)) ||
+			(s.SessionEndedAt.After(arg.StartTime) && s.SessionEndedAt.Before(arg.EndTime)) ||
+			(s.SessionStartedAt.Before(arg.StartTime) && (s.SessionEndedAt.After(arg.EndTime) || s.SessionEndedAt.Equal(arg.EndTime)))) {
+			continue
+		}
+
+		w, err := q.getWorkspaceByIDNoLock(ctx, s.WorkspaceID)
+		if err != nil {
+			return nil, err
+		}
+
+		app, _ := q.getWorkspaceAppByAgentIDAndSlugNoLock(ctx, database.GetWorkspaceAppByAgentIDAndSlugParams{
+			AgentID: s.AgentID,
+			Slug:    s.SlugOrPort,
+		})
+
+		key := uniqueKey{
+			TemplateID: w.TemplateID,
+			UserID:     s.UserID,
+			AgentID:    s.AgentID,
+			AppKey: appKey{
+				AccessMethod: s.AccessMethod,
+				SlugOrPort:   s.SlugOrPort,
+				Slug:         app.Slug,
+				DisplayName:  app.DisplayName,
+				Icon:         app.Icon,
+			},
+		}
+		if appUsageIntervalsByUserAgentApp[key] == nil {
+			appUsageIntervalsByUserAgentApp[key] = make(map[time.Time]int64)
+		}
+
+		t := s.SessionStartedAt.Truncate(5 * time.Minute)
+		if t.Before(arg.StartTime) {
+			t = arg.StartTime
+		}
+		for t.Before(s.SessionEndedAt) && t.Before(arg.EndTime) {
+			appUsageIntervalsByUserAgentApp[key][t] = 300 // 5 minutes.
+			t = t.Add(5 * time.Minute)
+		}
+	}
+
+	appUsageTemplateIDs := make(map[appKey]map[uuid.UUID]struct{})
+	appUsageUserIDs := make(map[appKey]map[uuid.UUID]struct{})
+	appUsage := make(map[appKey]int64)
+	for uniqueKey, usage := range appUsageIntervalsByUserAgentApp {
+		for _, seconds := range usage {
+			if appUsageTemplateIDs[uniqueKey.AppKey] == nil {
+				appUsageTemplateIDs[uniqueKey.AppKey] = make(map[uuid.UUID]struct{})
+			}
+			appUsageTemplateIDs[uniqueKey.AppKey][uniqueKey.TemplateID] = struct{}{}
+			if appUsageUserIDs[uniqueKey.AppKey] == nil {
+				appUsageUserIDs[uniqueKey.AppKey] = make(map[uuid.UUID]struct{})
+			}
+			appUsageUserIDs[uniqueKey.AppKey][uniqueKey.UserID] = struct{}{}
+			appUsage[uniqueKey.AppKey] += seconds
+		}
+	}
+
+	var rows []database.GetTemplateAppInsightsRow
+	for appKey, usage := range appUsage {
+		templateIDs := make([]uuid.UUID, 0, len(appUsageTemplateIDs[appKey]))
+		for templateID := range appUsageTemplateIDs[appKey] {
+			templateIDs = append(templateIDs, templateID)
+		}
+		slices.SortFunc(templateIDs, func(a, b uuid.UUID) int {
+			return slice.Ascending(a.String(), b.String())
+		})
+		activeUserIDs := make([]uuid.UUID, 0, len(appUsageUserIDs[appKey]))
+		for userID := range appUsageUserIDs[appKey] {
+			activeUserIDs = append(activeUserIDs, userID)
+		}
+		slices.SortFunc(activeUserIDs, func(a, b uuid.UUID) int {
+			return slice.Ascending(a.String(), b.String())
+		})
+
+		rows = append(rows, database.GetTemplateAppInsightsRow{
+			TemplateIDs:   templateIDs,
+			ActiveUserIDs: activeUserIDs,
+			AccessMethod:  appKey.AccessMethod,
+			SlugOrPort:    appKey.SlugOrPort,
+			DisplayName:   sql.NullString{String: appKey.DisplayName, Valid: appKey.DisplayName != ""},
+			Icon:          sql.NullString{String: appKey.Icon, Valid: appKey.Icon != ""},
+			IsApp:         appKey.Slug != "",
+			UsageSeconds:  usage,
+		})
+	}
+
+	return rows, nil
 }
 
 func (q *FakeQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg database.GetTemplateAverageBuildTimeParams) (database.GetTemplateAverageBuildTimeRow, error) {
@@ -2044,11 +2225,14 @@ func (q *FakeQuerier) GetTemplateDAUs(_ context.Context, arg database.GetTemplat
 	return rs, nil
 }
 
-func (q *FakeQuerier) GetTemplateDailyInsights(_ context.Context, arg database.GetTemplateDailyInsightsParams) ([]database.GetTemplateDailyInsightsRow, error) {
+func (q *FakeQuerier) GetTemplateDailyInsights(ctx context.Context, arg database.GetTemplateDailyInsightsParams) ([]database.GetTemplateDailyInsightsRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
 	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
 
 	type dailyStat struct {
 		startTime, endTime time.Time
@@ -2080,6 +2264,37 @@ func (q *FakeQuerier) GetTemplateDailyInsights(_ context.Context, arg database.G
 			}
 			ds.userSet[s.UserID] = struct{}{}
 			ds.templateIDSet[s.TemplateID] = struct{}{}
+			break
+		}
+	}
+
+	for _, s := range q.workspaceAppStats {
+		// (was.session_started_at >= ts.from_ AND was.session_started_at < ts.to_)
+		// OR (was.session_ended_at > ts.from_ AND was.session_ended_at < ts.to_)
+		// OR (was.session_started_at < ts.from_ AND was.session_ended_at >= ts.to_)
+		if !(((s.SessionStartedAt.After(arg.StartTime) || s.SessionStartedAt.Equal(arg.StartTime)) && s.SessionStartedAt.Before(arg.EndTime)) ||
+			(s.SessionEndedAt.After(arg.StartTime) && s.SessionEndedAt.Before(arg.EndTime)) ||
+			(s.SessionStartedAt.Before(arg.StartTime) && (s.SessionEndedAt.After(arg.EndTime) || s.SessionEndedAt.Equal(arg.EndTime)))) {
+			continue
+		}
+
+		for _, ds := range dailyStats {
+			// (was.session_started_at >= ts.from_ AND was.session_started_at < ts.to_)
+			// OR (was.session_ended_at > ts.from_ AND was.session_ended_at < ts.to_)
+			// OR (was.session_started_at < ts.from_ AND was.session_ended_at >= ts.to_)
+			if !(((s.SessionStartedAt.After(arg.StartTime) || s.SessionStartedAt.Equal(arg.StartTime)) && s.SessionStartedAt.Before(arg.EndTime)) ||
+				(s.SessionEndedAt.After(arg.StartTime) && s.SessionEndedAt.Before(arg.EndTime)) ||
+				(s.SessionStartedAt.Before(arg.StartTime) && (s.SessionEndedAt.After(arg.EndTime) || s.SessionEndedAt.Equal(arg.EndTime)))) {
+				continue
+			}
+
+			w, err := q.getWorkspaceByIDNoLock(ctx, s.WorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+
+			ds.userSet[s.UserID] = struct{}{}
+			ds.templateIDSet[w.TemplateID] = struct{}{}
 			break
 		}
 	}
@@ -2152,9 +2367,14 @@ func (q *FakeQuerier) GetTemplateInsights(_ context.Context, arg database.GetTem
 	slices.SortFunc(templateIDs, func(a, b uuid.UUID) int {
 		return slice.Ascending(a.String(), b.String())
 	})
+	activeUserIDs := make([]uuid.UUID, 0, len(appUsageIntervalsByUser))
+	for userID := range appUsageIntervalsByUser {
+		activeUserIDs = append(activeUserIDs, userID)
+	}
+
 	result := database.GetTemplateInsightsRow{
-		TemplateIDs: templateIDs,
-		ActiveUsers: int64(len(appUsageIntervalsByUser)),
+		TemplateIDs:   templateIDs,
+		ActiveUserIDs: activeUserIDs,
 	}
 	for _, intervals := range appUsageIntervalsByUser {
 		for _, interval := range intervals {
@@ -2742,18 +2962,72 @@ func (q *FakeQuerier) GetUsersByIDs(_ context.Context, ids []uuid.UUID) ([]datab
 	return users, nil
 }
 
-func (q *FakeQuerier) GetWorkspaceAgentByAuthToken(_ context.Context, authToken uuid.UUID) (database.WorkspaceAgent, error) {
+func (q *FakeQuerier) GetWorkspaceAgentAndOwnerByAuthToken(_ context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndOwnerByAuthTokenRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	// The schema sorts this by created at, so we iterate the array backwards.
-	for i := len(q.workspaceAgents) - 1; i >= 0; i-- {
-		agent := q.workspaceAgents[i]
-		if agent.AuthToken == authToken {
-			return agent, nil
+	// map of build number -> row
+	rows := make(map[int32]database.GetWorkspaceAgentAndOwnerByAuthTokenRow)
+
+	// We want to return the latest build number
+	var latestBuildNumber int32
+
+	for _, agt := range q.workspaceAgents {
+		if agt.AuthToken != authToken {
+			continue
+		}
+		// get the related workspace and user
+		for _, res := range q.workspaceResources {
+			if agt.ResourceID != res.ID {
+				continue
+			}
+			for _, build := range q.workspaceBuilds {
+				if build.JobID != res.JobID {
+					continue
+				}
+				for _, ws := range q.workspaces {
+					if build.WorkspaceID != ws.ID {
+						continue
+					}
+					var row database.GetWorkspaceAgentAndOwnerByAuthTokenRow
+					row.WorkspaceID = ws.ID
+					usr, err := q.getUserByIDNoLock(ws.OwnerID)
+					if err != nil {
+						return database.GetWorkspaceAgentAndOwnerByAuthTokenRow{}, sql.ErrNoRows
+					}
+					row.OwnerID = usr.ID
+					row.OwnerRoles = append(usr.RBACRoles, "member")
+					// We also need to get org roles for the user
+					row.OwnerName = usr.Username
+					row.WorkspaceAgent = agt
+					for _, mem := range q.organizationMembers {
+						if mem.UserID == usr.ID {
+							row.OwnerRoles = append(row.OwnerRoles, fmt.Sprintf("organization-member:%s", mem.OrganizationID.String()))
+						}
+					}
+					// And group memberships
+					for _, groupMem := range q.groupMembers {
+						if groupMem.UserID == usr.ID {
+							row.OwnerGroups = append(row.OwnerGroups, groupMem.GroupID.String())
+						}
+					}
+
+					// Keep track of the latest build number
+					rows[build.BuildNumber] = row
+					if build.BuildNumber > latestBuildNumber {
+						latestBuildNumber = build.BuildNumber
+					}
+				}
+			}
 		}
 	}
-	return database.WorkspaceAgent{}, sql.ErrNoRows
+
+	if len(rows) == 0 {
+		return database.GetWorkspaceAgentAndOwnerByAuthTokenRow{}, sql.ErrNoRows
+	}
+
+	// Return the row related to the latest build
+	return rows[latestBuildNumber], nil
 }
 
 func (q *FakeQuerier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
@@ -3026,7 +3300,7 @@ func (q *FakeQuerier) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.C
 	return agents, nil
 }
 
-func (q *FakeQuerier) GetWorkspaceAppByAgentIDAndSlug(_ context.Context, arg database.GetWorkspaceAppByAgentIDAndSlugParams) (database.WorkspaceApp, error) {
+func (q *FakeQuerier) GetWorkspaceAppByAgentIDAndSlug(ctx context.Context, arg database.GetWorkspaceAppByAgentIDAndSlugParams) (database.WorkspaceApp, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.WorkspaceApp{}, err
 	}
@@ -3034,16 +3308,7 @@ func (q *FakeQuerier) GetWorkspaceAppByAgentIDAndSlug(_ context.Context, arg dat
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	for _, app := range q.workspaceApps {
-		if app.AgentID != arg.AgentID {
-			continue
-		}
-		if app.Slug != arg.Slug {
-			continue
-		}
-		return app, nil
-	}
-	return database.WorkspaceApp{}, sql.ErrNoRows
+	return q.getWorkspaceAppByAgentIDAndSlugNoLock(ctx, arg)
 }
 
 func (q *FakeQuerier) GetWorkspaceAppsByAgentID(_ context.Context, id uuid.UUID) ([]database.WorkspaceApp, error) {
@@ -3548,7 +3813,7 @@ func (q *FakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyP
 func (q *FakeQuerier) InsertAllUsersGroup(ctx context.Context, orgID uuid.UUID) (database.Group, error) {
 	return q.InsertGroup(ctx, database.InsertGroupParams{
 		ID:             orgID,
-		Name:           database.AllUsersGroup,
+		Name:           database.EveryoneGroup,
 		DisplayName:    "",
 		OrganizationID: orgID,
 	})
@@ -4934,6 +5199,26 @@ func (q *FakeQuerier) UpdateTemplateVersionGitAuthProvidersByJobID(_ context.Con
 	return sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdateTemplateWorkspacesLastUsedAt(_ context.Context, arg database.UpdateTemplateWorkspacesLastUsedAtParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, ws := range q.workspaces {
+		if ws.TemplateID != arg.TemplateID {
+			continue
+		}
+		ws.LastUsedAt = arg.LastUsedAt
+		q.workspaces[i] = ws
+	}
+
+	return nil
+}
+
 func (q *FakeQuerier) UpdateUserDeletedByID(_ context.Context, params database.UpdateUserDeletedByIDParams) error {
 	if err := validateDatabaseType(params); err != nil {
 		return err
@@ -5531,7 +5816,7 @@ func (q *FakeQuerier) UpdateWorkspaceTTL(_ context.Context, arg database.UpdateW
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateWorkspacesDeletingAtByTemplateID(_ context.Context, arg database.UpdateWorkspacesDeletingAtByTemplateIDParams) error {
+func (q *FakeQuerier) UpdateWorkspacesLockedDeletingAtByTemplateID(_ context.Context, arg database.UpdateWorkspacesLockedDeletingAtByTemplateIDParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -5541,9 +5826,21 @@ func (q *FakeQuerier) UpdateWorkspacesDeletingAtByTemplateID(_ context.Context, 
 	}
 
 	for i, ws := range q.workspaces {
+		if ws.TemplateID != arg.TemplateID {
+			continue
+		}
+
 		if ws.LockedAt.Time.IsZero() {
 			continue
 		}
+
+		if !arg.LockedAt.IsZero() {
+			ws.LockedAt = sql.NullTime{
+				Valid: true,
+				Time:  arg.LockedAt,
+			}
+		}
+
 		deletingAt := sql.NullTime{
 			Valid: arg.LockedTtlMs > 0,
 		}
@@ -5797,6 +6094,18 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 
 		if arg.Name != "" && !strings.Contains(strings.ToLower(workspace.Name), strings.ToLower(arg.Name)) {
 			continue
+		}
+
+		if !arg.LastUsedBefore.IsZero() {
+			if workspace.LastUsedAt.After(arg.LastUsedBefore) {
+				continue
+			}
+		}
+
+		if !arg.LastUsedAfter.IsZero() {
+			if workspace.LastUsedAt.Before(arg.LastUsedAfter) {
+				continue
+			}
 		}
 
 		if arg.Status != "" {

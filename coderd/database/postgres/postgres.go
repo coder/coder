@@ -12,8 +12,8 @@ import (
 	"github.com/ory/dockertest/v3/docker"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/database/migrations"
-	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/v2/coderd/database/migrations"
+	"github.com/coder/coder/v2/cryptorand"
 )
 
 // Open creates a new PostgreSQL database instance.  With DB_FROM environment variable set, it clones a database

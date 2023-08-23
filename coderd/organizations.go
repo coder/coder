@@ -9,11 +9,11 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // @Summary Get organization by ID
@@ -94,7 +94,7 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 
 		_, err = tx.InsertAllUsersGroup(ctx, organization.ID)
 		if err != nil {
-			return xerrors.Errorf("create %q group: %w", database.AllUsersGroup, err)
+			return xerrors.Errorf("create %q group: %w", database.EveryoneGroup, err)
 		}
 		return nil
 	}, nil)

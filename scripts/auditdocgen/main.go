@@ -11,7 +11,7 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/enterprise/audit"
+	"github.com/coder/coder/v2/enterprise/audit"
 )
 
 var (

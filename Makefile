@@ -470,7 +470,8 @@ gen: \
 	.prettierignore \
 	site/.prettierrc.yaml \
 	site/.prettierignore \
-	site/.eslintignore
+	site/.eslintignore \
+	site/e2e/provisionerGenerated.ts
 .PHONY: gen
 
 # Mark all generated files as fresh so make thinks they're up-to-date. This is
@@ -492,6 +493,7 @@ gen/mark-fresh:
 		site/.prettierrc.yaml \
 		site/.prettierignore \
 		site/.eslintignore \
+		site/e2e/provisionerGenerated.ts \
 	"
 	for file in $$files; do
 		echo "$$file"
@@ -536,7 +538,12 @@ provisionerd/proto/provisionerd.pb.go: provisionerd/proto/provisionerd.proto
 site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go')
 	go run scripts/apitypings/main.go > site/src/api/typesGenerated.ts
 	cd site
-	pnpm run format:types
+	pnpm run format:types ./src/api/typesGenerated.ts
+
+site/e2e/provisionerGenerated.ts:
+	cd site
+	../scripts/pnpm_install.sh
+	pnpm run gen:provisioner
 
 coderd/rbac/object_gen.go: scripts/rbacgen/main.go coderd/rbac/object.go
 	go run scripts/rbacgen/main.go ./coderd/rbac > coderd/rbac/object_gen.go

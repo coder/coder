@@ -14,14 +14,15 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
+	"tailscale.com/tailcfg"
 	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/workspaceapps"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/tailnet"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/tailnet"
 )
 
 // Client is a HTTP client for a subset of Coder API routes that external
@@ -206,9 +207,10 @@ type RegisterWorkspaceProxyRequest struct {
 }
 
 type RegisterWorkspaceProxyResponse struct {
-	AppSecurityKey string `json:"app_security_key"`
-	DERPMeshKey    string `json:"derp_mesh_key"`
-	DERPRegionID   int32  `json:"derp_region_id"`
+	AppSecurityKey string           `json:"app_security_key"`
+	DERPMeshKey    string           `json:"derp_mesh_key"`
+	DERPRegionID   int32            `json:"derp_region_id"`
+	DERPMap        *tailcfg.DERPMap `json:"derp_map"`
 	// SiblingReplicas is a list of all other replicas of the proxy that have
 	// not timed out.
 	SiblingReplicas []codersdk.Replica `json:"sibling_replicas"`

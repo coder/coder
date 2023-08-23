@@ -23,17 +23,17 @@ ORDER BY user_id ASC;
 
 -- name: GetTemplateInsights :one
 -- GetTemplateInsights has a granularity of 5 minutes where if a session/app was
--- in use, we will add 5 minutes to the total usage for that session (per user).
-WITH d AS (
-	-- Subtract 1 second from end_time to avoid including the next interval in the results.
-	SELECT generate_series(@start_time::timestamptz, (@end_time::timestamptz) - '1 second'::interval, '5 minute'::interval) AS d
-), ts AS (
+-- in use during a minute, we will add 5 minutes to the total usage for that
+-- session/app (per user).
+WITH ts AS (
 	SELECT
 		d::timestamptz AS from_,
-		(d + '5 minute'::interval)::timestamptz AS to_,
+		(d::timestamptz + '5 minute'::interval) AS to_,
 		EXTRACT(epoch FROM '5 minute'::interval) AS seconds
-	FROM d
-), usage_by_user AS (
+	FROM
+		-- Subtract 1 second from end_time to avoid including the next interval in the results.
+		generate_series(@start_time::timestamptz, (@end_time::timestamptz) - '1 second'::interval, '5 minute'::interval) d
+), agent_stats_by_interval_and_user AS (
 	SELECT
 		ts.from_,
 		ts.to_,
@@ -50,41 +50,119 @@ WITH d AS (
 		AND was.connection_count > 0
 		AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN was.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
 	)
+	WHERE
+		-- We already handle created_at in the join, but we use an additional
+		-- check against a static timeframe to help speed up the query.
+		was.created_at >= @start_time
+		AND was.created_at < @end_time
 	GROUP BY ts.from_, ts.to_, ts.seconds, was.user_id
 ), template_ids AS (
 	SELECT array_agg(DISTINCT template_id) AS ids
-	FROM usage_by_user, unnest(template_ids) template_id
+	FROM agent_stats_by_interval_and_user, unnest(template_ids) template_id
 	WHERE template_id IS NOT NULL
 )
 
 SELECT
 	COALESCE((SELECT ids FROM template_ids), '{}')::uuid[] AS template_ids,
-	COUNT(DISTINCT user_id) AS active_users,
+	-- Return IDs so we can combine this with GetTemplateAppInsights.
+	COALESCE(array_agg(DISTINCT user_id), '{}')::uuid[] AS active_user_ids,
 	COALESCE(SUM(usage_vscode_seconds), 0)::bigint AS usage_vscode_seconds,
 	COALESCE(SUM(usage_jetbrains_seconds), 0)::bigint AS usage_jetbrains_seconds,
 	COALESCE(SUM(usage_reconnecting_pty_seconds), 0)::bigint AS usage_reconnecting_pty_seconds,
 	COALESCE(SUM(usage_ssh_seconds), 0)::bigint AS usage_ssh_seconds
-FROM usage_by_user;
+FROM agent_stats_by_interval_and_user;
+
+-- name: GetTemplateAppInsights :many
+-- GetTemplateAppInsights returns the aggregate usage of each app in a given
+-- timeframe. The result can be filtered on template_ids, meaning only user data
+-- from workspaces based on those templates will be included.
+WITH ts AS (
+	SELECT
+		d::timestamptz AS from_,
+		(d::timestamptz + '5 minute'::interval) AS to_,
+		EXTRACT(epoch FROM '5 minute'::interval) AS seconds
+	FROM
+		-- Subtract 1 second from end_time to avoid including the next interval in the results.
+		generate_series(@start_time::timestamptz, (@end_time::timestamptz) - '1 second'::interval, '5 minute'::interval) d
+), app_stats_by_user_and_agent AS (
+	SELECT
+		ts.from_,
+		ts.to_,
+		ts.seconds,
+		w.template_id,
+		was.user_id,
+		was.agent_id,
+		was.access_method,
+		was.slug_or_port,
+		wa.display_name,
+		wa.icon,
+		(wa.slug IS NOT NULL)::boolean AS is_app
+	FROM ts
+	JOIN workspace_app_stats was ON (
+		(was.session_started_at >= ts.from_ AND was.session_started_at < ts.to_)
+		OR (was.session_ended_at > ts.from_ AND was.session_ended_at < ts.to_)
+		OR (was.session_started_at < ts.from_ AND was.session_ended_at >= ts.to_)
+	)
+	JOIN workspaces w ON (
+		w.id = was.workspace_id
+		AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN w.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+	)
+	-- We do a left join here because we want to include user IDs that have used
+	-- e.g. ports when counting active users.
+	LEFT JOIN workspace_apps wa ON (
+		wa.agent_id = was.agent_id
+		AND wa.slug = was.slug_or_port
+	)
+	WHERE
+		-- We already handle timeframe in the join, but we use an additional
+		-- check against a static timeframe to help speed up the query.
+		(was.session_started_at >= @start_time AND was.session_started_at < @end_time)
+		OR (was.session_ended_at > @start_time AND was.session_ended_at < @end_time)
+		OR (was.session_started_at < @start_time AND was.session_ended_at >= @end_time)
+	GROUP BY ts.from_, ts.to_, ts.seconds, w.template_id, was.user_id, was.agent_id, was.access_method, was.slug_or_port, wa.display_name, wa.icon, wa.slug
+)
+
+SELECT
+	array_agg(DISTINCT template_id)::uuid[] AS template_ids,
+	-- Return IDs so we can combine this with GetTemplateInsights.
+	array_agg(DISTINCT user_id)::uuid[] AS active_user_ids,
+	access_method,
+	slug_or_port,
+	display_name,
+	icon,
+	is_app,
+	SUM(seconds) AS usage_seconds
+FROM app_stats_by_user_and_agent
+GROUP BY access_method, slug_or_port, display_name, icon, is_app;
 
 -- name: GetTemplateDailyInsights :many
 -- GetTemplateDailyInsights returns all daily intervals between start and end
 -- time, if end time is a partial day, it will be included in the results and
 -- that interval will be less than 24 hours. If there is no data for a selected
 -- interval/template, it will be included in the results with 0 active users.
-WITH d AS (
-	-- sqlc workaround, use SELECT generate_series instead of SELECT * FROM generate_series.
-	-- Subtract 1 second from end_time to avoid including the next interval in the results.
-	SELECT generate_series(@start_time::timestamptz, (@end_time::timestamptz) - '1 second'::interval, '1 day'::interval) AS d
-), ts AS (
+WITH ts AS (
 	SELECT
 		d::timestamptz AS from_,
-		CASE WHEN (d + '1 day'::interval)::timestamptz <= @end_time::timestamptz THEN (d + '1 day'::interval)::timestamptz ELSE @end_time::timestamptz END AS to_
-	FROM d
-), usage_by_day AS (
+		CASE
+			WHEN (d::timestamptz + '1 day'::interval) <= @end_time::timestamptz
+			THEN (d::timestamptz + '1 day'::interval)
+			ELSE @end_time::timestamptz
+		END AS to_
+	FROM
+		-- Subtract 1 second from end_time to avoid including the next interval in the results.
+		generate_series(@start_time::timestamptz, (@end_time::timestamptz) - '1 second'::interval, '1 day'::interval) AS d
+), unflattened_usage_by_day AS (
+	-- We select data from both workspace agent stats and workspace app stats to
+	-- get a complete picture of usage. This matches how usage is calculated by
+	-- the combination of GetTemplateInsights and GetTemplateAppInsights. We use
+	-- a union all to avoid a costly distinct operation.
+	--
+	-- Note that one query must perform a left join so that all intervals are
+	-- present at least once.
 	SELECT
 		ts.*,
-		was.user_id,
-		array_agg(was.template_id) AS template_ids
+		was.template_id,
+		was.user_id
 	FROM ts
 	LEFT JOIN workspace_agent_stats was ON (
 		was.created_at >= ts.from_
@@ -92,29 +170,34 @@ WITH d AS (
 		AND was.connection_count > 0
 		AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN was.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
 	)
-	GROUP BY ts.from_, ts.to_, was.user_id
-), template_ids AS (
+	GROUP BY ts.from_, ts.to_, was.template_id, was.user_id
+
+	UNION ALL
+
 	SELECT
-		template_usage_by_day.from_,
-		array_agg(template_id) AS ids
-	FROM (
-		SELECT DISTINCT
-			from_,
-			unnest(template_ids) AS template_id
-		FROM usage_by_day
-	) AS template_usage_by_day
-	WHERE template_id IS NOT NULL
-	GROUP BY template_usage_by_day.from_
+		ts.*,
+		w.template_id,
+		was.user_id
+	FROM ts
+	JOIN workspace_app_stats was ON (
+		(was.session_started_at >= ts.from_ AND was.session_started_at < ts.to_)
+		OR (was.session_ended_at > ts.from_ AND was.session_ended_at < ts.to_)
+		OR (was.session_started_at < ts.from_ AND was.session_ended_at >= ts.to_)
+	)
+	JOIN workspaces w ON (
+		w.id = was.workspace_id
+		AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN w.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+	)
+	GROUP BY ts.from_, ts.to_, w.template_id, was.user_id
 )
 
 SELECT
 	from_ AS start_time,
 	to_ AS end_time,
-	COALESCE((SELECT template_ids.ids FROM template_ids WHERE template_ids.from_ = usage_by_day.from_), '{}')::uuid[] AS template_ids,
+	array_remove(array_agg(DISTINCT template_id), NULL)::uuid[] AS template_ids,
 	COUNT(DISTINCT user_id) AS active_users
-FROM usage_by_day
+FROM unflattened_usage_by_day
 GROUP BY from_, to_;
-
 
 -- name: GetTemplateParameterInsights :many
 -- GetTemplateParameterInsights does for each template in a given timeframe,
@@ -127,15 +210,15 @@ WITH latest_workspace_builds AS (
 		wbmax.template_id,
 		wb.template_version_id
 	FROM (
-	    SELECT
-	        tv.template_id, wbmax.workspace_id, MAX(wbmax.build_number) as max_build_number
+		SELECT
+			tv.template_id, wbmax.workspace_id, MAX(wbmax.build_number) as max_build_number
 		FROM workspace_builds wbmax
 		JOIN template_versions tv ON (tv.id = wbmax.template_version_id)
 		WHERE
 			wbmax.created_at >= @start_time::timestamptz
 			AND wbmax.created_at < @end_time::timestamptz
 			AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN tv.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
-	    GROUP BY tv.template_id, wbmax.workspace_id
+		GROUP BY tv.template_id, wbmax.workspace_id
 	) wbmax
 	JOIN workspace_builds wb ON (
 		wb.workspace_id = wbmax.workspace_id

@@ -75,7 +75,7 @@ cdroot
 temp_dir="$(mktemp -d)"
 
 cdroot
-cd ./helm/$chart
+cd "./helm/${chart}"
 log "--- Updating dependencies"
 helm dependency update .
 log "--- Packaging helm chart $chart for version $version ($output_path)"

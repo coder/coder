@@ -1,10 +1,14 @@
 import { useMachine } from "@xstate/react"
-import { FC } from "react"
+import { FC, useEffect } from "react"
 import { Helmet } from "react-helmet-async"
 import { useParams } from "react-router-dom"
 import { pageTitle } from "../../utils/page"
 import { workspaceBuildMachine } from "../../xServices/workspaceBuild/workspaceBuildXService"
 import { WorkspaceBuildPageView } from "./WorkspaceBuildPageView"
+import { useQuery } from "@tanstack/react-query"
+import { getWorkspaceBuilds } from "api/api"
+import dayjs from "dayjs"
+import { usePermissions } from "hooks"
 
 export const WorkspaceBuildPage: FC = () => {
   const params = useParams() as {
@@ -13,12 +17,27 @@ export const WorkspaceBuildPage: FC = () => {
     buildNumber: string
   }
   const workspaceName = params.workspace
-  const buildNumber = params.buildNumber
+  const buildNumber = Number(params.buildNumber)
   const username = params.username.replace("@", "")
-  const [buildState] = useMachine(workspaceBuildMachine, {
+  const [buildState, send] = useMachine(workspaceBuildMachine, {
     context: { username, workspaceName, buildNumber, timeCursor: new Date() },
   })
   const { logs, build } = buildState.context
+  const { data: builds } = useQuery({
+    queryKey: ["builds", username, build?.workspace_id],
+    queryFn: () => {
+      return getWorkspaceBuilds(
+        build?.workspace_id ?? "",
+        dayjs().add(-30, "day").toDate(),
+      )
+    },
+    enabled: Boolean(build),
+  })
+  const permissions = usePermissions()
+
+  useEffect(() => {
+    send("RESET", { buildNumber, timeCursor: new Date() })
+  }, [buildNumber, send])
 
   return (
     <>
@@ -32,7 +51,13 @@ export const WorkspaceBuildPage: FC = () => {
         </title>
       </Helmet>
 
-      <WorkspaceBuildPageView logs={logs} build={build} />
+      <WorkspaceBuildPageView
+        logs={logs}
+        build={build}
+        builds={builds}
+        activeBuildNumber={buildNumber}
+        hasDeploymentBanner={permissions.viewDeploymentStats}
+      />
     </>
   )
 }

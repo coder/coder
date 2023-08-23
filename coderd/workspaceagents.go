@@ -21,28 +21,28 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/bep/debounce"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"golang.org/x/exp/slices"
 	"golang.org/x/mod/semver"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/time/rate"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/gitauth"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/util/ptr"
-	"github.com/coder/coder/coderd/util/slice"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/codersdk/agentsdk"
-	"github.com/coder/coder/tailnet"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/tailnet"
 )
 
 // @Summary Get workspace agent by ID
@@ -211,7 +211,13 @@ func (api *API) postWorkspaceAgentStartup(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	api.Logger.Info(ctx, "post workspace agent version", slog.F("agent_id", apiAgent.ID), slog.F("agent_version", req.Version))
+	api.Logger.Debug(
+		ctx,
+		"post workspace agent version",
+		slog.F("agent_id", apiAgent.ID),
+		slog.F("agent_version", req.Version),
+		slog.F("remote_addr", r.RemoteAddr),
+	)
 
 	if !semver.IsValid(req.Version) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -1479,6 +1485,13 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 	})
 }
 
+func ellipse(v string, n int) string {
+	if len(v) > n {
+		return v[:n] + "..."
+	}
+	return v
+}
+
 // @Summary Submit workspace agent metadata
 // @ID submit-workspace-agent-metadata
 // @Security CoderSessionToken
@@ -1551,6 +1564,7 @@ func (api *API) workspaceAgentPostMetadata(rw http.ResponseWriter, r *http.Reque
 		slog.F("workspace_id", workspace.ID),
 		slog.F("collected_at", datum.CollectedAt),
 		slog.F("key", datum.Key),
+		slog.F("value", ellipse(datum.Value, 16)),
 	)
 
 	err = api.Pubsub.Publish(watchWorkspaceAgentMetadataChannel(workspaceAgent.ID), []byte(datum.Key))
@@ -1574,6 +1588,9 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 	var (
 		ctx            = r.Context()
 		workspaceAgent = httpmw.WorkspaceAgentParam(r)
+		log            = api.Logger.Named("workspace_metadata_watcher").With(
+			slog.F("workspace_agent_id", workspaceAgent.ID),
+		)
 	)
 
 	sendEvent, senderClosed, err := httpapi.ServerSentEventSender(rw, r)
@@ -1599,6 +1616,7 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 	)
 
 	sendMetadata := func(pull bool) {
+		log.Debug(ctx, "sending metadata update", "pull", pull)
 		lastDBMetaMu.Lock()
 		defer lastDBMetaMu.Unlock()
 
@@ -1632,19 +1650,28 @@ func (api *API) watchWorkspaceAgentMetadata(rw http.ResponseWriter, r *http.Requ
 		})
 	}
 
-	// We debounce metadata updates to avoid overloading the frontend when
-	// an agent is sending a lot of updates.
-	pubsubDebounce := debounce.New(time.Second)
+	// Note: we previously used a debounce here, but when the rate of metadata updates was too
+	// high the debounce would never fire.
+	//
+	// The rate-limit has its own caveat. If the agent sends a burst of metadata
+	// but then goes quiet, we will never pull the new metadata and the frontend
+	// will go stale until refresh. This would only happen if the agent was
+	// under extreme load. Under normal operations, the interval between metadata
+	// updates is constant so there is no burst phenomenon.
+	pubsubRatelimit := rate.NewLimiter(rate.Every(time.Second), 2)
 	if flag.Lookup("test.v") != nil {
-		pubsubDebounce = debounce.New(time.Millisecond * 100)
+		// We essentially disable the rate-limit in tests for determinism.
+		pubsubRatelimit = rate.NewLimiter(rate.Every(time.Second*100), 100)
 	}
 
 	// Send metadata on updates, we must ensure subscription before sending
 	// initial metadata to guarantee that events in-between are not missed.
 	cancelSub, err := api.Pubsub.Subscribe(watchWorkspaceAgentMetadataChannel(workspaceAgent.ID), func(_ context.Context, _ []byte) {
-		pubsubDebounce(func() {
+		allow := pubsubRatelimit.Allow()
+		log.Debug(ctx, "received metadata update", "allow", allow)
+		if allow {
 			sendMetadata(true)
-		})
+		}
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)

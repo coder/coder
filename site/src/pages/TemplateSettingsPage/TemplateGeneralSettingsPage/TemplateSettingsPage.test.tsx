@@ -33,6 +33,8 @@ const validFormValues: FormValues = {
   failure_ttl_ms: 0,
   inactivity_ttl_ms: 0,
   locked_ttl_ms: 0,
+  update_workspace_last_used_at: false,
+  update_workspace_locked_at: false,
 }
 
 const renderTemplateSettingsPage = async () => {

@@ -30,6 +30,7 @@ export interface TemplateVersionEditorMachineContext {
 
 export const templateVersionEditorMachine = createMachine(
   {
+    /** @xstate-layout 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 */
     predictableActionArguments: true,
     id: "templateVersionEditor",
     schema: {
@@ -85,39 +86,45 @@ export const templateVersionEditorMachine = createMachine(
           },
         },
       },
+
       idle: {
         on: {
           CREATE_VERSION: {
             actions: ["assignCreateBuild"],
-            target: "cancelingBuild",
+            target: "cancelingInProgressBuild",
           },
           PUBLISH: {
             target: "askPublishParameters",
           },
         },
       },
+
       askPublishParameters: {
         on: {
           CANCEL_PUBLISH: "idle",
           CONFIRM_PUBLISH: "publishingVersion",
         },
       },
+
       publishingVersion: {
         tags: "loading",
         entry: ["clearPublishingError"],
         invoke: {
           id: "publishingVersion",
           src: "publishingVersion",
-          onDone: {
-            actions: ["onPublish"],
-          },
+
           onError: {
             actions: ["assignPublishingError"],
             target: "askPublishParameters",
           },
+
+          onDone: {
+            target: ["idle"],
+          },
         },
       },
-      cancelingBuild: {
+
+      cancelingInProgressBuild: {
         tags: "loading",
         invoke: {
           id: "cancelBuild",
@@ -127,6 +134,7 @@ export const templateVersionEditorMachine = createMachine(
           },
         },
       },
+
       uploadTar: {
         tags: "loading",
         invoke: {
@@ -138,6 +146,7 @@ export const templateVersionEditorMachine = createMachine(
           },
         },
       },
+
       creatingBuild: {
         tags: "loading",
         invoke: {
@@ -149,6 +158,7 @@ export const templateVersionEditorMachine = createMachine(
           },
         },
       },
+
       watchingBuildLogs: {
         tags: "loading",
         invoke: {
@@ -161,7 +171,7 @@ export const templateVersionEditorMachine = createMachine(
           },
           BUILD_DONE: "fetchingVersion",
           CANCEL_VERSION: {
-            target: "cancelingBuild",
+            target: "cancelingInProgressBuild",
           },
           CREATE_VERSION: {
             actions: ["assignCreateBuild"],
@@ -169,11 +179,13 @@ export const templateVersionEditorMachine = createMachine(
           },
         },
       },
+
       fetchingVersion: {
         tags: "loading",
         invoke: {
           id: "fetchVersion",
           src: "fetchVersion",
+
           onDone: [
             {
               actions: ["assignBuild"],
@@ -187,6 +199,7 @@ export const templateVersionEditorMachine = createMachine(
           ],
         },
       },
+
       promptVariables: {
         initial: "loadingMissingVariables",
         states: {
@@ -212,6 +225,7 @@ export const templateVersionEditorMachine = createMachine(
           },
         },
       },
+
       fetchResources: {
         tags: "loading",
         invoke: {

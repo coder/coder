@@ -18,11 +18,11 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type apiKeyContextKey struct{}
@@ -308,6 +308,9 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 	}
 
 	// Checking if the key is expired.
+	// NOTE: The `RequireAuth` React component depends on this `Detail` to detect when
+	// the users token has expired. If you change the text here, make sure to update it
+	// in site/src/components/RequireAuth/RequireAuth.tsx as well.
 	if key.ExpiresAt.Before(now) {
 		return optionalWrite(http.StatusUnauthorized, codersdk.Response{
 			Message: SignedOutErrorMessage,
