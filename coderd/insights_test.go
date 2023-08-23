@@ -1202,6 +1202,29 @@ func TestTemplateInsights_Golden(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "parameters",
+			makeTestData: func(templates []*testTemplate, users []*testUser) map[*testWorkspace]testDataGen {
+				return map[*testWorkspace]testDataGen{}
+			},
+			requests: []testRequest{
+				{
+					// Since workspaces are created "now", we can only get
+					// parameters using a time range that includes "now".
+					// We check yesterday and today for stability just in case
+					// the test runs at UTC midnight.
+					name:        "yesterday and today deployment wide",
+					ignoreTimes: true,
+					makeRequest: func(_ []*testTemplate) codersdk.TemplateInsightsRequest {
+						now := time.Now().UTC()
+						return codersdk.TemplateInsightsRequest{
+							StartTime: now.Truncate(24*time.Hour).AddDate(0, 0, -1),
+							EndTime:   now.Truncate(time.Hour).Add(time.Hour),
+						}
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
