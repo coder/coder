@@ -9673,14 +9673,14 @@ WHERE
 		-- If the workspace's template has an inactivity_ttl set
 		-- it may be eligible for locking.
 		(
-			templates.inactivity_ttl > 0 AND
+			templates.time_til_dormant > 0 AND
 			workspaces.dormant_at IS NULL
 		) OR
 
 		-- If the workspace's template has a locked_ttl set
 		-- and the workspace is already locked
 		(
-			templates.locked_ttl > 0 AND
+			templates.time_til_dormant_autodelete > 0 AND
 			workspaces.dormant_at IS NOT NULL
 		)
 	) AND workspaces.deleted = 'false'

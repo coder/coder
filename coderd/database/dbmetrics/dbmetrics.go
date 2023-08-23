@@ -79,20 +79,6 @@ func (m metricsStore) InTx(f func(database.Store) error, options *sql.TxOptions)
 	return err
 }
 
-func (m metricsStore) UpdateWorkspaceDormantDeletingAt(ctx context.Context, arg database.UpdateWorkspaceDormantDeletingAtParams) (database.Workspace, error) {
-	start := time.Now()
-	ws, r0 := m.s.UpdateWorkspaceDormantDeletingAt(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateWorkspaceDormantDeletingAt").Observe(time.Since(start).Seconds())
-	return ws, r0
-}
-
-func (m metricsStore) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Context, arg database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams) error {
-	start := time.Now()
-	r0 := m.s.UpdateWorkspacesDormantDeletingAtByTemplateID(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateWorkspacesDormantDeletingAtByTemplateID").Observe(time.Since(start).Seconds())
-	return r0
-}
-
 func (m metricsStore) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
 	start := time.Now()
 	err := m.s.AcquireLock(ctx, pgAdvisoryXactLock)
@@ -1621,6 +1607,13 @@ func (m metricsStore) UpdateWorkspaceDeletedByID(ctx context.Context, arg databa
 	return err
 }
 
+func (m metricsStore) UpdateWorkspaceDormantDeletingAt(ctx context.Context, arg database.UpdateWorkspaceDormantDeletingAtParams) (database.Workspace, error) {
+	start := time.Now()
+	ws, r0 := m.s.UpdateWorkspaceDormantDeletingAt(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceDormantDeletingAt").Observe(time.Since(start).Seconds())
+	return ws, r0
+}
+
 func (m metricsStore) UpdateWorkspaceLastUsedAt(ctx context.Context, arg database.UpdateWorkspaceLastUsedAtParams) error {
 	start := time.Now()
 	err := m.s.UpdateWorkspaceLastUsedAt(ctx, arg)
@@ -1646,6 +1639,13 @@ func (m metricsStore) UpdateWorkspaceTTL(ctx context.Context, arg database.Updat
 	start := time.Now()
 	r0 := m.s.UpdateWorkspaceTTL(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateWorkspaceTTL").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m metricsStore) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Context, arg database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspacesDormantDeletingAtByTemplateID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspacesDormantDeletingAtByTemplateID").Observe(time.Since(start).Seconds())
 	return r0
 }
 

@@ -664,83 +664,6 @@ func (q *FakeQuerier) isEveryoneGroup(id uuid.UUID) bool {
 	return false
 }
 
-func (q *FakeQuerier) UpdateWorkspaceDormantDeletingAt(_ context.Context, arg database.UpdateWorkspaceDormantDeletingAtParams) (database.Workspace, error) {
-	if err := validateDatabaseType(arg); err != nil {
-		return database.Workspace{}, err
-	}
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-	for index, workspace := range q.workspaces {
-		if workspace.ID != arg.ID {
-			continue
-		}
-		workspace.DormantAt = arg.DormantAt
-		if workspace.DormantAt.Time.IsZero() {
-			workspace.LastUsedAt = database.Now()
-			workspace.DeletingAt = sql.NullTime{}
-		}
-		if !workspace.DormantAt.Time.IsZero() {
-			var template database.TemplateTable
-			for _, t := range q.templates {
-				if t.ID == workspace.TemplateID {
-					template = t
-					break
-				}
-			}
-			if template.ID == uuid.Nil {
-				return database.Workspace{}, xerrors.Errorf("unable to find workspace template")
-			}
-			if template.TimeTilDormantAutoDelete > 0 {
-				workspace.DeletingAt = sql.NullTime{
-					Valid: true,
-					Time:  workspace.DormantAt.Time.Add(time.Duration(template.TimeTilDormantAutoDelete)),
-				}
-			}
-		}
-		q.workspaces[index] = workspace
-		return workspace, nil
-	}
-	return database.Workspace{}, sql.ErrNoRows
-}
-
-func (q *FakeQuerier) UpdateWorkspacesDormantDeletingAtByTemplateID(_ context.Context, arg database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams) error {
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return err
-	}
-
-	for i, ws := range q.workspaces {
-		if ws.TemplateID != arg.TemplateID {
-			continue
-		}
-
-		if ws.DormantAt.Time.IsZero() {
-			continue
-		}
-
-		if !arg.DormantAt.IsZero() {
-			ws.DormantAt = sql.NullTime{
-				Valid: true,
-				Time:  arg.DormantAt,
-			}
-		}
-
-		deletingAt := sql.NullTime{
-			Valid: arg.TimeTilDormantAutodeleteMs > 0,
-		}
-		if arg.TimeTilDormantAutodeleteMs > 0 {
-			deletingAt.Time = ws.DormantAt.Time.Add(time.Duration(arg.TimeTilDormantAutodeleteMs) * time.Millisecond)
-		}
-		ws.DeletingAt = deletingAt
-		q.workspaces[i] = ws
-	}
-
-	return nil
-}
-
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -5774,6 +5697,45 @@ func (q *FakeQuerier) UpdateWorkspaceDeletedByID(_ context.Context, arg database
 	return sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdateWorkspaceDormantDeletingAt(_ context.Context, arg database.UpdateWorkspaceDormantDeletingAtParams) (database.Workspace, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return database.Workspace{}, err
+	}
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	for index, workspace := range q.workspaces {
+		if workspace.ID != arg.ID {
+			continue
+		}
+		workspace.DormantAt = arg.DormantAt
+		if workspace.DormantAt.Time.IsZero() {
+			workspace.LastUsedAt = database.Now()
+			workspace.DeletingAt = sql.NullTime{}
+		}
+		if !workspace.DormantAt.Time.IsZero() {
+			var template database.TemplateTable
+			for _, t := range q.templates {
+				if t.ID == workspace.TemplateID {
+					template = t
+					break
+				}
+			}
+			if template.ID == uuid.Nil {
+				return database.Workspace{}, xerrors.Errorf("unable to find workspace template")
+			}
+			if template.TimeTilDormantAutoDelete > 0 {
+				workspace.DeletingAt = sql.NullTime{
+					Valid: true,
+					Time:  workspace.DormantAt.Time.Add(time.Duration(template.TimeTilDormantAutoDelete)),
+				}
+			}
+		}
+		q.workspaces[index] = workspace
+		return workspace, nil
+	}
+	return database.Workspace{}, sql.ErrNoRows
+}
+
 func (q *FakeQuerier) UpdateWorkspaceLastUsedAt(_ context.Context, arg database.UpdateWorkspaceLastUsedAtParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
@@ -5852,6 +5814,44 @@ func (q *FakeQuerier) UpdateWorkspaceTTL(_ context.Context, arg database.UpdateW
 	}
 
 	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateWorkspacesDormantDeletingAtByTemplateID(_ context.Context, arg database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	for i, ws := range q.workspaces {
+		if ws.TemplateID != arg.TemplateID {
+			continue
+		}
+
+		if ws.DormantAt.Time.IsZero() {
+			continue
+		}
+
+		if !arg.DormantAt.IsZero() {
+			ws.DormantAt = sql.NullTime{
+				Valid: true,
+				Time:  arg.DormantAt,
+			}
+		}
+
+		deletingAt := sql.NullTime{
+			Valid: arg.TimeTilDormantAutodeleteMs > 0,
+		}
+		if arg.TimeTilDormantAutodeleteMs > 0 {
+			deletingAt.Time = ws.DormantAt.Time.Add(time.Duration(arg.TimeTilDormantAutodeleteMs) * time.Millisecond)
+		}
+		ws.DeletingAt = deletingAt
+		q.workspaces[i] = ws
+	}
+
+	return nil
 }
 
 func (q *FakeQuerier) UpsertAppSecurityKey(_ context.Context, data string) error {

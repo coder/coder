@@ -42,7 +42,7 @@ type Workspace struct {
 	// A locked workspace is no longer accessible by a user and must be
 	// unlocked by an admin. It is subject to deletion if it breaches
 	// the duration of the locked_ttl field on its template.
-	DormantAt *time.Time `json:"locked_at" format:"date-time"`
+	DormantAt *time.Time `json:"dormant_at" format:"date-time"`
 	// Health shows the health of the workspace and information about
 	// what is causing an unhealthy status.
 	Health WorkspaceHealth `json:"health"`

@@ -916,8 +916,8 @@ export interface Template {
   readonly allow_user_autostop: boolean
   readonly allow_user_cancel_workspace_jobs: boolean
   readonly failure_ttl_ms: number
-  readonly dormant_ttl_ms: number
-  readonly delete_ttl_ms: number
+  readonly time_til_dormant_ms: number
+  readonly time_til_dormant_autodelete_ms: number
 }
 
 // From codersdk/templates.go
@@ -1151,8 +1151,8 @@ export interface UpdateTemplateMeta {
   readonly allow_user_autostop?: boolean
   readonly allow_user_cancel_workspace_jobs?: boolean
   readonly failure_ttl_ms?: number
-  readonly dormant_ttl_ms?: number
-  readonly delete_ttl_ms?: number
+  readonly time_til_dormant_ms?: number
+  readonly time_til_dormant_autodelete_ms?: number
   readonly update_workspace_last_used_at: boolean
   readonly update_workspace_dormant_at: boolean
 }
@@ -1309,7 +1309,7 @@ export interface Workspace {
   readonly ttl_ms?: number
   readonly last_used_at: string
   readonly deleting_at?: string
-  readonly locked_at?: string
+  readonly dormant_at?: string
   readonly health: WorkspaceHealth
 }
 

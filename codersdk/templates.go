@@ -48,8 +48,8 @@ type Template struct {
 	// values are used if your license is entitled to use the advanced
 	// template scheduling feature.
 	FailureTTLMillis               int64 `json:"failure_ttl_ms"`
-	TimeTilDormantMillis           int64 `json:"dormant_ttl_ms"`
-	TimeTilDormantAutoDeleteMillis int64 `json:"delete_ttl_ms"`
+	TimeTilDormantMillis           int64 `json:"time_til_dormant_ms"`
+	TimeTilDormantAutoDeleteMillis int64 `json:"time_til_dormant_autodelete_ms"`
 }
 
 // WeekdaysToBitmap converts a list of weekdays to a bitmap in accordance with
@@ -190,8 +190,8 @@ type UpdateTemplateMeta struct {
 	AllowUserAutostop              bool                        `json:"allow_user_autostop,omitempty"`
 	AllowUserCancelWorkspaceJobs   bool                        `json:"allow_user_cancel_workspace_jobs,omitempty"`
 	FailureTTLMillis               int64                       `json:"failure_ttl_ms,omitempty"`
-	TimeTilDormantMillis           int64                       `json:"dormant_ttl_ms,omitempty"`
-	TimeTilDormantAutoDeleteMillis int64                       `json:"delete_ttl_ms,omitempty"`
+	TimeTilDormantMillis           int64                       `json:"time_til_dormant_ms,omitempty"`
+	TimeTilDormantAutoDeleteMillis int64                       `json:"time_til_dormant_autodelete_ms,omitempty"`
 	// UpdateWorkspaceLastUsedAt updates the last_used_at field of workspaces
 	// spawned from the template. This is useful for preventing workspaces being
 	// immediately locked when updating the inactivity_ttl field to a new, shorter
