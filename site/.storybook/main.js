@@ -25,8 +25,6 @@ module.exports = {
         }),
       )
     }
-    return mergeConfig(config, {
-      // Your environment configuration here
-    })
+    return config
   },
 }
