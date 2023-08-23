@@ -18,6 +18,7 @@ import {
 import { Stats, StatsItem } from "components/Stats/Stats"
 import { makeStyles } from "@mui/styles"
 import { createDayString } from "utils/createDayString"
+import { DashboardFullPage } from "components/Dashboard/DashboardLayout"
 
 const sections = {
   derp: "DERP",
@@ -59,12 +60,9 @@ export function HealthPageView({
   const styles = useStyles()
 
   return (
-    <Box
+    <DashboardFullPage
       sx={{
-        height: "calc(100vh - 62px - 36px)",
         overflow: "hidden",
-        // Remove padding added from dashboard layout (.siteContent)
-        marginBottom: "-48px",
       }}
     >
       <FullWidthPageHeader sticky={false}>
@@ -214,7 +212,7 @@ export function HealthPageView({
           />
         </Box>
       </Box>
-    </Box>
+    </DashboardFullPage>
   )
 }
 
