@@ -84,8 +84,8 @@ func TestOnlyDataResources(t *testing.T) {
 					},
 					{
 						Name:    "child-cow",
-						Mode:    "data",
-						Type:    "magic",
+						Type:    "foobaz",
+						Mode:    "magic",
 						Address: "child-cow-address",
 					},
 				},
@@ -97,5 +97,10 @@ func TestOnlyDataResources(t *testing.T) {
 
 	filtered := onlyDataResources(*sm)
 	require.Len(t, filtered.Resources, 2)
+	require.Equal(t, sm.Resources[0], filtered.Resources[0])
+	require.Equal(t, sm.Resources[2], filtered.Resources[1])
 	require.Len(t, filtered.ChildModules, 1)
+	require.Len(t, filtered.ChildModules[0].Resources, 2)
+	require.Equal(t, sm.ChildModules[0].Resources[0], filtered.ChildModules[0].Resources[0])
+	require.Equal(t, sm.ChildModules[0].Resources[1], filtered.ChildModules[0].Resources[1])
 }
