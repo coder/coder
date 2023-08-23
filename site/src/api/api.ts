@@ -808,6 +808,10 @@ export const putWorkspaceExtension = async (
   })
 }
 
+export const refreshEntitlements = async (): Promise<void> => {
+  await axios.post("/api/v2/licenses/refresh-entitlements")
+}
+
 export const getEntitlements = async (): Promise<TypesGen.Entitlements> => {
   try {
     const response = await axios.get("/api/v2/entitlements")
@@ -821,6 +825,7 @@ export const getEntitlements = async (): Promise<TypesGen.Entitlements> => {
         require_telemetry: false,
         trial: false,
         warnings: [],
+        refreshed_at: "",
       }
     }
     throw ex
