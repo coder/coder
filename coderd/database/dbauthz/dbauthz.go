@@ -841,6 +841,13 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 	return q.db.GetAuthorizationUserRoles(ctx, userID)
 }
 
+func (q *querier) GetDBCryptSentinelValue(ctx context.Context) (string, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return "", err
+	}
+	return q.db.GetDBCryptSentinelValue(ctx)
+}
+
 func (q *querier) GetDERPMeshKey(ctx context.Context) (string, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
 		return "", err
@@ -2145,6 +2152,13 @@ func (q *querier) RegisterWorkspaceProxy(ctx context.Context, arg database.Regis
 		return q.db.GetWorkspaceProxyByID(ctx, arg.ID)
 	}
 	return updateWithReturn(q.log, q.auth, fetch, q.db.RegisterWorkspaceProxy)(ctx, arg)
+}
+
+func (q *querier) SetDBCryptSentinelValue(ctx context.Context, value string) error {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.SetDBCryptSentinelValue(ctx, value)
 }
 
 func (q *querier) TryAcquireLock(ctx context.Context, id int64) (bool, error) {

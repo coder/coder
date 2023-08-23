@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
+	"errors"
 	"strings"
 	"sync/atomic"
 
@@ -18,6 +19,13 @@ import (
 // This is used to determine if a value is encrypted or not.
 // If it is encrypted but a key is not provided, an error is returned.
 const MagicPrefix = "dbcrypt-"
+
+// sentinelValue is the value that is stored in the database to indicate
+// whether encryption is enabled. If not enabled, the raw value is "coder".
+// Otherwise, the value is encrypted.
+const sentinelValue = "coder"
+
+var ErrNotEncrypted = xerrors.New("database is not encrypted")
 
 type Options struct {
 	// ExternalTokenCipher is an optional cipher that is used
@@ -48,6 +56,20 @@ func (db *dbCrypt) InTx(function func(database.Store) error, txOpts *sql.TxOptio
 			Store:   s,
 		})
 	}, txOpts)
+}
+
+func (db *dbCrypt) GetDBCryptSentinelValue(ctx context.Context) (string, error) {
+	rawValue, err := db.Store.GetDBCryptSentinelValue(ctx)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", ErrNotEncrypted
+		}
+		return "", err
+	}
+	if rawValue == sentinelValue {
+		return "", ErrNotEncrypted
+	}
+	return rawValue, db.decryptFields(&rawValue)
 }
 
 func (db *dbCrypt) GetUserLinkByLinkedID(ctx context.Context, linkedID string) (database.UserLink, error) {
@@ -104,6 +126,14 @@ func (db *dbCrypt) UpdateGitAuthLink(ctx context.Context, params database.Update
 		return database.GitAuthLink{}, err
 	}
 	return db.Store.UpdateGitAuthLink(ctx, params)
+}
+
+func (db *dbCrypt) SetDBCryptSentinelValue(ctx context.Context, value string) error {
+	err := db.encryptFields(&value)
+	if err != nil {
+		return err
+	}
+	return db.Store.SetDBCryptSentinelValue(ctx, value)
 }
 
 func (db *dbCrypt) encryptFields(fields ...*string) error {

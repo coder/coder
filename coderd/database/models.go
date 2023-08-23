@@ -1524,6 +1524,14 @@ type AuditLog struct {
 	ResourceIcon     string          `db:"resource_icon" json:"resource_icon"`
 }
 
+// A table used to determine if the database is encrypted
+type DbcryptSentinel struct {
+	// Ensures that only one row exists in the table.
+	OnlyOne sql.NullInt32 `db:"only_one" json:"only_one"`
+	// Used to determine if the database is encrypted.
+	Val string `db:"val" json:"val"`
+}
+
 type File struct {
 	Hash      string    `db:"hash" json:"hash"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`

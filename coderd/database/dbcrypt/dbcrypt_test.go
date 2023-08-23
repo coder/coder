@@ -16,8 +16,8 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbcrypt"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 )
 
 func TestUserLinks(t *testing.T) {
@@ -28,7 +28,9 @@ func TestUserLinks(t *testing.T) {
 		t.Parallel()
 		db, crypt, cipher := setup(t)
 		initCipher(t, cipher)
+		user := dbgen.User(t, crypt, database.User{})
 		link := dbgen.UserLink(t, crypt, database.UserLink{
+			UserID:            user.ID,
 			OAuthAccessToken:  "access",
 			OAuthRefreshToken: "refresh",
 		})
@@ -42,7 +44,10 @@ func TestUserLinks(t *testing.T) {
 		t.Parallel()
 		db, crypt, cipher := setup(t)
 		initCipher(t, cipher)
-		link := dbgen.UserLink(t, crypt, database.UserLink{})
+		user := dbgen.User(t, crypt, database.User{})
+		link := dbgen.UserLink(t, crypt, database.UserLink{
+			UserID: user.ID,
+		})
 		_, err := crypt.UpdateUserLink(ctx, database.UpdateUserLinkParams{
 			OAuthAccessToken:  "access",
 			OAuthRefreshToken: "refresh",
@@ -60,7 +65,9 @@ func TestUserLinks(t *testing.T) {
 		t.Parallel()
 		db, crypt, cipher := setup(t)
 		initCipher(t, cipher)
+		user := dbgen.User(t, crypt, database.User{})
 		link := dbgen.UserLink(t, crypt, database.UserLink{
+			UserID:            user.ID,
 			OAuthAccessToken:  "access",
 			OAuthRefreshToken: "refresh",
 		})
@@ -80,7 +87,9 @@ func TestUserLinks(t *testing.T) {
 		t.Parallel()
 		db, crypt, cipher := setup(t)
 		initCipher(t, cipher)
+		user := dbgen.User(t, crypt, database.User{})
 		link := dbgen.UserLink(t, crypt, database.UserLink{
+			UserID:            user.ID,
 			OAuthAccessToken:  "access",
 			OAuthRefreshToken: "refresh",
 		})
@@ -172,9 +181,44 @@ func TestGitAuthLinks(t *testing.T) {
 	})
 }
 
+func TestDBCryptSentinelValue(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	db, crypt, cipher := setup(t)
+	// Initially, the database will not be encrypted.
+	_, err := db.GetDBCryptSentinelValue(ctx)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	_, err = crypt.GetDBCryptSentinelValue(ctx)
+	require.EqualError(t, err, dbcrypt.ErrNotEncrypted.Error())
+
+	// Now, we'll encrypt the value.
+	initCipher(t, cipher)
+	err = crypt.SetDBCryptSentinelValue(ctx, "coder")
+	require.NoError(t, err)
+
+	// The value should be encrypted in the database.
+	crypted, err := db.GetDBCryptSentinelValue(ctx)
+	require.NoError(t, err)
+	require.NotEqual(t, "coder", crypted)
+	decrypted, err := crypt.GetDBCryptSentinelValue(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "coder", decrypted)
+	requireEncryptedEquals(t, cipher, crypted, "coder")
+
+	// Reset the key and empty values should be returned!
+	initCipher(t, cipher)
+
+	_, err = db.GetDBCryptSentinelValue(ctx) // We can still read the raw value
+	require.NoError(t, err)
+	_, err = crypt.GetDBCryptSentinelValue(ctx) // Decryption should fail
+	require.ErrorIs(t, err, sql.ErrNoRows)
+}
+
 func requireEncryptedEquals(t *testing.T, cipher *atomic.Pointer[dbcrypt.Cipher], value, expected string) {
 	t.Helper()
 	c := (*cipher.Load())
+	require.NotNil(t, c)
+	require.Greater(t, len(value), len(dbcrypt.MagicPrefix), "value is not encrypted")
 	data, err := base64.StdEncoding.DecodeString(value[len(dbcrypt.MagicPrefix):])
 	require.NoError(t, err)
 	got, err := c.Decrypt(data)
@@ -194,7 +238,7 @@ func initCipher(t *testing.T, cipher *atomic.Pointer[dbcrypt.Cipher]) {
 
 func setup(t *testing.T) (db, cryptodb database.Store, cipher *atomic.Pointer[dbcrypt.Cipher]) {
 	t.Helper()
-	rawDB := dbfake.New()
+	rawDB, _ := dbtestutil.NewDB(t)
 	cipher = &atomic.Pointer[dbcrypt.Cipher]{}
 	return rawDB, dbcrypt.New(rawDB, &dbcrypt.Options{
 		ExternalTokenCipher: cipher,

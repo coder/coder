@@ -636,6 +636,26 @@ func (q *sqlQuerier) InsertAuditLog(ctx context.Context, arg InsertAuditLogParam
 	return i, err
 }
 
+const getDBCryptSentinelValue = `-- name: GetDBCryptSentinelValue :one
+SELECT val FROM dbcrypt_sentinel LIMIT 1
+`
+
+func (q *sqlQuerier) GetDBCryptSentinelValue(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getDBCryptSentinelValue)
+	var val string
+	err := row.Scan(&val)
+	return val, err
+}
+
+const setDBCryptSentinelValue = `-- name: SetDBCryptSentinelValue :exec
+INSERT INTO dbcrypt_sentinel (val) VALUES ($1) ON CONFLICT (only_one) DO UPDATE SET val = excluded.val
+`
+
+func (q *sqlQuerier) SetDBCryptSentinelValue(ctx context.Context, val string) error {
+	_, err := q.db.ExecContext(ctx, setDBCryptSentinelValue, val)
+	return err
+}
+
 const getFileByHashAndCreator = `-- name: GetFileByHashAndCreator :one
 SELECT
 	hash, created_at, created_by, mimetype, data, id

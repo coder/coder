@@ -44,6 +44,7 @@ func New() database.Store {
 			organizationMembers:       make([]database.OrganizationMember, 0),
 			organizations:             make([]database.Organization, 0),
 			users:                     make([]database.User, 0),
+			dbcryptSentinelValue:      nil,
 			gitAuthLinks:              make([]database.GitAuthLink, 0),
 			groups:                    make([]database.Group, 0),
 			groupMembers:              make([]database.GroupMember, 0),
@@ -116,6 +117,7 @@ type data struct {
 	// New tables
 	workspaceAgentStats           []database.WorkspaceAgentStat
 	auditLogs                     []database.AuditLog
+	dbcryptSentinelValue          *string
 	files                         []database.File
 	gitAuthLinks                  []database.GitAuthLink
 	gitSSHKey                     []database.GitSSHKey
@@ -1181,6 +1183,15 @@ func (q *FakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.U
 		Roles:    roles,
 		Groups:   groups,
 	}, nil
+}
+
+func (q *FakeQuerier) GetDBCryptSentinelValue(_ context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	if q.dbcryptSentinelValue == nil {
+		return "", sql.ErrNoRows
+	}
+	return *q.dbcryptSentinelValue, nil
 }
 
 func (q *FakeQuerier) GetDERPMeshKey(_ context.Context) (string, error) {
@@ -4820,6 +4831,13 @@ func (q *FakeQuerier) RegisterWorkspaceProxy(_ context.Context, arg database.Reg
 		}
 	}
 	return database.WorkspaceProxy{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) SetDBCryptSentinelValue(_ context.Context, value string) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	q.dbcryptSentinelValue = &value
+	return nil
 }
 
 func (*FakeQuerier) TryAcquireLock(_ context.Context, _ int64) (bool, error) {
