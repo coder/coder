@@ -29,7 +29,7 @@
     <projectSourceUrl>https://github.com/coder/coder.git</projectSourceUrl>
     <docsUrl>https://coder.com/docs/v2/latest</docsUrl>
     <bugTrackerUrl>https://github.com/coder/coder/issues</bugTrackerUrl>
-		<releaseNotes>https://github.com/coder/coder/releases/tag/v$version$</releaseNotes>
+    <releaseNotes>https://github.com/coder/coder/releases/tag/v$version$</releaseNotes>
     <tags>coder remote-dev terraform development</tags>
     <summary>Remote development environments on your infrastructure provisioned with Terraform</summary>
     <description>Remote development environments on your infrastructure provisioned with Terraform</description>
