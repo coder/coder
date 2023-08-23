@@ -1129,8 +1129,8 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					// considered both correct and incorrect behavior.
 					// { // One hour of usage, but same user and same template app, only count once.
 					// 	app:       users[0].workspaces[1].apps[0],
-					// 	startedAt: weekAgo,
-					// 	endedAt:   weekAgo.Add(time.Hour),
+					// 	startedAt: frozenWeekAgo,
+					// 	endedAt:   frozenWeekAgo.Add(time.Hour),
 					// 	requests:  1,
 					// },
 					{
