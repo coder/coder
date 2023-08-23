@@ -456,10 +456,10 @@ DB_GEN_FILES := \
 
 # all gen targets should be added here and to gen/mark-fresh
 gen: \
-	coderd/database/dump.sql \
-	$(DB_GEN_FILES) \
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
+	coderd/database/dump.sql \
+	$(DB_GEN_FILES) \
 	site/src/api/typesGenerated.ts \
 	coderd/rbac/object_gen.go \
 	docs/admin/prometheus.md \
@@ -478,10 +478,10 @@ gen: \
 # used during releases so we don't run generation scripts.
 gen/mark-fresh:
 	files="\
-		coderd/database/dump.sql \
-		$(DB_GEN_FILES) \
 		provisionersdk/proto/provisioner.pb.go \
 		provisionerd/proto/provisionerd.pb.go \
+		coderd/database/dump.sql \
+		$(DB_GEN_FILES) \
 		site/src/api/typesGenerated.ts \
 		coderd/rbac/object_gen.go \
 		docs/admin/prometheus.md \
