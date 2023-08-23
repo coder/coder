@@ -232,6 +232,7 @@ func setupAgent(t *testing.T, agentAddresses []netip.Prefix) (uuid.UUID, agent.A
 		logger,
 		derpServer,
 		func() *tailcfg.DERPMap { return manifest.DERPMap },
+		false,
 		func(context.Context) (tailnet.MultiAgentConn, error) { return coord.ServeMultiAgent(uuid.New()), nil },
 		cache,
 		trace.NewNoopTracerProvider(),

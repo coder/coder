@@ -405,6 +405,7 @@ func New(options *Options) *API {
 			options.Logger,
 			options.DERPServer,
 			api.DERPMap,
+			options.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
 			func(context.Context) (tailnet.MultiAgentConn, error) {
 				return (*api.TailnetCoordinator.Load()).ServeMultiAgent(uuid.New()), nil
 			},
