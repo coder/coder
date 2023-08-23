@@ -142,10 +142,8 @@ export const TemplateEmbedPageView: FC<{
           <Box
             display="flex"
             height={{
-              // 80px is the vertical padding of the content area 36px is from
-              // the status bar from the bottom We want to use the vh unit since
-              // it will be sticky to the screen and not relative to the parent
-              // layout
+              // 80px for padding, 36px is for the status bar. We want to use `vh`
+              // so that it will be relative to the screen and not the parent layout.
               height: "calc(100vh - (80px + 36px))",
               top: 40,
               position: "sticky",
