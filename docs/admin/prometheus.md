@@ -15,12 +15,11 @@ either the environment variable `CODER_PROMETHEUS_ENABLE` or the flag
 
 The Prometheus endpoint address is `http://localhost:2112/` by default. You can
 use either the environment variable `CODER_PROMETHEUS_ADDRESS` or the flag
-` --prometheus-address <network-interface>:<port>` to select a different listen
+`--prometheus-address <network-interface>:<port>` to select a different listen
 address.
 
 If `coder server --prometheus-enable` is started locally, you can preview the
 metrics endpoint in your browser or by using curl:
-<!-- markdown-link-check-disable -->http://localhost:2112/<!-- markdown-link-check-enable -->.
 
 ```console
 $ curl http://localhost:2112/
