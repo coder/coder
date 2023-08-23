@@ -656,141 +656,6 @@ func TestTemplateInsights_Golden(t *testing.T) {
 		appUsage   []appUsage
 	}
 
-	createFixture := func() ([]*testTemplate, []*testUser) {
-		// Test templates and configuration to generate.
-		templates := []*testTemplate{
-			// Create two templates with near-identical apps and parameters
-			// to allow testing for grouping similar data.
-			{
-				name: "template1",
-				parameters: []*templateParameter{
-					{name: "param1", description: "This is first parameter"},
-					{name: "param2", description: "This is second parameter"},
-					{name: "param3", description: "This is third parameter"},
-					{
-						name:        "param4",
-						description: "This is fourth parameter",
-						options: []templateParameterOption{
-							{name: "option1", value: "option1"},
-							{name: "option2", value: "option2"},
-						},
-					},
-				},
-				apps: []templateApp{
-					{name: "app1", icon: "/icon1.png"},
-					{name: "app2", icon: "/icon2.png"},
-					{name: "app3", icon: "/icon2.png"},
-				},
-			},
-			{
-				name: "template2",
-				parameters: []*templateParameter{
-					{name: "param1", description: "This is first parameter"},
-					{name: "param2", description: "This is second parameter"},
-					{name: "param3", description: "This is third parameter"},
-				},
-				apps: []templateApp{
-					{name: "app1", icon: "/icon1.png"},
-					{name: "app2", icon: "/icon2.png"},
-					{name: "app3", icon: "/icon2.png"},
-				},
-			},
-			// Create another template with different parameters and apps.
-			{
-				name: "othertemplate",
-				parameters: []*templateParameter{
-					{name: "otherparam1", description: "This is another parameter"},
-				},
-				apps: []templateApp{
-					{name: "otherapp1", icon: "/icon1.png"},
-				},
-			},
-		}
-
-		// Users and workspaces to generate.
-		users := []*testUser{
-			{
-				name: "user1",
-				workspaces: []*testWorkspace{
-					{
-						name:     "workspace1",
-						template: templates[0],
-						buildParameters: []buildParameter{
-							{templateParameter: templates[0].parameters[0], value: "abc"},
-							{templateParameter: templates[0].parameters[1], value: "123"},
-							{templateParameter: templates[0].parameters[2], value: "bbb"},
-							{templateParameter: templates[0].parameters[3], value: "option1"},
-						},
-					},
-					{
-						name:     "workspace2",
-						template: templates[1],
-						buildParameters: []buildParameter{
-							{templateParameter: templates[0].parameters[0], value: "ABC"},
-							{templateParameter: templates[0].parameters[1], value: "123"},
-							{templateParameter: templates[0].parameters[2], value: "BBB"},
-							{templateParameter: templates[0].parameters[3], value: "option2"},
-						},
-					},
-					{
-						name:     "otherworkspace1",
-						template: templates[2],
-					},
-				},
-			},
-			{
-				name: "user2",
-				workspaces: []*testWorkspace{
-					{
-						name:     "workspace1",
-						template: templates[0],
-						buildParameters: []buildParameter{
-							{templateParameter: templates[0].parameters[0], value: "abc"},
-							{templateParameter: templates[0].parameters[1], value: "123"},
-							{templateParameter: templates[0].parameters[2], value: "BBB"},
-							{templateParameter: templates[0].parameters[3], value: "option1"},
-						},
-					},
-				},
-			},
-			{
-				name: "user3",
-				workspaces: []*testWorkspace{
-					{
-						name:     "otherworkspace1",
-						template: templates[2],
-						buildParameters: []buildParameter{
-							{templateParameter: templates[2].parameters[0], value: "xyz"},
-						},
-					},
-				},
-			},
-		}
-
-		// Post-process.
-		var stableIDs []uuid.UUID
-		newStableUUID := func() uuid.UUID {
-			stableIDs = append(stableIDs, uuid.MustParse(fmt.Sprintf("00000000-0000-0000-0000-%012d", len(stableIDs)+1)))
-			stableID := stableIDs[len(stableIDs)-1]
-			return stableID
-		}
-
-		for _, template := range templates {
-			template.id = newStableUUID()
-		}
-		for _, user := range users {
-			for _, workspace := range user.workspaces {
-				workspace.user = user
-				for _, app := range workspace.template.apps {
-					app := workspaceApp(app)
-					workspace.apps = append(workspace.apps, &app)
-				}
-			}
-		}
-
-		return templates, users
-	}
-
 	prepare := func(t *testing.T, templates []*testTemplate, users []*testUser, testData map[*testWorkspace]testDataGen) *codersdk.Client {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
 		db, pubsub := dbtestutil.NewDB(t)
@@ -1026,6 +891,164 @@ func TestTemplateInsights_Golden(t *testing.T) {
 		return client
 	}
 
+	prepareFixtureAndTestData := func(t *testing.T, makeFixture func() ([]*testTemplate, []*testUser), makeData func([]*testTemplate, []*testUser) map[*testWorkspace]testDataGen) ([]*testTemplate, []*testUser, map[*testWorkspace]testDataGen) {
+		var stableIDs []uuid.UUID
+		newStableUUID := func() uuid.UUID {
+			stableIDs = append(stableIDs, uuid.MustParse(fmt.Sprintf("00000000-0000-0000-0000-%012d", len(stableIDs)+1)))
+			stableID := stableIDs[len(stableIDs)-1]
+			return stableID
+		}
+
+		templates, users := makeFixture()
+		for _, template := range templates {
+			template.id = newStableUUID()
+		}
+		for _, user := range users {
+			for _, workspace := range user.workspaces {
+				workspace.user = user
+				for _, app := range workspace.template.apps {
+					app := workspaceApp(app)
+					workspace.apps = append(workspace.apps, &app)
+				}
+			}
+		}
+
+		testData := makeData(templates, users)
+		// Sanity check.
+		for ws, data := range testData {
+			for _, usage := range data.appUsage {
+				found := false
+				wrongWorkspace := false
+				for _, app := range ws.apps {
+					if usage.app == app { // Pointer equality
+						found = true
+						break
+					}
+					if *usage.app == *app {
+						wrongWorkspace = true
+					}
+				}
+				require.True(t, found, "test bug: app %q not in workspace %q [wrongWorkspace=%v]", usage.app.name, ws.name, wrongWorkspace)
+			}
+		}
+
+		return templates, users, testData
+	}
+
+	baseTemplateAndUserFixture := func() ([]*testTemplate, []*testUser) {
+		// Test templates and configuration to generate.
+		templates := []*testTemplate{
+			// Create two templates with near-identical apps and parameters
+			// to allow testing for grouping similar data.
+			{
+				name: "template1",
+				parameters: []*templateParameter{
+					{name: "param1", description: "This is first parameter"},
+					{name: "param2", description: "This is second parameter"},
+					{name: "param3", description: "This is third parameter"},
+					{
+						name:        "param4",
+						description: "This is fourth parameter",
+						options: []templateParameterOption{
+							{name: "option1", value: "option1"},
+							{name: "option2", value: "option2"},
+						},
+					},
+				},
+				apps: []templateApp{
+					{name: "app1", icon: "/icon1.png"},
+					{name: "app2", icon: "/icon2.png"},
+					{name: "app3", icon: "/icon2.png"},
+				},
+			},
+			{
+				name: "template2",
+				parameters: []*templateParameter{
+					{name: "param1", description: "This is first parameter"},
+					{name: "param2", description: "This is second parameter"},
+					{name: "param3", description: "This is third parameter"},
+				},
+				apps: []templateApp{
+					{name: "app1", icon: "/icon1.png"},
+					{name: "app2", icon: "/icon2.png"},
+					{name: "app3", icon: "/icon2.png"},
+				},
+			},
+			// Create another template with different parameters and apps.
+			{
+				name: "othertemplate",
+				parameters: []*templateParameter{
+					{name: "otherparam1", description: "This is another parameter"},
+				},
+				apps: []templateApp{
+					{name: "otherapp1", icon: "/icon1.png"},
+				},
+			},
+		}
+
+		// Users and workspaces to generate.
+		users := []*testUser{
+			{
+				name: "user1",
+				workspaces: []*testWorkspace{
+					{
+						name:     "workspace1",
+						template: templates[0],
+						buildParameters: []buildParameter{
+							{templateParameter: templates[0].parameters[0], value: "abc"},
+							{templateParameter: templates[0].parameters[1], value: "123"},
+							{templateParameter: templates[0].parameters[2], value: "bbb"},
+							{templateParameter: templates[0].parameters[3], value: "option1"},
+						},
+					},
+					{
+						name:     "workspace2",
+						template: templates[1],
+						buildParameters: []buildParameter{
+							{templateParameter: templates[0].parameters[0], value: "ABC"},
+							{templateParameter: templates[0].parameters[1], value: "123"},
+							{templateParameter: templates[0].parameters[2], value: "BBB"},
+							{templateParameter: templates[0].parameters[3], value: "option2"},
+						},
+					},
+					{
+						name:     "otherworkspace1",
+						template: templates[2],
+					},
+				},
+			},
+			{
+				name: "user2",
+				workspaces: []*testWorkspace{
+					{
+						name:     "workspace1",
+						template: templates[0],
+						buildParameters: []buildParameter{
+							{templateParameter: templates[0].parameters[0], value: "abc"},
+							{templateParameter: templates[0].parameters[1], value: "123"},
+							{templateParameter: templates[0].parameters[2], value: "BBB"},
+							{templateParameter: templates[0].parameters[3], value: "option1"},
+						},
+					},
+				},
+			},
+			{
+				name: "user3",
+				workspaces: []*testWorkspace{
+					{
+						name:     "otherworkspace1",
+						template: templates[2],
+						buildParameters: []buildParameter{
+							{templateParameter: templates[2].parameters[0], value: "xyz"},
+						},
+					},
+				},
+			},
+		}
+
+		return templates, users
+	}
+
 	// Time range for report, test data will be generated within and
 	// outside this range, but only data within the range should be
 	// included in the report.
@@ -1127,11 +1150,13 @@ func TestTemplateInsights_Golden(t *testing.T) {
 	}
 	tests := []struct {
 		name         string
+		makeFixture  func() ([]*testTemplate, []*testUser)
 		makeTestData func([]*testTemplate, []*testUser) map[*testWorkspace]testDataGen
 		requests     []testRequest
 	}{
 		{
 			name:         "multiple users and workspaces",
+			makeFixture:  baseTemplateAndUserFixture,
 			makeTestData: makeBaseTestData,
 			requests: []testRequest{
 				{
@@ -1203,7 +1228,8 @@ func TestTemplateInsights_Golden(t *testing.T) {
 			},
 		},
 		{
-			name: "parameters",
+			name:        "parameters",
+			makeFixture: baseTemplateAndUserFixture,
 			makeTestData: func(templates []*testTemplate, users []*testUser) map[*testWorkspace]testDataGen {
 				return map[*testWorkspace]testDataGen{}
 			},
@@ -1232,26 +1258,9 @@ func TestTemplateInsights_Golden(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			templates, users := createFixture()
-			testData := tt.makeTestData(templates, users)
-			// Sanity check.
-			for ws, data := range testData {
-				for _, usage := range data.appUsage {
-					found := false
-					wrongWorkspace := false
-					for _, app := range ws.apps {
-						if usage.app == app { // Pointer equality
-							found = true
-							break
-						}
-						if *usage.app == *app {
-							wrongWorkspace = true
-						}
-					}
-					require.True(t, found, "test bug: app %q not in workspace %q [wrongWorkspace=%v]", usage.app.name, ws.name, wrongWorkspace)
-				}
-			}
-
+			require.NotNil(t, tt.makeFixture, "test bug: makeFixture must be set")
+			require.NotNil(t, tt.makeTestData, "test bug: makeTestData must be set")
+			templates, users, testData := prepareFixtureAndTestData(t, tt.makeFixture, tt.makeTestData)
 			client := prepare(t, templates, users, testData)
 
 			for _, req := range tt.requests {
