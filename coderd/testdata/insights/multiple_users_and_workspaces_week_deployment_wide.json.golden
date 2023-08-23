@@ -6,7 +6,7 @@
       "00000000-0000-0000-0000-000000000001",
       "00000000-0000-0000-0000-000000000002"
     ],
-    "active_users": 1,
+    "active_users": 2,
     "apps_usage": [
       {
         "template_ids": [
@@ -50,7 +50,7 @@
         "display_name": "SSH",
         "slug": "ssh",
         "icon": "/icon/terminal.svg",
-        "seconds": 4500
+        "seconds": 8100
       },
       {
         "template_ids": [
@@ -85,7 +85,7 @@
         "00000000-0000-0000-0000-000000000002"
       ],
       "interval": "day",
-      "active_users": 1
+      "active_users": 2
     },
     {
       "start_time": "2023-08-16T00:00:00Z",
