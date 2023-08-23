@@ -60,11 +60,7 @@ export function HealthPageView({
   const styles = useStyles()
 
   return (
-    <DashboardFullPage
-      sx={{
-        overflow: "hidden",
-      }}
-    >
+    <DashboardFullPage>
       <FullWidthPageHeader sticky={false}>
         <Stack direction="row" spacing={2} alignItems="center">
           {healthStatus.healthy ? (
@@ -113,8 +109,10 @@ export function HealthPageView({
       <Box
         sx={{
           display: "flex",
+          flexBasis: 0,
+          flex: 1,
           alignItems: "start",
-          height: "100%",
+          overflow: "hidden",
         }}
       >
         <Box
