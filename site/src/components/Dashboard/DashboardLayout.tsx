@@ -113,6 +113,7 @@ export const DashboardFullPage = (props: BoxProps) => {
         display: "flex",
         flexDirection: "column",
         flexBasis: 0,
+        minHeight: "100%",
       }}
     />
   )
