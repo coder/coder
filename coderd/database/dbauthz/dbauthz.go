@@ -635,14 +635,14 @@ func authorizedTemplateVersionFromJob(ctx context.Context, q *querier, job datab
 	}
 }
 
-func (q *querier) UpdateWorkspaceDormantDeletingAtt(ctx context.Context, arg database.UpdateWorkspaceDormantDeletingAtParams) (database.Workspace, error) {
+func (q *querier) UpdateWorkspaceDormantDeletingAt(ctx context.Context, arg database.UpdateWorkspaceDormantDeletingAtParams) (database.Workspace, error) {
 	fetch := func(ctx context.Context, arg database.UpdateWorkspaceDormantDeletingAtParams) (database.Workspace, error) {
 		return q.db.GetWorkspaceByID(ctx, arg.ID)
 	}
 	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateWorkspaceDormantDeletingAt)(ctx, arg)
 }
 
-func (q *querier) UpdateWorkspacesLockedDeletingAtByTemplateID(ctx context.Context, arg database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams) error {
+func (q *querier) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Context, arg database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams) (database.Template, error) {
 		return q.db.GetTemplateByID(ctx, arg.TemplateID)
 	}
@@ -2651,10 +2651,6 @@ func (q *querier) UpdateWorkspaceDeletedByID(ctx context.Context, arg database.U
 	return deleteQ(q.log, q.auth, fetch, q.db.UpdateWorkspaceDeletedByID)(ctx, arg)
 }
 
-func (q *querier) UpdateWorkspaceDormantDeletingAt(ctx context.Context, arg database.UpdateWorkspaceDormantDeletingAtParams) (database.Workspace, error) {
-	panic("not implemented")
-}
-
 func (q *querier) UpdateWorkspaceLastUsedAt(ctx context.Context, arg database.UpdateWorkspaceLastUsedAtParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateWorkspaceLastUsedAtParams) (database.Workspace, error) {
 		return q.db.GetWorkspaceByID(ctx, arg.ID)
@@ -2681,10 +2677,6 @@ func (q *querier) UpdateWorkspaceTTL(ctx context.Context, arg database.UpdateWor
 		return q.db.GetWorkspaceByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceTTL)(ctx, arg)
-}
-
-func (q *querier) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Context, arg database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams) error {
-	panic("not implemented")
 }
 
 func (q *querier) UpsertAppSecurityKey(ctx context.Context, data string) error {
