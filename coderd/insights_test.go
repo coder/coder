@@ -1156,8 +1156,15 @@ func TestTemplateInsights_Golden(t *testing.T) {
 				appUsage: []appUsage{},
 			},
 			users[2].workspaces[0]: {
-				agentStats: []agentStat{},
-				appUsage:   []appUsage{},
+				agentStats: []agentStat{
+					{ // One hour of usage.
+						startedAt:                   frozenWeekAgo,
+						endedAt:                     frozenWeekAgo.Add(time.Hour),
+						sessionCountSSH:             1,
+						sessionCountReconnectingPTY: 1,
+					},
+				},
+				appUsage: []appUsage{},
 			},
 		}
 	}
