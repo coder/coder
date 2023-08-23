@@ -36,7 +36,7 @@ replace github.com/dlclark/regexp2 => github.com/dlclark/regexp2 v1.7.0
 
 // There are a few minor changes we make to Tailscale that we're slowly upstreaming. Compare here:
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
-replace tailscale.com => ../tailscale
+replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20230821155031-1f653630ac0f
 
 // This is replaced to include a fix that causes a deadlock when closing the
 // wireguard network.
@@ -77,7 +77,6 @@ require (
 	github.com/andybalholm/brotli v1.0.5
 	github.com/armon/circbuf v0.0.0-20190214190532-5111143e8da2
 	github.com/awalterschulze/gographviz v2.0.3+incompatible
-	github.com/bep/debounce v1.2.1
 	github.com/bgentry/speakeasy v0.1.1-0.20220910012023-760eaf8b6816
 	github.com/bramvdbogaerde/go-scp v1.2.1-0.20221219230748-977ee74ac37b
 	github.com/briandowns/spinner v1.18.1
@@ -198,6 +197,8 @@ require (
 	storj.io/drpc v0.0.33-0.20230420154621-9716137f6037
 	tailscale.com v1.46.1
 )
+
+require golang.org/x/time v0.3.0
 
 require (
 	cloud.google.com/go/compute v1.23.0 // indirect
@@ -383,7 +384,6 @@ require (
 	go.opentelemetry.io/otel/metric v1.16.0 // indirect
 	go.opentelemetry.io/proto/otlp v0.19.0 // indirect
 	go4.org/mem v0.0.0-20220726221520-4f986261bf13 // indirect
-	golang.org/x/time v0.3.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20230215201556-9c5414ab4bde // indirect
 	golang.zx2c4.com/wireguard/windows v0.5.3 // indirect
