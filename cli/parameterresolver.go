@@ -185,6 +185,7 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 
 		firstTimeUse := pr.isFirstTimeUse(tvp.Name)
 		promptParameterOption := pr.isLastBuildParameterInvalidOption(tvp)
+
 		if (tvp.Ephemeral && pr.promptBuildOptions) ||
 			(action == WorkspaceCreate && tvp.Required) ||
 			(action == WorkspaceCreate && !tvp.Ephemeral) ||
