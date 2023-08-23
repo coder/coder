@@ -14,7 +14,7 @@ type MultiAgentConn interface {
 	UpdateSelf(node *Node) error
 	SubscribeAgent(agentID uuid.UUID) error
 	UnsubscribeAgent(agentID uuid.UUID) error
-	NextUpdate(ctx context.Context) ([]*Node, bool)
+	NextUpdate(ctx context.Context) (CoordinatorReply, bool)
 	AgentIsLegacy(agentID uuid.UUID) bool
 	Close() error
 	IsClosed() bool
@@ -32,7 +32,7 @@ type MultiAgent struct {
 	OnRemove          func(id uuid.UUID)
 
 	closed    bool
-	updates   chan []*Node
+	replies   chan CoordinatorReply
 	closeOnce sync.Once
 	start     int64
 	lastWrite int64
@@ -42,7 +42,7 @@ type MultiAgent struct {
 }
 
 func (m *MultiAgent) Init() *MultiAgent {
-	m.updates = make(chan []*Node, 128)
+	m.replies = make(chan CoordinatorReply, 128)
 	m.start = time.Now().Unix()
 	return m
 }
@@ -80,7 +80,9 @@ func (m *MultiAgent) SubscribeAgent(agentID uuid.UUID) error {
 	}
 
 	if node != nil {
-		return m.enqueueLocked([]*Node{node})
+		return m.enqueueLocked(CoordinatorReply{
+			AddNodes: []*Node{node},
+		})
 	}
 
 	return nil
@@ -96,17 +98,17 @@ func (m *MultiAgent) UnsubscribeAgent(agentID uuid.UUID) error {
 	return m.OnUnsubscribe(m, agentID)
 }
 
-func (m *MultiAgent) NextUpdate(ctx context.Context) ([]*Node, bool) {
+func (m *MultiAgent) NextUpdate(ctx context.Context) (CoordinatorReply, bool) {
 	select {
 	case <-ctx.Done():
-		return nil, false
+		return CoordinatorReply{}, false
 
-	case nodes, ok := <-m.updates:
-		return nodes, ok
+	case reply, ok := <-m.replies:
+		return reply, ok
 	}
 }
 
-func (m *MultiAgent) Enqueue(nodes []*Node) error {
+func (m *MultiAgent) Enqueue(reply CoordinatorReply) error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -114,14 +116,14 @@ func (m *MultiAgent) Enqueue(nodes []*Node) error {
 		return nil
 	}
 
-	return m.enqueueLocked(nodes)
+	return m.enqueueLocked(reply)
 }
 
-func (m *MultiAgent) enqueueLocked(nodes []*Node) error {
+func (m *MultiAgent) enqueueLocked(reply CoordinatorReply) error {
 	atomic.StoreInt64(&m.lastWrite, time.Now().Unix())
 
 	select {
-	case m.updates <- nodes:
+	case m.replies <- reply:
 		return nil
 	default:
 		return ErrWouldBlock
@@ -150,7 +152,7 @@ func (m *MultiAgent) CoordinatorClose() error {
 	m.mu.Lock()
 	if !m.closed {
 		m.closed = true
-		close(m.updates)
+		close(m.replies)
 	}
 	m.mu.Unlock()
 	return nil

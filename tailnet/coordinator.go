@@ -24,6 +24,34 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
+// CoordinatorRequest is sent by clients through the coordinator protocol V2
+// WebSocket to the coordinator server.
+//
+// NOTE: this struct MUST ALWAYS be backwards compatible. If backwards
+// incompatible changes are made, old clients and agents will not be able to
+// connect via an up-to-date server.
+type CoordinatorRequest struct {
+	// Node is the peer's latest node information, or nil if there is no new
+	// node.
+	Node *Node `json:"node"`
+}
+
+// CoordinatorReply is sent by the coordinator server through the coordinator
+// protocol V2 WebSocket to the client. This packet is not sent as a reply to
+// CoordinatorRequest, but rather as a periodic broadcast when there is new
+// information available for the client.
+//
+// NOTE: this struct MUST ALWAYS be backwards compatible. If backwards
+// incompatible changes are made, old clients and agents will not be able to
+// connect via an up-to-date server.
+type CoordinatorReply struct {
+	// AddNodes is the list of peer nodes that the client should add to
+	// tailnet.Conn. It may be empty if there are no new nodes to add.
+	AddNodes []*Node `json:"add_nodes"`
+	// TODO: RemoveNodes
+	// TODO: DERPMap
+}
+
 // Coordinator exchanges nodes with agents to establish connections.
 // ┌──────────────────┐   ┌────────────────────┐   ┌───────────────────┐   ┌──────────────────┐
 // │tailnet.Coordinate├──►│tailnet.AcceptClient│◄─►│tailnet.AcceptAgent│◄──┤tailnet.Coordinate│
@@ -37,11 +65,11 @@ type Coordinator interface {
 	Node(id uuid.UUID) *Node
 	// ServeClient accepts a WebSocket connection that wants to connect to an agent
 	// with the specified ID.
-	ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) error
+	ServeClient(client CoordinatorClient, id uuid.UUID, agent uuid.UUID) error
 	// ServeAgent accepts a WebSocket connection to an agent that listens to
 	// incoming connections and publishes node updates.
 	// Name is just used for debug information. It can be left blank.
-	ServeAgent(conn net.Conn, id uuid.UUID, name string) error
+	ServeAgent(client CoordinatorClient, id uuid.UUID, name string) error
 	// Close closes the coordinator.
 	Close() error
 
@@ -79,7 +107,11 @@ type Node struct {
 	Endpoints []string `json:"endpoints"`
 }
 
-// ServeCoordinator matches the RW structure of a coordinator to exchange node messages.
+// ServeCoordinator matches the RW structure of a coordinator to exchange node
+// messages.
+//
+// This function can only handle coordinator protocol V2, and should not be
+// passed a connection made to a deprecated coordinator endpoint.
 func ServeCoordinator(conn net.Conn, updateNodes func(node []*Node) error) (func(node *Node), <-chan error) {
 	errChan := make(chan error, 1)
 	sendErr := func(err error) {
@@ -91,23 +123,28 @@ func ServeCoordinator(conn net.Conn, updateNodes func(node []*Node) error) (func
 	go func() {
 		decoder := json.NewDecoder(conn)
 		for {
-			var nodes []*Node
-			err := decoder.Decode(&nodes)
+			var reply CoordinatorReply
+			err := decoder.Decode(&reply)
 			if err != nil {
-				sendErr(xerrors.Errorf("read: %w", err))
+				sendErr(xerrors.Errorf("read coordinator reply: %w", err))
 				return
 			}
-			err = updateNodes(nodes)
+			// TODO: change the callback on this function to accept the whole
+			// reply struct
+			err = updateNodes(reply.AddNodes)
 			if err != nil {
 				sendErr(xerrors.Errorf("update nodes: %w", err))
 			}
 		}
 	}()
 
+	// TODO: change the returned function to take a whole request struct
 	return func(node *Node) {
-		data, err := json.Marshal(node)
+		data, err := json.Marshal(CoordinatorRequest{
+			Node: node,
+		})
 		if err != nil {
-			sendErr(xerrors.Errorf("marshal node: %w", err))
+			sendErr(xerrors.Errorf("marshal coordinator request: %w", err))
 			return
 		}
 		_, err = conn.Write(data)
@@ -193,7 +230,7 @@ type core struct {
 
 type Queue interface {
 	UniqueID() uuid.UUID
-	Enqueue(n []*Node) error
+	Enqueue(reply CoordinatorReply) error
 	Name() string
 	Stats() (start, lastWrite int64)
 	Overwrites() int64
@@ -258,13 +295,13 @@ func (c *core) agentCount() int {
 
 // ServeClient accepts a WebSocket connection that wants to connect to an agent
 // with the specified ID.
-func (c *coordinator) ServeClient(conn net.Conn, id, agentID uuid.UUID) error {
+func (c *coordinator) ServeClient(client CoordinatorClient, id, agentID uuid.UUID) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	logger := c.core.clientLogger(id, agentID)
 	logger.Debug(ctx, "coordinating client")
 
-	tc := NewTrackedConn(ctx, cancel, conn, id, logger, id.String(), 0)
+	tc := NewTrackedConn(ctx, cancel, client, id, logger, id.String(), 0)
 	defer tc.Close()
 
 	c.core.addClient(id, tc)
@@ -276,19 +313,20 @@ func (c *coordinator) ServeClient(conn net.Conn, id, agentID uuid.UUID) error {
 	}
 
 	if agentNode != nil {
-		err := tc.Enqueue([]*Node{agentNode})
+		err := tc.Enqueue(CoordinatorReply{
+			AddNodes: []*Node{agentNode},
+		})
 		if err != nil {
 			logger.Debug(ctx, "enqueue initial node", slog.Error(err))
 		}
 	}
 
-	// On this goroutine, we read updates from the client and publish them.  We start a second goroutine
-	// to write updates back to the client.
+	// On this goroutine, we read updates from the client and publish them. We
+	// start a second goroutine to write updates back to the client.
 	go tc.SendUpdates()
 
-	decoder := json.NewDecoder(conn)
 	for {
-		err := c.handleNextClientMessage(id, decoder)
+		err := c.handleNextClientMessage(id, client)
 		if err != nil {
 			logger.Debug(ctx, "unable to read client update, connection may be closed", slog.Error(err))
 			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) || errors.Is(err, context.Canceled) {
@@ -341,17 +379,20 @@ func (c *core) clientDisconnected(id uuid.UUID) {
 	logger.Debug(context.Background(), "deleted client agents")
 }
 
-func (c *coordinator) handleNextClientMessage(id uuid.UUID, decoder *json.Decoder) error {
+func (c *coordinator) handleNextClientMessage(id uuid.UUID, client CoordinatorClient) error {
 	logger := c.core.clientLogger(id, uuid.Nil)
 
-	var node Node
-	err := decoder.Decode(&node)
+	req, err := client.ReadRequest()
 	if err != nil {
-		return xerrors.Errorf("read json: %w", err)
+		return xerrors.Errorf("read client request: %w", err)
 	}
 
-	logger.Debug(context.Background(), "got client node update", slog.F("node", node))
-	return c.core.clientNodeUpdate(id, &node)
+	logger.Debug(context.Background(), "got client coordinator request", slog.F("req", req))
+
+	if req.Node == nil {
+		return nil
+	}
+	return c.core.clientNodeUpdate(id, req.Node)
 }
 
 func (c *core) clientNodeUpdate(id uuid.UUID, node *Node) error {
@@ -376,7 +417,9 @@ func (c *core) clientNodeUpdateLocked(id uuid.UUID, node *Node) error {
 			continue
 		}
 
-		err := agentSocket.Enqueue([]*Node{node})
+		err := agentSocket.Enqueue(CoordinatorReply{
+			AddNodes: []*Node{node},
+		})
 		if err != nil {
 			logger.Debug(context.Background(), "unable to Enqueue node to agent", slog.Error(err), slog.F("agent_id", agentID))
 			continue
@@ -404,7 +447,9 @@ func (c *core) clientSubscribeToAgent(enq Queue, agentID uuid.UUID) (*Node, erro
 		if !ok {
 			logger.Debug(context.Background(), "subscribe to agent; socket is nil")
 		} else {
-			err := agentSocket.Enqueue([]*Node{node})
+			err := agentSocket.Enqueue(CoordinatorReply{
+				AddNodes: []*Node{node},
+			})
 			if err != nil {
 				return nil, xerrors.Errorf("enqueue client to agent: %w", err)
 			}
@@ -439,14 +484,14 @@ func (c *core) agentLogger(id uuid.UUID) slog.Logger {
 
 // ServeAgent accepts a WebSocket connection to an agent that
 // listens to incoming connections and publishes node updates.
-func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) error {
+func (c *coordinator) ServeAgent(client CoordinatorClient, id uuid.UUID, name string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	logger := c.core.agentLogger(id)
 	logger.Debug(context.Background(), "coordinating agent")
 	// This uniquely identifies a connection that belongs to this goroutine.
 	unique := uuid.New()
-	tc, err := c.core.initAndTrackAgent(ctx, cancel, conn, id, unique, name)
+	tc, err := c.core.initAndTrackAgent(ctx, cancel, client, id, unique, name)
 	if err != nil {
 		return err
 	}
@@ -457,9 +502,8 @@ func (c *coordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) error
 
 	defer c.core.agentDisconnected(id, unique)
 
-	decoder := json.NewDecoder(conn)
 	for {
-		err := c.handleNextAgentMessage(id, decoder)
+		err := c.handleNextAgentMessage(id, client)
 		if err != nil {
 			logger.Debug(ctx, "unable to read agent update, connection may be closed", slog.Error(err))
 			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrClosedPipe) || errors.Is(err, context.Canceled) {
@@ -490,7 +534,7 @@ func (c *core) agentDisconnected(id, unique uuid.UUID) {
 // initAndTrackAgent creates a TrackedConn for the agent, and sends any initial nodes updates if we have any.  It is
 // one function that does two things because it is critical that we hold the mutex for both things, lest we miss some
 // updates.
-func (c *core) initAndTrackAgent(ctx context.Context, cancel func(), conn net.Conn, id, unique uuid.UUID, name string) (*TrackedConn, error) {
+func (c *core) initAndTrackAgent(ctx context.Context, cancel func(), client CoordinatorClient, id, unique uuid.UUID, name string) (*TrackedConn, error) {
 	logger := c.logger.With(slog.F("agent_id", id))
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
@@ -509,7 +553,7 @@ func (c *core) initAndTrackAgent(ctx context.Context, cancel func(), conn net.Co
 		overwrites = oldAgentSocket.Overwrites() + 1
 		_ = oldAgentSocket.Close()
 	}
-	tc := NewTrackedConn(ctx, cancel, conn, unique, logger, name, overwrites)
+	tc := NewTrackedConn(ctx, cancel, client, unique, logger, name, overwrites)
 	c.agentNameCache.Add(id, name)
 
 	sockets, ok := c.agentToConnectionSockets[id]
@@ -524,7 +568,9 @@ func (c *core) initAndTrackAgent(ctx context.Context, cancel func(), conn net.Co
 			}
 			nodes = append(nodes, node)
 		}
-		err := tc.Enqueue(nodes)
+		err := tc.Enqueue(CoordinatorReply{
+			AddNodes: nodes,
+		})
 		// this should never error since we're still the only goroutine that
 		// knows about the TrackedConn.  If we hit an error something really
 		// wrong is happening
@@ -544,15 +590,19 @@ func (c *core) initAndTrackAgent(ctx context.Context, cancel func(), conn net.Co
 	return tc, nil
 }
 
-func (c *coordinator) handleNextAgentMessage(id uuid.UUID, decoder *json.Decoder) error {
+func (c *coordinator) handleNextAgentMessage(id uuid.UUID, client CoordinatorClient) error {
 	logger := c.core.agentLogger(id)
-	var node Node
-	err := decoder.Decode(&node)
+
+	req, err := client.ReadRequest()
 	if err != nil {
-		return xerrors.Errorf("read json: %w", err)
+		return xerrors.Errorf("read coordinator request: %w", err)
 	}
-	logger.Debug(context.Background(), "decoded agent node", slog.F("node", node))
-	return c.core.agentNodeUpdate(id, &node)
+	logger.Debug(context.Background(), "decoded agent coordinator request", slog.F("req", req))
+
+	if req.Node == nil {
+		return nil
+	}
+	return c.core.agentNodeUpdate(id, req.Node)
 }
 
 // This is copied from codersdk because importing it here would cause an import
@@ -588,7 +638,9 @@ func (c *core) agentNodeUpdate(id uuid.UUID, node *Node) error {
 
 	// Publish the new node to every listening socket.
 	for clientID, connectionSocket := range connectionSockets {
-		err := connectionSocket.Enqueue([]*Node{node})
+		err := connectionSocket.Enqueue(CoordinatorReply{
+			AddNodes: []*Node{node},
+		})
 		if err == nil {
 			logger.Debug(context.Background(), "enqueued agent node to client",
 				slog.F("client_id", clientID))

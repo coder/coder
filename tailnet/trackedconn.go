@@ -1,10 +1,7 @@
 package tailnet
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"net"
 	"sync/atomic"
 	"time"
 
@@ -20,8 +17,8 @@ const WriteTimeout = time.Second * 5
 type TrackedConn struct {
 	ctx      context.Context
 	cancel   func()
-	conn     net.Conn
-	updates  chan []*Node
+	client   CoordinatorClient
+	replies  chan CoordinatorReply
 	logger   slog.Logger
 	lastData []byte
 
@@ -35,18 +32,19 @@ type TrackedConn struct {
 	overwrites int64
 }
 
-func NewTrackedConn(ctx context.Context, cancel func(), conn net.Conn, id uuid.UUID, logger slog.Logger, name string, overwrites int64) *TrackedConn {
-	// buffer updates so they don't block, since we hold the
-	// coordinator mutex while queuing.  Node updates don't
-	// come quickly, so 512 should be plenty for all but
-	// the most pathological cases.
-	updates := make(chan []*Node, 512)
+var _ Queue = &TrackedConn{}
+
+func NewTrackedConn(ctx context.Context, cancel func(), client CoordinatorClient, id uuid.UUID, logger slog.Logger, name string, overwrites int64) *TrackedConn {
+	// Buffer replies so they don't block, since we hold the coordinator mutex
+	// while queuing. Node updates don't come quickly, so 512 should be plenty
+	// for all but the most pathological cases.
+	replies := make(chan CoordinatorReply, 512)
 	now := time.Now().Unix()
 	return &TrackedConn{
 		ctx:        ctx,
-		conn:       conn,
 		cancel:     cancel,
-		updates:    updates,
+		client:     client,
+		replies:    replies,
 		logger:     logger,
 		id:         id,
 		start:      now,
@@ -56,10 +54,10 @@ func NewTrackedConn(ctx context.Context, cancel func(), conn net.Conn, id uuid.U
 	}
 }
 
-func (t *TrackedConn) Enqueue(n []*Node) (err error) {
+func (t *TrackedConn) Enqueue(reply CoordinatorReply) (err error) {
 	atomic.StoreInt64(&t.lastWrite, time.Now().Unix())
 	select {
-	case t.updates <- n:
+	case t.replies <- reply:
 		return nil
 	default:
 		return ErrWouldBlock
@@ -89,60 +87,28 @@ func (t *TrackedConn) CoordinatorClose() error {
 // Close the connection and cancel the context for reading node updates from the queue
 func (t *TrackedConn) Close() error {
 	t.cancel()
-	return t.conn.Close()
+	return t.client.Close()
 }
 
-// SendUpdates reads node updates and writes them to the connection.  Ends when writes hit an error or context is
-// canceled.
+// SendUpdates reads a reply and writes it to the connection. Ends when writes
+// hit an error or context is canceled.
 func (t *TrackedConn) SendUpdates() {
 	for {
 		select {
 		case <-t.ctx.Done():
-			t.logger.Debug(t.ctx, "done sending updates")
+			t.logger.Debug(t.ctx, "done sending coordinator replies")
 			return
-		case nodes := <-t.updates:
-			data, err := json.Marshal(nodes)
+		case reply := <-t.replies:
+			err := t.client.WriteReply(reply)
 			if err != nil {
-				t.logger.Error(t.ctx, "unable to marshal nodes update", slog.Error(err), slog.F("nodes", nodes))
-				return
-			}
-			if bytes.Equal(t.lastData, data) {
-				t.logger.Debug(t.ctx, "skipping duplicate update", slog.F("nodes", string(data)))
-				continue
-			}
-
-			// Set a deadline so that hung connections don't put back pressure on the system.
-			// Node updates are tiny, so even the dinkiest connection can handle them if it's not hung.
-			err = t.conn.SetWriteDeadline(time.Now().Add(WriteTimeout))
-			if err != nil {
-				// often, this is just because the connection is closed/broken, so only log at debug.
-				t.logger.Debug(t.ctx, "unable to set write deadline", slog.Error(err))
+				// often, this is just because the connection is closed/broken,
+				// so only log at debug.
+				t.logger.Debug(t.ctx, "could not write coordinator reply to connection",
+					slog.Error(err), slog.F("reply", reply))
 				_ = t.Close()
 				return
 			}
-			_, err = t.conn.Write(data)
-			if err != nil {
-				// often, this is just because the connection is closed/broken, so only log at debug.
-				t.logger.Debug(t.ctx, "could not write nodes to connection",
-					slog.Error(err), slog.F("nodes", string(data)))
-				_ = t.Close()
-				return
-			}
-			t.logger.Debug(t.ctx, "wrote nodes", slog.F("nodes", string(data)))
-
-			// nhooyr.io/websocket has a bugged implementation of deadlines on a websocket net.Conn.  What they are
-			// *supposed* to do is set a deadline for any subsequent writes to complete, otherwise the call to Write()
-			// fails.  What nhooyr.io/websocket does is set a timer, after which it expires the websocket write context.
-			// If this timer fires, then the next write will fail *even if we set a new write deadline*.  So, after
-			// our successful write, it is important that we reset the deadline before it fires.
-			err = t.conn.SetWriteDeadline(time.Time{})
-			if err != nil {
-				// often, this is just because the connection is closed/broken, so only log at debug.
-				t.logger.Debug(t.ctx, "unable to extend write deadline", slog.Error(err))
-				_ = t.Close()
-				return
-			}
-			t.lastData = data
+			t.logger.Debug(t.ctx, "wrote coordinator reply", slog.F("reply", reply))
 		}
 	}
 }
