@@ -69,12 +69,12 @@
         "description": "This is first parameter",
         "values": [
           {
-            "value": "abc",
-            "count": 2
-          },
-          {
             "value": "ABC",
             "count": 1
+          },
+          {
+            "value": "abc",
+            "count": 2
           }
         ]
       },
@@ -105,12 +105,12 @@
         "description": "This is third parameter",
         "values": [
           {
-            "value": "bbb",
-            "count": 1
-          },
-          {
             "value": "BBB",
             "count": 2
+          },
+          {
+            "value": "bbb",
+            "count": 1
           }
         ]
       },

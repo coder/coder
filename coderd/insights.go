@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -378,6 +379,32 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 			Seconds:     usage.UsageSshSeconds,
 		},
 	}
+
+	// Use a stable sort, similarly to how we would sort in the query, note that
+	// we don't sort in the query because order varies depending on the table
+	// collation.
+	//
+	// ORDER BY access_method, slug_or_port, display_name, icon, is_app
+	slices.SortFunc(appUsage, func(a, b database.GetTemplateAppInsightsRow) int {
+		if a.AccessMethod != b.AccessMethod {
+			return strings.Compare(a.AccessMethod, b.AccessMethod)
+		}
+		if a.SlugOrPort != b.SlugOrPort {
+			return strings.Compare(a.SlugOrPort, b.SlugOrPort)
+		}
+		if a.DisplayName.String != b.DisplayName.String {
+			return strings.Compare(a.DisplayName.String, b.DisplayName.String)
+		}
+		if a.Icon.String != b.Icon.String {
+			return strings.Compare(a.Icon.String, b.Icon.String)
+		}
+		if !a.IsApp && b.IsApp {
+			return -1
+		} else if a.IsApp && !b.IsApp {
+			return 1
+		}
+		return 0
+	})
 
 	// Template apps.
 	for _, app := range appUsage {

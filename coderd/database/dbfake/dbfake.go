@@ -2095,6 +2095,8 @@ func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.G
 		})
 	}
 
+	// NOTE(mafredri): Add sorting if we decide on how to handle PostgreSQL collations.
+	// ORDER BY access_method, slug_or_port, display_name, icon, is_app
 	return rows, nil
 }
 
@@ -2282,15 +2284,19 @@ func (q *FakeQuerier) GetTemplateDailyInsights(ctx context.Context, arg database
 			// (was.session_started_at >= ts.from_ AND was.session_started_at < ts.to_)
 			// OR (was.session_ended_at > ts.from_ AND was.session_ended_at < ts.to_)
 			// OR (was.session_started_at < ts.from_ AND was.session_ended_at >= ts.to_)
-			if !(((s.SessionStartedAt.After(arg.StartTime) || s.SessionStartedAt.Equal(arg.StartTime)) && s.SessionStartedAt.Before(arg.EndTime)) ||
-				(s.SessionEndedAt.After(arg.StartTime) && s.SessionEndedAt.Before(arg.EndTime)) ||
-				(s.SessionStartedAt.Before(arg.StartTime) && (s.SessionEndedAt.After(arg.EndTime) || s.SessionEndedAt.Equal(arg.EndTime)))) {
+			if !(((s.SessionStartedAt.After(ds.startTime) || s.SessionStartedAt.Equal(ds.startTime)) && s.SessionStartedAt.Before(ds.endTime)) ||
+				(s.SessionEndedAt.After(ds.startTime) && s.SessionEndedAt.Before(ds.endTime)) ||
+				(s.SessionStartedAt.Before(ds.startTime) && (s.SessionEndedAt.After(ds.endTime) || s.SessionEndedAt.Equal(ds.endTime)))) {
 				continue
 			}
 
 			w, err := q.getWorkspaceByIDNoLock(ctx, s.WorkspaceID)
 			if err != nil {
 				return nil, err
+			}
+
+			if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, w.TemplateID) {
+				continue
 			}
 
 			ds.userSet[s.UserID] = struct{}{}
@@ -2430,7 +2436,8 @@ func (q *FakeQuerier) GetTemplateParameterInsights(ctx context.Context, arg data
 			if tvp.TemplateVersionID != tv.ID {
 				continue
 			}
-			key := fmt.Sprintf("%s:%s:%s:%s", tvp.Name, tvp.DisplayName, tvp.Description, tvp.Options)
+			// GROUP BY tvp.name, tvp.type, tvp.display_name, tvp.description, tvp.options
+			key := fmt.Sprintf("%s:%s:%s:%s:%s", tvp.Name, tvp.Type, tvp.DisplayName, tvp.Description, tvp.Options)
 			if _, ok := uniqueTemplateParams[key]; !ok {
 				num++
 				uniqueTemplateParams[key] = &database.GetTemplateParameterInsightsRow{
@@ -2480,6 +2487,8 @@ func (q *FakeQuerier) GetTemplateParameterInsights(ctx context.Context, arg data
 		}
 	}
 
+	// NOTE(mafredri): Add sorting if we decide on how to handle PostgreSQL collations.
+	// ORDER BY utp.name, utp.type, utp.display_name, utp.description, utp.options, wbp.value
 	return rows, nil
 }
 
