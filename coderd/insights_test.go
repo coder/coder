@@ -657,6 +657,58 @@ func TestTemplateInsights_Golden(t *testing.T) {
 		appUsage   []appUsage
 	}
 
+	prepareFixtureAndTestData := func(t *testing.T, makeFixture func() ([]*testTemplate, []*testUser), makeData func([]*testTemplate, []*testUser) map[*testWorkspace]testDataGen) ([]*testTemplate, []*testUser, map[*testWorkspace]testDataGen) {
+		var stableIDs []uuid.UUID
+		newStableUUID := func() uuid.UUID {
+			stableIDs = append(stableIDs, uuid.MustParse(fmt.Sprintf("00000000-0000-0000-0000-%012d", len(stableIDs)+1)))
+			stableID := stableIDs[len(stableIDs)-1]
+			return stableID
+		}
+
+		templates, users := makeFixture()
+		for _, template := range templates {
+			template.id = newStableUUID()
+		}
+		for _, user := range users {
+			for _, workspace := range user.workspaces {
+				workspace.user = user
+				for _, app := range workspace.template.apps {
+					app := workspaceApp(app)
+					workspace.apps = append(workspace.apps, &app)
+				}
+			}
+		}
+
+		testData := makeData(templates, users)
+		// Sanity check.
+		for ws, data := range testData {
+			for _, usage := range data.appUsage {
+				found := false
+				for _, app := range ws.apps {
+					if usage.app == app { // Pointer equality
+						found = true
+						break
+					}
+				}
+				if !found {
+					for _, user := range users {
+						for _, workspace := range user.workspaces {
+							for _, app := range workspace.apps {
+								if usage.app == app { // Pointer equality
+									require.True(t, found, "test bug: app %q not in workspace %q: want user=%s workspace=%s; got user=%s workspace=%s ", usage.app.name, ws.name, ws.user.(*testUser).name, ws.name, user.name, workspace.name)
+									break
+								}
+							}
+						}
+					}
+					require.True(t, found, "test bug: app %q not in workspace %q", usage.app.name, ws.name)
+				}
+			}
+		}
+
+		return templates, users, testData
+	}
+
 	prepare := func(t *testing.T, templates []*testTemplate, users []*testUser, testData map[*testWorkspace]testDataGen) *codersdk.Client {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
 		db, pubsub := dbtestutil.NewDB(t)
@@ -890,58 +942,6 @@ func TestTemplateInsights_Golden(t *testing.T) {
 		require.NoError(t, err, "want no error inserting app stats")
 
 		return client
-	}
-
-	prepareFixtureAndTestData := func(t *testing.T, makeFixture func() ([]*testTemplate, []*testUser), makeData func([]*testTemplate, []*testUser) map[*testWorkspace]testDataGen) ([]*testTemplate, []*testUser, map[*testWorkspace]testDataGen) {
-		var stableIDs []uuid.UUID
-		newStableUUID := func() uuid.UUID {
-			stableIDs = append(stableIDs, uuid.MustParse(fmt.Sprintf("00000000-0000-0000-0000-%012d", len(stableIDs)+1)))
-			stableID := stableIDs[len(stableIDs)-1]
-			return stableID
-		}
-
-		templates, users := makeFixture()
-		for _, template := range templates {
-			template.id = newStableUUID()
-		}
-		for _, user := range users {
-			for _, workspace := range user.workspaces {
-				workspace.user = user
-				for _, app := range workspace.template.apps {
-					app := workspaceApp(app)
-					workspace.apps = append(workspace.apps, &app)
-				}
-			}
-		}
-
-		testData := makeData(templates, users)
-		// Sanity check.
-		for ws, data := range testData {
-			for _, usage := range data.appUsage {
-				found := false
-				for _, app := range ws.apps {
-					if usage.app == app { // Pointer equality
-						found = true
-						break
-					}
-				}
-				if !found {
-					for _, user := range users {
-						for _, workspace := range user.workspaces {
-							for _, app := range workspace.apps {
-								if usage.app == app { // Pointer equality
-									require.True(t, found, "test bug: app %q not in workspace %q: want user=%s workspace=%s; got user=%s workspace=%s ", usage.app.name, ws.name, ws.user.(*testUser).name, ws.name, user.name, workspace.name)
-									break
-								}
-							}
-						}
-					}
-					require.True(t, found, "test bug: app %q not in workspace %q", usage.app.name, ws.name)
-				}
-			}
-		}
-
-		return templates, users, testData
 	}
 
 	baseTemplateAndUserFixture := func() ([]*testTemplate, []*testUser) {
