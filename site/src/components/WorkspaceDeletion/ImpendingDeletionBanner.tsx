@@ -10,7 +10,7 @@ export enum Count {
   Multiple,
 }
 
-export const LockedWorkspaceBanner = ({
+export const DormantWorkspaceBanner = ({
   workspaces,
   onDismiss,
   shouldRedisplayBanner,
@@ -61,18 +61,18 @@ export const LockedWorkspaceBanner = ({
         hasDeletionScheduledWorkspaces.deleting_at &&
         hasDeletionScheduledWorkspaces.locked_at
       ) {
-        return `This workspace has been locked since ${formatDistanceToNow(
+        return `This workspace has been dormant for ${formatDistanceToNow(
           Date.parse(hasDeletionScheduledWorkspaces.locked_at),
-        )} and is scheduled to be deleted at ${formatDate(
+        )} and is scheduled to be deleted on ${formatDate(
           hasDeletionScheduledWorkspaces.deleting_at,
-        )} . To keep it you must unlock the workspace.`
+        )} . To keep it you must activate the workspace.`
       } else if (hasLockedWorkspaces && hasLockedWorkspaces.locked_at) {
-        return `This workspace has been locked since ${formatDate(
-          hasLockedWorkspaces.locked_at,
+        return `This workspace has been dormant for ${formatDistanceToNow(
+          Date.parse(hasLockedWorkspaces.locked_at),
         )}
         and cannot be interacted
-		with. Locked workspaces are eligible for
-		permanent deletion. To prevent deletion, unlock
+		with. Dormant workspaces are eligible for
+		permanent deletion. To prevent deletion, activate
 		the workspace.`
       }
     }
@@ -92,8 +92,8 @@ export const LockedWorkspaceBanner = ({
           >
             workspaces
           </Link>{" "}
-          that may be deleted soon due to inactivity. Unlock the workspaces you
-          wish to retain.
+          that may be deleted soon due to inactivity. Activate the workspaces
+          you wish to retain.
         </>
       )}
     </Alert>

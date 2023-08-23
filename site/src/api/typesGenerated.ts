@@ -417,6 +417,7 @@ export interface Entitlements {
   readonly has_license: boolean
   readonly trial: boolean
   readonly require_telemetry: boolean
+  readonly refreshed_at: string
 }
 
 // From codersdk/deployment.go
@@ -1153,6 +1154,8 @@ export interface UpdateTemplateMeta {
   readonly failure_ttl_ms?: number
   readonly inactivity_ttl_ms?: number
   readonly locked_ttl_ms?: number
+  readonly update_workspace_last_used_at: boolean
+  readonly update_workspace_locked_at: boolean
 }
 
 // From codersdk/users.go

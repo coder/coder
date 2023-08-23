@@ -1,9 +1,11 @@
 ## Requirements
 
-Before proceeding, please ensure that you have a Kubernetes cluster running K8s 1.19+ and have Helm 3.5+ installed.
+Before proceeding, please ensure that you have a Kubernetes cluster running K8s
+1.19+ and have Helm 3.5+ installed.
 
-You'll also want to install the [latest version of Coder](https://github.com/coder/coder/releases/latest) locally in order
-to log in and manage templates.
+You'll also want to install the
+[latest version of Coder](https://github.com/coder/coder/releases/latest)
+locally in order to log in and manage templates.
 
 ## Install Coder with Helm
 
@@ -21,12 +23,13 @@ to log in and manage templates.
    [AWS](https://aws.amazon.com/rds/postgresql/),
    [Azure](https://docs.microsoft.com/en-us/azure/postgresql/), or
    [DigitalOcean](https://www.digitalocean.com/products/managed-databases-postgresql),
-   you can use the managed PostgreSQL offerings they provide. Make sure that
-   the PostgreSQL service is running and accessible from your cluster. It
-   should be in the same network, same project, etc.
+   you can use the managed PostgreSQL offerings they provide. Make sure that the
+   PostgreSQL service is running and accessible from your cluster. It should be
+   in the same network, same project, etc.
 
    You can install Postgres manually on your cluster using the
-   [Bitnami PostgreSQL Helm chart](https://github.com/bitnami/charts/tree/master/bitnami/postgresql#readme). There are some
+   [Bitnami PostgreSQL Helm chart](https://github.com/bitnami/charts/tree/master/bitnami/postgresql#readme).
+   There are some
    [helpful guides](https://phoenixnap.com/kb/postgresql-kubernetes) on the
    internet that explain sensible configurations for this chart. Example:
 
@@ -49,9 +52,8 @@ to log in and manage templates.
 
    > Ensure you set up periodic backups so you don't lose data.
 
-   You can use
-   [Postgres operator](https://github.com/zalando/postgres-operator) to
-   manage PostgreSQL deployments on your Kubernetes cluster.
+   You can use [Postgres operator](https://github.com/zalando/postgres-operator)
+   to manage PostgreSQL deployments on your Kubernetes cluster.
 
 1. Create a secret with the database URL:
 
@@ -116,22 +118,22 @@ to log in and manage templates.
        --values values.yaml
    ```
 
-   You can watch Coder start up by running `kubectl get pods -n coder`. Once Coder has
-   started, the `coder-*` pods should enter the `Running` state.
+   You can watch Coder start up by running `kubectl get pods -n coder`. Once
+   Coder has started, the `coder-*` pods should enter the `Running` state.
 
 1. Log in to Coder
 
-   Use `kubectl get svc -n coder` to get the IP address of the
-   LoadBalancer. Visit this in the browser to set up your first account.
+   Use `kubectl get svc -n coder` to get the IP address of the LoadBalancer.
+   Visit this in the browser to set up your first account.
 
-   If you do not have a domain, you should set `CODER_ACCESS_URL`
-   to this URL in the Helm chart and upgrade Coder (see below).
-   This allows workspaces to connect to the proper Coder URL.
+   If you do not have a domain, you should set `CODER_ACCESS_URL` to this URL in
+   the Helm chart and upgrade Coder (see below). This allows workspaces to
+   connect to the proper Coder URL.
 
 ## Upgrading Coder via Helm
 
-To upgrade Coder in the future or change values,
-you can run the following command:
+To upgrade Coder in the future or change values, you can run the following
+command:
 
 ```console
 helm repo update
@@ -144,7 +146,9 @@ helm upgrade coder coder-v2/coder \
 
 ### AWS
 
-If you are deploying Coder on AWS EKS and service is set to `LoadBalancer`, AWS will default to the Classic load balancer. The load balancer external IP will be stuck in a pending status unless sessionAffinity is set to None.
+If you are deploying Coder on AWS EKS and service is set to `LoadBalancer`, AWS
+will default to the Classic load balancer. The load balancer external IP will be
+stuck in a pending status unless sessionAffinity is set to None.
 
 ```yaml
 coder:
@@ -153,7 +157,8 @@ coder:
     sessionAffinity: None
 ```
 
-AWS recommends a Network load balancer in lieu of the Classic load balancer. Use the following `values.yaml` settings to request a Network load balancer:
+AWS recommends a Network load balancer in lieu of the Classic load balancer. Use
+the following `values.yaml` settings to request a Network load balancer:
 
 ```yaml
 coder:
@@ -164,9 +169,9 @@ coder:
 ```
 
 By default, Coder will set the `externalTrafficPolicy` to `Cluster` which will
-mask client IP addresses in the Audit log. To preserve the source IP, you can either
-set this value to `Local`, or pass through the client IP via the X-Forwarded-For
-header. To configure the latter, set the following environment
+mask client IP addresses in the Audit log. To preserve the source IP, you can
+either set this value to `Local`, or pass through the client IP via the
+X-Forwarded-For header. To configure the latter, set the following environment
 variables:
 
 ```yaml
@@ -180,17 +185,21 @@ coder:
 
 ### Azure
 
-In certain enterprise environments, the [Azure Application Gateway](https://learn.microsoft.com/en-us/azure/application-gateway/ingress-controller-overview) was needed. The Application Gateway supports:
+In certain enterprise environments, the
+[Azure Application Gateway](https://learn.microsoft.com/en-us/azure/application-gateway/ingress-controller-overview)
+was needed. The Application Gateway supports:
 
 - Websocket traffic (required for workspace connections)
 - TLS termination
 
 ## PostgreSQL Certificates
 
-Your organization may require connecting to the database instance over SSL. To supply
-Coder with the appropriate certificates, and have it connect over SSL, follow the steps below:
+Your organization may require connecting to the database instance over SSL. To
+supply Coder with the appropriate certificates, and have it connect over SSL,
+follow the steps below:
 
-1. Create the certificate as a secret in your Kubernetes cluster, if not already present:
+1. Create the certificate as a secret in your Kubernetes cluster, if not already
+   present:
 
 ```console
 $ kubectl create secret tls postgres-certs -n coder --key="postgres.key" --cert="postgres.crt"
@@ -216,20 +225,24 @@ coder:
 postgres://<user>:<password>@databasehost:<port>/<db-name>?sslmode=require&sslcert=$HOME/.postgresql/postgres.crt&sslkey=$HOME/.postgresql/postgres.key"
 ```
 
-> More information on connecting to PostgreSQL databases using certificates can be found [here](https://www.postgresql.org/docs/current/libpq-ssl.html#LIBPQ-SSL-CLIENTCERT).
+> More information on connecting to PostgreSQL databases using certificates can
+> be found
+> [here](https://www.postgresql.org/docs/current/libpq-ssl.html#LIBPQ-SSL-CLIENTCERT).
 
 ## Troubleshooting
 
-You can view Coder's logs by getting the pod name from `kubectl get pods` and then running `kubectl logs <pod name>`. You can also
-view these logs in your
+You can view Coder's logs by getting the pod name from `kubectl get pods` and
+then running `kubectl logs <pod name>`. You can also view these logs in your
 Cloud's log management system if you are using managed Kubernetes.
 
 ### Kubernetes-based workspace is stuck in "Connecting..."
 
-Ensure you have an externally-reachable `CODER_ACCESS_URL` set in your helm chart. If you do not have a domain set up,
-this should be the IP address of Coder's LoadBalancer (`kubectl get svc -n coder`).
+Ensure you have an externally-reachable `CODER_ACCESS_URL` set in your helm
+chart. If you do not have a domain set up, this should be the IP address of
+Coder's LoadBalancer (`kubectl get svc -n coder`).
 
-See [troubleshooting templates](../templates/index.md#troubleshooting-templates) for more steps.
+See [troubleshooting templates](../templates/index.md#troubleshooting-templates)
+for more steps.
 
 ## Next steps
 

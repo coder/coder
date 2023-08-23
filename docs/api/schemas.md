@@ -2677,6 +2677,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     }
   },
   "has_license": true,
+  "refreshed_at": "2019-08-24T14:15:22Z",
   "require_telemetry": true,
   "trial": true,
   "warnings": ["string"]
@@ -2691,6 +2692,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `features`          | object                               | false    |              |             |
 | » `[any property]`  | [codersdk.Feature](#codersdkfeature) | false    |              |             |
 | `has_license`       | boolean                              | false    |              |             |
+| `refreshed_at`      | string                               | false    |              |             |
 | `require_telemetry` | boolean                              | false    |              |             |
 | `trial`             | boolean                              | false    |              |             |
 | `warnings`          | array of string                      | false    |              |             |
@@ -7725,6 +7727,65 @@ _None_
 ```json
 {
   "app_security_key": "string",
+  "derp_map": {
+    "homeParams": {
+      "regionScore": {
+        "property1": 0,
+        "property2": 0
+      }
+    },
+    "omitDefaultRegions": true,
+    "regions": {
+      "property1": {
+        "avoid": true,
+        "embeddedRelay": true,
+        "nodes": [
+          {
+            "canPort80": true,
+            "certName": "string",
+            "derpport": 0,
+            "forceHTTP": true,
+            "hostName": "string",
+            "insecureForTests": true,
+            "ipv4": "string",
+            "ipv6": "string",
+            "name": "string",
+            "regionID": 0,
+            "stunonly": true,
+            "stunport": 0,
+            "stuntestIP": "string"
+          }
+        ],
+        "regionCode": "string",
+        "regionID": 0,
+        "regionName": "string"
+      },
+      "property2": {
+        "avoid": true,
+        "embeddedRelay": true,
+        "nodes": [
+          {
+            "canPort80": true,
+            "certName": "string",
+            "derpport": 0,
+            "forceHTTP": true,
+            "hostName": "string",
+            "insecureForTests": true,
+            "ipv4": "string",
+            "ipv6": "string",
+            "name": "string",
+            "regionID": 0,
+            "stunonly": true,
+            "stunport": 0,
+            "stuntestIP": "string"
+          }
+        ],
+        "regionCode": "string",
+        "regionID": 0,
+        "regionName": "string"
+      }
+    }
+  },
   "derp_mesh_key": "string",
   "derp_region_id": 0,
   "sibling_replicas": [
@@ -7746,6 +7807,7 @@ _None_
 | Name               | Type                                          | Required | Restrictions | Description                                                                            |
 | ------------------ | --------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------- |
 | `app_security_key` | string                                        | false    |              |                                                                                        |
+| `derp_map`         | [tailcfg.DERPMap](#tailcfgderpmap)            | false    |              |                                                                                        |
 | `derp_mesh_key`    | string                                        | false    |              |                                                                                        |
 | `derp_region_id`   | integer                                       | false    |              |                                                                                        |
 | `sibling_replicas` | array of [codersdk.Replica](#codersdkreplica) | false    |              | Sibling replicas is a list of all other replicas of the proxy that have not timed out. |
