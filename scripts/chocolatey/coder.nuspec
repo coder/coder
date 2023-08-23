@@ -22,14 +22,14 @@
     <title>Coder (Install)</title>
     <authors>Coder Technologies\, Inc.</authors>
     <projectUrl>https://coder.com</projectUrl>
-    <iconUrl>https://github.com/coder/presskit/raw/main/logos/coder%20logo%20black%20square.png?raw=true</iconUrl>
+    <iconUrl>https://github.com/coder/presskit/blob/main/logos/coder_logo_black_square.png?raw=true</iconUrl>
     <copyright>Coder Technologies, Inc.</copyright>
     <licenseUrl>https://coder.com/legal/terms-of-service</licenseUrl>
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
     <projectSourceUrl>https://github.com/coder/coder.git</projectSourceUrl>
     <docsUrl>https://coder.com/docs/v2/latest</docsUrl>
     <bugTrackerUrl>https://github.com/coder/coder/issues</bugTrackerUrl>
-    <tags>coder remote-dev terraform development</tags>
+		<tags>coder remote-dev terraform development</tags>
     <summary>Remote development environments on your infrastructure provisioned with Terraform</summary>
     <description>Remote development environments on your infrastructure provisioned with Terraform</description>
   </metadata>
