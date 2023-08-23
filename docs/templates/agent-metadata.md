@@ -2,19 +2,23 @@
 
 ![agent-metadata](../images/agent-metadata.png)
 
-With Agent Metadata, template admins can expose operational metrics from
-their workspaces to their users. It is the dynamic complement of [Resource Metadata](./resource-metadata.md).
+With Agent Metadata, template admins can expose operational metrics from their
+workspaces to their users. It is the dynamic complement of
+[Resource Metadata](./resource-metadata.md).
 
-See the [Terraform reference](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#metadata).
+See the
+[Terraform reference](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#metadata).
 
 ## Examples
 
-All of these examples use [heredoc strings](https://developer.hashicorp.com/terraform/language/expressions/strings#heredoc-strings) for the script declaration. With heredoc strings, you
-can script without messy escape codes, just as if you were working in your terminal.
+All of these examples use
+[heredoc strings](https://developer.hashicorp.com/terraform/language/expressions/strings#heredoc-strings)
+for the script declaration. With heredoc strings, you can script without messy
+escape codes, just as if you were working in your terminal.
 
-Some of the below examples use the [`coder stat`](../cli/stat.md) command.
-This is useful for determining CPU/memory usage inside a container, which
-can be tricky otherwise.
+Some of the below examples use the [`coder stat`](../cli/stat.md) command. This
+is useful for determining CPU/memory usage inside a container, which can be
+tricky otherwise.
 
 Here's a standard set of metadata snippets for Linux agents:
 
@@ -84,9 +88,9 @@ resource "coder_agent" "main" {
 
 ## Utilities
 
-[top](https://linux.die.net/man/1/top) is available in most Linux
-distributions and provides virtual memory, CPU and IO statistics. Running `top`
-produces output that looks like:
+[top](https://linux.die.net/man/1/top) is available in most Linux distributions
+and provides virtual memory, CPU and IO statistics. Running `top` produces
+output that looks like:
 
 ```text
 %Cpu(s): 65.8 us,  4.4 sy,  0.0 ni, 29.3 id,  0.3 wa,  0.0 hi,  0.2 si,  0.0 st
@@ -95,8 +99,8 @@ MiB Swap:      0.0 total,      0.0 free,      0.0 used.  11021.3 avail Mem
 ```
 
 [vmstat](https://linux.die.net/man/8/vmstat) is available in most Linux
-distributions and provides virtual memory, CPU and IO statistics. Running `vmstat`
-produces output that looks like:
+distributions and provides virtual memory, CPU and IO statistics. Running
+`vmstat` produces output that looks like:
 
 ```text
 procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----
@@ -104,9 +108,9 @@ r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st
 0  0  19580 4781680 12133692 217646944    0    2     4    32    1    0  1  1 98  0  0
 ```
 
-[dstat](https://linux.die.net/man/1/dstat) is considerably more parseable
-than `vmstat` but often not included in base images. It is easily installed by
-most package managers under the name `dstat`. The output of running `dstat 1 1` looks
+[dstat](https://linux.die.net/man/1/dstat) is considerably more parseable than
+`vmstat` but often not included in base images. It is easily installed by most
+package managers under the name `dstat`. The output of running `dstat 1 1` looks
 like:
 
 ```text
@@ -117,9 +121,9 @@ usr sys idl wai stl| read  writ| recv  send|  in   out | int   csw
 
 ## DB Write Load
 
-Agent metadata can generate a significant write load and overwhelm your
-database if you're not careful. The approximate writes per second can be
-calculated using the formula:
+Agent metadata can generate a significant write load and overwhelm your database
+if you're not careful. The approximate writes per second can be calculated using
+the formula:
 
 ```text
 (metadata_count * num_running_agents * 2) / metadata_avg_interval
@@ -133,5 +137,5 @@ For example, let's say you have
 
 You can expect `(10 * 6 * 2) / 4` or 30 writes per second.
 
-One of the writes is to the `UNLOGGED` `workspace_agent_metadata` table and
-the other to the `NOTIFY` query that enables live stats streaming in the UI.
+One of the writes is to the `UNLOGGED` `workspace_agent_metadata` table and the
+other to the `NOTIFY` query that enables live stats streaming in the UI.

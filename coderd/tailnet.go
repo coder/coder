@@ -44,15 +44,16 @@ func NewServerTailnet(
 	ctx context.Context,
 	logger slog.Logger,
 	derpServer *derp.Server,
-	derpMap *tailcfg.DERPMap,
+	derpMapFn func() *tailcfg.DERPMap,
 	getMultiAgent func(context.Context) (tailnet.MultiAgentConn, error),
 	cache *wsconncache.Cache,
 	traceProvider trace.TracerProvider,
 ) (*ServerTailnet, error) {
 	logger = logger.Named("servertailnet")
+	originalDerpMap := derpMapFn()
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
-		DERPMap:   derpMap,
+		DERPMap:   originalDerpMap,
 		Logger:    logger,
 	})
 	if err != nil {
@@ -60,9 +61,32 @@ func NewServerTailnet(
 	}
 
 	serverCtx, cancel := context.WithCancel(ctx)
+	derpMapUpdaterClosed := make(chan struct{})
+	go func() {
+		defer close(derpMapUpdaterClosed)
+
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-serverCtx.Done():
+				return
+			case <-ticker.C:
+			}
+
+			newDerpMap := derpMapFn()
+			if !tailnet.CompareDERPMaps(originalDerpMap, newDerpMap) {
+				conn.SetDERPMap(newDerpMap)
+				originalDerpMap = newDerpMap
+			}
+		}
+	}()
+
 	tn := &ServerTailnet{
 		ctx:                  serverCtx,
 		cancel:               cancel,
+		derpMapUpdaterClosed: derpMapUpdaterClosed,
 		logger:               logger,
 		tracer:               traceProvider.Tracer(tracing.TracerName),
 		conn:                 conn,
@@ -237,8 +261,9 @@ func (s *ServerTailnet) reinitCoordinator() {
 }
 
 type ServerTailnet struct {
-	ctx    context.Context
-	cancel func()
+	ctx                  context.Context
+	cancel               func()
+	derpMapUpdaterClosed chan struct{}
 
 	logger        slog.Logger
 	tracer        trace.Tracer
@@ -403,5 +428,6 @@ func (s *ServerTailnet) Close() error {
 	_ = s.cache.Close()
 	_ = s.conn.Close()
 	s.transport.CloseIdleConnections()
+	<-s.derpMapUpdaterClosed
 	return nil
 }

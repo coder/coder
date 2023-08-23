@@ -112,6 +112,92 @@ func TestEcho(t *testing.T) {
 			complete.GetComplete().Resources[0].Name)
 	})
 
+	t.Run("ProvisionStop", func(t *testing.T) {
+		t.Parallel()
+
+		// Stop responses should be returned when the workspace is being stopped.
+
+		defaultResponses := []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "DEFAULT",
+					}},
+				},
+			},
+		}}
+		stopResponses := []*proto.Provision_Response{{
+			Type: &proto.Provision_Response_Complete{
+				Complete: &proto.Provision_Complete{
+					Resources: []*proto.Resource{{
+						Name: "STOP",
+					}},
+				},
+			},
+		}}
+		data, err := echo.Tar(&echo.Responses{
+			ProvisionApply: defaultResponses,
+			ProvisionPlan:  defaultResponses,
+			ProvisionPlanMap: map[proto.WorkspaceTransition][]*proto.Provision_Response{
+				proto.WorkspaceTransition_STOP: stopResponses,
+			},
+			ProvisionApplyMap: map[proto.WorkspaceTransition][]*proto.Provision_Response{
+				proto.WorkspaceTransition_STOP: stopResponses,
+			},
+		})
+		require.NoError(t, err)
+
+		client, err := api.Provision(ctx)
+		require.NoError(t, err)
+
+		// Do stop.
+		err = client.Send(&proto.Provision_Request{
+			Type: &proto.Provision_Request_Plan{
+				Plan: &proto.Provision_Plan{
+					Config: &proto.Provision_Config{
+						Directory: unpackTar(t, fs, data),
+						Metadata: &proto.Provision_Metadata{
+							WorkspaceTransition: proto.WorkspaceTransition_STOP,
+						},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		complete, err := client.Recv()
+		require.NoError(t, err)
+		require.Equal(t,
+			stopResponses[0].GetComplete().Resources[0].Name,
+			complete.GetComplete().Resources[0].Name,
+		)
+
+		// Do start.
+		client, err = api.Provision(ctx)
+		require.NoError(t, err)
+
+		err = client.Send(&proto.Provision_Request{
+			Type: &proto.Provision_Request_Plan{
+				Plan: &proto.Provision_Plan{
+					Config: &proto.Provision_Config{
+						Directory: unpackTar(t, fs, data),
+						Metadata: &proto.Provision_Metadata{
+							WorkspaceTransition: proto.WorkspaceTransition_START,
+						},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		complete, err = client.Recv()
+		require.NoError(t, err)
+		require.Equal(t,
+			defaultResponses[0].GetComplete().Resources[0].Name,
+			complete.GetComplete().Resources[0].Name,
+		)
+	})
+
 	t.Run("ProvisionWithLogLevel", func(t *testing.T) {
 		t.Parallel()
 

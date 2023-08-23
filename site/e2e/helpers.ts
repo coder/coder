@@ -13,27 +13,133 @@ import {
   Provision_Complete,
   Provision_Response,
   Resource,
+  RichParameter,
 } from "./provisionerGenerated"
 import { port } from "./playwright.config"
 import * as ssh from "ssh2"
 import { Duplex } from "stream"
+import { WorkspaceBuildParameter } from "api/typesGenerated"
 
 // createWorkspace creates a workspace for a template.
 // It does not wait for it to be running, but it does navigate to the page.
 export const createWorkspace = async (
   page: Page,
   templateName: string,
+  richParameters: RichParameter[] = [],
+  buildParameters: WorkspaceBuildParameter[] = [],
 ): Promise<string> => {
   await page.goto("/templates/" + templateName + "/workspace", {
     waitUntil: "networkidle",
   })
   const name = randomName()
   await page.getByLabel("name").fill(name)
+
+  for (const buildParameter of buildParameters) {
+    const richParameter = richParameters.find(
+      (richParam) => richParam.name === buildParameter.name,
+    )
+    if (!richParameter) {
+      throw new Error(
+        "build parameter is expected to be present in rich parameter schema",
+      )
+    }
+
+    const parameterLabel = await page.waitForSelector(
+      "[data-testid='parameter-field-" + richParameter.name + "']",
+      { state: "visible" },
+    )
+
+    if (richParameter.type === "bool") {
+      const parameterField = await parameterLabel.waitForSelector(
+        "[data-testid='parameter-field-bool'] .MuiRadio-root input[value='" +
+          buildParameter.value +
+          "']",
+      )
+      await parameterField.check()
+    } else if (richParameter.options.length > 0) {
+      const parameterField = await parameterLabel.waitForSelector(
+        "[data-testid='parameter-field-options'] .MuiRadio-root input[value='" +
+          buildParameter.value +
+          "']",
+      )
+      await parameterField.check()
+    } else if (richParameter.type === "list(string)") {
+      throw new Error("not implemented yet") // FIXME
+    } else {
+      // text or number
+      const parameterField = await parameterLabel.waitForSelector(
+        "[data-testid='parameter-field-text'] input",
+      )
+      await parameterField.fill(buildParameter.value)
+    }
+  }
+
   await page.getByTestId("form-submit").click()
 
   await expect(page).toHaveURL("/@admin/" + name)
-  await page.getByTestId("build-status").isVisible()
+  await page.waitForSelector("[data-testid='build-status']", {
+    state: "visible",
+  })
   return name
+}
+
+export const verifyParameters = async (
+  page: Page,
+  workspaceName: string,
+  richParameters: RichParameter[],
+  expectedBuildParameters: WorkspaceBuildParameter[],
+) => {
+  await page.goto("/@admin/" + workspaceName + "/settings/parameters", {
+    waitUntil: "networkidle",
+  })
+  await expect(page).toHaveURL(
+    "/@admin/" + workspaceName + "/settings/parameters",
+  )
+
+  for (const buildParameter of expectedBuildParameters) {
+    const richParameter = richParameters.find(
+      (richParam) => richParam.name === buildParameter.name,
+    )
+    if (!richParameter) {
+      throw new Error(
+        "build parameter is expected to be present in rich parameter schema",
+      )
+    }
+
+    const parameterLabel = await page.waitForSelector(
+      "[data-testid='parameter-field-" + richParameter.name + "']",
+      { state: "visible" },
+    )
+
+    const muiDisabled = richParameter.mutable ? "" : ".Mui-disabled"
+
+    if (richParameter.type === "bool") {
+      const parameterField = await parameterLabel.waitForSelector(
+        "[data-testid='parameter-field-bool'] .MuiRadio-root.Mui-checked" +
+          muiDisabled +
+          " input",
+      )
+      const value = await parameterField.inputValue()
+      expect(value).toEqual(buildParameter.value)
+    } else if (richParameter.options.length > 0) {
+      const parameterField = await parameterLabel.waitForSelector(
+        "[data-testid='parameter-field-options'] .MuiRadio-root.Mui-checked" +
+          muiDisabled +
+          " input",
+      )
+      const value = await parameterField.inputValue()
+      expect(value).toEqual(buildParameter.value)
+    } else if (richParameter.type === "list(string)") {
+      throw new Error("not implemented yet") // FIXME
+    } else {
+      // text or number
+      const parameterField = await parameterLabel.waitForSelector(
+        "[data-testid='parameter-field-text'] input" + muiDisabled,
+      )
+      const value = await parameterField.inputValue()
+      expect(value).toEqual(buildParameter.value)
+    }
+  }
 }
 
 // createTemplate navigates to the /templates/new page and uploads a template
@@ -400,4 +506,29 @@ const findSessionToken = async (page: Page): Promise<string> => {
     throw new Error("session token not found")
   }
   return sessionCookie.value
+}
+
+export const echoResponsesWithParameters = (
+  richParameters: RichParameter[],
+): EchoProvisionerResponses => {
+  return {
+    plan: [
+      {
+        complete: {
+          parameters: richParameters,
+        },
+      },
+    ],
+    apply: [
+      {
+        complete: {
+          resources: [
+            {
+              name: "example",
+            },
+          ],
+        },
+      },
+    ],
+  }
 }

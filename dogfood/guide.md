@@ -1,6 +1,8 @@
 # Dogfooding Guide
 
-This guide explains how to [dogfood](https://www.techopedia.com/definition/30784/dogfooding) coder for employees at Coder.
+This guide explains how to
+[dogfood](https://www.techopedia.com/definition/30784/dogfooding) coder for
+employees at Coder.
 
 ## How to
 
@@ -8,17 +10,21 @@ The following explains how to do certain things related to dogfooding.
 
 ### Dogfood using Coder's Deployment
 
-1. Go to [https://dev.coder.com/templates/coder-ts](https://dev.coder.com/templates/coder-ts)
+1. Go to
+   [https://dev.coder.com/templates/coder-ts](https://dev.coder.com/templates/coder-ts)
    1. If you don't have an account, sign in with GitHub
    2. If you see a dialog/pop-up, hit "Cancel" (this is because of Rippling)
 2. Create a workspace
 3. [Connect with your favorite IDE](https://coder.com/docs/coder-oss/latest/ides)
 4. Clone the repo: `git clone git@github.com:coder/coder.git`
-5. Follow the [contributing guide](https://coder.com/docs/coder-oss/latest/CONTRIBUTING)
+5. Follow the
+   [contributing guide](https://coder.com/docs/coder-oss/latest/CONTRIBUTING)
 
 ### Run Coder in your Coder Workspace
 
-1.  Clone the Git repo `[https://github.com/coder/coder](https://github.com/coder/coder)` and `cd` into it
+1.  Clone the Git repo
+    `[https://github.com/coder/coder](https://github.com/coder/coder)` and `cd`
+    into it
 2.  Run `sudo apt update` and then `sudo apt install -y netcat`
     - skip this step if using the `coder` template
 3.  Run `make bin`
@@ -33,7 +39,8 @@ The following explains how to do certain things related to dogfooding.
 
     Don’t fret! This is a known issue. To get around it:
 
-    1. Add `export DB_FROM=coderdb` to your `.bashrc` (make sure you `source ~/.bashrc`)
+    1. Add `export DB_FROM=coderdb` to your `.bashrc` (make sure you
+       `source ~/.bashrc`)
     2. Run `sudo service postgresql start`
     3. Run `sudo -u postgres psql` (this will open the PostgreSQL CLI)
     4. Run `postgres-# alter user postgres password 'postgres';`
@@ -44,13 +51,23 @@ The following explains how to do certain things related to dogfooding.
     </aside>
 
 4.  Run `./scripts/develop.sh` which will start _two_ separate processes:
-    1. `[http://localhost:3000](http://localhost:3000)` — backend API server 👈 Backend devs will want to talk to this
-    2. `[http://localhost:8080](http://localhost:8080)` — Node.js dev server 👈 Frontend devs will want to talk to this
-5.  Ensure that you’re logged in: `./scripts/coder-dev.sh list` — should return no workspace. If this returns an error, double-check the output of running `scripts/develop.sh`.
-6.  A template named `docker-amd64` (or `docker-arm64` if you’re on ARM) will have automatically been created for you. If you just want to create a workspace quickly, you can run `./scripts/coder-dev.sh create myworkspace -t docker-amd64` and this will get you going quickly!
-7.  To create your own template, you can do: `./scripts/coder-dev.sh templates init` and choose your preferred option.
-    For example, choosing “Develop in Docker” will create a new folder `docker` that contains the bare bones for starting a Docker workspace template.
-    Then, enter the folder that was just created and customize as you wish.
+    1. `[http://localhost:3000](http://localhost:3000)` — backend API server
+       👈 Backend devs will want to talk to this
+    2. `[http://localhost:8080](http://localhost:8080)` — Node.js dev server
+       👈 Frontend devs will want to talk to this
+5.  Ensure that you’re logged in: `./scripts/coder-dev.sh list` — should return
+    no workspace. If this returns an error, double-check the output of running
+    `scripts/develop.sh`.
+6.  A template named `docker-amd64` (or `docker-arm64` if you’re on ARM) will
+    have automatically been created for you. If you just want to create a
+    workspace quickly, you can run
+    `./scripts/coder-dev.sh create myworkspace -t docker-amd64` and this will
+    get you going quickly!
+7.  To create your own template, you can do:
+    `./scripts/coder-dev.sh templates init` and choose your preferred option.
+    For example, choosing “Develop in Docker” will create a new folder `docker`
+    that contains the bare bones for starting a Docker workspace template. Then,
+    enter the folder that was just created and customize as you wish.
 
       <aside>
       💡 **For all Docker templates:**
@@ -85,11 +102,13 @@ Run 'coder create --help' for usage.
 
 Check the output of `docker ps -a`
 
-- If you see a container with the status `Exited` run `docker logs <container name>` and see what the issue with the container output is
+- If you see a container with the status `Exited` run
+  `docker logs <container name>` and see what the issue with the container
+  output is
 
 Enable verbose container logging for Docker:
 
-```console
+```shell
 sudo cp /etc/docker/daemon.json /etc/docker/daemon.json.orig
 sudo cat > /etc/docker/daemon.json << EOF
 {
@@ -105,4 +124,5 @@ sudo journalctl -u docker -f
 
 ### Help! I'm still blocked
 
-Post in the #dogfood Slack channel internally or open a Discussion on GitHub and tag @jsjoeio or @bpmct
+Post in the #dogfood Slack channel internally or open a Discussion on GitHub and
+tag @jsjoeio or @bpmct

@@ -416,6 +416,7 @@ export interface Entitlements {
   readonly has_license: boolean
   readonly trial: boolean
   readonly require_telemetry: boolean
+  readonly refreshed_at: string
 }
 
 // From codersdk/deployment.go
@@ -1152,6 +1153,8 @@ export interface UpdateTemplateMeta {
   readonly failure_ttl_ms?: number
   readonly inactivity_ttl_ms?: number
   readonly locked_ttl_ms?: number
+  readonly update_workspace_last_used_at: boolean
+  readonly update_workspace_locked_at: boolean
 }
 
 // From codersdk/users.go
@@ -1661,13 +1664,8 @@ export type InsightsReportInterval = "day"
 export const InsightsReportIntervals: InsightsReportInterval[] = ["day"]
 
 // From codersdk/provisionerdaemons.go
-export type JobErrorCode =
-  | "MISSING_TEMPLATE_PARAMETER"
-  | "REQUIRED_TEMPLATE_VARIABLES"
-export const JobErrorCodes: JobErrorCode[] = [
-  "MISSING_TEMPLATE_PARAMETER",
-  "REQUIRED_TEMPLATE_VARIABLES",
-]
+export type JobErrorCode = "REQUIRED_TEMPLATE_VARIABLES"
+export const JobErrorCodes: JobErrorCode[] = ["REQUIRED_TEMPLATE_VARIABLES"]
 
 // From codersdk/provisionerdaemons.go
 export type LogLevel = "debug" | "error" | "info" | "trace" | "warn"
@@ -1786,22 +1784,26 @@ export type ResourceType =
   | "git_ssh_key"
   | "group"
   | "license"
+  | "organization"
   | "template"
   | "template_version"
   | "user"
   | "workspace"
   | "workspace_build"
+  | "workspace_proxy"
 export const ResourceTypes: ResourceType[] = [
   "api_key",
   "convert_login",
   "git_ssh_key",
   "group",
   "license",
+  "organization",
   "template",
   "template_version",
   "user",
   "workspace",
   "workspace_build",
+  "workspace_proxy",
 ]
 
 // From codersdk/serversentevents.go

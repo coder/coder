@@ -156,7 +156,7 @@ type sqlcQuerier interface {
 	// to look up references to actions. eg. a user could build a workspace
 	// for another user, then be deleted... we still want them to appear!
 	GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User, error)
-	GetWorkspaceAgentByAuthToken(ctx context.Context, authToken uuid.UUID) (WorkspaceAgent, error)
+	GetWorkspaceAgentAndOwnerByAuthToken(ctx context.Context, authToken uuid.UUID) (GetWorkspaceAgentAndOwnerByAuthTokenRow, error)
 	GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (WorkspaceAgent, error)
 	GetWorkspaceAgentByInstanceID(ctx context.Context, authInstanceID string) (WorkspaceAgent, error)
 	GetWorkspaceAgentLifecycleStateByID(ctx context.Context, id uuid.UUID) (GetWorkspaceAgentLifecycleStateByIDRow, error)
@@ -270,6 +270,7 @@ type sqlcQuerier interface {
 	UpdateTemplateVersionByID(ctx context.Context, arg UpdateTemplateVersionByIDParams) error
 	UpdateTemplateVersionDescriptionByJobID(ctx context.Context, arg UpdateTemplateVersionDescriptionByJobIDParams) error
 	UpdateTemplateVersionGitAuthProvidersByJobID(ctx context.Context, arg UpdateTemplateVersionGitAuthProvidersByJobIDParams) error
+	UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, arg UpdateTemplateWorkspacesLastUsedAtParams) error
 	UpdateUserDeletedByID(ctx context.Context, arg UpdateUserDeletedByIDParams) error
 	UpdateUserHashedPassword(ctx context.Context, arg UpdateUserHashedPasswordParams) error
 	UpdateUserLastSeenAt(ctx context.Context, arg UpdateUserLastSeenAtParams) (User, error)
@@ -297,7 +298,7 @@ type sqlcQuerier interface {
 	UpdateWorkspaceProxy(ctx context.Context, arg UpdateWorkspaceProxyParams) (WorkspaceProxy, error)
 	UpdateWorkspaceProxyDeleted(ctx context.Context, arg UpdateWorkspaceProxyDeletedParams) error
 	UpdateWorkspaceTTL(ctx context.Context, arg UpdateWorkspaceTTLParams) error
-	UpdateWorkspacesDeletingAtByTemplateID(ctx context.Context, arg UpdateWorkspacesDeletingAtByTemplateIDParams) error
+	UpdateWorkspacesLockedDeletingAtByTemplateID(ctx context.Context, arg UpdateWorkspacesLockedDeletingAtByTemplateIDParams) error
 	UpsertAppSecurityKey(ctx context.Context, value string) error
 	// The default proxy is implied and not actually stored in the database.
 	// So we need to store it's configuration here for display purposes.

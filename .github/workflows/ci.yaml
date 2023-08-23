@@ -137,7 +137,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@v1.16.4
+        uses: crate-ci/typos@v1.16.6
         with:
           config: .github/workflows/typos.toml
 
@@ -568,6 +568,7 @@ jobs:
           # https://www.chromatic.com/docs/github-actions#forked-repositories
           projectToken: 695c25b6cb65
           workingDir: "./site"
+          storybookBaseDir: "./site"
           # Prevent excessive build runs on minor version changes
           skip: "@(renovate/**|dependabot/**)"
           # Run TurboSnap to trace file dependencies to related stories
@@ -593,6 +594,7 @@ jobs:
           buildScriptName: "storybook:build"
           projectToken: 695c25b6cb65
           workingDir: "./site"
+          storybookBaseDir: "./site"
           # Run TurboSnap to trace file dependencies to related stories
           # and tell chromatic to only take snapshots of relevent stories
           onlyChanged: true
