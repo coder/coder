@@ -26,7 +26,7 @@ func (e *DecryptFailedError) Error() string {
 	return xerrors.Errorf("decrypt failed: %w", e.Inner).Error()
 }
 
-func (e *DecryptFailedError) Unwrap() error {
+func (*DecryptFailedError) Unwrap() error {
 	return sql.ErrNoRows
 }
 
