@@ -202,9 +202,9 @@ func TestTemplates(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		require.EqualValues(t, 0, template.InactivityTTLMillis)
+		require.EqualValues(t, 0, template.TimeTilDormantMillis)
 		require.EqualValues(t, 0, template.FailureTTLMillis)
-		require.EqualValues(t, 0, template.LockedTTLMillis)
+		require.EqualValues(t, 0, template.TimeTilDormantAutoDeleteMillis)
 
 		var (
 			failureTTL    int64 = 1
@@ -218,25 +218,25 @@ func TestTemplates(t *testing.T) {
 			Description:                  template.Description,
 			Icon:                         template.Icon,
 			AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
-			InactivityTTLMillis:          inactivityTTL,
+			TimeTilDormantMillis:          inactivityTTL,
 			FailureTTLMillis:             failureTTL,
-			LockedTTLMillis:              lockedTTL,
+			TimeTilDormantAutoDeleteMillis:              lockedTTL,
 		})
 		require.NoError(t, err)
 		require.Equal(t, failureTTL, updated.FailureTTLMillis)
-		require.Equal(t, inactivityTTL, updated.InactivityTTLMillis)
-		require.Equal(t, lockedTTL, updated.LockedTTLMillis)
+		require.Equal(t, inactivityTTL, updated.TimeTilDormantMillis)
+		require.Equal(t, lockedTTL, updated.TimeTilDormantAutoDeleteMillis)
 
 		// Validate fetching the template returns the same values as updating
 		// the template.
 		template, err = client.Template(ctx, template.ID)
 		require.NoError(t, err)
 		require.Equal(t, failureTTL, updated.FailureTTLMillis)
-		require.Equal(t, inactivityTTL, updated.InactivityTTLMillis)
-		require.Equal(t, lockedTTL, updated.LockedTTLMillis)
+		require.Equal(t, inactivityTTL, updated.TimeTilDormantMillis)
+		require.Equal(t, lockedTTL, updated.TimeTilDormantAutoDeleteMillis)
 	})
 
-	t.Run("UpdateLockedTTL", func(t *testing.T) {
+	t.Run("UpdateTimeTilDormantAutoDelete", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
@@ -268,48 +268,48 @@ func TestTemplates(t *testing.T) {
 		require.NoError(t, err)
 
 		lockedWorkspace = coderdtest.MustWorkspace(t, client, lockedWorkspace.ID)
-		require.NotNil(t, lockedWorkspace.LockedAt)
+		require.NotNil(t, lockedWorkspace.DormantAt)
 		// The deleting_at field should be nil since there is no template locked_ttl set.
 		require.Nil(t, lockedWorkspace.DeletingAt)
 
 		lockedTTL := time.Minute
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			LockedTTLMillis: lockedTTL.Milliseconds(),
+			TimeTilDormantAutoDeleteMillis: lockedTTL.Milliseconds(),
 		})
 		require.NoError(t, err)
-		require.Equal(t, lockedTTL.Milliseconds(), updated.LockedTTLMillis)
+		require.Equal(t, lockedTTL.Milliseconds(), updated.TimeTilDormantAutoDeleteMillis)
 
 		unlockedWorkspace = coderdtest.MustWorkspace(t, client, unlockedWorkspace.ID)
-		require.Nil(t, unlockedWorkspace.LockedAt)
+		require.Nil(t, unlockedWorkspace.DormantAt)
 		require.Nil(t, unlockedWorkspace.DeletingAt)
 
 		updatedLockedWorkspace := coderdtest.MustWorkspace(t, client, lockedWorkspace.ID)
-		require.NotNil(t, updatedLockedWorkspace.LockedAt)
+		require.NotNil(t, updatedLockedWorkspace.DormantAt)
 		require.NotNil(t, updatedLockedWorkspace.DeletingAt)
-		require.Equal(t, updatedLockedWorkspace.LockedAt.Add(lockedTTL), *updatedLockedWorkspace.DeletingAt)
-		require.Equal(t, updatedLockedWorkspace.LockedAt, lockedWorkspace.LockedAt)
+		require.Equal(t, updatedLockedWorkspace.DormantAt.Add(lockedTTL), *updatedLockedWorkspace.DeletingAt)
+		require.Equal(t, updatedLockedWorkspace.DormantAt, lockedWorkspace.DormantAt)
 
 		// Disable the locked_ttl on the template, then we can assert that the workspaces
 		// no longer have a deleting_at field.
 		updated, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			LockedTTLMillis: 0,
+			TimeTilDormantAutoDeleteMillis: 0,
 		})
 		require.NoError(t, err)
-		require.EqualValues(t, 0, updated.LockedTTLMillis)
+		require.EqualValues(t, 0, updated.TimeTilDormantAutoDeleteMillis)
 
 		// The unlocked workspace should remain unchanged.
 		unlockedWorkspace = coderdtest.MustWorkspace(t, client, unlockedWorkspace.ID)
-		require.Nil(t, unlockedWorkspace.LockedAt)
+		require.Nil(t, unlockedWorkspace.DormantAt)
 		require.Nil(t, unlockedWorkspace.DeletingAt)
 
 		// Fetch the locked workspace. It should still be locked, but it should no
 		// longer be scheduled for deletion.
 		lockedWorkspace = coderdtest.MustWorkspace(t, client, lockedWorkspace.ID)
-		require.NotNil(t, lockedWorkspace.LockedAt)
+		require.NotNil(t, lockedWorkspace.DormantAt)
 		require.Nil(t, lockedWorkspace.DeletingAt)
 	})
 
-	t.Run("UpdateLockedAt", func(t *testing.T) {
+	t.Run("UpdateDormantAt", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
@@ -341,28 +341,28 @@ func TestTemplates(t *testing.T) {
 		require.NoError(t, err)
 
 		lockedWorkspace = coderdtest.MustWorkspace(t, client, lockedWorkspace.ID)
-		require.NotNil(t, lockedWorkspace.LockedAt)
+		require.NotNil(t, lockedWorkspace.DormantAt)
 		// The deleting_at field should be nil since there is no template locked_ttl set.
 		require.Nil(t, lockedWorkspace.DeletingAt)
 
 		lockedTTL := time.Minute
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			LockedTTLMillis:         lockedTTL.Milliseconds(),
-			UpdateWorkspaceLockedAt: true,
+			TimeTilDormantAutoDeleteMillis:         lockedTTL.Milliseconds(),
+			UpdateWorkspaceDormantAt: true,
 		})
 		require.NoError(t, err)
-		require.Equal(t, lockedTTL.Milliseconds(), updated.LockedTTLMillis)
+		require.Equal(t, lockedTTL.Milliseconds(), updated.TimeTilDormantAutoDeleteMillis)
 
 		unlockedWorkspace = coderdtest.MustWorkspace(t, client, unlockedWorkspace.ID)
-		require.Nil(t, unlockedWorkspace.LockedAt)
+		require.Nil(t, unlockedWorkspace.DormantAt)
 		require.Nil(t, unlockedWorkspace.DeletingAt)
 
 		updatedLockedWorkspace := coderdtest.MustWorkspace(t, client, lockedWorkspace.ID)
-		require.NotNil(t, updatedLockedWorkspace.LockedAt)
+		require.NotNil(t, updatedLockedWorkspace.DormantAt)
 		require.NotNil(t, updatedLockedWorkspace.DeletingAt)
 		// Validate that the workspace locked_at value is updated.
-		require.True(t, updatedLockedWorkspace.LockedAt.After(*lockedWorkspace.LockedAt))
-		require.Equal(t, updatedLockedWorkspace.LockedAt.Add(lockedTTL), *updatedLockedWorkspace.DeletingAt)
+		require.True(t, updatedLockedWorkspace.DormantAt.After(*lockedWorkspace.DormantAt))
+		require.Equal(t, updatedLockedWorkspace.DormantAt.Add(lockedTTL), *updatedLockedWorkspace.DeletingAt)
 	})
 
 	t.Run("UpdateLastUsedAt", func(t *testing.T) {
@@ -397,28 +397,28 @@ func TestTemplates(t *testing.T) {
 		require.NoError(t, err)
 
 		lockedWorkspace = coderdtest.MustWorkspace(t, client, lockedWorkspace.ID)
-		require.NotNil(t, lockedWorkspace.LockedAt)
+		require.NotNil(t, lockedWorkspace.DormantAt)
 		// The deleting_at field should be nil since there is no template locked_ttl set.
 		require.Nil(t, lockedWorkspace.DeletingAt)
 
 		inactivityTTL := time.Minute
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			InactivityTTLMillis:       inactivityTTL.Milliseconds(),
+			TimeTilDormantMillis:       inactivityTTL.Milliseconds(),
 			UpdateWorkspaceLastUsedAt: true,
 		})
 		require.NoError(t, err)
-		require.Equal(t, inactivityTTL.Milliseconds(), updated.InactivityTTLMillis)
+		require.Equal(t, inactivityTTL.Milliseconds(), updated.TimeTilDormantMillis)
 
 		updatedUnlockedWS := coderdtest.MustWorkspace(t, client, unlockedWorkspace.ID)
-		require.Nil(t, updatedUnlockedWS.LockedAt)
+		require.Nil(t, updatedUnlockedWS.DormantAt)
 		require.Nil(t, updatedUnlockedWS.DeletingAt)
 		require.True(t, updatedUnlockedWS.LastUsedAt.After(unlockedWorkspace.LastUsedAt))
 
 		updatedLockedWorkspace := coderdtest.MustWorkspace(t, client, lockedWorkspace.ID)
-		require.NotNil(t, updatedLockedWorkspace.LockedAt)
+		require.NotNil(t, updatedLockedWorkspace.DormantAt)
 		require.Nil(t, updatedLockedWorkspace.DeletingAt)
 		// Validate that the workspace locked_at value is updated.
-		require.Equal(t, updatedLockedWorkspace.LockedAt, lockedWorkspace.LockedAt)
+		require.Equal(t, updatedLockedWorkspace.DormantAt, lockedWorkspace.DormantAt)
 		require.True(t, updatedLockedWorkspace.LastUsedAt.After(lockedWorkspace.LastUsedAt))
 	})
 }

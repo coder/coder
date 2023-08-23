@@ -232,11 +232,11 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	if createTemplate.FailureTTLMillis != nil {
 		failureTTL = time.Duration(*createTemplate.FailureTTLMillis) * time.Millisecond
 	}
-	if createTemplate.InactivityTTLMillis != nil {
-		inactivityTTL = time.Duration(*createTemplate.InactivityTTLMillis) * time.Millisecond
+	if createTemplate.TimeTilDormantMillis != nil {
+		inactivityTTL = time.Duration(*createTemplate.TimeTilDormantMillis) * time.Millisecond
 	}
-	if createTemplate.LockedTTLMillis != nil {
-		lockedTTL = time.Duration(*createTemplate.LockedTTLMillis) * time.Millisecond
+	if createTemplate.TimeTilDormantAutoDeleteMillis != nil {
+		lockedTTL = time.Duration(*createTemplate.TimeTilDormantAutoDeleteMillis) * time.Millisecond
 	}
 
 	var (
@@ -341,8 +341,8 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 				Weeks:      restartRequirementWeeks,
 			},
 			FailureTTL:    failureTTL,
-			InactivityTTL: inactivityTTL,
-			LockedTTL:     lockedTTL,
+			TimeTilDormant: inactivityTTL,
+			TimeTilDormantAutoDelete:     lockedTTL,
 		})
 		if err != nil {
 			return xerrors.Errorf("set template schedule options: %s", err)
@@ -533,13 +533,13 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	if req.FailureTTLMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "failure_ttl_ms", Detail: "Must be a positive integer."})
 	}
-	if req.InactivityTTLMillis < 0 {
+	if req.TimeTilDormantMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "inactivity_ttl_ms", Detail: "Must be a positive integer."})
 	}
-	if req.InactivityTTLMillis < 0 {
+	if req.TimeTilDormantMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "inactivity_ttl_ms", Detail: "Must be a positive integer."})
 	}
-	if req.LockedTTLMillis < 0 {
+	if req.TimeTilDormantAutoDeleteMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "locked_ttl_ms", Detail: "Must be a positive integer."})
 	}
 
@@ -565,8 +565,8 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			restartRequirementDaysOfWeekParsed == scheduleOpts.RestartRequirement.DaysOfWeek &&
 			req.RestartRequirement.Weeks == scheduleOpts.RestartRequirement.Weeks &&
 			req.FailureTTLMillis == time.Duration(template.FailureTTL).Milliseconds() &&
-			req.InactivityTTLMillis == time.Duration(template.InactivityTTL).Milliseconds() &&
-			req.LockedTTLMillis == time.Duration(template.LockedTTL).Milliseconds() {
+			req.TimeTilDormantMillis == time.Duration(template.TimeTilDormant).Milliseconds() &&
+			req.TimeTilDormantAutoDeleteMillis == time.Duration(template.TimeTilDormantAutoDelete).Milliseconds() {
 			return nil
 		}
 
@@ -598,16 +598,16 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		defaultTTL := time.Duration(req.DefaultTTLMillis) * time.Millisecond
 		maxTTL := time.Duration(req.MaxTTLMillis) * time.Millisecond
 		failureTTL := time.Duration(req.FailureTTLMillis) * time.Millisecond
-		inactivityTTL := time.Duration(req.InactivityTTLMillis) * time.Millisecond
-		lockedTTL := time.Duration(req.LockedTTLMillis) * time.Millisecond
+		inactivityTTL := time.Duration(req.TimeTilDormantMillis) * time.Millisecond
+		lockedTTL := time.Duration(req.TimeTilDormantAutoDeleteMillis) * time.Millisecond
 
 		if defaultTTL != time.Duration(template.DefaultTTL) ||
 			maxTTL != time.Duration(template.MaxTTL) ||
 			restartRequirementDaysOfWeekParsed != scheduleOpts.RestartRequirement.DaysOfWeek ||
 			req.RestartRequirement.Weeks != scheduleOpts.RestartRequirement.Weeks ||
 			failureTTL != time.Duration(template.FailureTTL) ||
-			inactivityTTL != time.Duration(template.InactivityTTL) ||
-			lockedTTL != time.Duration(template.LockedTTL) ||
+			inactivityTTL != time.Duration(template.TimeTilDormant) ||
+			lockedTTL != time.Duration(template.TimeTilDormantAutoDelete) ||
 			req.AllowUserAutostart != template.AllowUserAutostart ||
 			req.AllowUserAutostop != template.AllowUserAutostop {
 			updated, err = (*api.TemplateScheduleStore.Load()).Set(ctx, tx, updated, schedule.TemplateScheduleOptions{
@@ -623,10 +623,10 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 					Weeks:      req.RestartRequirement.Weeks,
 				},
 				FailureTTL:                failureTTL,
-				InactivityTTL:             inactivityTTL,
-				LockedTTL:                 lockedTTL,
+				TimeTilDormant:             inactivityTTL,
+				TimeTilDormantAutoDelete:                 lockedTTL,
 				UpdateWorkspaceLastUsedAt: req.UpdateWorkspaceLastUsedAt,
-				UpdateWorkspaceLockedAt:   req.UpdateWorkspaceLockedAt,
+				UpdateWorkspaceDormantAt:   req.UpdateWorkspaceDormantAt,
 			})
 			if err != nil {
 				return xerrors.Errorf("set template schedule options: %w", err)
@@ -758,8 +758,8 @@ func (api *API) convertTemplate(
 		AllowUserAutostop:            template.AllowUserAutostop,
 		AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 		FailureTTLMillis:             time.Duration(template.FailureTTL).Milliseconds(),
-		InactivityTTLMillis:          time.Duration(template.InactivityTTL).Milliseconds(),
-		LockedTTLMillis:              time.Duration(template.LockedTTL).Milliseconds(),
+		TimeTilDormantMillis:          time.Duration(template.TimeTilDormant).Milliseconds(),
+		TimeTilDormantAutoDeleteMillis:              time.Duration(template.TimeTilDormantAutoDelete).Milliseconds(),
 		RestartRequirement: codersdk.TemplateRestartRequirement{
 			DaysOfWeek: codersdk.BitmapToWeekdays(uint8(template.RestartRequirementDaysOfWeek)),
 			Weeks:      template.RestartRequirementWeeks,

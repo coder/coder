@@ -134,7 +134,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 				VersionID:                  job.ID,
 				DefaultTTLMillis:           ptr.Ref(defaultTTL.Milliseconds()),
 				FailureTTLMillis:           ptr.Ref(failureTTL.Milliseconds()),
-				InactivityTTLMillis:        ptr.Ref(inactivityTTL.Milliseconds()),
+				TimeTilDormantMillis:        ptr.Ref(inactivityTTL.Milliseconds()),
 				DisableEveryoneGroupAccess: disableEveryone,
 			}
 

@@ -217,9 +217,9 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		})
 		// Create a template without setting a failure_ttl.
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		require.Zero(t, template.InactivityTTLMillis)
+		require.Zero(t, template.TimeTilDormantMillis)
 		require.Zero(t, template.FailureTTLMillis)
-		require.Zero(t, template.LockedTTLMillis)
+		require.Zero(t, template.TimeTilDormantAutoDeleteMillis)
 
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
@@ -259,7 +259,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			ProvisionApply: echo.ProvisionComplete,
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.InactivityTTLMillis = ptr.Ref[int64](inactiveTTL.Milliseconds())
+			ctr.TimeTilDormantMillis = ptr.Ref[int64](inactiveTTL.Milliseconds())
 		})
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 
@@ -277,7 +277,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		// The workspace should be locked.
 		ws = coderdtest.MustWorkspace(t, client, ws.ID)
-		require.NotNil(t, ws.LockedAt)
+		require.NotNil(t, ws.DormantAt)
 		lastUsedAt := ws.LastUsedAt
 
 		err := client.UpdateWorkspaceLock(ctx, ws.ID, codersdk.UpdateWorkspaceLock{Lock: false})
@@ -315,7 +315,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			ProvisionApply: echo.ProvisionComplete,
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.InactivityTTLMillis = ptr.Ref[int64](inactiveTTL.Milliseconds())
+			ctr.TimeTilDormantMillis = ptr.Ref[int64](inactiveTTL.Milliseconds())
 		})
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
@@ -357,12 +357,12 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			ProvisionApply: echo.ProvisionComplete,
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.LockedTTLMillis = ptr.Ref[int64](lockedTTL.Milliseconds())
+			ctr.TimeTilDormantAutoDeleteMillis = ptr.Ref[int64](lockedTTL.Milliseconds())
 		})
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		build := coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
-		require.Nil(t, ws.LockedAt)
+		require.Nil(t, ws.DormantAt)
 		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
 		ticker <- ws.LastUsedAt.Add(lockedTTL * 2)
 		stats := <-statCh
@@ -399,7 +399,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			ProvisionApply: echo.ProvisionComplete,
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.InactivityTTLMillis = ptr.Ref[int64](inactiveTTL.Milliseconds())
+			ctr.TimeTilDormantMillis = ptr.Ref[int64](inactiveTTL.Milliseconds())
 		})
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 
@@ -419,7 +419,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		ws = coderdtest.MustWorkspace(t, client, ws.ID)
 		// The workspace should still be locked even though we didn't
 		// transition the workspace.
-		require.NotNil(t, ws.LockedAt)
+		require.NotNil(t, ws.DormantAt)
 	})
 
 	// Test the flow of a workspace transitioning from
@@ -451,8 +451,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			ProvisionApply: echo.ProvisionComplete,
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.InactivityTTLMillis = ptr.Ref[int64](transitionTTL.Milliseconds())
-			ctr.LockedTTLMillis = ptr.Ref[int64](transitionTTL.Milliseconds())
+			ctr.TimeTilDormantMillis = ptr.Ref[int64](transitionTTL.Milliseconds())
+			ctr.TimeTilDormantAutoDeleteMillis = ptr.Ref[int64](transitionTTL.Milliseconds())
 		})
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 
@@ -470,13 +470,13 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		ws = coderdtest.MustWorkspace(t, client, ws.ID)
 		// The workspace should be locked.
-		require.NotNil(t, ws.LockedAt)
+		require.NotNil(t, ws.DormantAt)
 
 		// Wait for the autobuilder to stop the workspace.
 		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
 
 		// Simulate the workspace being locked beyond the threshold.
-		ticker <- ws.LockedAt.Add(2 * transitionTTL)
+		ticker <- ws.DormantAt.Add(2 * transitionTTL)
 		stats = <-statCh
 		require.Len(t, stats.Transitions, 1)
 		// The workspace should be scheduled for deletion.
@@ -520,7 +520,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			ProvisionApply: echo.ProvisionComplete,
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.LockedTTLMillis = ptr.Ref[int64](lockedTTL.Milliseconds())
+			ctr.TimeTilDormantAutoDeleteMillis = ptr.Ref[int64](lockedTTL.Milliseconds())
 		})
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
@@ -534,21 +534,21 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		require.NoError(t, err)
 
 		ws = coderdtest.MustWorkspace(t, client, ws.ID)
-		require.NotNil(t, ws.LockedAt)
+		require.NotNil(t, ws.DormantAt)
 
 		// Ensure we haven't breached our threshold.
-		ticker <- ws.LockedAt.Add(-lockedTTL * 2)
+		ticker <- ws.DormantAt.Add(-lockedTTL * 2)
 		stats := <-statCh
 		// Expect no transitions since not enough time has elapsed.
 		require.Len(t, stats.Transitions, 0)
 
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			LockedTTLMillis: lockedTTL.Milliseconds(),
+			TimeTilDormantAutoDeleteMillis: lockedTTL.Milliseconds(),
 		})
 		require.NoError(t, err)
 
 		// Simlute the workspace breaching the threshold.
-		ticker <- ws.LockedAt.Add(lockedTTL * 2)
+		ticker <- ws.DormantAt.Add(lockedTTL * 2)
 		stats = <-statCh
 		require.Len(t, stats.Transitions, 1)
 		require.Equal(t, database.WorkspaceTransitionDelete, stats.Transitions[ws.ID])
@@ -608,7 +608,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		// Now that we've validated that the workspace is eligible for autostart
 		// lets cause it to become locked.
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			InactivityTTLMillis: inactiveTTL.Milliseconds(),
+			TimeTilDormantMillis: inactiveTTL.Milliseconds(),
 		})
 		require.NoError(t, err)
 
@@ -623,7 +623,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		// The workspace should be locked now.
 		ws = coderdtest.MustWorkspace(t, client, ws.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
-		require.NotNil(t, ws.LockedAt)
+		require.NotNil(t, ws.DormantAt)
 
 		// Assert that autostart is no longer triggered since workspace is locked.
 		tickCh <- sched.Next(ws.LatestBuild.CreatedAt)
@@ -660,10 +660,10 @@ func TestWorkspacesFiltering(t *testing.T) {
 		defer cancel()
 
 		template, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			LockedTTLMillis: lockedTTL.Milliseconds(),
+			TimeTilDormantAutoDeleteMillis: lockedTTL.Milliseconds(),
 		})
 		require.NoError(t, err)
-		require.Equal(t, lockedTTL.Milliseconds(), template.LockedTTLMillis)
+		require.Equal(t, lockedTTL.Milliseconds(), template.TimeTilDormantAutoDeleteMillis)
 
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
@@ -746,7 +746,7 @@ func TestWorkspacesWithoutTemplatePerms(t *testing.T) {
 func TestWorkspaceLock(t *testing.T) {
 	t.Parallel()
 
-	t.Run("TemplateLockedTTL", func(t *testing.T) {
+	t.Run("TemplateTimeTilDormantAutoDelete", func(t *testing.T) {
 		t.Parallel()
 		var (
 			client, user = coderdenttest.New(t, &coderdenttest.Options{
@@ -767,7 +767,7 @@ func TestWorkspaceLock(t *testing.T) {
 		)
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.LockedTTLMillis = ptr.Ref[int64](lockedTTL.Milliseconds())
+			ctr.TimeTilDormantAutoDeleteMillis = ptr.Ref[int64](lockedTTL.Milliseconds())
 		})
 
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
@@ -785,9 +785,9 @@ func TestWorkspaceLock(t *testing.T) {
 		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
 		require.NoError(t, err, "fetch provisioned workspace")
 		require.NotNil(t, workspace.DeletingAt)
-		require.NotNil(t, workspace.LockedAt)
-		require.Equal(t, workspace.LockedAt.Add(lockedTTL), *workspace.DeletingAt)
-		require.WithinRange(t, *workspace.LockedAt, time.Now().Add(-time.Second*10), time.Now())
+		require.NotNil(t, workspace.DormantAt)
+		require.Equal(t, workspace.DormantAt.Add(lockedTTL), *workspace.DeletingAt)
+		require.WithinRange(t, *workspace.DormantAt, time.Now().Add(-time.Second*10), time.Now())
 		// Locking a workspace shouldn't update the last_used_at.
 		require.Equal(t, lastUsedAt, workspace.LastUsedAt)
 
@@ -800,7 +800,7 @@ func TestWorkspaceLock(t *testing.T) {
 
 		workspace, err = client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err, "fetch provisioned workspace")
-		require.Nil(t, workspace.LockedAt)
+		require.Nil(t, workspace.DormantAt)
 		// Unlocking a workspace should cause the deleting_at to be unset.
 		require.Nil(t, workspace.DeletingAt)
 		// The last_used_at should get updated when we unlock the workspace.

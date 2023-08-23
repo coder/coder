@@ -38,11 +38,11 @@ type Workspace struct {
 	// DeletingAt indicates the time of the upcoming workspace deletion, if applicable; otherwise it is nil.
 	// Workspaces may have impending deletions if Template.InactivityTTL feature is turned on and the workspace is inactive.
 	DeletingAt *time.Time `json:"deleting_at" format:"date-time"`
-	// LockedAt being non-nil indicates a workspace that has been locked.
+	// DormantAt being non-nil indicates a workspace that has been locked.
 	// A locked workspace is no longer accessible by a user and must be
 	// unlocked by an admin. It is subject to deletion if it breaches
 	// the duration of the locked_ttl field on its template.
-	LockedAt *time.Time `json:"locked_at" format:"date-time"`
+	DormantAt *time.Time `json:"locked_at" format:"date-time"`
 	// Health shows the health of the workspace and information about
 	// what is causing an unhealthy status.
 	Health WorkspaceHealth `json:"health"`

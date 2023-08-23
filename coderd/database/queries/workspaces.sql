@@ -262,10 +262,10 @@ WHERE
 	-- Filter by locked workspaces. By default we do not return locked
 	-- workspaces since they are considered soft-deleted.
 	AND CASE
-		WHEN @locked_at :: timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN
-			locked_at IS NOT NULL AND locked_at >= @locked_at
+		WHEN @dormant_at :: timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN
+			dormant_at IS NOT NULL AND dormant_at >= @dormant_at
 		ELSE
-			locked_at IS NULL
+			dormant_at IS NULL
 	END
 	-- Filter by last_used
 	AND CASE
@@ -482,14 +482,14 @@ WHERE
 		-- it may be eligible for locking.
 		(
 			templates.inactivity_ttl > 0 AND
-			workspaces.locked_at IS NULL
+			workspaces.dormant_at IS NULL
 		) OR
 
 		-- If the workspace's template has a locked_ttl set
 		-- and the workspace is already locked
 		(
 			templates.locked_ttl > 0 AND
-			workspaces.locked_at IS NOT NULL
+			workspaces.dormant_at IS NOT NULL
 		)
 	) AND workspaces.deleted = 'false';
 
@@ -497,12 +497,12 @@ WHERE
 UPDATE
 	workspaces
 SET
-	locked_at = $2,
+	dormant_at = $2,
 	-- When a workspace is unlocked we want to update the last_used_at to avoid the workspace getting re-locked.
 	-- if we're locking the workspace then we leave it alone.
 	last_used_at = CASE WHEN $2::timestamptz IS NULL THEN now() at time zone 'utc' ELSE last_used_at END,
-	-- If locked_at is null (meaning unlocked) or the template-defined locked_ttl is 0 we should set
-	-- deleting_at to NULL else set it to the locked_at + locked_ttl duration.
+	-- If dormant_at is null (meaning unlocked) or the template-defined locked_ttl is 0 we should set
+	-- deleting_at to NULL else set it to the dormant_at + locked_ttl duration.
 	deleting_at = CASE WHEN $2::timestamptz IS NULL OR templates.locked_ttl = 0 THEN NULL ELSE $2::timestamptz + INTERVAL '1 milliseconds' * templates.locked_ttl / 1000000 END
 FROM
 	templates
@@ -517,14 +517,14 @@ UPDATE workspaces
 SET
     deleting_at = CASE
         WHEN @locked_ttl_ms::bigint = 0 THEN NULL
-        WHEN @locked_at::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN  (@locked_at::timestamptz) + interval '1 milliseconds' * @locked_ttl_ms::bigint
-        ELSE locked_at + interval '1 milliseconds' * @locked_ttl_ms::bigint
+        WHEN @dormant_at::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN  (@dormant_at::timestamptz) + interval '1 milliseconds' * @locked_ttl_ms::bigint
+        ELSE dormant_at + interval '1 milliseconds' * @locked_ttl_ms::bigint
     END,
-    locked_at = CASE WHEN @locked_at::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN @locked_at::timestamptz ELSE locked_at END
+    dormant_at = CASE WHEN @dormant_at::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN @dormant_at::timestamptz ELSE dormant_at END
 WHERE
     template_id = @template_id
 AND
-    locked_at IS NOT NULL;
+    dormant_at IS NOT NULL;
 
 -- name: UpdateTemplateWorkspacesLastUsedAt :exec
 UPDATE workspaces

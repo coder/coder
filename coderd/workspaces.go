@@ -785,7 +785,7 @@ func (api *API) putWorkspaceLock(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// If the workspace is already in the desired state do nothing!
-	if workspace.LockedAt.Valid == req.Lock {
+	if workspace.DormantAt.Valid == req.Lock {
 		httpapi.Write(ctx, rw, http.StatusNotModified, codersdk.Response{
 			Message: "Nothing to do!",
 		})
@@ -801,7 +801,7 @@ func (api *API) putWorkspaceLock(rw http.ResponseWriter, r *http.Request) {
 
 	workspace, err := api.Database.UpdateWorkspaceLockedDeletingAt(ctx, database.UpdateWorkspaceLockedDeletingAtParams{
 		ID:       workspace.ID,
-		LockedAt: lockedAt,
+		DormantAt: lockedAt,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1154,8 +1154,8 @@ func convertWorkspace(
 	}
 
 	var lockedAt *time.Time
-	if workspace.LockedAt.Valid {
-		lockedAt = &workspace.LockedAt.Time
+	if workspace.DormantAt.Valid {
+		lockedAt = &workspace.DormantAt.Time
 	}
 
 	var deletedAt *time.Time
@@ -1193,7 +1193,7 @@ func convertWorkspace(
 		TTLMillis:                            ttlMillis,
 		LastUsedAt:                           workspace.LastUsedAt,
 		DeletingAt:                           deletedAt,
-		LockedAt:                             lockedAt,
+		DormantAt:                             lockedAt,
 		Health: codersdk.WorkspaceHealth{
 			Healthy:       len(failingAgents) == 0,
 			FailingAgents: failingAgents,

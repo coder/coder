@@ -341,7 +341,7 @@ func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspac
 			AutostartSchedule: w.AutostartSchedule,
 			Ttl:               w.Ttl,
 			LastUsedAt:        w.LastUsedAt,
-			LockedAt:          w.LockedAt,
+			DormantAt:         w.DormantAt,
 			DeletingAt:        w.DeletingAt,
 			Count:             count,
 		}
@@ -3735,14 +3735,14 @@ func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, no
 		if build.Transition == database.WorkspaceTransitionStart &&
 			!build.Deadline.IsZero() &&
 			build.Deadline.Before(now) &&
-			!workspace.LockedAt.Valid {
+			!workspace.DormantAt.Valid {
 			workspaces = append(workspaces, workspace)
 			continue
 		}
 
 		if build.Transition == database.WorkspaceTransitionStop &&
 			workspace.AutostartSchedule.Valid &&
-			!workspace.LockedAt.Valid {
+			!workspace.DormantAt.Valid {
 			workspaces = append(workspaces, workspace)
 			continue
 		}
@@ -3760,11 +3760,11 @@ func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, no
 		if err != nil {
 			return nil, xerrors.Errorf("get template by ID: %w", err)
 		}
-		if !workspace.LockedAt.Valid && template.InactivityTTL > 0 {
+		if !workspace.DormantAt.Valid && template.TimeTilDormant > 0 {
 			workspaces = append(workspaces, workspace)
 			continue
 		}
-		if workspace.LockedAt.Valid && template.LockedTTL > 0 {
+		if workspace.DormantAt.Valid && template.TimeTilDormantAutoDelete > 0 {
 			workspaces = append(workspaces, workspace)
 			continue
 		}
@@ -5128,8 +5128,8 @@ func (q *FakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 		tpl.RestartRequirementDaysOfWeek = arg.RestartRequirementDaysOfWeek
 		tpl.RestartRequirementWeeks = arg.RestartRequirementWeeks
 		tpl.FailureTTL = arg.FailureTTL
-		tpl.InactivityTTL = arg.InactivityTTL
-		tpl.LockedTTL = arg.LockedTTL
+		tpl.TimeTilDormant = arg.TimeTilDormant
+		tpl.TimeTilDormantAutoDelete = arg.TimeTilDormantAutoDelete
 		q.templates[idx] = tpl
 		return nil
 	}
@@ -5727,12 +5727,12 @@ func (q *FakeQuerier) UpdateWorkspaceLockedDeletingAt(_ context.Context, arg dat
 		if workspace.ID != arg.ID {
 			continue
 		}
-		workspace.LockedAt = arg.LockedAt
-		if workspace.LockedAt.Time.IsZero() {
+		workspace.DormantAt = arg.DormantAt
+		if workspace.DormantAt.Time.IsZero() {
 			workspace.LastUsedAt = database.Now()
 			workspace.DeletingAt = sql.NullTime{}
 		}
-		if !workspace.LockedAt.Time.IsZero() {
+		if !workspace.DormantAt.Time.IsZero() {
 			var template database.TemplateTable
 			for _, t := range q.templates {
 				if t.ID == workspace.TemplateID {
@@ -5743,10 +5743,10 @@ func (q *FakeQuerier) UpdateWorkspaceLockedDeletingAt(_ context.Context, arg dat
 			if template.ID == uuid.Nil {
 				return database.Workspace{}, xerrors.Errorf("unable to find workspace template")
 			}
-			if template.LockedTTL > 0 {
+			if template.TimeTilDormantAutoDelete > 0 {
 				workspace.DeletingAt = sql.NullTime{
 					Valid: true,
-					Time:  workspace.LockedAt.Time.Add(time.Duration(template.LockedTTL)),
+					Time:  workspace.DormantAt.Time.Add(time.Duration(template.TimeTilDormantAutoDelete)),
 				}
 			}
 		}
@@ -5830,14 +5830,14 @@ func (q *FakeQuerier) UpdateWorkspacesLockedDeletingAtByTemplateID(_ context.Con
 			continue
 		}
 
-		if ws.LockedAt.Time.IsZero() {
+		if ws.DormantAt.Time.IsZero() {
 			continue
 		}
 
-		if !arg.LockedAt.IsZero() {
-			ws.LockedAt = sql.NullTime{
+		if !arg.DormantAt.IsZero() {
+			ws.DormantAt = sql.NullTime{
 				Valid: true,
-				Time:  arg.LockedAt,
+				Time:  arg.DormantAt,
 			}
 		}
 
@@ -5845,7 +5845,7 @@ func (q *FakeQuerier) UpdateWorkspacesLockedDeletingAtByTemplateID(_ context.Con
 			Valid: arg.LockedTtlMs > 0,
 		}
 		if arg.LockedTtlMs > 0 {
-			deletingAt.Time = ws.LockedAt.Time.Add(time.Duration(arg.LockedTtlMs) * time.Millisecond)
+			deletingAt.Time = ws.DormantAt.Time.Add(time.Duration(arg.LockedTtlMs) * time.Millisecond)
 		}
 		ws.DeletingAt = deletingAt
 		q.workspaces[i] = ws
@@ -6222,12 +6222,12 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 		}
 
 		// We omit locked workspaces by default.
-		if arg.LockedAt.IsZero() && workspace.LockedAt.Valid {
+		if arg.DormantAt.IsZero() && workspace.DormantAt.Valid {
 			continue
 		}
 
 		// Filter out workspaces that are locked after the timestamp.
-		if !arg.LockedAt.IsZero() && workspace.LockedAt.Time.Before(arg.LockedAt) {
+		if !arg.DormantAt.IsZero() && workspace.DormantAt.Time.Before(arg.DormantAt) {
 			continue
 		}
 

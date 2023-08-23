@@ -1363,9 +1363,9 @@ func TestWorkspaceFilterManual(t *testing.T) {
 			TemplateScheduleStore: schedule.MockTemplateScheduleStore{
 				SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
 					if atomic.AddInt64(&setCalled, 1) == 2 {
-						assert.Equal(t, inactivityTTL, options.InactivityTTL)
+						assert.Equal(t, inactivityTTL, options.TimeTilDormant)
 					}
-					template.InactivityTTL = int64(options.InactivityTTL)
+					template.TimeTilDormant = int64(options.TimeTilDormant)
 					return template, nil
 				},
 			},
@@ -1385,11 +1385,11 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		defer cancel()
 
 		template, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			InactivityTTLMillis: inactivityTTL.Milliseconds(),
+			TimeTilDormantMillis: inactivityTTL.Milliseconds(),
 		})
 
 		assert.NoError(t, err)
-		assert.Equal(t, inactivityTTL.Milliseconds(), template.InactivityTTLMillis)
+		assert.Equal(t, inactivityTTL.Milliseconds(), template.TimeTilDormantMillis)
 
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
@@ -1404,11 +1404,11 @@ func TestWorkspaceFilterManual(t *testing.T) {
 
 		assert.NoError(t, err)
 		// we are expecting that no workspaces are returned as user is unlicensed
-		// and template.InactivityTTL should be 0
+		// and template.TimeTilDormant should be 0
 		assert.Len(t, res.Workspaces, 0)
 	})
 
-	t.Run("LockedAt", func(t *testing.T) {
+	t.Run("DormantAt", func(t *testing.T) {
 		// this test has a licensed counterpart in enterprise/coderd/workspaces_test.go: FilterQueryHasDeletingByAndLicensed
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
@@ -1445,7 +1445,7 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, res.Workspaces, 1)
-		require.NotNil(t, res.Workspaces[0].LockedAt)
+		require.NotNil(t, res.Workspaces[0].DormantAt)
 	})
 
 	t.Run("LastUsed", func(t *testing.T) {
@@ -2796,7 +2796,7 @@ func TestWorkspaceLock(t *testing.T) {
 		)
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.LockedTTLMillis = ptr.Ref[int64](lockedTTL.Milliseconds())
+			ctr.TimeTilDormantAutoDeleteMillis = ptr.Ref[int64](lockedTTL.Milliseconds())
 		})
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
@@ -2814,8 +2814,8 @@ func TestWorkspaceLock(t *testing.T) {
 		require.NoError(t, err, "fetch provisioned workspace")
 		// The template doesn't have a locked_ttl set so this should be nil.
 		require.Nil(t, workspace.DeletingAt)
-		require.NotNil(t, workspace.LockedAt)
-		require.WithinRange(t, *workspace.LockedAt, time.Now().Add(-time.Second*10), time.Now())
+		require.NotNil(t, workspace.DormantAt)
+		require.WithinRange(t, *workspace.DormantAt, time.Now().Add(-time.Second*10), time.Now())
 		require.Equal(t, lastUsedAt, workspace.LastUsedAt)
 
 		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
@@ -2827,7 +2827,7 @@ func TestWorkspaceLock(t *testing.T) {
 
 		workspace, err = client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err, "fetch provisioned workspace")
-		require.Nil(t, workspace.LockedAt)
+		require.Nil(t, workspace.DormantAt)
 		// The template doesn't have a locked_ttl set so this should be nil.
 		require.Nil(t, workspace.DeletingAt)
 		// The last_used_at should get updated when we unlock the workspace.
