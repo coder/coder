@@ -683,8 +683,8 @@ func TestExecutorFailedWorkspace(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.ProvisionComplete,
-			ProvisionApply: echo.ProvisionFailed,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ApplyFailed,
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.FailureTTLMillis = ptr.Ref[int64](failureTTL.Milliseconds())
@@ -733,8 +733,8 @@ func TestExecutorInactiveWorkspace(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.ProvisionComplete,
-			ProvisionApply: echo.ProvisionComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ApplyComplete,
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.InactivityTTLMillis = ptr.Ref[int64](inactiveTTL.Milliseconds())
@@ -766,22 +766,16 @@ func mustProvisionWorkspaceWithParameters(t *testing.T, client *codersdk.Client,
 	user := coderdtest.CreateFirstUser(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Provision_Response{
+		ProvisionPlan: []*proto.Response{
 			{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
+				Type: &proto.Response_Plan{
+					Plan: &proto.PlanComplete{
 						Parameters: richParameters,
 					},
 				},
 			},
 		},
-		ProvisionApply: []*proto.Provision_Response{
-			{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{},
-				},
-			},
-		},
+		ProvisionApply: echo.ApplyComplete,
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)

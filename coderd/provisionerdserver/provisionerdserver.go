@@ -280,7 +280,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 				RichParameterValues: convertRichParameterValues(workspaceBuildParameters),
 				VariableValues:      asVariableValues(templateVariables),
 				GitAuthProviders:    gitAuthProviders,
-				Metadata: &sdkproto.Provision_Metadata{
+				Metadata: &sdkproto.Metadata{
 					CoderUrl:                      server.AccessURL.String(),
 					WorkspaceTransition:           transition,
 					WorkspaceName:                 workspace.Name,
@@ -316,7 +316,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 			TemplateDryRun: &proto.AcquiredJob_TemplateDryRun{
 				RichParameterValues: convertRichParameterValues(input.RichParameterValues),
 				VariableValues:      asVariableValues(templateVariables),
-				Metadata: &sdkproto.Provision_Metadata{
+				Metadata: &sdkproto.Metadata{
 					CoderUrl:      server.AccessURL.String(),
 					WorkspaceName: input.WorkspaceName,
 				},
@@ -337,7 +337,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 		protoJob.Type = &proto.AcquiredJob_TemplateImport_{
 			TemplateImport: &proto.AcquiredJob_TemplateImport{
 				UserVariableValues: convertVariableValues(userVariableValues),
-				Metadata: &sdkproto.Provision_Metadata{
+				Metadata: &sdkproto.Metadata{
 					CoderUrl: server.AccessURL.String(),
 				},
 			},

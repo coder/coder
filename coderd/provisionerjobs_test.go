@@ -20,16 +20,16 @@ func TestProvisionerJobLogs(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Log{
+			ProvisionApply: []*proto.Response{{
+				Type: &proto.Response_Log{
 					Log: &proto.Log{
 						Level:  proto.LogLevel_INFO,
 						Output: "log-output",
 					},
 				},
 			}, {
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{},
+				Type: &proto.Response_Apply{
+					Apply: &proto.ApplyComplete{},
 				},
 			}},
 		})
@@ -59,16 +59,16 @@ func TestProvisionerJobLogs(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Log{
+			ProvisionApply: []*proto.Response{{
+				Type: &proto.Response_Log{
 					Log: &proto.Log{
 						Level:  proto.LogLevel_INFO,
 						Output: "log-output",
 					},
 				},
 			}, {
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{},
+				Type: &proto.Response_Apply{
+					Apply: &proto.ApplyComplete{},
 				},
 			}},
 		})
