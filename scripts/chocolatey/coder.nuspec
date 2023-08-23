@@ -19,7 +19,7 @@
 
     <!-- == SOFTWARE SPECIFIC SECTION == -->
     <!-- This section is about the software itself -->
-    <title>Coder (Install)</title>
+    <title>Coder</title>
     <authors>Coder Technologies\, Inc.</authors>
     <projectUrl>https://coder.com</projectUrl>
     <iconUrl>https://github.com/coder/presskit/blob/main/logos/coder_logo_black_square.png?raw=true</iconUrl>
