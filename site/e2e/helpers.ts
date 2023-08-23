@@ -353,18 +353,21 @@ const createTemplateVersionTar = async (
     responses = {}
   }
   if (!responses.parse) {
-    responses.parse = [{
-      parse: {}
-    }]
+    responses.parse = [
+      {
+        parse: {},
+      },
+    ]
   }
   if (!responses.apply) {
-    responses.apply = [{
-      apply: {}
-    }]
+    responses.apply = [
+      {
+        apply: {},
+      },
+    ]
   }
   if (!responses.plan) {
-    responses.plan = responses.apply.map(
-      response => {
+    responses.plan = responses.apply.map((response) => {
       if (response.log) {
         return response
       }
@@ -374,7 +377,7 @@ const createTemplateVersionTar = async (
           resources: response.apply?.resources ?? [],
           parameters: response.apply?.parameters ?? [],
           gitAuthProviders: response.apply?.gitAuthProviders ?? [],
-        }
+        },
       }
     })
   }
@@ -395,43 +398,45 @@ const createTemplateVersionTar = async (
 
   const fillResource = (resource: RecursivePartial<Resource>) => {
     if (resource.agents) {
-      resource.agents = resource.agents?.map((agent: RecursivePartial<Agent>) => {
-        if (agent.apps) {
-          agent.apps = agent.apps?.map((app: RecursivePartial<App>) => {
-            return {
-              command: "",
-              displayName: "example",
-              external: false,
-              icon: "",
-              sharingLevel: AppSharingLevel.PUBLIC,
-              slug: "example",
-              subdomain: false,
-              url: "",
-              ...app,
-            } as App
-          })
-        }
-        return {
-          apps: [],
-          architecture: "amd64",
-          connectionTimeoutSeconds: 300,
-          directory: "",
-          env: {},
-          id: randomUUID(),
-          metadata: [],
-          motdFile: "",
-          name: "dev",
-          operatingSystem: "linux",
-          shutdownScript: "",
-          shutdownScriptTimeoutSeconds: 0,
-          startupScript: "",
-          startupScriptBehavior: "",
-          startupScriptTimeoutSeconds: 300,
-          troubleshootingUrl: "",
-          token: randomUUID(),
-          ...agent,
-        } as Agent
-      })
+      resource.agents = resource.agents?.map(
+        (agent: RecursivePartial<Agent>) => {
+          if (agent.apps) {
+            agent.apps = agent.apps?.map((app: RecursivePartial<App>) => {
+              return {
+                command: "",
+                displayName: "example",
+                external: false,
+                icon: "",
+                sharingLevel: AppSharingLevel.PUBLIC,
+                slug: "example",
+                subdomain: false,
+                url: "",
+                ...app,
+              } as App
+            })
+          }
+          return {
+            apps: [],
+            architecture: "amd64",
+            connectionTimeoutSeconds: 300,
+            directory: "",
+            env: {},
+            id: randomUUID(),
+            metadata: [],
+            motdFile: "",
+            name: "dev",
+            operatingSystem: "linux",
+            shutdownScript: "",
+            shutdownScriptTimeoutSeconds: 0,
+            startupScript: "",
+            startupScriptBehavior: "",
+            startupScriptTimeoutSeconds: 300,
+            troubleshootingUrl: "",
+            token: randomUUID(),
+            ...agent,
+          } as Agent
+        },
+      )
     }
     return {
       agents: [],
@@ -533,7 +538,7 @@ export const echoResponsesWithParameters = (
   return {
     parse: [
       {
-        parse: {}
+        parse: {},
       },
     ],
     plan: [
