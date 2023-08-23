@@ -111,7 +111,6 @@ export function HealthPageView({
           display: "flex",
           flexBasis: 0,
           flex: 1,
-          alignItems: "start",
           overflow: "hidden",
         }}
       >
@@ -120,7 +119,6 @@ export function HealthPageView({
             width: (theme) => theme.spacing(32),
             flexShrink: 0,
             borderRight: (theme) => `1px solid ${theme.palette.divider}`,
-            height: "100%",
           }}
         >
           <Box
@@ -198,7 +196,7 @@ export function HealthPageView({
           </Box>
         </Box>
         {/* 62px - navbar and 36px - the bottom bar */}
-        <Box sx={{ height: "100%", overflowY: "auto", width: "100%" }}>
+        <Box sx={{ overflowY: "auto", width: "100%" }}>
           <SyntaxHighlighter
             language="json"
             editorProps={{ height: "100%" }}
