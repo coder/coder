@@ -1024,6 +1024,31 @@ const docTemplate = `{
                 }
             }
         },
+        "/licenses/refresh-entitlements": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "Update license entitlements",
+                "operationId": "update-license-entitlements",
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/licenses/{id}": {
             "delete": {
                 "security": [
@@ -8074,6 +8099,10 @@ const docTemplate = `{
                 "has_license": {
                     "type": "boolean"
                 },
+                "refreshed_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "require_telemetry": {
                     "type": "boolean"
                 },
@@ -11955,6 +11984,9 @@ const docTemplate = `{
             "properties": {
                 "app_security_key": {
                     "type": "string"
+                },
+                "derp_map": {
+                    "$ref": "#/definitions/tailcfg.DERPMap"
                 },
                 "derp_mesh_key": {
                     "type": "string"

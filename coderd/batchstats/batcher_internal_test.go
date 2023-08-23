@@ -31,7 +31,7 @@ func TestBatchStats(t *testing.T) {
 	deps1 := setupDeps(t, store)
 	deps2 := setupDeps(t, store)
 	tick := make(chan time.Time)
-	flushed := make(chan int)
+	flushed := make(chan int, 1)
 
 	b, closer, err := New(ctx,
 		WithStore(store),

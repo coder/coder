@@ -23,6 +23,8 @@ const validFormValues = {
   failure_ttl_ms: 7,
   inactivity_ttl_ms: 180,
   locked_ttl_ms: 30,
+  update_workspace_last_used_at: false,
+  update_workspace_locked_at: false,
 }
 
 const renderTemplateSchedulePage = async () => {
@@ -63,12 +65,12 @@ const fillAndSubmitForm = async ({
   await user.type(failureTtlField, failure_ttl_ms.toString())
 
   const inactivityTtlField = screen.getByRole("checkbox", {
-    name: /Inactivity TTL/i,
+    name: /Dormancy Threshold/i,
   })
   await user.type(inactivityTtlField, inactivity_ttl_ms.toString())
 
   const lockedTtlField = screen.getByRole("checkbox", {
-    name: /Locked TTL/i,
+    name: /Dormancy Auto-Deletion/i,
   })
   await user.type(lockedTtlField, locked_ttl_ms.toString())
 
@@ -123,7 +125,7 @@ describe("TemplateSchedulePage", () => {
     )
   })
 
-  test("failure, inactivity, and locked ttl converted to and from days", async () => {
+  test("failure, dormancy, and dormancy auto-deletion converted to and from days", async () => {
     await renderTemplateSchedulePage()
 
     jest.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
@@ -237,11 +239,11 @@ describe("TemplateSchedulePage", () => {
     }
     const validate = () => getValidationSchema().validateSync(values)
     expect(validate).toThrowError(
-      "Inactivity cleanup days must not be less than 0.",
+      "Dormancy threshold days must not be less than 0.",
     )
   })
 
-  it("allows a locked ttl of 7 days", () => {
+  it("allows a dormancy ttl of 7 days", () => {
     const values: UpdateTemplateMeta = {
       ...validFormValues,
       locked_ttl_ms: 86400000 * 7,
@@ -250,7 +252,7 @@ describe("TemplateSchedulePage", () => {
     expect(validate).not.toThrowError()
   })
 
-  it("allows a locked ttl of 0", () => {
+  it("allows a dormancy ttl of 0", () => {
     const values: UpdateTemplateMeta = {
       ...validFormValues,
       locked_ttl_ms: 0,
@@ -266,7 +268,7 @@ describe("TemplateSchedulePage", () => {
     }
     const validate = () => getValidationSchema().validateSync(values)
     expect(validate).toThrowError(
-      "Locked cleanup days must not be less than 0.",
+      "Dormancy auto-deletion days must not be less than 0.",
     )
   })
 })

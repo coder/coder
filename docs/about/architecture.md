@@ -8,9 +8,9 @@ This document provides a high level overview of Coder's architecture.
 
 ## coderd
 
-coderd is the service created by running `coder server`. It is a thin
-API that connects workspaces, provisioners and users. coderd stores its state in
-Postgres and is the only service that communicates with Postgres.
+coderd is the service created by running `coder server`. It is a thin API that
+connects workspaces, provisioners and users. coderd stores its state in Postgres
+and is the only service that communicates with Postgres.
 
 It offers:
 
@@ -22,16 +22,18 @@ It offers:
 
 ## provisionerd
 
-provisionerd is the execution context for infrastructure modifying providers.
-At the moment, the only provider is Terraform (running `terraform`).
+provisionerd is the execution context for infrastructure modifying providers. At
+the moment, the only provider is Terraform (running `terraform`).
 
-By default, the Coder server runs multiple provisioner daemons. [External provisioners](../admin/provisioners.md) can be added for security or scalability purposes.
+By default, the Coder server runs multiple provisioner daemons.
+[External provisioners](../admin/provisioners.md) can be added for security or
+scalability purposes.
 
 ## Agents
 
-An agent is the Coder service that runs within a user's remote workspace.
-It provides a consistent interface for coderd and clients to communicate
-with workspaces regardless of operating system, architecture, or cloud.
+An agent is the Coder service that runs within a user's remote workspace. It
+provides a consistent interface for coderd and clients to communicate with
+workspaces regardless of operating system, architecture, or cloud.
 
 It offers the following services along with much more:
 
@@ -40,15 +42,20 @@ It offers the following services along with much more:
 - Liveness checks
 - `startup_script` automation
 
-Templates are responsible for [creating and running agents](../templates/index.md#coder-agent) within workspaces.
+Templates are responsible for
+[creating and running agents](../templates/index.md#coder-agent) within
+workspaces.
 
 ## Service Bundling
 
-While coderd and Postgres can be orchestrated independently,our default installation
-paths bundle them all together into one system service. It's perfectly fine to run a production deployment this way, but there are certain situations that necessitate decomposition:
+While coderd and Postgres can be orchestrated independently,our default
+installation paths bundle them all together into one system service. It's
+perfectly fine to run a production deployment this way, but there are certain
+situations that necessitate decomposition:
 
 - Reducing global client latency (distribute coderd and centralize database)
-- Achieving greater availability and efficiency (horizontally scale individual services)
+- Achieving greater availability and efficiency (horizontally scale individual
+  services)
 
 ## Workspaces
 

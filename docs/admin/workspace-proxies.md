@@ -1,28 +1,47 @@
 # Workspace Proxies
 
-> Workspace proxies are in an [experimental state](../contributing/feature-stages.md#experimental-features) and the behavior is subject to change. Use [GitHub issues](https://github.com/coder/coder) to leave feedback. This experiment must be specifically enabled with the `--experiments="moons"` option on both coderd and the workspace proxy. If you have all experiements enabled, you have to add moons as well. `--experiments="*,moons"`
+> Workspace proxies are in an
+> [experimental state](../contributing/feature-stages.md#experimental-features)
+> and the behavior is subject to change. Use
+> [GitHub issues](https://github.com/coder/coder) to leave feedback. This
+> experiment must be specifically enabled with the `--experiments="moons"`
+> option on both coderd and the workspace proxy. If you have all experiements
+> enabled, you have to add moons as well. `--experiments="*,moons"`
 
 Workspace proxies provide low-latency experiences for geo-distributed teams.
 
-Coder's networking does a best effort to make direct connections to a workspace. In situations where this is not possible, such as connections via the web terminal and [web IDEs](../ides/web-ides.md), workspace proxies are able to reduce the amount of distance the network traffic needs to travel.
+Coder's networking does a best effort to make direct connections to a workspace.
+In situations where this is not possible, such as connections via the web
+terminal and [web IDEs](../ides/web-ides.md), workspace proxies are able to
+reduce the amount of distance the network traffic needs to travel.
 
-A workspace proxy is a relay connection a developer can choose to use when connecting with their workspace over SSH, a workspace app, port forwarding, etc. Dashboard connections and API calls (e.g. the workspaces list) are not served over workspace proxies.
+A workspace proxy is a relay connection a developer can choose to use when
+connecting with their workspace over SSH, a workspace app, port forwarding, etc.
+Dashboard connections and API calls (e.g. the workspaces list) are not served
+over workspace proxies.
 
 ![ProxyDiagram](../images/workspaceproxy/proxydiagram.png)
 
 # Deploy a workspace proxy
 
-Each workspace proxy should be a unique instance. At no point should 2 workspace proxy instances share the same authentication token. They only require port 443 to be open and are expected to have network connectivity to the coderd dashboard. Workspace proxies **do not** make any database connections.
+Each workspace proxy should be a unique instance. At no point should 2 workspace
+proxy instances share the same authentication token. They only require port 443
+to be open and are expected to have network connectivity to the coderd
+dashboard. Workspace proxies **do not** make any database connections.
 
-Workspace proxies can be used in the browser by navigating to the user `Account -> Workspace Proxy`
+Workspace proxies can be used in the browser by navigating to the user
+`Account -> Workspace Proxy`
 
 ## Requirements
 
-- The [Coder CLI](../cli.md) must be installed and authenticated as a user with the Owner role.
+- The [Coder CLI](../cli.md) must be installed and authenticated as a user with
+  the Owner role.
 
 ## Step 1: Create the proxy
 
-Create the workspace proxy and make sure to save the returned authentication token for said proxy. This is the token the workspace proxy will use to authenticate back to primary coderd.
+Create the workspace proxy and make sure to save the returned authentication
+token for said proxy. This is the token the workspace proxy will use to
+authenticate back to primary coderd.
 
 ```bash
 $ coder wsproxy create --name=newyork --display-name="USA East" --icon="/emojis/2194.png"
@@ -40,7 +59,9 @@ newyork                             unregistered
 
 ## Step 2: Deploy the proxy
 
-Deploying the workspace proxy will also register the proxy with coderd and make the workspace proxy usable. If the proxy deployment is successful, `coder wsproxy ls` will show an `ok` status code:
+Deploying the workspace proxy will also register the proxy with coderd and make
+the workspace proxy usable. If the proxy deployment is successful,
+`coder wsproxy ls` will show an `ok` status code:
 
 ```
 $ coder wsproxy ls
@@ -53,13 +74,18 @@ sydney            https://sydney.example.com  ok
 Other Status codes:
 
 - `unregistered` : The workspace proxy was created, and not yet deployed
-- `unreachable` : The workspace proxy was registered, but is not responding. Likely the proxy went offline.
-- `unhealthy` : The workspace proxy is reachable, but has some issue that is preventing the proxy from being used. `coder wsproxy ls` should show the error message.
+- `unreachable` : The workspace proxy was registered, but is not responding.
+  Likely the proxy went offline.
+- `unhealthy` : The workspace proxy is reachable, but has some issue that is
+  preventing the proxy from being used. `coder wsproxy ls` should show the error
+  message.
 - `ok` : The workspace proxy is healthy and working properly!
 
 ### Configuration
 
-Workspace proxy configuration overlaps with a subset of the coderd configuration. To see the full list of configuration options: `coder wsproxy server --help`
+Workspace proxy configuration overlaps with a subset of the coderd
+configuration. To see the full list of configuration options:
+`coder wsproxy server --help`
 
 ```bash
 # Proxy specific configuration. These are REQUIRED
@@ -87,7 +113,8 @@ CODER_TLS_KEY_FILE="<key_file_location>"
 
 Make a `values-wsproxy.yaml` with the workspace proxy configuration:
 
-> Notice the `workspaceProxy` configuration which is `false` by default in the coder Helm chart.
+> Notice the `workspaceProxy` configuration which is `false` by default in the
+> coder Helm chart.
 
 ```yaml
 coder:
@@ -121,7 +148,9 @@ Using Helm, install the workspace proxy chart
 helm install coder coder-v2/coder --namespace <your workspace proxy namespace> -f ./values-wsproxy.yaml
 ```
 
-Test that the workspace proxy is reachable with `curl -vvv`. If for some reason, the Coder dashboard still shows the workspace proxy is `UNHEALTHY`, scale down and up the deployment's replicas.
+Test that the workspace proxy is reachable with `curl -vvv`. If for some reason,
+the Coder dashboard still shows the workspace proxy is `UNHEALTHY`, scale down
+and up the deployment's replicas.
 
 ### Running on a VM
 
@@ -132,11 +161,14 @@ coder wsproxy server
 
 ### Running in Docker
 
-Modify the default entrypoint to run a workspace proxy server instead of a regular Coder server.
+Modify the default entrypoint to run a workspace proxy server instead of a
+regular Coder server.
 
 #### Docker Compose
 
-Change the provided [`docker-compose.yml`](https://github.com/coder/coder/blob/main/docker-compose.yaml) file to include a custom entrypoint:
+Change the provided
+[`docker-compose.yml`](https://github.com/coder/coder/blob/main/docker-compose.yaml)
+file to include a custom entrypoint:
 
 ```diff
   image: ghcr.io/coder/coder:${CODER_VERSION:-latest}
@@ -158,6 +190,9 @@ ENTRYPOINT ["/opt/coder", "wsproxy", "server"]
 
 ### Selecting a proxy
 
-Users can select a workspace proxy at the top-right of the browser-based Coder dashboard. Workspace proxy preferences are cached by the web browser. If a proxy goes offline, the session will fall back to the primary proxy. This could take up to 60 seconds.
+Users can select a workspace proxy at the top-right of the browser-based Coder
+dashboard. Workspace proxy preferences are cached by the web browser. If a proxy
+goes offline, the session will fall back to the primary proxy. This could take
+up to 60 seconds.
 
 ![Workspace proxy picker](../images/admin/workspace-proxy-picker.png)

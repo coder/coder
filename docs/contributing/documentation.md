@@ -10,12 +10,12 @@ This style guide is primarily for use with authoring documentation.
 - Use plural nouns and pronouns (_they_, _their_, or _them_), especially when
   the specific number is uncertain (i.e., "Set up your environments" even though
   you don't know if the user will have one or many environments)
-- When writing documentation titles, use the noun form, not the gerund form (e.g., "Environment
-  Management" instead of "Managing Environments")
+- When writing documentation titles, use the noun form, not the gerund form
+  (e.g., "Environment Management" instead of "Managing Environments")
 - Context matters when you decide whether to capitalize something or not. For
-  example, ["A Job creates one or more
-  Pods..."](https://kubernetes.io/docs/concepts/workloads/controllers/job/) is
-  correct when writing about Kubernetes. However, in other contexts, neither
+  example,
+  ["A Job creates one or more Pods..."](https://kubernetes.io/docs/concepts/workloads/controllers/job/)
+  is correct when writing about Kubernetes. However, in other contexts, neither
   _job_ nor _pods_ would be capitalized. Please follow the conventions set forth
   by the relevant companies and open source communities.
 
@@ -79,8 +79,8 @@ For code that you want users to enter via a command-line interface, use
 
 ### Punctuation
 
-Do not use the ampersand (&) as a shorthand for _and_ unless you're referring to a
-UI element or the name of something that uses _&_.
+Do not use the ampersand (&) as a shorthand for _and_ unless you're referring to
+a UI element or the name of something that uses _&_.
 
 You can use the symbol `~` in place of the word _approximately_.
 
@@ -91,13 +91,14 @@ and anything that has a name visible to the user, use bold font.
 
 **Example:** On the **Environment Overview** page, click **Configure SSH**.
 
-Don't use code font for UI elements unless it is rendered based on previously entered
-text. For example, if you tell the user to provide the environment name as
-`myEnvironment`, then use both bold and cold font when referring to the name.
+Don't use code font for UI elements unless it is rendered based on previously
+entered text. For example, if you tell the user to provide the environment name
+as `myEnvironment`, then use both bold and cold font when referring to the name.
 
 **Example**: Click **`myEnvironment`**.
 
-When writing out instructions that involve UI elements, both of the following options are acceptable:
+When writing out instructions that involve UI elements, both of the following
+options are acceptable:
 
 - Go to **Manage** > **Users**.
 - In the **Manage** menu, click **Users**.
@@ -111,13 +112,13 @@ Below summarizes the guidelines regarding how Coder terms should be used.
 The only Coder-specific terms that should be capitalized are the names of
 products (e.g., Coder).
 
-The exception is **code-server**, which is always lowercase. If it appears at the
-beginning of the sentence, rewrite the sentence to avoid this usage.
+The exception is **code-server**, which is always lowercase. If it appears at
+the beginning of the sentence, rewrite the sentence to avoid this usage.
 
 ### Uncapitalized terms
 
-In general, we do not capitalize the names of features (unless the situation calls for it,
-such as the word appearing at the beginning of a sentence):
+In general, we do not capitalize the names of features (unless the situation
+calls for it, such as the word appearing at the beginning of a sentence):
 
 - account dormancy
 - audit logs

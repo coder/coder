@@ -103,6 +103,7 @@ type Entitlements struct {
 	HasLicense       bool                    `json:"has_license"`
 	Trial            bool                    `json:"trial"`
 	RequireTelemetry bool                    `json:"require_telemetry"`
+	RefreshedAt      time.Time               `json:"refreshed_at" format:"date-time"`
 }
 
 func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
