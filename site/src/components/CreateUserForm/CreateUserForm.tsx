@@ -105,33 +105,13 @@ export const CreateUserForm: FC<
   )
 
   const styles = useStyles()
-  // This, unfortunately, cannot be an actual component because mui requires
-  // that all `MenuItem`s must be direct children of the `Select` they belong to
-  const authMethodSelect = (value: keyof typeof authMethodLanguage) => {
-    const language = authMethodLanguage[value]
-    return (
-      <MenuItem key={value} id={"item-" + value} value={value}>
-        <Stack spacing={0} maxWidth={400}>
-          {language.displayName}
-          <span className={styles.labelDescription}>
-            {language.description}
-          </span>
-        </Stack>
-      </MenuItem>
-    )
-  }
 
-  const methods = []
-  if (authMethods?.password.enabled) {
-    methods.push(authMethodSelect("password"))
-  }
-  if (authMethods?.oidc.enabled) {
-    methods.push(authMethodSelect("oidc"))
-  }
-  if (authMethods?.github.enabled) {
-    methods.push(authMethodSelect("github"))
-  }
-  methods.push(authMethodSelect("none"))
+  const methods = [
+    authMethods?.password.enabled && "password",
+    authMethods?.oidc.enabled && "oidc",
+    authMethods?.github.enabled && "github",
+    "none",
+  ].filter(Boolean) as Array<keyof typeof authMethodLanguage>
 
   return (
     <FullPageForm title="Create user">
@@ -177,7 +157,19 @@ export const CreateUserForm: FC<
                   ?.displayName ?? "",
             }}
           >
-            {methods}
+            {methods.map((value) => {
+              const language = authMethodLanguage[value]
+              return (
+                <MenuItem key={value} id={"item-" + value} value={value}>
+                  <Stack spacing={0} maxWidth={400}>
+                    {language.displayName}
+                    <span className={styles.labelDescription}>
+                      {language.description}
+                    </span>
+                  </Stack>
+                </MenuItem>
+              )
+            })}
           </TextField>
           <TextField
             {...getFieldHelpers(
