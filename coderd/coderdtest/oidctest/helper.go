@@ -67,13 +67,13 @@ func (h *LoginHelper) ExpireOauthToken(t *testing.T, db database.Store, user *co
 	})
 	require.NoError(t, err, "get user link")
 
-	// Fetch the oauth link for the given user.
+	// Expire the oauth link for the given user.
 	_, err = db.UpdateUserLink(ctx, database.UpdateUserLinkParams{
 		OAuthAccessToken:  link.OAuthAccessToken,
 		OAuthRefreshToken: link.OAuthRefreshToken,
 		OAuthExpiry:       time.Now().Add(time.Hour * -1),
-		UserID:            key.UserID,
-		LoginType:         database.LoginTypeOIDC,
+		UserID:            link.UserID,
+		LoginType:         link.LoginType,
 	})
 	require.NoError(t, err, "expire user link")
 

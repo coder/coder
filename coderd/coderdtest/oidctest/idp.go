@@ -149,7 +149,7 @@ func NewFakeIDP(t testing.TB, opts ...FakeIDPOpt) *FakeIDP {
 
 	idp.updateIssuerURL(t, idp.issuer)
 	if idp.serve {
-		idp.Serve(t)
+		idp.realServer(t)
 	}
 
 	return idp
@@ -176,8 +176,8 @@ func (f *FakeIDP) updateIssuerURL(t testing.TB, issuer string) {
 	}
 }
 
-// Serve is optional, but turns the FakeIDP into a real http server.
-func (f *FakeIDP) Serve(t testing.TB) *httptest.Server {
+// realServer turns the FakeIDP into a real http server.
+func (f *FakeIDP) realServer(t testing.TB) *httptest.Server {
 	t.Helper()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -222,14 +222,14 @@ func (f *FakeIDP) AttemptLogin(t testing.TB, client *codersdk.Client, idTokenCla
 	unauthenticated := codersdk.New(client.URL)
 	unauthenticated.HTTPClient = shallowCpyCli
 
-	return f.LoginClient(t, unauthenticated, idTokenClaims, opts...)
+	return f.LoginWithClient(t, unauthenticated, idTokenClaims, opts...)
 }
 
-// LoginClient reuses the context of the passed in client. This means the same
+// LoginWithClient reuses the context of the passed in client. This means the same
 // cookies will be used. This should be an unauthenticated client in most cases.
 //
 // This is a niche case, but it is needed for testing ConvertLoginType.
-func (f *FakeIDP) LoginClient(t testing.TB, client *codersdk.Client, idTokenClaims jwt.MapClaims, opts ...func(r *http.Request)) (*codersdk.Client, *http.Response) {
+func (f *FakeIDP) LoginWithClient(t testing.TB, client *codersdk.Client, idTokenClaims jwt.MapClaims, opts ...func(r *http.Request)) (*codersdk.Client, *http.Response) {
 	t.Helper()
 
 	coderOauthURL, err := client.URL.Parse("/api/v2/users/oidc/callback")
@@ -285,6 +285,10 @@ func (f *FakeIDP) LoginClient(t testing.TB, client *codersdk.Client, idTokenClai
 // The flow starts at the user hitting the OIDC login page.
 func (f *FakeIDP) OIDCCallback(t testing.TB, state string, idTokenClaims jwt.MapClaims) (*http.Response, error) {
 	t.Helper()
+	if f.serve {
+		panic("cannot use OIDCCallback with WithServing. This is only for the in memory usage")
+	}
+
 	f.stateToIDTokenClaims.Store(state, idTokenClaims)
 
 	cli := f.HTTPClient(nil)

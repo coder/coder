@@ -881,7 +881,7 @@ func TestUserOIDC(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		fake.LoginClient(t, user, claims, func(r *http.Request) {
+		fake.LoginWithClient(t, user, claims, func(r *http.Request) {
 			r.URL.RawQuery = url.Values{
 				"oidc_merge_state": {convertResponse.StateString},
 			}.Encode()
