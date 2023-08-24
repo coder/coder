@@ -2039,7 +2039,7 @@ func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.G
 			t = arg.StartTime
 		}
 		for t.Before(s.SessionEndedAt) && t.Before(arg.EndTime) {
-			appUsageIntervalsByUserAgentApp[key][t] = 60 // 5 minutes.
+			appUsageIntervalsByUserAgentApp[key][t] = 60 // 1 minute.
 			t = t.Add(1 * time.Minute)
 		}
 	}
