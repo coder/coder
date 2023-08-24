@@ -69,6 +69,10 @@
         "description": "This is first parameter",
         "values": [
           {
+            "value": "",
+            "count": 1
+          },
+          {
             "value": "ABC",
             "count": 1
           },
@@ -89,6 +93,10 @@
         "description": "This is second parameter",
         "values": [
           {
+            "value": "",
+            "count": 1
+          },
+          {
             "value": "123",
             "count": 3
           }
@@ -104,6 +112,10 @@
         "type": "string",
         "description": "This is third parameter",
         "values": [
+          {
+            "value": "",
+            "count": 1
+          },
           {
             "value": "BBB",
             "count": 2
@@ -140,6 +152,10 @@
           {
             "value": "option1",
             "count": 2
+          },
+          {
+            "value": "option2",
+            "count": 1
           }
         ]
       }

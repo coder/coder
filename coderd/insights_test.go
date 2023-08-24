@@ -1035,7 +1035,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						},
 					},
 					{
-						name:     "otherworkspace1",
+						name:     "otherworkspace3",
 						template: templates[2],
 					},
 				},
@@ -1063,6 +1063,13 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						template: templates[2],
 						buildParameters: []buildParameter{
 							{templateParameter: templates[2].parameters[0], value: "xyz"},
+						},
+					},
+					{
+						name:     "workspace2",
+						template: templates[0],
+						buildParameters: []buildParameter{
+							{templateParameter: templates[0].parameters[3], value: "option2"},
 						},
 					},
 				},
