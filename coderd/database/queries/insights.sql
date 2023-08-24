@@ -64,11 +64,11 @@ FROM agent_stats_by_interval_and_user;
 WITH ts AS (
 	SELECT
 		d::timestamptz AS from_,
-		(d::timestamptz + '5 minute'::interval) AS to_,
-		EXTRACT(epoch FROM '5 minute'::interval) AS seconds
+		(d::timestamptz + '1 minute'::interval) AS to_,
+		EXTRACT(epoch FROM '1 minute'::interval) AS seconds
 	FROM
 		-- Subtract 1 second from end_time to avoid including the next interval in the results.
-		generate_series(@start_time::timestamptz, (@end_time::timestamptz) - '1 second'::interval, '5 minute'::interval) d
+		generate_series(@start_time::timestamptz, (@end_time::timestamptz) - '1 second'::interval, '1 minute'::interval) d
 ), app_stats_by_user_and_agent AS (
 	SELECT
 		ts.from_,

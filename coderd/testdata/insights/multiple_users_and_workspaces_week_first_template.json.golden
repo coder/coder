@@ -55,7 +55,7 @@
         "display_name": "app1",
         "slug": "app1",
         "icon": "/icon1.png",
-        "seconds": 3600
+        "seconds": 3780
       },
       {
         "template_ids": [
@@ -65,7 +65,7 @@
         "display_name": "app3",
         "slug": "app3",
         "icon": "/icon2.png",
-        "seconds": 900
+        "seconds": 720
       }
     ],
     "parameters_usage": []

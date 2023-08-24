@@ -51,13 +51,14 @@
       },
       {
         "template_ids": [
+          "00000000-0000-0000-0000-000000000001",
           "00000000-0000-0000-0000-000000000002"
         ],
         "type": "app",
         "display_name": "app1",
         "slug": "app1",
         "icon": "/icon1.png",
-        "seconds": 21600
+        "seconds": 21720
       },
       {
         "template_ids": [
@@ -67,7 +68,7 @@
         "display_name": "app3",
         "slug": "app3",
         "icon": "/icon2.png",
-        "seconds": 4500
+        "seconds": 4320
       },
       {
         "template_ids": [
