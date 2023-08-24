@@ -47,7 +47,7 @@ func (h *LoginHelper) Login(t *testing.T, idTokenClaims jwt.MapClaims) (*codersd
 }
 
 // ExpireOauthToken expires the oauth token for the given user.
-func (h *LoginHelper) ExpireOauthToken(t *testing.T, db database.Store, user *codersdk.Client) (refreshToken string) {
+func (*LoginHelper) ExpireOauthToken(t *testing.T, db database.Store, user *codersdk.Client) (refreshToken string) {
 	t.Helper()
 
 	//nolint:gocritic // Testing
