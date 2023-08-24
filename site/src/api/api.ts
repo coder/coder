@@ -724,9 +724,8 @@ export const updateUserPassword = async (
 export const getSiteRoles = async (): Promise<
   Array<TypesGen.AssignableRoles>
 > => {
-  const response = await axios.get<Array<TypesGen.AssignableRoles>>(
-    `/api/v2/users/roles`,
-  )
+  const response =
+    await axios.get<Array<TypesGen.AssignableRoles>>(`/api/v2/users/roles`)
   return response.data
 }
 
@@ -1011,9 +1010,10 @@ export const getFile = async (fileId: string): Promise<ArrayBuffer> => {
 export const getWorkspaceProxyRegions = async (): Promise<
   TypesGen.RegionsResponse<TypesGen.Region>
 > => {
-  const response = await axios.get<TypesGen.RegionsResponse<TypesGen.Region>>(
-    `/api/v2/regions`,
-  )
+  const response =
+    await axios.get<TypesGen.RegionsResponse<TypesGen.Region>>(
+      `/api/v2/regions`,
+    )
   return response.data
 }
 
@@ -1188,9 +1188,8 @@ export const updateWorkspace = async (
     getWorkspaceBuildParameters(workspace.latest_build.id),
   ])
   const activeVersionId = template.active_version_id
-  const templateParameters = await getTemplateVersionRichParameters(
-    activeVersionId,
-  )
+  const templateParameters =
+    await getTemplateVersionRichParameters(activeVersionId)
   const missingParameters = getMissingParameters(
     oldBuildParameters,
     newBuildParameters,
