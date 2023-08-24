@@ -2,12 +2,6 @@ import { makeStyles } from "@mui/styles"
 import { FC, ReactNode } from "react"
 
 export const useStyles = makeStyles((theme) => ({
-  "@global": {
-    // Necessary for when this is on lonely pages!
-    "html, body, #root, #storybook-root": {
-      height: "100vh",
-    },
-  },
   root: {
     flex: 1,
     height: "-webkit-fill-available",

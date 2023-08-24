@@ -140,7 +140,7 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    minHeight: "100vh",
+    minHeight: "100%",
     maxWidth: theme.spacing(75),
   },
 
