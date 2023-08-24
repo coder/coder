@@ -129,7 +129,7 @@ export const WorkspacesPageView: FC<
                 startIcon={<DeleteOutlined />}
                 onClick={onDeleteAll}
               >
-                Delete all
+                Delete selected
               </Button>
             </Box>
           </>
