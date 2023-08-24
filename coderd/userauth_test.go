@@ -26,8 +26,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
-	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -49,16 +47,8 @@ func TestOIDCOauthLoginWithExisting(t *testing.T) {
 		cfg.IgnoreUserInfo = true
 	})
 
-	client, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
-		Options: &coderdtest.Options{
-			OIDCConfig: cfg,
-		},
-		LicenseOptions: &coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureUserRoleManagement: 1,
-				codersdk.FeatureTemplateRBAC:       1,
-			},
-		},
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		OIDCConfig: cfg,
 	})
 
 	const username = "alice"

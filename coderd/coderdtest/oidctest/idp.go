@@ -355,7 +355,6 @@ func (f *FakeIDP) authenticateOIDClientRequest(t testing.TB, req *http.Request) 
 	values, err := url.ParseQuery(string(data))
 	if !assert.NoError(t, err, "parse token request values") {
 		return nil, xerrors.New("invalid token request")
-
 	}
 
 	if !assert.Equal(t, f.clientID, values.Get("client_id"), "client_id mismatch") {
@@ -419,7 +418,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 		state := r.URL.Query().Get("state")
 
 		scope := r.URL.Query().Get("scope")
-		var _ = scope
+		_ = scope
 
 		responseType := r.URL.Query().Get("response_type")
 		switch responseType {
@@ -557,7 +556,6 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 			http.Error(rw, fmt.Sprintf("invalid user info request: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
-		var _ = token
 
 		email, ok := f.accessTokens.Load(token)
 		if !ok {
