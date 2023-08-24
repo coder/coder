@@ -6099,7 +6099,7 @@ const docTemplate = `{
                     "Workspaces"
                 ],
                 "summary": "Update workspace dormancy status by id.",
-                "operationId": "update-workspace-lock-by-id",
+                "operationId": "update-workspace-dormancy-status-by-id",
                 "parameters": [
                     {
                         "type": "string",
