@@ -1,0 +1,9 @@
+# Ignore all packages from this repository by default
+Package: *
+Pin: origin dl.yarnpkg.com
+Pin-Priority: 1
+
+# Yarn for managing Node.js packages
+Package: yarn
+Pin: origin dl.yarnpkg.com
+Pin-Priority: 500
