@@ -7733,6 +7733,7 @@ _None_
 ```json
 {
   "app_security_key": "string",
+  "derp_force_websockets": true,
   "derp_map": {
     "homeParams": {
       "regionScore": {
@@ -7810,13 +7811,14 @@ _None_
 
 ### Properties
 
-| Name               | Type                                          | Required | Restrictions | Description                                                                            |
-| ------------------ | --------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------- |
-| `app_security_key` | string                                        | false    |              |                                                                                        |
-| `derp_map`         | [tailcfg.DERPMap](#tailcfgderpmap)            | false    |              |                                                                                        |
-| `derp_mesh_key`    | string                                        | false    |              |                                                                                        |
-| `derp_region_id`   | integer                                       | false    |              |                                                                                        |
-| `sibling_replicas` | array of [codersdk.Replica](#codersdkreplica) | false    |              | Sibling replicas is a list of all other replicas of the proxy that have not timed out. |
+| Name                    | Type                                          | Required | Restrictions | Description                                                                            |
+| ----------------------- | --------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------- |
+| `app_security_key`      | string                                        | false    |              |                                                                                        |
+| `derp_force_websockets` | boolean                                       | false    |              |                                                                                        |
+| `derp_map`              | [tailcfg.DERPMap](#tailcfgderpmap)            | false    |              |                                                                                        |
+| `derp_mesh_key`         | string                                        | false    |              |                                                                                        |
+| `derp_region_id`        | integer                                       | false    |              |                                                                                        |
+| `sibling_replicas`      | array of [codersdk.Replica](#codersdkreplica) | false    |              | Sibling replicas is a list of all other replicas of the proxy that have not timed out. |
 
 ## wsproxysdk.ReportAppStatsRequest
 

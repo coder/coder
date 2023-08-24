@@ -11985,6 +11985,9 @@ const docTemplate = `{
                 "app_security_key": {
                     "type": "string"
                 },
+                "derp_force_websockets": {
+                    "type": "boolean"
+                },
                 "derp_map": {
                     "$ref": "#/definitions/tailcfg.DERPMap"
                 },
