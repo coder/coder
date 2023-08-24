@@ -2,6 +2,7 @@ package oidctest
 
 import "sync"
 
+// SyncMap is a type safe sync.Map
 type SyncMap[K, V any] struct {
 	m sync.Map
 }

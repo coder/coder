@@ -46,6 +46,7 @@ func (h *LoginHelper) Login(t *testing.T, idTokenClaims jwt.MapClaims) (*codersd
 	return h.fake.Login(t, unauthenticatedClient, idTokenClaims)
 }
 
+// ExpireOauthToken expires the oauth token for the given user.
 func (h *LoginHelper) ExpireOauthToken(t *testing.T, db database.Store, user *codersdk.Client) (refreshToken string) {
 	t.Helper()
 
@@ -79,7 +80,11 @@ func (h *LoginHelper) ExpireOauthToken(t *testing.T, db database.Store, user *co
 	return link.OAuthRefreshToken
 }
 
-// ForceRefresh forces the client to refresh its oauth token.
+// ForceRefresh forces the client to refresh its oauth token. It does this by
+// expiring the oauth token, then doing an authenticated call. This will force
+// the API Key middleware to refresh the oauth token.
+//
+// A unit test assertion makes sure the refresh token is used.
 func (h *LoginHelper) ForceRefresh(t *testing.T, db database.Store, user *codersdk.Client, idToken jwt.MapClaims) {
 	t.Helper()
 

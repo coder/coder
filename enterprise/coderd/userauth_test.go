@@ -572,15 +572,10 @@ type oidcTestRunner struct {
 	API         *coderden.API
 
 	// Login will call the OIDC flow with an unauthenticated client.
-	// The customer actions will all be taken care of, and the idToken claims
-	// will be returned.
+	// The IDP will return the idToken claims.
 	Login func(t *testing.T, idToken jwt.MapClaims) (*codersdk.Client, *http.Response)
 	// ForceRefresh will use an authenticated codersdk.Client, and force their
 	// OIDC token to be expired and require a refresh. The refresh will use the claims provided.
-	//
-	// The client MUST be used to actually trigger the refresh. This just
-	// expires the oauth token so the next authenticated API call will
-	// trigger a refresh. The returned function is an example of said call.
 	// It just calls the /users/me endpoint to trigger the refresh.
 	ForceRefresh func(t *testing.T, client *codersdk.Client, idToken jwt.MapClaims)
 }

@@ -18,8 +18,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/v2/codersdk"
-
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-jose/go-jose/v3"
@@ -33,8 +31,11 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/codersdk"
 )
 
+// FakeIDP is a functional OIDC provider.
+// It only supports 1 OIDC client.
 type FakeIDP struct {
 	issuer   string
 	key      *rsa.PrivateKey
@@ -47,6 +48,8 @@ type FakeIDP struct {
 	clientSecret string
 	logger       slog.Logger
 
+	// These maps are used to control the state of the IDP.
+	// That is the various access tokens, refresh tokens, states, etc.
 	codeToStateMap *SyncMap[string, string]
 	// Token -> Email
 	accessTokens *SyncMap[string, string]
@@ -68,18 +71,23 @@ type FakeIDP struct {
 
 type FakeIDPOpt func(idp *FakeIDP)
 
+// WithRefreshHook is called when a refresh token is used. The email is
+// the email of the user that is being refreshed assuming the claims are correct.
 func WithRefreshHook(hook func(email string) error) func(*FakeIDP) {
 	return func(f *FakeIDP) {
 		f.hookOnRefresh = hook
 	}
 }
 
+// WithLogging is optional, but will log some HTTP calls made to the IDP.
 func WithLogging(t testing.TB, options *slogtest.Options) func(*FakeIDP) {
 	return func(f *FakeIDP) {
 		f.logger = slogtest.Make(t, options)
 	}
 }
 
+// WithStaticUserInfo is optional, but will return the same user info for
+// every user on the /userinfo endpoint.
 func WithStaticUserInfo(info jwt.MapClaims) func(*FakeIDP) {
 	return func(f *FakeIDP) {
 		f.hookUserInfo = func(_ string) jwt.MapClaims {
@@ -94,6 +102,7 @@ func WithDynamicUserInfo(userInfoFunc func(email string) jwt.MapClaims) func(*Fa
 	}
 }
 
+// WithServing makes the IDP run an actual http server.
 func WithServing() func(*FakeIDP) {
 	return func(f *FakeIDP) {
 		f.serve = true
@@ -218,6 +227,8 @@ func (f *FakeIDP) AttemptLogin(t testing.TB, client *codersdk.Client, idTokenCla
 
 // LoginClient reuses the context of the passed in client. This means the same
 // cookies will be used. This should be an unauthenticated client in most cases.
+//
+// This is a niche case, but it is needed for testing ConvertLoginType.
 func (f *FakeIDP) LoginClient(t testing.TB, client *codersdk.Client, idTokenClaims jwt.MapClaims, opts ...func(r *http.Request)) (*codersdk.Client, *http.Response) {
 	t.Helper()
 
@@ -268,7 +279,10 @@ func (f *FakeIDP) LoginClient(t testing.TB, client *codersdk.Client, idTokenClai
 }
 
 // OIDCCallback will emulate the IDP redirecting back to the Coder callback.
-// This is helpful if no Coderd exists.
+// This is helpful if no Coderd exists because the IDP needs to redirect to
+// something.
+// Essentially this is used to fake the Coderd side of the exchange.
+// The flow starts at the user hitting the OIDC login page.
 func (f *FakeIDP) OIDCCallback(t testing.TB, state string, idTokenClaims jwt.MapClaims) (*http.Response, error) {
 	t.Helper()
 	f.stateToIDTokenClaims.Store(state, idTokenClaims)
@@ -320,6 +334,7 @@ func (f *FakeIDP) newRefreshTokens(email string) string {
 	return refreshToken
 }
 
+// authenticateBearerTokenRequest enforces the access token is valid.
 func (f *FakeIDP) authenticateBearerTokenRequest(t testing.TB, req *http.Request) (string, error) {
 	t.Helper()
 
@@ -332,6 +347,7 @@ func (f *FakeIDP) authenticateBearerTokenRequest(t testing.TB, req *http.Request
 	return token, nil
 }
 
+// authenticateOIDClientRequest enforces the client_id and client_secret are valid.
 func (f *FakeIDP) authenticateOIDClientRequest(t testing.TB, req *http.Request) (url.Values, error) {
 	t.Helper()
 
@@ -353,6 +369,7 @@ func (f *FakeIDP) authenticateOIDClientRequest(t testing.TB, req *http.Request) 
 	return values, nil
 }
 
+// encodeClaims is a helper func to convert claims to a valid JWT.
 func (f *FakeIDP) encodeClaims(t testing.TB, claims jwt.MapClaims) string {
 	t.Helper()
 
@@ -374,6 +391,7 @@ func (f *FakeIDP) encodeClaims(t testing.TB, claims jwt.MapClaims) string {
 	return signed
 }
 
+// httpHandler is the IDP http server.
 func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	t.Helper()
 
@@ -572,12 +590,12 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	return mux
 }
 
-// HTTPClient runs the IDP in memory and returns an http.Client that can be used
-// to make requests to the IDP. All requests are handled in memory, and no network
-// requests are made.
+// HTTPClient does nothing if IsServing is used.
 //
-// If a request is not to the IDP, then the passed in client will be used.
-// If no client is passed in, then any regular network requests will fail.
+// If IsServing is not used, then it will return a client that will make requests
+// to the IDP all in memory. If a request is not to the IDP, then the passed in
+// client will be used. If no client is passed in, then any regular network
+// requests will fail.
 func (f *FakeIDP) HTTPClient(rest *http.Client) *http.Client {
 	if f.serve {
 		if rest == nil || rest.Transport == nil {
@@ -619,31 +637,40 @@ func (f *FakeIDP) RefreshUsed(refreshToken string) bool {
 	return used
 }
 
+// UpdateRefreshClaims allows the caller to change what claims are returned
+// for a given refresh token. By default, all refreshes use the same claims as
+// the original IDToken issuance.
 func (f *FakeIDP) UpdateRefreshClaims(refreshToken string, claims jwt.MapClaims) {
 	f.refreshIDTokenClaims.Store(refreshToken, claims)
 }
 
+// SetRedirect is required for the IDP to know where to redirect and call
+// Coderd.
 func (f *FakeIDP) SetRedirect(t testing.TB, url string) {
 	t.Helper()
 
 	f.cfg.RedirectURL = url
 }
 
+// SetCoderdCallback is optional and only works if not using the IsServing.
+// It will setup a fake "Coderd" for the IDP to call when the IDP redirects
+// back after authenticating.
 func (f *FakeIDP) SetCoderdCallback(callback func(req *http.Request) (*http.Response, error)) {
+	if f.serve {
+		panic("cannot set callback handler when using 'WithServing'. Must implement an actual 'Coderd'")
+	}
 	f.fakeCoderd = callback
 }
 
 func (f *FakeIDP) SetCoderdCallbackHandler(handler http.HandlerFunc) {
-	if f.serve {
-		panic("cannot set callback handler when using 'WithServing'. Must implement an actual 'Coderd'")
-	}
-	f.fakeCoderd = func(req *http.Request) (*http.Response, error) {
+	f.SetCoderdCallback(func(req *http.Request) (*http.Response, error) {
 		resp := httptest.NewRecorder()
 		handler.ServeHTTP(resp, req)
 		return resp.Result(), nil
-	}
+	})
 }
 
+// OIDCConfig returns the OIDC config to use for Coderd.
 func (f *FakeIDP) OIDCConfig(t testing.TB, scopes []string, opts ...func(cfg *coderd.OIDCConfig)) *coderd.OIDCConfig {
 	t.Helper()
 	if len(scopes) == 0 {

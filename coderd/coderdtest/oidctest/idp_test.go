@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
-
 	"github.com/stretchr/testify/assert"
 
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
