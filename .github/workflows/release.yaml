@@ -456,6 +456,9 @@ jobs:
           echo "Extracting ZIP..."
           Expand-Archive assets.zip -DestinationPath assets/
 
+          echo "Copying license file..."
+          Copy-Item "../LICENSE.enterprise" -Destination "tools/LICENSE.md"
+
           # No need to specify nuspec if there's only one in the directory.
           choco pack --version=$version binary_path=assets/coder.exe
 
