@@ -103,6 +103,21 @@ data "coder_parameter" "docker_host" {
 }
 ```
 
+### Incompatibility in Parameter Options for Workspace Builds
+
+When creating Coder templates, authors have the flexibility to modify parameter
+options associated with rich parameters. Such modifications can involve adding,
+substituting, or removing a parameter option. It's important to note that making
+these changes can lead to discrepancies in parameter values utilized by ongoing
+workspace builds.
+
+Consequently, workspace users will be prompted to select the new value from a
+pop-up window or by using the command-line interface. While this additional
+interactive step might seem like an interruption, it serves a crucial purpose.
+It prevents workspace users from becoming trapped with outdated template
+versions, ensuring they can smoothly update their workspace without any
+hindrances.
+
 ## Required and optional parameters
 
 A parameter is considered to be _required_ if it doesn't have the `default`
