@@ -1675,32 +1675,22 @@ func (q *sqlQuerier) GetTemplateDailyInsights(ctx context.Context, arg GetTempla
 }
 
 const getTemplateInsights = `-- name: GetTemplateInsights :one
-WITH ts AS (
+WITH agent_stats_by_interval_and_user AS (
 	SELECT
-		d::timestamptz AS from_,
-		(d::timestamptz + '5 minute'::interval) AS to_,
-		EXTRACT(epoch FROM '5 minute'::interval) AS seconds
-	FROM
-		-- Subtract 1 second from end_time to avoid including the next interval in the results.
-		generate_series($1::timestamptz, ($2::timestamptz) - '1 second'::interval, '5 minute'::interval) d
-), agent_stats_by_interval_and_user AS (
-	SELECT
-		ts.from_,
-		ts.to_,
+		date_trunc('minute', was.created_at),
 		was.user_id,
 		array_agg(was.template_id) AS template_ids,
-		CASE WHEN SUM(was.session_count_vscode) > 0 THEN ts.seconds ELSE 0 END AS usage_vscode_seconds,
-		CASE WHEN SUM(was.session_count_jetbrains) > 0 THEN ts.seconds ELSE 0 END AS usage_jetbrains_seconds,
-		CASE WHEN SUM(was.session_count_reconnecting_pty) > 0 THEN ts.seconds ELSE 0 END AS usage_reconnecting_pty_seconds,
-		CASE WHEN SUM(was.session_count_ssh) > 0 THEN ts.seconds ELSE 0 END AS usage_ssh_seconds
-	FROM ts
-	JOIN workspace_agent_stats was ON (
-		was.created_at >= ts.from_
-		AND was.created_at < ts.to_
+		CASE WHEN SUM(was.session_count_vscode) > 0 THEN 60 ELSE 0 END AS usage_vscode_seconds,
+		CASE WHEN SUM(was.session_count_jetbrains) > 0 THEN 60 ELSE 0 END AS usage_jetbrains_seconds,
+		CASE WHEN SUM(was.session_count_reconnecting_pty) > 0 THEN 60 ELSE 0 END AS usage_reconnecting_pty_seconds,
+		CASE WHEN SUM(was.session_count_ssh) > 0 THEN 60 ELSE 0 END AS usage_ssh_seconds
+	FROM workspace_agent_stats was
+	WHERE
+		was.created_at >= $1::timestamptz
+		AND was.created_at < $2::timestamptz
 		AND was.connection_count > 0
 		AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN was.template_id = ANY($3::uuid[]) ELSE TRUE END
-	)
-	GROUP BY ts.from_, ts.to_, ts.seconds, was.user_id
+	GROUP BY date_trunc('minute', was.created_at), was.user_id
 ), template_ids AS (
 	SELECT array_agg(DISTINCT template_id) AS ids
 	FROM agent_stats_by_interval_and_user, unnest(template_ids) template_id

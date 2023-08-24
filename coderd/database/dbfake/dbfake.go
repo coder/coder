@@ -2340,22 +2340,22 @@ func (q *FakeQuerier) GetTemplateInsights(_ context.Context, arg database.GetTem
 		if appUsageIntervalsByUser[s.UserID] == nil {
 			appUsageIntervalsByUser[s.UserID] = make(map[time.Time]*database.GetTemplateInsightsRow)
 		}
-		t := s.CreatedAt.Truncate(5 * time.Minute)
+		t := s.CreatedAt.Truncate(time.Minute)
 		if _, ok := appUsageIntervalsByUser[s.UserID][t]; !ok {
 			appUsageIntervalsByUser[s.UserID][t] = &database.GetTemplateInsightsRow{}
 		}
 
 		if s.SessionCountJetBrains > 0 {
-			appUsageIntervalsByUser[s.UserID][t].UsageJetbrainsSeconds = 300
+			appUsageIntervalsByUser[s.UserID][t].UsageJetbrainsSeconds = 60
 		}
 		if s.SessionCountVSCode > 0 {
-			appUsageIntervalsByUser[s.UserID][t].UsageVscodeSeconds = 300
+			appUsageIntervalsByUser[s.UserID][t].UsageVscodeSeconds = 60
 		}
 		if s.SessionCountReconnectingPTY > 0 {
-			appUsageIntervalsByUser[s.UserID][t].UsageReconnectingPtySeconds = 300
+			appUsageIntervalsByUser[s.UserID][t].UsageReconnectingPtySeconds = 60
 		}
 		if s.SessionCountSSH > 0 {
-			appUsageIntervalsByUser[s.UserID][t].UsageSshSeconds = 300
+			appUsageIntervalsByUser[s.UserID][t].UsageSshSeconds = 60
 		}
 	}
 
