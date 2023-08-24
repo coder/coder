@@ -21,18 +21,22 @@
     <!-- This section is about the software itself -->
     <title>Coder</title>
     <authors>Coder Technologies\, Inc.</authors>
+		<copyright>Coder Technologies\, Inc.</copyright>
+
+		<iconUrl>https://github.com/coder/presskit/blob/main/logos/coder_logo_black_square.png?raw=true</iconUrl>
     <projectUrl>https://coder.com</projectUrl>
-    <iconUrl>https://github.com/coder/presskit/blob/main/logos/coder_logo_black_square.png?raw=true</iconUrl>
-    <copyright>Coder Technologies, Inc.</copyright>
-    <licenseUrl>https://raw.githubusercontent.com/coder/coder/main/LICENSE.enterprise</licenseUrl>
-    <requireLicenseAcceptance>true</requireLicenseAcceptance>
+
     <projectSourceUrl>https://github.com/coder/coder.git</projectSourceUrl>
-    <docsUrl>https://coder.com/docs/v2/latest</docsUrl>
-    <bugTrackerUrl>https://github.com/coder/coder/issues</bugTrackerUrl>
     <releaseNotes>https://github.com/coder/coder/releases/tag/v$version$</releaseNotes>
+		<docsUrl>https://coder.com/docs/v2/latest</docsUrl>
+    <bugTrackerUrl>https://github.com/coder/coder/issues</bugTrackerUrl>
+
     <tags>coder remote-dev terraform development vscode devcontainer devcontainers</tags>
     <summary>Remote development environments on your infrastructure provisioned with Terraform</summary>
     <description>Remote development environments on your infrastructure provisioned with Terraform</description>
+
+    <licenseUrl>https://raw.githubusercontent.com/coder/coder/main/LICENSE.enterprise</licenseUrl>
+    <requireLicenseAcceptance>true</requireLicenseAcceptance>
   </metadata>
   <files>
     <file src="$binary_path$" target="tools/coder.exe" />
