@@ -563,7 +563,7 @@ export const updateWorkspaceDormancy = async (
   }
 
   const response = await axios.put(
-    `/api/v2/workspaces/${workspaceId}/lock`,
+    `/api/v2/workspaces/${workspaceId}/dormant`,
     data,
   )
   return response.data
