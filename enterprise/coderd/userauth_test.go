@@ -1,17 +1,12 @@
 package coderd_test
 
 import (
-	"context"
-	"fmt"
-	"io"
 	"net/http"
 	"regexp"
 	"testing"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd"
@@ -23,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
+	coderden "github.com/coder/coder/v2/enterprise/coderd"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
@@ -39,7 +35,6 @@ func TestUserOIDC(t *testing.T) {
 		t.Run("NoRoles", func(t *testing.T) {
 			t.Parallel()
 
-			const oidcRoleName = "TemplateAuthor"
 			runner := setupOIDCTest(t, oidcTestConfig{
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
@@ -63,6 +58,8 @@ func TestUserOIDC(t *testing.T) {
 		// A user has some roles, then on an oauth refresh will lose said
 		// roles from an updated claim.
 		t.Run("NewUserAndRemoveRolesOnRefresh", func(t *testing.T) {
+			// TODO: Implement new feature to update roles/groups on OIDC
+			// refresh tokens.
 			t.Skip("Refreshing tokens does not update roles :(")
 			t.Parallel()
 
@@ -95,37 +92,62 @@ func TestUserOIDC(t *testing.T) {
 			runner.AssertRoles(t, "alice", []string{})
 		})
 
-		t.Run("BlockAssignRoles", func(t *testing.T) {
+		// A user has some roles, then on another oauth login will lose said
+		// roles from an updated claim.
+		t.Run("NewUserAndRemoveRolesOnReAuth", func(t *testing.T) {
 			t.Parallel()
 
-			ctx := testutil.Context(t, testutil.WaitMedium)
-			conf := coderdtest.NewOIDCConfig(t, "")
-
-			config := conf.OIDCConfig(t, jwt.MapClaims{})
-			config.AllowSignups = true
-			config.UserRoleField = "roles"
-
-			client, _ := coderdenttest.New(t, &coderdenttest.Options{
-				Options: &coderdtest.Options{
-					OIDCConfig: config,
-				},
-				LicenseOptions: &coderdenttest.LicenseOptions{
-					Features: license.Features{codersdk.FeatureUserRoleManagement: 1},
+			const oidcRoleName = "TemplateAuthor"
+			runner := setupOIDCTest(t, oidcTestConfig{
+				Userinfo: jwt.MapClaims{oidcRoleName: []string{rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin()}},
+				Config: func(cfg *coderd.OIDCConfig) {
+					cfg.AllowSignups = true
+					cfg.UserRoleField = "roles"
+					cfg.UserRoleMapping = map[string][]string{
+						oidcRoleName: {rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin()},
+					}
 				},
 			})
 
-			admin, err := client.User(ctx, "me")
-			require.NoError(t, err)
-			require.Len(t, admin.OrganizationIDs, 1)
+			// User starts with the owner role
+			_, resp := runner.Login(jwt.MapClaims{
+				"email": "alice@coder.com",
+				"roles": []string{"random", oidcRoleName, rbac.RoleOwner()},
+			})
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			runner.AssertRoles(t, "alice", []string{rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin(), rbac.RoleOwner()})
 
-			resp := oidcCallback(t, client, conf.EncodeClaims(t, jwt.MapClaims{
+			// Now login with oauth again, and check the roles are removed.
+			_, resp = runner.Login(jwt.MapClaims{
+				"email": "alice@coder.com",
+				"roles": []string{"random"},
+			})
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+
+			runner.AssertRoles(t, "alice", []string{})
+		})
+
+		// All manual role updates should fail when role sync is enabled.
+		t.Run("BlockAssignRoles", func(t *testing.T) {
+			t.Parallel()
+
+			const oidcRoleName = "TemplateAuthor"
+			runner := setupOIDCTest(t, oidcTestConfig{
+				Config: func(cfg *coderd.OIDCConfig) {
+					cfg.AllowSignups = true
+					cfg.UserRoleField = "roles"
+				},
+			})
+
+			_, resp := runner.Login(jwt.MapClaims{
 				"email": "alice@coder.com",
 				"roles": []string{},
-			}))
-			require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+			})
+			require.Equal(t, http.StatusOK, resp.StatusCode)
 			// Try to manually update user roles, even though controlled by oidc
 			// role sync.
-			_, err = client.UpdateUserRoles(ctx, "alice", codersdk.UpdateRoles{
+			ctx := testutil.Context(t, testutil.WaitShort)
+			_, err := runner.AdminClient.UpdateUserRoles(ctx, "alice", codersdk.UpdateRoles{
 				Roles: []string{
 					rbac.RoleTemplateAdmin(),
 				},
@@ -137,199 +159,211 @@ func TestUserOIDC(t *testing.T) {
 
 	t.Run("Groups", func(t *testing.T) {
 		t.Parallel()
+
+		// Assigns does a simple test of assigning a user to a group based
+		// on the oidc claims.
 		t.Run("Assigns", func(t *testing.T) {
 			t.Parallel()
 
-			ctx := testutil.Context(t, testutil.WaitLong)
-			conf := coderdtest.NewOIDCConfig(t, "")
-
 			const groupClaim = "custom-groups"
-			config := conf.OIDCConfig(t, jwt.MapClaims{}, func(cfg *coderd.OIDCConfig) {
-				cfg.GroupField = groupClaim
-			})
-			config.AllowSignups = true
-
-			client, _ := coderdenttest.New(t, &coderdenttest.Options{
-				Options: &coderdtest.Options{
-					OIDCConfig: config,
-				},
-				LicenseOptions: &coderdenttest.LicenseOptions{
-					Features: license.Features{codersdk.FeatureTemplateRBAC: 1},
+			const groupName = "bingbong"
+			runner := setupOIDCTest(t, oidcTestConfig{
+				Config: func(cfg *coderd.OIDCConfig) {
+					cfg.AllowSignups = true
+					cfg.GroupField = groupClaim
 				},
 			})
 
-			admin, err := client.User(ctx, "me")
-			require.NoError(t, err)
-			require.Len(t, admin.OrganizationIDs, 1)
-
-			groupName := "bingbong"
-			group, err := client.CreateGroup(ctx, admin.OrganizationIDs[0], codersdk.CreateGroupRequest{
+			ctx := testutil.Context(t, testutil.WaitShort)
+			group, err := runner.AdminClient.CreateGroup(ctx, runner.AdminUser.OrganizationIDs[0], codersdk.CreateGroupRequest{
 				Name: groupName,
 			})
 			require.NoError(t, err)
 			require.Len(t, group.Members, 0)
 
-			resp := oidcCallback(t, client, conf.EncodeClaims(t, jwt.MapClaims{
-				"email":    "colin@coder.com",
+			_, resp := runner.Login(jwt.MapClaims{
+				"email":    "alice@coder.com",
 				groupClaim: []string{groupName},
-			}))
-			assert.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
-
-			group, err = client.Group(ctx, group.ID)
-			require.NoError(t, err)
-			require.Len(t, group.Members, 1)
+			})
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			runner.AssertGroups(t, "alice", []string{groupName})
 		})
+
+		// Tests the group mapping feature.
 		t.Run("AssignsMapped", func(t *testing.T) {
 			t.Parallel()
 
-			ctx := testutil.Context(t, testutil.WaitMedium)
-			conf := coderdtest.NewOIDCConfig(t, "")
+			const groupClaim = "custom-groups"
 
-			oidcGroupName := "pingpong"
-			coderGroupName := "bingbong"
-
-			config := conf.OIDCConfig(t, jwt.MapClaims{}, func(cfg *coderd.OIDCConfig) {
-				cfg.GroupMapping = map[string]string{oidcGroupName: coderGroupName}
-			})
-			config.AllowSignups = true
-
-			client, _ := coderdenttest.New(t, &coderdenttest.Options{
-				Options: &coderdtest.Options{
-					OIDCConfig: config,
-				},
-				LicenseOptions: &coderdenttest.LicenseOptions{
-					Features: license.Features{codersdk.FeatureTemplateRBAC: 1},
+			const oidcGroupName = "pingpong"
+			const coderGroupName = "bingbong"
+			runner := setupOIDCTest(t, oidcTestConfig{
+				Config: func(cfg *coderd.OIDCConfig) {
+					cfg.AllowSignups = true
+					cfg.GroupField = groupClaim
+					cfg.GroupMapping = map[string]string{oidcGroupName: coderGroupName}
 				},
 			})
 
-			admin, err := client.User(ctx, "me")
-			require.NoError(t, err)
-			require.Len(t, admin.OrganizationIDs, 1)
-
-			group, err := client.CreateGroup(ctx, admin.OrganizationIDs[0], codersdk.CreateGroupRequest{
+			ctx := testutil.Context(t, testutil.WaitShort)
+			group, err := runner.AdminClient.CreateGroup(ctx, runner.AdminUser.OrganizationIDs[0], codersdk.CreateGroupRequest{
 				Name: coderGroupName,
 			})
 			require.NoError(t, err)
 			require.Len(t, group.Members, 0)
 
-			resp := oidcCallback(t, client, conf.EncodeClaims(t, jwt.MapClaims{
-				"email":  "colin@coder.com",
-				"groups": []string{oidcGroupName},
-			}))
-			assert.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
-
-			group, err = client.Group(ctx, group.ID)
-			require.NoError(t, err)
-			require.Len(t, group.Members, 1)
+			_, resp := runner.Login(jwt.MapClaims{
+				"email":    "alice@coder.com",
+				groupClaim: []string{oidcGroupName},
+			})
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			runner.AssertGroups(t, "alice", []string{coderGroupName})
 		})
 
-		t.Run("AddThenRemove", func(t *testing.T) {
+		// User is in a group, then on an oauth refresh will lose said
+		// group.
+		t.Run("AddThenRemoveOnRefresh", func(t *testing.T) {
 			t.Parallel()
 
-			ctx := testutil.Context(t, testutil.WaitLong)
-			conf := coderdtest.NewOIDCConfig(t, "")
+			// TODO: Implement new feature to update roles/groups on OIDC
+			// refresh tokens.
+			t.Skip("Refreshing tokens does not update groups :(")
 
-			config := conf.OIDCConfig(t, jwt.MapClaims{})
-			config.AllowSignups = true
-
-			client, firstUser := coderdenttest.New(t, &coderdenttest.Options{
-				Options: &coderdtest.Options{
-					OIDCConfig: config,
-				},
-				LicenseOptions: &coderdenttest.LicenseOptions{
-					Features: license.Features{codersdk.FeatureTemplateRBAC: 1},
+			const groupClaim = "custom-groups"
+			const groupName = "bingbong"
+			runner := setupOIDCTest(t, oidcTestConfig{
+				Config: func(cfg *coderd.OIDCConfig) {
+					cfg.AllowSignups = true
+					cfg.GroupField = groupClaim
 				},
 			})
 
-			// Add some extra users/groups that should be asserted after.
-			// Adding this user as there was a bug that removing 1 user removed
-			// all users from the group.
-			_, extra := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
-			groupName := "bingbong"
-			group, err := client.CreateGroup(ctx, firstUser.OrganizationID, codersdk.CreateGroupRequest{
+			ctx := testutil.Context(t, testutil.WaitShort)
+			group, err := runner.AdminClient.CreateGroup(ctx, runner.AdminUser.OrganizationIDs[0], codersdk.CreateGroupRequest{
 				Name: groupName,
 			})
-			require.NoError(t, err, "create group")
+			require.NoError(t, err)
+			require.Len(t, group.Members, 0)
 
-			group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
-				AddUsers: []string{
-					firstUser.UserID.String(),
-					extra.ID.String(),
-				},
+			client, resp := runner.Login(jwt.MapClaims{
+				"email":    "alice@coder.com",
+				groupClaim: []string{groupName},
 			})
-			require.NoError(t, err, "patch group")
-			require.Len(t, group.Members, 2, "expect both members")
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			runner.AssertGroups(t, "alice", []string{groupName})
 
-			// Now add OIDC user into the group
-			resp := oidcCallback(t, client, conf.EncodeClaims(t, jwt.MapClaims{
-				"email":  "colin@coder.com",
-				"groups": []string{groupName},
-			}))
-			assert.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
-
-			group, err = client.Group(ctx, group.ID)
-			require.NoError(t, err)
-			require.Len(t, group.Members, 3)
-
-			// Login to remove the OIDC user from the group
-			resp = oidcCallback(t, client, conf.EncodeClaims(t, jwt.MapClaims{
-				"email":  "colin@coder.com",
-				"groups": []string{},
-			}))
-			assert.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
-
-			group, err = client.Group(ctx, group.ID)
-			require.NoError(t, err)
-			require.Len(t, group.Members, 2)
-			var expected []uuid.UUID
-			for _, mem := range group.Members {
-				expected = append(expected, mem.ID)
-			}
-			require.ElementsMatchf(t, expected, []uuid.UUID{firstUser.UserID, extra.ID}, "expected members")
+			// Refresh without the group claim
+			runner.ForceRefresh(t, client, jwt.MapClaims{
+				"email": "alice@coder.com",
+			})(t)
+			runner.AssertGroups(t, "alice", []string{})
 		})
 
+		t.Run("AddThenRemoveOnReAuth", func(t *testing.T) {
+			t.Parallel()
+
+			const groupClaim = "custom-groups"
+			const groupName = "bingbong"
+			runner := setupOIDCTest(t, oidcTestConfig{
+				Config: func(cfg *coderd.OIDCConfig) {
+					cfg.AllowSignups = true
+					cfg.GroupField = groupClaim
+				},
+			})
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			group, err := runner.AdminClient.CreateGroup(ctx, runner.AdminUser.OrganizationIDs[0], codersdk.CreateGroupRequest{
+				Name: groupName,
+			})
+			require.NoError(t, err)
+			require.Len(t, group.Members, 0)
+
+			_, resp := runner.Login(jwt.MapClaims{
+				"email":    "alice@coder.com",
+				groupClaim: []string{groupName},
+			})
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			runner.AssertGroups(t, "alice", []string{groupName})
+
+			// Refresh without the group claim
+			_, resp = runner.Login(jwt.MapClaims{
+				"email": "alice@coder.com",
+			})
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			runner.AssertGroups(t, "alice", []string{})
+		})
+
+		// Updating groups where the claimed group does not exist.
 		t.Run("NoneMatch", func(t *testing.T) {
 			t.Parallel()
 
-			ctx := testutil.Context(t, testutil.WaitLong)
-			conf := coderdtest.NewOIDCConfig(t, "")
-
-			config := conf.OIDCConfig(t, jwt.MapClaims{})
-			config.AllowSignups = true
-
-			client, _ := coderdenttest.New(t, &coderdenttest.Options{
-				Options: &coderdtest.Options{
-					OIDCConfig: config,
-				},
-				LicenseOptions: &coderdenttest.LicenseOptions{
-					Features: license.Features{codersdk.FeatureTemplateRBAC: 1},
+			const groupClaim = "custom-groups"
+			runner := setupOIDCTest(t, oidcTestConfig{
+				Config: func(cfg *coderd.OIDCConfig) {
+					cfg.AllowSignups = true
+					cfg.GroupField = groupClaim
 				},
 			})
 
-			admin, err := client.User(ctx, "me")
-			require.NoError(t, err)
-			require.Len(t, admin.OrganizationIDs, 1)
-
-			groupName := "bingbong"
-			group, err := client.CreateGroup(ctx, admin.OrganizationIDs[0], codersdk.CreateGroupRequest{
-				Name: groupName,
+			_, resp := runner.Login(jwt.MapClaims{
+				"email":    "alice@coder.com",
+				groupClaim: []string{"not-exists"},
 			})
-			require.NoError(t, err)
-			require.Len(t, group.Members, 0)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			runner.AssertGroups(t, "alice", []string{})
+		})
 
-			resp := oidcCallback(t, client, conf.EncodeClaims(t, jwt.MapClaims{
-				"email":  "colin@coder.com",
-				"groups": []string{"coolin"},
-			}))
-			assert.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+		// Updating groups where the claimed group does not exist creates
+		// the group.
+		t.Run("AutoCreate", func(t *testing.T) {
+			t.Parallel()
 
-			group, err = client.Group(ctx, group.ID)
-			require.NoError(t, err)
-			require.Len(t, group.Members, 0)
+			const groupClaim = "custom-groups"
+			const groupName = "make-me"
+			runner := setupOIDCTest(t, oidcTestConfig{
+				Config: func(cfg *coderd.OIDCConfig) {
+					cfg.AllowSignups = true
+					cfg.GroupField = groupClaim
+					cfg.CreateMissingGroups = true
+				},
+			})
+
+			_, resp := runner.Login(jwt.MapClaims{
+				"email":    "alice@coder.com",
+				groupClaim: []string{groupName},
+			})
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			runner.AssertGroups(t, "alice", []string{groupName})
+		})
+	})
+
+	t.Run("Refresh", func(t *testing.T) {
+		t.Run("RefreshTokensMultiple", func(t *testing.T) {
+			t.Parallel()
+
+			runner := setupOIDCTest(t, oidcTestConfig{
+				Config: func(cfg *coderd.OIDCConfig) {
+					cfg.AllowSignups = true
+					cfg.UserRoleField = "roles"
+				},
+			})
+
+			claims := jwt.MapClaims{
+				"email": "alice@coder.com",
+			}
+			// Login a new client that signs up
+			client, resp := runner.Login(claims)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+
+			// Refresh multiple times.
+			for i := 0; i < 3; i++ {
+				runner.ForceRefresh(t, client, claims)(t)
+			}
 		})
 	})
 }
 
+// nolint:bodyclose
 func TestGroupSync(t *testing.T) {
 	t.Parallel()
 
@@ -443,28 +477,20 @@ func TestGroupSync(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := testutil.Context(t, testutil.WaitLong)
-			conf := coderdtest.NewOIDCConfig(t, "")
-
-			config := conf.OIDCConfig(t, jwt.MapClaims{}, tc.modCfg)
-
-			client, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
-				Options: &coderdtest.Options{
-					OIDCConfig: config,
-				},
-				LicenseOptions: &coderdenttest.LicenseOptions{
-					Features: license.Features{codersdk.FeatureTemplateRBAC: 1},
+			runner := setupOIDCTest(t, oidcTestConfig{
+				Config: func(cfg *coderd.OIDCConfig) {
+					cfg.GroupField = "groups"
+					tc.modCfg(cfg)
 				},
 			})
 
-			admin, err := client.User(ctx, "me")
-			require.NoError(t, err)
-			require.Len(t, admin.OrganizationIDs, 1)
-
 			// Setup
+			ctx := testutil.Context(t, testutil.WaitLong)
+			org := runner.AdminUser.OrganizationIDs[0]
+
 			initialGroups := make(map[string]codersdk.Group)
 			for _, group := range tc.initialOrgGroups {
-				newGroup, err := client.CreateGroup(ctx, admin.OrganizationIDs[0], codersdk.CreateGroupRequest{
+				newGroup, err := runner.AdminClient.CreateGroup(ctx, org, codersdk.CreateGroupRequest{
 					Name: group,
 				})
 				require.NoError(t, err)
@@ -473,16 +499,16 @@ func TestGroupSync(t *testing.T) {
 			}
 
 			// Create the user and add them to their initial groups
-			_, user := coderdtest.CreateAnotherUser(t, client, admin.OrganizationIDs[0])
+			_, user := coderdtest.CreateAnotherUser(t, runner.AdminClient, org)
 			for _, group := range tc.initialUserGroups {
-				_, err := client.PatchGroup(ctx, initialGroups[group].ID, codersdk.PatchGroupRequest{
+				_, err := runner.AdminClient.PatchGroup(ctx, initialGroups[group].ID, codersdk.PatchGroupRequest{
 					AddUsers: []string{user.ID.String()},
 				})
 				require.NoError(t, err)
 			}
 
 			// nolint:gocritic
-			_, err = api.Database.UpdateUserLoginType(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLoginTypeParams{
+			_, err := runner.API.Database.UpdateUserLoginType(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLoginTypeParams{
 				NewLoginType: database.LoginTypeOIDC,
 				UserID:       user.ID,
 			})
@@ -490,11 +516,11 @@ func TestGroupSync(t *testing.T) {
 
 			// Log in the new user
 			tc.claims["email"] = user.Email
-			resp := oidcCallback(t, client, conf.EncodeClaims(t, tc.claims))
-			assert.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
-			_ = resp.Body.Close()
+			_, resp := runner.Login(tc.claims)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
 
-			orgGroups, err := client.GroupsByOrganization(ctx, admin.OrganizationIDs[0])
+			// Check group sources
+			orgGroups, err := runner.AdminClient.GroupsByOrganization(ctx, org)
 			require.NoError(t, err)
 
 			for _, group := range orgGroups {
@@ -540,33 +566,12 @@ func TestGroupSync(t *testing.T) {
 	}
 }
 
-func oidcCallback(t *testing.T, client *codersdk.Client, code string) *http.Response {
-	t.Helper()
-	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		return http.ErrUseLastResponse
-	}
-	oauthURL, err := client.URL.Parse(fmt.Sprintf("/api/v2/users/oidc/callback?code=%s&state=somestate", code))
-	require.NoError(t, err)
-	req, err := http.NewRequestWithContext(context.Background(), "GET", oauthURL.String(), nil)
-	require.NoError(t, err)
-	req.AddCookie(&http.Cookie{
-		Name:  codersdk.OAuth2StateCookie,
-		Value: "somestate",
-	})
-	res, err := client.HTTPClient.Do(req)
-	require.NoError(t, err)
-	defer res.Body.Close()
-	data, err := io.ReadAll(res.Body)
-	require.NoError(t, err)
-	t.Log(string(data))
-	return res
-}
-
 // oidcTestRunner is just a helper to setup and run oidc tests.
 // An actual Coderd instance is used to run the tests.
 type oidcTestRunner struct {
 	AdminClient *codersdk.Client
 	AdminUser   codersdk.User
+	API         *coderden.API
 
 	// Login will call the OIDC flow with an unauthenticated client.
 	// The customer actions will all be taken care of, and the idToken claims
@@ -604,6 +609,15 @@ func (r *oidcTestRunner) AssertRoles(t *testing.T, userIdent string, roles []str
 }
 
 func (r *oidcTestRunner) AssertGroups(t *testing.T, userIdent string, groups []string) {
+	t.Helper()
+
+	if !slice.Contains(groups, database.EveryoneGroup) {
+		var cpy []string
+		cpy = append(cpy, groups...)
+		// always include everyone group
+		cpy = append(cpy, database.EveryoneGroup)
+		groups = cpy
+	}
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	user, err := r.AdminClient.User(ctx, userIdent)
 	require.NoError(t, err)
@@ -640,7 +654,10 @@ func setupOIDCTest(t *testing.T, settings oidcTestConfig) *oidcTestRunner {
 			OIDCConfig: cfg,
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
-			Features: license.Features{codersdk.FeatureUserRoleManagement: 1},
+			Features: license.Features{
+				codersdk.FeatureUserRoleManagement: 1,
+				codersdk.FeatureTemplateRBAC:       1,
+			},
 		},
 	})
 	admin, err := client.User(ctx, "me")
@@ -650,6 +667,7 @@ func setupOIDCTest(t *testing.T, settings oidcTestConfig) *oidcTestRunner {
 	return &oidcTestRunner{
 		AdminClient: client,
 		AdminUser:   admin,
+		API:         api,
 		Login: func(idToken jwt.MapClaims) (*codersdk.Client, *http.Response) {
 			return fake.LoginClient(t, unauthenticatedClient, idToken)
 		},
