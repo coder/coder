@@ -765,43 +765,43 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// @Summary Update workspace lock by id.
-// @ID update-workspace-lock-by-id
+// @Summary Update workspace dormancy status by id.
+// @ID update-workspace-dormancy-status-by-id
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
-// @Param request body codersdk.UpdateWorkspaceLock true "Lock or unlock a workspace"
+// @Param request body codersdk.UpdateWorkspaceDormancy true "Make a workspace dormant or active"
 // @Success 200 {object} codersdk.Workspace
-// @Router /workspaces/{workspace}/lock [put]
-func (api *API) putWorkspaceLock(rw http.ResponseWriter, r *http.Request) {
+// @Router /workspaces/{workspace}/dormant [put]
+func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
 
-	var req codersdk.UpdateWorkspaceLock
+	var req codersdk.UpdateWorkspaceDormancy
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
 	// If the workspace is already in the desired state do nothing!
-	if workspace.LockedAt.Valid == req.Lock {
+	if workspace.DormantAt.Valid == req.Dormant {
 		httpapi.Write(ctx, rw, http.StatusNotModified, codersdk.Response{
 			Message: "Nothing to do!",
 		})
 		return
 	}
 
-	lockedAt := sql.NullTime{
-		Valid: req.Lock,
+	dormantAt := sql.NullTime{
+		Valid: req.Dormant,
 	}
-	if req.Lock {
-		lockedAt.Time = database.Now()
+	if req.Dormant {
+		dormantAt.Time = database.Now()
 	}
 
-	workspace, err := api.Database.UpdateWorkspaceLockedDeletingAt(ctx, database.UpdateWorkspaceLockedDeletingAtParams{
-		ID:       workspace.ID,
-		LockedAt: lockedAt,
+	workspace, err := api.Database.UpdateWorkspaceDormantDeletingAt(ctx, database.UpdateWorkspaceDormantDeletingAtParams{
+		ID:        workspace.ID,
+		DormantAt: dormantAt,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1153,14 +1153,14 @@ func convertWorkspace(
 		autostartSchedule = &workspace.AutostartSchedule.String
 	}
 
-	var lockedAt *time.Time
-	if workspace.LockedAt.Valid {
-		lockedAt = &workspace.LockedAt.Time
+	var dormantAt *time.Time
+	if workspace.DormantAt.Valid {
+		dormantAt = &workspace.DormantAt.Time
 	}
 
-	var deletedAt *time.Time
+	var deletingAt *time.Time
 	if workspace.DeletingAt.Valid {
-		deletedAt = &workspace.DeletingAt.Time
+		deletingAt = &workspace.DeletingAt.Time
 	}
 
 	failingAgents := []uuid.UUID{}
@@ -1192,8 +1192,8 @@ func convertWorkspace(
 		AutostartSchedule:                    autostartSchedule,
 		TTLMillis:                            ttlMillis,
 		LastUsedAt:                           workspace.LastUsedAt,
-		DeletingAt:                           deletedAt,
-		LockedAt:                             lockedAt,
+		DeletingAt:                           deletingAt,
+		DormantAt:                            dormantAt,
 		Health: codersdk.WorkspaceHealth{
 			Healthy:       len(failingAgents) == 0,
 			FailingAgents: failingAgents,

@@ -737,7 +737,7 @@ func TestExecutorInactiveWorkspace(t *testing.T) {
 			ProvisionApply: echo.ProvisionComplete,
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.InactivityTTLMillis = ptr.Ref[int64](inactiveTTL.Milliseconds())
+			ctr.TimeTilDormantMillis = ptr.Ref[int64](inactiveTTL.Milliseconds())
 		})
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)

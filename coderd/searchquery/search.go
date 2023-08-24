@@ -114,16 +114,16 @@ func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectT
 	filter.Name = parser.String(values, "", "name")
 	filter.Status = string(httpapi.ParseCustom(parser, values, "", "status", httpapi.ParseEnum[database.WorkspaceStatus]))
 	filter.HasAgent = parser.String(values, "", "has-agent")
-	filter.LockedAt = parser.Time(values, time.Time{}, "locked_at", "2006-01-02")
+	filter.DormantAt = parser.Time(values, time.Time{}, "dormant_at", "2006-01-02")
 	filter.LastUsedAfter = parser.Time3339Nano(values, time.Time{}, "last_used_after")
 	filter.LastUsedBefore = parser.Time3339Nano(values, time.Time{}, "last_used_before")
 
 	if _, ok := values["deleting_by"]; ok {
 		postFilter.DeletingBy = ptr.Ref(parser.Time(values, time.Time{}, "deleting_by", "2006-01-02"))
-		// We want to make sure to grab locked workspaces since they
+		// We want to make sure to grab dormant workspaces since they
 		// are omitted by default.
-		if filter.LockedAt.IsZero() {
-			filter.LockedAt = time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
+		if filter.DormantAt.IsZero() {
+			filter.DormantAt = time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
 		}
 	}
 

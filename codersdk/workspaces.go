@@ -35,14 +35,15 @@ type Workspace struct {
 	TTLMillis                            *int64         `json:"ttl_ms,omitempty"`
 	LastUsedAt                           time.Time      `json:"last_used_at" format:"date-time"`
 
-	// DeletingAt indicates the time of the upcoming workspace deletion, if applicable; otherwise it is nil.
-	// Workspaces may have impending deletions if Template.InactivityTTL feature is turned on and the workspace is inactive.
+	// DeletingAt indicates the time at which the workspace will be permanently deleted.
+	// A workspace is eligible for deletion if it is dormant (a non-nil dormant_at value)
+	// and a value has been specified for time_til_dormant_autodelete on its template.
 	DeletingAt *time.Time `json:"deleting_at" format:"date-time"`
-	// LockedAt being non-nil indicates a workspace that has been locked.
-	// A locked workspace is no longer accessible by a user and must be
-	// unlocked by an admin. It is subject to deletion if it breaches
-	// the duration of the locked_ttl field on its template.
-	LockedAt *time.Time `json:"locked_at" format:"date-time"`
+	// DormantAt being non-nil indicates a workspace that is dormant.
+	// A dormant workspace is no longer accessible must be activated.
+	// It is subject to deletion if it breaches
+	// the duration of the time_til_ field on its template.
+	DormantAt *time.Time `json:"dormant_at" format:"date-time"`
 	// Health shows the health of the workspace and information about
 	// what is causing an unhealthy status.
 	Health WorkspaceHealth `json:"health"`
@@ -293,14 +294,16 @@ func (c *Client) PutExtendWorkspace(ctx context.Context, id uuid.UUID, req PutEx
 	return nil
 }
 
-// UpdateWorkspaceLock is a request to lock or unlock a workspace.
-type UpdateWorkspaceLock struct {
-	Lock bool `json:"lock"`
+// UpdateWorkspaceDormancy is a request to activate or make a workspace dormant.
+// A value of false will activate a dormant workspace.
+type UpdateWorkspaceDormancy struct {
+	Dormant bool `json:"dormant"`
 }
 
-// UpdateWorkspaceLock locks or unlocks a workspace.
-func (c *Client) UpdateWorkspaceLock(ctx context.Context, id uuid.UUID, req UpdateWorkspaceLock) error {
-	path := fmt.Sprintf("/api/v2/workspaces/%s/lock", id.String())
+// UpdateWorkspaceDormancy sets a workspace as dormant if dormant=true and activates a dormant workspace
+// if dormant=false.
+func (c *Client) UpdateWorkspaceDormancy(ctx context.Context, id uuid.UUID, req UpdateWorkspaceDormancy) error {
+	path := fmt.Sprintf("/api/v2/workspaces/%s/dormant", id.String())
 	res, err := c.Request(ctx, http.MethodPut, path, req)
 	if err != nil {
 		return xerrors.Errorf("update workspace lock: %w", err)

@@ -21,10 +21,10 @@ const validFormValues = {
   default_ttl_ms: 1,
   max_ttl_ms: 2,
   failure_ttl_ms: 7,
-  inactivity_ttl_ms: 180,
-  locked_ttl_ms: 30,
+  time_til_dormant_ms: 180,
+  time_til_dormant_autodelete_ms: 30,
   update_workspace_last_used_at: false,
-  update_workspace_locked_at: false,
+  update_workspace_dormant_at: false,
 }
 
 const renderTemplateSchedulePage = async () => {
@@ -39,14 +39,14 @@ const fillAndSubmitForm = async ({
   default_ttl_ms,
   max_ttl_ms,
   failure_ttl_ms,
-  inactivity_ttl_ms,
-  locked_ttl_ms,
+  time_til_dormant_ms,
+  time_til_dormant_autodelete_ms,
 }: {
   default_ttl_ms: number
   max_ttl_ms: number
   failure_ttl_ms: number
-  inactivity_ttl_ms: number
-  locked_ttl_ms: number
+  time_til_dormant_ms: number
+  time_til_dormant_autodelete_ms: number
 }) => {
   const user = userEvent.setup()
   const defaultTtlLabel = t("defaultTtlLabel", { ns: "templateSettingsPage" })
@@ -67,19 +67,22 @@ const fillAndSubmitForm = async ({
   const inactivityTtlField = screen.getByRole("checkbox", {
     name: /Dormancy Threshold/i,
   })
-  await user.type(inactivityTtlField, inactivity_ttl_ms.toString())
+  await user.type(inactivityTtlField, time_til_dormant_ms.toString())
 
-  const lockedTtlField = screen.getByRole("checkbox", {
+  const dormancyAutoDeletionField = screen.getByRole("checkbox", {
     name: /Dormancy Auto-Deletion/i,
   })
-  await user.type(lockedTtlField, locked_ttl_ms.toString())
+  await user.type(
+    dormancyAutoDeletionField,
+    time_til_dormant_autodelete_ms.toString(),
+  )
 
   const submitButton = await screen.findByText(
     FooterFormLanguage.defaultSubmitLabel,
   )
   await user.click(submitButton)
 
-  // User needs to confirm inactivity and locked ttl
+  // User needs to confirm dormancy and autodeletion fields.
   const confirmButton = await screen.findByTestId("confirm-button")
   await user.click(confirmButton)
 }
@@ -140,8 +143,9 @@ describe("TemplateSchedulePage", () => {
         "test-template",
         expect.objectContaining({
           failure_ttl_ms: validFormValues.failure_ttl_ms * 86400000,
-          inactivity_ttl_ms: validFormValues.inactivity_ttl_ms * 86400000,
-          locked_ttl_ms: validFormValues.locked_ttl_ms * 86400000,
+          time_til_dormant_ms: validFormValues.time_til_dormant_ms * 86400000,
+          time_til_dormant_autodelete_ms:
+            validFormValues.time_til_dormant_autodelete_ms * 86400000,
         }),
       ),
     )
@@ -217,7 +221,7 @@ describe("TemplateSchedulePage", () => {
   it("allows an inactivity ttl of 7 days", () => {
     const values: UpdateTemplateMeta = {
       ...validFormValues,
-      inactivity_ttl_ms: 86400000 * 7,
+      time_til_dormant_ms: 86400000 * 7,
     }
     const validate = () => getValidationSchema().validateSync(values)
     expect(validate).not.toThrowError()
@@ -226,7 +230,7 @@ describe("TemplateSchedulePage", () => {
   it("allows an inactivity ttl of 0", () => {
     const values: UpdateTemplateMeta = {
       ...validFormValues,
-      inactivity_ttl_ms: 0,
+      time_til_dormant_ms: 0,
     }
     const validate = () => getValidationSchema().validateSync(values)
     expect(validate).not.toThrowError()
@@ -235,7 +239,7 @@ describe("TemplateSchedulePage", () => {
   it("disallows a negative inactivity ttl", () => {
     const values: UpdateTemplateMeta = {
       ...validFormValues,
-      inactivity_ttl_ms: -1,
+      time_til_dormant_ms: -1,
     }
     const validate = () => getValidationSchema().validateSync(values)
     expect(validate).toThrowError(
@@ -246,7 +250,7 @@ describe("TemplateSchedulePage", () => {
   it("allows a dormancy ttl of 7 days", () => {
     const values: UpdateTemplateMeta = {
       ...validFormValues,
-      locked_ttl_ms: 86400000 * 7,
+      time_til_dormant_autodelete_ms: 86400000 * 7,
     }
     const validate = () => getValidationSchema().validateSync(values)
     expect(validate).not.toThrowError()
@@ -255,7 +259,7 @@ describe("TemplateSchedulePage", () => {
   it("allows a dormancy ttl of 0", () => {
     const values: UpdateTemplateMeta = {
       ...validFormValues,
-      locked_ttl_ms: 0,
+      time_til_dormant_autodelete_ms: 0,
     }
     const validate = () => getValidationSchema().validateSync(values)
     expect(validate).not.toThrowError()
@@ -264,7 +268,7 @@ describe("TemplateSchedulePage", () => {
   it("disallows a negative inactivity ttl", () => {
     const values: UpdateTemplateMeta = {
       ...validFormValues,
-      locked_ttl_ms: -1,
+      time_til_dormant_autodelete_ms: -1,
     }
     const validate = () => getValidationSchema().validateSync(values)
     expect(validate).toThrowError(
