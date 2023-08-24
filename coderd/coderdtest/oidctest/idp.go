@@ -9,25 +9,29 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/codersdk"
+
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-jose/go-jose/v3"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd"
 )
 
@@ -36,18 +40,30 @@ type FakeIDP struct {
 	key      *rsa.PrivateKey
 	provider providerJSON
 	handler  http.Handler
+	cfg      *oauth2.Config
 
 	// clientID to be used by coderd
 	clientID     string
 	clientSecret string
 	logger       slog.Logger
 
-	codeToStateMap sync.Map
-	accessTokens   sync.Map
-	refreshTokens  sync.Map
+	codeToStateMap *SyncMap[string, string]
+	// Token -> Email
+	accessTokens *SyncMap[string, string]
+	// Refresh Token -> Email
+	refreshTokensUsed    *SyncMap[string, bool]
+	refreshTokens        *SyncMap[string, string]
+	stateToIDTokenClaims *SyncMap[string, jwt.MapClaims]
+	refreshIDTokenClaims *SyncMap[string, jwt.MapClaims]
 
 	// hooks
-	hookUserInfo func(token string) map[string]string
+	hookUserInfo      func(email string) jwt.MapClaims
+	hookIDTokenClaims jwt.MapClaims
+	fakeCoderd        func(req *http.Request) (*http.Response, error)
+	// Optional if you want to use a real http network request assuming
+	// it is not directed to the IDP.
+	defaultClient *http.Client
+	serve         bool
 }
 
 func WithLogging(t testing.TB, options *slogtest.Options) func(*FakeIDP) {
@@ -56,15 +72,23 @@ func WithLogging(t testing.TB, options *slogtest.Options) func(*FakeIDP) {
 	}
 }
 
-func WithUserInfoHook(uf func(token string) map[string]string) func(*FakeIDP) {
+func WithStaticUserInfo(info jwt.MapClaims) func(*FakeIDP) {
 	return func(f *FakeIDP) {
-		f.hookUserInfo = uf
+		f.hookUserInfo = func(_ string) jwt.MapClaims {
+			return info
+		}
 	}
 }
 
-func WithIssuer(issuer string) func(*FakeIDP) {
+func WithDynamicUserInfo(userInfoFunc func(email string) jwt.MapClaims) func(*FakeIDP) {
 	return func(f *FakeIDP) {
-		f.issuer = issuer
+		f.hookUserInfo = userInfoFunc
+	}
+}
+
+func WithServing() func(*FakeIDP) {
+	return func(f *FakeIDP) {
+		f.serve = true
 	}
 }
 
@@ -83,17 +107,19 @@ func NewFakeIDP(t testing.TB, opts ...func(idp *FakeIDP)) *FakeIDP {
 	require.NoError(t, err)
 
 	idp := &FakeIDP{
-		key:            pkey,
-		clientID:       uuid.NewString(),
-		clientSecret:   uuid.NewString(),
-		logger:         slog.Make(),
-		codeToStateMap: sync.Map{},
-		accessTokens:   sync.Map{},
-		refreshTokens:  sync.Map{},
-		hookUserInfo: func(token string) map[string]string {
-			return map[string]string{}
-		},
+		key:                  pkey,
+		clientID:             uuid.NewString(),
+		clientSecret:         uuid.NewString(),
+		logger:               slog.Make(),
+		codeToStateMap:       NewSyncMap[string, string](),
+		accessTokens:         NewSyncMap[string, string](),
+		refreshTokens:        NewSyncMap[string, string](),
+		refreshTokensUsed:    NewSyncMap[string, bool](),
+		stateToIDTokenClaims: NewSyncMap[string, jwt.MapClaims](),
+		refreshIDTokenClaims: NewSyncMap[string, jwt.MapClaims](),
+		hookUserInfo:         func(email string) jwt.MapClaims { return jwt.MapClaims{} },
 	}
+	idp.handler = idp.httpHandler(t)
 
 	for _, opt := range opts {
 		opt(idp)
@@ -103,13 +129,25 @@ func NewFakeIDP(t testing.TB, opts ...func(idp *FakeIDP)) *FakeIDP {
 		idp.issuer = "https://coder.com"
 	}
 
-	u, err := url.Parse(idp.issuer)
+	idp.updateIssuerURL(t, idp.issuer)
+	if idp.serve {
+		idp.Serve(t)
+	}
+
+	return idp
+}
+
+func (f *FakeIDP) updateIssuerURL(t testing.TB, issuer string) {
+	t.Helper()
+
+	u, err := url.Parse(issuer)
 	require.NoError(t, err, "invalid issuer URL")
 
+	f.issuer = issuer
 	// providerJSON is the JSON representation of the OpenID Connect provider
 	// These are all the urls that the IDP will respond to.
-	idp.provider = providerJSON{
-		Issuer:      idp.issuer,
+	f.provider = providerJSON{
+		Issuer:      issuer,
 		AuthURL:     u.ResolveReference(&url.URL{Path: authorizePath}).String(),
 		TokenURL:    u.ResolveReference(&url.URL{Path: tokenPath}).String(),
 		JWKSURL:     u.ResolveReference(&url.URL{Path: keysPath}).String(),
@@ -118,21 +156,103 @@ func NewFakeIDP(t testing.TB, opts ...func(idp *FakeIDP)) *FakeIDP {
 			"RS256",
 		},
 	}
-	idp.handler = idp.httpHandler(t)
-
-	return idp
 }
 
-func OIDCCallback(t testing.TB, cfg *coderd.OIDCConfig, cli *http.Client, state string) (*http.Response, error) {
+// Serve is optional, but turns the FakeIDP into a real http server.
+func (f *FakeIDP) Serve(t testing.TB) *httptest.Server {
 	t.Helper()
 
-	url := cfg.AuthCodeURL(state)
-	req, err := http.NewRequest("GET", url, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	srv := httptest.NewUnstartedServer(f.handler)
+	srv.Config.BaseContext = func(_ net.Listener) context.Context {
+		return ctx
+	}
+	srv.Start()
+	t.Cleanup(srv.CloseClientConnections)
+	t.Cleanup(srv.Close)
+	t.Cleanup(cancel)
+
+	f.updateIssuerURL(t, srv.URL)
+	return srv
+}
+
+// LoginClient does the full OIDC flow starting at the "LoginButton".
+// The client argument is just to get the URL of the Coder instance.
+func (f *FakeIDP) LoginClient(t testing.TB, client *codersdk.Client, idTokenClaims jwt.MapClaims) (*codersdk.Client, *http.Response) {
+	t.Helper()
+
+	coderOauthURL, err := client.URL.Parse("/api/v2/users/oidc/callback")
+	require.NoError(t, err)
+	f.SetRedirect(t, coderOauthURL.String())
+
+	cli := f.HTTPClient(client.HTTPClient)
+	shallowCpyCli := &(*cli)
+	shallowCpyCli.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		// Store the idTokenClaims to the specific state request. This ties
+		// the claims 1:1 with a given authentication flow.
+		state := req.URL.Query().Get("state")
+		f.stateToIDTokenClaims.Store(state, idTokenClaims)
+		return nil
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", coderOauthURL.String(), nil)
+	require.NoError(t, err)
+	if shallowCpyCli.Jar == nil {
+		shallowCpyCli.Jar, err = cookiejar.New(nil)
+		require.NoError(t, err, "failed to create cookie jar")
+	}
+
+	res, err := shallowCpyCli.Do(req)
+	require.NoError(t, err)
+
+	// If the coder session token exists, return the new authed client!
+	var user *codersdk.Client
+	cookies := shallowCpyCli.Jar.Cookies(client.URL)
+	for _, cookie := range cookies {
+		if cookie.Name == codersdk.SessionTokenCookie {
+			user = codersdk.New(client.URL)
+			user.SetSessionToken(cookie.Value)
+		}
+	}
+
+	t.Cleanup(func() {
+		if res.Body != nil {
+			res.Body.Close()
+		}
+	})
+	return user, res
+}
+
+// OIDCCallback will emulate the IDP redirecting back to the Coder callback.
+// This is helpful if no Coderd exists.
+func (f *FakeIDP) OIDCCallback(t testing.TB, state string, idTokenClaims jwt.MapClaims) (*http.Response, error) {
+	t.Helper()
+	f.stateToIDTokenClaims.Store(state, idTokenClaims)
+
+	baseCli := http.DefaultClient
+	if f.fakeCoderd != nil {
+		baseCli = &http.Client{
+			Transport: fakeRoundTripper{
+				roundTrip: func(req *http.Request) (*http.Response, error) {
+					return f.fakeCoderd(req)
+				},
+			},
+		}
+	}
+
+	cli := f.HTTPClient(baseCli)
+	u := f.cfg.AuthCodeURL(state)
+	req, err := http.NewRequest("GET", u, nil)
 	require.NoError(t, err)
 
 	resp, err := cli.Do(req.WithContext(context.Background()))
 	require.NoError(t, err)
 
+	t.Cleanup(func() {
+		if resp.Body != nil {
+			resp.Body.Close()
+		}
+	})
 	return resp, nil
 }
 
@@ -155,15 +275,15 @@ func (f *FakeIDP) newCode(state string) string {
 
 // newToken enforces the access token exchanged is actually a valid access token
 // created by the IDP.
-func (f *FakeIDP) newToken(exp time.Time) string {
+func (f *FakeIDP) newToken(email string) string {
 	accessToken := uuid.NewString()
-	f.accessTokens.Store(accessToken, exp)
+	f.accessTokens.Store(accessToken, email)
 	return accessToken
 }
 
-func (f *FakeIDP) newRefreshTokens(exp time.Time) string {
+func (f *FakeIDP) newRefreshTokens(email string) string {
 	refreshToken := uuid.NewString()
-	f.refreshTokens.Store(refreshToken, exp)
+	f.refreshTokens.Store(refreshToken, email)
 	return refreshToken
 }
 
@@ -198,6 +318,27 @@ func (f *FakeIDP) authenticateOIDClientRequest(t testing.TB, req *http.Request) 
 	}
 
 	return values, nil
+}
+
+func (f *FakeIDP) encodeClaims(t testing.TB, claims jwt.MapClaims) string {
+	t.Helper()
+
+	if _, ok := claims["exp"]; !ok {
+		claims["exp"] = time.Now().Add(time.Hour).UnixMilli()
+	}
+
+	if _, ok := claims["aud"]; !ok {
+		claims["aud"] = f.clientID
+	}
+
+	if _, ok := claims["iss"]; !ok {
+		claims["iss"] = f.issuer
+	}
+
+	signed, err := jwt.NewWithClaims(jwt.SigningMethodRS256, claims).SignedString(f.key)
+	require.NoError(t, err)
+
+	return signed
 }
 
 func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
@@ -268,6 +409,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 			return
 		}
 
+		var claims jwt.MapClaims
 		switch values.Get("grant_type") {
 		case "authorization_code":
 			code := values.Get("code")
@@ -275,13 +417,21 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 				http.Error(rw, "invalid code", http.StatusBadRequest)
 				return
 			}
-			_, ok := f.codeToStateMap.Load(code)
+			stateStr, ok := f.codeToStateMap.Load(code)
 			if !assert.True(t, ok, "invalid code") {
 				http.Error(rw, "invalid code", http.StatusBadRequest)
 				return
 			}
 			// Always invalidate the code after it is used.
 			f.codeToStateMap.Delete(code)
+
+			idTokenClaims, ok := f.stateToIDTokenClaims.Load(stateStr)
+			if !ok {
+				t.Errorf("missing id token claims")
+				http.Error(rw, "missing id token claims", http.StatusBadRequest)
+				return
+			}
+			claims = idTokenClaims
 		case "refresh_token":
 			refreshToken := values.Get("refresh_token")
 			if !assert.NotEmpty(t, refreshToken, "refresh_token is empty") {
@@ -296,6 +446,15 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 			}
 			// Always invalidate the refresh token after it is used.
 			f.refreshTokens.Delete(refreshToken)
+
+			idTokenClaims, ok := f.refreshIDTokenClaims.Load(refreshToken)
+			if !ok {
+				t.Errorf("missing id token claims in refresh")
+				http.Error(rw, "missing id token claims in refresh", http.StatusBadRequest)
+				return
+			}
+			claims = idTokenClaims
+			f.refreshTokensUsed.Store(refreshToken, true)
 		default:
 			t.Errorf("unexpected grant_type %q", values.Get("grant_type"))
 			http.Error(rw, "invalid grant_type", http.StatusBadRequest)
@@ -303,13 +462,22 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 		}
 
 		exp := time.Now().Add(time.Minute * 5)
-		token := oauth2.Token{
-			// Sometimes the access token is a jwt. Not going to do that here.
-			AccessToken:  f.newToken(time.Now().Add(time.Minute * 5)),
-			RefreshToken: f.newRefreshTokens(time.Now().Add(time.Minute * 30)),
-			TokenType:    "Bearer",
-			Expiry:       exp,
+		claims["exp"] = exp.UnixMilli()
+		email, ok := claims["email"]
+		if !ok || email.(string) == "" {
+			email = "unknown"
 		}
+		refreshToken := f.newRefreshTokens(email.(string))
+		token := map[string]interface{}{
+			"access_token":  f.newToken(email.(string)),
+			"refresh_token": refreshToken,
+			"token_type":    "Bearer",
+			"expires_in":    int64(time.Minute * 5),
+			"expiry":        exp.Unix(),
+			"id_token":      f.encodeClaims(t, claims),
+		}
+		// Store the claims for the next refresh
+		f.refreshIDTokenClaims.Store(refreshToken, claims)
 
 		rw.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(rw).Encode(token)
@@ -324,8 +492,15 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 			http.Error(rw, fmt.Sprintf("invalid user info request: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
+		var _ = token
 
-		_ = json.NewEncoder(rw).Encode(f.hookUserInfo(token))
+		email, ok := f.accessTokens.Load(token)
+		if !ok {
+			t.Errorf("access token user for user_info has no email to indicate which user")
+			http.Error(rw, "invalid access token, missing user info", http.StatusBadRequest)
+			return
+		}
+		_ = json.NewEncoder(rw).Encode(f.hookUserInfo(email))
 	}))
 
 	mux.Handle(keysPath, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -357,15 +532,21 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 // If a request is not to the IDP, then the passed in client will be used.
 // If no client is passed in, then any regular network requests will fail.
 func (f *FakeIDP) HTTPClient(rest *http.Client) *http.Client {
+	if f.serve {
+		if rest == nil {
+			return http.DefaultClient
+		}
+		return rest
+	}
 	return &http.Client{
 		Transport: fakeRoundTripper{
 			roundTrip: func(req *http.Request) (*http.Response, error) {
 				u, _ := url.Parse(f.issuer)
 				if req.URL.Host != u.Host {
 					if rest == nil {
-						return nil, fmt.Errorf("unexpected request to %q", req.URL.Host)
+						return nil, fmt.Errorf("unexpected network request to %q", req.URL.Host)
 					}
-					return rest.Do(req)
+					return rest.Transport.RoundTrip(req)
 				}
 				resp := httptest.NewRecorder()
 				f.handler.ServeHTTP(resp, req)
@@ -375,7 +556,39 @@ func (f *FakeIDP) HTTPClient(rest *http.Client) *http.Client {
 	}
 }
 
-func (f *FakeIDP) OIDCConfig(t testing.TB, redirect string, scopes []string, opts ...func(cfg *coderd.OIDCConfig)) *coderd.OIDCConfig {
+// RefreshUsed returns if the refresh token has been used. All refresh tokens
+// can only be used once, then they are deleted.
+func (f *FakeIDP) RefreshUsed(refreshToken string) bool {
+	used, _ := f.refreshTokensUsed.Load(refreshToken)
+	return used
+}
+
+func (f *FakeIDP) UpdateRefreshClaims(refreshToken string, claims jwt.MapClaims) {
+	f.refreshIDTokenClaims.Store(refreshToken, claims)
+}
+
+func (f *FakeIDP) SetRedirect(t testing.TB, url string) {
+	t.Helper()
+
+	f.cfg.RedirectURL = url
+}
+
+func (f *FakeIDP) SetCoderdCallback(callback func(req *http.Request) (*http.Response, error)) {
+	f.fakeCoderd = callback
+}
+
+func (f *FakeIDP) SetCoderdCallbackHandler(handler http.HandlerFunc) {
+	if f.serve {
+		panic("cannot set callback handler when using 'WithServing'. Must implement an actual 'Coderd'")
+	}
+	f.fakeCoderd = func(req *http.Request) (*http.Response, error) {
+		resp := httptest.NewRecorder()
+		handler.ServeHTTP(resp, req)
+		return resp.Result(), nil
+	}
+}
+
+func (f *FakeIDP) OIDCConfig(t testing.TB, scopes []string, opts ...func(cfg *coderd.OIDCConfig)) *coderd.OIDCConfig {
 	t.Helper()
 	if len(scopes) == 0 {
 		scopes = []string{"openid", "email", "profile"}
@@ -389,7 +602,9 @@ func (f *FakeIDP) OIDCConfig(t testing.TB, redirect string, scopes []string, opt
 			TokenURL:  f.provider.TokenURL,
 			AuthStyle: oauth2.AuthStyleInParams,
 		},
-		RedirectURL: redirect,
+		// If the user is using a real network request, they will need to do
+		// 'fake.SetRedirect()'
+		RedirectURL: "https://redirect.com",
 		Scopes:      scopes,
 	}
 
@@ -416,6 +631,8 @@ func (f *FakeIDP) OIDCConfig(t testing.TB, redirect string, scopes []string, opt
 	for _, opt := range opts {
 		opt(cfg)
 	}
+
+	f.cfg = oauthCfg
 
 	return cfg
 }

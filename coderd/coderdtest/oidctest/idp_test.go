@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang-jwt/jwt/v4"
+
 	"github.com/stretchr/testify/assert"
 
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
@@ -17,7 +19,9 @@ import (
 
 // TestFakeIDPBasicFlow tests the basic flow of the fake IDP.
 func TestFakeIDPBasicFlow(t *testing.T) {
-	fake := oidctest.NewFakeIDP(t, oidctest.WithLogging(t, nil))
+	fake := oidctest.NewFakeIDP(t,
+		oidctest.WithLogging(t, nil),
+	)
 
 	var handler http.Handler
 	srv := httptest.NewServer(http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -25,14 +29,14 @@ func TestFakeIDPBasicFlow(t *testing.T) {
 	})))
 	defer srv.Close()
 
-	cfg := fake.OIDCConfig(t, srv.URL, nil)
+	cfg := fake.OIDCConfig(t, nil)
 	cli := fake.HTTPClient(nil)
 	ctx := oidc.ClientContext(context.Background(), cli)
 
 	const expectedState = "random-state"
 	var token *oauth2.Token
 	// This is the Coder callback using an actual network request.
-	handler = http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	fake.SetCoderdCallbackHandler(func(w http.ResponseWriter, r *http.Request) {
 		// Emulate OIDC flow
 		code := r.URL.Query().Get("code")
 		state := r.URL.Query().Get("state")
@@ -44,9 +48,9 @@ func TestFakeIDPBasicFlow(t *testing.T) {
 			assert.NotEmpty(t, oauthToken.RefreshToken, "refresh token is empty")
 		}
 		token = oauthToken
-	}))
+	})
 
-	resp, err := oidctest.OIDCCallback(t, cfg, fake.HTTPClient(srv.Client()), expectedState)
+	resp, err := fake.OIDCCallback(t, expectedState, jwt.MapClaims{})
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 

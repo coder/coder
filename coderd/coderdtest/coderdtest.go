@@ -33,7 +33,7 @@ import (
 	"cloud.google.com/go/compute/metadata"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/fullsailor/pkcs7"
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/prometheus/client_golang/prometheus"
