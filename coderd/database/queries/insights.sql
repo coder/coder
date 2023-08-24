@@ -89,7 +89,7 @@ WITH app_stats_by_user_and_agent AS (
 	-- for the longer intervals.
 	CROSS JOIN LATERAL generate_series(
 		date_trunc('minute', was.session_started_at),
-		-- Subtract 1ms to avoid creating an extra serie.
+		-- Subtract 1ms to avoid creating an extra series.
 		date_trunc('minute', was.session_ended_at - '1 ms'::interval),
 		'1 minute'::interval
 	) s(start_time)
