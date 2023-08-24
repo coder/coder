@@ -509,7 +509,7 @@ jobs:
         run: nix-shell --command 'make -B site/out/index.html'
 
       - name: Playwright install
-        run: nix-shell --comand 'cd site && pnpm playwright:install'
+        run: nix-shell --command 'cd site && pnpm playwright:install'
 
       - name: Playwright test
         run: nix-shell --command 'cd site && pnpm playwright:test'
