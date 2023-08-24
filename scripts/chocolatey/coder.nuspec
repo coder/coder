@@ -14,14 +14,14 @@
     <version>$version$</version>
     <packageSourceUrl>https://github.com/coder/coder/blob/main/scripts/chocolatey</packageSourceUrl>
     <!-- owners is a poor name for maintainers of the package. It sticks around by this name for compatibility reasons. It basically means you. -->
-    <owners>Coder Technologies\, Inc.</owners>
+    <owners>Coder Technologies, Inc.</owners>
     <!-- ============================== -->
 
     <!-- == SOFTWARE SPECIFIC SECTION == -->
     <!-- This section is about the software itself -->
     <title>Coder</title>
-    <authors>Coder Technologies\, Inc.</authors>
-		<copyright>Coder Technologies\, Inc.</copyright>
+    <authors>Coder Technologies, Inc.</authors>
+		<copyright>Coder Technologies, Inc.</copyright>
 
 		<iconUrl>https://github.com/coder/presskit/blob/main/logos/coder_logo_black_square.png?raw=true</iconUrl>
     <projectUrl>https://coder.com</projectUrl>
