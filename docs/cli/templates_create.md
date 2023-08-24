@@ -57,6 +57,14 @@ Ignore warnings about not having a .terraform.lock.hcl file present in the templ
 
 Specify an inactivity TTL for workspaces created from this template. This licensed feature's default is 0h (off).
 
+### --max-ttl
+
+|      |                       |
+| ---- | --------------------- |
+| Type | <code>duration</code> |
+
+Edit the template maximum time before shutdown - workspaces created from this template must shutdown within the given duration after starting. This is an enterprise-only feature.
+
 ### -m, --message
 
 |      |                     |
