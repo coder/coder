@@ -64,6 +64,7 @@
           shellcheck
           shfmt
           sqlc
+          stdenv.coreutils
           # strace is not available on OSX
           (if pkgs.stdenv.hostPlatform.isDarwin then null else strace)
           terraform
