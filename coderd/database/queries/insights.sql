@@ -25,37 +25,22 @@ ORDER BY user_id ASC;
 -- GetTemplateInsights has a granularity of 5 minutes where if a session/app was
 -- in use during a minute, we will add 5 minutes to the total usage for that
 -- session/app (per user).
-WITH ts AS (
+WITH agent_stats_by_interval_and_user AS (
 	SELECT
-		d::timestamptz AS from_,
-		(d::timestamptz + '5 minute'::interval) AS to_,
-		EXTRACT(epoch FROM '5 minute'::interval) AS seconds
-	FROM
-		-- Subtract 1 second from end_time to avoid including the next interval in the results.
-		generate_series(@start_time::timestamptz, (@end_time::timestamptz) - '1 second'::interval, '5 minute'::interval) d
-), agent_stats_by_interval_and_user AS (
-	SELECT
-		ts.from_,
-		ts.to_,
+		date_trunc('minute', was.created_at),
 		was.user_id,
 		array_agg(was.template_id) AS template_ids,
-		CASE WHEN SUM(was.session_count_vscode) > 0 THEN ts.seconds ELSE 0 END AS usage_vscode_seconds,
-		CASE WHEN SUM(was.session_count_jetbrains) > 0 THEN ts.seconds ELSE 0 END AS usage_jetbrains_seconds,
-		CASE WHEN SUM(was.session_count_reconnecting_pty) > 0 THEN ts.seconds ELSE 0 END AS usage_reconnecting_pty_seconds,
-		CASE WHEN SUM(was.session_count_ssh) > 0 THEN ts.seconds ELSE 0 END AS usage_ssh_seconds
-	FROM ts
-	JOIN workspace_agent_stats was ON (
-		was.created_at >= ts.from_
-		AND was.created_at < ts.to_
+		CASE WHEN SUM(was.session_count_vscode) > 0 THEN 60 ELSE 0 END AS usage_vscode_seconds,
+		CASE WHEN SUM(was.session_count_jetbrains) > 0 THEN 60 ELSE 0 END AS usage_jetbrains_seconds,
+		CASE WHEN SUM(was.session_count_reconnecting_pty) > 0 THEN 60 ELSE 0 END AS usage_reconnecting_pty_seconds,
+		CASE WHEN SUM(was.session_count_ssh) > 0 THEN 60 ELSE 0 END AS usage_ssh_seconds
+	FROM workspace_agent_stats was
+	WHERE
+		was.created_at >= @start_time::timestamptz
+		AND was.created_at < @end_time::timestamptz
 		AND was.connection_count > 0
 		AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN was.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
-	)
-	WHERE
-		-- We already handle created_at in the join, but we use an additional
-		-- check against a static timeframe to help speed up the query.
-		was.created_at >= @start_time
-		AND was.created_at < @end_time
-	GROUP BY ts.from_, ts.to_, ts.seconds, was.user_id
+	GROUP BY date_trunc('minute', was.created_at), was.user_id
 ), template_ids AS (
 	SELECT array_agg(DISTINCT template_id) AS ids
 	FROM agent_stats_by_interval_and_user, unnest(template_ids) template_id
@@ -76,19 +61,10 @@ FROM agent_stats_by_interval_and_user;
 -- GetTemplateAppInsights returns the aggregate usage of each app in a given
 -- timeframe. The result can be filtered on template_ids, meaning only user data
 -- from workspaces based on those templates will be included.
-WITH ts AS (
+WITH app_stats_by_user_and_agent AS (
 	SELECT
-		d::timestamptz AS from_,
-		(d::timestamptz + '5 minute'::interval) AS to_,
-		EXTRACT(epoch FROM '5 minute'::interval) AS seconds
-	FROM
-		-- Subtract 1 second from end_time to avoid including the next interval in the results.
-		generate_series(@start_time::timestamptz, (@end_time::timestamptz) - '1 second'::interval, '5 minute'::interval) d
-), app_stats_by_user_and_agent AS (
-	SELECT
-		ts.from_,
-		ts.to_,
-		ts.seconds,
+		s.start_time,
+		60 as seconds,
 		w.template_id,
 		was.user_id,
 		was.agent_id,
@@ -97,12 +73,7 @@ WITH ts AS (
 		wa.display_name,
 		wa.icon,
 		(wa.slug IS NOT NULL)::boolean AS is_app
-	FROM ts
-	JOIN workspace_app_stats was ON (
-		(was.session_started_at >= ts.from_ AND was.session_started_at < ts.to_)
-		OR (was.session_ended_at > ts.from_ AND was.session_ended_at < ts.to_)
-		OR (was.session_started_at < ts.from_ AND was.session_ended_at >= ts.to_)
-	)
+	FROM workspace_app_stats was
 	JOIN workspaces w ON (
 		w.id = was.workspace_id
 		AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN w.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
@@ -113,13 +84,20 @@ WITH ts AS (
 		wa.agent_id = was.agent_id
 		AND wa.slug = was.slug_or_port
 	)
+	-- This table contains both 1 minute entries and >1 minute entries,
+	-- to calculate this with our uniqueness constraints, we generate series
+	-- for the longer intervals.
+	CROSS JOIN LATERAL generate_series(
+		date_trunc('minute', was.session_started_at),
+		-- Subtract 1 microsecond to avoid creating an extra series.
+		date_trunc('minute', was.session_ended_at - '1 microsecond'::interval),
+		'1 minute'::interval
+	) s(start_time)
 	WHERE
-		-- We already handle timeframe in the join, but we use an additional
-		-- check against a static timeframe to help speed up the query.
-		(was.session_started_at >= @start_time AND was.session_started_at < @end_time)
-		OR (was.session_ended_at > @start_time AND was.session_ended_at < @end_time)
-		OR (was.session_started_at < @start_time AND was.session_ended_at >= @end_time)
-	GROUP BY ts.from_, ts.to_, ts.seconds, w.template_id, was.user_id, was.agent_id, was.access_method, was.slug_or_port, wa.display_name, wa.icon, wa.slug
+		s.start_time >= @start_time::timestamptz
+		-- Subtract one minute because the series only contains the start time.
+		AND s.start_time < (@end_time::timestamptz) - '1 minute'::interval
+	GROUP BY s.start_time, w.template_id, was.user_id, was.agent_id, was.access_method, was.slug_or_port, wa.display_name, wa.icon, wa.slug
 )
 
 SELECT
@@ -230,13 +208,13 @@ WITH latest_workspace_builds AS (
 		array_agg(DISTINCT wb.template_id)::uuid[] AS template_ids,
 		array_agg(wb.id)::uuid[] AS workspace_build_ids,
 		tvp.name,
+		tvp.type,
 		tvp.display_name,
 		tvp.description,
-		tvp.options,
-		tvp.type
+		tvp.options
 	FROM latest_workspace_builds wb
 	JOIN template_version_parameters tvp ON (tvp.template_version_id = wb.template_version_id)
-	GROUP BY tvp.name, tvp.display_name, tvp.description, tvp.options, tvp.type
+	GROUP BY tvp.name, tvp.type, tvp.display_name, tvp.description, tvp.options
 )
 
 SELECT
@@ -251,4 +229,4 @@ SELECT
 	COUNT(wbp.value) AS count
 FROM unique_template_params utp
 JOIN workspace_build_parameters wbp ON (utp.workspace_build_ids @> ARRAY[wbp.workspace_build_id] AND utp.name = wbp.name)
-GROUP BY utp.num, utp.name, utp.display_name, utp.description, utp.options, utp.template_ids, utp.type, wbp.value;
+GROUP BY utp.num, utp.template_ids, utp.name, utp.type, utp.display_name, utp.description, utp.options, wbp.value;

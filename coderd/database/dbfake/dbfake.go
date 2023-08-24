@@ -626,7 +626,7 @@ func uniqueSortedUUIDs(uuids []uuid.UUID) []uuid.UUID {
 	return unique
 }
 
-func (q *FakeQuerier) getOrganizationMember(orgID uuid.UUID) []database.OrganizationMember {
+func (q *FakeQuerier) getOrganizationMemberNoLock(orgID uuid.UUID) []database.OrganizationMember {
 	var members []database.OrganizationMember
 	for _, member := range q.organizationMembers {
 		if member.OrganizationID == orgID {
@@ -637,14 +637,14 @@ func (q *FakeQuerier) getOrganizationMember(orgID uuid.UUID) []database.Organiza
 	return members
 }
 
-// getEveryoneGroupMembers fetches all the users in an organization.
-func (q *FakeQuerier) getEveryoneGroupMembers(orgID uuid.UUID) []database.User {
+// getEveryoneGroupMembersNoLock fetches all the users in an organization.
+func (q *FakeQuerier) getEveryoneGroupMembersNoLock(orgID uuid.UUID) []database.User {
 	var (
 		everyone   []database.User
-		orgMembers = q.getOrganizationMember(orgID)
+		orgMembers = q.getOrganizationMemberNoLock(orgID)
 	)
 	for _, member := range orgMembers {
-		user, err := q.GetUserByID(context.TODO(), member.UserID)
+		user, err := q.getUserByIDNoLock(member.UserID)
 		if err != nil {
 			return nil
 		}
@@ -1434,7 +1434,7 @@ func (q *FakeQuerier) GetGroupMembers(_ context.Context, id uuid.UUID) ([]databa
 	defer q.mutex.RUnlock()
 
 	if q.isEveryoneGroup(id) {
-		return q.getEveryoneGroupMembers(id), nil
+		return q.getEveryoneGroupMembersNoLock(id), nil
 	}
 
 	var members []database.GroupMember
@@ -2018,6 +2018,10 @@ func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.G
 			return nil, err
 		}
 
+		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, w.TemplateID) {
+			continue
+		}
+
 		app, _ := q.getWorkspaceAppByAgentIDAndSlugNoLock(ctx, database.GetWorkspaceAppByAgentIDAndSlugParams{
 			AgentID: s.AgentID,
 			Slug:    s.SlugOrPort,
@@ -2044,8 +2048,8 @@ func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.G
 			t = arg.StartTime
 		}
 		for t.Before(s.SessionEndedAt) && t.Before(arg.EndTime) {
-			appUsageIntervalsByUserAgentApp[key][t] = 300 // 5 minutes.
-			t = t.Add(5 * time.Minute)
+			appUsageIntervalsByUserAgentApp[key][t] = 60 // 1 minute.
+			t = t.Add(1 * time.Minute)
 		}
 	}
 
@@ -2095,6 +2099,8 @@ func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.G
 		})
 	}
 
+	// NOTE(mafredri): Add sorting if we decide on how to handle PostgreSQL collations.
+	// ORDER BY access_method, slug_or_port, display_name, icon, is_app
 	return rows, nil
 }
 
@@ -2264,17 +2270,16 @@ func (q *FakeQuerier) GetTemplateDailyInsights(ctx context.Context, arg database
 			}
 			ds.userSet[s.UserID] = struct{}{}
 			ds.templateIDSet[s.TemplateID] = struct{}{}
-			break
 		}
 	}
 
 	for _, s := range q.workspaceAppStats {
-		// (was.session_started_at >= ts.from_ AND was.session_started_at < ts.to_)
-		// OR (was.session_ended_at > ts.from_ AND was.session_ended_at < ts.to_)
-		// OR (was.session_started_at < ts.from_ AND was.session_ended_at >= ts.to_)
-		if !(((s.SessionStartedAt.After(arg.StartTime) || s.SessionStartedAt.Equal(arg.StartTime)) && s.SessionStartedAt.Before(arg.EndTime)) ||
-			(s.SessionEndedAt.After(arg.StartTime) && s.SessionEndedAt.Before(arg.EndTime)) ||
-			(s.SessionStartedAt.Before(arg.StartTime) && (s.SessionEndedAt.After(arg.EndTime) || s.SessionEndedAt.Equal(arg.EndTime)))) {
+		w, err := q.getWorkspaceByIDNoLock(ctx, s.WorkspaceID)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, w.TemplateID) {
 			continue
 		}
 
@@ -2282,20 +2287,14 @@ func (q *FakeQuerier) GetTemplateDailyInsights(ctx context.Context, arg database
 			// (was.session_started_at >= ts.from_ AND was.session_started_at < ts.to_)
 			// OR (was.session_ended_at > ts.from_ AND was.session_ended_at < ts.to_)
 			// OR (was.session_started_at < ts.from_ AND was.session_ended_at >= ts.to_)
-			if !(((s.SessionStartedAt.After(arg.StartTime) || s.SessionStartedAt.Equal(arg.StartTime)) && s.SessionStartedAt.Before(arg.EndTime)) ||
-				(s.SessionEndedAt.After(arg.StartTime) && s.SessionEndedAt.Before(arg.EndTime)) ||
-				(s.SessionStartedAt.Before(arg.StartTime) && (s.SessionEndedAt.After(arg.EndTime) || s.SessionEndedAt.Equal(arg.EndTime)))) {
+			if !(((s.SessionStartedAt.After(ds.startTime) || s.SessionStartedAt.Equal(ds.startTime)) && s.SessionStartedAt.Before(ds.endTime)) ||
+				(s.SessionEndedAt.After(ds.startTime) && s.SessionEndedAt.Before(ds.endTime)) ||
+				(s.SessionStartedAt.Before(ds.startTime) && (s.SessionEndedAt.After(ds.endTime) || s.SessionEndedAt.Equal(ds.endTime)))) {
 				continue
-			}
-
-			w, err := q.getWorkspaceByIDNoLock(ctx, s.WorkspaceID)
-			if err != nil {
-				return nil, err
 			}
 
 			ds.userSet[s.UserID] = struct{}{}
 			ds.templateIDSet[w.TemplateID] = struct{}{}
-			break
 		}
 	}
 
@@ -2341,22 +2340,22 @@ func (q *FakeQuerier) GetTemplateInsights(_ context.Context, arg database.GetTem
 		if appUsageIntervalsByUser[s.UserID] == nil {
 			appUsageIntervalsByUser[s.UserID] = make(map[time.Time]*database.GetTemplateInsightsRow)
 		}
-		t := s.CreatedAt.Truncate(5 * time.Minute)
+		t := s.CreatedAt.Truncate(time.Minute)
 		if _, ok := appUsageIntervalsByUser[s.UserID][t]; !ok {
 			appUsageIntervalsByUser[s.UserID][t] = &database.GetTemplateInsightsRow{}
 		}
 
 		if s.SessionCountJetBrains > 0 {
-			appUsageIntervalsByUser[s.UserID][t].UsageJetbrainsSeconds = 300
+			appUsageIntervalsByUser[s.UserID][t].UsageJetbrainsSeconds = 60
 		}
 		if s.SessionCountVSCode > 0 {
-			appUsageIntervalsByUser[s.UserID][t].UsageVscodeSeconds = 300
+			appUsageIntervalsByUser[s.UserID][t].UsageVscodeSeconds = 60
 		}
 		if s.SessionCountReconnectingPTY > 0 {
-			appUsageIntervalsByUser[s.UserID][t].UsageReconnectingPtySeconds = 300
+			appUsageIntervalsByUser[s.UserID][t].UsageReconnectingPtySeconds = 60
 		}
 		if s.SessionCountSSH > 0 {
-			appUsageIntervalsByUser[s.UserID][t].UsageSshSeconds = 300
+			appUsageIntervalsByUser[s.UserID][t].UsageSshSeconds = 60
 		}
 	}
 
@@ -2430,7 +2429,8 @@ func (q *FakeQuerier) GetTemplateParameterInsights(ctx context.Context, arg data
 			if tvp.TemplateVersionID != tv.ID {
 				continue
 			}
-			key := fmt.Sprintf("%s:%s:%s:%s", tvp.Name, tvp.DisplayName, tvp.Description, tvp.Options)
+			// GROUP BY tvp.name, tvp.type, tvp.display_name, tvp.description, tvp.options
+			key := fmt.Sprintf("%s:%s:%s:%s:%s", tvp.Name, tvp.Type, tvp.DisplayName, tvp.Description, tvp.Options)
 			if _, ok := uniqueTemplateParams[key]; !ok {
 				num++
 				uniqueTemplateParams[key] = &database.GetTemplateParameterInsightsRow{
@@ -2480,6 +2480,8 @@ func (q *FakeQuerier) GetTemplateParameterInsights(ctx context.Context, arg data
 		}
 	}
 
+	// NOTE(mafredri): Add sorting if we decide on how to handle PostgreSQL collations.
+	// ORDER BY utp.name, utp.type, utp.display_name, utp.description, utp.options, wbp.value
 	return rows, nil
 }
 

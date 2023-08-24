@@ -7578,11 +7578,8 @@
     },
     "codersdk.JobErrorCode": {
       "type": "string",
-      "enum": ["MISSING_TEMPLATE_PARAMETER", "REQUIRED_TEMPLATE_VARIABLES"],
-      "x-enum-varnames": [
-        "MissingTemplateParameter",
-        "RequiredTemplateVariables"
-      ]
+      "enum": ["REQUIRED_TEMPLATE_VARIABLES"],
+      "x-enum-varnames": ["RequiredTemplateVariables"]
     },
     "codersdk.License": {
       "type": "object",
@@ -8076,7 +8073,7 @@
           "type": "string"
         },
         "error_code": {
-          "enum": ["MISSING_TEMPLATE_PARAMETER", "REQUIRED_TEMPLATE_VARIABLES"],
+          "enum": ["REQUIRED_TEMPLATE_VARIABLES"],
           "allOf": [
             {
               "$ref": "#/definitions/codersdk.JobErrorCode"

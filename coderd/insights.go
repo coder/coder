@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/exp/slices"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -190,14 +192,18 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	var usage database.GetTemplateInsightsRow
 	var appUsage []database.GetTemplateAppInsightsRow
 	var dailyUsage []database.GetTemplateDailyInsightsRow
+	var parameterRows []database.GetTemplateParameterInsightsRow
 
-	// Use a transaction to ensure that we get consistent data between
-	// the full and interval report.
-	err := api.Database.InTx(func(tx database.Store) error {
+	eg, egCtx := errgroup.WithContext(ctx)
+	eg.SetLimit(4)
+
+	// The following insights data queries have a theoretical chance to be
+	// inconsistent between eachother when looking at "today", however, the
+	// overhead from a transaction is not worth it.
+	eg.Go(func() error {
 		var err error
-
 		if interval != "" {
-			dailyUsage, err = tx.GetTemplateDailyInsights(ctx, database.GetTemplateDailyInsightsParams{
+			dailyUsage, err = api.Database.GetTemplateDailyInsights(egCtx, database.GetTemplateDailyInsightsParams{
 				StartTime:   startTime,
 				EndTime:     endTime,
 				TemplateIDs: templateIDs,
@@ -206,8 +212,11 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 				return xerrors.Errorf("get template daily insights: %w", err)
 			}
 		}
-
-		usage, err = tx.GetTemplateInsights(ctx, database.GetTemplateInsightsParams{
+		return nil
+	})
+	eg.Go(func() error {
+		var err error
+		usage, err = api.Database.GetTemplateInsights(egCtx, database.GetTemplateInsightsParams{
 			StartTime:   startTime,
 			EndTime:     endTime,
 			TemplateIDs: templateIDs,
@@ -215,8 +224,11 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return xerrors.Errorf("get template insights: %w", err)
 		}
-
-		appUsage, err = tx.GetTemplateAppInsights(ctx, database.GetTemplateAppInsightsParams{
+		return nil
+	})
+	eg.Go(func() error {
+		var err error
+		appUsage, err = api.Database.GetTemplateAppInsights(egCtx, database.GetTemplateAppInsightsParams{
 			StartTime:   startTime,
 			EndTime:     endTime,
 			TemplateIDs: templateIDs,
@@ -224,9 +236,25 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return xerrors.Errorf("get template app insights: %w", err)
 		}
-
 		return nil
-	}, nil)
+	})
+
+	// Template parameter insights have no risk of inconsistency with the other
+	// insights.
+	eg.Go(func() error {
+		var err error
+		parameterRows, err = api.Database.GetTemplateParameterInsights(ctx, database.GetTemplateParameterInsightsParams{
+			StartTime:   startTime,
+			EndTime:     endTime,
+			TemplateIDs: templateIDs,
+		})
+		if err != nil {
+			return xerrors.Errorf("get template parameter insights: %w", err)
+		}
+		return nil
+	})
+
+	err := eg.Wait()
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -234,21 +262,6 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching template insights.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	// Template parameter insights have no risk of inconsistency with the other
-	// insights, so we don't need to perform this in a transaction.
-	parameterRows, err := api.Database.GetTemplateParameterInsights(ctx, database.GetTemplateParameterInsightsParams{
-		StartTime:   startTime,
-		EndTime:     endTime,
-		TemplateIDs: templateIDs,
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching template parameter insights.",
 			Detail:  err.Error(),
 		})
 		return
@@ -276,8 +289,10 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	}
 	for _, row := range dailyUsage {
 		resp.IntervalReports = append(resp.IntervalReports, codersdk.TemplateInsightsIntervalReport{
-			StartTime:   row.StartTime,
-			EndTime:     row.EndTime,
+			// NOTE(mafredri): This might not be accurate over DST since the
+			// parsed location only contains the offset.
+			StartTime:   row.StartTime.In(startTime.Location()),
+			EndTime:     row.EndTime.In(startTime.Location()),
 			Interval:    interval,
 			TemplateIDs: row.TemplateIDs,
 			ActiveUsers: row.ActiveUsers,
@@ -364,6 +379,32 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, appUsage
 			Seconds:     usage.UsageSshSeconds,
 		},
 	}
+
+	// Use a stable sort, similarly to how we would sort in the query, note that
+	// we don't sort in the query because order varies depending on the table
+	// collation.
+	//
+	// ORDER BY access_method, slug_or_port, display_name, icon, is_app
+	slices.SortFunc(appUsage, func(a, b database.GetTemplateAppInsightsRow) int {
+		if a.AccessMethod != b.AccessMethod {
+			return strings.Compare(a.AccessMethod, b.AccessMethod)
+		}
+		if a.SlugOrPort != b.SlugOrPort {
+			return strings.Compare(a.SlugOrPort, b.SlugOrPort)
+		}
+		if a.DisplayName.String != b.DisplayName.String {
+			return strings.Compare(a.DisplayName.String, b.DisplayName.String)
+		}
+		if a.Icon.String != b.Icon.String {
+			return strings.Compare(a.Icon.String, b.Icon.String)
+		}
+		if !a.IsApp && b.IsApp {
+			return -1
+		} else if a.IsApp && !b.IsApp {
+			return 1
+		}
+		return 0
+	})
 
 	// Template apps.
 	for _, app := range appUsage {

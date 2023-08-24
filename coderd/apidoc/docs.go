@@ -8446,11 +8446,9 @@ const docTemplate = `{
         "codersdk.JobErrorCode": {
             "type": "string",
             "enum": [
-                "MISSING_TEMPLATE_PARAMETER",
                 "REQUIRED_TEMPLATE_VARIABLES"
             ],
             "x-enum-varnames": [
-                "MissingTemplateParameter",
                 "RequiredTemplateVariables"
             ]
         },
@@ -8984,7 +8982,6 @@ const docTemplate = `{
                 },
                 "error_code": {
                     "enum": [
-                        "MISSING_TEMPLATE_PARAMETER",
                         "REQUIRED_TEMPLATE_VARIABLES"
                     ],
                     "allOf": [

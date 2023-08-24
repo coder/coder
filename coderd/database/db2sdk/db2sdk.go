@@ -3,9 +3,10 @@ package db2sdk
 
 import (
 	"encoding/json"
-	"sort"
+	"strings"
 
 	"github.com/google/uuid"
+	"golang.org/x/exp/slices"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/parameter"
@@ -125,9 +126,34 @@ func Role(role rbac.Role) codersdk.Role {
 }
 
 func TemplateInsightsParameters(parameterRows []database.GetTemplateParameterInsightsRow) ([]codersdk.TemplateParameterUsage, error) {
-	parametersByNum := make(map[int64]*codersdk.TemplateParameterUsage)
+	// Use a stable sort, similarly to how we would sort in the query, note that
+	// we don't sort in the query because order varies depending on the table
+	// collation.
+	//
+	// ORDER BY utp.name, utp.type, utp.display_name, utp.description, utp.options, wbp.value
+	slices.SortFunc(parameterRows, func(a, b database.GetTemplateParameterInsightsRow) int {
+		if a.Name != b.Name {
+			return strings.Compare(a.Name, b.Name)
+		}
+		if a.Type != b.Type {
+			return strings.Compare(a.Type, b.Type)
+		}
+		if a.DisplayName != b.DisplayName {
+			return strings.Compare(a.DisplayName, b.DisplayName)
+		}
+		if a.Description != b.Description {
+			return strings.Compare(a.Description, b.Description)
+		}
+		if string(a.Options) != string(b.Options) {
+			return strings.Compare(string(a.Options), string(b.Options))
+		}
+		return strings.Compare(a.Value, b.Value)
+	})
+
+	parametersUsage := []codersdk.TemplateParameterUsage{}
+	indexByNum := make(map[int64]int)
 	for _, param := range parameterRows {
-		if _, ok := parametersByNum[param.Num]; !ok {
+		if _, ok := indexByNum[param.Num]; !ok {
 			var opts []codersdk.TemplateVersionParameterOption
 			err := json.Unmarshal(param.Options, &opts)
 			if err != nil {
@@ -139,28 +165,24 @@ func TemplateInsightsParameters(parameterRows []database.GetTemplateParameterIns
 				return nil, err
 			}
 
-			parametersByNum[param.Num] = &codersdk.TemplateParameterUsage{
+			parametersUsage = append(parametersUsage, codersdk.TemplateParameterUsage{
 				TemplateIDs: param.TemplateIDs,
 				Name:        param.Name,
 				Type:        param.Type,
 				DisplayName: param.DisplayName,
 				Description: plaintextDescription,
 				Options:     opts,
-			}
+			})
+			indexByNum[param.Num] = len(parametersUsage) - 1
 		}
-		parametersByNum[param.Num].Values = append(parametersByNum[param.Num].Values, codersdk.TemplateParameterValue{
+
+		i := indexByNum[param.Num]
+		parametersUsage[i].Values = append(parametersUsage[i].Values, codersdk.TemplateParameterValue{
 			Value: param.Value,
 			Count: param.Count,
 		})
 	}
-	parametersUsage := []codersdk.TemplateParameterUsage{}
-	for _, param := range parametersByNum {
-		parametersUsage = append(parametersUsage, *param)
-	}
 
-	sort.Slice(parametersUsage, func(i, j int) bool {
-		return parametersUsage[i].Name < parametersUsage[j].Name
-	})
 	return parametersUsage, nil
 }
 

@@ -194,23 +194,25 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           onDeadlinePlus={scheduleProps.onDeadlinePlus}
         />
 
-        <PageHeaderActions>
-          <WorkspaceActions
-            workspace={workspace}
-            handleStart={handleStart}
-            handleStop={handleStop}
-            handleRestart={handleRestart}
-            handleDelete={handleDelete}
-            handleUpdate={handleUpdate}
-            handleCancel={handleCancel}
-            handleSettings={handleSettings}
-            handleChangeVersion={handleChangeVersion}
-            handleDormantActivate={handleDormantActivate}
-            canChangeVersions={canChangeVersions}
-            isUpdating={isUpdating}
-            isRestarting={isRestarting}
-          />
-        </PageHeaderActions>
+        {canUpdateWorkspace && (
+          <PageHeaderActions>
+            <WorkspaceActions
+              workspace={workspace}
+              handleStart={handleStart}
+              handleStop={handleStop}
+              handleRestart={handleRestart}
+              handleDelete={handleDelete}
+              handleUpdate={handleUpdate}
+              handleCancel={handleCancel}
+              handleSettings={handleSettings}
+              handleChangeVersion={handleChangeVersion}
+              handleDormantActivate={handleDormantActivate}
+              canChangeVersions={canChangeVersions}
+              isUpdating={isUpdating}
+              isRestarting={isRestarting}
+            />
+          </PageHeaderActions>
+        )}
       </FullWidthPageHeader>
 
       <Margins className={styles.content}>
@@ -226,15 +228,17 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               <Alert
                 severity="warning"
                 actions={
-                  <Button
-                    variant="text"
-                    size="small"
-                    onClick={() => {
-                      handleRestart()
-                    }}
-                  >
-                    Restart
-                  </Button>
+                  canUpdateWorkspace && (
+                    <Button
+                      variant="text"
+                      size="small"
+                      onClick={() => {
+                        handleRestart()
+                      }}
+                    >
+                      Restart
+                    </Button>
+                  )
                 }
               >
                 <AlertTitle>Workspace is unhealthy</AlertTitle>
@@ -326,6 +330,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
                   workspace={workspace}
                   sshPrefix={sshPrefix}
                   showApps={canUpdateWorkspace}
+                  showBuiltinApps={canUpdateWorkspace}
                   hideSSHButton={hideSSHButton}
                   hideVSCodeDesktopButton={hideVSCodeDesktopButton}
                   serverVersion={serverVersion}

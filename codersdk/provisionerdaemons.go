@@ -69,7 +69,6 @@ const (
 type JobErrorCode string
 
 const (
-	MissingTemplateParameter  JobErrorCode = "MISSING_TEMPLATE_PARAMETER"
 	RequiredTemplateVariables JobErrorCode = "REQUIRED_TEMPLATE_VARIABLES"
 )
 
@@ -81,7 +80,7 @@ type ProvisionerJob struct {
 	CompletedAt   *time.Time           `json:"completed_at,omitempty" format:"date-time"`
 	CanceledAt    *time.Time           `json:"canceled_at,omitempty" format:"date-time"`
 	Error         string               `json:"error,omitempty"`
-	ErrorCode     JobErrorCode         `json:"error_code,omitempty" enums:"MISSING_TEMPLATE_PARAMETER,REQUIRED_TEMPLATE_VARIABLES"`
+	ErrorCode     JobErrorCode         `json:"error_code,omitempty" enums:"REQUIRED_TEMPLATE_VARIABLES"`
 	Status        ProvisionerJobStatus `json:"status" enums:"pending,running,succeeded,canceling,canceled,failed"`
 	WorkerID      *uuid.UUID           `json:"worker_id,omitempty" format:"uuid"`
 	FileID        uuid.UUID            `json:"file_id" format:"uuid"`

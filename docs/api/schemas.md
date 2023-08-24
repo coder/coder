@@ -3097,7 +3097,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ## codersdk.JobErrorCode
 
 ```json
-"MISSING_TEMPLATE_PARAMETER"
+"REQUIRED_TEMPLATE_VARIABLES"
 ```
 
 ### Properties
@@ -3106,7 +3106,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Value                         |
 | ----------------------------- |
-| `MISSING_TEMPLATE_PARAMETER`  |
 | `REQUIRED_TEMPLATE_VARIABLES` |
 
 ## codersdk.License
@@ -3635,7 +3634,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "completed_at": "2019-08-24T14:15:22Z",
   "created_at": "2019-08-24T14:15:22Z",
   "error": "string",
-  "error_code": "MISSING_TEMPLATE_PARAMETER",
+  "error_code": "REQUIRED_TEMPLATE_VARIABLES",
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "queue_position": 0,
@@ -3673,7 +3672,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Property     | Value                         |
 | ------------ | ----------------------------- |
-| `error_code` | `MISSING_TEMPLATE_PARAMETER`  |
 | `error_code` | `REQUIRED_TEMPLATE_VARIABLES` |
 | `status`     | `pending`                     |
 | `status`     | `running`                     |
@@ -4665,7 +4663,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
     "error": "string",
-    "error_code": "MISSING_TEMPLATE_PARAMETER",
+    "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "queue_position": 0,
@@ -5378,7 +5376,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "completed_at": "2019-08-24T14:15:22Z",
       "created_at": "2019-08-24T14:15:22Z",
       "error": "string",
-      "error_code": "MISSING_TEMPLATE_PARAMETER",
+      "error_code": "REQUIRED_TEMPLATE_VARIABLES",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "queue_position": 0,
@@ -5987,7 +5985,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
     "error": "string",
-    "error_code": "MISSING_TEMPLATE_PARAMETER",
+    "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "queue_position": 0,
@@ -6514,7 +6512,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "completed_at": "2019-08-24T14:15:22Z",
           "created_at": "2019-08-24T14:15:22Z",
           "error": "string",
-          "error_code": "MISSING_TEMPLATE_PARAMETER",
+          "error_code": "REQUIRED_TEMPLATE_VARIABLES",
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "queue_position": 0,
