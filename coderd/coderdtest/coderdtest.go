@@ -468,10 +468,12 @@ func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 		_ = echoServer.Close()
 		cancelFunc()
 	})
+	// seems t.TempDir() is not safe to call from a different goroutine
+	workDir := t.TempDir()
 	go func() {
 		err := echo.Serve(ctx, &provisionersdk.ServeOptions{
 			Listener:      echoServer,
-			WorkDirectory: t.TempDir(),
+			WorkDirectory: workDir,
 			Logger:        coderAPI.Logger.Named("echo").Leveled(slog.LevelDebug),
 		})
 		assert.NoError(t, err)

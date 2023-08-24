@@ -82,8 +82,8 @@ message InstanceIdentityAuth {
 }
 
 message GitAuthProvider {
-	string id = 1;
-	string access_token = 2;
+    string id = 1;
+    string access_token = 2;
 }
 
 // Agent represents a running agent on the workspace.
@@ -110,15 +110,15 @@ message Agent {
         string token = 9;
         string instance_id = 10;
     }
-	int32 connection_timeout_seconds = 11;
-	string troubleshooting_url = 12;
-	string motd_file = 13;
-	// Field 14 was bool login_before_ready = 14, now removed.
-	int32 startup_script_timeout_seconds = 15;
-	string shutdown_script = 16;
-	int32 shutdown_script_timeout_seconds = 17;
+    int32 connection_timeout_seconds = 11;
+    string troubleshooting_url = 12;
+    string motd_file = 13;
+    // Field 14 was bool login_before_ready = 14, now removed.
+    int32 startup_script_timeout_seconds = 15;
+    string shutdown_script = 16;
+    int32 shutdown_script_timeout_seconds = 17;
     repeated Metadata metadata = 18;
-	string startup_script_behavior = 19;
+    string startup_script_behavior = 19;
 }
 
 enum AppSharingLevel {
@@ -207,12 +207,12 @@ message ParseRequest {
 message ParseComplete {
     string error = 1;
     repeated TemplateVariable template_variables = 2;
-	bytes readme = 3;
+    bytes readme = 3;
 }
 
 // PlanRequest asks the provisioner to plan what resources & parameters it will create
 message PlanRequest {
-	Metadata metadata = 1;
+    Metadata metadata = 1;
     repeated RichParameterValue rich_parameter_values = 2;
     repeated VariableValue variable_values = 3;
     repeated GitAuthProvider git_auth_providers = 4;
@@ -229,7 +229,7 @@ message PlanComplete {
 // ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response
 // in the same Session.  The plan data is not transmitted over the wire and is cached by the provisioner in the Session.
 message ApplyRequest {
-	Metadata metadata = 1;
+    Metadata metadata = 1;
 }
 
 // ApplyComplete indicates a request to apply completed.

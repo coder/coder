@@ -36,14 +36,23 @@ func (p *protoServer) Session(stream proto.DRPCProvisioner_SessionStream) error 
 	}
 	sessDir := fmt.Sprintf("Session%p", s)
 	s.WorkDirectory = filepath.Join(p.opts.WorkDirectory, sessDir)
-	err := os.MkdirAll(s.WorkDirectory, 0o700)
+	// the WorkDirectory shouldn't exist, but it's possible it does from a restarted process or failed cleanup
+	err := os.RemoveAll(s.WorkDirectory)
+	if err != nil {
+		// RemoveAll returns nil if (as expected) the path doesn't exist.  So, if we hit an error, the WorkDirectory
+		// exists AND we failed to clean it up.
+		s.Logger.Error(s.Context(), "failed to pre-clean work directory", slog.Error(err))
+		return xerrors.Errorf("failed to pre-clean work directory: %w", err)
+	}
+	err = os.MkdirAll(s.WorkDirectory, 0o700)
 	if err != nil {
 		return xerrors.Errorf("create work directory %q: %w", s.WorkDirectory, err)
 	}
 	defer func() {
+		var err error
 		// Cleanup the work directory after execution.
 		for attempt := 0; attempt < 5; attempt++ {
-			err := os.RemoveAll(s.WorkDirectory)
+			err = os.RemoveAll(s.WorkDirectory)
 			if err != nil {
 				// On Windows, open files cannot be removed.
 				// When the provisioner daemon is shutting down,
@@ -54,8 +63,10 @@ func (p *protoServer) Session(stream proto.DRPCProvisioner_SessionStream) error 
 				continue
 			}
 			s.Logger.Debug(s.Context(), "cleaned up work directory")
-			break
+			return
 		}
+		s.Logger.Error(s.Context(), "failed to clean up work directory after multiple attempts",
+			slog.F("path", s.WorkDirectory), slog.Error(err))
 	}()
 	req, err := stream.Recv()
 	if err != nil {
@@ -70,7 +81,7 @@ func (p *protoServer) Session(stream proto.DRPCProvisioner_SessionStream) error 
 		s.logLevel = proto.LogLevel_value[strings.ToUpper(s.Config.ProvisionerLogLevel)]
 	}
 
-	err = s.ExtractArchive()
+	err = s.extractArchive()
 	if err != nil {
 		return xerrors.Errorf("extract archive: %w", err)
 	}
@@ -176,7 +187,7 @@ func (s *Session) Context() context.Context {
 	return s.stream.Context()
 }
 
-func (s *Session) ExtractArchive() error {
+func (s *Session) extractArchive() error {
 	ctx := s.Context()
 
 	s.Logger.Info(ctx, "unpacking template source archive",
