@@ -2274,15 +2274,6 @@ func (q *FakeQuerier) GetTemplateDailyInsights(ctx context.Context, arg database
 	}
 
 	for _, s := range q.workspaceAppStats {
-		// (was.session_started_at >= ts.from_ AND was.session_started_at < ts.to_)
-		// OR (was.session_ended_at > ts.from_ AND was.session_ended_at < ts.to_)
-		// OR (was.session_started_at < ts.from_ AND was.session_ended_at >= ts.to_)
-		if !(((s.SessionStartedAt.After(arg.StartTime) || s.SessionStartedAt.Equal(arg.StartTime)) && s.SessionStartedAt.Before(arg.EndTime)) ||
-			(s.SessionEndedAt.After(arg.StartTime) && s.SessionEndedAt.Before(arg.EndTime)) ||
-			(s.SessionStartedAt.Before(arg.StartTime) && (s.SessionEndedAt.After(arg.EndTime) || s.SessionEndedAt.Equal(arg.EndTime)))) {
-			continue
-		}
-
 		w, err := q.getWorkspaceByIDNoLock(ctx, s.WorkspaceID)
 		if err != nil {
 			return nil, err
