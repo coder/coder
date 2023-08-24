@@ -77,9 +77,12 @@ export const createWorkspace = async (
   await page.getByTestId("form-submit").click()
 
   await expect(page).toHaveURL("/@admin/" + name)
-  await page.waitForSelector("[data-testid='build-status']", {
-    state: "visible",
-  })
+  await page.waitForSelector(
+    "span[data-testid='build-status'] >> text=Running",
+    {
+      state: "visible",
+    },
+  )
   return name
 }
 
@@ -211,6 +214,70 @@ export const sshIntoWorkspace = async (
       resolve(client)
     })
   })
+}
+
+export const restartWorkspace = async (
+  page: Page,
+  workspaceName: string,
+  richParameters: RichParameter[] = [],
+  buildParameters: WorkspaceBuildParameter[] = [],
+) => {
+  await page.goto("/@admin/" + workspaceName, {
+    waitUntil: "domcontentloaded",
+  })
+  await expect(page).toHaveURL("/@admin/" + workspaceName)
+
+  await page.getByTestId("build-parameters-button").click()
+
+  for (const buildParameter of buildParameters) {
+    const richParameter = richParameters.find(
+      (richParam) => richParam.name === buildParameter.name,
+    )
+    if (!richParameter) {
+      throw new Error(
+        "build parameter is expected to be present in rich parameter schema",
+      )
+    }
+
+    const parameterLabel = await page.waitForSelector(
+      "[data-testid='parameter-field-" + richParameter.name + "']",
+      { state: "visible" },
+    )
+
+    if (richParameter.type === "bool") {
+      const parameterField = await parameterLabel.waitForSelector(
+        "[data-testid='parameter-field-bool'] .MuiRadio-root input[value='" +
+          buildParameter.value +
+          "']",
+      )
+      await parameterField.check()
+    } else if (richParameter.options.length > 0) {
+      const parameterField = await parameterLabel.waitForSelector(
+        "[data-testid='parameter-field-options'] .MuiRadio-root input[value='" +
+          buildParameter.value +
+          "']",
+      )
+      await parameterField.check()
+    } else if (richParameter.type === "list(string)") {
+      throw new Error("not implemented yet") // FIXME
+    } else {
+      // text or number
+      const parameterField = await parameterLabel.waitForSelector(
+        "[data-testid='parameter-field-text'] input",
+      )
+      await parameterField.fill(buildParameter.value)
+    }
+  }
+
+  await page.getByTestId("build-parameters-submit").click()
+  await page.getByTestId("confirm-button").click()
+
+  await page.waitForSelector(
+    "span[data-testid='build-status'] >> text=Running",
+    {
+      state: "visible",
+    },
+  )
 }
 
 // startAgent runs the coder agent with the provided token.
