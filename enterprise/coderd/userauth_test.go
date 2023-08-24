@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"regexp"
 	"testing"
-	"time"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/require"
@@ -14,7 +13,6 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
@@ -46,7 +44,7 @@ func TestUserOIDC(t *testing.T) {
 				"email": "alice@coder.com",
 			}
 			// Login a new client that signs up
-			client, resp := runner.Login(claims)
+			client, resp := runner.Login(t, claims)
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			// User should be in 0 groups.
 			runner.AssertRoles(t, "alice", []string{})
@@ -76,7 +74,7 @@ func TestUserOIDC(t *testing.T) {
 			})
 
 			// User starts with the owner role
-			client, resp := runner.Login(jwt.MapClaims{
+			client, resp := runner.Login(t, jwt.MapClaims{
 				"email": "alice@coder.com",
 				"roles": []string{"random", oidcRoleName, rbac.RoleOwner()},
 			})
@@ -110,7 +108,7 @@ func TestUserOIDC(t *testing.T) {
 			})
 
 			// User starts with the owner role
-			_, resp := runner.Login(jwt.MapClaims{
+			_, resp := runner.Login(t, jwt.MapClaims{
 				"email": "alice@coder.com",
 				"roles": []string{"random", oidcRoleName, rbac.RoleOwner()},
 			})
@@ -118,7 +116,7 @@ func TestUserOIDC(t *testing.T) {
 			runner.AssertRoles(t, "alice", []string{rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin(), rbac.RoleOwner()})
 
 			// Now login with oauth again, and check the roles are removed.
-			_, resp = runner.Login(jwt.MapClaims{
+			_, resp = runner.Login(t, jwt.MapClaims{
 				"email": "alice@coder.com",
 				"roles": []string{"random"},
 			})
@@ -139,7 +137,7 @@ func TestUserOIDC(t *testing.T) {
 				},
 			})
 
-			_, resp := runner.Login(jwt.MapClaims{
+			_, resp := runner.Login(t, jwt.MapClaims{
 				"email": "alice@coder.com",
 				"roles": []string{},
 			})
@@ -181,7 +179,7 @@ func TestUserOIDC(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, group.Members, 0)
 
-			_, resp := runner.Login(jwt.MapClaims{
+			_, resp := runner.Login(t, jwt.MapClaims{
 				"email":    "alice@coder.com",
 				groupClaim: []string{groupName},
 			})
@@ -212,7 +210,7 @@ func TestUserOIDC(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, group.Members, 0)
 
-			_, resp := runner.Login(jwt.MapClaims{
+			_, resp := runner.Login(t, jwt.MapClaims{
 				"email":    "alice@coder.com",
 				groupClaim: []string{oidcGroupName},
 			})
@@ -245,7 +243,7 @@ func TestUserOIDC(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, group.Members, 0)
 
-			client, resp := runner.Login(jwt.MapClaims{
+			client, resp := runner.Login(t, jwt.MapClaims{
 				"email":    "alice@coder.com",
 				groupClaim: []string{groupName},
 			})
@@ -278,7 +276,7 @@ func TestUserOIDC(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, group.Members, 0)
 
-			_, resp := runner.Login(jwt.MapClaims{
+			_, resp := runner.Login(t, jwt.MapClaims{
 				"email":    "alice@coder.com",
 				groupClaim: []string{groupName},
 			})
@@ -286,7 +284,7 @@ func TestUserOIDC(t *testing.T) {
 			runner.AssertGroups(t, "alice", []string{groupName})
 
 			// Refresh without the group claim
-			_, resp = runner.Login(jwt.MapClaims{
+			_, resp = runner.Login(t, jwt.MapClaims{
 				"email": "alice@coder.com",
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -305,7 +303,7 @@ func TestUserOIDC(t *testing.T) {
 				},
 			})
 
-			_, resp := runner.Login(jwt.MapClaims{
+			_, resp := runner.Login(t, jwt.MapClaims{
 				"email":    "alice@coder.com",
 				groupClaim: []string{"not-exists"},
 			})
@@ -328,7 +326,7 @@ func TestUserOIDC(t *testing.T) {
 				},
 			})
 
-			_, resp := runner.Login(jwt.MapClaims{
+			_, resp := runner.Login(t, jwt.MapClaims{
 				"email":    "alice@coder.com",
 				groupClaim: []string{groupName},
 			})
@@ -352,7 +350,7 @@ func TestUserOIDC(t *testing.T) {
 				"email": "alice@coder.com",
 			}
 			// Login a new client that signs up
-			client, resp := runner.Login(claims)
+			client, resp := runner.Login(t, claims)
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 
 			// Refresh multiple times.
@@ -516,7 +514,7 @@ func TestGroupSync(t *testing.T) {
 
 			// Log in the new user
 			tc.claims["email"] = user.Email
-			_, resp := runner.Login(tc.claims)
+			_, resp := runner.Login(t, tc.claims)
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 
 			// Check group sources
@@ -576,7 +574,7 @@ type oidcTestRunner struct {
 	// Login will call the OIDC flow with an unauthenticated client.
 	// The customer actions will all be taken care of, and the idToken claims
 	// will be returned.
-	Login func(idToken jwt.MapClaims) (*codersdk.Client, *http.Response)
+	Login func(t *testing.T, idToken jwt.MapClaims) (*codersdk.Client, *http.Response)
 	// ForceRefresh will use an authenticated codersdk.Client, and force their
 	// OIDC token to be expired and require a refresh. The refresh will use the claims provided.
 	//
@@ -649,7 +647,7 @@ func setupOIDCTest(t *testing.T, settings oidcTestConfig) *oidcTestRunner {
 
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	cfg := fake.OIDCConfig(t, nil, settings.Config)
-	client, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+	owner, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			OIDCConfig: cfg,
 		},
@@ -660,61 +658,18 @@ func setupOIDCTest(t *testing.T, settings oidcTestConfig) *oidcTestRunner {
 			},
 		},
 	})
-	admin, err := client.User(ctx, "me")
+	admin, err := owner.User(ctx, "me")
 	require.NoError(t, err)
-	unauthenticatedClient := codersdk.New(client.URL)
+
+	helper := oidctest.NewLoginHelper(owner, fake)
 
 	return &oidcTestRunner{
-		AdminClient: client,
+		AdminClient: owner,
 		AdminUser:   admin,
 		API:         api,
-		Login: func(idToken jwt.MapClaims) (*codersdk.Client, *http.Response) {
-			return fake.LoginClient(t, unauthenticatedClient, idToken)
-		},
-		ForceRefresh: func(t *testing.T, client *codersdk.Client, idToken jwt.MapClaims) (authenticatedCall func(t *testing.T)) {
-			t.Helper()
-
-			//nolint:gocritic // Testing
-			ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitMedium))
-
-			id, _, err := httpmw.SplitAPIToken(client.SessionToken())
-			require.NoError(t, err)
-
-			// We need to get the OIDC link and update it in the database to force
-			// it to be expired.
-			key, err := api.Database.GetAPIKeyByID(ctx, id)
-			require.NoError(t, err, "get api key")
-
-			link, err := api.Database.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
-				UserID:    key.UserID,
-				LoginType: database.LoginTypeOIDC,
-			})
-			require.NoError(t, err, "get user link")
-
-			// Updates the claims that the IDP will return. By default, it always
-			// uses the original claims for the original oauth token.
-			fake.UpdateRefreshClaims(link.OAuthRefreshToken, idToken)
-
-			// Fetch the oauth link for the given user.
-			_, err = api.Database.UpdateUserLink(ctx, database.UpdateUserLinkParams{
-				OAuthAccessToken:  link.OAuthAccessToken,
-				OAuthRefreshToken: link.OAuthRefreshToken,
-				OAuthExpiry:       time.Now().Add(time.Hour * -1),
-				UserID:            key.UserID,
-				LoginType:         database.LoginTypeOIDC,
-			})
-			require.NoError(t, err, "expire user link")
-			t.Cleanup(func() {
-				require.True(t, fake.RefreshUsed(link.OAuthRefreshToken), "refresh token must be used, but has not. Did you forget to call the returned function from this call?")
-			})
-
-			return func(t *testing.T) {
-				t.Helper()
-
-				// Do any authenticated call to force the refresh
-				_, err := client.User(testutil.Context(t, testutil.WaitShort), "me")
-				require.NoError(t, err, "user must be able to be fetched")
-			}
+		Login:       helper.Login,
+		ForceRefresh: func(t *testing.T, client *codersdk.Client, idToken jwt.MapClaims) func(t *testing.T) {
+			return helper.ForceRefresh(t, api.Database, client, idToken)
 		},
 	}
 }

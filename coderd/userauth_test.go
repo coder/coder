@@ -11,6 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
+	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/v2/enterprise/coderd/license"
+
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/golang-jwt/jwt"
 	"github.com/google/go-github/v43/github"
@@ -37,6 +41,31 @@ import (
 // The token refreshing should not happen since we are reauthenticating.
 func TestOIDCOauthLoginWithExisting(t *testing.T) {
 	t.Parallel()
+
+	fake := oidctest.NewFakeIDP(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+
+	})
+
+	client, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			OIDCConfig: cfg,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureUserRoleManagement: 1,
+				codersdk.FeatureTemplateRBAC:       1,
+			},
+		},
+	})
+	helper := oidctest.NewLoginHelper(client, fake)
+
+
+
+
+	//
 
 	conf := coderdtest.NewOIDCConfig(t, "",
 		// Provide a refresh token so we use the refresh token flow
