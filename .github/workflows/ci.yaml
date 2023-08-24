@@ -37,7 +37,6 @@ jobs:
       ci: ${{ steps.filter.outputs.ci }}
       offlinedocs-only: ${{ steps.filter.outputs.offlinedocs_count == steps.filter.outputs.all_count }}
       offlinedocs: ${{ steps.filter.outputs.offlinedocs }}
-      nix: ${{ steps.filter.outputs.nix }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -100,9 +99,6 @@ jobs:
               - ".github/workflows/ci.yaml"
               - "flake.nix"
               - "flake.lock"
-            nix:
-              - "flake.nix"
-              - "flake.lock"
             offlinedocs:
               - "offlinedocs/**"
 
@@ -110,49 +106,21 @@ jobs:
         run: |
           echo "${{ toJSON(steps.filter )}}"
 
-  build-ci-image:
-    needs: changes
-    if: needs.changes.outputs.nix == 'true'
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Setup Nix
-        uses: ./.github/actions/setup-nix
-
-      - run: nix build .#devEnvImage && ./result | docker load
-
-      - name: Login to DockerHub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
-
-      - name: Tag and Push
-        run: |
-          docker tag codercom/oss-dogfood:latest codercom/oss-dogfood:ci
-          docker push codercom/oss-dogfood:ci
-
   lint:
-    needs: [changes, build-ci-image]
-    if: |
-      always() &&
-      !contains(needs.*.result, 'failure') &&
-      !contains(needs.*.result, 'cancelled') &&
-      needs.changes.outputs.offlinedocs-only == 'false' ||
-      needs.changes.outputs.ci == 'true' ||
-      github.ref == 'refs/heads/main'
+    needs: changes
+    if: needs.changes.outputs.offlinedocs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
-    container: codercom/oss-dogfood:ci
     steps:
       - name: Checkout
         uses: actions/checkout@v3
         with:
           fetch-depth: 1
 
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
+
       - name: Check for typos
-        run: typos -c .github/workflows/typos.toml
+        run: nix-shell --command 'typos -c .github/workflows/typos.toml'
 
       - name: Fix the typos
         if: ${{ failure() }}
@@ -161,43 +129,32 @@ jobs:
           typos -c .github/workflows/typos.toml -w"
 
       - name: make lint
-        run: make --output-sync=line -j lint
+        run: nix-shell --command 'make --output-sync=line -j lint'
 
   gen:
     timeout-minutes: 8
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
-    needs: [changes, build-ci-image]
-    if: |
-      always() &&
-      !contains(needs.*.result, 'failure') &&
-      !contains(needs.*.result, 'cancelled') &&
-      needs.changes.outputs.docs-only == 'false' ||
-      needs.changes.outputs.ci == 'true' ||
-      github.ref == 'refs/heads/main'
-    container: codercom/oss-dogfood:ci
+    needs: changes
+    if: needs.changes.outputs.docs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     steps:
       - name: Checkout
         uses: actions/checkout@v3
         with:
           fetch-depth: 1
 
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
+
       - name: make gen
-        run: make --output-sync -j -B gen
+        run: nix-shell --command 'make --output-sync -j -B gen'
 
       - name: Check for unstaged files
         run: ./scripts/check_unstaged.sh
 
   fmt:
-    needs: [changes, build-ci-image]
-    if: |
-      always() &&
-      !contains(needs.*.result, 'failure') &&
-      !contains(needs.*.result, 'cancelled') &&
-      needs.changes.outputs.offlinedocs-only == 'false' ||
-      needs.changes.outputs.ci == 'true' ||
-      github.ref == 'refs/heads/main'
+    needs: changes
+    if: needs.changes.outputs.offlinedocs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
-    container: codercom/oss-dogfood:ci
     timeout-minutes: 7
     steps:
       - name: Checkout
@@ -205,23 +162,19 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
+
       - name: make fmt
-        run: make --output-sync -j -B fmt
+        run: nix-shell --command 'make --output-sync -j -B fmt'
 
       - name: Check for unstaged files
         run: ./scripts/check_unstaged.sh
 
   test-go:
     runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'buildjet-4vcpu-ubuntu-2204' || matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'macos-latest-xl' || matrix.os }}
-    needs: [changes, build-ci-image]
-    if: |
-      always() &&
-      !contains(needs.*.result, 'failure') &&
-      !contains(needs.*.result, 'cancelled') &&
-      needs.changes.outputs.go == 'true' ||
-      needs.changes.outputs.ci == 'true' ||
-      github.ref == 'refs/heads/main'
-    container: codercom/oss-dogfood:ci
+    needs: changes
+    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -257,8 +210,8 @@ jobs:
           PARALLEL_FLAG=""
 
           export TS_DEBUG_DISCO=true
-          gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" \
-            --packages="./..." -- $PARALLEL_FLAG -short -failfast $COVERAGE_FLAGS
+          nix-shell --command 'gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" \
+            --packages="./..." -- $PARALLEL_FLAG -short -failfast $COVERAGE_FLAGS'
 
       - name: Print test stats
         if: success() || failure()
@@ -348,15 +301,8 @@ jobs:
 
   test-go-pg:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
-    needs: [changes, build-ci-image]
-    if: |
-      always() &&
-      !contains(needs.*.result, 'failure') &&
-      !contains(needs.*.result, 'cancelled') &&
-      needs.changes.outputs.go == 'true' ||
-      needs.changes.outputs.ci == 'true' ||
-      github.ref == 'refs/heads/main'
-    container: codercom/oss-dogfood:ci
+    needs: changes
+    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     # This timeout must be greater than the timeout set by `go test` in
     # `make test-postgres` to ensure we receive a trace of running
     # goroutines. Setting this to the timeout +5m should work quite well
@@ -368,17 +314,20 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
+
       - name: Test with PostgreSQL Database
         run: |
           export TS_DEBUG_DISCO=true
-          make test-postgres
+          nix-shell --command 'make test-postgres'
 
       - name: Print test stats
         if: success() || failure()
         run: |
           # Artifacts are not available after rerunning a job,
           # so we need to print the test stats to the log.
-          go run ./scripts/ci-report/main.go gotests.json | tee gotests_stats.json
+          nix-shell --command 'go run ./scripts/ci-report/main.go gotests.json | tee gotests_stats.json'
 
       - name: Upload test stats to Datadog
         uses: ./.github/actions/upload-datadog
@@ -401,15 +350,8 @@ jobs:
 
   test-go-race:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
-    needs: [changes, build-ci-image]
-    if: |
-      always() &&
-      !contains(needs.*.result, 'failure') &&
-      !contains(needs.*.result, 'cancelled') &&
-      needs.changes.outputs.go == 'true' ||
-      needs.changes.outputs.ci == 'true' ||
-      github.ref == 'refs/heads/main'
-    container: codercom/oss-dogfood:ci
+    needs: changes
+    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 25
     steps:
       - name: Checkout
@@ -417,8 +359,12 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
+
       - name: Run Tests
-        run: gotestsum --junitfile="gotests.xml" -- -race ./...
+        run: |
+          nix-shell --command 'gotestsum --junitfile="gotests.xml" -- -race ./...'
 
       - name: Upload test stats to Datadog
         uses: ./.github/actions/upload-datadog
@@ -429,16 +375,11 @@ jobs:
   deploy:
     name: "deploy"
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
-    container: codercom/oss-dogfood:ci
     timeout-minutes: 30
-    needs: [changes, build-ci-image]
+    needs: changes
     if: |
-      always() &&
-      !contains(needs.*.result, 'failure') &&
-      !contains(needs.*.result, 'cancelled') &&
-      github.ref == 'refs/heads/main' &&
-      !github.event.pull_request.head.repo.fork &&
-      needs.changes.outputs.docs-only == 'false'
+      github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
+      && needs.changes.outputs.docs-only == 'false'
     permissions:
       contents: read
       id-token: write
@@ -447,6 +388,9 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
+
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v1
@@ -513,15 +457,9 @@ jobs:
 
   test-js:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
-    container: codercom/oss-dogfood:ci
-    needs: [changes, build-ci-image]
-    if: |
-      always() &&
-      !contains(needs.*.result, 'failure') &&
-      !contains(needs.*.result, 'cancelled') &&
-      needs.changes.outputs.ts == 'true' ||
-      needs.changes.outputs.ci == 'true' ||
-      github.ref == 'refs/heads/main'
+    container: codercom/oss-dogfood:latest
+    needs: changes
+    if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -550,16 +488,9 @@ jobs:
 
   test-e2e:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
-    container: codercom/oss-dogfood:ci
-    needs: [changes, build-ci-image]
-    if: |
-      always() &&
-      !contains(needs.*.result, 'failure') &&
-      !contains(needs.*.result, 'cancelled') &&
-      needs.changes.outputs.go == 'true' ||
-      needs.changes.outputs.ts == 'true' ||
-      needs.changes.outputs.ci == 'true' ||
-      github.ref == 'refs/heads/main'
+    container: codercom/oss-dogfood:latest
+    needs: changes
+    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -589,14 +520,8 @@ jobs:
   chromatic:
     # REMARK: this is only used to build storybook and deploy it to Chromatic.
     runs-on: ubuntu-latest
-    container: codercom/oss-dogfood:ci
-    needs: [changes, build-ci-image]
-    if: |
-      always() &&
-      !contains(needs.*.result, 'failure') &&
-      !contains(needs.*.result, 'cancelled') &&
-      needs.changes.outputs.ts == 'true' ||
-      needs.changes.outputs.ci == 'true'
+    needs: changes
+    if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -605,9 +530,11 @@ jobs:
           # only get 1 commit on shallow checkout.
           fetch-depth: 0
 
-      - name: Install Storybook
-        run: pnpm install
-        working-directory: site
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
+
+      - name: install Storybook
+        run: nix-shell --command 'cd site && pnpm install'
 
       # This step is not meant for mainline because any detected changes to
       # storybook snapshots will require manual approval/review in order for
@@ -658,15 +585,9 @@ jobs:
 
   offlinedocs:
     name: offlinedocs
-    needs: [changes, build-ci-image]
+    needs: changes
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
-    container: codercom/oss-dogfood:ci
-    if: |
-      always() &&
-      !contains(needs.*.result, 'failure') &&
-      !contains(needs.*.result, 'cancelled') &&
-      needs.changes.outputs.offlinedocs == 'true' ||
-      needs.changes.outputs.ci == 'true'
+    if: needs.changes.outputs.offlinedocs == 'true' || needs.changes.outputs.ci == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -674,20 +595,20 @@ jobs:
           # 0 is required here for version.sh to work.
           fetch-depth: 0
 
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
+
       - name: Setup
-        run: pnpm install
-        working-directory: offlinedocs
+        run: nix-shell --command 'cd offlinedocs && pnpm install'
 
       - name: Format
-        run: pnpm format:check
-        working-directory: offlinedocs
+        run: nix-shell --command 'cd offlinedocs && pnpm format:check'
 
       - name: Lint
-        run: pnpm lint
-        working-directory: offlinedocs
+        run: nix-shell --command 'cd offlinedocs && pnpm lint'
 
       - name: Build
-        run: make -j build/coder_docs_"$(./scripts/version.sh)".tgz
+        run: nix-shell --command 'make -j build/coder_docs_"$(./scripts/version.sh)".tgz'
 
   required:
     runs-on: ubuntu-latest
@@ -729,15 +650,9 @@ jobs:
   build-main-image:
     # This build and publihes ghcr.io/coder/coder-preview:main for each merge commit to main branch.
     # We are only building this for amd64 plateform. (>95% pulls are for amd64)
-    needs: [changes, build-ci-image]
-    if: |
-      always() &&
-      !contains(needs.*.result, 'failure') &&
-      !contains(needs.*.result, 'cancelled') &&
-      github.ref == 'refs/heads/main' &&
-      needs.changes.outputs.docs-only == 'false'
+    needs: changes
+    if: github.ref == 'refs/heads/main' && needs.changes.outputs.docs-only == 'false'
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
-    container: codercom/oss-dogfood:ci
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
     steps:
@@ -757,18 +672,18 @@ jobs:
         id: build_and_push
         run: |
           set -euxo pipefail
-          go mod download
-          make gen/mark-fresh
-          export DOCKER_IMAGE_NO_PREREQUISITES=true
           version="$(./scripts/version.sh)"
-          export CODER_IMAGE_BUILD_BASE_TAG="$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")"
-          make -j build/coder_linux_amd64
+          nix-shell --command 'go mod download && \
+          make gen/mark-fresh && \
+          export DOCKER_IMAGE_NO_PREREQUISITES=true && \
+          export CODER_IMAGE_BUILD_BASE_TAG="$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")" && \
+          make -j build/coder_linux_amd64 && \
           ./scripts/build_docker.sh \
             --arch amd64 \
             --target ghcr.io/coder/coder-preview:main \
             --version $version \
             --push \
-            build/coder_linux_amd64
+            build/coder_linux_amd64'
           # Tag image with new package tag and push
           tag=$(echo "$version" | sed 's/+/-/g')
           docker tag ghcr.io/coder/coder-preview:main ghcr.io/coder/coder-preview:main-$tag
