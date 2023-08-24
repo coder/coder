@@ -326,7 +326,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		stunAddresses   []string
 		dvStunAddresses = options.DeploymentValues.DERP.Server.STUNAddresses.Value()
 	)
-	if len(dvStunAddresses) == 0 || (len(dvStunAddresses) == 1 && dvStunAddresses[0] == "stun.l.google.com:19302") {
+	if len(dvStunAddresses) == 0 || dvStunAddresses[0] == "stun.l.google.com:19302" {
 		stunAddr, stunCleanup := stuntest.ServeWithPacketListener(t, nettype.Std{})
 		stunAddr.IP = net.ParseIP("127.0.0.1")
 		t.Cleanup(stunCleanup)

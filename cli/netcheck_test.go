@@ -31,7 +31,7 @@ func TestNetcheck(t *testing.T) {
 	require.NoError(t, json.Unmarshal(b, &report))
 
 	assert.True(t, report.Healthy)
-	require.Len(t, report.Regions, 1+5) // 1 built-in region + 5 STUN regions by default
+	require.Len(t, report.Regions, 1+1) // 1 built-in region + 1 test-managed STUN region
 	for _, v := range report.Regions {
 		require.Len(t, v.NodeReports, len(v.Region.Nodes))
 	}

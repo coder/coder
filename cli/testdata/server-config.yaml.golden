@@ -136,6 +136,12 @@ networking:
     # this change has been made, but new connections will still be proxied regardless.
     # (default: <unset>, type: bool)
     blockDirect: false
+    # Force clients and agents to always use WebSocket to connect to DERP relay
+    # servers. By default, DERP uses `Upgrade: derp`, which may cause issues with some
+    # reverse proxies. Clients may automatically fallback to WebSocket if they detect
+    # an issue with `Upgrade: derp`, but this does not work in all situations.
+    # (default: <unset>, type: bool)
+    forceWebSockets: false
     # URL to fetch a DERP mapping on startup. See:
     # https://tailscale.com/kb/1118/custom-derp-servers/.
     # (default: <unset>, type: string)

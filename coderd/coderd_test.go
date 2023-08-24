@@ -7,9 +7,13 @@ import (
 	"net/http"
 	"net/netip"
 	"strconv"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
+	"github.com/davecgh/go-spew/spew"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -18,8 +22,13 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
+	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -117,6 +126,91 @@ func TestDERP(t *testing.T) {
 
 	w1.Close()
 	w2.Close()
+}
+
+func TestDERPForceWebSockets(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.DERP.Config.ForceWebSockets = true
+	dv.DERP.Config.BlockDirect = true // to ensure the test always uses DERP
+
+	// Manually create a server so we can influence the HTTP handler.
+	options := &coderdtest.Options{
+		DeploymentValues: dv,
+	}
+	setHandler, cancelFunc, serverURL, newOptions := coderdtest.NewOptions(t, options)
+	coderAPI := coderd.New(newOptions)
+	t.Cleanup(func() {
+		cancelFunc()
+		_ = coderAPI.Close()
+	})
+
+	// Set the HTTP handler to a custom one that ensures all /derp calls are
+	// WebSockets and not `Upgrade: derp`.
+	var upgradeCount int64
+	setHandler(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/derp") {
+			up := r.Header.Get("Upgrade")
+			if up != "" && up != "websocket" {
+				t.Errorf("expected Upgrade: websocket, got %q", up)
+			} else {
+				atomic.AddInt64(&upgradeCount, 1)
+			}
+		}
+
+		coderAPI.RootHandler.ServeHTTP(rw, r)
+	}))
+
+	// Start a provisioner daemon.
+	provisionerCloser := coderdtest.NewProvisionerDaemon(t, coderAPI)
+	t.Cleanup(func() {
+		_ = provisionerCloser.Close()
+	})
+
+	client := codersdk.New(serverURL)
+	t.Cleanup(func() {
+		client.HTTPClient.CloseIdleConnections()
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	gen, err := client.WorkspaceAgentConnectionInfoGeneric(context.Background())
+	require.NoError(t, err)
+	t.Log(spew.Sdump(gen))
+
+	authToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.ProvisionComplete,
+		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+	})
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+	agentClient := agentsdk.New(client.URL)
+	agentClient.SetSessionToken(authToken)
+	agentCloser := agent.New(agent.Options{
+		Client: agentClient,
+		Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+	})
+	defer func() {
+		_ = agentCloser.Close()
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
+	require.NoError(t, err)
+	defer func() {
+		_ = conn.Close()
+	}()
+	conn.AwaitReachable(ctx)
+
+	require.GreaterOrEqual(t, atomic.LoadInt64(&upgradeCount), int64(1), "expected at least one /derp call")
 }
 
 func TestDERPLatencyCheck(t *testing.T) {

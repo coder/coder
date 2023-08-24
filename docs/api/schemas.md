@@ -201,6 +201,7 @@
       "url": "string"
     }
   ],
+  "derp_force_websockets": true,
   "derpmap": {
     "homeParams": {
       "regionScore": {
@@ -291,6 +292,7 @@
 | ---------------------------- | ------------------------------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `agent_id`                   | string                                                                                            | false    |              |                                                                                                                                                            |
 | `apps`                       | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)                                           | false    |              |                                                                                                                                                            |
+| `derp_force_websockets`      | boolean                                                                                           | false    |              |                                                                                                                                                            |
 | `derpmap`                    | [tailcfg.DERPMap](#tailcfgderpmap)                                                                | false    |              |                                                                                                                                                            |
 | `directory`                  | string                                                                                            | false    |              |                                                                                                                                                            |
 | `disable_direct_connections` | boolean                                                                                           | false    |              |                                                                                                                                                            |
@@ -1812,6 +1814,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "config": {
     "block_direct": true,
+    "force_websockets": true,
     "path": "string",
     "url": "string"
   },
@@ -1850,6 +1853,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "block_direct": true,
+  "force_websockets": true,
   "path": "string",
   "url": "string"
 }
@@ -1857,11 +1861,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name           | Type    | Required | Restrictions | Description |
-| -------------- | ------- | -------- | ------------ | ----------- |
-| `block_direct` | boolean | false    |              |             |
-| `path`         | string  | false    |              |             |
-| `url`          | string  | false    |              |             |
+| Name               | Type    | Required | Restrictions | Description |
+| ------------------ | ------- | -------- | ------------ | ----------- |
+| `block_direct`     | boolean | false    |              |             |
+| `force_websockets` | boolean | false    |              |             |
+| `path`             | string  | false    |              |             |
+| `url`              | string  | false    |              |             |
 
 ## codersdk.DERPRegion
 
@@ -1985,6 +1990,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "derp": {
       "config": {
         "block_direct": true,
+        "force_websockets": true,
         "path": "string",
         "url": "string"
       },
@@ -2347,6 +2353,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "derp": {
     "config": {
       "block_direct": true,
+      "force_websockets": true,
       "path": "string",
       "url": "string"
     },
@@ -5642,6 +5649,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "derp_force_websockets": true,
   "derp_map": {
     "homeParams": {
       "regionScore": {
@@ -5709,6 +5717,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name                         | Type                               | Required | Restrictions | Description |
 | ---------------------------- | ---------------------------------- | -------- | ------------ | ----------- |
+| `derp_force_websockets`      | boolean                            | false    |              |             |
 | `derp_map`                   | [tailcfg.DERPMap](#tailcfgderpmap) | false    |              |             |
 | `disable_direct_connections` | boolean                            | false    |              |             |
 
@@ -7722,6 +7731,7 @@ _None_
 ```json
 {
   "app_security_key": "string",
+  "derp_force_websockets": true,
   "derp_map": {
     "homeParams": {
       "regionScore": {
@@ -7799,13 +7809,14 @@ _None_
 
 ### Properties
 
-| Name               | Type                                          | Required | Restrictions | Description                                                                            |
-| ------------------ | --------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------- |
-| `app_security_key` | string                                        | false    |              |                                                                                        |
-| `derp_map`         | [tailcfg.DERPMap](#tailcfgderpmap)            | false    |              |                                                                                        |
-| `derp_mesh_key`    | string                                        | false    |              |                                                                                        |
-| `derp_region_id`   | integer                                       | false    |              |                                                                                        |
-| `sibling_replicas` | array of [codersdk.Replica](#codersdkreplica) | false    |              | Sibling replicas is a list of all other replicas of the proxy that have not timed out. |
+| Name                    | Type                                          | Required | Restrictions | Description                                                                            |
+| ----------------------- | --------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------- |
+| `app_security_key`      | string                                        | false    |              |                                                                                        |
+| `derp_force_websockets` | boolean                                       | false    |              |                                                                                        |
+| `derp_map`              | [tailcfg.DERPMap](#tailcfgderpmap)            | false    |              |                                                                                        |
+| `derp_mesh_key`         | string                                        | false    |              |                                                                                        |
+| `derp_region_id`        | integer                                       | false    |              |                                                                                        |
+| `sibling_replicas`      | array of [codersdk.Replica](#codersdkreplica) | false    |              | Sibling replicas is a list of all other replicas of the proxy that have not timed out. |
 
 ## wsproxysdk.ReportAppStatsRequest
 
