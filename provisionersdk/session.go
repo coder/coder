@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"cdr.dev/slog"
-
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
@@ -29,22 +29,15 @@ type protoServer struct {
 }
 
 func (p *protoServer) Session(stream proto.DRPCProvisioner_SessionStream) error {
+	sessID := uuid.New().String()
 	s := &Session{
-		Logger: p.opts.Logger,
+		Logger: p.opts.Logger.With(slog.F("session_id", sessID)),
 		stream: stream,
 		server: p.server,
 	}
-	sessDir := fmt.Sprintf("Session%p", s)
+	sessDir := fmt.Sprintf("Session%s", sessID)
 	s.WorkDirectory = filepath.Join(p.opts.WorkDirectory, sessDir)
-	// the WorkDirectory shouldn't exist, but it's possible it does from a restarted process or failed cleanup
-	err := os.RemoveAll(s.WorkDirectory)
-	if err != nil {
-		// RemoveAll returns nil if (as expected) the path doesn't exist.  So, if we hit an error, the WorkDirectory
-		// exists AND we failed to clean it up.
-		s.Logger.Error(s.Context(), "failed to pre-clean work directory", slog.Error(err))
-		return xerrors.Errorf("failed to pre-clean work directory: %w", err)
-	}
-	err = os.MkdirAll(s.WorkDirectory, 0o700)
+	err := os.MkdirAll(s.WorkDirectory, 0o700)
 	if err != nil {
 		return xerrors.Errorf("create work directory %q: %w", s.WorkDirectory, err)
 	}
@@ -88,7 +81,7 @@ func (p *protoServer) Session(stream proto.DRPCProvisioner_SessionStream) error 
 	return s.handleRequests()
 }
 
-func (s *Session) requestReader() <-chan *proto.Request {
+func (s *Session) requestReader(done <-chan struct{}) <-chan *proto.Request {
 	ch := make(chan *proto.Request)
 	go func() {
 		defer close(ch)
@@ -98,14 +91,21 @@ func (s *Session) requestReader() <-chan *proto.Request {
 				s.Logger.Info(s.Context(), "recv done on Session", slog.Error(err))
 				return
 			}
-			ch <- req
+			select {
+			case ch <- req:
+				continue
+			case <-done:
+				return
+			}
 		}
 	}()
 	return ch
 }
 
 func (s *Session) handleRequests() error {
-	requests := s.requestReader()
+	done := make(chan struct{})
+	defer close(done)
+	requests := s.requestReader(done)
 	planned := false
 	for req := range requests {
 		if req.GetCancel() != nil {
