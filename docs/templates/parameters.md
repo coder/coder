@@ -118,6 +118,21 @@ It prevents workspace users from becoming trapped with outdated template
 versions, ensuring they can smoothly update their workspace without any
 hindrances.
 
+Example:
+
+- Bob creates a workspace using the `python-dev` template. This template has a
+  parameter `image_tag`, and Bob selects `1.12`.
+- Later, the template author Alice is notified of a critical vulnerability in a
+  package installed in the `python-dev` template, which affects the image tag
+  `1.12`.
+- Alice remediates this vulnerability, and pushes an updated template version
+  that replaces option `1.12` with `1.13` for the `image_tag` parameter. She
+  then notifies all users of that template to update their workspace
+  immediately.
+- Bob saves their work, and selects the `Update` option in the UI. As their
+  workspace uses the now-invalid option `1.12`, for the `image_tag` parameter,
+  they are prompted to select a new value for `image_tag`.
+
 ## Required and optional parameters
 
 A parameter is considered to be _required_ if it doesn't have the `default`
