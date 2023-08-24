@@ -1604,7 +1604,6 @@ export type Experiment =
   | "tailnet_pg_coordinator"
   | "template_restart_requirement"
   | "workspace_actions"
-  | "workspaces_batch_actions"
 export const Experiments: Experiment[] = [
   "deployment_health_page",
   "moons",
@@ -1612,7 +1611,6 @@ export const Experiments: Experiment[] = [
   "tailnet_pg_coordinator",
   "template_restart_requirement",
   "workspace_actions",
-  "workspaces_batch_actions",
 ]
 
 // From codersdk/deployment.go

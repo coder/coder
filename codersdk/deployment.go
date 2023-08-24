@@ -1939,9 +1939,6 @@ const (
 	// Deployment health page
 	ExperimentDeploymentHealthPage Experiment = "deployment_health_page"
 
-	// Workspaces batch actions
-	ExperimentWorkspacesBatchActions Experiment = "workspaces_batch_actions"
-
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"
 )
@@ -1952,7 +1949,6 @@ const (
 // not be included here and will be essentially hidden.
 var ExperimentsAll = Experiments{
 	ExperimentDeploymentHealthPage,
-	ExperimentWorkspacesBatchActions,
 }
 
 // Experiments is a list of experiments that are enabled for the deployment.
