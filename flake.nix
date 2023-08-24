@@ -22,6 +22,7 @@
         devShellPackages = with pkgs; [
           bat
           cairo
+          coreutils
           curl
           drpc.defaultPackage.${system}
           gcc
@@ -64,7 +65,6 @@
           shellcheck
           shfmt
           sqlc
-          stdenv.coreutils
           # strace is not available on OSX
           (if pkgs.stdenv.hostPlatform.isDarwin then null else strace)
           terraform
@@ -85,6 +85,7 @@
           freetype
           harfbuzz
           glib
+          glibc
           nix
           nixpkgs-fmt
           screen
