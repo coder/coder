@@ -11,9 +11,9 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 )
 
-const MaxTemplateRestartRequirementWeeks = 16
+const MaxTemplateAutostopRequirementWeeks = 16
 
-func TemplateRestartRequirementEpoch(loc *time.Location) time.Time {
+func TemplateAutostopRequirementEpoch(loc *time.Location) time.Time {
 	// The "first week" starts on January 2nd, 2023, which is the first Monday
 	// of 2023. All other weeks are counted using modulo arithmetic from that
 	// date.
@@ -34,7 +34,7 @@ var DaysOfWeek = []time.Weekday{
 	time.Sunday,
 }
 
-type TemplateRestartRequirement struct {
+type TemplateAutostopRequirement struct {
 	// DaysOfWeek is a bitmap of which days of the week the workspace must be
 	// restarted. If fully zero, the workspace is not required to be restarted
 	// ever.
@@ -55,7 +55,7 @@ type TemplateRestartRequirement struct {
 
 // DaysMap returns a map of the days of the week that the workspace must be
 // restarted.
-func (r TemplateRestartRequirement) DaysMap() map[time.Weekday]bool {
+func (r TemplateAutostopRequirement) DaysMap() map[time.Weekday]bool {
 	days := make(map[time.Weekday]bool)
 	for i, day := range DaysOfWeek {
 		days[day] = r.DaysOfWeek&(1<<uint(i)) != 0
@@ -63,9 +63,9 @@ func (r TemplateRestartRequirement) DaysMap() map[time.Weekday]bool {
 	return days
 }
 
-// VerifyTemplateRestartRequirement returns an error if the restart requirement
+// VerifyTemplateAutostopRequirement returns an error if the restart requirement
 // is invalid.
-func VerifyTemplateRestartRequirement(days uint8, weeks int64) error {
+func VerifyTemplateAutostopRequirement(days uint8, weeks int64) error {
 	if days&0b10000000 != 0 {
 		return xerrors.New("invalid restart requirement days, last bit is set")
 	}
@@ -75,7 +75,7 @@ func VerifyTemplateRestartRequirement(days uint8, weeks int64) error {
 	if weeks < 0 {
 		return xerrors.New("invalid restart requirement weeks, negative")
 	}
-	if weeks > MaxTemplateRestartRequirementWeeks {
+	if weeks > MaxTemplateAutostopRequirementWeeks {
 		return xerrors.New("invalid restart requirement weeks, too large")
 	}
 	return nil
@@ -88,14 +88,14 @@ type TemplateScheduleOptions struct {
 	// TODO(@dean): remove MaxTTL once restart_requirement is matured and the
 	// default
 	MaxTTL time.Duration `json:"max_ttl"`
-	// UseRestartRequirement dictates whether the restart requirement should be
+	// UseAutostopRequirement dictates whether the restart requirement should be
 	// used instead of MaxTTL. This is governed by the feature flag and
 	// licensing.
 	// TODO(@dean): remove this when we remove max_tll
-	UseRestartRequirement bool
-	// RestartRequirement dictates when the workspace must be restarted. This
+	UseAutostopRequirement bool
+	// AutostopRequirement dictates when the workspace must be restarted. This
 	// used to be handled by MaxTTL.
-	RestartRequirement TemplateRestartRequirement `json:"restart_requirement"`
+	AutostopRequirement TemplateAutostopRequirement `json:"restart_requirement"`
 	// FailureTTL dictates the duration after which failed workspaces will be
 	// stopped automatically.
 	FailureTTL time.Duration `json:"failure_ttl"`
@@ -149,11 +149,11 @@ func (*agplTemplateScheduleStore) Get(ctx context.Context, db database.Store, te
 		UserAutostartEnabled: true,
 		UserAutostopEnabled:  true,
 		DefaultTTL:           time.Duration(tpl.DefaultTTL),
-		// Disregard the values in the database, since RestartRequirement,
+		// Disregard the values in the database, since AutostopRequirement,
 		// FailureTTL, InactivityTTL, and LockedTTL are enterprise features.
-		UseRestartRequirement: false,
-		MaxTTL:                0,
-		RestartRequirement: TemplateRestartRequirement{
+		UseAutostopRequirement: false,
+		MaxTTL:                 0,
+		AutostopRequirement: TemplateAutostopRequirement{
 			DaysOfWeek: 0,
 			Weeks:      0,
 		},
@@ -180,14 +180,14 @@ func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tp
 			DefaultTTL: int64(opts.DefaultTTL),
 			// Don't allow changing these settings, but keep the value in the DB (to
 			// avoid clearing settings if the license has an issue).
-			MaxTTL:                       tpl.MaxTTL,
-			RestartRequirementDaysOfWeek: tpl.RestartRequirementDaysOfWeek,
-			RestartRequirementWeeks:      tpl.RestartRequirementWeeks,
-			AllowUserAutostart:           tpl.AllowUserAutostart,
-			AllowUserAutostop:            tpl.AllowUserAutostop,
-			FailureTTL:                   tpl.FailureTTL,
-			InactivityTTL:                tpl.InactivityTTL,
-			LockedTTL:                    tpl.LockedTTL,
+			MaxTTL:                        tpl.MaxTTL,
+			AutostopRequirementDaysOfWeek: tpl.AutostopRequirementDaysOfWeek,
+			AutostopRequirementWeeks:      tpl.AutostopRequirementWeeks,
+			AllowUserAutostart:            tpl.AllowUserAutostart,
+			AllowUserAutostop:             tpl.AllowUserAutostop,
+			FailureTTL:                    tpl.FailureTTL,
+			InactivityTTL:                 tpl.InactivityTTL,
+			LockedTTL:                     tpl.LockedTTL,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template schedule: %w", err)

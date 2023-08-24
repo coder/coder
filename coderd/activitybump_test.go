@@ -50,7 +50,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 						UserAutostopEnabled: true,
 						DefaultTTL:          ttl,
 						// We set max_deadline manually below.
-						RestartRequirement: schedule.TemplateRestartRequirement{},
+						AutostopRequirement: schedule.TemplateAutostopRequirement{},
 					}, nil
 				},
 			},

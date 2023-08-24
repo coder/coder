@@ -86,9 +86,9 @@ type CreateTemplateRequest struct {
 	DefaultTTLMillis *int64 `json:"default_ttl_ms,omitempty"`
 	// TODO(@dean): remove max_ttl once restart_requirement is matured
 	MaxTTLMillis *int64 `json:"max_ttl_ms,omitempty"`
-	// RestartRequirement allows optionally specifying the restart requirement
+	// AutostopRequirement allows optionally specifying the restart requirement
 	// for workspaces created from this template. This is an enterprise feature.
-	RestartRequirement *TemplateRestartRequirement `json:"restart_requirement,omitempty"`
+	AutostopRequirement *TemplateAutostopRequirement `json:"restart_requirement,omitempty"`
 
 	// Allow users to cancel in-progress workspace jobs.
 	// *bool as the default value is "true".

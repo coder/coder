@@ -637,8 +637,8 @@ CREATE TABLE templates (
     failure_ttl bigint DEFAULT 0 NOT NULL,
     inactivity_ttl bigint DEFAULT 0 NOT NULL,
     locked_ttl bigint DEFAULT 0 NOT NULL,
-    restart_requirement_days_of_week smallint DEFAULT 0 NOT NULL,
-    restart_requirement_weeks bigint DEFAULT 0 NOT NULL
+    autostop_requirement_days_of_week smallint DEFAULT 0 NOT NULL,
+    autostop_requirement_weeks bigint DEFAULT 0 NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';

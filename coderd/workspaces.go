@@ -384,7 +384,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 
 	maxTTL := templateSchedule.MaxTTL
-	if templateSchedule.UseRestartRequirement {
+	if templateSchedule.UseAutostopRequirement {
 		// If we're using restart requirements, there isn't a max TTL.
 		maxTTL = 0
 	}
@@ -721,7 +721,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		maxTTL := templateSchedule.MaxTTL
-		if templateSchedule.UseRestartRequirement {
+		if templateSchedule.UseAutostopRequirement {
 			// If we're using restart requirements, there isn't a max TTL.
 			maxTTL = 0
 		}

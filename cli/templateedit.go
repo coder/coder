@@ -15,19 +15,19 @@ import (
 
 func (r *RootCmd) templateEdit() *clibase.Cmd {
 	var (
-		name                         string
-		displayName                  string
-		description                  string
-		icon                         string
-		defaultTTL                   time.Duration
-		maxTTL                       time.Duration
-		restartRequirementDaysOfWeek []string
-		restartRequirementWeeks      int64
-		failureTTL                   time.Duration
-		inactivityTTL                time.Duration
-		allowUserCancelWorkspaceJobs bool
-		allowUserAutostart           bool
-		allowUserAutostop            bool
+		name                          string
+		displayName                   string
+		description                   string
+		icon                          string
+		defaultTTL                    time.Duration
+		maxTTL                        time.Duration
+		autostopRequirementDaysOfWeek []string
+		autostopRequirementWeeks      int64
+		failureTTL                    time.Duration
+		inactivityTTL                 time.Duration
+		allowUserCancelWorkspaceJobs  bool
+		allowUserAutostart            bool
+		allowUserAutostop             bool
 	)
 	client := new(codersdk.Client)
 
@@ -51,9 +51,9 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				}
 			}
 
-			unsetRestartRequirementDaysOfWeek := len(restartRequirementDaysOfWeek) == 1 && restartRequirementDaysOfWeek[0] == "none"
-			requiresEntitlement := (len(restartRequirementDaysOfWeek) > 0 && !unsetRestartRequirementDaysOfWeek) ||
-				restartRequirementWeeks > 0 ||
+			unsetAutostopRequirementDaysOfWeek := len(autostopRequirementDaysOfWeek) == 1 && autostopRequirementDaysOfWeek[0] == "none"
+			requiresEntitlement := (len(autostopRequirementDaysOfWeek) > 0 && !unsetAutostopRequirementDaysOfWeek) ||
+				autostopRequirementWeeks > 0 ||
 				!allowUserAutostart ||
 				!allowUserAutostop ||
 				maxTTL != 0 ||
@@ -84,11 +84,11 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 
 			// Copy the default value if the list is empty, or if the user
 			// specified the "none" value clear the list.
-			if len(restartRequirementDaysOfWeek) == 0 {
-				restartRequirementDaysOfWeek = template.RestartRequirement.DaysOfWeek
+			if len(autostopRequirementDaysOfWeek) == 0 {
+				autostopRequirementDaysOfWeek = template.AutostopRequirement.DaysOfWeek
 			}
-			if unsetRestartRequirementDaysOfWeek {
-				restartRequirementDaysOfWeek = []string{}
+			if unsetAutostopRequirementDaysOfWeek {
+				autostopRequirementDaysOfWeek = []string{}
 			}
 
 			// NOTE: coderd will ignore empty fields.
@@ -99,9 +99,9 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				Icon:             icon,
 				DefaultTTLMillis: defaultTTL.Milliseconds(),
 				MaxTTLMillis:     maxTTL.Milliseconds(),
-				RestartRequirement: &codersdk.TemplateRestartRequirement{
-					DaysOfWeek: restartRequirementDaysOfWeek,
-					Weeks:      restartRequirementWeeks,
+				AutostopRequirement: &codersdk.TemplateAutostopRequirement{
+					DaysOfWeek: autostopRequirementDaysOfWeek,
+					Weeks:      autostopRequirementWeeks,
 				},
 				FailureTTLMillis:             failureTTL.Milliseconds(),
 				InactivityTTLMillis:          inactivityTTL.Milliseconds(),
@@ -155,7 +155,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 			Description: "Edit the template restart requirement weekdays - workspaces created from this template must be restarted on the given weekdays. To unset this value for the template (and disable the restart requirement for the template), pass 'none'.",
 			// TODO(@dean): unhide when we delete max_ttl
 			Hidden: true,
-			Value: clibase.Validate(clibase.StringArrayOf(&restartRequirementDaysOfWeek), func(value *clibase.StringArray) error {
+			Value: clibase.Validate(clibase.StringArrayOf(&autostopRequirementDaysOfWeek), func(value *clibase.StringArray) error {
 				v := value.GetSlice()
 				if len(v) == 1 && v[0] == "none" {
 					return nil
@@ -172,7 +172,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 			Description: "Edit the template restart requirement weeks - workspaces created from this template must be restarted on an n-weekly basis.",
 			// TODO(@dean): unhide when we delete max_ttl
 			Hidden: true,
-			Value:  clibase.Int64Of(&restartRequirementWeeks),
+			Value:  clibase.Int64Of(&autostopRequirementWeeks),
 		},
 		{
 			Flag:        "failure-ttl",

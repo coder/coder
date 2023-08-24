@@ -73,10 +73,10 @@ func TestCalculateAutoStop(t *testing.T) {
 		templateAllowAutostop bool
 		templateDefaultTTL    time.Duration
 		// TODO(@dean): remove max_ttl tests
-		useMaxTTL                  bool
-		templateMaxTTL             time.Duration
-		templateRestartRequirement schedule.TemplateRestartRequirement
-		userQuietHoursSchedule     string
+		useMaxTTL                   bool
+		templateMaxTTL              time.Duration
+		templateAutostopRequirement schedule.TemplateAutostopRequirement
+		userQuietHoursSchedule      string
 		// workspaceTTL is usually copied from the template's TTL when the
 		// workspace is made, so it takes precedence unless
 		// templateAllowAutostop is false.
@@ -88,72 +88,72 @@ func TestCalculateAutoStop(t *testing.T) {
 		errContains         string
 	}{
 		{
-			name:                       "OK",
-			now:                        now,
-			templateAllowAutostop:      true,
-			templateDefaultTTL:         0,
-			templateRestartRequirement: schedule.TemplateRestartRequirement{},
-			workspaceTTL:               0,
-			expectedDeadline:           time.Time{},
-			expectedMaxDeadline:        time.Time{},
+			name:                        "OK",
+			now:                         now,
+			templateAllowAutostop:       true,
+			templateDefaultTTL:          0,
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{},
+			workspaceTTL:                0,
+			expectedDeadline:            time.Time{},
+			expectedMaxDeadline:         time.Time{},
 		},
 		{
-			name:                       "Delete",
-			now:                        now,
-			templateAllowAutostop:      true,
-			templateDefaultTTL:         0,
-			templateRestartRequirement: schedule.TemplateRestartRequirement{},
-			workspaceTTL:               0,
-			expectedDeadline:           time.Time{},
-			expectedMaxDeadline:        time.Time{},
+			name:                        "Delete",
+			now:                         now,
+			templateAllowAutostop:       true,
+			templateDefaultTTL:          0,
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{},
+			workspaceTTL:                0,
+			expectedDeadline:            time.Time{},
+			expectedMaxDeadline:         time.Time{},
 		},
 		{
-			name:                       "WorkspaceTTL",
-			now:                        now,
-			templateAllowAutostop:      true,
-			templateDefaultTTL:         0,
-			templateRestartRequirement: schedule.TemplateRestartRequirement{},
-			workspaceTTL:               time.Hour,
-			expectedDeadline:           now.Add(time.Hour),
-			expectedMaxDeadline:        time.Time{},
+			name:                        "WorkspaceTTL",
+			now:                         now,
+			templateAllowAutostop:       true,
+			templateDefaultTTL:          0,
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{},
+			workspaceTTL:                time.Hour,
+			expectedDeadline:            now.Add(time.Hour),
+			expectedMaxDeadline:         time.Time{},
 		},
 		{
-			name:                       "TemplateDefaultTTLIgnored",
-			now:                        now,
-			templateAllowAutostop:      true,
-			templateDefaultTTL:         time.Hour,
-			templateRestartRequirement: schedule.TemplateRestartRequirement{},
-			workspaceTTL:               0,
-			expectedDeadline:           time.Time{},
-			expectedMaxDeadline:        time.Time{},
+			name:                        "TemplateDefaultTTLIgnored",
+			now:                         now,
+			templateAllowAutostop:       true,
+			templateDefaultTTL:          time.Hour,
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{},
+			workspaceTTL:                0,
+			expectedDeadline:            time.Time{},
+			expectedMaxDeadline:         time.Time{},
 		},
 		{
-			name:                       "WorkspaceTTLOverridesTemplateDefaultTTL",
-			now:                        now,
-			templateAllowAutostop:      true,
-			templateDefaultTTL:         2 * time.Hour,
-			templateRestartRequirement: schedule.TemplateRestartRequirement{},
-			workspaceTTL:               time.Hour,
-			expectedDeadline:           now.Add(time.Hour),
-			expectedMaxDeadline:        time.Time{},
+			name:                        "WorkspaceTTLOverridesTemplateDefaultTTL",
+			now:                         now,
+			templateAllowAutostop:       true,
+			templateDefaultTTL:          2 * time.Hour,
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{},
+			workspaceTTL:                time.Hour,
+			expectedDeadline:            now.Add(time.Hour),
+			expectedMaxDeadline:         time.Time{},
 		},
 		{
-			name:                       "TemplateBlockWorkspaceTTL",
-			now:                        now,
-			templateAllowAutostop:      false,
-			templateDefaultTTL:         3 * time.Hour,
-			templateRestartRequirement: schedule.TemplateRestartRequirement{},
-			workspaceTTL:               4 * time.Hour,
-			expectedDeadline:           now.Add(3 * time.Hour),
-			expectedMaxDeadline:        time.Time{},
+			name:                        "TemplateBlockWorkspaceTTL",
+			now:                         now,
+			templateAllowAutostop:       false,
+			templateDefaultTTL:          3 * time.Hour,
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{},
+			workspaceTTL:                4 * time.Hour,
+			expectedDeadline:            now.Add(3 * time.Hour),
+			expectedMaxDeadline:         time.Time{},
 		},
 		{
-			name:                   "TemplateRestartRequirement",
+			name:                   "TemplateAutostopRequirement",
 			now:                    wednesdayMidnightUTC,
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     0,
 			userQuietHoursSchedule: sydneyQuietHours,
-			templateRestartRequirement: schedule.TemplateRestartRequirement{
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
 				DaysOfWeek: 0b00100000, // Saturday
 				Weeks:      0,          // weekly
 			},
@@ -162,12 +162,12 @@ func TestCalculateAutoStop(t *testing.T) {
 			expectedMaxDeadline: saturdayMidnightSydney.In(time.UTC),
 		},
 		{
-			name:                   "TemplateRestartRequirement1HourSkip",
+			name:                   "TemplateAutostopRequirement1HourSkip",
 			now:                    saturdayMidnightSydney.Add(-59 * time.Minute),
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     0,
 			userQuietHoursSchedule: sydneyQuietHours,
-			templateRestartRequirement: schedule.TemplateRestartRequirement{
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
 				DaysOfWeek: 0b00100000, // Saturday
 				Weeks:      1,          // 1 also means weekly
 			},
@@ -178,12 +178,12 @@ func TestCalculateAutoStop(t *testing.T) {
 		{
 			// The next restart requirement should be skipped if the
 			// workspace is started within 1 hour of it.
-			name:                   "TemplateRestartRequirementDaily",
+			name:                   "TemplateAutostopRequirementDaily",
 			now:                    fridayEveningSydney,
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     0,
 			userQuietHoursSchedule: sydneyQuietHours,
-			templateRestartRequirement: schedule.TemplateRestartRequirement{
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
 				DaysOfWeek: 0b01111111, // daily
 				Weeks:      0,          // all weeks
 			},
@@ -192,12 +192,12 @@ func TestCalculateAutoStop(t *testing.T) {
 			expectedMaxDeadline: saturdayMidnightSydney.In(time.UTC),
 		},
 		{
-			name:                   "TemplateRestartRequirementFortnightly/Skip",
+			name:                   "TemplateAutostopRequirementFortnightly/Skip",
 			now:                    wednesdayMidnightUTC,
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     0,
 			userQuietHoursSchedule: sydneyQuietHours,
-			templateRestartRequirement: schedule.TemplateRestartRequirement{
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
 				DaysOfWeek: 0b00100000, // Saturday
 				Weeks:      2,          // every 2 weeks
 			},
@@ -206,12 +206,12 @@ func TestCalculateAutoStop(t *testing.T) {
 			expectedMaxDeadline: saturdayMidnightSydney.AddDate(0, 0, 7).In(time.UTC),
 		},
 		{
-			name:                   "TemplateRestartRequirementFortnightly/NoSkip",
+			name:                   "TemplateAutostopRequirementFortnightly/NoSkip",
 			now:                    wednesdayMidnightUTC.AddDate(0, 0, 7),
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     0,
 			userQuietHoursSchedule: sydneyQuietHours,
-			templateRestartRequirement: schedule.TemplateRestartRequirement{
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
 				DaysOfWeek: 0b00100000, // Saturday
 				Weeks:      2,          // every 2 weeks
 			},
@@ -220,12 +220,12 @@ func TestCalculateAutoStop(t *testing.T) {
 			expectedMaxDeadline: saturdayMidnightSydney.AddDate(0, 0, 7).In(time.UTC),
 		},
 		{
-			name:                   "TemplateRestartRequirementTriweekly/Skip",
+			name:                   "TemplateAutostopRequirementTriweekly/Skip",
 			now:                    wednesdayMidnightUTC,
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     0,
 			userQuietHoursSchedule: sydneyQuietHours,
-			templateRestartRequirement: schedule.TemplateRestartRequirement{
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
 				DaysOfWeek: 0b00100000, // Saturday
 				Weeks:      3,          // every 3 weeks
 			},
@@ -236,12 +236,12 @@ func TestCalculateAutoStop(t *testing.T) {
 			expectedMaxDeadline: saturdayMidnightSydney.AddDate(0, 0, 7).In(time.UTC),
 		},
 		{
-			name:                   "TemplateRestartRequirementTriweekly/NoSkip",
+			name:                   "TemplateAutostopRequirementTriweekly/NoSkip",
 			now:                    wednesdayMidnightUTC.AddDate(0, 0, 7),
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     0,
 			userQuietHoursSchedule: sydneyQuietHours,
-			templateRestartRequirement: schedule.TemplateRestartRequirement{
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
 				DaysOfWeek: 0b00100000, // Saturday
 				Weeks:      3,          // every 3 weeks
 			},
@@ -250,14 +250,14 @@ func TestCalculateAutoStop(t *testing.T) {
 			expectedMaxDeadline: saturdayMidnightSydney.AddDate(0, 0, 7).In(time.UTC),
 		},
 		{
-			name: "TemplateRestartRequirementOverridesWorkspaceTTL",
+			name: "TemplateAutostopRequirementOverridesWorkspaceTTL",
 			// now doesn't have to be UTC, but it helps us ensure that
 			// timezones are compared correctly in this test.
 			now:                    fridayEveningSydney.In(time.UTC),
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     0,
 			userQuietHoursSchedule: sydneyQuietHours,
-			templateRestartRequirement: schedule.TemplateRestartRequirement{
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
 				DaysOfWeek: 0b00100000, // Saturday
 				Weeks:      0,          // weekly
 			},
@@ -266,12 +266,12 @@ func TestCalculateAutoStop(t *testing.T) {
 			expectedMaxDeadline: saturdayMidnightSydney.In(time.UTC),
 		},
 		{
-			name:                   "TemplateRestartRequirementOverridesTemplateDefaultTTL",
+			name:                   "TemplateAutostopRequirementOverridesTemplateDefaultTTL",
 			now:                    fridayEveningSydney.In(time.UTC),
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     3 * time.Hour,
 			userQuietHoursSchedule: sydneyQuietHours,
-			templateRestartRequirement: schedule.TemplateRestartRequirement{
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
 				DaysOfWeek: 0b00100000, // Saturday
 				Weeks:      0,          // weekly
 			},
@@ -288,7 +288,7 @@ func TestCalculateAutoStop(t *testing.T) {
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     0,
 			userQuietHoursSchedule: sydneyQuietHours,
-			templateRestartRequirement: schedule.TemplateRestartRequirement{
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
 				DaysOfWeek: 0b00100000, // Saturday
 				Weeks:      2,          // every fortnight
 			},
@@ -301,7 +301,7 @@ func TestCalculateAutoStop(t *testing.T) {
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     0,
 			userQuietHoursSchedule: sydneyQuietHours,
-			templateRestartRequirement: schedule.TemplateRestartRequirement{
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
 				DaysOfWeek: 0b00100000, // Saturday
 				Weeks:      1,          // weekly
 			},
@@ -315,7 +315,7 @@ func TestCalculateAutoStop(t *testing.T) {
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     0,
 			userQuietHoursSchedule: sydneyQuietHours,
-			templateRestartRequirement: schedule.TemplateRestartRequirement{
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
 				DaysOfWeek: 0b00100000, // Saturday
 				Weeks:      1,          // weekly
 			},
@@ -329,7 +329,7 @@ func TestCalculateAutoStop(t *testing.T) {
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     0,
 			userQuietHoursSchedule: sydneyQuietHours,
-			templateRestartRequirement: schedule.TemplateRestartRequirement{
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
 				DaysOfWeek: 0b00100000, // Saturday
 				Weeks:      1,          // weekly
 			},
@@ -343,7 +343,7 @@ func TestCalculateAutoStop(t *testing.T) {
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     0,
 			userQuietHoursSchedule: dstInQuietHours,
-			templateRestartRequirement: schedule.TemplateRestartRequirement{
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
 				DaysOfWeek: 0b01000000, // Sunday
 				Weeks:      1,          // weekly
 			},
@@ -357,7 +357,7 @@ func TestCalculateAutoStop(t *testing.T) {
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     0,
 			userQuietHoursSchedule: dstOutQuietHours,
-			templateRestartRequirement: schedule.TemplateRestartRequirement{
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
 				DaysOfWeek: 0b01000000, // Sunday
 				Weeks:      1,          // weekly
 			},
@@ -368,14 +368,14 @@ func TestCalculateAutoStop(t *testing.T) {
 
 		// TODO(@dean): remove max_ttl tests
 		{
-			name:                   "RestartRequirementIgnoresMaxTTL",
+			name:                   "AutostopRequirementIgnoresMaxTTL",
 			now:                    fridayEveningSydney.In(time.UTC),
 			templateAllowAutostop:  false,
 			templateDefaultTTL:     0,
 			useMaxTTL:              false,
 			templateMaxTTL:         time.Hour, // should be ignored
 			userQuietHoursSchedule: sydneyQuietHours,
-			templateRestartRequirement: schedule.TemplateRestartRequirement{
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
 				DaysOfWeek: 0b00100000, // Saturday
 				Weeks:      0,          // weekly
 			},
@@ -384,14 +384,14 @@ func TestCalculateAutoStop(t *testing.T) {
 			expectedMaxDeadline: saturdayMidnightSydney.In(time.UTC),
 		},
 		{
-			name:                   "MaxTTLIgnoresRestartRequirement",
+			name:                   "MaxTTLIgnoresAutostopRequirement",
 			now:                    fridayEveningSydney.In(time.UTC),
 			templateAllowAutostop:  false,
 			templateDefaultTTL:     0,
 			useMaxTTL:              true,
 			templateMaxTTL:         time.Hour, // should NOT be ignored
 			userQuietHoursSchedule: sydneyQuietHours,
-			templateRestartRequirement: schedule.TemplateRestartRequirement{
+			templateAutostopRequirement: schedule.TemplateAutostopRequirement{
 				DaysOfWeek: 0b00100000, // Saturday
 				Weeks:      0,          // weekly
 			},
@@ -413,12 +413,12 @@ func TestCalculateAutoStop(t *testing.T) {
 			templateScheduleStore := schedule.MockTemplateScheduleStore{
 				GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 					return schedule.TemplateScheduleOptions{
-						UserAutostartEnabled:  false,
-						UserAutostopEnabled:   c.templateAllowAutostop,
-						DefaultTTL:            c.templateDefaultTTL,
-						MaxTTL:                c.templateMaxTTL,
-						UseRestartRequirement: !c.useMaxTTL,
-						RestartRequirement:    c.templateRestartRequirement,
+						UserAutostartEnabled:   false,
+						UserAutostopEnabled:    c.templateAllowAutostop,
+						DefaultTTL:             c.templateDefaultTTL,
+						MaxTTL:                 c.templateMaxTTL,
+						UseAutostopRequirement: !c.useMaxTTL,
+						AutostopRequirement:    c.templateAutostopRequirement,
 					}, nil
 				},
 			}
@@ -454,11 +454,11 @@ func TestCalculateAutoStop(t *testing.T) {
 				CreatedBy:      user.ID,
 			})
 			err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
-				ID:                           template.ID,
-				UpdatedAt:                    database.Now(),
-				AllowUserAutostart:           c.templateAllowAutostop,
-				RestartRequirementDaysOfWeek: int16(c.templateRestartRequirement.DaysOfWeek),
-				RestartRequirementWeeks:      c.templateRestartRequirement.Weeks,
+				ID:                            template.ID,
+				UpdatedAt:                     database.Now(),
+				AllowUserAutostart:            c.templateAllowAutostop,
+				AutostopRequirementDaysOfWeek: int16(c.templateAutostopRequirement.DaysOfWeek),
+				AutostopRequirementWeeks:      c.templateAutostopRequirement.Weeks,
 			})
 			require.NoError(t, err)
 			template, err = db.GetTemplateByID(ctx, template.ID)

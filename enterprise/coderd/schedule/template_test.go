@@ -210,17 +210,17 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 
 			// Set the template policy.
 			templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr)
-			templateScheduleStore.UseRestartRequirement.Store(true)
+			templateScheduleStore.UseAutostopRequirement.Store(true)
 			templateScheduleStore.TimeNowFn = func() time.Time {
 				return c.now
 			}
 			_, err = templateScheduleStore.Set(ctx, db, template, agplschedule.TemplateScheduleOptions{
-				UserAutostartEnabled:  false,
-				UserAutostopEnabled:   false,
-				DefaultTTL:            0,
-				MaxTTL:                0,
-				UseRestartRequirement: true,
-				RestartRequirement: agplschedule.TemplateRestartRequirement{
+				UserAutostartEnabled:   false,
+				UserAutostopEnabled:    false,
+				DefaultTTL:             0,
+				MaxTTL:                 0,
+				UseAutostopRequirement: true,
+				AutostopRequirement: agplschedule.TemplateAutostopRequirement{
 					// Every day
 					DaysOfWeek: 0b01111111,
 					Weeks:      0,
@@ -485,17 +485,17 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 
 	// Set the template policy.
 	templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr)
-	templateScheduleStore.UseRestartRequirement.Store(true)
+	templateScheduleStore.UseAutostopRequirement.Store(true)
 	templateScheduleStore.TimeNowFn = func() time.Time {
 		return now
 	}
 	_, err = templateScheduleStore.Set(ctx, db, template, agplschedule.TemplateScheduleOptions{
-		UserAutostartEnabled:  false,
-		UserAutostopEnabled:   false,
-		DefaultTTL:            0,
-		MaxTTL:                0,
-		UseRestartRequirement: true,
-		RestartRequirement: agplschedule.TemplateRestartRequirement{
+		UserAutostartEnabled:   false,
+		UserAutostopEnabled:    false,
+		DefaultTTL:             0,
+		MaxTTL:                 0,
+		UseAutostopRequirement: true,
+		AutostopRequirement: agplschedule.TemplateAutostopRequirement{
 			// Every day
 			DaysOfWeek: 0b01111111,
 			Weeks:      0,
