@@ -63,6 +63,9 @@ type FakeIDP struct {
 	hookUserInfo  func(email string) jwt.MapClaims
 	fakeCoderd    func(req *http.Request) (*http.Response, error)
 	hookOnRefresh func(email string) error
+	// Custom authentication for the client. This is useful if you want
+	// to test something like PKI auth vs a client_secret.
+	hookAuthenticateClient func(t testing.TB, req *http.Request) (url.Values, error)
 	// Optional if you want to use a real http network request assuming
 	// it is not directed to the IDP.
 	defaultClient *http.Client
@@ -76,6 +79,12 @@ type FakeIDPOpt func(idp *FakeIDP)
 func WithRefreshHook(hook func(email string) error) func(*FakeIDP) {
 	return func(f *FakeIDP) {
 		f.hookOnRefresh = hook
+	}
+}
+
+func WithCustomClientAuth(hook func(t testing.TB, req *http.Request) (url.Values, error)) func(*FakeIDP) {
+	return func(f *FakeIDP) {
+		f.hookAuthenticateClient = hook
 	}
 }
 
@@ -109,6 +118,12 @@ func WithServing() func(*FakeIDP) {
 	}
 }
 
+func WithIssuer(issuer string) func(*FakeIDP) {
+	return func(f *FakeIDP) {
+		f.issuer = issuer
+	}
+}
+
 const (
 	authorizePath = "/oauth2/authorize"
 	tokenPath     = "/oauth2/token"
@@ -137,7 +152,6 @@ func NewFakeIDP(t testing.TB, opts ...FakeIDPOpt) *FakeIDP {
 		hookOnRefresh:        func(_ string) error { return nil },
 		hookUserInfo:         func(email string) jwt.MapClaims { return jwt.MapClaims{} },
 	}
-	idp.handler = idp.httpHandler(t)
 
 	for _, opt := range opts {
 		opt(idp)
@@ -147,6 +161,7 @@ func NewFakeIDP(t testing.TB, opts ...FakeIDPOpt) *FakeIDP {
 		idp.issuer = "https://coder.com"
 	}
 
+	idp.handler = idp.httpHandler(t)
 	idp.updateIssuerURL(t, idp.issuer)
 	if idp.serve {
 		idp.realServer(t)
@@ -355,6 +370,10 @@ func (f *FakeIDP) authenticateBearerTokenRequest(t testing.TB, req *http.Request
 func (f *FakeIDP) authenticateOIDClientRequest(t testing.TB, req *http.Request) (url.Values, error) {
 	t.Helper()
 
+	if f.hookAuthenticateClient != nil {
+		return f.hookAuthenticateClient(t, req)
+	}
+
 	data, _ := io.ReadAll(req.Body)
 	values, err := url.ParseQuery(string(data))
 	if !assert.NoError(t, err, "parse token request values") {
@@ -541,7 +560,6 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 			"refresh_token": refreshToken,
 			"token_type":    "Bearer",
 			"expires_in":    int64(time.Minute * 5),
-			"expiry":        exp.Unix(),
 			"id_token":      f.encodeClaims(t, claims),
 		}
 		// Store the claims for the next refresh
