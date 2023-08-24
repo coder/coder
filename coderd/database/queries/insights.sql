@@ -50,11 +50,6 @@ WITH ts AS (
 		AND was.connection_count > 0
 		AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN was.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
 	)
-	WHERE
-		-- We already handle created_at in the join, but we use an additional
-		-- check against a static timeframe to help speed up the query.
-		was.created_at >= @start_time
-		AND was.created_at < @end_time
 	GROUP BY ts.from_, ts.to_, ts.seconds, was.user_id
 ), template_ids AS (
 	SELECT array_agg(DISTINCT template_id) AS ids
@@ -113,12 +108,6 @@ WITH ts AS (
 		wa.agent_id = was.agent_id
 		AND wa.slug = was.slug_or_port
 	)
-	WHERE
-		-- We already handle timeframe in the join, but we use an additional
-		-- check against a static timeframe to help speed up the query.
-		(was.session_started_at >= @start_time AND was.session_started_at < @end_time)
-		OR (was.session_ended_at > @start_time AND was.session_ended_at < @end_time)
-		OR (was.session_started_at < @start_time AND was.session_ended_at >= @end_time)
 	GROUP BY ts.from_, ts.to_, ts.seconds, w.template_id, was.user_id, was.agent_id, was.access_method, was.slug_or_port, wa.display_name, wa.icon, wa.slug
 )
 
