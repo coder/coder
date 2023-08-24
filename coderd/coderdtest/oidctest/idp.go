@@ -57,13 +57,21 @@ type FakeIDP struct {
 	refreshIDTokenClaims *SyncMap[string, jwt.MapClaims]
 
 	// hooks
-	hookUserInfo      func(email string) jwt.MapClaims
-	hookIDTokenClaims jwt.MapClaims
-	fakeCoderd        func(req *http.Request) (*http.Response, error)
+	hookUserInfo  func(email string) jwt.MapClaims
+	fakeCoderd    func(req *http.Request) (*http.Response, error)
+	hookOnRefresh func(email string) error
 	// Optional if you want to use a real http network request assuming
 	// it is not directed to the IDP.
 	defaultClient *http.Client
 	serve         bool
+}
+
+type FakeIDPOpt func(idp *FakeIDP)
+
+func WithRefreshHook(hook func(email string) error) func(*FakeIDP) {
+	return func(f *FakeIDP) {
+		f.hookOnRefresh = hook
+	}
 }
 
 func WithLogging(t testing.TB, options *slogtest.Options) func(*FakeIDP) {
@@ -99,7 +107,7 @@ const (
 	userInfoPath  = "/oauth2/userinfo"
 )
 
-func NewFakeIDP(t testing.TB, opts ...func(idp *FakeIDP)) *FakeIDP {
+func NewFakeIDP(t testing.TB, opts ...FakeIDPOpt) *FakeIDP {
 	t.Helper()
 
 	block, _ := pem.Decode([]byte(testRSAPrivateKey))
@@ -117,6 +125,7 @@ func NewFakeIDP(t testing.TB, opts ...func(idp *FakeIDP)) *FakeIDP {
 		refreshTokensUsed:    NewSyncMap[string, bool](),
 		stateToIDTokenClaims: NewSyncMap[string, jwt.MapClaims](),
 		refreshIDTokenClaims: NewSyncMap[string, jwt.MapClaims](),
+		hookOnRefresh:        func(_ string) error { return nil },
 		hookUserInfo:         func(email string) jwt.MapClaims { return jwt.MapClaims{} },
 	}
 	idp.handler = idp.httpHandler(t)
@@ -176,9 +185,40 @@ func (f *FakeIDP) Serve(t testing.TB) *httptest.Server {
 	return srv
 }
 
-// LoginClient does the full OIDC flow starting at the "LoginButton".
+// Login does the full OIDC flow starting at the "LoginButton".
 // The client argument is just to get the URL of the Coder instance.
-func (f *FakeIDP) LoginClient(t testing.TB, client *codersdk.Client, idTokenClaims jwt.MapClaims) (*codersdk.Client, *http.Response) {
+//
+// The client passed in is just to get the url of the Coder instance.
+// The actual client that is used is 100% unauthenticated and fresh.
+func (f *FakeIDP) Login(t testing.TB, client *codersdk.Client, idTokenClaims jwt.MapClaims, opts ...func(r *http.Request)) (*codersdk.Client, *http.Response) {
+	t.Helper()
+
+	client, resp := f.AttemptLogin(t, client, idTokenClaims, opts...)
+	require.Equal(t, http.StatusOK, resp.StatusCode, "client failed to login")
+	return client, resp
+}
+
+func (f *FakeIDP) AttemptLogin(t testing.TB, client *codersdk.Client, idTokenClaims jwt.MapClaims, opts ...func(r *http.Request)) (*codersdk.Client, *http.Response) {
+	t.Helper()
+	var err error
+
+	cli := f.HTTPClient(client.HTTPClient)
+	shallowCpyCli := &(*cli)
+
+	if shallowCpyCli.Jar == nil {
+		shallowCpyCli.Jar, err = cookiejar.New(nil)
+		require.NoError(t, err, "failed to create cookie jar")
+	}
+
+	unauthenticated := codersdk.New(client.URL)
+	unauthenticated.HTTPClient = shallowCpyCli
+
+	return f.LoginClient(t, unauthenticated, idTokenClaims, opts...)
+}
+
+// LoginClient reuses the context of the passed in client. This means the same
+// cookies will be used. This should be an unauthenticated client in most cases.
+func (f *FakeIDP) LoginClient(t testing.TB, client *codersdk.Client, idTokenClaims jwt.MapClaims, opts ...func(r *http.Request)) (*codersdk.Client, *http.Response) {
 	t.Helper()
 
 	coderOauthURL, err := client.URL.Parse("/api/v2/users/oidc/callback")
@@ -186,8 +226,7 @@ func (f *FakeIDP) LoginClient(t testing.TB, client *codersdk.Client, idTokenClai
 	f.SetRedirect(t, coderOauthURL.String())
 
 	cli := f.HTTPClient(client.HTTPClient)
-	shallowCpyCli := &(*cli)
-	shallowCpyCli.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+	cli.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		// Store the idTokenClaims to the specific state request. This ties
 		// the claims 1:1 with a given authentication flow.
 		state := req.URL.Query().Get("state")
@@ -197,17 +236,21 @@ func (f *FakeIDP) LoginClient(t testing.TB, client *codersdk.Client, idTokenClai
 
 	req, err := http.NewRequestWithContext(context.Background(), "GET", coderOauthURL.String(), nil)
 	require.NoError(t, err)
-	if shallowCpyCli.Jar == nil {
-		shallowCpyCli.Jar, err = cookiejar.New(nil)
+	if cli.Jar == nil {
+		cli.Jar, err = cookiejar.New(nil)
 		require.NoError(t, err, "failed to create cookie jar")
 	}
 
-	res, err := shallowCpyCli.Do(req)
+	for _, opt := range opts {
+		opt(req)
+	}
+
+	res, err := cli.Do(req)
 	require.NoError(t, err)
 
 	// If the coder session token exists, return the new authed client!
 	var user *codersdk.Client
-	cookies := shallowCpyCli.Jar.Cookies(client.URL)
+	cookies := cli.Jar.Cookies(client.URL)
 	for _, cookie := range cookies {
 		if cookie.Name == codersdk.SessionTokenCookie {
 			user = codersdk.New(client.URL)
@@ -220,6 +263,7 @@ func (f *FakeIDP) LoginClient(t testing.TB, client *codersdk.Client, idTokenClai
 			res.Body.Close()
 		}
 	})
+
 	return user, res
 }
 
@@ -229,18 +273,7 @@ func (f *FakeIDP) OIDCCallback(t testing.TB, state string, idTokenClaims jwt.Map
 	t.Helper()
 	f.stateToIDTokenClaims.Store(state, idTokenClaims)
 
-	baseCli := http.DefaultClient
-	if f.fakeCoderd != nil {
-		baseCli = &http.Client{
-			Transport: fakeRoundTripper{
-				roundTrip: func(req *http.Request) (*http.Response, error) {
-					return f.fakeCoderd(req)
-				},
-			},
-		}
-	}
-
-	cli := f.HTTPClient(baseCli)
+	cli := f.HTTPClient(nil)
 	u := f.cfg.AuthCodeURL(state)
 	req, err := http.NewRequest("GET", u, nil)
 	require.NoError(t, err)
@@ -408,6 +441,16 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 			http.Error(rw, fmt.Sprintf("invalid token request: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
+		getEmail := func(claims jwt.MapClaims) string {
+			email, ok := claims["email"]
+			if !ok {
+				return "unknown"
+			}
+			if _, ok := email.(string); !ok {
+				return "wrong-type"
+			}
+			return email.(string)
+		}
 
 		var claims jwt.MapClaims
 		switch values.Get("grant_type") {
@@ -444,8 +487,6 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 				http.Error(rw, "invalid refresh_token", http.StatusBadRequest)
 				return
 			}
-			// Always invalidate the refresh token after it is used.
-			f.refreshTokens.Delete(refreshToken)
 
 			idTokenClaims, ok := f.refreshIDTokenClaims.Load(refreshToken)
 			if !ok {
@@ -453,8 +494,17 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 				http.Error(rw, "missing id token claims in refresh", http.StatusBadRequest)
 				return
 			}
+
 			claims = idTokenClaims
+			err := f.hookOnRefresh(getEmail(claims))
+			if err != nil {
+				http.Error(rw, fmt.Sprintf("refresh hook blocked refresh: %s", err.Error()), http.StatusBadRequest)
+				return
+			}
+
 			f.refreshTokensUsed.Store(refreshToken, true)
+			// Always invalidate the refresh token after it is used.
+			f.refreshTokens.Delete(refreshToken)
 		default:
 			t.Errorf("unexpected grant_type %q", values.Get("grant_type"))
 			http.Error(rw, "invalid grant_type", http.StatusBadRequest)
@@ -463,13 +513,10 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 
 		exp := time.Now().Add(time.Minute * 5)
 		claims["exp"] = exp.UnixMilli()
-		email, ok := claims["email"]
-		if !ok || email.(string) == "" {
-			email = "unknown"
-		}
-		refreshToken := f.newRefreshTokens(email.(string))
+		email := getEmail(claims)
+		refreshToken := f.newRefreshTokens(email)
 		token := map[string]interface{}{
-			"access_token":  f.newToken(email.(string)),
+			"access_token":  f.newToken(email),
 			"refresh_token": refreshToken,
 			"token_type":    "Bearer",
 			"expires_in":    int64(time.Minute * 5),
@@ -533,17 +580,26 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 // If no client is passed in, then any regular network requests will fail.
 func (f *FakeIDP) HTTPClient(rest *http.Client) *http.Client {
 	if f.serve {
-		if rest == nil {
-			return http.DefaultClient
+		if rest == nil || rest.Transport == nil {
+			return &http.Client{}
 		}
 		return rest
 	}
+
+	var jar http.CookieJar
+	if rest != nil {
+		jar = rest.Jar
+	}
 	return &http.Client{
+		Jar: jar,
 		Transport: fakeRoundTripper{
 			roundTrip: func(req *http.Request) (*http.Response, error) {
 				u, _ := url.Parse(f.issuer)
 				if req.URL.Host != u.Host {
-					if rest == nil {
+					if f.fakeCoderd != nil {
+						return f.fakeCoderd(req)
+					}
+					if rest == nil || rest.Transport == nil {
 						return nil, fmt.Errorf("unexpected network request to %q", req.URL.Host)
 					}
 					return rest.Transport.RoundTrip(req)
@@ -629,6 +685,9 @@ func (f *FakeIDP) OIDCConfig(t testing.TB, scopes []string, opts ...func(cfg *co
 	}
 
 	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
 		opt(cfg)
 	}
 

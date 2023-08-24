@@ -43,11 +43,10 @@ func (h *LoginHelper) Login(t *testing.T, idTokenClaims jwt.MapClaims) (*codersd
 	t.Helper()
 	unauthenticatedClient := codersdk.New(h.owner.URL)
 
-	return h.fake.LoginClient(t, unauthenticatedClient, idTokenClaims)
+	return h.fake.Login(t, unauthenticatedClient, idTokenClaims)
 }
 
-// ForceRefresh forces the client to refresh its oauth token.
-func (h *LoginHelper) ForceRefresh(t *testing.T, db database.Store, user *codersdk.Client, idToken jwt.MapClaims) (authenticatedCall func(t *testing.T)) {
+func (h *LoginHelper) ExpireOauthToken(t *testing.T, db database.Store, user *codersdk.Client) (refreshToken string) {
 	t.Helper()
 
 	//nolint:gocritic // Testing
@@ -67,10 +66,6 @@ func (h *LoginHelper) ForceRefresh(t *testing.T, db database.Store, user *coders
 	})
 	require.NoError(t, err, "get user link")
 
-	// Updates the claims that the IDP will return. By default, it always
-	// uses the original claims for the original oauth token.
-	h.fake.UpdateRefreshClaims(link.OAuthRefreshToken, idToken)
-
 	// Fetch the oauth link for the given user.
 	_, err = db.UpdateUserLink(ctx, database.UpdateUserLinkParams{
 		OAuthAccessToken:  link.OAuthAccessToken,
@@ -80,15 +75,24 @@ func (h *LoginHelper) ForceRefresh(t *testing.T, db database.Store, user *coders
 		LoginType:         database.LoginTypeOIDC,
 	})
 	require.NoError(t, err, "expire user link")
+
+	return link.OAuthRefreshToken
+}
+
+// ForceRefresh forces the client to refresh its oauth token.
+func (h *LoginHelper) ForceRefresh(t *testing.T, db database.Store, user *codersdk.Client, idToken jwt.MapClaims) {
+	t.Helper()
+
+	refreshToken := h.ExpireOauthToken(t, db, user)
+	// Updates the claims that the IDP will return. By default, it always
+	// uses the original claims for the original oauth token.
+	h.fake.UpdateRefreshClaims(refreshToken, idToken)
+
 	t.Cleanup(func() {
-		require.True(t, h.fake.RefreshUsed(link.OAuthRefreshToken), "refresh token must be used, but has not. Did you forget to call the returned function from this call?")
+		require.True(t, h.fake.RefreshUsed(refreshToken), "refresh token must be used, but has not. Did you forget to call the returned function from this call?")
 	})
 
-	return func(t *testing.T) {
-		t.Helper()
-
-		// Do any authenticated call to force the refresh
-		_, err := user.User(testutil.Context(t, testutil.WaitShort), "me")
-		require.NoError(t, err, "user must be able to be fetched")
-	}
+	// Do any authenticated call to force the refresh
+	_, err := user.User(testutil.Context(t, testutil.WaitShort), "me")
+	require.NoError(t, err, "user must be able to be fetched")
 }

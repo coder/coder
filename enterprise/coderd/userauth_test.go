@@ -49,7 +49,7 @@ func TestUserOIDC(t *testing.T) {
 			// User should be in 0 groups.
 			runner.AssertRoles(t, "alice", []string{})
 			// Force a refresh, and assert nothing has changes
-			runner.ForceRefresh(t, client, claims)(t)
+			runner.ForceRefresh(t, client, claims)
 			runner.AssertRoles(t, "alice", []string{})
 		})
 
@@ -86,7 +86,7 @@ func TestUserOIDC(t *testing.T) {
 			runner.ForceRefresh(t, client, jwt.MapClaims{
 				"email": "alice@coder.com",
 				"roles": []string{"random"},
-			})(t)
+			})
 			runner.AssertRoles(t, "alice", []string{})
 		})
 
@@ -253,7 +253,7 @@ func TestUserOIDC(t *testing.T) {
 			// Refresh without the group claim
 			runner.ForceRefresh(t, client, jwt.MapClaims{
 				"email": "alice@coder.com",
-			})(t)
+			})
 			runner.AssertGroups(t, "alice", []string{})
 		})
 
@@ -355,7 +355,7 @@ func TestUserOIDC(t *testing.T) {
 
 			// Refresh multiple times.
 			for i := 0; i < 3; i++ {
-				runner.ForceRefresh(t, client, claims)(t)
+				runner.ForceRefresh(t, client, claims)
 			}
 		})
 	})
@@ -582,7 +582,7 @@ type oidcTestRunner struct {
 	// expires the oauth token so the next authenticated API call will
 	// trigger a refresh. The returned function is an example of said call.
 	// It just calls the /users/me endpoint to trigger the refresh.
-	ForceRefresh func(t *testing.T, client *codersdk.Client, idToken jwt.MapClaims) func(t *testing.T)
+	ForceRefresh func(t *testing.T, client *codersdk.Client, idToken jwt.MapClaims)
 }
 
 type oidcTestConfig struct {
@@ -668,8 +668,8 @@ func setupOIDCTest(t *testing.T, settings oidcTestConfig) *oidcTestRunner {
 		AdminUser:   admin,
 		API:         api,
 		Login:       helper.Login,
-		ForceRefresh: func(t *testing.T, client *codersdk.Client, idToken jwt.MapClaims) func(t *testing.T) {
-			return helper.ForceRefresh(t, api.Database, client, idToken)
+		ForceRefresh: func(t *testing.T, client *codersdk.Client, idToken jwt.MapClaims) {
+			helper.ForceRefresh(t, api.Database, client, idToken)
 		},
 	}
 }
