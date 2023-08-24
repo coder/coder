@@ -1,10 +1,13 @@
 # Role Based Access Control (RBAC)
 
-Use RBAC to define which users and [groups](./groups.md) can use specific templates in Coder. These can be defined in Coder or [synced from your identity provider](./auth.md)
+Use RBAC to define which users and [groups](./groups.md) can use specific
+templates in Coder. These can be defined in Coder or
+[synced from your identity provider](./auth.md)
 
 ![rbac](../images/template-rbac.png)
 
-The "Everyone" group makes a template accessible to all users. This can be removed to make a template private.
+The "Everyone" group makes a template accessible to all users. This can be
+removed to make a template private.
 
 ## Permissions
 
@@ -15,4 +18,5 @@ You can set the following permissions:
 
 ## Enabling this feature
 
-This feature is only available with an enterprise license. [Learn more](../enterprise.md)
+This feature is only available with an enterprise license.
+[Learn more](../enterprise.md)

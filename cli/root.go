@@ -981,6 +981,8 @@ func (p *prettyErrorFormatter) format(err error) {
 		msg = sdkError.Message
 		if sdkError.Helper != "" {
 			msg = msg + "\n" + sdkError.Helper
+		} else if sdkError.Detail != "" {
+			msg = msg + "\n" + sdkError.Detail
 		}
 		// The SDK error is usually good enough, and we don't want to overwhelm
 		// the user with output.

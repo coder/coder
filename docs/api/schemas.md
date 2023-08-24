@@ -3090,7 +3090,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ## codersdk.JobErrorCode
 
 ```json
-"MISSING_TEMPLATE_PARAMETER"
+"REQUIRED_TEMPLATE_VARIABLES"
 ```
 
 ### Properties
@@ -3099,7 +3099,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Value                         |
 | ----------------------------- |
-| `MISSING_TEMPLATE_PARAMETER`  |
 | `REQUIRED_TEMPLATE_VARIABLES` |
 
 ## codersdk.License
@@ -3628,7 +3627,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "completed_at": "2019-08-24T14:15:22Z",
   "created_at": "2019-08-24T14:15:22Z",
   "error": "string",
-  "error_code": "MISSING_TEMPLATE_PARAMETER",
+  "error_code": "REQUIRED_TEMPLATE_VARIABLES",
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "queue_position": 0,
@@ -3666,7 +3665,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Property     | Value                         |
 | ------------ | ----------------------------- |
-| `error_code` | `MISSING_TEMPLATE_PARAMETER`  |
 | `error_code` | `REQUIRED_TEMPLATE_VARIABLES` |
 | `status`     | `pending`                     |
 | `status`     | `running`                     |
@@ -4658,7 +4656,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
     "error": "string",
-    "error_code": "MISSING_TEMPLATE_PARAMETER",
+    "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "queue_position": 0,
@@ -5371,7 +5369,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "completed_at": "2019-08-24T14:15:22Z",
       "created_at": "2019-08-24T14:15:22Z",
       "error": "string",
-      "error_code": "MISSING_TEMPLATE_PARAMETER",
+      "error_code": "REQUIRED_TEMPLATE_VARIABLES",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "queue_position": 0,
@@ -5978,7 +5976,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
     "error": "string",
-    "error_code": "MISSING_TEMPLATE_PARAMETER",
+    "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "queue_position": 0,
@@ -6505,7 +6503,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "completed_at": "2019-08-24T14:15:22Z",
           "created_at": "2019-08-24T14:15:22Z",
           "error": "string",
-          "error_code": "MISSING_TEMPLATE_PARAMETER",
+          "error_code": "REQUIRED_TEMPLATE_VARIABLES",
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "queue_position": 0,
@@ -7724,6 +7722,65 @@ _None_
 ```json
 {
   "app_security_key": "string",
+  "derp_map": {
+    "homeParams": {
+      "regionScore": {
+        "property1": 0,
+        "property2": 0
+      }
+    },
+    "omitDefaultRegions": true,
+    "regions": {
+      "property1": {
+        "avoid": true,
+        "embeddedRelay": true,
+        "nodes": [
+          {
+            "canPort80": true,
+            "certName": "string",
+            "derpport": 0,
+            "forceHTTP": true,
+            "hostName": "string",
+            "insecureForTests": true,
+            "ipv4": "string",
+            "ipv6": "string",
+            "name": "string",
+            "regionID": 0,
+            "stunonly": true,
+            "stunport": 0,
+            "stuntestIP": "string"
+          }
+        ],
+        "regionCode": "string",
+        "regionID": 0,
+        "regionName": "string"
+      },
+      "property2": {
+        "avoid": true,
+        "embeddedRelay": true,
+        "nodes": [
+          {
+            "canPort80": true,
+            "certName": "string",
+            "derpport": 0,
+            "forceHTTP": true,
+            "hostName": "string",
+            "insecureForTests": true,
+            "ipv4": "string",
+            "ipv6": "string",
+            "name": "string",
+            "regionID": 0,
+            "stunonly": true,
+            "stunport": 0,
+            "stuntestIP": "string"
+          }
+        ],
+        "regionCode": "string",
+        "regionID": 0,
+        "regionName": "string"
+      }
+    }
+  },
   "derp_mesh_key": "string",
   "derp_region_id": 0,
   "sibling_replicas": [
@@ -7745,6 +7802,7 @@ _None_
 | Name               | Type                                          | Required | Restrictions | Description                                                                            |
 | ------------------ | --------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------- |
 | `app_security_key` | string                                        | false    |              |                                                                                        |
+| `derp_map`         | [tailcfg.DERPMap](#tailcfgderpmap)            | false    |              |                                                                                        |
 | `derp_mesh_key`    | string                                        | false    |              |                                                                                        |
 | `derp_region_id`   | integer                                       | false    |              |                                                                                        |
 | `sibling_replicas` | array of [codersdk.Replica](#codersdkreplica) | false    |              | Sibling replicas is a list of all other replicas of the proxy that have not timed out. |

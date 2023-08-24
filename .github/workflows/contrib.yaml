@@ -46,7 +46,8 @@ jobs:
           path-to-document: "https://github.com/coder/cla/blob/main/README.md"
           # branch should not be protected
           branch: "main"
-          allowlist: dependabot*
+          # Some users have signed a corporate CLA with Coder so are exempt from signing our community one.
+          allowlist: "coryb,aaronlehmann,dependabot*"
 
   release-labels:
     runs-on: ubuntu-latest

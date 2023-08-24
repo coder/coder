@@ -8,12 +8,12 @@ These changelogs are currently not kept in sync with GitHub releases. Use [GitHu
 
 Run this command to generate release notes:
 
-```sh
+```shell
 export CODER_IGNORE_MISSING_COMMIT_METADATA=1
 export BRANCH=main
 ./scripts/release/generate_release_notes.sh \
-  --old-version=v2.1.0 \
-  --new-version=v2.1.1 \
+  --old-version=v2.1.2 \
+  --new-version=v2.1.3 \
   --ref=$(git rev-parse --short "${ref:-origin/$BRANCH}") \
-  > ./docs/changelogs/v2.1.1.md
+  > ./docs/changelogs/v2.1.3.md
 ```

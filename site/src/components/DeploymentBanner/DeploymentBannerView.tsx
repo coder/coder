@@ -260,7 +260,7 @@ const useStyles = makeStyles((theme) => ({
     height: bannerHeight,
     bottom: 0,
     zIndex: 1,
-    padding: theme.spacing(1, 2),
+    padding: theme.spacing(0, 2),
     backgroundColor: theme.palette.background.paper,
     display: "flex",
     alignItems: "center",

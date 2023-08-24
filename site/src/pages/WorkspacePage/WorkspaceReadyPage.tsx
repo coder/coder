@@ -111,7 +111,6 @@ export const WorkspaceReadyPage = ({
   useEffect(() => {
     bannerSend({ type: "REFRESH_WORKSPACE", workspace })
   }, [bannerSend, workspace])
-
   return (
     <>
       <Helmet>
@@ -176,7 +175,7 @@ export const WorkspaceReadyPage = ({
         handleChangeVersion={() => {
           setChangeVersionDialogOpen(true)
         }}
-        handleUnlock={() => workspaceSend({ type: "UNLOCK" })}
+        handleDormantActivate={() => workspaceSend({ type: "ACTIVATE" })}
         resources={workspace.latest_build.resources}
         builds={builds}
         canUpdateWorkspace={canUpdateWorkspace}

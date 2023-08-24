@@ -12,7 +12,7 @@ import {
   StopButton,
   RestartButton,
   UpdateButton,
-  UnlockButton,
+  ActivateButton,
 } from "./Buttons"
 import {
   ButtonMapping,
@@ -34,7 +34,7 @@ export interface WorkspaceActionsProps {
   handleCancel: () => void
   handleSettings: () => void
   handleChangeVersion: () => void
-  handleUnlock: () => void
+  handleDormantActivate: () => void
   isUpdating: boolean
   isRestarting: boolean
   children?: ReactNode
@@ -51,7 +51,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   handleCancel,
   handleSettings,
   handleChangeVersion,
-  handleUnlock,
+  handleDormantActivate: handleDormantActivate,
   isUpdating,
   isRestarting,
   canChangeVersions,
@@ -96,9 +96,11 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     [ButtonTypesEnum.canceling]: <DisabledButton label="Canceling..." />,
     [ButtonTypesEnum.deleted]: <DisabledButton label="Deleted" />,
     [ButtonTypesEnum.pending]: <ActionLoadingButton label="Pending..." />,
-    [ButtonTypesEnum.unlock]: <UnlockButton handleAction={handleUnlock} />,
-    [ButtonTypesEnum.unlocking]: (
-      <UnlockButton loading handleAction={handleUnlock} />
+    [ButtonTypesEnum.activate]: (
+      <ActivateButton handleAction={handleDormantActivate} />
+    ),
+    [ButtonTypesEnum.activating]: (
+      <ActivateButton loading handleAction={handleDormantActivate} />
     ),
   }
 

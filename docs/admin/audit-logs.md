@@ -1,7 +1,6 @@
 # Audit Logs
 
-Audit Logs allows **Auditors** to monitor user operations in
-their deployment.
+Audit Logs allows **Auditors** to monitor user operations in their deployment.
 
 ## Tracked Events
 
@@ -27,34 +26,48 @@ We track the following resources:
 
 ## Filtering logs
 
-In the Coder UI you can filter your audit logs using the pre-defined filter or by using the Coder's filter query like the examples below:
+In the Coder UI you can filter your audit logs using the pre-defined filter or
+by using the Coder's filter query like the examples below:
 
 - `resource_type:workspace action:delete` to find deleted workspaces
 - `resource_type:template action:create` to find created templates
 
 The supported filters are:
 
-- `resource_type` - The type of the resource. It can be a workspace, template, user, etc. You can [find here](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#ResourceType) all the resource types that are supported.
+- `resource_type` - The type of the resource. It can be a workspace, template,
+  user, etc. You can
+  [find here](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#ResourceType)
+  all the resource types that are supported.
 - `resource_id` - The ID of the resource.
-- `resource_target` - The name of the resource. Can be used instead of `resource_id`.
-- `action`- The action applied to a resource. You can [find here](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#AuditAction) all the actions that are supported.
-- `username` - The username of the user who triggered the action. You can also use `me` as a convenient alias for the logged-in user.
+- `resource_target` - The name of the resource. Can be used instead of
+  `resource_id`.
+- `action`- The action applied to a resource. You can
+  [find here](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#AuditAction)
+  all the actions that are supported.
+- `username` - The username of the user who triggered the action. You can also
+  use `me` as a convenient alias for the logged-in user.
 - `email` - The email of the user who triggered the action.
 - `date_from` - The inclusive start date with format `YYYY-MM-DD`.
 - `date_to` - The inclusive end date with format `YYYY-MM-DD`.
-- `build_reason` - To be used with `resource_type:workspace_build`, the [initiator](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#BuildReason) behind the build start or stop.
+- `build_reason` - To be used with `resource_type:workspace_build`, the
+  [initiator](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#BuildReason)
+  behind the build start or stop.
 
 ## Capturing/Exporting Audit Logs
 
-In addition to the user interface, there are multiple ways to consume or query audit trails.
+In addition to the user interface, there are multiple ways to consume or query
+audit trails.
 
 ## REST API
 
-Audit logs can be accessed through our REST API. You can find detailed information about this in our [endpoint documentation](../api/audit.md#get-audit-logs).
+Audit logs can be accessed through our REST API. You can find detailed
+information about this in our
+[endpoint documentation](../api/audit.md#get-audit-logs).
 
 ## Service Logs
 
-Audit trails are also dispatched as service logs and can be captured and categorized using any log management tool such as [Splunk](https://splunk.com).
+Audit trails are also dispatched as service logs and can be captured and
+categorized using any log management tool such as [Splunk](https://splunk.com).
 
 Example of a [JSON formatted](../cli/server.md#--log-json) audit log entry:
 
@@ -93,10 +106,11 @@ Example of a [JSON formatted](../cli/server.md#--log-json) audit log entry:
 
 Example of a [human readable](../cli/server.md#--log-human) audit log entry:
 
-```sh
+```console
 2023-06-13 03:43:29.233 [info]  coderd: audit_log  ID=95f7c392-da3e-480c-a579-8909f145fbe2  Time="2023-06-13T03:43:29.230422Z"  UserID=6c405053-27e3-484a-9ad7-bcb64e7bfde6  OrganizationID=00000000-0000-0000-0000-000000000000  Ip=<nil>  UserAgent=<nil>  ResourceType=workspace_build  ResourceID=988ae133-5b73-41e3-a55e-e1e9d3ef0b66  ResourceTarget=""  Action=start  Diff="{}"  StatusCode=200  AdditionalFields="{\"workspace_name\":\"linux-container\",\"build_number\":\"7\",\"build_reason\":\"initiator\",\"workspace_owner\":\"\"}"  RequestID=9682b1b5-7b9f-4bf2-9a39-9463f8e41cd6  ResourceIcon=""
 ```
 
 ## Enabling this feature
 
-This feature is only available with an enterprise license. [Learn more](../enterprise.md)
+This feature is only available with an enterprise license.
+[Learn more](../enterprise.md)

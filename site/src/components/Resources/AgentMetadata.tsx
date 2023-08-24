@@ -33,6 +33,7 @@ const MetadataItem: FC<{ item: WorkspaceAgentMetadata }> = ({ item }) => {
 
   const staleThreshold = Math.max(
     item.description.interval + item.description.timeout * 2,
+    // In case there is intense backpressure, we give a little bit of slack.
     5,
   )
 

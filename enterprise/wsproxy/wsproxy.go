@@ -21,6 +21,7 @@ import (
 	"golang.org/x/xerrors"
 	"tailscale.com/derp"
 	"tailscale.com/derp/derphttp"
+	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 
 	"cdr.dev/slog"
@@ -119,7 +120,8 @@ type Server struct {
 	SDKClient *wsproxysdk.Client
 
 	// DERP
-	derpMesh *derpmesh.Mesh
+	derpMesh      *derpmesh.Mesh
+	latestDERPMap *tailcfg.DERPMap
 
 	// Used for graceful shutdown. Required for the dialer.
 	ctx           context.Context
@@ -239,17 +241,14 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		return nil, xerrors.Errorf("parse app security key: %w", err)
 	}
 
-	connInfo, err := client.SDKClient.WorkspaceAgentConnectionInfoGeneric(ctx)
-	if err != nil {
-		return nil, xerrors.Errorf("get derpmap: %w", err)
-	}
-
 	var agentProvider workspaceapps.AgentProvider
 	if opts.Experiments.Enabled(codersdk.ExperimentSingleTailnet) {
 		stn, err := coderd.NewServerTailnet(ctx,
 			s.Logger,
 			nil,
-			connInfo.DERPMap,
+			func() *tailcfg.DERPMap {
+				return s.latestDERPMap
+			},
 			s.DialCoordinator,
 			wsconncache.New(s.DialWorkspaceAgent, 0),
 			s.TracerProvider,
@@ -455,6 +454,8 @@ func (s *Server) handleRegister(_ context.Context, res wsproxysdk.RegisterWorksp
 		addresses[i] = replica.RelayAddress
 	}
 	s.derpMesh.SetAddresses(addresses, false)
+
+	s.latestDERPMap = res.DERPMap
 
 	return nil
 }
