@@ -67,7 +67,7 @@
         "display_name": "app3",
         "slug": "app3",
         "icon": "/icon2.png",
-        "seconds": 900
+        "seconds": 4500
       },
       {
         "template_ids": [

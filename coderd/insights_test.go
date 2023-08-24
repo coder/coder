@@ -1165,7 +1165,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 			},
 			users[1].workspaces[0]: {
 				agentStats: []agentStat{
-					{ // One hour of usage before timeframe (exclude).
+					{ // One hour of agent usage before timeframe (exclude).
 						startedAt:          frozenWeekAgo.Add(-time.Hour),
 						endedAt:            frozenWeekAgo,
 						sessionCountVSCode: 1,
@@ -1176,14 +1176,27 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						endedAt:         frozenWeekAgo.Add(time.Hour),
 						sessionCountSSH: 1,
 					},
-					{ // One hour of usage after timeframe (exclude in UTC, include in São Paulo).
+					{ // One hour of agent usage after timeframe (exclude in UTC, include in São Paulo).
 						startedAt:          frozenWeekAgo.AddDate(0, 0, 7),
 						endedAt:            frozenWeekAgo.AddDate(0, 0, 7).Add(time.Hour),
 						sessionCountVSCode: 1,
 						sessionCountSSH:    1,
 					},
 				},
-				appUsage: []appUsage{},
+				appUsage: []appUsage{
+					{ // One hour of app usage before timeframe (exclude).
+						app:       users[1].workspaces[0].apps[2],
+						startedAt: frozenWeekAgo.Add(-time.Hour),
+						endedAt:   frozenWeekAgo,
+						requests:  1,
+					},
+					{ // One hour of app usage after timeframe (exclude in UTC, include in São Paulo).
+						app:       users[1].workspaces[0].apps[2],
+						startedAt: frozenWeekAgo.AddDate(0, 0, 7),
+						endedAt:   frozenWeekAgo.AddDate(0, 0, 7).Add(time.Hour),
+						requests:  1,
+					},
+				},
 			},
 			users[2].workspaces[0]: {
 				agentStats: []agentStat{
@@ -1201,7 +1214,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						endedAt:   frozenWeekAgo.AddDate(0, 0, 2).Add(5 * time.Minute),
 						requests:  1,
 					},
-					{ // Excluded from apps, but counted as active during the day.
+					{ // Special app; excluded from apps, but counted as active during the day.
 						app:       users[2].workspaces[0].apps[1],
 						startedAt: frozenWeekAgo.AddDate(0, 0, 3),
 						endedAt:   frozenWeekAgo.AddDate(0, 0, 3).Add(5 * time.Minute),
