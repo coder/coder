@@ -766,7 +766,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Update workspace dormancy status by id.
-// @ID update-workspace-lock-by-id
+// @ID update-workspace-dormancy-status-by-id
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
