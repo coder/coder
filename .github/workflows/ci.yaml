@@ -457,7 +457,6 @@ jobs:
 
   test-js:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
-    container: codercom/oss-dogfood:latest
     needs: changes
     if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 20
@@ -467,11 +466,14 @@ jobs:
         with:
           fetch-depth: 1
 
-      - run: pnpm install
-        working-directory: site
+      - name: Setip Nix
+        uses: ./.github/actions/setup-nix
 
-      - run: pnpm test:ci --max-workers $(nproc)
-        working-directory: site
+      - name: Setup Node
+        run: nix-shell --command 'pnpm install'
+
+      - name: Run tests
+        run: nix-shell --command 'pnpm test:ci --max-workers $(nproc)'
 
       - name: Check code coverage
         uses: codecov/codecov-action@v3
@@ -488,7 +490,6 @@ jobs:
 
   test-e2e:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
-    container: codercom/oss-dogfood:latest
     needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 20
@@ -498,16 +499,22 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Setup Nix
+        uses: ./.github/actions/setup-nix
+
+      - name: Setup Node
+        run: nix-shell --command 'cd site && pnpm install'
+
       - name: Build
-        run: make -B site/out/index.html
+        run: nix-shell --command 'make -B site/out/index.html'
 
-      - run: pnpm playwright:install
-        working-directory: site
+      - name: Playwright install
+        run: nix-shell --comand 'cd site && pnpm playwright:install'
 
-      - run: pnpm playwright:test
+      - name: Playwright test
+        run: nix-shell --command 'cd site && pnpm playwright:test'
         env:
           DEBUG: pw:api
-        working-directory: site
 
       - name: Upload Playwright Failed Tests
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
