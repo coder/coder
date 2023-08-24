@@ -760,13 +760,13 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						sessionCountVSCode: 1,
 						sessionCountSSH:    1,
 					},
-					{ // 12 minutes of usage -> 15 minutes.
+					{ // 12 minutes of usage.
 						startedAt:       frozenWeekAgo.AddDate(0, 0, 1),
 						endedAt:         frozenWeekAgo.AddDate(0, 0, 1).Add(12 * time.Minute),
 						sessionCountSSH: 1,
 					},
-					{ // 2 minutes of usage -> 10 minutes because it crosses the 5 minute interval boundary.
-						startedAt:             frozenWeekAgo.AddDate(0, 0, 2).Add(4 * time.Minute),
+					{ // 1m30s of usage -> 2m rounded.
+						startedAt:             frozenWeekAgo.AddDate(0, 0, 2).Add(4*time.Minute + 30*time.Second),
 						endedAt:               frozenWeekAgo.AddDate(0, 0, 2).Add(6 * time.Minute),
 						sessionCountJetBrains: 1,
 					},

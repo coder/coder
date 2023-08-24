@@ -31,7 +31,7 @@
         "display_name": "JetBrains",
         "slug": "jetbrains",
         "icon": "/icon/intellij.svg",
-        "seconds": 600
+        "seconds": 120
       },
       {
         "template_ids": [
@@ -55,7 +55,7 @@
         "display_name": "SSH",
         "slug": "ssh",
         "icon": "/icon/terminal.svg",
-        "seconds": 11700
+        "seconds": 11520
       },
       {
         "template_ids": [
