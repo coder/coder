@@ -190,7 +190,7 @@ const BatchDeleteConfirmation = ({
   const confirmDeletion = async () => {
     setConfirmError(false)
 
-    if (confirmValue.toLowerCase() !== "delete") {
+    if (confirmValue !== "DELETE") {
       setConfirmError(true)
       return
     }
