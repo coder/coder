@@ -200,6 +200,7 @@ func TestNew(t *testing.T) {
 		rawVal, err := rawDB.GetDBCryptSentinelValue(ctx)
 		require.NoError(t, err)
 		require.Contains(t, rawVal, dbcrypt.MagicPrefix)
+		requireEncryptedEquals(t, cipher, rawVal, "coder")
 	})
 
 	t.Run("NoCipher", func(t *testing.T) {
@@ -264,8 +265,9 @@ func requireEncryptedEquals(t *testing.T, cipher *atomic.Pointer[dbcrypt.Cipher]
 	t.Helper()
 	c := (*cipher.Load())
 	require.NotNil(t, c)
-	require.Greater(t, len(value), len(dbcrypt.MagicPrefix), "value is not encrypted")
-	data, err := base64.StdEncoding.DecodeString(value[len(dbcrypt.MagicPrefix):])
+	require.Greater(t, len(value), 16, "value is not encrypted")
+	require.Contains(t, value, dbcrypt.MagicPrefix+c.HexDigest()[:7]+"-")
+	data, err := base64.StdEncoding.DecodeString(value[16:])
 	require.NoError(t, err)
 	got, err := c.Decrypt(data)
 	require.NoError(t, err)

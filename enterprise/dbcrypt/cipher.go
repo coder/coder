@@ -4,8 +4,8 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
-	"database/sql"
-	"errors"
+	"crypto/sha256"
+	"fmt"
 	"io"
 
 	"golang.org/x/xerrors"
@@ -14,25 +14,7 @@ import (
 type Cipher interface {
 	Encrypt([]byte) ([]byte, error)
 	Decrypt([]byte) ([]byte, error)
-}
-
-// DecryptFailedError is returned when decryption fails.
-// It unwraps to sql.ErrNoRows.
-type DecryptFailedError struct {
-	Inner error
-}
-
-func (e *DecryptFailedError) Error() string {
-	return xerrors.Errorf("decrypt failed: %w", e.Inner).Error()
-}
-
-func (*DecryptFailedError) Unwrap() error {
-	return sql.ErrNoRows
-}
-
-func IsDecryptFailedError(err error) bool {
-	var e *DecryptFailedError
-	return errors.As(err, &e)
+	HexDigest() string
 }
 
 // CipherAES256 returns a new AES-256 cipher.
@@ -48,11 +30,13 @@ func CipherAES256(key []byte) (Cipher, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &aes256{aead}, nil
+	digest := sha256.Sum256(key)
+	return &aes256{aead: aead, digest: digest[:]}, nil
 }
 
 type aes256 struct {
-	aead cipher.AEAD
+	aead   cipher.AEAD
+	digest []byte
 }
 
 func (a *aes256) Encrypt(plaintext []byte) ([]byte, error) {
@@ -73,4 +57,8 @@ func (a *aes256) Decrypt(ciphertext []byte) ([]byte, error) {
 		return nil, &DecryptFailedError{Inner: err}
 	}
 	return decrypted, nil
+}
+
+func (a *aes256) HexDigest() string {
+	return fmt.Sprintf("%x", a.digest)
 }

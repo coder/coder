@@ -1,3 +1,21 @@
+// Package dbcrypt provides a database.Store wrapper that encrypts/decrypts
+// values stored at rest in the database.
+//
+// Encryption is done using a Cipher. The Cipher is stored in an atomic pointer
+// so that it can be rotated as required.
+//
+// The Cipher is currently used to encrypt/decrypt the following fields:
+// - database.UserLink.OAuthAccessToken
+// - database.UserLink.OAuthRefreshToken
+// - database.GitAuthLink.OAuthAccessToken
+// - database.GitAuthLink.OAuthRefreshToken
+// - database.DBCryptSentinelValue
+//
+// Encrypted fields are stored in the following format:
+// "dbcrypt-<first 7 characters of cipher's SHA256 digest>-<base64-encoded encrypted value>"
+//
+// The first 7 characters of the cipher's SHA256 digest are used to identify the cipher
+// used to encrypt the value.
 package dbcrypt
 
 import (
@@ -19,14 +37,46 @@ import (
 // MagicPrefix is prepended to all encrypted values in the database.
 // This is used to determine if a value is encrypted or not.
 // If it is encrypted but a key is not provided, an error is returned.
+// MagicPrefix will be followed by the first 7 characters of the cipher's
+// SHA256 digest, followed by a dash, followed by the base64-encoded
+// encrypted value.
 const MagicPrefix = "dbcrypt-"
 
+// MagicPrefixLength is the length of the entire prefix used to identify
+// encrypted values.
+const MagicPrefixLength = len(MagicPrefix) + 8
+
 // sentinelValue is the value that is stored in the database to indicate
-// whether encryption is enabled. If not enabled, the raw value is "coder".
-// Otherwise, the value is encrypted.
+// whether encryption is enabled. If not enabled, the value either not
+// present, or is the raw string "coder".
+// Otherwise, the value must be the encrypted value of the string "coder"
+// using the current cipher.
 const sentinelValue = "coder"
 
-var ErrNotEnabled = xerrors.New("encryption is not enabled")
+var (
+	ErrNotEnabled = xerrors.New("encryption is not enabled")
+	b64encode     = base64.StdEncoding.EncodeToString
+	b64decode     = base64.StdEncoding.DecodeString
+)
+
+// DecryptFailedError is returned when decryption fails.
+// It unwraps to sql.ErrNoRows.
+type DecryptFailedError struct {
+	Inner error
+}
+
+func (e *DecryptFailedError) Error() string {
+	return xerrors.Errorf("decrypt failed: %w", e.Inner).Error()
+}
+
+func (*DecryptFailedError) Unwrap() error {
+	return sql.ErrNoRows
+}
+
+func IsDecryptFailedError(err error) bool {
+	var e *DecryptFailedError
+	return errors.As(err, &e)
+}
 
 type Options struct {
 	// ExternalTokenCipher is an optional cipher that is used
@@ -152,7 +202,7 @@ func (db *dbCrypt) encryptFields(fields ...*string) error {
 			return err
 		}
 		// Base64 is used to support UTF-8 encoding in PostgreSQL.
-		*field = MagicPrefix + base64.StdEncoding.EncodeToString(encrypted)
+		*field = MagicPrefix + cipher.HexDigest()[:7] + "-" + b64encode(encrypted)
 	}
 	return nil
 }
@@ -181,15 +231,27 @@ func (db *dbCrypt) decryptFields(fields ...*string) error {
 		if field == nil {
 			continue
 		}
-		if len(*field) < len(MagicPrefix) || !strings.HasPrefix(*field, MagicPrefix) {
+
+		if len(*field) < 16 || !strings.HasPrefix(*field, MagicPrefix) {
 			// We do not force decryption of unencrypted rows. This could be damaging
 			// to the deployment, and admins can always manually purge data.
 			continue
 		}
-		data, err := base64.StdEncoding.DecodeString((*field)[len(MagicPrefix):])
+
+		// The first 7 characters of the digest are used to identify the cipher.
+		// If the cipher changes, we should complain loudly.
+		encPrefix := cipher.HexDigest()[:7]
+		if !strings.HasPrefix((*field)[8:15], encPrefix) {
+			return &DecryptFailedError{
+				Inner: xerrors.Errorf("cipher mismatch: expected %q, got %q", encPrefix, (*field)[8:15]),
+			}
+		}
+		data, err := b64decode((*field)[16:])
 		if err != nil {
 			// If it's not base64 with the prefix, we should complain loudly.
-			return xerrors.Errorf("malformed encrypted field %q: %w", *field, err)
+			return &DecryptFailedError{
+				Inner: xerrors.Errorf("malformed encrypted field %q: %w", *field, err),
+			}
 		}
 		decrypted, err := cipher.Decrypt(data)
 		if err != nil {
@@ -211,8 +273,7 @@ func ensureEncrypted(ctx context.Context, dbc *dbCrypt) error {
 		}
 
 		if val != "" && val != sentinelValue {
-			// TODO: Handle key rotation.
-			return xerrors.Errorf("database is already encrypted with a different key and key rotation is not implemented yet")
+			return xerrors.Errorf("database is already encrypted with a different key")
 		}
 
 		if val == sentinelValue {
