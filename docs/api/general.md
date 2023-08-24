@@ -168,6 +168,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "derp": {
       "config": {
         "block_direct": true,
+        "force_websockets": true,
         "path": "string",
         "url": "string"
       },

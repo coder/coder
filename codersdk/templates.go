@@ -44,12 +44,12 @@ type Template struct {
 	AllowUserAutostop            bool `json:"allow_user_autostop"`
 	AllowUserCancelWorkspaceJobs bool `json:"allow_user_cancel_workspace_jobs"`
 
-	// FailureTTLMillis, InactivityTTLMillis, and LockedTTLMillis are enterprise-only. Their
+	// FailureTTLMillis, TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their
 	// values are used if your license is entitled to use the advanced
 	// template scheduling feature.
-	FailureTTLMillis    int64 `json:"failure_ttl_ms"`
-	InactivityTTLMillis int64 `json:"inactivity_ttl_ms"`
-	LockedTTLMillis     int64 `json:"locked_ttl_ms"`
+	FailureTTLMillis               int64 `json:"failure_ttl_ms"`
+	TimeTilDormantMillis           int64 `json:"time_til_dormant_ms"`
+	TimeTilDormantAutoDeleteMillis int64 `json:"time_til_dormant_autodelete_ms"`
 }
 
 // WeekdaysToBitmap converts a list of weekdays to a bitmap in accordance with
@@ -185,22 +185,22 @@ type UpdateTemplateMeta struct {
 	// RestartRequirement can only be set if your license includes the advanced
 	// template scheduling feature. If you attempt to set this value while
 	// unlicensed, it will be ignored.
-	RestartRequirement           *TemplateRestartRequirement `json:"restart_requirement,omitempty"`
-	AllowUserAutostart           bool                        `json:"allow_user_autostart,omitempty"`
-	AllowUserAutostop            bool                        `json:"allow_user_autostop,omitempty"`
-	AllowUserCancelWorkspaceJobs bool                        `json:"allow_user_cancel_workspace_jobs,omitempty"`
-	FailureTTLMillis             int64                       `json:"failure_ttl_ms,omitempty"`
-	InactivityTTLMillis          int64                       `json:"inactivity_ttl_ms,omitempty"`
-	LockedTTLMillis              int64                       `json:"locked_ttl_ms,omitempty"`
+	RestartRequirement             *TemplateRestartRequirement `json:"restart_requirement,omitempty"`
+	AllowUserAutostart             bool                        `json:"allow_user_autostart,omitempty"`
+	AllowUserAutostop              bool                        `json:"allow_user_autostop,omitempty"`
+	AllowUserCancelWorkspaceJobs   bool                        `json:"allow_user_cancel_workspace_jobs,omitempty"`
+	FailureTTLMillis               int64                       `json:"failure_ttl_ms,omitempty"`
+	TimeTilDormantMillis           int64                       `json:"time_til_dormant_ms,omitempty"`
+	TimeTilDormantAutoDeleteMillis int64                       `json:"time_til_dormant_autodelete_ms,omitempty"`
 	// UpdateWorkspaceLastUsedAt updates the last_used_at field of workspaces
 	// spawned from the template. This is useful for preventing workspaces being
 	// immediately locked when updating the inactivity_ttl field to a new, shorter
 	// value.
 	UpdateWorkspaceLastUsedAt bool `json:"update_workspace_last_used_at"`
-	// UpdateWorkspaceLockedAt updates the locked_at field of workspaces spawned
-	// from the template. This is useful for preventing locked workspaces being immediately
-	// deleted when updating the locked_ttl field to a new, shorter value.
-	UpdateWorkspaceLockedAt bool `json:"update_workspace_locked_at"`
+	// UpdateWorkspaceDormant updates the dormant_at field of workspaces spawned
+	// from the template. This is useful for preventing dormant workspaces being immediately
+	// deleted when updating the dormant_ttl field to a new, shorter value.
+	UpdateWorkspaceDormantAt bool `json:"update_workspace_dormant_at"`
 }
 
 type TemplateExample struct {

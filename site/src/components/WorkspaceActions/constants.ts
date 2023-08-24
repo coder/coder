@@ -34,7 +34,7 @@ export const actionsByWorkspaceStatus = (
   workspace: Workspace,
   status: WorkspaceStatus,
 ): WorkspaceAbilities => {
-  if (workspace.locked_at) {
+  if (workspace.dormant_at) {
     return {
       actions: [ButtonTypesEnum.activate],
       canCancel: false,

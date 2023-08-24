@@ -26,8 +26,8 @@ func AllResources() []Object {
 		ResourceWorkspace,
 		ResourceWorkspaceApplicationConnect,
 		ResourceWorkspaceBuild,
+		ResourceWorkspaceDormant,
 		ResourceWorkspaceExecution,
-		ResourceWorkspaceLocked,
 		ResourceWorkspaceProxy,
 	}
 }

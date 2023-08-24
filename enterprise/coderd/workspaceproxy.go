@@ -717,11 +717,12 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 
 	// aReq.New = updatedProxy
 	httpapi.Write(ctx, rw, http.StatusCreated, wsproxysdk.RegisterWorkspaceProxyResponse{
-		AppSecurityKey:  api.AppSecurityKey.String(),
-		DERPMeshKey:     api.DERPServer.MeshKey(),
-		DERPRegionID:    regionID,
-		DERPMap:         api.AGPL.DERPMap(),
-		SiblingReplicas: siblingsRes,
+		AppSecurityKey:      api.AppSecurityKey.String(),
+		DERPMeshKey:         api.DERPServer.MeshKey(),
+		DERPRegionID:        regionID,
+		DERPMap:             api.AGPL.DERPMap(),
+		DERPForceWebSockets: api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
+		SiblingReplicas:     siblingsRes,
 	})
 
 	go api.forceWorkspaceProxyHealthUpdate(api.ctx)

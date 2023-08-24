@@ -118,6 +118,16 @@ Path to read a DERP mapping from. See: https://tailscale.com/kb/1118/custom-derp
 
 URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custom-derp-servers/.
 
+### --derp-force-websockets
+
+|             |                                              |
+| ----------- | -------------------------------------------- |
+| Type        | <code>bool</code>                            |
+| Environment | <code>$CODER_DERP_FORCE_WEBSOCKETS</code>    |
+| YAML        | <code>networking.derp.forceWebSockets</code> |
+
+Force clients and agents to always use WebSocket to connect to DERP relay servers. By default, DERP uses `Upgrade: derp`, which may cause issues with some reverse proxies. Clients may automatically fallback to WebSocket if they detect an issue with `Upgrade: derp`, but this does not work in all situations.
+
 ### --derp-server-enable
 
 |             |                                        |
