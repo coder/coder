@@ -13,6 +13,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 )
 
 // MagicPrefix is prepended to all encrypted values in the database.
@@ -25,7 +26,7 @@ const MagicPrefix = "dbcrypt-"
 // Otherwise, the value is encrypted.
 const sentinelValue = "coder"
 
-var ErrNotEncrypted = xerrors.New("database is not encrypted")
+var ErrNotEnabled = xerrors.New("encryption is not enabled")
 
 type Options struct {
 	// ExternalTokenCipher is an optional cipher that is used
@@ -37,11 +38,15 @@ type Options struct {
 
 // New creates a database.Store wrapper that encrypts/decrypts values
 // stored at rest in the database.
-func New(db database.Store, options *Options) database.Store {
-	return &dbCrypt{
+func New(ctx context.Context, db database.Store, options *Options) (database.Store, error) {
+	dbc := &dbCrypt{
 		Options: options,
 		Store:   db,
 	}
+	if err := ensureEncrypted(dbauthz.AsSystemRestricted(ctx), dbc); err != nil {
+		return nil, xerrors.Errorf("ensure encrypted database fields: %w", err)
+	}
+	return dbc, nil
 }
 
 type dbCrypt struct {
@@ -61,13 +66,7 @@ func (db *dbCrypt) InTx(function func(database.Store) error, txOpts *sql.TxOptio
 func (db *dbCrypt) GetDBCryptSentinelValue(ctx context.Context) (string, error) {
 	rawValue, err := db.Store.GetDBCryptSentinelValue(ctx)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return "", ErrNotEncrypted
-		}
 		return "", err
-	}
-	if rawValue == sentinelValue {
-		return "", ErrNotEncrypted
 	}
 	return rawValue, db.decryptFields(&rawValue)
 }
@@ -171,7 +170,7 @@ func (db *dbCrypt) decryptFields(fields ...*string) error {
 			if strings.HasPrefix(*field, MagicPrefix) {
 				// If we have a magic prefix but encryption is disabled,
 				// complain loudly.
-				return xerrors.Errorf("failed to decrypt field %q: encryption is disabled", *field)
+				return xerrors.Errorf("failed to decrypt field %q: %w", *field, ErrNotEnabled)
 			}
 		}
 		return nil
@@ -183,7 +182,7 @@ func (db *dbCrypt) decryptFields(fields ...*string) error {
 			continue
 		}
 		if len(*field) < len(MagicPrefix) || !strings.HasPrefix(*field, MagicPrefix) {
-			// We do not force encryption of unencrypted rows. This could be damaging
+			// We do not force decryption of unencrypted rows. This could be damaging
 			// to the deployment, and admins can always manually purge data.
 			continue
 		}
@@ -200,4 +199,30 @@ func (db *dbCrypt) decryptFields(fields ...*string) error {
 		*field = string(decrypted)
 	}
 	return nil
+}
+
+func ensureEncrypted(ctx context.Context, dbc *dbCrypt) error {
+	return dbc.InTx(func(s database.Store) error {
+		val, err := s.GetDBCryptSentinelValue(ctx)
+		if err != nil {
+			if !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
+		}
+
+		if val != "" && val != sentinelValue {
+			// TODO: Handle key rotation.
+			return xerrors.Errorf("database is already encrypted with a different key and key rotation is not implemented yet")
+		}
+
+		if val == sentinelValue {
+			return nil // nothing to do!
+		}
+
+		if err := s.SetDBCryptSentinelValue(ctx, sentinelValue); err != nil {
+			return xerrors.Errorf("mark database as encrypted: %w", err)
+		}
+
+		return nil
+	}, nil)
 }

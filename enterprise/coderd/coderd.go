@@ -65,9 +65,14 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	ctx, cancelFunc := context.WithCancel(ctx)
 
 	externalTokenCipher := &atomic.Pointer[dbcrypt.Cipher]{}
-	options.Database = dbcrypt.New(options.Database, &dbcrypt.Options{
+	cryptDB, err := dbcrypt.New(ctx, options.Database, &dbcrypt.Options{
 		ExternalTokenCipher: externalTokenCipher,
 	})
+	if err != nil {
+		cancelFunc()
+		return nil, xerrors.Errorf("init dbcrypt: %w", err)
+	}
+	options.Database = cryptDB
 
 	api := &API{
 		ctx:                 ctx,
