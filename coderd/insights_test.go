@@ -676,6 +676,16 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					app := workspaceApp(app)
 					workspace.apps = append(workspace.apps, &app)
 				}
+				for _, bp := range workspace.buildParameters {
+					foundBuildParam := false
+					for _, param := range workspace.template.parameters {
+						if bp.templateParameter == param {
+							foundBuildParam = true
+							break
+						}
+					}
+					require.True(t, foundBuildParam, "test bug: parameter not in workspace %s template %q", workspace.name, workspace.template.name)
+				}
 			}
 		}
 
@@ -1019,10 +1029,9 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						name:     "workspace2",
 						template: templates[1],
 						buildParameters: []buildParameter{
-							{templateParameter: templates[0].parameters[0], value: "ABC"},
-							{templateParameter: templates[0].parameters[1], value: "123"},
-							{templateParameter: templates[0].parameters[2], value: "BBB"},
-							{templateParameter: templates[0].parameters[3], value: "option2"},
+							{templateParameter: templates[1].parameters[0], value: "ABC"},
+							{templateParameter: templates[1].parameters[1], value: "123"},
+							{templateParameter: templates[1].parameters[2], value: "BBB"},
 						},
 					},
 					{
