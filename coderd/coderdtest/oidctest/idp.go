@@ -559,7 +559,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 			"access_token":  f.newToken(email),
 			"refresh_token": refreshToken,
 			"token_type":    "Bearer",
-			"expires_in":    int64(time.Minute * 5),
+			"expires_in":    int64((time.Minute * 5).Seconds()),
 			"id_token":      f.encodeClaims(t, claims),
 		}
 		// Store the claims for the next refresh
