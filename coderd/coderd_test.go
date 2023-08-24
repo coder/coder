@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"flag"
 	"io"
 	"net/http"
 	"net/netip"
@@ -22,6 +23,9 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
 )
+
+// updateGoldenFiles is a flag that can be set to update golden files.
+var updateGoldenFiles = flag.Bool("update", false, "Update golden files")
 
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)

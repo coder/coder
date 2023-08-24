@@ -241,8 +241,9 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		changed = false
 	)
 	if key.LoginType == database.LoginTypeGithub || key.LoginType == database.LoginTypeOIDC {
+		var err error
 		//nolint:gocritic // System needs to fetch UserLink to check if it's valid.
-		link, err := cfg.DB.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(ctx), database.GetUserLinkByUserIDLoginTypeParams{
+		link, err = cfg.DB.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(ctx), database.GetUserLinkByUserIDLoginTypeParams{
 			UserID:    key.UserID,
 			LoginType: key.LoginType,
 		})
