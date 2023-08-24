@@ -44,7 +44,6 @@ export interface WorkspacesPageViewProps {
   filterProps: ComponentProps<typeof WorkspacesFilter>
   page: number
   limit: number
-  isWorkspaceBatchActionsEnabled?: boolean
   onPageChange: (page: number) => void
   onUpdateWorkspace: (workspace: Workspace) => void
   onCheckChange: (checkedWorkspaces: Workspace[]) => void
@@ -64,7 +63,6 @@ export const WorkspacesPageView: FC<
   onUpdateWorkspace,
   page,
   checkedWorkspaces,
-  isWorkspaceBatchActionsEnabled,
   onCheckChange,
   onDeleteAll,
 }) => {
@@ -151,7 +149,6 @@ export const WorkspacesPageView: FC<
         onUpdateWorkspace={onUpdateWorkspace}
         checkedWorkspaces={checkedWorkspaces}
         onCheckChange={onCheckChange}
-        isWorkspaceBatchActionsEnabled={isWorkspaceBatchActionsEnabled}
       />
       {count !== undefined && (
         <PaginationWidgetBase

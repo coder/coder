@@ -8,7 +8,10 @@ import { Workspace } from "api/typesGenerated"
 import { FC, ReactNode } from "react"
 import { TableEmpty } from "components/TableEmpty/TableEmpty"
 import { useTranslation } from "react-i18next"
-import { TableLoaderSkeleton } from "components/TableLoader/TableLoader"
+import {
+  TableLoaderSkeleton,
+  TableRowSkeleton,
+} from "components/TableLoader/TableLoader"
 import AddOutlined from "@mui/icons-material/AddOutlined"
 import Button from "@mui/material/Button"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
@@ -32,13 +35,14 @@ import { WorkspaceOutdatedTooltip } from "components/Tooltips"
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
 import { getDisplayWorkspaceTemplateName } from "utils/workspace"
 import Checkbox from "@mui/material/Checkbox"
+import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton"
+import Skeleton from "@mui/material/Skeleton"
 
 export interface WorkspacesTableProps {
   workspaces?: Workspace[]
   checkedWorkspaces: Workspace[]
   error?: unknown
   isUsingFilter: boolean
-  isWorkspaceBatchActionsEnabled?: boolean
   onUpdateWorkspace: (workspace: Workspace) => void
   onCheckChange: (checkedWorkspaces: Workspace[]) => void
 }
@@ -47,7 +51,6 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
   workspaces,
   checkedWorkspaces,
   isUsingFilter,
-  isWorkspaceBatchActionsEnabled,
   onUpdateWorkspace,
   onCheckChange,
 }) => {
@@ -59,37 +62,32 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
       <Table>
         <TableHead>
           <TableRow>
-            {isWorkspaceBatchActionsEnabled ? (
-              <TableCell
-                width="40%"
-                sx={{
-                  paddingLeft: (theme) => `${theme.spacing(1.5)} !important`,
-                }}
-              >
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <Checkbox
-                    disabled={!workspaces || workspaces.length === 0}
-                    checked={checkedWorkspaces.length === workspaces?.length}
-                    size="small"
-                    onChange={(_, checked) => {
-                      if (!workspaces) {
-                        return
-                      }
+            <TableCell
+              width="40%"
+              sx={{
+                paddingLeft: (theme) => `${theme.spacing(1.5)} !important`,
+              }}
+            >
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Checkbox
+                  disabled={!workspaces || workspaces.length === 0}
+                  checked={checkedWorkspaces.length === workspaces?.length}
+                  size="small"
+                  onChange={(_, checked) => {
+                    if (!workspaces) {
+                      return
+                    }
 
-                      if (!checked) {
-                        onCheckChange([])
-                      } else {
-                        onCheckChange(workspaces)
-                      }
-                    }}
-                  />
-                  Name
-                </Box>
-              </TableCell>
-            ) : (
-              <TableCell width="40%">Name</TableCell>
-            )}
-
+                    if (!checked) {
+                      onCheckChange([])
+                    } else {
+                      onCheckChange(workspaces)
+                    }
+                  }}
+                />
+                Name
+              </Box>
+            </TableCell>
             <TableCell width="25%">Template</TableCell>
             <TableCell width="20%">Last used</TableCell>
             <TableCell width="15%">Status</TableCell>
@@ -97,7 +95,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
           </TableRow>
         </TableHead>
         <TableBody>
-          {!workspaces && <TableLoaderSkeleton columns={5} useAvatarData />}
+          {!workspaces && <TableLoader />}
           {workspaces && workspaces.length === 0 && (
             <ChooseOne>
               <Cond condition={isUsingFilter}>
@@ -142,34 +140,30 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                   <TableCell
                     sx={{
                       paddingLeft: (theme) =>
-                        isWorkspaceBatchActionsEnabled
-                          ? `${theme.spacing(1.5)} !important`
-                          : undefined,
+                        `${theme.spacing(1.5)} !important`,
                     }}
                   >
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      {isWorkspaceBatchActionsEnabled && (
-                        <Checkbox
-                          data-testid={`checkbox-${workspace.id}`}
-                          size="small"
-                          disabled={cantBeChecked(workspace)}
-                          checked={checked}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                          }}
-                          onChange={(e) => {
-                            if (e.currentTarget.checked) {
-                              onCheckChange([...checkedWorkspaces, workspace])
-                            } else {
-                              onCheckChange(
-                                checkedWorkspaces.filter(
-                                  (w) => w.id !== workspace.id,
-                                ),
-                              )
-                            }
-                          }}
-                        />
-                      )}
+                      <Checkbox
+                        data-testid={`checkbox-${workspace.id}`}
+                        size="small"
+                        disabled={cantBeChecked(workspace)}
+                        checked={checked}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                        }}
+                        onChange={(e) => {
+                          if (e.currentTarget.checked) {
+                            onCheckChange([...checkedWorkspaces, workspace])
+                          } else {
+                            onCheckChange(
+                              checkedWorkspaces.filter(
+                                (w) => w.id !== workspace.id,
+                              ),
+                            )
+                          }
+                        }}
+                      />
                       <AvatarData
                         title={
                           <Stack
@@ -286,6 +280,38 @@ export const UnhealthyTooltip = () => {
         Your workspace is running but some agents are unhealthy.
       </HelpTooltipText>
     </HelpTooltip>
+  )
+}
+
+const TableLoader = () => {
+  return (
+    <TableLoaderSkeleton>
+      <TableRowSkeleton>
+        <TableCell
+          width="40%"
+          sx={{
+            paddingLeft: (theme) => `${theme.spacing(1.5)} !important`,
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Checkbox size="small" disabled />
+            <AvatarDataSkeleton />
+          </Box>
+        </TableCell>
+        <TableCell>
+          <Skeleton variant="text" width="25%" />
+        </TableCell>
+        <TableCell>
+          <Skeleton variant="text" width="25%" />
+        </TableCell>
+        <TableCell>
+          <Skeleton variant="text" width="25%" />
+        </TableCell>
+        <TableCell>
+          <Skeleton variant="text" width="25%" />
+        </TableCell>
+      </TableRowSkeleton>
+    </TableLoaderSkeleton>
   )
 }
 

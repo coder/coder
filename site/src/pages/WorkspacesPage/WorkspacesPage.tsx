@@ -1,9 +1,6 @@
 import { usePagination } from "hooks/usePagination"
 import { Workspace } from "api/typesGenerated"
-import {
-  useDashboard,
-  useIsWorkspaceActionsEnabled,
-} from "components/Dashboard/DashboardProvider"
+import { useIsWorkspaceActionsEnabled } from "components/Dashboard/DashboardProvider"
 import { FC, useEffect, useState } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "utils/page"
@@ -68,10 +65,6 @@ const WorkspacesPage: FC = () => {
   const [checkedWorkspaces, setCheckedWorkspaces] = useState<Workspace[]>([])
   const [isDeletingAll, setIsDeletingAll] = useState(false)
   const [urlSearchParams] = searchParamsResult
-  const dashboard = useDashboard()
-  const isWorkspaceBatchActionsEnabled =
-    dashboard.experiments.includes("workspaces_batch_actions") ||
-    process.env.NODE_ENV === "development"
 
   // We want to uncheck the selected workspaces always when the url changes
   // because of filtering or pagination
@@ -86,7 +79,6 @@ const WorkspacesPage: FC = () => {
       </Helmet>
 
       <WorkspacesPageView
-        isWorkspaceBatchActionsEnabled={isWorkspaceBatchActionsEnabled}
         checkedWorkspaces={checkedWorkspaces}
         onCheckChange={setCheckedWorkspaces}
         workspaces={data?.workspaces}

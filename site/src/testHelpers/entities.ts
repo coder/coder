@@ -1511,7 +1511,6 @@ export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
 export const MockExperiments: TypesGen.Experiment[] = [
   "workspace_actions",
   "moons",
-  "workspaces_batch_actions",
 ]
 
 export const MockAuditLog: TypesGen.AuditLog = {
