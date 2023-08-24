@@ -137,8 +137,7 @@ func TestDERPForceWebSockets(t *testing.T) {
 
 	// Manually create a server so we can influence the HTTP handler.
 	options := &coderdtest.Options{
-		DeploymentValues:         dv,
-		IncludeProvisionerDaemon: true,
+		DeploymentValues: dv,
 	}
 	setHandler, cancelFunc, serverURL, newOptions := coderdtest.NewOptions(t, options)
 	coderAPI := coderd.New(newOptions)
@@ -164,12 +163,10 @@ func TestDERPForceWebSockets(t *testing.T) {
 	}))
 
 	// Start a provisioner daemon.
-	if options.IncludeProvisionerDaemon {
-		provisionerCloser := coderdtest.NewProvisionerDaemon(t, coderAPI)
-		t.Cleanup(func() {
-			_ = provisionerCloser.Close()
-		})
-	}
+	provisionerCloser := coderdtest.NewProvisionerDaemon(t, coderAPI)
+	t.Cleanup(func() {
+		_ = provisionerCloser.Close()
+	})
 
 	client := codersdk.New(serverURL)
 	t.Cleanup(func() {
