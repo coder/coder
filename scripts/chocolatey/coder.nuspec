@@ -36,5 +36,6 @@
   </metadata>
   <files>
     <file src="$binary_path$" target="tools/coder.exe" />
+    <file src="tools/**" target="tools" />
   </files>
 </package>
