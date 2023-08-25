@@ -255,14 +255,17 @@ func Test_Runner(t *testing.T) {
 			if err != nil {
 				return false
 			}
-			for _, build := range builds {
+			for i, build := range builds {
+				t.Logf("checking build #%d: %s | %s", i, build.Transition, build.Job.Status)
 				// One of the builds should be for creating the workspace,
 				if build.Transition != codersdk.WorkspaceTransitionStart {
 					continue
 				}
 
-				// And it should be either failed (Echo returns an error when job is canceled) or canceling
-				if build.Job.Status == codersdk.ProvisionerJobFailed || build.Job.Status == codersdk.ProvisionerJobCanceling {
+				// And it should be either failed (Echo returns an error when job is canceled), canceling, or canceled.
+				if build.Job.Status == codersdk.ProvisionerJobFailed ||
+					build.Job.Status == codersdk.ProvisionerJobCanceling ||
+					build.Job.Status == codersdk.ProvisionerJobCanceled {
 					return true
 				}
 			}
