@@ -217,12 +217,11 @@ func TestNew(t *testing.T) {
 		})
 
 		// Then: an error is returned
-		require.ErrorContains(t, err, "at least one cipher must be provided")
+		require.ErrorContains(t, err, "at least one cipher is required")
 
-		// And: the sentinel value is not encrypted
-		rawVal, err := rawDB.GetDBCryptSentinelValue(ctx)
-		require.NoError(t, err)
-		require.Equal(t, "coder", rawVal)
+		// And: the sentinel value is not present
+		_, err = rawDB.GetDBCryptSentinelValue(ctx)
+		require.ErrorIs(t, err, sql.ErrNoRows)
 	})
 
 	t.Run("CipherChanged", func(t *testing.T) {

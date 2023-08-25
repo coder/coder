@@ -64,21 +64,28 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 
-	externalTokenCipher := &atomic.Pointer[dbcrypt.Cipher]{}
-	cryptDB, err := dbcrypt.New(ctx, options.Database, &dbcrypt.Options{
-		PrimaryCipher: externalTokenCipher,
-	})
-	if err != nil {
-		cancelFunc()
-		return nil, xerrors.Errorf("init dbcrypt: %w", err)
+	if options.PrimaryExternalTokenEncryption != nil {
+		primaryExternalTokenCipher := atomic.Pointer[dbcrypt.Cipher]{}
+		primaryExternalTokenCipher.Store(&options.PrimaryExternalTokenEncryption)
+		secondaryExternalTokenCipher := atomic.Pointer[dbcrypt.Cipher]{}
+		if options.SecondaryExternalTokenEncryption != nil {
+			secondaryExternalTokenCipher.Store(&options.SecondaryExternalTokenEncryption)
+		}
+		cryptDB, err := dbcrypt.New(ctx, options.Database, &dbcrypt.Options{
+			PrimaryCipher:   &primaryExternalTokenCipher,
+			SecondaryCipher: &secondaryExternalTokenCipher,
+		})
+
+		if err != nil {
+			cancelFunc()
+			return nil, xerrors.Errorf("init dbcrypt: %w", err)
+		}
+		options.Database = cryptDB
 	}
-	options.Database = cryptDB
 
 	api := &API{
-		ctx:                 ctx,
-		cancel:              cancelFunc,
-		externalTokenCipher: externalTokenCipher,
-
+		ctx:     ctx,
+		cancel:  cancelFunc,
 		AGPL:    coderd.New(options.Options),
 		Options: options,
 		provisionerDaemonAuth: &provisionerDaemonAuth{
@@ -406,8 +413,6 @@ type API struct {
 	// interruptible tasks.
 	ctx    context.Context
 	cancel context.CancelFunc
-
-	externalTokenCipher *atomic.Pointer[dbcrypt.Cipher]
 
 	// Detects multiple Coder replicas running at the same time.
 	replicaManager *replicasync.Manager
