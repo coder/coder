@@ -86,6 +86,10 @@ dark = createTheme(dark, {
   components: {
     MuiCssBaseline: {
       styleOverrides: `
+        html, body, #root, #storybook-root {
+          height: 100%;
+        }
+
         input:-webkit-autofill,
         input:-webkit-autofill:hover,
         input:-webkit-autofill:focus,

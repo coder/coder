@@ -45,10 +45,10 @@ func Test_Runner(t *testing.T) {
 		authToken3 := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.ProvisionComplete,
-			ProvisionApply: []*proto.Provision_Response{
+			ProvisionPlan: echo.PlanComplete,
+			ProvisionApply: []*proto.Response{
 				{
-					Type: &proto.Provision_Response_Log{
+					Type: &proto.Response_Log{
 						Log: &proto.Log{
 							Level:  proto.LogLevel_INFO,
 							Output: "hello from logs",
@@ -56,8 +56,8 @@ func Test_Runner(t *testing.T) {
 					},
 				},
 				{
-					Type: &proto.Provision_Response_Complete{
-						Complete: &proto.Provision_Complete{
+					Type: &proto.Response_Apply{
+						Apply: &proto.ApplyComplete{
 							Resources: []*proto.Resource{
 								{
 									Name: "example1",
@@ -199,11 +199,11 @@ func Test_Runner(t *testing.T) {
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.ProvisionComplete,
-			ProvisionApply: []*proto.Provision_Response{
+			ProvisionPlan: echo.PlanComplete,
+			ProvisionApply: []*proto.Response{
 				{
-					Type: &proto.Provision_Response_Complete{
-						Complete: &proto.Provision_Complete{
+					Type: &proto.Response_Apply{
+						Apply: &proto.ApplyComplete{
 							Error: "test error",
 						},
 					},

@@ -16,8 +16,8 @@ type mockLogger struct {
 
 var _ logSink = &mockLogger{}
 
-func (m *mockLogger) Log(l *proto.Log) {
-	m.logs = append(m.logs, l)
+func (m *mockLogger) ProvisionLog(l proto.LogLevel, o string) {
+	m.logs = append(m.logs, &proto.Log{Level: l, Output: o})
 }
 
 func TestLogWriter_Mainline(t *testing.T) {

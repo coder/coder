@@ -445,8 +445,8 @@ export const MockTemplate: TypesGen.Template = {
   icon: "/icon/code.svg",
   allow_user_cancel_workspace_jobs: true,
   failure_ttl_ms: 0,
-  inactivity_ttl_ms: 0,
-  locked_ttl_ms: 0,
+  time_til_dormant_ms: 0,
+  time_til_dormant_autodelete_ms: 0,
   allow_user_autostart: false,
   allow_user_autostop: false,
 }

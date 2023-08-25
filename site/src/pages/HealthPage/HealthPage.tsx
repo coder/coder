@@ -18,6 +18,7 @@ import {
 import { Stats, StatsItem } from "components/Stats/Stats"
 import { makeStyles } from "@mui/styles"
 import { createDayString } from "utils/createDayString"
+import { DashboardFullPage } from "components/Dashboard/DashboardLayout"
 
 const sections = {
   derp: "DERP",
@@ -59,14 +60,7 @@ export function HealthPageView({
   const styles = useStyles()
 
   return (
-    <Box
-      sx={{
-        height: "calc(100vh - 62px - 36px)",
-        overflow: "hidden",
-        // Remove padding added from dashboard layout (.siteContent)
-        marginBottom: "-48px",
-      }}
-    >
+    <DashboardFullPage>
       <FullWidthPageHeader sticky={false}>
         <Stack direction="row" spacing={2} alignItems="center">
           {healthStatus.healthy ? (
@@ -115,8 +109,9 @@ export function HealthPageView({
       <Box
         sx={{
           display: "flex",
-          alignItems: "start",
-          height: "100%",
+          flexBasis: 0,
+          flex: 1,
+          overflow: "hidden",
         }}
       >
         <Box
@@ -124,7 +119,6 @@ export function HealthPageView({
             width: (theme) => theme.spacing(32),
             flexShrink: 0,
             borderRight: (theme) => `1px solid ${theme.palette.divider}`,
-            height: "100%",
           }}
         >
           <Box
@@ -202,7 +196,7 @@ export function HealthPageView({
           </Box>
         </Box>
         {/* 62px - navbar and 36px - the bottom bar */}
-        <Box sx={{ height: "100%", overflowY: "auto", width: "100%" }}>
+        <Box sx={{ overflowY: "auto", width: "100%" }}>
           <SyntaxHighlighter
             language="json"
             editorProps={{ height: "100%" }}
@@ -214,7 +208,7 @@ export function HealthPageView({
           />
         </Box>
       </Box>
-    </Box>
+    </DashboardFullPage>
   )
 }
 
