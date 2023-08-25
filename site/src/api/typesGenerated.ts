@@ -379,6 +379,7 @@ export interface DeploymentValues {
   readonly browser_only?: boolean
   readonly scim_api_key?: string
   readonly external_token_encryption_key: string
+  readonly previous_external_token_encryption_key: string
   readonly provisioner?: ProvisionerConfig
   readonly rate_limit?: RateLimitConfig
   // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")

@@ -463,6 +463,11 @@ These options are only available in the Enterprise Edition.
           database. The value must be a base64-encoded key exactly 32 bytes in
           length.
 
+      --previous-external-token-encryption-key string, $CODER_PREVIOUS_EXTERNAL_TOKEN_ENCRYPTION_KEY
+          When rotating external token encryption key, provide the previous
+          encryption key. The value must be a base64-encoded key exactly 32
+          bytes in length.
+
       --scim-auth-header string, $CODER_SCIM_AUTH_HEADER
           Enables SCIM and sets the authentication header for the built-in SCIM
           server. New users are automatically created with OIDC authentication.
