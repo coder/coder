@@ -211,11 +211,9 @@ resource "coder_app" "code-server" {
 }
 
 locals {
-
-  # User data is used to stop/start AWS instances. See:
-  # https://github.com/hashicorp/terraform-provider-aws/issues/22
-
-  user_data_start = <<EOT
+  linux_user = "coder" # Ensure this user/group does not exist in your VM image
+  # User data is used to run the init_script
+  user_data = <<EOT
 Content-Type: multipart/mixed; boundary="//"
 MIME-Version: 1.0
 
@@ -244,34 +242,6 @@ Content-Disposition: attachment; filename="userdata.txt"
 sudo -u ${local.linux_user} sh -c '${coder_agent.main.init_script}'
 --//--
 EOT
-
-  #   user_data_end = <<EOT
-  # Content-Type: multipart/mixed; boundary="//"
-  # MIME-Version: 1.0
-
-  # --//
-  # Content-Type: text/cloud-config; charset="us-ascii"
-  # MIME-Version: 1.0
-  # Content-Transfer-Encoding: 7bit
-  # Content-Disposition: attachment; filename="cloud-config.txt"
-
-  # #cloud-config
-  # cloud_final_modules:
-  # - [scripts-user, always]
-
-  # --//
-  # Content-Type: text/x-shellscript; charset="us-ascii"
-  # MIME-Version: 1.0
-  # Content-Transfer-Encoding: 7bit
-  # Content-Disposition: attachment; filename="userdata.txt"
-
-  # #!/bin/bash
-  # sudo shutdown -h now
-  # --//--
-  # EOT
-
-  linux_user = "coder" # Ensure this user/group does not exist in your VM image
-
 }
 
 resource "aws_instance" "dev" {
@@ -279,7 +249,7 @@ resource "aws_instance" "dev" {
   availability_zone = "${data.coder_parameter.region.value}a"
   instance_type     = data.coder_parameter.instance_type.value
 
-  user_data = data.coder_workspace.me.transition == "start" ? local.user_data_start : null
+  user_data = local.user_data_start
   tags = {
     Name = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
     # Required if you are using our example policy, see template README
@@ -303,7 +273,7 @@ resource "coder_metadata" "workspace_info" {
   }
 }
 
-resource "aws_ec2_instance_state" "test" {
+resource "aws_ec2_instance_state" "dev" {
   instance_id = aws_instance.dev.id
   state       = data.coder_workspace.me.transition == "start" ? "running" : "stopped"
 }
