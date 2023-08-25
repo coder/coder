@@ -435,7 +435,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	// This endpoint is required to initialize the OIDC provider.
 	// It is used to get the OIDC configuration.
 	mux.Get("/.well-known/openid-configuration", func(rw http.ResponseWriter, r *http.Request) {
-		f.logger.Info(r.Context(), "HTTP OIDC Config", slog.F("url", r.URL.String()))
+		f.logger.Info(r.Context(), "http OIDC config", slog.F("url", r.URL.String()))
 
 		_ = json.NewEncoder(rw).Encode(f.provider)
 	})
@@ -496,7 +496,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 
 	mux.Handle(tokenPath, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		values, err := f.authenticateOIDCClientRequest(t, r)
-		f.logger.Info(r.Context(), "http call token",
+		f.logger.Info(r.Context(), "http idp call token",
 			slog.Error(err),
 			slog.F("values", values.Encode()),
 		)
@@ -595,7 +595,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 
 	mux.Handle(userInfoPath, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		token, err := f.authenticateBearerTokenRequest(t, r)
-		f.logger.Info(r.Context(), "http call user info",
+		f.logger.Info(r.Context(), "http call idp user info",
 			slog.Error(err),
 			slog.F("url", r.URL.String()),
 		)
@@ -614,7 +614,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	}))
 
 	mux.Handle(keysPath, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		f.logger.Info(r.Context(), "http call keys")
+		f.logger.Info(r.Context(), "http call idp /keys")
 		set := jose.JSONWebKeySet{
 			Keys: []jose.JSONWebKey{
 				{
@@ -691,10 +691,10 @@ func (f *FakeIDP) UpdateRefreshClaims(refreshToken string, claims jwt.MapClaims)
 
 // SetRedirect is required for the IDP to know where to redirect and call
 // Coderd.
-func (f *FakeIDP) SetRedirect(t testing.TB, url string) {
+func (f *FakeIDP) SetRedirect(t testing.TB, u string) {
 	t.Helper()
 
-	f.cfg.RedirectURL = url
+	f.cfg.RedirectURL = u
 }
 
 // SetCoderdCallback is optional and only works if not using the IsServing.

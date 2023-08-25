@@ -67,7 +67,7 @@ func TestOIDCOauthLoginWithExisting(t *testing.T) {
 	helper.ExpireOauthToken(t, api.Database, userClient)
 
 	// Instead of refreshing, just log in again.
-	userClient, _ = helper.Login(t, claims)
+	helper.Login(t, claims)
 }
 
 func TestUserLogin(t *testing.T) {
