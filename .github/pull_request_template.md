@@ -1,14 +1,14 @@
 <!-- Anything that looks like this is a comment and can't be seen after the Pull Request is created. -->
 
-# PR Summary
+# Summary
 
 <!-- Summarize your PR between here and the checklist. -->
 
-## PR Context
+## Context
 
 <!-- Provide a little reasoning as to why this Pull Request helps and why you have opened it. -->
 
-## PR Checklist
+## Checklist
 
 - [ ] [PR has a meaningful title](https://coder.com/docs/v2/latest/CONTRIBUTING#commit-messages)
     - Use the present tense and imperative mood when describing your changes
