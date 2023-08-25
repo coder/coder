@@ -216,11 +216,31 @@ export const sshIntoWorkspace = async (
   })
 }
 
-export const restartWorkspace = async (
+export const stopWorkspace = async (
+  page: Page,
+  workspaceName: string,
+) => {
+  await page.goto("/@admin/" + workspaceName, {
+    waitUntil: "domcontentloaded",
+  })
+  await expect(page).toHaveURL("/@admin/" + workspaceName)
+
+  await page.getByTestId("workspace-stop-button").click()
+
+  await page.waitForSelector(
+    "span[data-testid='build-status'] >> text=Stopped",
+    {
+      state: "visible",
+    },
+  )
+}
+
+export const buildWorkspaceWithParameters = async (
   page: Page,
   workspaceName: string,
   richParameters: RichParameter[] = [],
   buildParameters: WorkspaceBuildParameter[] = [],
+  confirm: boolean = false,
 ) => {
   await page.goto("/@admin/" + workspaceName, {
     waitUntil: "domcontentloaded",
@@ -270,7 +290,10 @@ export const restartWorkspace = async (
   }
 
   await page.getByTestId("build-parameters-submit").click()
-  await page.getByTestId("confirm-button").click()
+
+  if (confirm) {
+    await page.getByTestId("confirm-button").click()
+  }
 
   await page.waitForSelector(
     "span[data-testid='build-status'] >> text=Running",
