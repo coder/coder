@@ -96,9 +96,8 @@ the workspace again.
 
 On the command line:
 
-```console
+```shell
 coder update <workspace-name>
-```
 
 
 ## Repairing workspaces
