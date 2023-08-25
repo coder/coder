@@ -225,6 +225,9 @@ dependencies:
   xterm-addon-fit:
     specifier: 0.7.0
     version: 0.7.0(xterm@5.2.1)
+  xterm-addon-unicode11:
+    specifier: 0.5.0
+    version: 0.5.0(xterm@5.2.1)
   xterm-addon-web-links:
     specifier: 0.8.0
     version: 0.8.0(xterm@5.2.1)
@@ -14196,6 +14199,14 @@ packages:
 
   /xterm-addon-fit@0.7.0(xterm@5.2.1):
     resolution: {integrity: sha512-tQgHGoHqRTgeROPnvmtEJywLKoC/V9eNs4bLLz7iyJr1aW/QFzRwfd3MGiJ6odJd9xEfxcW36/xRU47JkD5NKQ==}
+    peerDependencies:
+      xterm: ^5.0.0
+    dependencies:
+      xterm: 5.2.1
+    dev: false
+
+  /xterm-addon-unicode11@0.5.0(xterm@5.2.1):
+    resolution: {integrity: sha512-Jm4/g4QiTxiKiTbYICQgC791ubhIZyoIwxAIgOW8z8HWFNY+lwk+dwaKEaEeGBfM48Vk8fklsUW9u/PlenYEBg==}
     peerDependencies:
       xterm: ^5.0.0
     dependencies:
