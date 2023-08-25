@@ -220,12 +220,13 @@ CREATE FUNCTION tailnet_notify_client_change() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-	IF (OLD IS NOT NULL) THEN
-		PERFORM pg_notify('tailnet_client_update', OLD.id || ',' || OLD.agent_id);
+	-- check new first to get the updated agent ids.
+	IF (NEW IS NOT NULL) THEN
+		PERFORM pg_notify('tailnet_client_update', NEW.id || ',' || array_to_string(NEW.agent_ids, ','));
 		RETURN NULL;
 	END IF;
-	IF (NEW IS NOT NULL) THEN
-		PERFORM pg_notify('tailnet_client_update', NEW.id || ',' || NEW.agent_id);
+	IF (OLD IS NOT NULL) THEN
+		PERFORM pg_notify('tailnet_client_update', OLD.id || ',' || array_to_string(OLD.agent_ids, ','));
 		RETURN NULL;
 	END IF;
 END;
@@ -498,9 +499,9 @@ CREATE TABLE tailnet_agents (
 CREATE TABLE tailnet_clients (
     id uuid NOT NULL,
     coordinator_id uuid NOT NULL,
-    agent_id uuid NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    node jsonb NOT NULL
+    node jsonb NOT NULL,
+    agent_ids uuid[] NOT NULL
 );
 
 CREATE TABLE tailnet_coordinators (
@@ -1248,7 +1249,7 @@ CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lo
 
 CREATE INDEX idx_tailnet_agents_coordinator ON tailnet_agents USING btree (coordinator_id);
 
-CREATE INDEX idx_tailnet_clients_agent ON tailnet_clients USING btree (agent_id);
+CREATE INDEX idx_tailnet_clients_agent_ids ON tailnet_clients USING gin (agent_ids);
 
 CREATE INDEX idx_tailnet_clients_coordinator ON tailnet_clients USING btree (coordinator_id);
 

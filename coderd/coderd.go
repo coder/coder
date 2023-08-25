@@ -406,7 +406,7 @@ func New(options *Options) *API {
 			api.DERPMap,
 			options.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
 			func(context.Context) (tailnet.MultiAgentConn, error) {
-				return (*api.TailnetCoordinator.Load()).ServeMultiAgent(uuid.New()), nil
+				return (*api.TailnetCoordinator.Load()).ServeMultiAgent(uuid.New())
 			},
 			wsconncache.New(api._dialWorkspaceAgentTailnet, 0),
 			api.TracerProvider,

@@ -108,7 +108,7 @@ type sqlcQuerier interface {
 	GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]Replica, error)
 	GetServiceBanner(ctx context.Context) (string, error)
 	GetTailnetAgents(ctx context.Context, id uuid.UUID) ([]TailnetAgent, error)
-	GetTailnetClientsForAgent(ctx context.Context, agentID uuid.UUID) ([]TailnetClient, error)
+	GetTailnetClientsForAgent(ctx context.Context, dollar_1 uuid.UUID) ([]TailnetClient, error)
 	// GetTemplateAppInsights returns the aggregate usage of each app in a given
 	// timeframe. The result can be filtered on template_ids, meaning only user data
 	// from workspaces based on those templates will be included.

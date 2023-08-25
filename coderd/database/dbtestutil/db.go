@@ -10,6 +10,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/coderd/database/postgres"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 )
@@ -41,6 +42,9 @@ func NewDB(t testing.TB) (database.Store, pubsub.Pubsub) {
 			_ = sqlDB.Close()
 		})
 		db = database.New(sqlDB)
+
+		err = migrations.Up(sqlDB)
+		require.NoError(t, err)
 
 		ps, err = pubsub.New(context.Background(), sqlDB, connectionURL)
 		require.NoError(t, err)

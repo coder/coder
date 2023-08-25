@@ -59,7 +59,8 @@ func Test_agentIsLegacy(t *testing.T) {
 		defer cancel()
 
 		nodeID := uuid.New()
-		ma := coordinator.ServeMultiAgent(nodeID)
+		ma, err := coordinator.ServeMultiAgent(nodeID)
+		require.NoError(t, err)
 		defer ma.Close()
 		require.NoError(t, ma.UpdateSelf(&agpl.Node{
 			ID:            55,
@@ -123,7 +124,8 @@ func Test_agentIsLegacy(t *testing.T) {
 		defer cancel()
 
 		nodeID := uuid.New()
-		ma := coordinator.ServeMultiAgent(nodeID)
+		ma, err := coordinator.ServeMultiAgent(nodeID)
+		require.NoError(t, err)
 		defer ma.Close()
 		require.NoError(t, ma.UpdateSelf(&agpl.Node{
 			ID:            55,

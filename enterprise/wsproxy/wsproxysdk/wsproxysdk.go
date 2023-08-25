@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
+	agpl "github.com/coder/coder/v2/tailnet"
 )
 
 // Client is a HTTP client for a subset of Coder API routes that external
@@ -469,7 +470,7 @@ func (c *Client) DialCoordinator(ctx context.Context) (tailnet.MultiAgentConn, e
 		OnSubscribe:       rma.OnSubscribe,
 		OnUnsubscribe:     rma.OnUnsubscribe,
 		OnNodeUpdate:      rma.OnNodeUpdate,
-		OnRemove:          func(uuid.UUID) { conn.Close(websocket.StatusGoingAway, "closed") },
+		OnRemove:          func(agpl.Queue) { conn.Close(websocket.StatusGoingAway, "closed") },
 	}).Init()
 
 	go func() {

@@ -3,7 +3,7 @@ INSERT INTO
 	tailnet_clients (
 	id,
 	coordinator_id,
-	agent_id,
+	agent_ids,
 	node,
 	updated_at
 )
@@ -13,7 +13,7 @@ ON CONFLICT (id, coordinator_id)
 DO UPDATE SET
 	id = $1,
 	coordinator_id = $2,
-	agent_id = $3,
+	agent_ids = $3,
 	node = $4,
 	updated_at = now() at time zone 'utc'
 RETURNING *;
@@ -66,12 +66,11 @@ FROM tailnet_agents;
 -- name: GetTailnetClientsForAgent :many
 SELECT *
 FROM tailnet_clients
-WHERE agent_id = $1;
+WHERE $1::uuid = ANY(agent_ids);
 
 -- name: GetAllTailnetClients :many
 SELECT *
-FROM tailnet_clients
-ORDER BY agent_id;
+FROM tailnet_clients;
 
 -- name: UpsertTailnetCoordinator :one
 INSERT INTO
