@@ -48,7 +48,7 @@ func TestDeploymentInsights(t *testing.T) {
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:          echo.ParseComplete,
-		ProvisionPlan:  echo.ProvisionComplete,
+		ProvisionPlan:  echo.PlanComplete,
 		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -134,7 +134,7 @@ func TestUserLatencyInsights(t *testing.T) {
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:          echo.ParseComplete,
-		ProvisionPlan:  echo.ProvisionComplete,
+		ProvisionPlan:  echo.PlanComplete,
 		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -498,18 +498,18 @@ func TestTemplateInsights_Golden(t *testing.T) {
 			// Create the template version and template.
 			version := coderdtest.CreateTemplateVersion(t, client, firstUser.OrganizationID, &echo.Responses{
 				Parse: echo.ParseComplete,
-				ProvisionPlan: []*proto.Provision_Response{
+				ProvisionPlan: []*proto.Response{
 					{
-						Type: &proto.Provision_Response_Complete{
-							Complete: &proto.Provision_Complete{
+						Type: &proto.Response_Plan{
+							Plan: &proto.PlanComplete{
 								Parameters: parameters,
 							},
 						},
 					},
 				},
-				ProvisionApply: []*proto.Provision_Response{{
-					Type: &proto.Provision_Response_Complete{
-						Complete: &proto.Provision_Complete{
+				ProvisionApply: []*proto.Response{{
+					Type: &proto.Response_Apply{
+						Apply: &proto.ApplyComplete{
 							Resources: resources,
 						},
 					},

@@ -205,9 +205,9 @@ func TestTemplatePull(t *testing.T) {
 // a template version source.
 func genTemplateVersionSource() *echo.Responses {
 	return &echo.Responses{
-		Parse: []*proto.Parse_Response{
+		Parse: []*proto.Response{
 			{
-				Type: &proto.Parse_Response_Log{
+				Type: &proto.Response_Log{
 					Log: &proto.Log{
 						Output: uuid.NewString(),
 					},
@@ -215,11 +215,11 @@ func genTemplateVersionSource() *echo.Responses {
 			},
 
 			{
-				Type: &proto.Parse_Response_Complete{
-					Complete: &proto.Parse_Complete{},
+				Type: &proto.Response_Parse{
+					Parse: &proto.ParseComplete{},
 				},
 			},
 		},
-		ProvisionApply: echo.ProvisionComplete,
+		ProvisionApply: echo.ApplyComplete,
 	}
 }

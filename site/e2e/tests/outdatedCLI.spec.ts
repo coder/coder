@@ -15,7 +15,7 @@ test("ssh with client " + clientVersion, async ({ page }) => {
   const template = await createTemplate(page, {
     apply: [
       {
-        complete: {
+        apply: {
           resources: [
             {
               agents: [
