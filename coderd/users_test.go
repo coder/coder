@@ -8,7 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang-jwt/jwt"
+	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
+
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -403,6 +406,7 @@ func TestPostLogout(t *testing.T) {
 	})
 }
 
+// nolint:bodyclose
 func TestPostUsers(t *testing.T) {
 	t.Parallel()
 	t.Run("NoAuth", func(t *testing.T) {
@@ -593,15 +597,15 @@ func TestPostUsers(t *testing.T) {
 	t.Run("CreateOIDCLoginType", func(t *testing.T) {
 		t.Parallel()
 		email := "another@user.org"
-		conf := coderdtest.NewOIDCConfig(t, "")
-		config := conf.OIDCConfig(t, jwt.MapClaims{
-			"email": email,
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithServing(),
+		)
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
 		})
-		config.AllowSignups = false
-		config.IgnoreUserInfo = true
 
 		client := coderdtest.New(t, &coderdtest.Options{
-			OIDCConfig: config,
+			OIDCConfig: cfg,
 		})
 		first := coderdtest.CreateFirstUser(t, client)
 
@@ -618,15 +622,9 @@ func TestPostUsers(t *testing.T) {
 		require.NoError(t, err)
 
 		// Try to log in with OIDC.
-		userClient := codersdk.New(client.URL)
-		resp := oidcCallback(t, userClient, conf.EncodeClaims(t, jwt.MapClaims{
+		userClient, _ := fake.Login(t, client, jwt.MapClaims{
 			"email": email,
-		}))
-		require.Equal(t, resp.StatusCode, http.StatusTemporaryRedirect)
-		// Set the client to use this OIDC context
-		authCookie := authCookieValue(resp.Cookies())
-		userClient.SetSessionToken(authCookie)
-		_ = resp.Body.Close()
+		})
 
 		found, err := userClient.User(ctx, "me")
 		require.NoError(t, err)
