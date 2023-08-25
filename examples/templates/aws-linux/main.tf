@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.7.0"
+      version = "~> 0.11.0"
     }
     aws = {
       source  = "hashicorp/aws"
@@ -30,24 +30,24 @@ data "coder_parameter" "region" {
     icon  = "/emojis/1f1f0-1f1f7.png"
   }
   option {
-    name  = "Asia Pacific (Osaka-Local)"
+    name  = "Asia Pacific (Osaka)"
     value = "ap-northeast-3"
-    icon  = "/emojis/1f1f0-1f1f7.png"
+    icon  = "/emojis/1f1ef-1f1f5.png"
   }
   option {
     name  = "Asia Pacific (Mumbai)"
     value = "ap-south-1"
-    icon  = "/emojis/1f1f0-1f1f7.png"
+    icon  = "/emojis/1f1ee-1f1f3.png"
   }
   option {
     name  = "Asia Pacific (Singapore)"
     value = "ap-southeast-1"
-    icon  = "/emojis/1f1f0-1f1f7.png"
+    icon  = "/emojis/1f1f8-1f1ec.png"
   }
   option {
     name  = "Asia Pacific (Sydney)"
     value = "ap-southeast-2"
-    icon  = "/emojis/1f1f0-1f1f7.png"
+    icon  = "/emojis/1f1e6-1f1fa.png"
   }
   option {
     name  = "Canada (Central)"
@@ -176,33 +176,21 @@ resource "coder_agent" "main" {
     display_name = "CPU Usage"
     interval     = 5
     timeout      = 5
-    script       = <<-EOT
-      #!/bin/bash
-      set -e
-      top -bn1 | grep "Cpu(s)" | awk '{print $2 + $4 "%"}'
-    EOT
+    script       = "coder stat cpu"
   }
   metadata {
     key          = "memory"
     display_name = "Memory Usage"
     interval     = 5
     timeout      = 5
-    script       = <<-EOT
-      #!/bin/bash
-      set -e
-      free -m | awk 'NR==2{printf "%.2f%%\t", $3*100/$2 }'
-    EOT
+    script       = "coder stat mem"
   }
   metadata {
     key          = "disk"
     display_name = "Disk Usage"
     interval     = 600 # every 10 minutes
     timeout      = 30  # df can take a while on large filesystems
-    script       = <<-EOT
-      #!/bin/bash
-      set -e
-      df /home/coder | awk '$NF=="/"{printf "%s", $5}'
-    EOT
+    script       = "coder stat disk --path $HOME"
   }
 }
 
@@ -223,11 +211,9 @@ resource "coder_app" "code-server" {
 }
 
 locals {
-
-  # User data is used to stop/start AWS instances. See:
-  # https://github.com/hashicorp/terraform-provider-aws/issues/22
-
-  user_data_start = <<EOT
+  linux_user = "coder" # Ensure this user/group does not exist in your VM image
+  # User data is used to run the init_script
+  user_data = <<EOT
 Content-Type: multipart/mixed; boundary="//"
 MIME-Version: 1.0
 
@@ -256,34 +242,6 @@ Content-Disposition: attachment; filename="userdata.txt"
 sudo -u ${local.linux_user} sh -c '${coder_agent.main.init_script}'
 --//--
 EOT
-
-  user_data_end = <<EOT
-Content-Type: multipart/mixed; boundary="//"
-MIME-Version: 1.0
-
---//
-Content-Type: text/cloud-config; charset="us-ascii"
-MIME-Version: 1.0
-Content-Transfer-Encoding: 7bit
-Content-Disposition: attachment; filename="cloud-config.txt"
-
-#cloud-config
-cloud_final_modules:
-- [scripts-user, always]
-
---//
-Content-Type: text/x-shellscript; charset="us-ascii"
-MIME-Version: 1.0
-Content-Transfer-Encoding: 7bit
-Content-Disposition: attachment; filename="userdata.txt"
-
-#!/bin/bash
-sudo shutdown -h now
---//--
-EOT
-
-  linux_user = "coder" # Ensure this user/group does not exist in your VM image
-
 }
 
 resource "aws_instance" "dev" {
@@ -291,7 +249,7 @@ resource "aws_instance" "dev" {
   availability_zone = "${data.coder_parameter.region.value}a"
   instance_type     = data.coder_parameter.instance_type.value
 
-  user_data = data.coder_workspace.me.transition == "start" ? local.user_data_start : local.user_data_end
+  user_data = local.user_data_start
   tags = {
     Name = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
     # Required if you are using our example policy, see template README
@@ -313,4 +271,9 @@ resource "coder_metadata" "workspace_info" {
     key   = "disk"
     value = "${aws_instance.dev.root_block_device[0].volume_size} GiB"
   }
+}
+
+resource "aws_ec2_instance_state" "dev" {
+  instance_id = aws_instance.dev.id
+  state       = data.coder_workspace.me.transition == "start" ? "running" : "stopped"
 }
