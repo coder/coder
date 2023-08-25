@@ -308,11 +308,13 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 		require.Eventually(t, func() bool {
 			var err error
 			version, err = client.TemplateVersion(ctx, version.ID)
+			// job gets marked Failed when there is an Error; in practice we never get to Status = Canceled
+			// because provisioners report an Error when canceled. We check the Error string to ensure we don't mask
+			// other errors in this test.
+			t.Logf("got version %s | %s", version.Job.Error, version.Job.Status)
 			return assert.NoError(t, err) &&
-				// The job will never actually cancel successfully because it will never send a
-				// provision complete response.
-				assert.Empty(t, version.Job.Error) &&
-				version.Job.Status == codersdk.ProvisionerJobCanceling
+				strings.HasSuffix(version.Job.Error, "canceled") &&
+				version.Job.Status == codersdk.ProvisionerJobFailed
 		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 }
