@@ -27,30 +27,30 @@ const Template: Story<TemplateVersionEditorProps> = (
 
 export const Example = Template.bind({})
 Example.args = {
+  defaultFileTree: MockTemplateVersionFileTree,
   template: MockTemplate,
   templateVersion: MockTemplateVersion,
-  defaultFileTree: MockTemplateVersionFileTree,
 }
 
 export const Logs = Template.bind({})
-
 Logs.args = {
-  template: MockTemplate,
-  templateVersion: MockTemplateVersion,
-  defaultFileTree: MockTemplateVersionFileTree,
+  ...Example.args,
   buildLogs: MockWorkspaceBuildLogs,
 }
 
 export const Resources = Template.bind({})
-
 Resources.args = {
-  template: MockTemplate,
-  templateVersion: MockTemplateVersion,
-  defaultFileTree: MockTemplateVersionFileTree,
+  ...Example.args,
   buildLogs: MockWorkspaceBuildLogs,
   resources: [
     MockWorkspaceResource,
     MockWorkspaceResource2,
     MockWorkspaceResource3,
   ],
+}
+
+export const SuccessfulPublish = Template.bind({})
+SuccessfulPublish.args = {
+  ...Example.args,
+  publishedVersion: MockTemplateVersion,
 }

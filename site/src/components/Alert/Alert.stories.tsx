@@ -17,6 +17,14 @@ const ExampleAction = (
   </Button>
 )
 
+export const Success: Story = {
+  args: {
+    children: "You're doing great!",
+    severity: "success",
+    onRetry: undefined,
+  },
+}
+
 export const Warning: Story = {
   args: {
     children: "This is a warning",

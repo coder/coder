@@ -64,6 +64,7 @@ export interface TemplateVersionEditorProps {
   onConfirmPublish: (data: PublishVersionData) => void
   onCancelPublish: () => void
   publishingError: unknown
+  publishedVersion?: TemplateVersion
   isAskingPublishParameters: boolean
   isPromptingMissingVariables: boolean
   isPublishing: boolean
@@ -97,9 +98,10 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   onPublish,
   onConfirmPublish,
   onCancelPublish,
-  publishingError,
   isAskingPublishParameters,
   isPublishing,
+  publishingError,
+  publishedVersion,
   buildLogs,
   resources,
   isPromptingMissingVariables,
@@ -203,6 +205,12 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               />
             </Link>
           </div>
+
+          {publishedVersion && (
+            <Alert severity="success" dismissible>
+              Successfully published!
+            </Alert>
+          )}
 
           <div className={styles.topbarSides}>
             {/* Only start to show the build when a new template version is building */}
