@@ -71,14 +71,27 @@ func (r *RootCmd) server() *clibase.Cmd {
 			ProvisionerDaemonPSK:      options.DeploymentValues.Provisioner.DaemonPSK.Value(),
 		}
 
-		if options.DeploymentValues.ExternalTokenEncryptionKey.Value() != "" {
-			key, err := base64.StdEncoding.DecodeString(options.DeploymentValues.ExternalTokenEncryptionKey.String())
+		if encKeys := options.DeploymentValues.ExternalTokenEncryptionKeys.Value(); len(encKeys) != 0 {
+			if len(encKeys) > 2 {
+				return nil, nil, xerrors.Errorf("at most 2 external-token-encryption-keys may be specified")
+			}
+			k1, err := base64.StdEncoding.DecodeString(encKeys[0])
 			if err != nil {
 				return nil, nil, xerrors.Errorf("decode external-token-encryption-key: %w", err)
 			}
-			o.ExternalTokenEncryption, err = dbcrypt.CipherAES256(key)
+			o.PrimaryExternalTokenEncryption, err = dbcrypt.CipherAES256(k1)
 			if err != nil {
 				return nil, nil, xerrors.Errorf("create external-token-encryption-key cipher: %w", err)
+			}
+			if len(encKeys) > 1 {
+				k2, err := base64.StdEncoding.DecodeString(encKeys[0])
+				if err != nil {
+					return nil, nil, xerrors.Errorf("decode external-token-encryption-key: %w", err)
+				}
+				o.SecondaryExternalTokenEncryption, err = dbcrypt.CipherAES256(k2)
+				if err != nil {
+					return nil, nil, xerrors.Errorf("create external-token-encryption-key cipher: %w", err)
+				}
 			}
 		}
 

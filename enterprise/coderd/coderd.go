@@ -66,7 +66,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 
 	externalTokenCipher := &atomic.Pointer[dbcrypt.Cipher]{}
 	cryptDB, err := dbcrypt.New(ctx, options.Database, &dbcrypt.Options{
-		ExternalTokenCipher: externalTokenCipher,
+		PrimaryCipher: externalTokenCipher,
 	})
 	if err != nil {
 		cancelFunc()
@@ -375,9 +375,12 @@ type Options struct {
 	RBAC         bool
 	AuditLogging bool
 	// Whether to block non-browser connections.
-	BrowserOnly             bool
-	SCIMAPIKey              []byte
-	ExternalTokenEncryption dbcrypt.Cipher
+	BrowserOnly bool
+	SCIMAPIKey  []byte
+
+	// TODO: wire these up properly
+	PrimaryExternalTokenEncryption   dbcrypt.Cipher
+	SecondaryExternalTokenEncryption dbcrypt.Cipher
 
 	// Used for high availability.
 	ReplicaSyncUpdateInterval time.Duration
@@ -447,7 +450,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureHighAvailability:           api.DERPServerRelayAddress != "",
 			codersdk.FeatureMultipleGitAuth:            len(api.GitAuthConfigs) > 1,
 			codersdk.FeatureTemplateRBAC:               api.RBAC,
-			codersdk.FeatureExternalTokenEncryption:    api.ExternalTokenEncryption != nil,
+			codersdk.FeatureExternalTokenEncryption:    api.PrimaryExternalTokenEncryption != nil,
 			codersdk.FeatureExternalProvisionerDaemons: true,
 			codersdk.FeatureAdvancedTemplateScheduling: true,
 			// FeatureTemplateRestartRequirement depends on

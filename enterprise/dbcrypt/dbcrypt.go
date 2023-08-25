@@ -16,6 +16,10 @@
 //
 // The first 7 characters of the cipher's SHA256 digest are used to identify the cipher
 // used to encrypt the value.
+//
+// Two ciphers can be provided to support key rotation. The primary cipher is used to encrypt
+// and decrypt all values. We only use the secondary cipher to decrypt values if decryption
+// with the primary cipher fails.
 package dbcrypt
 
 import (
@@ -25,6 +29,8 @@ import (
 	"errors"
 	"strings"
 	"sync/atomic"
+
+	"github.com/hashicorp/go-multierror"
 
 	"golang.org/x/xerrors"
 
@@ -79,16 +85,23 @@ func IsDecryptFailedError(err error) bool {
 }
 
 type Options struct {
-	// ExternalTokenCipher is an optional cipher that is used
+	// PrimaryCipher is an optional cipher that is used
 	// to encrypt/decrypt user link and git auth link tokens. If this is nil,
 	// then no encryption/decryption will be performed.
-	ExternalTokenCipher *atomic.Pointer[Cipher]
-	Logger              slog.Logger
+	PrimaryCipher *atomic.Pointer[Cipher]
+	// SecondaryCipher is an optional cipher that is only used
+	// to decrypt user link and git auth link tokens.
+	// This should only be used when rotating the primary cipher.
+	SecondaryCipher *atomic.Pointer[Cipher]
+	Logger          slog.Logger
 }
 
 // New creates a database.Store wrapper that encrypts/decrypts values
 // stored at rest in the database.
 func New(ctx context.Context, db database.Store, options *Options) (database.Store, error) {
+	if options.PrimaryCipher.Load() == nil {
+		return nil, xerrors.Errorf("at least one cipher is required")
+	}
 	dbc := &dbCrypt{
 		Options: options,
 		Store:   db,
@@ -186,10 +199,11 @@ func (db *dbCrypt) SetDBCryptSentinelValue(ctx context.Context, value string) er
 }
 
 func (db *dbCrypt) encryptFields(fields ...*string) error {
-	cipherPtr := db.ExternalTokenCipher.Load()
-	// If no cipher is loaded, then we don't need to encrypt or decrypt anything!
+	// Encryption ALWAYS happens with the primary cipher.
+	cipherPtr := db.PrimaryCipher.Load()
+	// If no cipher is loaded, then we can't encrypt anything!
 	if cipherPtr == nil {
-		return nil
+		return ErrNotEnabled
 	}
 	cipher := *cipherPtr
 	for _, field := range fields {
@@ -210,20 +224,28 @@ func (db *dbCrypt) encryptFields(fields ...*string) error {
 // decryptFields decrypts the given fields in place.
 // If the value fails to decrypt, sql.ErrNoRows will be returned.
 func (db *dbCrypt) decryptFields(fields ...*string) error {
-	cipherPtr := db.ExternalTokenCipher.Load()
-	// If no cipher is loaded, then we don't need to encrypt or decrypt anything!
-	if cipherPtr == nil {
-		for _, field := range fields {
-			if field == nil {
-				continue
-			}
-			if strings.HasPrefix(*field, MagicPrefix) {
-				// If we have a magic prefix but encryption is disabled,
-				// complain loudly.
-				return xerrors.Errorf("failed to decrypt field %q: %w", *field, ErrNotEnabled)
-			}
-		}
+	var merr *multierror.Error
+
+	// We try to decrypt with both the primary and secondary cipher.
+	primaryCipherPtr := db.PrimaryCipher.Load()
+	if err := decryptWithCipher(primaryCipherPtr, fields...); err == nil {
 		return nil
+	} else {
+		merr = multierror.Append(merr, err)
+	}
+	secondaryCipherPtr := db.SecondaryCipher.Load()
+	if err := decryptWithCipher(secondaryCipherPtr, fields...); err == nil {
+		return nil
+	} else {
+		merr = multierror.Append(merr, err)
+	}
+	return merr
+}
+
+func decryptWithCipher(cipherPtr *Cipher, fields ...*string) error {
+	// If no cipher is loaded, then we can't decrypt anything!
+	if cipherPtr == nil {
+		return ErrNotEnabled
 	}
 
 	cipher := *cipherPtr
@@ -276,10 +298,7 @@ func ensureEncrypted(ctx context.Context, dbc *dbCrypt) error {
 			return xerrors.Errorf("database is already encrypted with a different key")
 		}
 
-		if val == sentinelValue {
-			return nil // nothing to do!
-		}
-
+		// Mark the database as officially having been touched by the new cipher.
 		if err := s.SetDBCryptSentinelValue(ctx, sentinelValue); err != nil {
 			return xerrors.Errorf("mark database as encrypted: %w", err)
 		}
