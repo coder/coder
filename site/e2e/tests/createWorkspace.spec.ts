@@ -107,6 +107,7 @@ test("create workspace and overwrite default parameters", async ({ page }) => {
     page,
     echoResponsesWithParameters(richParameters),
   )
+
   const workspaceName = await createWorkspace(
     page,
     template,

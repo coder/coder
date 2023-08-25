@@ -19,6 +19,7 @@ import { port } from "./playwright.config"
 import * as ssh from "ssh2"
 import { Duplex } from "stream"
 import { WorkspaceBuildParameter } from "api/typesGenerated"
+import { createTemplateVersion, uploadTemplateFile } from "api/api"
 
 // createWorkspace creates a workspace for a template.
 // It does not wait for it to be running, but it does navigate to the page.
@@ -614,4 +615,25 @@ export const fillParameters = async (
       await parameterField.fill(buildParameter.value)
     }
   }
+}
+
+export const uploadTemplateVersion = async (
+  templateName: string,
+  responses?: EchoProvisionerResponses,
+): Promise<string> => {
+  const tarball = await createTemplateVersionTar(responses)
+  const file = new File([tarball], "version.tar", { type: "application/x-tar" })
+  const uploadResponse = await uploadTemplateFile(file)
+
+  // FIXME find:
+  const organizationId = ""
+  const templateId = ""
+  const templateVersion = await createTemplateVersion(organizationId, {
+    template_id: templateId,
+    storage_method: "file",
+    file_id: uploadResponse.hash,
+    provisioner: "echo",
+    tags: {},
+  })
+  return templateVersion.id
 }
