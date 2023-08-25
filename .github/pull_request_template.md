@@ -22,7 +22,7 @@
 - **User-facing changes**
     - [ ] Not Applicable
     - **OR**
-    - [ ] [Documentation needed](https://github.com/PowerShell/PowerShell/blob/master/.github/CONTRIBUTING.md#pull-request---submission)
+    - [ ] Documentation needed.
         - [ ] Issue filed: <!-- Number/link of that issue here -->
     - **OR**
     - [ ] Documentation included.
