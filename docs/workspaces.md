@@ -27,7 +27,7 @@ tab.
 
 You can also create a workspace from the command line:
 
-```console
+```shell
 # create a workspace from the template; specify any variables
 coder create --template="<templateName>" <workspaceName>
 
