@@ -19,20 +19,20 @@ import (
 // It is mainly because refreshing oauth tokens is a bit tricky and requires
 // some database manipulation.
 type LoginHelper struct {
-	fake  *FakeIDP
-	owner *codersdk.Client
+	fake   *FakeIDP
+	client *codersdk.Client
 }
 
-func NewLoginHelper(owner *codersdk.Client, fake *FakeIDP) *LoginHelper {
-	if owner == nil {
-		panic("owner must not be nil")
+func NewLoginHelper(client *codersdk.Client, fake *FakeIDP) *LoginHelper {
+	if client == nil {
+		panic("client must not be nil")
 	}
 	if fake == nil {
 		panic("fake must not be nil")
 	}
 	return &LoginHelper{
-		fake:  fake,
-		owner: owner,
+		fake:   fake,
+		client: client,
 	}
 }
 
@@ -41,13 +41,13 @@ func NewLoginHelper(owner *codersdk.Client, fake *FakeIDP) *LoginHelper {
 // convenience method.
 func (h *LoginHelper) Login(t *testing.T, idTokenClaims jwt.MapClaims) (*codersdk.Client, *http.Response) {
 	t.Helper()
-	unauthenticatedClient := codersdk.New(h.owner.URL)
+	unauthenticatedClient := codersdk.New(h.client.URL)
 
 	return h.fake.Login(t, unauthenticatedClient, idTokenClaims)
 }
 
 // ExpireOauthToken expires the oauth token for the given user.
-func (*LoginHelper) ExpireOauthToken(t *testing.T, db database.Store, user *codersdk.Client) (refreshToken string) {
+func (*LoginHelper) ExpireOauthToken(t *testing.T, db database.Store, user *codersdk.Client) database.UserLink {
 	t.Helper()
 
 	//nolint:gocritic // Testing
@@ -68,7 +68,7 @@ func (*LoginHelper) ExpireOauthToken(t *testing.T, db database.Store, user *code
 	require.NoError(t, err, "get user link")
 
 	// Expire the oauth link for the given user.
-	_, err = db.UpdateUserLink(ctx, database.UpdateUserLinkParams{
+	updated, err := db.UpdateUserLink(ctx, database.UpdateUserLinkParams{
 		OAuthAccessToken:  link.OAuthAccessToken,
 		OAuthRefreshToken: link.OAuthRefreshToken,
 		OAuthExpiry:       time.Now().Add(time.Hour * -1),
@@ -77,7 +77,7 @@ func (*LoginHelper) ExpireOauthToken(t *testing.T, db database.Store, user *code
 	})
 	require.NoError(t, err, "expire user link")
 
-	return link.OAuthRefreshToken
+	return updated
 }
 
 // ForceRefresh forces the client to refresh its oauth token. It does this by
@@ -88,13 +88,13 @@ func (*LoginHelper) ExpireOauthToken(t *testing.T, db database.Store, user *code
 func (h *LoginHelper) ForceRefresh(t *testing.T, db database.Store, user *codersdk.Client, idToken jwt.MapClaims) {
 	t.Helper()
 
-	refreshToken := h.ExpireOauthToken(t, db, user)
+	link := h.ExpireOauthToken(t, db, user)
 	// Updates the claims that the IDP will return. By default, it always
 	// uses the original claims for the original oauth token.
-	h.fake.UpdateRefreshClaims(refreshToken, idToken)
+	h.fake.UpdateRefreshClaims(link.OAuthRefreshToken, idToken)
 
 	t.Cleanup(func() {
-		require.True(t, h.fake.RefreshUsed(refreshToken), "refresh token must be used, but has not. Did you forget to call the returned function from this call?")
+		require.True(t, h.fake.RefreshUsed(link.OAuthRefreshToken), "refresh token must be used, but has not. Did you forget to call the returned function from this call?")
 	})
 
 	// Do any authenticated call to force the refresh

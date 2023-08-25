@@ -60,9 +60,13 @@ type FakeIDP struct {
 	refreshIDTokenClaims *SyncMap[string, jwt.MapClaims]
 
 	// hooks
-	hookUserInfo  func(email string) jwt.MapClaims
-	fakeCoderd    func(req *http.Request) (*http.Response, error)
-	hookOnRefresh func(email string) error
+	// hookValidRedirectURL can be used to reject a redirect url from the
+	// IDP -> Application. Almost all IDPs have the concept of
+	// "Authorized Redirect URLs". This can be used to emulate that.
+	hookValidRedirectURL func(redirectURL string) error
+	hookUserInfo         func(email string) jwt.MapClaims
+	fakeCoderd           func(req *http.Request) (*http.Response, error)
+	hookOnRefresh        func(email string) error
 	// Custom authentication for the client. This is useful if you want
 	// to test something like PKI auth vs a client_secret.
 	hookAuthenticateClient func(t testing.TB, req *http.Request) (url.Values, error)
@@ -73,6 +77,12 @@ type FakeIDP struct {
 }
 
 type FakeIDPOpt func(idp *FakeIDP)
+
+func WithAuthorizedRedirectURL(hook func(redirectURL string) error) func(*FakeIDP) {
+	return func(f *FakeIDP) {
+		f.hookValidRedirectURL = hook
+	}
+}
 
 // WithRefreshHook is called when a refresh token is used. The email is
 // the email of the user that is being refreshed assuming the claims are correct.
@@ -421,6 +431,8 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	// This endpoint is required to initialize the OIDC provider.
 	// It is used to get the OIDC configuration.
 	mux.Get("/.well-known/openid-configuration", func(rw http.ResponseWriter, r *http.Request) {
+		f.logger.Info(r.Context(), "HTTP OIDC Config", slog.F("url", r.URL.String()))
+
 		_ = json.NewEncoder(rw).Encode(f.provider)
 	})
 
@@ -429,19 +441,19 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	// w/e and clicking "Allow". They will be redirected back to the redirect
 	// when this is done.
 	mux.Handle(authorizePath, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		f.logger.Info(r.Context(), "HTTP Call Authorize", slog.F("url", string(r.URL.String())))
+		f.logger.Info(r.Context(), "HTTP Call Authorize", slog.F("url", r.URL.String()))
 
 		clientID := r.URL.Query().Get("client_id")
-		if clientID != f.clientID {
-			t.Errorf("unexpected client_id %q", clientID)
+		if !assert.Equal(t, f.clientID, clientID, "unexpected client_id") {
 			http.Error(rw, "invalid client_id", http.StatusBadRequest)
+			return
 		}
 
 		redirectURI := r.URL.Query().Get("redirect_uri")
 		state := r.URL.Query().Get("state")
 
 		scope := r.URL.Query().Get("scope")
-		_ = scope
+		assert.NotEmpty(t, scope, "scope is empty")
 
 		responseType := r.URL.Query().Get("response_type")
 		switch responseType {
@@ -456,10 +468,17 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 			return
 		}
 
+		err := f.hookValidRedirectURL(redirectURI)
+		if err != nil {
+			t.Errorf("not authorized redirect_uri by custom hook %q: %s", redirectURI, err.Error())
+			http.Error(rw, fmt.Sprintf("invalid redirect_uri: %s", err.Error()), http.StatusBadRequest)
+			return
+		}
+
 		ru, err := url.Parse(redirectURI)
 		if err != nil {
-			t.Errorf("invalid redirect_uri %q", redirectURI)
-			http.Error(rw, "invalid redirect_uri", http.StatusBadRequest)
+			t.Errorf("invalid redirect_uri %q: %s", redirectURI, err.Error())
+			http.Error(rw, fmt.Sprintf("invalid redirect_uri: %s", err.Error()), http.StatusBadRequest)
 			return
 		}
 
@@ -573,6 +592,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 		token, err := f.authenticateBearerTokenRequest(t, r)
 		f.logger.Info(r.Context(), "HTTP Call UserInfo",
 			slog.Error(err),
+			slog.F("url", r.URL.String()),
 		)
 		if err != nil {
 			http.Error(rw, fmt.Sprintf("invalid user info request: %s", err.Error()), http.StatusBadRequest)
