@@ -94,6 +94,7 @@ export const StopButton: FC<WorkspaceAction> = ({ handleAction, loading }) => {
       loadingPosition="start"
       startIcon={<CropSquareIcon />}
       onClick={handleAction}
+      data-testid="workspace-stop-button"
     >
       Stop
     </LoadingButton>

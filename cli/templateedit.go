@@ -104,7 +104,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 					Weeks:      restartRequirementWeeks,
 				},
 				FailureTTLMillis:             failureTTL.Milliseconds(),
-				InactivityTTLMillis:          inactivityTTL.Milliseconds(),
+				TimeTilDormantMillis:         inactivityTTL.Milliseconds(),
 				AllowUserCancelWorkspaceJobs: allowUserCancelWorkspaceJobs,
 				AllowUserAutostart:           allowUserAutostart,
 				AllowUserAutostop:            allowUserAutostop,

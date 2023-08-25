@@ -82,8 +82,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"allow_user_autostop":              ActionTrack,
 		"allow_user_cancel_workspace_jobs": ActionTrack,
 		"failure_ttl":                      ActionTrack,
-		"inactivity_ttl":                   ActionTrack,
-		"locked_ttl":                       ActionTrack,
+		"time_til_dormant":                 ActionTrack,
+		"time_til_dormant_autodelete":      ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":                    ActionTrack,
@@ -127,7 +127,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"autostart_schedule": ActionTrack,
 		"ttl":                ActionTrack,
 		"last_used_at":       ActionIgnore,
-		"locked_at":          ActionTrack,
+		"dormant_at":         ActionTrack,
 		"deleting_at":        ActionTrack,
 	},
 	&database.WorkspaceBuild{}: {

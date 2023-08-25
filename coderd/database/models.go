@@ -1729,8 +1729,8 @@ type Template struct {
 	AllowUserAutostart           bool            `db:"allow_user_autostart" json:"allow_user_autostart"`
 	AllowUserAutostop            bool            `db:"allow_user_autostop" json:"allow_user_autostop"`
 	FailureTTL                   int64           `db:"failure_ttl" json:"failure_ttl"`
-	InactivityTTL                int64           `db:"inactivity_ttl" json:"inactivity_ttl"`
-	LockedTTL                    int64           `db:"locked_ttl" json:"locked_ttl"`
+	TimeTilDormant               int64           `db:"time_til_dormant" json:"time_til_dormant"`
+	TimeTilDormantAutoDelete     int64           `db:"time_til_dormant_autodelete" json:"time_til_dormant_autodelete"`
 	RestartRequirementDaysOfWeek int16           `db:"restart_requirement_days_of_week" json:"restart_requirement_days_of_week"`
 	RestartRequirementWeeks      int64           `db:"restart_requirement_weeks" json:"restart_requirement_weeks"`
 	CreatedByAvatarURL           sql.NullString  `db:"created_by_avatar_url" json:"created_by_avatar_url"`
@@ -1761,10 +1761,10 @@ type TemplateTable struct {
 	// Allow users to specify an autostart schedule for workspaces (enterprise).
 	AllowUserAutostart bool `db:"allow_user_autostart" json:"allow_user_autostart"`
 	// Allow users to specify custom autostop values for workspaces (enterprise).
-	AllowUserAutostop bool  `db:"allow_user_autostop" json:"allow_user_autostop"`
-	FailureTTL        int64 `db:"failure_ttl" json:"failure_ttl"`
-	InactivityTTL     int64 `db:"inactivity_ttl" json:"inactivity_ttl"`
-	LockedTTL         int64 `db:"locked_ttl" json:"locked_ttl"`
+	AllowUserAutostop        bool  `db:"allow_user_autostop" json:"allow_user_autostop"`
+	FailureTTL               int64 `db:"failure_ttl" json:"failure_ttl"`
+	TimeTilDormant           int64 `db:"time_til_dormant" json:"time_til_dormant"`
+	TimeTilDormantAutoDelete int64 `db:"time_til_dormant_autodelete" json:"time_til_dormant_autodelete"`
 	// A bitmap of days of week to restart the workspace on, starting with Monday as the 0th bit, and Sunday as the 6th bit. The 7th bit is unused.
 	RestartRequirementDaysOfWeek int16 `db:"restart_requirement_days_of_week" json:"restart_requirement_days_of_week"`
 	// The number of weeks between restarts. 0 or 1 weeks means "every week", 2 week means "every second week", etc. Weeks are counted from January 2, 2023, which is the first Monday of 2023. This is to ensure workspaces are started consistently for all customers on the same n-week cycles.
@@ -1903,7 +1903,7 @@ type Workspace struct {
 	AutostartSchedule sql.NullString `db:"autostart_schedule" json:"autostart_schedule"`
 	Ttl               sql.NullInt64  `db:"ttl" json:"ttl"`
 	LastUsedAt        time.Time      `db:"last_used_at" json:"last_used_at"`
-	LockedAt          sql.NullTime   `db:"locked_at" json:"locked_at"`
+	DormantAt         sql.NullTime   `db:"dormant_at" json:"dormant_at"`
 	DeletingAt        sql.NullTime   `db:"deleting_at" json:"deleting_at"`
 }
 

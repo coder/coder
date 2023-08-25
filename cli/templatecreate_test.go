@@ -19,26 +19,52 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-var provisionCompleteWithAgent = []*proto.Provision_Response{
-	{
-		Type: &proto.Provision_Response_Complete{
-			Complete: &proto.Provision_Complete{
-				Resources: []*proto.Resource{
-					{
-						Type: "compute",
-						Name: "main",
-						Agents: []*proto.Agent{
+func completeWithAgent() *echo.Responses {
+	return &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Response{
+			{
+				Type: &proto.Response_Plan{
+					Plan: &proto.PlanComplete{
+						Resources: []*proto.Resource{
 							{
-								Name:            "smith",
-								OperatingSystem: "linux",
-								Architecture:    "i386",
+								Type: "compute",
+								Name: "main",
+								Agents: []*proto.Agent{
+									{
+										Name:            "smith",
+										OperatingSystem: "linux",
+										Architecture:    "i386",
+									},
+								},
 							},
 						},
 					},
 				},
 			},
 		},
-	},
+		ProvisionApply: []*proto.Response{
+			{
+				Type: &proto.Response_Apply{
+					Apply: &proto.ApplyComplete{
+						Resources: []*proto.Resource{
+							{
+								Type: "compute",
+								Name: "main",
+								Agents: []*proto.Agent{
+									{
+										Name:            "smith",
+										OperatingSystem: "linux",
+										Architecture:    "i386",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
 }
 
 func TestTemplateCreate(t *testing.T) {
@@ -47,10 +73,7 @@ func TestTemplateCreate(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		coderdtest.CreateFirstUser(t, client)
-		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
-			Parse:          echo.ParseComplete,
-			ProvisionApply: provisionCompleteWithAgent,
-		})
+		source := clitest.CreateTemplateVersionSource(t, completeWithAgent())
 		args := []string{
 			"templates",
 			"create",
@@ -85,10 +108,7 @@ func TestTemplateCreate(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		coderdtest.CreateFirstUser(t, client)
-		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
-			Parse:          echo.ParseComplete,
-			ProvisionApply: provisionCompleteWithAgent,
-		})
+		source := clitest.CreateTemplateVersionSource(t, completeWithAgent())
 		require.NoError(t, os.Remove(filepath.Join(source, ".terraform.lock.hcl")))
 		args := []string{
 			"templates",
@@ -128,10 +148,7 @@ func TestTemplateCreate(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		coderdtest.CreateFirstUser(t, client)
-		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
-			Parse:          echo.ParseComplete,
-			ProvisionApply: provisionCompleteWithAgent,
-		})
+		source := clitest.CreateTemplateVersionSource(t, completeWithAgent())
 		require.NoError(t, os.Remove(filepath.Join(source, ".terraform.lock.hcl")))
 		args := []string{
 			"templates",
@@ -167,10 +184,7 @@ func TestTemplateCreate(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		coderdtest.CreateFirstUser(t, client)
-		source, err := echo.Tar(&echo.Responses{
-			Parse:          echo.ParseComplete,
-			ProvisionApply: provisionCompleteWithAgent,
-		})
+		source, err := echo.Tar(completeWithAgent())
 		require.NoError(t, err)
 
 		args := []string{
@@ -196,10 +210,7 @@ func TestTemplateCreate(t *testing.T) {
 		coderdtest.CreateFirstUser(t, client)
 
 		create := func() error {
-			source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
-				Parse:          echo.ParseComplete,
-				ProvisionApply: provisionCompleteWithAgent,
-			})
+			source := clitest.CreateTemplateVersionSource(t, completeWithAgent())
 			args := []string{
 				"templates",
 				"create",

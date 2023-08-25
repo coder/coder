@@ -83,9 +83,9 @@ func (s *EnterpriseTemplateScheduleStore) Get(ctx context.Context, db database.S
 			DaysOfWeek: uint8(tpl.RestartRequirementDaysOfWeek),
 			Weeks:      tpl.RestartRequirementWeeks,
 		},
-		FailureTTL:    time.Duration(tpl.FailureTTL),
-		InactivityTTL: time.Duration(tpl.InactivityTTL),
-		LockedTTL:     time.Duration(tpl.LockedTTL),
+		FailureTTL:               time.Duration(tpl.FailureTTL),
+		TimeTilDormant:           time.Duration(tpl.TimeTilDormant),
+		TimeTilDormantAutoDelete: time.Duration(tpl.TimeTilDormantAutoDelete),
 	}, nil
 }
 
@@ -99,8 +99,8 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 		int16(opts.RestartRequirement.DaysOfWeek) == tpl.RestartRequirementDaysOfWeek &&
 		opts.RestartRequirement.Weeks == tpl.RestartRequirementWeeks &&
 		int64(opts.FailureTTL) == tpl.FailureTTL &&
-		int64(opts.InactivityTTL) == tpl.InactivityTTL &&
-		int64(opts.LockedTTL) == tpl.LockedTTL &&
+		int64(opts.TimeTilDormant) == tpl.TimeTilDormant &&
+		int64(opts.TimeTilDormantAutoDelete) == tpl.TimeTilDormantAutoDelete &&
 		opts.UserAutostartEnabled == tpl.AllowUserAutostart &&
 		opts.UserAutostopEnabled == tpl.AllowUserAutostop {
 		// Avoid updating the UpdatedAt timestamp if nothing will be changed.
@@ -127,29 +127,29 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			RestartRequirementDaysOfWeek: int16(opts.RestartRequirement.DaysOfWeek),
 			RestartRequirementWeeks:      opts.RestartRequirement.Weeks,
 			FailureTTL:                   int64(opts.FailureTTL),
-			InactivityTTL:                int64(opts.InactivityTTL),
-			LockedTTL:                    int64(opts.LockedTTL),
+			TimeTilDormant:               int64(opts.TimeTilDormant),
+			TimeTilDormantAutoDelete:     int64(opts.TimeTilDormantAutoDelete),
 		})
 		if err != nil {
 			return xerrors.Errorf("update template schedule: %w", err)
 		}
 
-		var lockedAt time.Time
-		if opts.UpdateWorkspaceLockedAt {
-			lockedAt = database.Now()
+		var dormantAt time.Time
+		if opts.UpdateWorkspaceDormantAt {
+			dormantAt = database.Now()
 		}
 
-		// If we updated the locked_ttl we need to update all the workspaces deleting_at
+		// If we updated the time_til_dormant_autodelete we need to update all the workspaces deleting_at
 		// to ensure workspaces are being cleaned up correctly. Similarly if we are
 		// disabling it (by passing 0), then we want to delete nullify the deleting_at
 		// fields of all the template workspaces.
-		err = tx.UpdateWorkspacesLockedDeletingAtByTemplateID(ctx, database.UpdateWorkspacesLockedDeletingAtByTemplateIDParams{
-			TemplateID:  tpl.ID,
-			LockedTtlMs: opts.LockedTTL.Milliseconds(),
-			LockedAt:    lockedAt,
+		err = tx.UpdateWorkspacesDormantDeletingAtByTemplateID(ctx, database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams{
+			TemplateID:                 tpl.ID,
+			TimeTilDormantAutodeleteMs: opts.TimeTilDormantAutoDelete.Milliseconds(),
+			DormantAt:                  dormantAt,
 		})
 		if err != nil {
-			return xerrors.Errorf("update deleting_at of all workspaces for new locked_ttl %q: %w", opts.LockedTTL, err)
+			return xerrors.Errorf("update deleting_at of all workspaces for new time_til_dormant_autodelete %q: %w", opts.TimeTilDormantAutoDelete, err)
 		}
 
 		if opts.UpdateWorkspaceLastUsedAt {
