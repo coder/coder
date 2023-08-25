@@ -403,7 +403,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               </div>
 
               <div
-                className={`${styles.panel} ${
+                className={`${styles.panel} ${styles.resources} ${
                   selectedTab === 1 ? "" : "hidden"
                 }`}
               >
@@ -518,10 +518,20 @@ const useStyles = makeStyles<
     flex: 1,
     borderLeft: `1px solid ${theme.palette.divider}`,
     overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
   },
   panel: {
+    overflowY: "auto",
+    height: "100%",
+
     "&.hidden": {
       display: "none",
+    },
+
+    // Hack to access customize resource-card from here
+    "& .resource-card": {
+      border: 0,
     },
   },
   tabs: {
@@ -593,7 +603,8 @@ const useStyles = makeStyles<
   buildLogs: {
     display: "flex",
     flexDirection: "column",
-    overflowY: "auto",
-    height: "100%",
+  },
+  resources: {
+    paddingBottom: theme.spacing(2),
   },
 }))
