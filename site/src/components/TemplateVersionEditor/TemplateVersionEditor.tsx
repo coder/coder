@@ -376,7 +376,17 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               >
                 {templateVersion.job.error && (
                   <div>
-                    <Alert severity="error">
+                    <Alert
+                      severity="error"
+                      sx={{
+                        borderRadius: 0,
+                        border: 0,
+                        borderBottom: (theme) =>
+                          `1px solid ${theme.palette.divider}`,
+                        borderLeft: (theme) =>
+                          `2px solid ${theme.palette.error.main}`,
+                      }}
+                    >
                       <AlertTitle>Error during the build</AlertTitle>
                       <AlertDetail>{templateVersion.job.error}</AlertDetail>
                     </Alert>
@@ -385,7 +395,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
                 {buildLogs && buildLogs.length > 0 && (
                   <WorkspaceBuildLogs
-                    sx={{ borderRadius: 0 }}
+                    sx={{ borderRadius: 0, border: 0 }}
                     hideTimestamps
                     logs={buildLogs}
                   />
@@ -470,6 +480,7 @@ const useStyles = makeStyles<
     display: "flex",
     flex: 1,
     flexBasis: 0,
+    overflow: "hidden",
   },
   sidebar: {
     minWidth: 256,
@@ -505,14 +516,10 @@ const useStyles = makeStyles<
   },
   panelWrapper: {
     flex: 1,
-    display: "flex",
-    flexDirection: "column",
     borderLeft: `1px solid ${theme.palette.divider}`,
-    overflowY: "auto",
+    overflow: "hidden",
   },
   panel: {
-    padding: theme.spacing(1),
-
     "&.hidden": {
       display: "none",
     },
@@ -587,6 +594,6 @@ const useStyles = makeStyles<
     display: "flex",
     flexDirection: "column",
     overflowY: "auto",
-    gap: theme.spacing(1),
+    height: "100%",
   },
 }))
