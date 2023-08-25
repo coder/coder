@@ -29,7 +29,13 @@ test("restart workspace with ephemeral parameters", async ({ page }) => {
     { name: firstBuildOption.name, value: "AAAAA" },
     { name: secondBuildOption.name, value: "true" },
   ]
-  await buildWorkspaceWithParameters(page, workspaceName, richParameters, buildParameters, true)
+  await buildWorkspaceWithParameters(
+    page,
+    workspaceName,
+    richParameters,
+    buildParameters,
+    true,
+  )
 
   // FIXME: verify that build options are default (not selected).
   // It is the opposite now until the site logic is corrected.
