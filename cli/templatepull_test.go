@@ -167,7 +167,7 @@ func TestTemplatePull_ToImplicit(t *testing.T) {
 	require.NoError(t, err)
 	defer func() {
 		err := os.Chdir(wd)
-		require.NoError(t, err)
+		require.NoError(t, err, "if this fails, it can break other subsequent tests due to wrong working directory")
 	}()
 
 	expectedDest := filepath.Join(dir, "expected")
