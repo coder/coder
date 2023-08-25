@@ -127,6 +127,7 @@ func TestAzureADPKIOIDC(t *testing.T) {
 }
 
 // TestAzureAKPKIWithCoderd uses a fake IDP and a real Coderd to test PKI auth.
+// nolint:bodyclose
 func TestAzureAKPKIWithCoderd(t *testing.T) {
 	t.Parallel()
 

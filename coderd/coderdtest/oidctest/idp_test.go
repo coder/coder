@@ -18,6 +18,7 @@ import (
 
 // TestFakeIDPBasicFlow tests the basic flow of the fake IDP.
 // It is done all in memory with no actual network requests.
+// nolint:bodyclose
 func TestFakeIDPBasicFlow(t *testing.T) {
 	t.Parallel()
 
