@@ -376,12 +376,12 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Log{
+			ProvisionApply: []*proto.Response{{
+				Type: &proto.Response_Log{
 					Log: &proto.Log{},
 				},
 			}},
-			ProvisionPlan: echo.ProvisionComplete,
+			ProvisionPlan: echo.PlanComplete,
 		})
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -401,11 +401,12 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 		require.Eventually(t, func() bool {
 			var err error
 			build, err = client.WorkspaceBuild(ctx, build.ID)
+			// job gets marked Failed when there is an Error; in practice we never get to Status = Canceled
+			// because provisioners report an Error when canceled. We check the Error string to ensure we don't mask
+			// other errors in this test.
 			return assert.NoError(t, err) &&
-				// The job will never actually cancel successfully because it will never send a
-				// provision complete response.
-				assert.Empty(t, build.Job.Error) &&
-				build.Job.Status == codersdk.ProvisionerJobCanceling
+				build.Job.Error == "canceled" &&
+				build.Job.Status == codersdk.ProvisionerJobFailed
 		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 	t.Run("User is not allowed to cancel", func(t *testing.T) {
@@ -415,12 +416,12 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 		owner := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Log{
+			ProvisionApply: []*proto.Response{{
+				Type: &proto.Response_Log{
 					Log: &proto.Log{},
 				},
 			}},
-			ProvisionPlan: echo.ProvisionComplete,
+			ProvisionPlan: echo.PlanComplete,
 		})
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
@@ -452,9 +453,9 @@ func TestWorkspaceBuildResources(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
+			ProvisionApply: []*proto.Response{{
+				Type: &proto.Response_Apply{
+					Apply: &proto.ApplyComplete{
 						Resources: []*proto.Resource{{
 							Name: "some",
 							Type: "example",
@@ -494,16 +495,16 @@ func TestWorkspaceBuildLogs(t *testing.T) {
 	user := coderdtest.CreateFirstUser(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionApply: []*proto.Provision_Response{{
-			Type: &proto.Provision_Response_Log{
+		ProvisionApply: []*proto.Response{{
+			Type: &proto.Response_Log{
 				Log: &proto.Log{
 					Level:  proto.LogLevel_INFO,
 					Output: "example",
 				},
 			},
 		}, {
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{
+			Type: &proto.Response_Apply{
+				Apply: &proto.ApplyComplete{
 					Resources: []*proto.Resource{{
 						Name: "some",
 						Type: "example",
@@ -548,10 +549,10 @@ func TestWorkspaceBuildState(t *testing.T) {
 	wantState := []byte("some kinda state")
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:         echo.ParseComplete,
-		ProvisionPlan: echo.ProvisionComplete,
-		ProvisionApply: []*proto.Provision_Response{{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{
+		ProvisionPlan: echo.PlanComplete,
+		ProvisionApply: []*proto.Response{{
+			Type: &proto.Response_Apply{
+				Apply: &proto.ApplyComplete{
 					State: wantState,
 				},
 			},
@@ -764,31 +765,31 @@ func TestWorkspaceBuildDebugMode(t *testing.T) {
 		// Interact as template admin
 		echoResponses := &echo.Responses{
 			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.ProvisionComplete,
-			ProvisionApply: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Log{
+			ProvisionPlan: echo.PlanComplete,
+			ProvisionApply: []*proto.Response{{
+				Type: &proto.Response_Log{
 					Log: &proto.Log{
 						Level:  proto.LogLevel_DEBUG,
 						Output: "want-it",
 					},
 				},
 			}, {
-				Type: &proto.Provision_Response_Log{
+				Type: &proto.Response_Log{
 					Log: &proto.Log{
 						Level:  proto.LogLevel_TRACE,
 						Output: "dont-want-it",
 					},
 				},
 			}, {
-				Type: &proto.Provision_Response_Log{
+				Type: &proto.Response_Log{
 					Log: &proto.Log{
 						Level:  proto.LogLevel_DEBUG,
 						Output: "done",
 					},
 				},
 			}, {
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{},
+				Type: &proto.Response_Apply{
+					Apply: &proto.ApplyComplete{},
 				},
 			}},
 		}
@@ -831,7 +832,10 @@ func TestWorkspaceBuildDebugMode(t *testing.T) {
 				if !ok {
 					break processingLogs
 				}
-
+				t.Logf("got log: %s -- %s | %s | %s", log.Level, log.Stage, log.Source, log.Output)
+				if log.Source != "provisioner" {
+					continue
+				}
 				logsProcessed++
 
 				require.NotEqual(t, "dont-want-it", log.Output, "unexpected log message", "%s log message shouldn't be logged: %s")
@@ -841,7 +845,6 @@ func TestWorkspaceBuildDebugMode(t *testing.T) {
 				}
 			}
 		}
-
-		require.Len(t, echoResponses.ProvisionApply, logsProcessed)
+		require.Equal(t, 2, logsProcessed)
 	})
 }

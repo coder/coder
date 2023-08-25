@@ -13,6 +13,8 @@ import (
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
@@ -20,11 +22,19 @@ import (
 // ServeOptions are configurations to serve a provisioner.
 type ServeOptions struct {
 	// Conn specifies a custom transport to serve the dRPC connection.
-	Listener net.Listener
+	Listener      net.Listener
+	Logger        slog.Logger
+	WorkDirectory string
+}
+
+type Server interface {
+	Parse(s *Session, r *proto.ParseRequest, canceledOrComplete <-chan struct{}) *proto.ParseComplete
+	Plan(s *Session, r *proto.PlanRequest, canceledOrComplete <-chan struct{}) *proto.PlanComplete
+	Apply(s *Session, r *proto.ApplyRequest, canceledOrComplete <-chan struct{}) *proto.ApplyComplete
 }
 
 // Serve starts a dRPC connection for the provisioner and transport provided.
-func Serve(ctx context.Context, server proto.DRPCProvisionerServer, options *ServeOptions) error {
+func Serve(ctx context.Context, server Server, options *ServeOptions) error {
 	if options == nil {
 		options = &ServeOptions{}
 	}
@@ -45,11 +55,22 @@ func Serve(ctx context.Context, server proto.DRPCProvisionerServer, options *Ser
 		}()
 		options.Listener = stdio
 	}
+	if options.WorkDirectory == "" {
+		var err error
+		options.WorkDirectory, err = os.MkdirTemp("", "coderprovisioner")
+		if err != nil {
+			return xerrors.Errorf("failed to init temp work dir: %w", err)
+		}
+	}
 
 	// dRPC is a drop-in replacement for gRPC with less generated code, and faster transports.
 	// See: https://www.storj.io/blog/introducing-drpc-our-replacement-for-grpc
 	mux := drpcmux.New()
-	err := proto.DRPCRegisterProvisioner(mux, server)
+	ps := &protoServer{
+		server: server,
+		opts:   *options,
+	}
+	err := proto.DRPCRegisterProvisioner(mux, ps)
 	if err != nil {
 		return xerrors.Errorf("register provisioner: %w", err)
 	}

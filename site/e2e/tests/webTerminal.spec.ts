@@ -7,7 +7,7 @@ test("web terminal", async ({ context, page }) => {
   const template = await createTemplate(page, {
     apply: [
       {
-        complete: {
+        apply: {
           resources: [
             {
               agents: [

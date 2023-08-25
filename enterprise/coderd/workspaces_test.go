@@ -120,8 +120,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.ProvisionComplete,
-			ProvisionApply: echo.ProvisionFailed,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ApplyFailed,
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.FailureTTLMillis = ptr.Ref[int64](failureTTL.Milliseconds())
@@ -166,8 +166,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		})
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.ProvisionComplete,
-			ProvisionApply: echo.ProvisionFailed,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ApplyFailed,
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.FailureTTLMillis = ptr.Ref[int64](failureTTL.Milliseconds())
@@ -212,8 +212,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		})
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.ProvisionComplete,
-			ProvisionApply: echo.ProvisionComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ApplyComplete,
 		})
 		// Create a template without setting a failure_ttl.
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -255,8 +255,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.ProvisionComplete,
-			ProvisionApply: echo.ProvisionComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ApplyComplete,
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.TimeTilDormantMillis = ptr.Ref[int64](inactiveTTL.Milliseconds())
@@ -311,8 +311,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		})
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.ProvisionComplete,
-			ProvisionApply: echo.ProvisionComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ApplyComplete,
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.TimeTilDormantMillis = ptr.Ref[int64](inactiveTTL.Milliseconds())
@@ -353,8 +353,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		})
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.ProvisionComplete,
-			ProvisionApply: echo.ProvisionComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ApplyComplete,
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.TimeTilDormantAutoDeleteMillis = ptr.Ref[int64](autoDeleteTTL.Milliseconds())
@@ -395,8 +395,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		})
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.ProvisionComplete,
-			ProvisionApply: echo.ProvisionComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ApplyComplete,
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.TimeTilDormantMillis = ptr.Ref[int64](inactiveTTL.Milliseconds())
@@ -447,8 +447,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.ProvisionComplete,
-			ProvisionApply: echo.ProvisionComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ApplyComplete,
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.TimeTilDormantMillis = ptr.Ref[int64](transitionTTL.Milliseconds())
@@ -516,8 +516,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		})
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.ProvisionComplete,
-			ProvisionApply: echo.ProvisionComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ApplyComplete,
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.TimeTilDormantAutoDeleteMillis = ptr.Ref[int64](dormantTTL.Milliseconds())
@@ -578,8 +578,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.ProvisionComplete,
-			ProvisionApply: echo.ProvisionComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ApplyComplete,
 		})
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 
