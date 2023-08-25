@@ -40,165 +40,219 @@ func dirSum(t *testing.T, dir string) string {
 	return hex.EncodeToString(sum.Sum(nil))
 }
 
-func TestTemplatePull(t *testing.T) {
+func TestTemplatePull_NoName(t *testing.T) {
 	t.Parallel()
 
-	t.Run("NoName", func(t *testing.T) {
-		t.Parallel()
+	inv, _ := clitest.New(t, "templates", "pull")
+	err := inv.Run()
+	require.Error(t, err)
+}
 
-		inv, _ := clitest.New(t, "templates", "pull")
-		err := inv.Run()
-		require.Error(t, err)
-	})
+// Stdout tests that 'templates pull' pulls down the latest template
+// and writes it to stdout.
+func TestTemplatePull_Stdout(t *testing.T) {
+	t.Parallel()
 
-	// Stdout tests that 'templates pull' pulls down the latest template
-	// and writes it to stdout.
-	t.Run("Stdout", func(t *testing.T) {
-		t.Parallel()
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
 
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
+	// Create an initial template bundle.
+	source1 := genTemplateVersionSource()
+	// Create an updated template bundle. This will be used to ensure
+	// that templates are correctly returned in order from latest to oldest.
+	source2 := genTemplateVersionSource()
 
-		// Create an initial template bundle.
-		source1 := genTemplateVersionSource()
-		// Create an updated template bundle. This will be used to ensure
-		// that templates are correctly returned in order from latest to oldest.
-		source2 := genTemplateVersionSource()
+	expected, err := echo.Tar(source2)
+	require.NoError(t, err)
 
-		expected, err := echo.Tar(source2)
+	version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, source1)
+	_ = coderdtest.AwaitTemplateVersionJob(t, client, version1.ID)
+
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
+
+	// Update the template version so that we can assert that templates
+	// are being sorted correctly.
+	_ = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
+
+	inv, root := clitest.New(t, "templates", "pull", "--tar", template.Name)
+	clitest.SetupConfig(t, client, root)
+
+	var buf bytes.Buffer
+	inv.Stdout = &buf
+
+	err = inv.Run()
+	require.NoError(t, err)
+
+	require.True(t, bytes.Equal(expected, buf.Bytes()), "tar files differ")
+}
+
+// ToDir tests that 'templates pull' pulls down the latest template
+// and writes it to the correct directory.
+func TestTemplatePull_ToDir(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	// Create an initial template bundle.
+	source1 := genTemplateVersionSource()
+	// Create an updated template bundle. This will be used to ensure
+	// that templates are correctly returned in order from latest to oldest.
+	source2 := genTemplateVersionSource()
+
+	expected, err := echo.Tar(source2)
+	require.NoError(t, err)
+
+	version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, source1)
+	_ = coderdtest.AwaitTemplateVersionJob(t, client, version1.ID)
+
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
+
+	// Update the template version so that we can assert that templates
+	// are being sorted correctly.
+	_ = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
+
+	dir := t.TempDir()
+
+	expectedDest := filepath.Join(dir, "expected")
+	actualDest := filepath.Join(dir, "actual")
+	ctx := context.Background()
+
+	err = extract.Tar(ctx, bytes.NewReader(expected), expectedDest, nil)
+	require.NoError(t, err)
+
+	inv, root := clitest.New(t, "templates", "pull", template.Name, actualDest)
+	clitest.SetupConfig(t, client, root)
+
+	ptytest.New(t).Attach(inv)
+
+	require.NoError(t, inv.Run())
+
+	require.Equal(t,
+		dirSum(t, expectedDest),
+		dirSum(t, actualDest),
+	)
+}
+
+// ToDir tests that 'templates pull' pulls down the latest template
+// and writes it to a directory with the name of the template if the path is not implicitly supplied.
+// nolint: paralleltest
+func TestTemplatePull_ToImplicit(t *testing.T) {
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	// Create an initial template bundle.
+	source1 := genTemplateVersionSource()
+	// Create an updated template bundle. This will be used to ensure
+	// that templates are correctly returned in order from latest to oldest.
+	source2 := genTemplateVersionSource()
+
+	expected, err := echo.Tar(source2)
+	require.NoError(t, err)
+
+	version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, source1)
+	_ = coderdtest.AwaitTemplateVersionJob(t, client, version1.ID)
+
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
+
+	// Update the template version so that we can assert that templates
+	// are being sorted correctly.
+	_ = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
+
+	// create a tempdir and change the working directory to it for the duration of the test (cannot run in parallel)
+	dir := t.TempDir()
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	err = os.Chdir(dir)
+	require.NoError(t, err)
+	defer func() {
+		err := os.Chdir(wd)
 		require.NoError(t, err)
+	}()
 
-		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, source1)
-		_ = coderdtest.AwaitTemplateVersionJob(t, client, version1.ID)
+	expectedDest := filepath.Join(dir, "expected")
+	actualDest := filepath.Join(dir, template.Name)
 
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
+	ctx := context.Background()
 
-		// Update the template version so that we can assert that templates
-		// are being sorted correctly.
-		_ = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
+	err = extract.Tar(ctx, bytes.NewReader(expected), expectedDest, nil)
+	require.NoError(t, err)
 
-		inv, root := clitest.New(t, "templates", "pull", "--tar", template.Name)
-		clitest.SetupConfig(t, client, root)
+	inv, root := clitest.New(t, "templates", "pull", template.Name)
+	clitest.SetupConfig(t, client, root)
 
-		var buf bytes.Buffer
-		inv.Stdout = &buf
+	ptytest.New(t).Attach(inv)
 
-		err = inv.Run()
-		require.NoError(t, err)
+	require.NoError(t, inv.Run())
 
-		require.True(t, bytes.Equal(expected, buf.Bytes()), "tar files differ")
-	})
+	require.Equal(t,
+		dirSum(t, expectedDest),
+		dirSum(t, actualDest),
+	)
+}
 
-	// ToDir tests that 'templates pull' pulls down the latest template
-	// and writes it to the correct directory.
-	t.Run("ToDir", func(t *testing.T) {
-		t.Parallel()
+// FolderConflict tests that 'templates pull' fails when a folder with has
+// existing
+func TestTemplatePull_FolderConflict(t *testing.T) {
+	t.Parallel()
 
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
 
-		// Create an initial template bundle.
-		source1 := genTemplateVersionSource()
-		// Create an updated template bundle. This will be used to ensure
-		// that templates are correctly returned in order from latest to oldest.
-		source2 := genTemplateVersionSource()
+	// Create an initial template bundle.
+	source1 := genTemplateVersionSource()
+	// Create an updated template bundle. This will be used to ensure
+	// that templates are correctly returned in order from latest to oldest.
+	source2 := genTemplateVersionSource()
 
-		expected, err := echo.Tar(source2)
-		require.NoError(t, err)
+	expected, err := echo.Tar(source2)
+	require.NoError(t, err)
 
-		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, source1)
-		_ = coderdtest.AwaitTemplateVersionJob(t, client, version1.ID)
+	version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, source1)
+	_ = coderdtest.AwaitTemplateVersionJob(t, client, version1.ID)
 
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
 
-		// Update the template version so that we can assert that templates
-		// are being sorted correctly.
-		_ = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
+	// Update the template version so that we can assert that templates
+	// are being sorted correctly.
+	_ = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
 
-		dir := t.TempDir()
+	dir := t.TempDir()
 
-		expectedDest := filepath.Join(dir, "expected")
-		actualDest := filepath.Join(dir, "actual")
-		ctx := context.Background()
+	expectedDest := filepath.Join(dir, "expected")
+	conflictDest := filepath.Join(dir, "conflict")
 
-		err = extract.Tar(ctx, bytes.NewReader(expected), expectedDest, nil)
-		require.NoError(t, err)
+	err = os.MkdirAll(conflictDest, 0o700)
+	require.NoError(t, err)
 
-		inv, root := clitest.New(t, "templates", "pull", template.Name, actualDest)
-		clitest.SetupConfig(t, client, root)
+	err = os.WriteFile(
+		filepath.Join(conflictDest, "conflict-file"),
+		[]byte("conflict"), 0o600,
+	)
+	require.NoError(t, err)
 
-		ptytest.New(t).Attach(inv)
+	ctx := context.Background()
 
-		require.NoError(t, inv.Run())
+	err = extract.Tar(ctx, bytes.NewReader(expected), expectedDest, nil)
+	require.NoError(t, err)
 
-		require.Equal(t,
-			dirSum(t, expectedDest),
-			dirSum(t, actualDest),
-		)
-	})
+	inv, root := clitest.New(t, "templates", "pull", template.Name, conflictDest)
+	clitest.SetupConfig(t, client, root)
 
-	// FolderConflict tests that 'templates pull' fails when a folder with has
-	// existing
-	t.Run("FolderConflict", func(t *testing.T) {
-		t.Parallel()
+	pty := ptytest.New(t).Attach(inv)
 
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
+	waiter := clitest.StartWithWaiter(t, inv)
 
-		// Create an initial template bundle.
-		source1 := genTemplateVersionSource()
-		// Create an updated template bundle. This will be used to ensure
-		// that templates are correctly returned in order from latest to oldest.
-		source2 := genTemplateVersionSource()
+	pty.ExpectMatch("not empty")
+	pty.WriteLine("no")
 
-		expected, err := echo.Tar(source2)
-		require.NoError(t, err)
+	waiter.RequireError()
 
-		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, source1)
-		_ = coderdtest.AwaitTemplateVersionJob(t, client, version1.ID)
+	ents, err := os.ReadDir(conflictDest)
+	require.NoError(t, err)
 
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
-
-		// Update the template version so that we can assert that templates
-		// are being sorted correctly.
-		_ = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
-
-		dir := t.TempDir()
-
-		expectedDest := filepath.Join(dir, "expected")
-		conflictDest := filepath.Join(dir, "conflict")
-
-		err = os.MkdirAll(conflictDest, 0o700)
-		require.NoError(t, err)
-
-		err = os.WriteFile(
-			filepath.Join(conflictDest, "conflict-file"),
-			[]byte("conflict"), 0o600,
-		)
-		require.NoError(t, err)
-
-		ctx := context.Background()
-
-		err = extract.Tar(ctx, bytes.NewReader(expected), expectedDest, nil)
-		require.NoError(t, err)
-
-		inv, root := clitest.New(t, "templates", "pull", template.Name, conflictDest)
-		clitest.SetupConfig(t, client, root)
-
-		pty := ptytest.New(t).Attach(inv)
-
-		waiter := clitest.StartWithWaiter(t, inv)
-
-		pty.ExpectMatch("not empty")
-		pty.WriteLine("no")
-
-		waiter.RequireError()
-
-		ents, err := os.ReadDir(conflictDest)
-		require.NoError(t, err)
-
-		require.Len(t, ents, 1, "conflict folder should have single conflict file")
-	})
+	require.Len(t, ents, 1, "conflict folder should have single conflict file")
 }
 
 // genTemplateVersionSource returns a unique bundle that can be used to create
