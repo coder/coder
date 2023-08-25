@@ -38,6 +38,7 @@ export interface UsersTableProps {
   isNonInitialPage: boolean
   actorID: string
   oidcRoleSyncEnabled: boolean
+  authMethods?: TypesGen.AuthMethods
 }
 
 export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
@@ -57,6 +58,7 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
   isNonInitialPage,
   actorID,
   oidcRoleSyncEnabled,
+  authMethods,
 }) => {
   return (
     <TableContainer>
@@ -94,6 +96,7 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
             isNonInitialPage={isNonInitialPage}
             actorID={actorID}
             oidcRoleSyncEnabled={oidcRoleSyncEnabled}
+            authMethods={authMethods}
           />
         </TableBody>
       </Table>
