@@ -1,24 +1,24 @@
-package oidctest
+package syncmap
 
 import "sync"
 
-// SyncMap is a type safe sync.Map
-type SyncMap[K, V any] struct {
+// Map is a type safe sync.Map
+type Map[K, V any] struct {
 	m sync.Map
 }
 
-func NewSyncMap[K, V any]() *SyncMap[K, V] {
-	return &SyncMap[K, V]{
+func New[K, V any]() *Map[K, V] {
+	return &Map[K, V]{
 		m: sync.Map{},
 	}
 }
 
-func (m *SyncMap[K, V]) Store(k K, v V) {
+func (m *Map[K, V]) Store(k K, v V) {
 	m.m.Store(k, v)
 }
 
 //nolint:forcetypeassert
-func (m *SyncMap[K, V]) Load(key K) (value V, ok bool) {
+func (m *Map[K, V]) Load(key K) (value V, ok bool) {
 	v, ok := m.m.Load(key)
 	if !ok {
 		var empty V
@@ -27,12 +27,12 @@ func (m *SyncMap[K, V]) Load(key K) (value V, ok bool) {
 	return v.(V), ok
 }
 
-func (m *SyncMap[K, V]) Delete(key K) {
+func (m *Map[K, V]) Delete(key K) {
 	m.m.Delete(key)
 }
 
 //nolint:forcetypeassert
-func (m *SyncMap[K, V]) LoadAndDelete(key K) (actual V, loaded bool) {
+func (m *Map[K, V]) LoadAndDelete(key K) (actual V, loaded bool) {
 	act, loaded := m.m.LoadAndDelete(key)
 	if !loaded {
 		var empty V
@@ -42,7 +42,7 @@ func (m *SyncMap[K, V]) LoadAndDelete(key K) (actual V, loaded bool) {
 }
 
 //nolint:forcetypeassert
-func (m *SyncMap[K, V]) LoadOrStore(key K, value V) (actual V, loaded bool) {
+func (m *Map[K, V]) LoadOrStore(key K, value V) (actual V, loaded bool) {
 	act, loaded := m.m.LoadOrStore(key, value)
 	if !loaded {
 		var empty V
@@ -51,16 +51,16 @@ func (m *SyncMap[K, V]) LoadOrStore(key K, value V) (actual V, loaded bool) {
 	return act.(V), loaded
 }
 
-func (m *SyncMap[K, V]) CompareAndSwap(key K, old V, new V) bool {
+func (m *Map[K, V]) CompareAndSwap(key K, old V, new V) bool {
 	return m.m.CompareAndSwap(key, old, new)
 }
 
-func (m *SyncMap[K, V]) CompareAndDelete(key K, old V) (deleted bool) {
+func (m *Map[K, V]) CompareAndDelete(key K, old V) (deleted bool) {
 	return m.m.CompareAndDelete(key, old)
 }
 
 //nolint:forcetypeassert
-func (m *SyncMap[K, V]) Swap(key K, value V) (previous any, loaded bool) {
+func (m *Map[K, V]) Swap(key K, value V) (previous any, loaded bool) {
 	previous, loaded = m.m.Swap(key, value)
 	if !loaded {
 		var empty V
@@ -70,7 +70,7 @@ func (m *SyncMap[K, V]) Swap(key K, value V) (previous any, loaded bool) {
 }
 
 //nolint:forcetypeassert
-func (m *SyncMap[K, V]) Range(f func(key K, value V) bool) {
+func (m *Map[K, V]) Range(f func(key K, value V) bool) {
 	m.m.Range(func(key, value interface{}) bool {
 		return f(key.(K), value.(V))
 	})

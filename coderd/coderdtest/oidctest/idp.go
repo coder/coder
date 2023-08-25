@@ -18,6 +18,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/util/syncmap"
+
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-jose/go-jose/v3"
@@ -50,14 +52,14 @@ type FakeIDP struct {
 
 	// These maps are used to control the state of the IDP.
 	// That is the various access tokens, refresh tokens, states, etc.
-	codeToStateMap *SyncMap[string, string]
+	codeToStateMap *syncmap.Map[string, string]
 	// Token -> Email
-	accessTokens *SyncMap[string, string]
+	accessTokens *syncmap.Map[string, string]
 	// Refresh Token -> Email
-	refreshTokensUsed    *SyncMap[string, bool]
-	refreshTokens        *SyncMap[string, string]
-	stateToIDTokenClaims *SyncMap[string, jwt.MapClaims]
-	refreshIDTokenClaims *SyncMap[string, jwt.MapClaims]
+	refreshTokensUsed    *syncmap.Map[string, bool]
+	refreshTokens        *syncmap.Map[string, string]
+	stateToIDTokenClaims *syncmap.Map[string, jwt.MapClaims]
+	refreshIDTokenClaims *syncmap.Map[string, jwt.MapClaims]
 
 	// hooks
 	// hookValidRedirectURL can be used to reject a redirect url from the
@@ -151,12 +153,12 @@ func NewFakeIDP(t testing.TB, opts ...FakeIDPOpt) *FakeIDP {
 		clientID:             uuid.NewString(),
 		clientSecret:         uuid.NewString(),
 		logger:               slog.Make(),
-		codeToStateMap:       NewSyncMap[string, string](),
-		accessTokens:         NewSyncMap[string, string](),
-		refreshTokens:        NewSyncMap[string, string](),
-		refreshTokensUsed:    NewSyncMap[string, bool](),
-		stateToIDTokenClaims: NewSyncMap[string, jwt.MapClaims](),
-		refreshIDTokenClaims: NewSyncMap[string, jwt.MapClaims](),
+		codeToStateMap:       syncmap.New[string, string](),
+		accessTokens:         syncmap.New[string, string](),
+		refreshTokens:        syncmap.New[string, string](),
+		refreshTokensUsed:    syncmap.New[string, bool](),
+		stateToIDTokenClaims: syncmap.New[string, jwt.MapClaims](),
+		refreshIDTokenClaims: syncmap.New[string, jwt.MapClaims](),
 		hookOnRefresh:        func(_ string) error { return nil },
 		hookUserInfo:         func(email string) jwt.MapClaims { return jwt.MapClaims{} },
 	}
