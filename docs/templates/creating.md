@@ -18,7 +18,7 @@ We provide starter templates for common cloud providers (e.g. AWS) and orchestra
 
 If you'd prefer to use the CLI, use `coder templates init`.
 
-> The Terraform code for our starter templates are avalible on our [GitHub](https://github.com/coder/coder/tree/main/examples/templates).
+> The Terraform code for our starter templates are availible on our [GitHub](https://github.com/coder/coder/tree/main/examples/templates).
 
 ## Editing templates
 

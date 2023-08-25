@@ -6,7 +6,7 @@ You'll likely want to hardcode certain template properties for workspaces (e.g. 
 
 ![Parameters in templates](https://user-images.githubusercontent.com/22407953/256707889-18baf2be-2dae-4eb2-ae89-71e5b00248f8.png)
 
-> Paramaters are defined via the template's Terraform code. [Learn more](./parameters.md)
+> Parameters are defined via the template's Terraform code. [Learn more](./parameters.md)
 
 
 ![Parameters in Create Workspace screen](../images/parameters.png)

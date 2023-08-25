@@ -98,7 +98,7 @@ On the command line:
 
 ```shell
 coder update <workspace-name>
-
+```
 
 ## Repairing workspaces
 
@@ -108,6 +108,7 @@ build because its state is out of sync with the template.
 
 ```shell
 coder update <your workspace name> --always-prompt
+```
 
 ## Workspace resources
 
