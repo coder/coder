@@ -163,8 +163,12 @@ func Test_Runner(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
+		// need to include our own logger because the provisioner (rightly) drops error logs when we shut down the
+		// test with a build in progress.
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
+			Logger:                   &logger,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 
@@ -257,8 +261,8 @@ func Test_Runner(t *testing.T) {
 					continue
 				}
 
-				// And it should be either canceled or canceling
-				if build.Job.Status == codersdk.ProvisionerJobCanceled || build.Job.Status == codersdk.ProvisionerJobCanceling {
+				// And it should be either failed (Echo returns an error when job is canceled) or canceling
+				if build.Job.Status == codersdk.ProvisionerJobFailed || build.Job.Status == codersdk.ProvisionerJobCanceling {
 					return true
 				}
 			}
