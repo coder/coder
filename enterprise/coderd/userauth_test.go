@@ -129,7 +129,6 @@ func TestUserOIDC(t *testing.T) {
 		t.Run("BlockAssignRoles", func(t *testing.T) {
 			t.Parallel()
 
-			const oidcRoleName = "TemplateAuthor"
 			runner := setupOIDCTest(t, oidcTestConfig{
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true

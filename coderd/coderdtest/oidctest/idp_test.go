@@ -17,7 +17,10 @@ import (
 )
 
 // TestFakeIDPBasicFlow tests the basic flow of the fake IDP.
+// It is done all in memory with no actual network requests.
 func TestFakeIDPBasicFlow(t *testing.T) {
+	t.Parallel()
+
 	fake := oidctest.NewFakeIDP(t,
 		oidctest.WithLogging(t, nil),
 	)

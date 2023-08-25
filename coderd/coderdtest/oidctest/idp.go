@@ -70,10 +70,7 @@ type FakeIDP struct {
 	// Custom authentication for the client. This is useful if you want
 	// to test something like PKI auth vs a client_secret.
 	hookAuthenticateClient func(t testing.TB, req *http.Request) (url.Values, error)
-	// Optional if you want to use a real http network request assuming
-	// it is not directed to the IDP.
-	defaultClient *http.Client
-	serve         bool
+	serve                  bool
 }
 
 type FakeIDPOpt func(idp *FakeIDP)
@@ -135,8 +132,9 @@ func WithIssuer(issuer string) func(*FakeIDP) {
 }
 
 const (
-	authorizePath = "/oauth2/authorize"
+	// nolint:gosec // It thinks this is a secret lol
 	tokenPath     = "/oauth2/token"
+	authorizePath = "/oauth2/authorize"
 	keysPath      = "/oauth2/keys"
 	userInfoPath  = "/oauth2/userinfo"
 )
@@ -237,7 +235,7 @@ func (f *FakeIDP) AttemptLogin(t testing.TB, client *codersdk.Client, idTokenCla
 	var err error
 
 	cli := f.HTTPClient(client.HTTPClient)
-	shallowCpyCli := &(*cli)
+	shallowCpyCli := *cli
 
 	if shallowCpyCli.Jar == nil {
 		shallowCpyCli.Jar, err = cookiejar.New(nil)
@@ -245,7 +243,7 @@ func (f *FakeIDP) AttemptLogin(t testing.TB, client *codersdk.Client, idTokenCla
 	}
 
 	unauthenticated := codersdk.New(client.URL)
-	unauthenticated.HTTPClient = shallowCpyCli
+	unauthenticated.HTTPClient = &shallowCpyCli
 
 	return f.LoginWithClient(t, unauthenticated, idTokenClaims, opts...)
 }
@@ -296,7 +294,7 @@ func (f *FakeIDP) LoginWithClient(t testing.TB, client *codersdk.Client, idToken
 
 	t.Cleanup(func() {
 		if res.Body != nil {
-			res.Body.Close()
+			_ = res.Body.Close()
 		}
 	})
 
@@ -326,7 +324,7 @@ func (f *FakeIDP) OIDCCallback(t testing.TB, state string, idTokenClaims jwt.Map
 
 	t.Cleanup(func() {
 		if resp.Body != nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 		}
 	})
 	return resp, nil
@@ -444,7 +442,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	// w/e and clicking "Allow". They will be redirected back to the redirect
 	// when this is done.
 	mux.Handle(authorizePath, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		f.logger.Info(r.Context(), "HTTP Call Authorize", slog.F("url", r.URL.String()))
+		f.logger.Info(r.Context(), "http call authorize", slog.F("url", r.URL.String()))
 
 		clientID := r.URL.Query().Get("client_id")
 		if !assert.Equal(t, f.clientID, clientID, "unexpected client_id") {
@@ -495,7 +493,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 
 	mux.Handle(tokenPath, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		values, err := f.authenticateOIDCClientRequest(t, r)
-		f.logger.Info(r.Context(), "HTTP Call Token",
+		f.logger.Info(r.Context(), "http call token",
 			slog.Error(err),
 			slog.F("values", values.Encode()),
 		)
@@ -508,10 +506,11 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 			if !ok {
 				return "unknown"
 			}
-			if _, ok := email.(string); !ok {
+			emailStr, ok := email.(string)
+			if !ok {
 				return "wrong-type"
 			}
-			return email.(string)
+			return emailStr
 		}
 
 		var claims jwt.MapClaims
@@ -593,7 +592,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 
 	mux.Handle(userInfoPath, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		token, err := f.authenticateBearerTokenRequest(t, r)
-		f.logger.Info(r.Context(), "HTTP Call UserInfo",
+		f.logger.Info(r.Context(), "http call user info",
 			slog.Error(err),
 			slog.F("url", r.URL.String()),
 		)
@@ -612,7 +611,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	}))
 
 	mux.Handle(keysPath, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		f.logger.Info(r.Context(), "HTTP Call Keys")
+		f.logger.Info(r.Context(), "http call keys")
 		set := jose.JSONWebKeySet{
 			Keys: []jose.JSONWebKey{
 				{
@@ -626,7 +625,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	}))
 
 	mux.NotFound(func(rw http.ResponseWriter, r *http.Request) {
-		f.logger.Error(r.Context(), "HTTP Call NotFound", slog.F("path", r.URL.Path))
+		f.logger.Error(r.Context(), "http call not found", slog.F("path", r.URL.Path))
 		t.Errorf("unexpected request to IDP at path %q. Not supported", r.URL.Path)
 	})
 

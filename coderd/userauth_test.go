@@ -32,6 +32,7 @@ import (
 // This test specifically tests logging in with OIDC when an expired
 // OIDC session token exists.
 // The token refreshing should not happen since we are reauthenticating.
+// nolint:bodyclose
 func TestOIDCOauthLoginWithExisting(t *testing.T) {
 	t.Parallel()
 
@@ -946,7 +947,7 @@ func TestUserOIDC(t *testing.T) {
 		oauthURL, err := client.URL.Parse("/api/v2/users/oidc/callback")
 		require.NoError(t, err)
 
-		req, err := http.NewRequest("GET", oauthURL.String(), nil)
+		req, err := http.NewRequestWithContext(context.Background(), "GET", oauthURL.String(), nil)
 		require.NoError(t, err)
 		resp, err := client.HTTPClient.Do(req)
 		require.NoError(t, err)

@@ -406,6 +406,7 @@ func TestPostLogout(t *testing.T) {
 	})
 }
 
+// nolint:bodyclose
 func TestPostUsers(t *testing.T) {
 	t.Parallel()
 	t.Run("NoAuth", func(t *testing.T) {
