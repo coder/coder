@@ -228,7 +228,9 @@ accessible for your team to use.
 
 ## Firewall exceptions
 
-In restricted internet networks, Coder may require connection to internet. Ensure that the following web addresses are accessible from the machine where Coder is installed.
+In restricted internet networks, Coder may require connection to internet.
+Ensure that the following web addresses are accessible from the machine where
+Coder is installed.
 
 - code-server.dev (install via AUR)
 - open-vsx.org (optional if someone would use code-server)
