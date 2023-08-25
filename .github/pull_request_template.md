@@ -25,8 +25,10 @@
     - [ ] [Documentation needed](https://github.com/PowerShell/PowerShell/blob/master/.github/CONTRIBUTING.md#pull-request---submission)
         - [ ] Issue filed: <!-- Number/link of that issue here -->
     - **OR**
-    - [ ] Documentation included. <!-- Follow our styling guide https://coder.com/docs/v2/latest/contributing/documentation -->
+    - [ ] Documentation included.
+        - Follow our styling guide https://coder.com/docs/v2/latest/contributing/documentation
 - **Testing**
-    - [ ] N/A or can only be tested interactively <!-- Use `./scripts/deploy-pr.sh` to get a PR deployment or https://coder.com/docs/v2/latest/CONTRIBUTING#deploying-a-pr -->
+    - [ ] N/A or can only be tested interactively
+        - Use `./scripts/deploy-pr.sh` to get a PR deployment or check [here](https://coder.com/docs/v2/latest/CONTRIBUTING#deploying-a-pr)
     - **OR**
     - [ ] Make sure you've added a new test if existing tests do not effectively test the code changed.
