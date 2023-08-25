@@ -21,6 +21,10 @@ import HideSourceOutlined from "@mui/icons-material/HideSourceOutlined"
 import KeyOutlined from "@mui/icons-material/KeyOutlined"
 import GitHub from "@mui/icons-material/GitHub"
 import PasswordOutlined from "@mui/icons-material/PasswordOutlined"
+import relativeTime from "dayjs/plugin/relativeTime"
+import ShieldOutlined from "@mui/icons-material/ShieldOutlined"
+
+dayjs.extend(relativeTime)
 
 const isOwnerRole = (role: TypesGen.Role): boolean => {
   return role.name === "owner"
@@ -87,7 +91,7 @@ export const UsersTableBody: FC<
   return (
     <ChooseOne>
       <Cond condition={Boolean(isLoading)}>
-        <TableLoaderSkeleton columns={5} useAvatarData />
+        <TableLoaderSkeleton columns={canEditUsers ? 5 : 4} useAvatarData />
       </Cond>
       <Cond condition={!users || users.length === 0}>
         <ChooseOne>
@@ -267,17 +271,21 @@ const LoginType = ({
     icon = <GitHub sx={iconStyles} />
   } else if (value === "token") {
     displayName = "Token"
-    icon = <KeyOutlined />
+    icon = <KeyOutlined sx={iconStyles} />
   } else if (value === "oidc") {
-    displayName = authMethods.oidc.signInText
-    icon = (
-      <Box
-        component="img"
-        alt="Open ID Connect icon"
-        src={authMethods.oidc.iconUrl}
-        sx={iconStyles}
-      />
-    )
+    displayName =
+      authMethods.oidc.signInText === "" ? "OIDC" : authMethods.oidc.signInText
+    icon =
+      authMethods.oidc.iconUrl === "" ? (
+        <ShieldOutlined sx={iconStyles} />
+      ) : (
+        <Box
+          component="img"
+          alt="Open ID Connect icon"
+          src={authMethods.oidc.iconUrl}
+          sx={iconStyles}
+        />
+      )
   }
 
   return (
