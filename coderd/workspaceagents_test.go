@@ -1153,7 +1153,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	require.Len(t, update, 3)
 	check(wantMetadata1, update[0], true)
 
-	const maxValueLen = 32 << 10
+	const maxValueLen = 2048
 	tooLongValueMetadata := wantMetadata1
 	tooLongValueMetadata.Value = strings.Repeat("a", maxValueLen*2)
 	tooLongValueMetadata.Error = ""

@@ -121,7 +121,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		opts = &RoleOptions{}
 	}
 
-	ownerAndAdminExceptions := []Object{ResourceWorkspaceLocked}
+	ownerAndAdminExceptions := []Object{ResourceWorkspaceDormant}
 	if opts.NoOwnerWorkspaceExec {
 		ownerAndAdminExceptions = append(ownerAndAdminExceptions,
 			ResourceWorkspaceExecution,
@@ -150,7 +150,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceProvisionerDaemon.Type: {ActionRead},
 		}),
 		Org: map[string][]Permission{},
-		User: append(allPermsExcept(ResourceWorkspaceLocked, ResourceUser, ResourceOrganizationMember),
+		User: append(allPermsExcept(ResourceWorkspaceDormant, ResourceUser, ResourceOrganizationMember),
 			Permissions(map[string][]Action{
 				// Users cannot do create/update/delete on themselves, but they
 				// can read their own details.
@@ -246,7 +246,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				Site:        []Permission{},
 				Org: map[string][]Permission{
 					// Org admins should not have workspace exec perms.
-					organizationID: allPermsExcept(ResourceWorkspaceExecution, ResourceWorkspaceLocked),
+					organizationID: allPermsExcept(ResourceWorkspaceExecution, ResourceWorkspaceDormant),
 				},
 				User: []Permission{},
 			}

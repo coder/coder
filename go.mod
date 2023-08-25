@@ -36,7 +36,7 @@ replace github.com/dlclark/regexp2 => github.com/dlclark/regexp2 v1.7.0
 
 // There are a few minor changes we make to Tailscale that we're slowly upstreaming. Compare here:
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
-replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20230815060514-ebed8c967bd2
+replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20230824143504-4a17d5b8a684
 
 // This is replaced to include a fix that causes a deadlock when closing the
 // wireguard network.
@@ -68,7 +68,7 @@ replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20230621095435-
 replace github.com/imulab/go-scim/pkg/v2 => github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136
 
 require (
-	cdr.dev/slog v1.6.1
+	cdr.dev/slog v1.6.2-0.20230817204240-b386d5d10a80
 	cloud.google.com/go/compute/metadata v0.2.3
 	github.com/AlecAivazis/survey/v2 v2.3.5
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
@@ -202,7 +202,7 @@ require (
 
 require (
 	cloud.google.com/go/compute v1.23.0 // indirect
-	cloud.google.com/go/logging v1.7.0 // indirect
+	cloud.google.com/go/logging v1.8.1 // indirect
 	cloud.google.com/go/longrunning v0.5.1 // indirect
 	filippo.io/edwards25519 v1.0.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect

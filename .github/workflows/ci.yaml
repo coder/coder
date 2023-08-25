@@ -188,16 +188,13 @@ jobs:
 
       - name: Install Protoc
         run: |
-          # protoc must be in lockstep with our dogfood Dockerfile or the
-          # version in the comments will differ. This is also defined in
-          # security.yaml
-          set -x
-          cd dogfood
-          DOCKER_BUILDKIT=1 docker build . --target proto -t protoc
-          protoc_path=/usr/local/bin/protoc
-          docker run --rm --entrypoint cat protoc /tmp/bin/protoc > $protoc_path
-          chmod +x $protoc_path
-          protoc --version
+          mkdir -p /tmp/proto
+          pushd /tmp/proto
+          curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.3/protoc-23.3-linux-x86_64.zip
+          unzip protoc.zip
+          cp -r ./bin/* /usr/local/bin
+          cp -r ./include /usr/local/bin/include
+          popd
 
       - name: make gen
         run: "make --output-sync -j -B gen"
@@ -532,15 +529,27 @@ jobs:
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v4
+      - name: go install tools
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30
+          go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33
+          go install golang.org/x/tools/cmd/goimports@latest
+          go install github.com/mikefarah/yq/v4@v4.30.6
+          go install github.com/golang/mock/mockgen@v1.6.0
 
-      - name: Run the Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@v2
+      - name: Install Protoc
+        run: |
+          mkdir -p /tmp/proto
+          pushd /tmp/proto
+          curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.3/protoc-23.3-linux-x86_64.zip
+          unzip protoc.zip
+          cp -r ./bin/* /usr/local/bin
+          cp -r ./include /usr/local/bin/include
+          popd
 
       - name: Build
         run: |
-          nix-shell --command 'make -B site/out/index.html'
+          make -B site/out/index.html
 
       - run: pnpm playwright:install
         working-directory: site

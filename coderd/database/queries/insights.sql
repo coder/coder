@@ -61,19 +61,10 @@ FROM agent_stats_by_interval_and_user;
 -- GetTemplateAppInsights returns the aggregate usage of each app in a given
 -- timeframe. The result can be filtered on template_ids, meaning only user data
 -- from workspaces based on those templates will be included.
-WITH ts AS (
+WITH app_stats_by_user_and_agent AS (
 	SELECT
-		d::timestamptz AS from_,
-		(d::timestamptz + '5 minute'::interval) AS to_,
-		EXTRACT(epoch FROM '5 minute'::interval) AS seconds
-	FROM
-		-- Subtract 1 second from end_time to avoid including the next interval in the results.
-		generate_series(@start_time::timestamptz, (@end_time::timestamptz) - '1 second'::interval, '5 minute'::interval) d
-), app_stats_by_user_and_agent AS (
-	SELECT
-		ts.from_,
-		ts.to_,
-		ts.seconds,
+		s.start_time,
+		60 as seconds,
 		w.template_id,
 		was.user_id,
 		was.agent_id,
@@ -82,12 +73,7 @@ WITH ts AS (
 		wa.display_name,
 		wa.icon,
 		(wa.slug IS NOT NULL)::boolean AS is_app
-	FROM ts
-	JOIN workspace_app_stats was ON (
-		(was.session_started_at >= ts.from_ AND was.session_started_at < ts.to_)
-		OR (was.session_ended_at > ts.from_ AND was.session_ended_at < ts.to_)
-		OR (was.session_started_at < ts.from_ AND was.session_ended_at >= ts.to_)
-	)
+	FROM workspace_app_stats was
 	JOIN workspaces w ON (
 		w.id = was.workspace_id
 		AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN w.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
@@ -98,7 +84,20 @@ WITH ts AS (
 		wa.agent_id = was.agent_id
 		AND wa.slug = was.slug_or_port
 	)
-	GROUP BY ts.from_, ts.to_, ts.seconds, w.template_id, was.user_id, was.agent_id, was.access_method, was.slug_or_port, wa.display_name, wa.icon, wa.slug
+	-- This table contains both 1 minute entries and >1 minute entries,
+	-- to calculate this with our uniqueness constraints, we generate series
+	-- for the longer intervals.
+	CROSS JOIN LATERAL generate_series(
+		date_trunc('minute', was.session_started_at),
+		-- Subtract 1 microsecond to avoid creating an extra series.
+		date_trunc('minute', was.session_ended_at - '1 microsecond'::interval),
+		'1 minute'::interval
+	) s(start_time)
+	WHERE
+		s.start_time >= @start_time::timestamptz
+		-- Subtract one minute because the series only contains the start time.
+		AND s.start_time < (@end_time::timestamptz) - '1 minute'::interval
+	GROUP BY s.start_time, w.template_id, was.user_id, was.agent_id, was.access_method, was.slug_or_port, wa.display_name, wa.icon, wa.slug
 )
 
 SELECT

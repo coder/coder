@@ -778,7 +778,19 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						endedAt:   frozenWeekAgo.Add(time.Hour),
 						requests:  1,
 					},
-					{ // used an app on the last day, counts as active user, 12m -> 15m rounded.
+					{ // 30s of app usage -> 1m rounded.
+						app:       users[0].workspaces[0].apps[0],
+						startedAt: frozenWeekAgo.Add(2*time.Hour + 10*time.Second),
+						endedAt:   frozenWeekAgo.Add(2*time.Hour + 40*time.Second),
+						requests:  1,
+					},
+					{ // 1m30s of app usage -> 2m rounded (included in São Paulo).
+						app:       users[0].workspaces[0].apps[0],
+						startedAt: frozenWeekAgo.Add(3*time.Hour + 30*time.Second),
+						endedAt:   frozenWeekAgo.Add(3*time.Hour + 90*time.Second),
+						requests:  1,
+					},
+					{ // used an app on the last day, counts as active user, 12m.
 						app:       users[0].workspaces[0].apps[2],
 						startedAt: frozenWeekAgo.AddDate(0, 0, 6),
 						endedAt:   frozenWeekAgo.AddDate(0, 0, 6).Add(12 * time.Minute),
