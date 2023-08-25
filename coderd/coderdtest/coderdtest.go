@@ -36,7 +36,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -324,7 +323,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		stunAddresses   []string
 		dvStunAddresses = options.DeploymentValues.DERP.Server.STUNAddresses.Value()
 	)
-	if len(dvStunAddresses) == 0 || (len(dvStunAddresses) == 1 && dvStunAddresses[0] == "stun.l.google.com:19302") {
+	if len(dvStunAddresses) == 0 || dvStunAddresses[0] == "stun.l.google.com:19302" {
 		stunAddr, stunCleanup := stuntest.ServeWithPacketListener(t, nettype.Std{})
 		stunAddr.IP = net.ParseIP("127.0.0.1")
 		t.Cleanup(stunCleanup)
@@ -467,10 +466,13 @@ func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 		_ = echoServer.Close()
 		cancelFunc()
 	})
-	fs := afero.NewMemMapFs()
+	// seems t.TempDir() is not safe to call from a different goroutine
+	workDir := t.TempDir()
 	go func() {
-		err := echo.Serve(ctx, fs, &provisionersdk.ServeOptions{
-			Listener: echoServer,
+		err := echo.Serve(ctx, &provisionersdk.ServeOptions{
+			Listener:      echoServer,
+			WorkDirectory: workDir,
+			Logger:        coderAPI.Logger.Named("echo").Leveled(slog.LevelDebug),
 		})
 		assert.NoError(t, err)
 	}()
@@ -478,7 +480,6 @@ func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 	closer := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
 		return coderAPI.CreateInMemoryProvisionerDaemon(ctx, 0)
 	}, &provisionerd.Options{
-		Filesystem:          fs,
 		Logger:              coderAPI.Logger.Named("provisionerd").Leveled(slog.LevelDebug),
 		JobPollInterval:     50 * time.Millisecond,
 		UpdateInterval:      250 * time.Millisecond,
@@ -486,7 +487,6 @@ func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 		Provisioners: provisionerd.Provisioners{
 			string(database.ProvisionerTypeEcho): sdkproto.NewDRPCProvisionerClient(echoClient),
 		},
-		WorkDirectory: t.TempDir(),
 	})
 	t.Cleanup(func() {
 		_ = closer.Close()
@@ -504,11 +504,11 @@ func NewExternalProvisionerDaemon(t *testing.T, client *codersdk.Client, org uui
 		cancelFunc()
 		<-serveDone
 	})
-	fs := afero.NewMemMapFs()
 	go func() {
 		defer close(serveDone)
-		err := echo.Serve(ctx, fs, &provisionersdk.ServeOptions{
-			Listener: echoServer,
+		err := echo.Serve(ctx, &provisionersdk.ServeOptions{
+			Listener:      echoServer,
+			WorkDirectory: t.TempDir(),
 		})
 		assert.NoError(t, err)
 	}()
@@ -520,7 +520,6 @@ func NewExternalProvisionerDaemon(t *testing.T, client *codersdk.Client, org uui
 			Tags:         tags,
 		})
 	}, &provisionerd.Options{
-		Filesystem:          fs,
 		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
 		JobPollInterval:     50 * time.Millisecond,
 		UpdateInterval:      250 * time.Millisecond,
@@ -528,7 +527,6 @@ func NewExternalProvisionerDaemon(t *testing.T, client *codersdk.Client, org uui
 		Provisioners: provisionerd.Provisioners{
 			string(database.ProvisionerTypeEcho): sdkproto.NewDRPCProvisionerClient(echoClient),
 		},
-		WorkDirectory: t.TempDir(),
 	})
 	t.Cleanup(func() {
 		_ = closer.Close()

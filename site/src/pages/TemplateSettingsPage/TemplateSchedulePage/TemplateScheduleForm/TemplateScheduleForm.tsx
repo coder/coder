@@ -17,7 +17,7 @@ import Checkbox from "@mui/material/Checkbox"
 import FormControlLabel from "@mui/material/FormControlLabel"
 import Switch from "@mui/material/Switch"
 import {
-  useWorkspacesToBeLocked,
+  useWorkspacesToGoDormant,
   useWorkspacesToBeDeleted,
 } from "./useWorkspacesToBeDeleted"
 import { TemplateScheduleFormValues, getValidationSchema } from "./formHelpers"
@@ -29,7 +29,7 @@ const MS_HOUR_CONVERSION = 3600000
 const MS_DAY_CONVERSION = 86400000
 const FAILURE_CLEANUP_DEFAULT = 7
 const INACTIVITY_CLEANUP_DEFAULT = 180
-const LOCKED_CLEANUP_DEFAULT = 30
+const DORMANT_AUTODELETION_DEFAULT = 30
 
 export interface TemplateScheduleForm {
   template: Template
@@ -67,11 +67,11 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       failure_ttl_ms: allowAdvancedScheduling
         ? template.failure_ttl_ms / MS_DAY_CONVERSION
         : 0,
-      inactivity_ttl_ms: allowAdvancedScheduling
-        ? template.inactivity_ttl_ms / MS_DAY_CONVERSION
+      time_til_dormant_ms: allowAdvancedScheduling
+        ? template.time_til_dormant_ms / MS_DAY_CONVERSION
         : 0,
-      locked_ttl_ms: allowAdvancedScheduling
-        ? template.locked_ttl_ms / MS_DAY_CONVERSION
+      time_til_dormant_autodelete_ms: allowAdvancedScheduling
+        ? template.time_til_dormant_autodelete_ms / MS_DAY_CONVERSION
         : 0,
 
       restart_requirement: {
@@ -84,18 +84,21 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       failure_cleanup_enabled:
         allowAdvancedScheduling && Boolean(template.failure_ttl_ms),
       inactivity_cleanup_enabled:
-        allowAdvancedScheduling && Boolean(template.inactivity_ttl_ms),
-      locked_cleanup_enabled:
-        allowAdvancedScheduling && Boolean(template.locked_ttl_ms),
+        allowAdvancedScheduling && Boolean(template.time_til_dormant_ms),
+      dormant_autodeletion_cleanup_enabled:
+        allowAdvancedScheduling &&
+        Boolean(template.time_til_dormant_autodelete_ms),
       update_workspace_last_used_at: false,
-      update_workspace_locked_at: false,
+      update_workspace_dormant_at: false,
     },
     validationSchema,
     onSubmit: () => {
       const dormancyChanged =
-        form.initialValues.inactivity_ttl_ms !== form.values.inactivity_ttl_ms
+        form.initialValues.time_til_dormant_ms !==
+        form.values.time_til_dormant_ms
       const deletionChanged =
-        form.initialValues.locked_ttl_ms !== form.values.locked_ttl_ms
+        form.initialValues.time_til_dormant_autodelete_ms !==
+        form.values.time_til_dormant_autodelete_ms
 
       const dormancyScheduleChanged =
         form.values.inactivity_cleanup_enabled &&
@@ -128,13 +131,13 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
   const weekFromNow = new Date(now)
   weekFromNow.setDate(now.getDate() + 7)
 
-  const workspacesToDormancyNow = useWorkspacesToBeLocked(
+  const workspacesToDormancyNow = useWorkspacesToGoDormant(
     template,
     form.values,
     now,
   )
 
-  const workspacesToDormancyInWeek = useWorkspacesToBeLocked(
+  const workspacesToDormancyInWeek = useWorkspacesToGoDormant(
     template,
     form.values,
     weekFromNow,
@@ -175,17 +178,17 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       failure_ttl_ms: form.values.failure_ttl_ms
         ? form.values.failure_ttl_ms * MS_DAY_CONVERSION
         : undefined,
-      inactivity_ttl_ms: form.values.inactivity_ttl_ms
-        ? form.values.inactivity_ttl_ms * MS_DAY_CONVERSION
+      time_til_dormant_ms: form.values.time_til_dormant_ms
+        ? form.values.time_til_dormant_ms * MS_DAY_CONVERSION
         : undefined,
-      locked_ttl_ms: form.values.locked_ttl_ms
-        ? form.values.locked_ttl_ms * MS_DAY_CONVERSION
+      time_til_dormant_autodelete_ms: form.values.time_til_dormant_autodelete_ms
+        ? form.values.time_til_dormant_autodelete_ms * MS_DAY_CONVERSION
         : undefined,
 
       allow_user_autostart: form.values.allow_user_autostart,
       allow_user_autostop: form.values.allow_user_autostop,
       update_workspace_last_used_at: form.values.update_workspace_last_used_at,
-      update_workspace_locked_at: form.values.update_workspace_locked_at,
+      update_workspace_dormant_at: form.values.update_workspace_dormant_at,
     })
   }
 
@@ -211,37 +214,37 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
   const handleToggleInactivityCleanup = async (e: ChangeEvent) => {
     form.handleChange(e)
     if (!form.values.inactivity_cleanup_enabled) {
-      // fill inactivity_ttl_ms with defaults
+      // fill time_til_dormant_ms with defaults
       await form.setValues({
         ...form.values,
         inactivity_cleanup_enabled: true,
-        inactivity_ttl_ms: INACTIVITY_CLEANUP_DEFAULT,
+        time_til_dormant_ms: INACTIVITY_CLEANUP_DEFAULT,
       })
     } else {
-      // clear inactivity_ttl_ms
+      // clear time_til_dormant_ms
       await form.setValues({
         ...form.values,
         inactivity_cleanup_enabled: false,
-        inactivity_ttl_ms: 0,
+        time_til_dormant_ms: 0,
       })
     }
   }
 
-  const handleToggleLockedCleanup = async (e: ChangeEvent) => {
+  const handleToggleDormantAutoDeletion = async (e: ChangeEvent) => {
     form.handleChange(e)
-    if (!form.values.locked_cleanup_enabled) {
+    if (!form.values.dormant_autodeletion_cleanup_enabled) {
       // fill failure_ttl_ms with defaults
       await form.setValues({
         ...form.values,
-        locked_cleanup_enabled: true,
-        locked_ttl_ms: LOCKED_CLEANUP_DEFAULT,
+        dormant_autodeletion_cleanup_enabled: true,
+        time_til_dormant_autodelete_ms: DORMANT_AUTODELETION_DEFAULT,
       })
     } else {
       // clear failure_ttl_ms
       await form.setValues({
         ...form.values,
-        locked_cleanup_enabled: false,
-        locked_ttl_ms: 0,
+        dormant_autodeletion_cleanup_enabled: false,
+        time_til_dormant_autodelete_ms: 0,
       })
     }
   }
@@ -398,10 +401,10 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
               />
               <TextField
                 {...getFieldHelpers(
-                  "inactivity_ttl_ms",
+                  "time_til_dormant_ms",
                   <TTLHelperText
                     translationName="dormancyThresholdHelperText"
-                    ttl={form.values.inactivity_ttl_ms}
+                    ttl={form.values.time_til_dormant_ms}
                   />,
                 )}
                 disabled={
@@ -423,21 +426,24 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                 control={
                   <Switch
                     name="dormancyAutoDeletion"
-                    checked={form.values.locked_cleanup_enabled}
-                    onChange={handleToggleLockedCleanup}
+                    checked={form.values.dormant_autodeletion_cleanup_enabled}
+                    onChange={handleToggleDormantAutoDeletion}
                   />
                 }
                 label="Enable Dormancy Auto-Deletion"
               />
               <TextField
                 {...getFieldHelpers(
-                  "locked_ttl_ms",
+                  "time_til_dormant_autodelete_ms",
                   <TTLHelperText
                     translationName="dormancyAutoDeletionHelperText"
-                    ttl={form.values.locked_ttl_ms}
+                    ttl={form.values.time_til_dormant_autodelete_ms}
                   />,
                 )}
-                disabled={isSubmitting || !form.values.locked_cleanup_enabled}
+                disabled={
+                  isSubmitting ||
+                  !form.values.dormant_autodeletion_cleanup_enabled
+                }
                 fullWidth
                 inputProps={{ min: 0, step: "any" }}
                 label="Time until deletion (days)"
@@ -455,7 +461,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
             // These fields are request-scoped so they should be reset
             // after every submission.
             form
-              .setFieldValue("update_workspace_locked_at", false)
+              .setFieldValue("update_workspace_dormant_at", false)
               .catch((error) => {
                 throw error
               })
@@ -478,18 +484,19 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
             setIsScheduleDialogOpen(false)
           }}
           title="Workspace Scheduling"
-          updateLockedWorkspaces={(update: boolean) =>
-            form.setFieldValue("update_workspace_locked_at", update)
+          updateDormantWorkspaces={(update: boolean) =>
+            form.setFieldValue("update_workspace_dormant_at", update)
           }
           updateInactiveWorkspaces={(update: boolean) =>
             form.setFieldValue("update_workspace_last_used_at", update)
           }
           dormantValueChanged={
-            form.initialValues.inactivity_ttl_ms !==
-            form.values.inactivity_ttl_ms
+            form.initialValues.time_til_dormant_ms !==
+            form.values.time_til_dormant_ms
           }
           deletionValueChanged={
-            form.initialValues.locked_ttl_ms !== form.values.locked_ttl_ms
+            form.initialValues.time_til_dormant_autodelete_ms !==
+            form.values.time_til_dormant_autodelete_ms
           }
         />
       )}

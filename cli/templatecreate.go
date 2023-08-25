@@ -29,9 +29,11 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 		variablesFile   string
 		variables       []string
 		disableEveryone bool
-		defaultTTL      time.Duration
-		failureTTL      time.Duration
-		inactivityTTL   time.Duration
+
+		defaultTTL    time.Duration
+		failureTTL    time.Duration
+		inactivityTTL time.Duration
+		maxTTL        time.Duration
 
 		uploadFlags templateUploadFlags
 	)
@@ -44,7 +46,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
-			if failureTTL != 0 || inactivityTTL != 0 {
+			if failureTTL != 0 || inactivityTTL != 0 || maxTTL != 0 {
 				// This call can be removed when workspace_actions is no longer experimental
 				experiments, exErr := client.Experiments(inv.Context())
 				if exErr != nil {
@@ -134,7 +136,8 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 				VersionID:                  job.ID,
 				DefaultTTLMillis:           ptr.Ref(defaultTTL.Milliseconds()),
 				FailureTTLMillis:           ptr.Ref(failureTTL.Milliseconds()),
-				InactivityTTLMillis:        ptr.Ref(inactivityTTL.Milliseconds()),
+				MaxTTLMillis:               ptr.Ref(maxTTL.Milliseconds()),
+				TimeTilDormantMillis:       ptr.Ref(inactivityTTL.Milliseconds()),
 				DisableEveryoneGroupAccess: disableEveryone,
 			}
 
@@ -197,6 +200,11 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			Description: "Specify an inactivity TTL for workspaces created from this template. This licensed feature's default is 0h (off).",
 			Default:     "0h",
 			Value:       clibase.DurationOf(&inactivityTTL),
+		},
+		{
+			Flag:        "max-ttl",
+			Description: "Edit the template maximum time before shutdown - workspaces created from this template must shutdown within the given duration after starting. This is an enterprise-only feature.",
+			Value:       clibase.DurationOf(&maxTTL),
 		},
 		{
 			Flag:        "test.provisioner",

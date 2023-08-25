@@ -554,16 +554,16 @@ export const cancelWorkspaceBuild = async (
   return response.data
 }
 
-export const updateWorkspaceLock = async (
+export const updateWorkspaceDormancy = async (
   workspaceId: string,
-  lock: boolean,
+  dormant: boolean,
 ): Promise<TypesGen.Workspace> => {
-  const data: TypesGen.UpdateWorkspaceLock = {
-    lock: lock,
+  const data: TypesGen.UpdateWorkspaceDormancy = {
+    dormant: dormant,
   }
 
   const response = await axios.put(
-    `/api/v2/workspaces/${workspaceId}/lock`,
+    `/api/v2/workspaces/${workspaceId}/dormant`,
     data,
   )
   return response.data

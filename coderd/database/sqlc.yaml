@@ -67,9 +67,8 @@ overrides:
       motd_file: MOTDFile
       uuid: UUID
       failure_ttl: FailureTTL
-      inactivity_ttl: InactivityTTL
+      time_til_dormant_autodelete: TimeTilDormantAutoDelete
       eof: EOF
-      locked_ttl: LockedTTL
       template_ids: TemplateIDs
       active_user_ids: ActiveUserIDs
 

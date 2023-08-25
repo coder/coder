@@ -99,24 +99,24 @@ type TemplateScheduleOptions struct {
 	// FailureTTL dictates the duration after which failed workspaces will be
 	// stopped automatically.
 	FailureTTL time.Duration `json:"failure_ttl"`
-	// InactivityTTL dictates the duration after which inactive workspaces will
-	// be locked.
-	InactivityTTL time.Duration `json:"inactivity_ttl"`
-	// LockedTTL dictates the duration after which locked workspaces will be
+	// TimeTilDormant dictates the duration after which inactive workspaces will
+	// go dormant.
+	TimeTilDormant time.Duration `json:"time_til_dormant"`
+	// TimeTilDormantAutoDelete dictates the duration after which dormant workspaces will be
 	// permanently deleted.
-	LockedTTL time.Duration `json:"locked_ttl"`
+	TimeTilDormantAutoDelete time.Duration `json:"time_til_dormant_autodelete"`
 	// UpdateWorkspaceLastUsedAt updates the template's workspaces'
 	// last_used_at field. This is useful for preventing updates to the
-	// templates inactivity_ttl immediately triggering a lock action against
+	// templates inactivity_ttl immediately triggering a dormant action against
 	// workspaces whose last_used_at field violates the new template
 	// inactivity_ttl threshold.
 	UpdateWorkspaceLastUsedAt bool `json:"update_workspace_last_used_at"`
-	// UpdateWorkspaceLockedAt updates the template's workspaces'
-	// locked_at field. This is useful for preventing updates to the
+	// UpdateWorkspaceDormantAt updates the template's workspaces'
+	// dormant_at field. This is useful for preventing updates to the
 	// templates locked_ttl immediately triggering a delete action against
-	// workspaces whose locked_at field violates the new template locked_ttl
+	// workspaces whose dormant_at field violates the new template time_til_dormant_autodelete
 	// threshold.
-	UpdateWorkspaceLockedAt bool `json:"update_workspace_locked_at"`
+	UpdateWorkspaceDormantAt bool `json:"update_workspace_dormant_at"`
 }
 
 // TemplateScheduleStore provides an interface for retrieving template
@@ -150,16 +150,16 @@ func (*agplTemplateScheduleStore) Get(ctx context.Context, db database.Store, te
 		UserAutostopEnabled:  true,
 		DefaultTTL:           time.Duration(tpl.DefaultTTL),
 		// Disregard the values in the database, since RestartRequirement,
-		// FailureTTL, InactivityTTL, and LockedTTL are enterprise features.
+		// FailureTTL, TimeTilDormant, and TimeTilDormantAutoDelete are enterprise features.
 		UseRestartRequirement: false,
 		MaxTTL:                0,
 		RestartRequirement: TemplateRestartRequirement{
 			DaysOfWeek: 0,
 			Weeks:      0,
 		},
-		FailureTTL:    0,
-		InactivityTTL: 0,
-		LockedTTL:     0,
+		FailureTTL:               0,
+		TimeTilDormant:           0,
+		TimeTilDormantAutoDelete: 0,
 	}, nil
 }
 
@@ -186,8 +186,8 @@ func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tp
 			AllowUserAutostart:           tpl.AllowUserAutostart,
 			AllowUserAutostop:            tpl.AllowUserAutostop,
 			FailureTTL:                   tpl.FailureTTL,
-			InactivityTTL:                tpl.InactivityTTL,
-			LockedTTL:                    tpl.LockedTTL,
+			TimeTilDormant:               tpl.TimeTilDormant,
+			TimeTilDormantAutoDelete:     tpl.TimeTilDormantAutoDelete,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template schedule: %w", err)

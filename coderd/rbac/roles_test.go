@@ -319,9 +319,9 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			Name:     "WorkspaceLocked",
+			Name:     "WorkspaceDormant",
 			Actions:  rbac.AllActions(),
-			Resource: rbac.ResourceWorkspaceLocked.WithID(uuid.New()).InOrg(orgID).WithOwner(memberMe.Actor.ID),
+			Resource: rbac.ResourceWorkspaceDormant.WithID(uuid.New()).InOrg(orgID).WithOwner(memberMe.Actor.ID),
 			AuthorizeMap: map[bool][]authSubject{
 				true:  {},
 				false: {memberMe, orgAdmin, userAdmin, otherOrgAdmin, otherOrgMember, orgMemberMe, owner, templateAdmin},

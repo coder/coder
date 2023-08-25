@@ -23,7 +23,7 @@ import { displayError } from "components/GlobalSnackbar/utils"
 import { getErrorMessage } from "api/errors"
 
 const WorkspacesPage: FC = () => {
-  const [lockedWorkspaces, setLockedWorkspaces] = useState<Workspace[]>([])
+  const [dormantWorkspaces, setDormantWorkspaces] = useState<Workspace[]>([])
   // If we use a useSearchParams for each hook, the values will not be in sync.
   // So we have to use a single one, centralizing the values, and pass it to
   // each hook.
@@ -36,23 +36,23 @@ const WorkspacesPage: FC = () => {
   })
 
   const experimentEnabled = useIsWorkspaceActionsEnabled()
-  // If workspace actions are enabled we need to fetch the locked
+  // If workspace actions are enabled we need to fetch the dormant
   // workspaces as well. This lets us determine whether we should
   // show a banner to the user indicating that some of their workspaces
   // are at risk of being deleted.
   useEffect(() => {
     if (experimentEnabled) {
-      const includesLocked = filterProps.filter.query.includes("locked_at")
-      const lockedQuery = includesLocked
+      const includesDormant = filterProps.filter.query.includes("dormant_at")
+      const dormantQuery = includesDormant
         ? filterProps.filter.query
-        : filterProps.filter.query + " locked_at:1970-01-01"
+        : filterProps.filter.query + " dormant_at:1970-01-01"
 
-      if (includesLocked && data) {
-        setLockedWorkspaces(data.workspaces)
+      if (includesDormant && data) {
+        setDormantWorkspaces(data.workspaces)
       } else {
-        getWorkspaces({ q: lockedQuery })
+        getWorkspaces({ q: dormantQuery })
           .then((resp) => {
-            setLockedWorkspaces(resp.workspaces)
+            setDormantWorkspaces(resp.workspaces)
           })
           .catch(() => {
             // TODO
@@ -60,8 +60,8 @@ const WorkspacesPage: FC = () => {
       }
     } else {
       // If the experiment isn't included then we'll pretend
-      // like locked workspaces don't exist.
-      setLockedWorkspaces([])
+      // like dormant workspaces don't exist.
+      setDormantWorkspaces([])
     }
   }, [experimentEnabled, data, filterProps.filter.query])
   const updateWorkspace = useWorkspaceUpdate(queryKey)
@@ -90,7 +90,7 @@ const WorkspacesPage: FC = () => {
         checkedWorkspaces={checkedWorkspaces}
         onCheckChange={setCheckedWorkspaces}
         workspaces={data?.workspaces}
-        lockedWorkspaces={lockedWorkspaces}
+        dormantWorkspaces={dormantWorkspaces}
         error={error}
         count={data?.count}
         page={pagination.page}
