@@ -245,30 +245,30 @@ sudo -u ${local.linux_user} sh -c '${coder_agent.main.init_script}'
 --//--
 EOT
 
-#   user_data_end = <<EOT
-# Content-Type: multipart/mixed; boundary="//"
-# MIME-Version: 1.0
+  #   user_data_end = <<EOT
+  # Content-Type: multipart/mixed; boundary="//"
+  # MIME-Version: 1.0
 
-# --//
-# Content-Type: text/cloud-config; charset="us-ascii"
-# MIME-Version: 1.0
-# Content-Transfer-Encoding: 7bit
-# Content-Disposition: attachment; filename="cloud-config.txt"
+  # --//
+  # Content-Type: text/cloud-config; charset="us-ascii"
+  # MIME-Version: 1.0
+  # Content-Transfer-Encoding: 7bit
+  # Content-Disposition: attachment; filename="cloud-config.txt"
 
-# #cloud-config
-# cloud_final_modules:
-# - [scripts-user, always]
+  # #cloud-config
+  # cloud_final_modules:
+  # - [scripts-user, always]
 
-# --//
-# Content-Type: text/x-shellscript; charset="us-ascii"
-# MIME-Version: 1.0
-# Content-Transfer-Encoding: 7bit
-# Content-Disposition: attachment; filename="userdata.txt"
+  # --//
+  # Content-Type: text/x-shellscript; charset="us-ascii"
+  # MIME-Version: 1.0
+  # Content-Transfer-Encoding: 7bit
+  # Content-Disposition: attachment; filename="userdata.txt"
 
-# #!/bin/bash
-# sudo shutdown -h now
-# --//--
-# EOT
+  # #!/bin/bash
+  # sudo shutdown -h now
+  # --//--
+  # EOT
 
   linux_user = "coder" # Ensure this user/group does not exist in your VM image
 
