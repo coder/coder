@@ -73,9 +73,9 @@ func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.Cr
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionApply: []*proto.Provision_Response{{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{
+		ProvisionApply: []*proto.Response{{
+			Type: &proto.Response_Apply{
+				Apply: &proto.ApplyComplete{
 					Resources: []*proto.Resource{{
 						Name: "example",
 						Type: "aws_instance",

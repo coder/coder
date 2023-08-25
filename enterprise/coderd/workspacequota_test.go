@@ -89,9 +89,9 @@ func TestWorkspaceQuota(t *testing.T) {
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
+			ProvisionApply: []*proto.Response{{
+				Type: &proto.Response_Apply{
+					Apply: &proto.ApplyComplete{
 						Resources: []*proto.Resource{{
 							Name:      "example",
 							Type:      "aws_instance",
@@ -183,39 +183,15 @@ func TestWorkspaceQuota(t *testing.T) {
 		require.NoError(t, err)
 		verifyQuota(ctx, t, client, 0, 4)
 
-		stopResp := []*proto.Provision_Response{{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{
-					Resources: []*proto.Resource{{
-						Name:      "example",
-						Type:      "aws_instance",
-						DailyCost: 1,
-					}},
-				},
-			},
-		}}
-
-		startResp := []*proto.Provision_Response{{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{
-					Resources: []*proto.Resource{{
-						Name:      "example",
-						Type:      "aws_instance",
-						DailyCost: 2,
-					}},
-				},
-			},
-		}}
-
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionPlanMap: map[proto.WorkspaceTransition][]*proto.Provision_Response{
-				proto.WorkspaceTransition_START: startResp,
-				proto.WorkspaceTransition_STOP:  stopResp,
+			ProvisionPlanMap: map[proto.WorkspaceTransition][]*proto.Response{
+				proto.WorkspaceTransition_START: planWithCost(2),
+				proto.WorkspaceTransition_STOP:  planWithCost(1),
 			},
-			ProvisionApplyMap: map[proto.WorkspaceTransition][]*proto.Provision_Response{
-				proto.WorkspaceTransition_START: startResp,
-				proto.WorkspaceTransition_STOP:  stopResp,
+			ProvisionApplyMap: map[proto.WorkspaceTransition][]*proto.Response{
+				proto.WorkspaceTransition_START: applyWithCost(2),
+				proto.WorkspaceTransition_STOP:  applyWithCost(1),
 			},
 		})
 
@@ -257,4 +233,32 @@ func TestWorkspaceQuota(t *testing.T) {
 		verifyQuota(ctx, t, client, 4, 4)
 		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
 	})
+}
+
+func planWithCost(cost int32) []*proto.Response {
+	return []*proto.Response{{
+		Type: &proto.Response_Plan{
+			Plan: &proto.PlanComplete{
+				Resources: []*proto.Resource{{
+					Name:      "example",
+					Type:      "aws_instance",
+					DailyCost: cost,
+				}},
+			},
+		},
+	}}
+}
+
+func applyWithCost(cost int32) []*proto.Response {
+	return []*proto.Response{{
+		Type: &proto.Response_Apply{
+			Apply: &proto.ApplyComplete{
+				Resources: []*proto.Resource{{
+					Name:      "example",
+					Type:      "aws_instance",
+					DailyCost: cost,
+				}},
+			},
+		},
+	}}
 }

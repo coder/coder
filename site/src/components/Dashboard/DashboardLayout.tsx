@@ -12,7 +12,7 @@ import { updateCheckMachine } from "xServices/updateCheck/updateCheckXService"
 import { Navbar } from "../Navbar/Navbar"
 import Snackbar from "@mui/material/Snackbar"
 import Link from "@mui/material/Link"
-import Box from "@mui/material/Box"
+import Box, { BoxProps } from "@mui/material/Box"
 import InfoOutlined from "@mui/icons-material/InfoOutlined"
 import Button from "@mui/material/Button"
 import { docs } from "utils/docs"
@@ -102,10 +102,27 @@ export const DashboardLayout: FC = () => {
   )
 }
 
+export const DashboardFullPage = (props: BoxProps) => {
+  return (
+    <Box
+      {...props}
+      sx={{
+        ...props.sx,
+        marginBottom: `-${dashboardContentBottomPadding}px`,
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        flexBasis: 0,
+        minHeight: "100%",
+      }}
+    />
+  )
+}
+
 const useStyles = makeStyles({
   site: {
     display: "flex",
-    minHeight: "100vh",
+    minHeight: "100%",
     flexDirection: "column",
   },
   siteContent: {

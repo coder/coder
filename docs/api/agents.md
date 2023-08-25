@@ -392,6 +392,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/manifest \
       "url": "string"
     }
   ],
+  "derp_force_websockets": true,
   "derpmap": {
     "homeParams": {
       "regionScore": {
@@ -743,6 +744,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
 
 ```json
 {
+  "derp_force_websockets": true,
   "derp_map": {
     "homeParams": {
       "regionScore": {
