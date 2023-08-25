@@ -161,6 +161,7 @@ func NewFakeIDP(t testing.TB, opts ...FakeIDPOpt) *FakeIDP {
 		refreshIDTokenClaims: syncmap.New[string, jwt.MapClaims](),
 		hookOnRefresh:        func(_ string) error { return nil },
 		hookUserInfo:         func(email string) jwt.MapClaims { return jwt.MapClaims{} },
+		hookValidRedirectURL: func(redirectURL string) error { return nil },
 	}
 
 	for _, opt := range opts {
