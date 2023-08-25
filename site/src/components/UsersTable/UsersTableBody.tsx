@@ -1,9 +1,8 @@
-import Box from "@mui/material/Box"
-import { makeStyles } from "@mui/styles"
+import Box, { BoxProps } from "@mui/material/Box"
+import { makeStyles, useTheme } from "@mui/styles"
 import TableCell from "@mui/material/TableCell"
 import TableRow from "@mui/material/TableRow"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
-import { LastUsed } from "components/LastUsed/LastUsed"
 import { Pill } from "components/Pill/Pill"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
@@ -16,6 +15,8 @@ import { TableRowMenu } from "../TableRowMenu/TableRowMenu"
 import { EditRolesButton } from "components/EditRolesButton/EditRolesButton"
 import { Stack } from "components/Stack/Stack"
 import { EnterpriseBadge } from "components/DeploySettingsLayout/Badges"
+import dayjs from "dayjs"
+import { Theme } from "@mui/material/styles"
 
 const isOwnerRole = (role: TypesGen.Role): boolean => {
   return role.name === "owner"
@@ -166,11 +167,10 @@ export const UsersTableBody: FC<
                         : undefined,
                     ])}
                   >
-                    {user.status}
+                    <Box>{user.status}</Box>
+                    <LastSeen value={user.last_seen_at} sx={{ fontSize: 12 }} />
                   </TableCell>
-                  <TableCell>
-                    <LastUsed lastUsedAt={user.last_seen_at} />
-                  </TableCell>
+
                   {canEditUsers && (
                     <TableCell>
                       <TableRowMenu
@@ -233,6 +233,44 @@ export const UsersTableBody: FC<
         </>
       </Cond>
     </ChooseOne>
+  )
+}
+
+export const LastSeen = ({
+  value,
+  ...boxProps
+}: { value: string } & BoxProps) => {
+  const theme: Theme = useTheme()
+  const t = dayjs(value)
+  const now = dayjs()
+
+  let message = t.fromNow()
+  let color = theme.palette.text.secondary
+
+  if (t.isAfter(now.subtract(1, "hour"))) {
+    color = theme.palette.success.light
+    // Since the agent reports on a 10m interval,
+    // the last_used_at can be inaccurate when recent.
+    message = "Now"
+  } else if (t.isAfter(now.subtract(3, "day"))) {
+    color = theme.palette.text.secondary
+  } else if (t.isAfter(now.subtract(1, "month"))) {
+    color = theme.palette.warning.light
+  } else if (t.isAfter(now.subtract(100, "year"))) {
+    color = theme.palette.error.light
+  } else {
+    message = "Never"
+  }
+
+  return (
+    <Box
+      component="span"
+      data-chromatic="ignore"
+      {...boxProps}
+      sx={{ color, ...boxProps.sx }}
+    >
+      {message}
+    </Box>
   )
 }
 
