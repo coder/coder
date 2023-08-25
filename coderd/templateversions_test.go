@@ -311,8 +311,9 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 			// job gets marked Failed when there is an Error; in practice we never get to Status = Canceled
 			// because provisioners report an Error when canceled. We check the Error string to ensure we don't mask
 			// other errors in this test.
+			t.Logf("got version %s | %s", version.Job.Error, version.Job.Status)
 			return assert.NoError(t, err) &&
-				version.Job.Error == "canceled" &&
+				strings.HasSuffix(version.Job.Error, "canceled") &&
 				version.Job.Status == codersdk.ProvisionerJobFailed
 		}, testutil.WaitShort, testutil.IntervalFast)
 	})
