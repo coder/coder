@@ -376,15 +376,18 @@ func (f *FakeIDP) authenticateBearerTokenRequest(t testing.TB, req *http.Request
 	return token, nil
 }
 
-// authenticateOIDClientRequest enforces the client_id and client_secret are valid.
-func (f *FakeIDP) authenticateOIDClientRequest(t testing.TB, req *http.Request) (url.Values, error) {
+// authenticateOIDCClientRequest enforces the client_id and client_secret are valid.
+func (f *FakeIDP) authenticateOIDCClientRequest(t testing.TB, req *http.Request) (url.Values, error) {
 	t.Helper()
 
 	if f.hookAuthenticateClient != nil {
 		return f.hookAuthenticateClient(t, req)
 	}
 
-	data, _ := io.ReadAll(req.Body)
+	data, err := io.ReadAll(req.Body)
+	if !assert.NoError(t, err, "read token request body") {
+		return nil, xerrors.Errorf("authenticate request, read body: %w", err)
+	}
 	values, err := url.ParseQuery(string(data))
 	if !assert.NoError(t, err, "parse token request values") {
 		return nil, xerrors.New("invalid token request")
@@ -491,7 +494,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	}))
 
 	mux.Handle(tokenPath, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		values, err := f.authenticateOIDClientRequest(t, r)
+		values, err := f.authenticateOIDCClientRequest(t, r)
 		f.logger.Info(r.Context(), "HTTP Call Token",
 			slog.Error(err),
 			slog.F("values", values.Encode()),

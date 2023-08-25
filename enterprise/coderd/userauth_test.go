@@ -57,7 +57,7 @@ func TestUserOIDC(t *testing.T) {
 		// roles from an updated claim.
 		t.Run("NewUserAndRemoveRolesOnRefresh", func(t *testing.T) {
 			// TODO: Implement new feature to update roles/groups on OIDC
-			// refresh tokens.
+			// refresh tokens. https://github.com/coder/coder/issues/9312
 			t.Skip("Refreshing tokens does not update roles :(")
 			t.Parallel()
 
@@ -224,7 +224,7 @@ func TestUserOIDC(t *testing.T) {
 			t.Parallel()
 
 			// TODO: Implement new feature to update roles/groups on OIDC
-			// refresh tokens.
+			// refresh tokens. https://github.com/coder/coder/issues/9312
 			t.Skip("Refreshing tokens does not update groups :(")
 
 			const groupClaim = "custom-groups"
