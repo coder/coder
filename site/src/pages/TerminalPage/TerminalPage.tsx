@@ -7,7 +7,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { colors } from "theme/colors"
 import { v4 as uuidv4 } from "uuid"
 import * as XTerm from "xterm"
-import { CanvasAddon } from "xterm-addon-canvas"
+import { WebglAddon } from "xterm-addon-webgl"
 import { FitAddon } from "xterm-addon-fit"
 import { WebLinksAddon } from "xterm-addon-web-links"
 import { Unicode11Addon } from "xterm-addon-unicode11"
@@ -58,7 +58,7 @@ const useTerminalWarning = ({ agent }: { agent?: WorkspaceAgent }) => {
 }
 
 type TerminalPageProps = React.PropsWithChildren<{
-  renderer: "canvas" | "dom"
+  renderer: "webgl" | "dom"
 }>
 
 const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
@@ -187,8 +187,8 @@ const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
       },
     })
     // DOM is the default renderer.
-    if (renderer === "canvas") {
-      terminal.loadAddon(new CanvasAddon())
+    if (renderer === "webgl") {
+      terminal.loadAddon(new WebglAddon())
     }
     const fitAddon = new FitAddon()
     setFitAddon(fitAddon)
