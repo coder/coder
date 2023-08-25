@@ -201,6 +201,53 @@ func TestTemplatePull(t *testing.T) {
 	})
 }
 
+//nolint:paralleltest // This test uses default the current directory.
+func TestTemplatePull_DefaultDir(t *testing.T) {
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	// Create an initial template bundle.
+	source1 := genTemplateVersionSource()
+	// Create an updated template bundle. This will be used to ensure
+	// that templates are correctly returned in order from latest to oldest.
+	source2 := genTemplateVersionSource()
+
+	expected, err := echo.Tar(source2)
+	require.NoError(t, err)
+
+	version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, source1)
+	_ = coderdtest.AwaitTemplateVersionJob(t, client, version1.ID)
+
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
+
+	// Update the template version so that we can assert that templates
+	// are being sorted correctly.
+	_ = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
+
+	dir := t.TempDir()
+	expectedDest := filepath.Join(dir, "expected")
+	ctx := context.Background()
+
+	err = extract.Tar(ctx, bytes.NewReader(expected), expectedDest, nil)
+	require.NoError(t, err)
+
+	inv, root := clitest.New(t, "templates", "pull", template.Name)
+	clitest.SetupConfig(t, client, root)
+	t.Cleanup(func() {
+		err := os.RemoveAll(template.Name)
+		require.NoError(t, err, "can't remove template dir")
+	})
+
+	ptytest.New(t).Attach(inv)
+
+	require.NoError(t, inv.Run())
+
+	require.Equal(t,
+		dirSum(t, expectedDest),
+		dirSum(t, template.Name),
+	)
+}
+
 // genTemplateVersionSource returns a unique bundle that can be used to create
 // a template version source.
 func genTemplateVersionSource() *echo.Responses {
