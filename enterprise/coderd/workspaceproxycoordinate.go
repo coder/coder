@@ -68,6 +68,14 @@ func (api *API) workspaceProxyCoordinate(rw http.ResponseWriter, r *http.Request
 
 	id := uuid.New()
 	sub, err := (*api.AGPL.TailnetCoordinator.Load()).ServeMultiAgent(id)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to serve multi agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	ctx, nc := websocketNetConn(ctx, conn, websocket.MessageText)
 	defer nc.Close()
 
