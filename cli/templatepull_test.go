@@ -138,7 +138,6 @@ func TestTemplatePull_ToDir(t *testing.T) {
 // and writes it to a directory with the name of the template if the path is not implicitly supplied.
 // nolint: paralleltest
 func TestTemplatePull_ToImplicit(t *testing.T) {
-
 	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 	user := coderdtest.CreateFirstUser(t, client)
 
