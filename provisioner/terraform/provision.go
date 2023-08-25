@@ -4,11 +4,10 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
-	"golang.org/x/xerrors"
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -16,48 +15,23 @@ import (
 	"github.com/coder/terraform-provider-coder/provider"
 )
 
-// Provision executes `terraform apply` or `terraform plan` for dry runs.
-func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
-	ctx, span := s.startTrace(stream.Context(), tracing.FuncName())
-	defer span.End()
-
-	request, err := stream.Recv()
-	if err != nil {
-		return err
-	}
-	if request.GetCancel() != nil {
-		return nil
-	}
-
-	var (
-		applyRequest = request.GetApply()
-		planRequest  = request.GetPlan()
-	)
-
-	var config *proto.Provision_Config
-	if applyRequest == nil && planRequest == nil {
-		return nil
-	} else if applyRequest != nil {
-		config = applyRequest.Config
-	} else if planRequest != nil {
-		config = planRequest.Config
-	}
-
-	// Create a context for graceful cancellation bound to the stream
+func (s *server) setupContexts(parent context.Context, canceledOrComplete <-chan struct{}) (
+	ctx context.Context, cancel func(), killCtx context.Context, kill func(),
+) {
+	// Create a context for graceful cancellation bound to the session
 	// context. This ensures that we will perform graceful cancellation
 	// even on connection loss.
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	ctx, cancel = context.WithCancel(parent)
 
 	// Create a separate context for forceful cancellation not tied to
 	// the stream so that we can control when to terminate the process.
-	killCtx, kill := context.WithCancel(context.Background())
-	defer kill()
+	killCtx, kill = context.WithCancel(context.Background())
 
 	// Ensure processes are eventually cleaned up on graceful
 	// cancellation or disconnect.
 	go func() {
 		<-ctx.Done()
+		s.logger.Debug(ctx, "graceful context done")
 
 		// TODO(mafredri): We should track this provision request as
 		// part of graceful server shutdown procedure. Waiting on a
@@ -66,134 +40,131 @@ func (s *server) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
 		defer t.Stop()
 		select {
 		case <-t.C:
+			s.logger.Debug(ctx, "exit timeout hit")
 			kill()
 		case <-killCtx.Done():
+			s.logger.Debug(ctx, "kill context done")
 		}
 	}()
 
+	// Process cancel
 	go func() {
-		for {
-			request, err := stream.Recv()
-			if err != nil {
-				return
-			}
-			if request.GetCancel() == nil {
-				// We only process cancellation requests here.
-				continue
-			}
-			cancel()
-			return
-		}
+		<-canceledOrComplete
+		s.logger.Debug(ctx, "canceledOrComplete closed")
+		cancel()
 	}()
+	return ctx, cancel, killCtx, kill
+}
 
-	sink := streamLogSink{
-		logger: s.logger.Named("execution_logs"),
-		stream: stream,
-	}
+func (s *server) Plan(
+	sess *provisionersdk.Session, request *proto.PlanRequest, canceledOrComplete <-chan struct{},
+) *proto.PlanComplete {
+	ctx, span := s.startTrace(sess.Context(), tracing.FuncName())
+	defer span.End()
+	ctx, cancel, killCtx, kill := s.setupContexts(ctx, canceledOrComplete)
+	defer cancel()
+	defer kill()
 
-	e := s.executor(config.Directory)
-	if err = e.checkMinVersion(ctx); err != nil {
-		return err
+	e := s.executor(sess.WorkDirectory)
+	if err := e.checkMinVersion(ctx); err != nil {
+		return provisionersdk.PlanErrorf(err.Error())
 	}
-	logTerraformEnvVars(sink)
-
-	statefilePath := filepath.Join(config.Directory, "terraform.tfstate")
-	if len(config.State) > 0 {
-		err = os.WriteFile(statefilePath, config.State, 0o600)
-		if err != nil {
-			return xerrors.Errorf("write statefile %q: %w", statefilePath, err)
-		}
-	}
+	logTerraformEnvVars(sess)
 
 	// If we're destroying, exit early if there's no state. This is necessary to
 	// avoid any cases where a workspace is "locked out" of terraform due to
 	// e.g. bad template param values and cannot be deleted. This is just for
 	// contingency, in the future we will try harder to prevent workspaces being
 	// broken this hard.
-	if config.Metadata.WorkspaceTransition == proto.WorkspaceTransition_DESTROY && len(config.State) == 0 {
-		_ = stream.Send(&proto.Provision_Response{
-			Type: &proto.Provision_Response_Log{
-				Log: &proto.Log{
-					Level:  proto.LogLevel_INFO,
-					Output: "The terraform state does not exist, there is nothing to do",
-				},
-			},
-		})
+	if request.Metadata.GetWorkspaceTransition() == proto.WorkspaceTransition_DESTROY && len(sess.Config.State) == 0 {
+		sess.ProvisionLog(proto.LogLevel_INFO, "The terraform state does not exist, there is nothing to do")
+		return &proto.PlanComplete{}
+	}
 
-		return stream.Send(&proto.Provision_Response{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{},
-			},
-		})
+	statefilePath := getStateFilePath(sess.WorkDirectory)
+	if len(sess.Config.State) > 0 {
+		err := os.WriteFile(statefilePath, sess.Config.State, 0o600)
+		if err != nil {
+			return provisionersdk.PlanErrorf("write statefile %q: %s", statefilePath, err)
+		}
 	}
 
 	s.logger.Debug(ctx, "running initialization")
-	err = e.init(ctx, killCtx, sink)
+	err := e.init(ctx, killCtx, sess)
 	if err != nil {
-		if ctx.Err() != nil {
-			return stream.Send(&proto.Provision_Response{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Error: err.Error(),
-					},
-				},
-			})
-		}
-		return xerrors.Errorf("initialize terraform: %w", err)
+		s.logger.Debug(ctx, "init failed", slog.Error(err))
+		return provisionersdk.PlanErrorf("initialize terraform: %s", err)
 	}
 	s.logger.Debug(ctx, "ran initialization")
-	env, err := provisionEnv(config, request.GetPlan().GetRichParameterValues(), request.GetPlan().GetGitAuthProviders())
+
+	env, err := provisionEnv(sess.Config, request.Metadata, request.RichParameterValues, request.GitAuthProviders)
 	if err != nil {
-		return err
+		return provisionersdk.PlanErrorf("setup env: %s", err)
 	}
 
-	var resp *proto.Provision_Response
-	if planRequest != nil {
-		vars, err := planVars(planRequest)
-		if err != nil {
-			return err
-		}
-
-		resp, err = e.plan(
-			ctx, killCtx, env, vars, sink,
-			config.Metadata.WorkspaceTransition == proto.WorkspaceTransition_DESTROY,
-		)
-		if err != nil {
-			if ctx.Err() != nil {
-				return stream.Send(&proto.Provision_Response{
-					Type: &proto.Provision_Response_Complete{
-						Complete: &proto.Provision_Complete{
-							Error: err.Error(),
-						},
-					},
-				})
-			}
-			return xerrors.Errorf("plan terraform: %w", err)
-		}
-		return stream.Send(resp)
+	vars, err := planVars(request)
+	if err != nil {
+		return provisionersdk.PlanErrorf("plan vars: %s", err)
 	}
-	// Must be apply
-	resp, err = e.apply(
-		ctx, killCtx, applyRequest.Plan, env, sink,
+
+	resp, err := e.plan(
+		ctx, killCtx, env, vars, sess,
+		request.Metadata.GetWorkspaceTransition() == proto.WorkspaceTransition_DESTROY,
+	)
+	if err != nil {
+		return provisionersdk.PlanErrorf(err.Error())
+	}
+	return resp
+}
+
+func (s *server) Apply(
+	sess *provisionersdk.Session, request *proto.ApplyRequest, canceledOrComplete <-chan struct{},
+) *proto.ApplyComplete {
+	ctx, span := s.startTrace(sess.Context(), tracing.FuncName())
+	defer span.End()
+	ctx, cancel, killCtx, kill := s.setupContexts(ctx, canceledOrComplete)
+	defer cancel()
+	defer kill()
+
+	e := s.executor(sess.WorkDirectory)
+	if err := e.checkMinVersion(ctx); err != nil {
+		return provisionersdk.ApplyErrorf(err.Error())
+	}
+	logTerraformEnvVars(sess)
+
+	// Exit early if there is no plan file. This is necessary to
+	// avoid any cases where a workspace is "locked out" of terraform due to
+	// e.g. bad template param values and cannot be deleted. This is just for
+	// contingency, in the future we will try harder to prevent workspaces being
+	// broken this hard.
+	if request.Metadata.GetWorkspaceTransition() == proto.WorkspaceTransition_DESTROY && len(sess.Config.State) == 0 {
+		sess.ProvisionLog(proto.LogLevel_INFO, "The terraform plan does not exist, there is nothing to do")
+		return &proto.ApplyComplete{}
+	}
+
+	// Earlier in the session, Plan() will have written the state file and the plan file.
+	statefilePath := getStateFilePath(sess.WorkDirectory)
+	env, err := provisionEnv(sess.Config, request.Metadata, nil, nil)
+	if err != nil {
+		return provisionersdk.ApplyErrorf("provision env: %s", err)
+	}
+	resp, err := e.apply(
+		ctx, killCtx, env, sess,
 	)
 	if err != nil {
 		errorMessage := err.Error()
 		// Terraform can fail and apply and still need to store it's state.
 		// In this case, we return Complete with an explicit error message.
 		stateData, _ := os.ReadFile(statefilePath)
-		return stream.Send(&proto.Provision_Response{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{
-					State: stateData,
-					Error: errorMessage,
-				},
-			},
-		})
+		return &proto.ApplyComplete{
+			State: stateData,
+			Error: errorMessage,
+		}
 	}
-	return stream.Send(resp)
+	return resp
 }
 
-func planVars(plan *proto.Provision_Plan) ([]string, error) {
+func planVars(plan *proto.PlanRequest) ([]string, error) {
 	vars := []string{}
 	for _, variable := range plan.VariableValues {
 		vars = append(vars, fmt.Sprintf("%s=%s", variable.Name, variable.Value))
@@ -201,18 +172,21 @@ func planVars(plan *proto.Provision_Plan) ([]string, error) {
 	return vars, nil
 }
 
-func provisionEnv(config *proto.Provision_Config, richParams []*proto.RichParameterValue, gitAuth []*proto.GitAuthProvider) ([]string, error) {
+func provisionEnv(
+	config *proto.Config, metadata *proto.Metadata,
+	richParams []*proto.RichParameterValue, gitAuth []*proto.GitAuthProvider,
+) ([]string, error) {
 	env := safeEnviron()
 	env = append(env,
-		"CODER_AGENT_URL="+config.Metadata.CoderUrl,
-		"CODER_WORKSPACE_TRANSITION="+strings.ToLower(config.Metadata.WorkspaceTransition.String()),
-		"CODER_WORKSPACE_NAME="+config.Metadata.WorkspaceName,
-		"CODER_WORKSPACE_OWNER="+config.Metadata.WorkspaceOwner,
-		"CODER_WORKSPACE_OWNER_EMAIL="+config.Metadata.WorkspaceOwnerEmail,
-		"CODER_WORKSPACE_OWNER_OIDC_ACCESS_TOKEN="+config.Metadata.WorkspaceOwnerOidcAccessToken,
-		"CODER_WORKSPACE_ID="+config.Metadata.WorkspaceId,
-		"CODER_WORKSPACE_OWNER_ID="+config.Metadata.WorkspaceOwnerId,
-		"CODER_WORKSPACE_OWNER_SESSION_TOKEN="+config.Metadata.WorkspaceOwnerSessionToken,
+		"CODER_AGENT_URL="+metadata.GetCoderUrl(),
+		"CODER_WORKSPACE_TRANSITION="+strings.ToLower(metadata.GetWorkspaceTransition().String()),
+		"CODER_WORKSPACE_NAME="+metadata.GetWorkspaceName(),
+		"CODER_WORKSPACE_OWNER="+metadata.GetWorkspaceOwner(),
+		"CODER_WORKSPACE_OWNER_EMAIL="+metadata.GetWorkspaceOwnerEmail(),
+		"CODER_WORKSPACE_OWNER_OIDC_ACCESS_TOKEN="+metadata.GetWorkspaceOwnerOidcAccessToken(),
+		"CODER_WORKSPACE_ID="+metadata.GetWorkspaceId(),
+		"CODER_WORKSPACE_OWNER_ID="+metadata.GetWorkspaceOwnerId(),
+		"CODER_WORKSPACE_OWNER_SESSION_TOKEN="+metadata.GetWorkspaceOwnerSessionToken(),
 	)
 	for key, value := range provisionersdk.AgentScriptEnv() {
 		env = append(env, key+"="+value)
@@ -258,10 +232,10 @@ func logTerraformEnvVars(sink logSink) {
 			if !tfEnvSafeToPrint[parts[0]] {
 				parts[1] = "<value redacted>"
 			}
-			sink.Log(&proto.Log{
-				Level:  proto.LogLevel_WARN,
-				Output: fmt.Sprintf("terraform environment variable: %s=%s", parts[0], parts[1]),
-			})
+			sink.ProvisionLog(
+				proto.LogLevel_WARN,
+				fmt.Sprintf("terraform environment variable: %s=%s", parts[0], parts[1]),
+			)
 		}
 	}
 }

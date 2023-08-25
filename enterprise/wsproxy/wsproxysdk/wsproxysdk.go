@@ -207,10 +207,11 @@ type RegisterWorkspaceProxyRequest struct {
 }
 
 type RegisterWorkspaceProxyResponse struct {
-	AppSecurityKey string           `json:"app_security_key"`
-	DERPMeshKey    string           `json:"derp_mesh_key"`
-	DERPRegionID   int32            `json:"derp_region_id"`
-	DERPMap        *tailcfg.DERPMap `json:"derp_map"`
+	AppSecurityKey      string           `json:"app_security_key"`
+	DERPMeshKey         string           `json:"derp_mesh_key"`
+	DERPRegionID        int32            `json:"derp_region_id"`
+	DERPMap             *tailcfg.DERPMap `json:"derp_map"`
+	DERPForceWebSockets bool             `json:"derp_force_websockets"`
 	// SiblingReplicas is a list of all other replicas of the proxy that have
 	// not timed out.
 	SiblingReplicas []codersdk.Replica `json:"sibling_replicas"`

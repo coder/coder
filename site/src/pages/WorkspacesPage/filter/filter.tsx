@@ -47,8 +47,8 @@ export const WorkspacesFilter = ({
   const presets = [...PRESET_FILTERS]
   if (useIsWorkspaceActionsEnabled()) {
     presets.push({
-      query: workspaceFilterQuery.locked,
-      name: "Locked workspaces",
+      query: workspaceFilterQuery.dormant,
+      name: "Dormant workspaces",
     })
   }
 

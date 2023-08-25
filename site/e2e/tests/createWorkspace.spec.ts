@@ -21,7 +21,7 @@ test("create workspace", async ({ page }) => {
   const template = await createTemplate(page, {
     apply: [
       {
-        complete: {
+        apply: {
           resources: [
             {
               name: "example",

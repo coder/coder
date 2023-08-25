@@ -20,7 +20,7 @@ test("app", async ({ context, page }) => {
   const template = await createTemplate(page, {
     apply: [
       {
-        complete: {
+        apply: {
           resources: [
             {
               agents: [

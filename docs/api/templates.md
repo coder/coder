@@ -50,8 +50,6 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "failure_ttl_ms": 0,
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "inactivity_ttl_ms": 0,
-    "locked_ttl_ms": 0,
     "max_ttl_ms": 0,
     "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -60,6 +58,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
       "days_of_week": ["monday"],
       "weeks": 0
     },
+    "time_til_dormant_autodelete_ms": 0,
+    "time_til_dormant_ms": 0,
     "updated_at": "2019-08-24T14:15:22Z"
   }
 ]
@@ -93,11 +93,9 @@ Status Code **200**
 | `» default_ttl_ms`                                                                    | integer                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» description`                                                                       | string                                                                               | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» display_name`                                                                      | string                                                                               | false    |              |                                                                                                                                                                                                                                                                                                                |
-| `» failure_ttl_ms`                                                                    | integer                                                                              | false    |              | Failure ttl ms InactivityTTLMillis, and LockedTTLMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature.                                                                                                                                |
+| `» failure_ttl_ms`                                                                    | integer                                                                              | false    |              | Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature.                                                                                                                |
 | `» icon`                                                                              | string                                                                               | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» id`                                                                                | string(uuid)                                                                         | false    |              |                                                                                                                                                                                                                                                                                                                |
-| `» inactivity_ttl_ms`                                                                 | integer                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                |
-| `» locked_ttl_ms`                                                                     | integer                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» max_ttl_ms`                                                                        | integer                                                                              | false    |              | Max ttl ms remove max_ttl once restart_requirement is matured                                                                                                                                                                                                                                                  |
 | `» name`                                                                              | string                                                                               | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» organization_id`                                                                   | string(uuid)                                                                         | false    |              |                                                                                                                                                                                                                                                                                                                |
@@ -106,6 +104,8 @@ Status Code **200**
 | `»» days_of_week`                                                                     | array                                                                                | false    |              | »days of week is a list of days of the week on which restarts are required. Restarts happen within the user's quiet hours (in their configured timezone). If no days are specified, restarts are not required. Weekdays cannot be specified twice.                                                             |
 | Restarts will only happen on weekdays in this list on weeks which line up with Weeks. |
 | `»» weeks`                                                                            | integer                                                                              | false    |              | Weeks is the number of weeks between required restarts. Weeks are synced across all workspaces (and Coder deployments) using modulo math on a hardcoded epoch week of January 2nd, 2023 (the first Monday of 2023). Values of 0 or 1 indicate weekly restarts. Values of 2 indicate fortnightly restarts, etc. |
+| `» time_til_dormant_autodelete_ms`                                                    | integer                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                |
+| `» time_til_dormant_ms`                                                               | integer                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                |
 | `» updated_at`                                                                        | string(date-time)                                                                    | false    |              |                                                                                                                                                                                                                                                                                                                |
 
 #### Enumerated Values
@@ -138,13 +138,13 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
   "default_ttl_ms": 0,
+  "delete_ttl_ms": 0,
   "description": "string",
   "disable_everyone_group_access": true,
   "display_name": "string",
+  "dormant_ttl_ms": 0,
   "failure_ttl_ms": 0,
   "icon": "string",
-  "inactivity_ttl_ms": 0,
-  "locked_ttl_ms": 0,
   "max_ttl_ms": 0,
   "name": "string",
   "restart_requirement": {
@@ -192,8 +192,6 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "inactivity_ttl_ms": 0,
-  "locked_ttl_ms": 0,
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -202,6 +200,8 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
     "days_of_week": ["monday"],
     "weeks": 0
   },
+  "time_til_dormant_autodelete_ms": 0,
+  "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
@@ -324,8 +324,6 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "inactivity_ttl_ms": 0,
-  "locked_ttl_ms": 0,
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -334,6 +332,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "days_of_week": ["monday"],
     "weeks": 0
   },
+  "time_til_dormant_autodelete_ms": 0,
+  "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
@@ -629,8 +629,6 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "inactivity_ttl_ms": 0,
-  "locked_ttl_ms": 0,
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -639,6 +637,8 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
     "days_of_week": ["monday"],
     "weeks": 0
   },
+  "time_til_dormant_autodelete_ms": 0,
+  "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
@@ -744,8 +744,6 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "inactivity_ttl_ms": 0,
-  "locked_ttl_ms": 0,
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -754,6 +752,8 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
     "days_of_week": ["monday"],
     "weeks": 0
   },
+  "time_til_dormant_autodelete_ms": 0,
+  "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
 }
 ```

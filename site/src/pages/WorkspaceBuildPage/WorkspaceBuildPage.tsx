@@ -8,7 +8,6 @@ import { WorkspaceBuildPageView } from "./WorkspaceBuildPageView"
 import { useQuery } from "@tanstack/react-query"
 import { getWorkspaceBuilds } from "api/api"
 import dayjs from "dayjs"
-import { usePermissions } from "hooks"
 
 export const WorkspaceBuildPage: FC = () => {
   const params = useParams() as {
@@ -33,7 +32,6 @@ export const WorkspaceBuildPage: FC = () => {
     },
     enabled: Boolean(build),
   })
-  const permissions = usePermissions()
 
   useEffect(() => {
     send("RESET", { buildNumber, timeCursor: new Date() })
@@ -56,7 +54,6 @@ export const WorkspaceBuildPage: FC = () => {
         build={build}
         builds={builds}
         activeBuildNumber={buildNumber}
-        hasDeploymentBanner={permissions.viewDeploymentStats}
       />
     </>
   )
